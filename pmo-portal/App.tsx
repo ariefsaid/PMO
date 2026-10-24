@@ -28,6 +28,7 @@ import {
   agentEntityForPath,
   breadcrumbForPath,
   recordLabelForPath,
+  recordContractualNameForPath,
   recordStatusGroupForPath,
   deriveRailActiveOverride,
 } from '@/src/components/shell';
@@ -331,7 +332,7 @@ export const ShellChrome: React.FC = () => {
       projects,
       opportunities,
     });
-    return breadcrumbForPath(
+    const parts = breadcrumbForPath(
       pathname,
       recordLabel,
       breadcrumbNavigate,
@@ -343,6 +344,10 @@ export const ShellChrome: React.FC = () => {
       // render-level fallback for direct mounts without the router location.
       location.search,
     );
+    const contractualName = recordContractualNameForPath(pathname, cachedLists);
+    if (!contractualName || parts.length === 0) return parts;
+    const current = parts.length - 1;
+    return parts.map((part, index) => index === current ? { ...part, title: contractualName } : part);
   }, [
     pathname,
     location.search,

@@ -125,6 +125,22 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(within(card).getByTestId('foot-slot')).toBeInTheDocument();
   });
 
+  it('AC-002 #1325: short-first grid and kanban titles disclose contractual name and retain one activation target', () => {
+    const { rerender } = render(<ProjectCardShell {...baseProps} name="Harbor Operations" contractualName="Contractual Harbor Works" onOpen={vi.fn()} />);
+    const gridButton = screen.getByRole('button', { name: 'Harbor Operations' });
+    expect(gridButton).toHaveAttribute('title', 'Contractual Harbor Works');
+    expect(gridButton).toHaveAccessibleDescription('Contractual Harbor Works');
+    expect(within(screen.getByTestId('project-card')).queryByRole('button')).toBe(gridButton);
+    rerender(<ProjectCardShell {...baseProps} name="Harbor Operations" contractualName="Contractual Harbor Works" variant="kanban" onOpen={vi.fn()} />);
+    const kanbanButton = screen.getByRole('button', { name: /Harbor Operations/ });
+    expect(within(kanbanButton).getByTitle('Contractual Harbor Works')).toHaveTextContent('Harbor Operations');
+    expect(kanbanButton).toHaveAccessibleDescription('Contractual Harbor Works');
+    expect(within(kanbanButton).queryByRole('button')).toBeNull();
+    rerender(<ProjectCardShell {...baseProps} name="Harbor Operations" variant="kanban" />);
+    expect(screen.getByTitle('Harbor Operations')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Harbor Operations/ })).toHaveAccessibleDescription('');
+  });
+
   it('AC-KTR-003: activates one Kanban card for click, Enter, and Space without nested buttons', async () => {
     const user = userEvent.setup();
     const onOpen = vi.fn();

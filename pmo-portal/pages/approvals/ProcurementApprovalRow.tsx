@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 /**
  * AC-IFW-PROC-01 / AC-IFW-PROC-02
  *
@@ -128,7 +129,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 <span>·</span>
                 <ProjectNameLink
                   projectId={row.project_id}
-                  name={row.project?.name ?? null}
+                  name={row.project ? projectDisplayName(row.project) : null}
+                  legalName={row.project?.name}
                   className="text-[12px]"
                 />
                 <span>·</span>
@@ -173,7 +175,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               <DecisionSupportPanel
                 projectId={detail.data.project_id}
                 totalValue={detail.data.total_value}
-                projectName={detail.data.project?.name}
+                projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
+                projectLegalName={detail.data.project?.name}
                 status={detail.data.status}
                 currency={detail.data.currency}
               />
@@ -222,8 +225,8 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                     <dt className="text-[11px] uppercase tracking-[0.06em] text-muted-foreground">
                       Project
                     </dt>
-                    <dd className="mt-1 text-[13px] font-medium">
-                      {row.project?.name ?? 'No project linked'}
+                    <dd className="mt-1 text-[13px] font-medium" title={row.project && projectDisplayName(row.project) !== row.project.name ? row.project.name : undefined}>
+                      {row.project ? projectDisplayName(row.project) : 'No project linked'}
                     </dd>
                   </div>
                   <div className="rounded-lg border border-border/70 px-3 py-2">
@@ -290,7 +293,8 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         <span className="block whitespace-nowrap font-mono">{row.code ?? row.id.slice(0, 8)}</span>
         <ProjectNameLink
           projectId={row.project_id}
-          name={row.project?.name ?? null}
+          name={row.project ? projectDisplayName(row.project) : null}
+          legalName={row.project?.name}
           className="block whitespace-normal break-words text-xs"
         />
       </span>

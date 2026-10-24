@@ -18,6 +18,7 @@ import {
   useEntityForm,
 } from '@/src/components/ui';
 import { Constants } from '@/src/lib/supabase/database.types';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
@@ -48,6 +49,11 @@ import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPosting
 
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
 
+/** AC-CAT-005: the categories added after the original seven are translated here; the seven keep their names. */
+const TRANSLATED_HERE: readonly string[] = ['Special expenses', 'Travel & accommodation', 'Vehicle'];
+const accountMapCategoryLabel = (value: string, t: (key: string, fallback: string) => string) =>
+  TRANSLATED_HERE.includes(value) ? budgetCategoryLabel(value, t) : value;
+
 interface FormValues {
   erpAccount: string;
 }
@@ -59,8 +65,7 @@ type FormTarget =
 
 const BudgetAccountMap: React.FC = () => {
   const { t } = useTranslation();
-  const categoryLabel = (value: string) => value === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : value;
+  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
@@ -454,8 +459,7 @@ interface MapFormModalProps {
 
 const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRows, catalogueAccounts, submitError, onClose, onSubmit }) => {
   const { t } = useTranslation();
-  const categoryLabel = (value: string) => value === 'Special expenses'
-    ? t('budget.category.specialExpenses', 'Special expenses') : value;
+  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
   const isEdit = target.mode === 'edit';
   const category = target.mode === 'edit' ? target.row.category : target.category;
   const editingId = target.mode === 'edit' ? target.row.id : null;

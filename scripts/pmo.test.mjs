@@ -17,6 +17,9 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  ADMIN_RPCS,
+  OPERATOR_READ_RPCS,
+  OPERATOR_READ_TABLES,
   ALLOWED_RPCS,
   ALLOWED_TABLES,
   READ_ONLY_TABLES,
@@ -287,6 +290,7 @@ test('AC-CLI-008: login completes with PKCE, stores the session, and never print
     const saved = readCredentials({ PMO_CONFIG_DIR: configDir }, fake.url);
     assert.equal(saved.refresh_token, 'refresh-1');
     assert.equal(saved.client_id, 'client-1');
+    assert.equal(saved.publishable_key, 'test-publishable-key');
     const exchange = fake.requests.find((q) => q.path === '/auth/v1/oauth/token');
     const form = new URLSearchParams(exchange.body);
     assert.equal(form.get('grant_type'), 'authorization_code');
@@ -933,7 +937,10 @@ test('AC-CLI-009: RPCs outside the allow-list are refused — no money, transiti
 // ── AC-CLI-014: profiles, read-only and narrowed ─────────────────────────────────────────────────
 
 test('AC-CLI-014: profiles is readable only, through a fixed set of non-sensitive columns', () => {
-  assert.deepEqual(Object.keys(READ_ONLY_TABLES), ['profiles', 'external_domain_ownership']);
+  const sweepsOnly = ['m365_record_folder_sweeps']; // read by `pmo m365 status` with a fixed select, not through `pmo get`
+  assert.deepEqual(
+    Object.keys(READ_ONLY_TABLES).sort(),
+    ['profiles', 'external_domain_ownership', ...OPERATOR_READ_TABLES.filter((t) => !sweepsOnly.includes(t))].sort());
   assert.deepEqual(READ_ONLY_TABLES.profiles, ['id', 'full_name', 'role', 'title', 'status']);
   assert.equal(ALLOWED_TABLES.includes('profiles'), false, 'profiles is not writable');
 });
@@ -1004,7 +1011,7 @@ test('AC-CLI-014: profiles cannot be created or updated from the CLI', async () 
 // ── AC-CLI-007: no delete ────────────────────────────────────────────────────────────────────────
 
 test('AC-CLI-007: the CLI offers no delete — no verb, no DELETE request, a clear refusal', async () => {
-  assert.deepEqual([...COMMANDS].sort(), ['create', 'get', 'load', 'login', 'logout', 'rpc', 'update', 'whoami']);
+  assert.deepEqual([...COMMANDS].sort(), ['accounts', 'budgets', 'create', 'documents', 'erp', 'get', 'load', 'login', 'logout', 'm365', 'purchases', 'rpc', 'update', 'whoami']);
   const fake = await fakeSupabase();
   const configDir = tmpDir();
   try {
@@ -1112,8 +1119,36 @@ function guardList(name) {
 
 test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration defining api_client_request_guard)', () => {
   assert.deepEqual(guardList('write_tables'), [...ALLOWED_TABLES].sort());
-  assert.deepEqual(guardList('read_only_tables'), Object.keys(READ_ONLY_TABLES).sort());
+  assert.deepEqual(guardList('read_only_tables'), ['external_domain_ownership', 'profiles']);
+  assert.deepEqual(guardList('operator_read_tables'), [...OPERATOR_READ_TABLES].sort());
+  assert.deepEqual(guardList('operator_read_rpcs'), [...OPERATOR_READ_RPCS].sort());
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
+});
+
+test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
+  assert.deepEqual(guardList('admin_cli_rpcs'), [...ADMIN_RPCS].sort());
+  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines']);
+  for (const name of ADMIN_RPCS) {
+    assert.equal(ALLOWED_RPCS.includes(name), false, `${name} is Admin-only, not in the ordinary tier`);
+    assert.equal(LOAD_RPCS.includes(name), false, `${name} is not a load-only RPC`);
+  }
+});
+
+test('AC-TVC-007: pmo rpc recategorise_budget_lines posts the lines and target category unchanged', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const args = { p_line_ids: ['l1', 'l2'], p_category: 'Vehicle' };
+    const r = await runCli(['rpc', 'recategorise_budget_lines', JSON.stringify(args), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const call = fake.requests.find((q) => q.path === '/rest/v1/rpc/recategorise_budget_lines');
+    assert.equal(call.method, 'POST');
+    assert.deepEqual(JSON.parse(call.body), args);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
 });
 
 test('AC-CQ-018: contract lines are in the load tier only, never the ordinary allow-list', () => {
@@ -1158,6 +1193,170 @@ test('AC-EC-004 projects accept end_client_id and send it in the body like any p
 });
 
 
+test('operator commands call only the intended ERP, document-link, and M365 read surfaces', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, res, body }) => {
+    if (url.pathname === '/functions/v1/external-set-company') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(url.searchParams.get('x') ? {} : { ok: true, projects: [] })); return true;
+    }
+    if (url.pathname === '/rest/v1/rpc/link_m365_documents_batch') {
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ dry_run: JSON.parse(body || '{}').p_dry_run })); return true;
+    }
+    if (url.pathname === '/functions/v1/m365-token-custody') {
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ connected: false })); return true;
+    }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const link = await runCli(['documents', 'link', '-', '--dry-run', '--url', fake.url], { configDir, stdin: (async function* () { yield '[{"project_id":"00000000-0000-0000-0000-000000000001","drive_id":"d","item_id":"i","web_url":"https://example.test/item","name":"Folder","kind":"folder"}]'; })() });
+    assert.equal(link.code, 0, link.err);
+    const linkCall = fake.requests.find((r) => r.path === '/rest/v1/rpc/link_m365_documents_batch');
+    assert.equal(JSON.parse(linkCall.body).p_dry_run, true);
+    assert.equal(JSON.parse(linkCall.body).p_rows.length, 1);
+    const list = await runCli(['documents', 'list', '--project', '00000000-0000-0000-0000-000000000001', '--url', fake.url], { configDir });
+    assert.equal(list.code, 0, list.err);
+    assert.equal(fake.requests.some((r) => r.path === '/rest/v1/project_documents'), true);
+    const status = await runCli(['m365', 'status', '--url', fake.url], { configDir });
+    assert.equal(status.code, 0, status.err);
+    assert.equal(status.json.connection.connected, false);
+    const readiness = await runCli(['erp', 'readiness', '--url', fake.url], { configDir });
+    assert.equal(readiness.code, 0, readiness.err);
+    assert.equal(fake.requests.some((r) => r.path === '/functions/v1/external-set-company'), true);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('operator reads: budget lines are readable, the stored login key replaces PMO_SUPABASE_KEY, writes stay refused', async () => {
+  const fake = await fakeSupabase(); const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url, { publishable_key: 'stored-key' });
+    const r = await runCli(['get', 'budget_line_items', '--url', fake.url], { configDir, env: { PMO_SUPABASE_KEY: undefined } });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.find((x) => x.path === '/rest/v1/budget_line_items');
+    assert.equal(q.headers.apikey, 'stored-key');
+    assert.match(q.search, /select=id%2Cbudget_version_id%2Ccategory/);
+    const w = await runCli(['create', 'budget_line_items', '{}', '--url', fake.url], { configDir });
+    assert.equal(w.code, 2);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('erp verify-links sends the verify-links setup action; unknown actions are refused before any request', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, res }) => {
+    if (url.pathname === '/functions/v1/external-set-company') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ checked: 1, mismatches: [] })); return true; }
+    return false;
+  } });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const ok = await runCli(['erp', 'verify-links', '--url', fake.url], { configDir });
+    assert.equal(ok.code, 0, ok.err);
+    assert.deepEqual(ok.json, { checked: 1, mismatches: [] });
+    assert.deepEqual(JSON.parse(fake.requests.find((x) => x.path === '/functions/v1/external-set-company').body), { tier: 'erpnext', setupAction: 'verify-links' });
+    const before = fake.requests.length;
+    const bad = await runCli(['erp', 'save-defaults', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2); assert.equal(fake.requests.length, before);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('documents link reads a CSV file, sends one batch, and rejects unknown columns before any request', async () => {
+  const fake = await fakeSupabase({ handler: ({ url, res }) => {
+    if (url.pathname === '/rest/v1/rpc/link_m365_documents_batch') { res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify({ dry_run: false, results: [] })); return true; }
+    return false;
+  } });
+  const configDir = tmpDir(); const file = path.join(configDir, 'links.csv'); const bad = path.join(configDir, 'bad.csv');
+  try {
+    seedCredentials(configDir, fake.url);
+    fs.writeFileSync(file, 'project_id,drive_id,item_id,web_url,name,kind\n00000000-0000-0000-0000-000000000001,d,i,https://example.test/x,Plan,file\n');
+    const ok = await runCli(['documents', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(ok.code, 0, ok.err);
+    const body = JSON.parse(fake.requests.find((x) => x.path === '/rest/v1/rpc/link_m365_documents_batch').body);
+    assert.equal(body.p_dry_run, false);
+    assert.deepEqual(body.p_rows, [{ project_id: '00000000-0000-0000-0000-000000000001', drive_id: 'd', item_id: 'i', web_url: 'https://example.test/x', name: 'Plan', kind: 'file' }]);
+    fs.writeFileSync(bad, 'project_id,secret\nx,y\n');
+    const before = fake.requests.length;
+    const refused = await runCli(['documents', 'link', bad, '--url', fake.url], { configDir });
+    assert.equal(refused.code, 2); assert.equal(fake.requests.length, before);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('privileged keys are refused from every source and never saved', async () => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const serviceJwt = `${b64({ alg: 'HS256' })}.${b64({ role: 'service_role' })}.sig`;
+  const anonJwt = `${b64({ alg: 'HS256' })}.${b64({ role: 'anon' })}.sig`;
+  const fake = await fakeSupabase(); const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    for (const [label, argv, env] of [
+      ['secret key in env', ['get', 'projects'], { PMO_SUPABASE_KEY: 'sb_secret_abc' }],
+      ['service_role jwt in env', ['get', 'projects'], { PMO_SUPABASE_KEY: serviceJwt }],
+      ['service_role jwt via --key', ['get', 'projects', '--key', serviceJwt], {}],
+      ['secret key at login', ['login', '--no-browser', '--timeout', '1'], { PMO_SUPABASE_KEY: 'sb_secret_abc' }],
+    ]) {
+      const r = await runCli([...argv, '--url', fake.url], { configDir, env });
+      assert.equal(r.code, 2, label);
+      assert.match(r.err, /secret \(service-role\) key/, label);
+    }
+    assert.equal(fake.requests.length, 0, 'nothing was sent with a privileged key');
+    seedCredentials(configDir, fake.url, { publishable_key: serviceJwt });
+    const stored = await runCli(['get', 'projects', '--url', fake.url], { configDir, env: { PMO_SUPABASE_KEY: undefined } });
+    assert.equal(stored.code, 2, 'a stored privileged key is refused too');
+    seedCredentials(configDir, fake.url);
+    const ok = await runCli(['get', 'projects', '--url', fake.url], { configDir, env: { PMO_SUPABASE_KEY: anonJwt } });
+    assert.equal(ok.code, 0, ok.err);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('documents link validates all targets and refuses malformed rows before network calls', async () => {
+  const fake = await fakeSupabase(); const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['documents','link','[{"project_id":"p","budget_version_id":"b","drive_id":"d","item_id":"i","web_url":"x","name":"n","kind":"file"}]','--url',fake.url], { configDir });
+    assert.equal(r.code, 2); assert.equal(fake.requests.length, 0);
+  } finally { await fake.close(); fs.rmSync(configDir, { recursive: true, force: true }); }
+});
+
+test('AC-004 #1325: project short names travel independently through authenticated create, select, filtered update and clear', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const create = await runCli(['create', 'projects', JSON.stringify({ name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' }), '--url', fake.url], { configDir });
+    assert.equal(create.code, 0, create.err);
+    assert.deepEqual(create.json, [{ name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' }]);
+    const created = fake.requests.find((call) => call.method === 'POST' && call.path === '/rest/v1/projects');
+    assert.deepEqual(JSON.parse(created.body), { name: 'Contractual Delivery Title', status: 'Leads', short_name: 'Depot' });
+
+    const get = await runCli(['get', 'projects', '--select', 'id,name,short_name', '--filter', 'id=eq.project-1', '--url', fake.url], { configDir });
+    assert.equal(get.code, 0, get.err);
+    assert.deepEqual(get.json, [{ id: 'row-1' }]);
+    const selected = fake.requests.find((call) => call.method === 'GET' && call.path === '/rest/v1/projects');
+    const selectedParams = new URLSearchParams(selected.search);
+    assert.equal(selectedParams.get('select'), 'id,name,short_name');
+    assert.equal(selectedParams.get('id'), 'eq.project-1');
+
+    const update = await runCli(['update', 'projects', '--filter', 'id=in.(project-1,project-2)', '{"short_name":"Depot Two"}', '--url', fake.url], { configDir });
+    assert.equal(update.code, 0, update.err);
+    assert.deepEqual(update.json, [{ short_name: 'Depot Two' }]);
+    const patch = fake.requests.find((call) => call.method === 'PATCH' && call.path === '/rest/v1/projects');
+    assert.equal(new URLSearchParams(patch.search).get('id'), 'in.(project-1,project-2)');
+    assert.deepEqual(JSON.parse(patch.body), { short_name: 'Depot Two' });
+    assert.equal(Object.hasOwn(JSON.parse(patch.body), 'name'), false);
+
+    const clear = await runCli(['update', 'projects', '--filter', 'id=eq.project-1', '{"short_name":null}', '--url', fake.url], { configDir });
+    assert.equal(clear.code, 0, clear.err);
+    assert.deepEqual(clear.json, [{ short_name: null }]);
+    assert.deepEqual(JSON.parse(fake.requests.findLast((call) => call.method === 'PATCH').body), { short_name: null });
+
+    const denied = await runCli(['update', 'projects', '--filter', 'id=eq.missing', '{"short_name":"No row"}', '--url', fake.url], { configDir });
+    assert.equal(denied.code, 1);
+    assert.match(denied.errJson.error.message, /No row was updated/i);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
 test('company short name crosses the CLI write seam separately from its legal name (references AC-NICK-003)', async () => {
   const fake = await fakeSupabase();
   const configDir = tmpDir();
@@ -1184,7 +1383,6 @@ test('AC-CSD-016: get/create/rpc refuse the load tier before any request and poi
       ['rpc', 'transition_project', '{}'],
       ['rpc', 'set_project_contract_value', '{}'],
       ['create', 'budget_versions', '{}'],
-      ['get', 'budget_line_items'],
       // AC-CQ-018: contract lines (boq_items) are load-only too — no generic get/create/update.
       ['get', 'boq_items'],
       ['create', 'boq_items', '{}'],
@@ -1192,9 +1390,9 @@ test('AC-CSD-016: get/create/rpc refuse the load tier before any request and poi
     ]) {
       const r = await runCli([...argv, '--url', fake.url], { configDir });
       assert.equal(r.code, 2, argv.join(' '));
-      assert.match(r.errJson.error.message, /not available/i);
-      assert.match(r.errJson.error.message, /pmo load/);
-      if (/boq_items|budget_/.test(argv[1] ?? '') && !argv[0].startsWith('rpc')) {
+      assert.match(r.errJson.error.message, /not available|read-only/i);
+      if (argv[1] === 'boq_items' || argv[0] === 'rpc') assert.match(r.errJson.error.message, /pmo load/);
+      if (/boq_items/.test(argv[1] ?? '') && !argv[0].startsWith('rpc')) {
         assert.match(r.errJson.error.message, /draft budgets and contract lines/);
       }
     }
@@ -1459,6 +1657,310 @@ test('AC-CQ-017: a refused contract-line write ends pmo load with exit 1 and the
     assert.deepEqual(r.errJson.error.details.failed, { kind: 'contract_line.create', key: 'ORG-001', line_key: 'B' });
     assert.deepEqual(r.errJson.error.details.done.filter((a) => a.kind === 'contract_line.create').map((a) => a.line_key), ['A']);
     assert.equal(fake.requests.filter((q) => q.path === '/rest/v1/boq_items' && q.method === 'POST').length, 2, 'C never attempted');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+// ── #1319 pmo purchases (AC-PFE-011) ─────────────────────────────────────────────────────────────
+
+/** The link RPC answers every row 'link'; records each body it was sent. */
+const linkRpc = (bodies) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/link_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    send(200, { dry_run: b.p_dry_run, counts: { link: b.p_rows.length, skip: 0, refused: 0 },
+      results: b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: 'link', reason: null })) });
+    return true;
+  }
+  return false;
+};
+
+test('AC-PFE-011: pmo purchases link --dry-run posts p_dry_run true and prints the outcome per row', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: 'PINV-1', project_id: '11111111-1111-1111-1111-111111111111' }]));
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    assert.equal(bodies[0].p_dry_run, true);
+    assert.deepEqual(bodies[0].p_rows, [{ erp_name: 'PINV-1', project_id: '11111111-1111-1111-1111-111111111111' }]);
+    assert.match(r.out, /"outcome": "link"/);
+    assert.deepEqual(r.json.counts, { link: 1, skip: 0, refused: 0 });
+    assert.deepEqual(fake.requests.map((q) => `${q.method} ${q.path}`), ['POST /rest/v1/rpc/link_erp_purchase_documents']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: pmo purchases link of a CSV file posts the same rows with p_dry_run false (dry run differs only in the flag)', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.csv');
+    fs.writeFileSync(file, 'erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind\n'
+      + 'Purchase Invoice,PINV-1,,11111111-1111-1111-1111-111111111111,,,,,,,,\n'
+      + ',PINV-2,22222222-2222-2222-2222-222222222222,,,,,d1,f1,https://example.sharepoint.com/f,F,folder\n');
+    const dry = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    const real = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(real.code, 0, real.err);
+    assert.deepEqual(bodies.map((b) => b.p_dry_run), [true, false]);
+    assert.deepEqual(bodies[0].p_rows, bodies[1].p_rows);
+    assert.deepEqual(bodies[1].p_rows[1].sharepoint, { drive_id: 'd1', item_id: 'f1', web_url: 'https://example.sharepoint.com/f', name: 'F', kind: 'folder' });
+    assert.deepEqual(real.json.results.map((x) => [x.row, x.erp_name, x.outcome]), [[1, 'PINV-1', 'link'], [2, 'PINV-2', 'link']]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: an invalid link file lists every problem and sends nothing', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: '' }, { erp_name: 'X', procurement_id: 'p', project_id: 'q' }]));
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_link_file');
+    assert.equal(r.errJson.error.details.length, 2);
+    assert.deepEqual(fake.requests, []);
+    const missing = await runCli(['purchases', 'link', '--url', fake.url], { configDir });
+    assert.equal(missing.code, 2);
+    const unreadable = await runCli(['purchases', 'link', path.join(configDir, 'nope.csv'), '--url', fake.url], { configDir });
+    assert.equal(unreadable.code, 2);
+    assert.match(unreadable.errJson.error.message, /Could not read/);
+    const unknown = await runCli(['purchases', 'delete', '--url', fake.url], { configDir });
+    assert.equal(unknown.code, 2);
+    assert.deepEqual(fake.requests, []);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: pmo purchases link reads CSV from stdin with --csv', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const stdin = (async function* () { yield 'erp_name,project_id\nPINV-7,11111111-1111-1111-1111-111111111111\n'; })();
+    const r = await runCli(['purchases', 'link', '-', '--csv', '--dry-run', '--url', fake.url], { configDir, stdin });
+    assert.equal(r.code, 0, r.err);
+    assert.deepEqual(bodies[0].p_rows, [{ erp_name: 'PINV-7', project_id: '11111111-1111-1111-1111-111111111111' }]);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('FR-PFE-060: pmo purchases orphans reads the orphan view, filtered by project and limited', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['purchases', 'orphans', '--project', '11111111-1111-1111-1111-111111111111', '--limit', '20', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'GET /rest/v1/erp_purchase_orphans');
+    const params = new URLSearchParams(q.search);
+    assert.equal(params.get('project_ids'), 'cs.{11111111-1111-1111-1111-111111111111}');
+    assert.equal(params.get('limit'), '20');
+    assert.match(params.get('select'), /^id,erp_doctype,erp_name,/);
+    const bad = await runCli(['purchases', 'orphans', '--limit', '0', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2);
+    const badProject = await runCli(['purchases', 'orphans', '--project', 'x}', '--url', fake.url], { configDir });
+    assert.equal(badProject.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-13c: pmo purchases orphans --include-set-aside reads the include list and selects the flag and note', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const r = await runCli(['purchases', 'orphans', '--include-set-aside', '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'GET /rest/v1/erp_purchase_orphans_all');
+    assert.match(new URLSearchParams(q.search).get('select'), /,set_aside,note$/);
+    await runCli(['purchases', 'orphans', '--url', fake.url], { configDir });
+    assert.equal(fake.requests.at(-1).path, '/rest/v1/erp_purchase_orphans', 'the default list is unchanged');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+/** The set-aside RPC answers every row 'apply' (or 'refused' for BAD*); records each body. */
+const markRpc = (bodies) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/mark_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    const results = b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name,
+      outcome: r.erp_name.startsWith('BAD') ? 'refused' : 'apply', reason: r.erp_name.startsWith('BAD') ? 'document_linked' : null }));
+    send(200, { dry_run: b.p_dry_run, action: b.p_action, counts: { apply: results.filter((x) => x.outcome === 'apply').length, skip: 0,
+      refused: results.filter((x) => x.outcome === 'refused').length }, results });
+    return true;
+  }
+  return false;
+};
+
+test('AC-13c: pmo purchases set-aside posts CSV rows; --undo sends undo; --dry-run sends p_dry_run true', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: markRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'overhead.csv');
+    fs.writeFileSync(file, 'erp_doctype,erp_name,note\nPurchase Invoice,PINV-1,Rent\n,PINV-2,\n');
+    const dry = await runCli(['purchases', 'set-aside', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    assert.equal(bodies[0].p_dry_run, true);
+    assert.equal(bodies[0].p_action, 'set_aside');
+    assert.deepEqual(bodies[0].p_rows, [{ erp_doctype: 'Purchase Invoice', erp_name: 'PINV-1', note: 'Rent' }, { erp_name: 'PINV-2' }]);
+    assert.deepEqual(dry.json.counts, { apply: 2, skip: 0, refused: 0 });
+    const undoFile = path.join(configDir, 'undo.json');
+    fs.writeFileSync(undoFile, JSON.stringify([{ erp_name: 'PINV-1' }]));
+    const undo = await runCli(['purchases', 'set-aside', undoFile, '--undo', '--url', fake.url], { configDir });
+    assert.equal(undo.code, 0, undo.err);
+    assert.equal(bodies[1].p_action, 'undo');
+    assert.equal(bodies[1].p_dry_run, false);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-13c: pmo purchases set-aside refuses a bad file before sending, and exits 1 on a refused row of a real run', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: markRpc(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const bad = path.join(configDir, 'bad.csv');
+    fs.writeFileSync(bad, 'erp_name,notes\nPINV-1,x\n');
+    const r = await runCli(['purchases', 'set-aside', bad, '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.match(r.err, /invalid_set_aside_file/);
+    const withNote = path.join(configDir, 'note.json');
+    fs.writeFileSync(withNote, JSON.stringify([{ erp_name: 'A', note: 'x' }]));
+    assert.equal((await runCli(['purchases', 'set-aside', withNote, '--undo', '--url', fake.url], { configDir })).code, 2);
+    assert.equal((await runCli(['purchases', 'set-aside', '--url', fake.url], { configDir })).code, 2);
+    assert.equal(bodies.length, 0, 'nothing was sent');
+    const mixed = path.join(configDir, 'mixed.json');
+    fs.writeFileSync(mixed, JSON.stringify([{ erp_name: 'PINV-1' }, { erp_name: 'BAD-2' }]));
+    const dry = await runCli(['purchases', 'set-aside', mixed, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    const real = await runCli(['purchases', 'set-aside', mixed, '--url', fake.url], { configDir });
+    assert.equal(real.code, 1);
+    assert.deepEqual(real.json.results.map((x) => x.reason), [null, 'document_linked']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('FR-PFE-060: pmo purchases link-file posts one SharePoint item (a folder stays a folder)', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const item = { drive_id: 'd1', item_id: 'f1', web_url: 'https://example.sharepoint.com/f', name: 'F', kind: 'folder' };
+    const r = await runCli(['purchases', 'link-file', JSON.stringify({ procurement_id: 'p1', item }), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const q = fake.requests.at(-1);
+    assert.equal(`${q.method} ${q.path}`, 'POST /rest/v1/rpc/link_procurement_sharepoint_item');
+    assert.deepEqual(JSON.parse(q.body), { p_procurement_id: 'p1', p_record_kind: null, p_record_id: null, p_item: item });
+    const bad = await runCli(['purchases', 'link-file', '{"item":{}}', '--url', fake.url], { configDir });
+    assert.equal(bad.code, 2);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+/** The link RPC refuses rows whose erp_name starts with 'BAD'; fails the call numbered `failOnCall` with a 500. */
+const linkRpcWith = (bodies, { failOnCall } = {}) => ({ url, req, body, send }) => {
+  if (req.method === 'POST' && url.pathname === '/rest/v1/rpc/link_erp_purchase_documents') {
+    const b = JSON.parse(body);
+    bodies.push(b);
+    if (failOnCall === bodies.length) { send(500, { code: 'XX000', message: 'boom' }); return true; }
+    const results = b.p_rows.map((r, i) => ({ row: i + 1, erp_name: r.erp_name, outcome: r.erp_name.startsWith('BAD') ? 'refused' : 'link',
+      reason: r.erp_name.startsWith('BAD') ? 'document_not_found' : null }));
+    send(200, { dry_run: b.p_dry_run, counts: { link: results.filter((x) => x.outcome === 'link').length, skip: 0,
+      refused: results.filter((x) => x.outcome === 'refused').length }, results });
+    return true;
+  }
+  return false;
+};
+
+test('AC-PFE-011: a real run with a refused row exits 1 and prints the report; a dry run exits 0', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpcWith(bodies) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify([{ erp_name: 'PINV-1' }, { erp_name: 'BAD-2' }]));
+    const dry = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(dry.code, 0, dry.err);
+    const real = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(real.code, 1);
+    assert.deepEqual(real.json.counts, { link: 1, skip: 0, refused: 1 });
+    assert.deepEqual(real.json.results.map((r) => r.reason), [null, 'document_not_found']);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: a failed call exits 1 and still prints what the earlier calls saved', async () => {
+  const bodies = [];
+  const fake = await fakeSupabase({ handler: linkRpcWith(bodies, { failOnCall: 2 }) });
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.json');
+    fs.writeFileSync(file, JSON.stringify(Array.from({ length: 501 }, (_, i) => ({ erp_name: `PINV-${i}` }))));
+    const r = await runCli(['purchases', 'link', file, '--url', fake.url], { configDir });
+    assert.equal(r.code, 1);
+    assert.equal(r.json.results.length, 500);
+    assert.equal(r.json.counts.link, 500);
+    assert.equal(r.json.failed_at_row, 501);
+    assert.deepEqual(r.json.not_saved_rows, [501]);
+    assert.equal(r.json.error.message, 'boom');
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
+});
+
+test('AC-PFE-011: a CSV with a misspelt column is refused before anything is sent', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const file = path.join(configDir, 'rows.csv');
+    fs.writeFileSync(file, 'erp_name,procurment_id\nPINV-1,22222222-2222-2222-2222-222222222222\n');
+    const r = await runCli(['purchases', 'link', file, '--dry-run', '--url', fake.url], { configDir });
+    assert.equal(r.code, 2);
+    assert.equal(r.errJson.error.code, 'invalid_link_file');
+    assert.match(JSON.stringify(r.errJson.error.details), /unknown column 'procurment_id'/);
+    assert.deepEqual(fake.requests, []);
   } finally {
     await fake.close();
     fs.rmSync(configDir, { recursive: true, force: true });

@@ -52,7 +52,7 @@ sign-in that is no longer used expires on its own.
 | Variable | Meaning | Default |
 |---|---|---|
 | `PMO_SUPABASE_URL` | Supabase project URL (`--url`) | `http://127.0.0.1:54321` (local stack) |
-| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | none — required |
+| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | the key saved by `pmo login` (set it once at login; later calls need no env var); secret keys (`sb_secret_…`, or a JWT with role `service_role`) are refused and never saved |
 | `PMO_CLIENT_ID` | the registered client id (`--client-id`), needed for `login` | none |
 | `PMO_CONFIG_DIR` | where credentials are stored | `~/.config/pmo` |
 
@@ -101,6 +101,8 @@ pmo get projects --select id,name,status --filter status=eq.Leads --limit 20
 pmo get companies --select id,name --filter name=ilike.*Steel*
 pmo get tasks --filter project_id=eq.<uuid> --filter archived_at=is.null
 pmo get profiles --filter role=eq.Engineer      # people, for project_manager_id / assignee_id
+pmo get budget_line_items --filter budget_version_id=eq.<uuid>   # read-only: ids for re-categorising; also budget_versions, budget_category_account_map, erp_gl_entry_mirror, project_documents
+pmo rpc project_mapped_actuals '{"p_project_id":"<uuid>"}'      # read-only, Admin/Executive/PM/Finance tokens
 
 # create — inline JSON, @file, or - for stdin; one object or a list
 pmo create companies '{"name":"Solaris Grid EPC","type":"Client"}'
@@ -111,8 +113,16 @@ cat tasks.json | pmo create tasks -
 # update — at least one --filter; one object
 pmo update projects --filter id=eq.<uuid> '{"name":"Depot Expansion Phase 1"}'
 
-# rpc — allow-listed read helpers only
+# optional display alias; name stays contractual and is still required
+pmo get projects --select id,name,short_name --filter id=eq.<uuid>
+pmo update projects --filter id=eq.<uuid> '{"short_name":"Depot"}'
+pmo update projects --filter id=eq.<uuid> '{"short_name":null}' # explicit clear
+# one common value may be patched across multiple IDs; distinct values need one PATCH per ID
+pmo update projects --filter 'id=in.(<uuid-1>,<uuid-2>)' '{"short_name":"Depot"}'
+
+# rpc — allow-listed read helpers, plus the active-Admin tier
 pmo rpc get_project_milestones '{"p_project_id":"<uuid>"}'
+pmo rpc recategorise_budget_lines '{"p_line_ids":["<line uuid>","<line uuid>"],"p_category":"Vehicle"}'
 ```
 
 (`pmo` = `node scripts/pmo.mjs`.) Filters are PostgREST filters: `col=op.value` with `eq neq gt gte lt
@@ -128,9 +138,24 @@ changed — none matched, or the database did not let you change it.
   narrower one is allowed, and filters are limited to the same columns). Change people in the app.
   Also read-only: `external_domain_ownership` (`domain, external_tier`).
 - RPCs: `get_project_milestones`.
+- **Active Admin RPCs** (#1326): `recategorise_budget_lines` moves Draft "Special expenses" budget lines to
+  `Travel & accommodation` or `Vehicle`, one or many per call, all or nothing. It refuses a line on an
+  Active or Archived budget, and returns how many lines moved. It takes line ids; `pmo get` does not list
+  budget lines (AC-CSD-016), so the ids come from outside the CLI.
 - **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
   value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
   `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
+- **`pmo purchases`** (active Admin, Executive, Project Manager or Finance; #1319, migration `0363`): reads
+  the ERP orphan list (`erp_purchase_orphans`) and links ERPNext purchase documents and SharePoint items
+  into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
+  Unlinking stays in the app. Admin and Finance tokens also set documents aside as overhead with
+  `mark_erp_purchase_documents` and read `erp_purchase_orphans_all` (migration `0364`, §5).
+- **`pmo budgets activate`** (#1270, migration `0370`): **not enabled yet** — the command refuses with "budget
+  activation from the CLI is not enabled yet — activate in the app" and sends nothing, because the API-client guard has
+  no tier for `activate_budget_version` (pending an owner ruling). The guard does allow the activation check
+  (`budget_activation_mode`) to active Admin, Executive, Project Manager and Finance, and **`pmo budgets link`**
+  attaches a SharePoint file to a Draft through `link_m365_documents_batch` (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
+  ERP account map with the Accounting setup screen's checks (§5b).
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -170,8 +195,54 @@ violates row-level security policy").
    (`contract_line.create` / `contract_line.skip` per line).
 4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
    budgets → contract lines. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
+   Since #1326, a `Special expenses` line whose description names travel, hotel, tickets or per diem is
+   written as `Travel & accommodation`, and one naming a vehicle (or fuel with a vehicle or rental) as
+   `Vehicle` (a line naming both travel and a vehicle or fuel stays `Special expenses`). Its key still uses the file's category, so re-running an older file over a
+   Draft it already loaded adds nothing; move those older lines with `recategorise_budget_lines`.
+   Fuel with no vehicle word (e.g. "BBM genset") stays `Special expenses`; the output lists every line whose
+   category the loader decided (`budget.category`: row, from, to).
+   ⚑ Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.
 5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
    work orders are created by the client's users.
+
+### Optional project short names
+
+`projects.name` remains the required contractual identity. `projects.short_name` is an optional PMO display
+alias used in lists and search; invoices, statements, exports and ERPNext Project creation continue to use
+`name` or the established ERP mapping. Read both explicitly with
+`node scripts/pmo.mjs get projects --select id,name,short_name`.
+
+For API/CLI updates, omitted `short_name` means leave it unchanged; whitespace-only text, empty text, or
+`null` explicitly clears it. PATCH a common value across IDs with one filtered request, as above. For a
+backfill where every project needs a distinct alias, issue one filtered `pmo update projects --filter
+id=eq.<uuid> '{"short_name":"<alias>"}'` per project; do not send an array of PATCH values or use
+upsert. This keeps each update tied to a stable project UUID and leaves `name` alone.
+
+A load file may carry both identities:
+
+```json
+{
+  "projects": [
+    {
+      "name": "Contractual Depot Expansion",
+      "short_name": "Depot",
+      "client": "Synthetic Client",
+      "stage": "Leads"
+    }
+  ]
+}
+```
+
+`pmo load` trims nonblank aliases, includes them when creating a project, and on an existing project fills
+an empty alias, skips an identical alias, and reports a different nonblank alias without overwriting it.
+Blank aliases in a load file mean “no enhancement supplied,” not “clear the stored value.” A project that
+has diverged from its load-file stage is still skipped for stage movement; use the generic filtered
+`pmo update` command to backfill its alias separately. Re-running a successful load does not repeat the
+alias write.
+
+Short names are unique per organization (case-insensitive). A load whose alias is already used by another
+project reports `project.short_name_conflict` and carries on: a new project is still created without its alias,
+and an existing project keeps its current value. Pick another alias and set it with `pmo update`.
 
 Re-runs never overwrite: a different stored value, stage or short name is reported, not changed. A
 contract line whose `key` already exists is skipped even if its quantity or rate in the file differs
@@ -181,7 +252,158 @@ Milestones, tasks, meetings and CRM activities still use `create` (§3).
 
 ---
 
-## 5. For Claude Code
+## 5. Loading purchase history — `pmo purchases`
+
+ERPNext purchase documents (Purchase Order, Purchase Receipt, Purchase Invoice, Payment Entry) reach PMO
+through the sweep and appear as **orphans** until linked to a purchase. Linking writes nothing to
+ERPNext; a linked document is never pushed. Documents authored in PMO (which push to ERPNext) are made in
+the app, not here.
+
+```bash
+node scripts/pmo.mjs purchases orphans [--project <project id>] [--limit n]   # unlinked, submitted ERP documents (set-aside ones hidden)
+node scripts/pmo.mjs purchases orphans --include-set-aside                    # the same list with the set-aside ones, flagged
+node scripts/pmo.mjs purchases set-aside overhead.csv --dry-run               # Admin/Finance: mark documents as not a project purchase
+node scripts/pmo.mjs purchases set-aside overhead.csv [--undo]                # the same checks, for real; --undo brings them back
+node scripts/pmo.mjs purchases link history.csv --dry-run                     # ALWAYS first: what would happen
+node scripts/pmo.mjs purchases link history.csv                               # the same checks, for real
+node scripts/pmo.mjs purchases link-file '{"procurement_id":"…","item":{…}}'  # one SharePoint item on a purchase
+```
+
+**The link file** is JSON (a list of row objects) or CSV (`.csv`, or `--csv` for stdin `-`) with this header:
+
+```
+erp_doctype,erp_name,procurement_id,project_id,group,title,budget_category,sp_drive_id,sp_item_id,sp_web_url,sp_name,sp_kind
+```
+
+- `erp_name` (required): the ERPNext document number. `erp_doctype` is needed only when two document types
+  share the number.
+- `procurement_id` **or** `project_id`, not both. A row naming a purchase links into it. A row naming a
+  project (or nothing) creates a new Draft purchase from the document (title = `title`, else
+  "<supplier> <document number>"); rows sharing a `group` and project go into one new purchase.
+- `sp_*` (optional, all five together): a SharePoint item the operator already has the ids for — drive id,
+  item id, web URL, name, and `sp_kind` `file` or `folder`. It is attached to that document on the purchase.
+  A folder is linked as a folder. The CLI does not resolve URLs.
+- In JSON the SharePoint item is `"sharepoint": {"drive_id","item_id","web_url","name","kind"}`.
+
+**Dry run first, always.** `--dry-run` sends the identical rows to the same database function with
+`p_dry_run = true`: every check runs and each call is rolled back, so nothing is written. The report lists
+every row as `link`, `skip` or `refused` with a reason, plus counts; a new purchase shows
+`procurement_id: null` in a dry run. Fix the refused rows, dry-run again, then run without `--dry-run`. The
+real run reports the same outcomes.
+
+**Batches and groups.** Rows go to the database in calls of at most 500. Rows that make one new purchase (same
+project and `group`) always travel in the same call, so **one group must have 500 rows or fewer**; a larger
+group is refused before anything is sent. Row numbers in the report are always the file's.
+
+**The CLI refuses the file, sending nothing (exit 2), when:** a CSV column is not one of the header names above
+(a misspelt `procurement_id` would otherwise create a new purchase); a CSV row has more cells than the header;
+a quote is not closed; a JSON row has a field not in the header; `erp_name` is missing; a row names both
+`procurement_id` and `project_id`; a SharePoint item is incomplete; **the same ERP document is listed twice**;
+or a group exceeds 500 rows. Every problem is listed.
+
+**Exit codes.** Exit 0: every row linked or skipped (or any dry run that completed). Exit 1: a real run refused at
+least one row, or a call failed. The report is printed either way. When a call fails, the report holds what the
+earlier calls saved, plus `failed_at_row` (the first row of the failed call), `not_saved_rows` and `error`; the
+failed call itself saved nothing.
+
+**Re-running is safe.** After fixing refused rows (or after a failed call), run the whole file again: rows already
+linked report `skip` / `already_linked` with their purchase id, and only the rest are linked.
+
+**Reason codes** (`refused`):
+
+| Reason | Meaning |
+|---|---|
+| `erp_name_missing` | the row has no document number |
+| `document_not_found` | no such ERP document mirrored in PMO for your organisation |
+| `document_ambiguous` | the number matches more than one document type — add `erp_doctype` |
+| `document_cancelled` | the document is cancelled in ERPNext |
+| `document_recorded_by_pmo` | PMO pushed it; it is already a PMO record |
+| `document_linked_to_another_purchase` | it already belongs to a different purchase |
+| `purchase_not_found` / `purchase_closed` | the purchase does not exist in your organisation, or is Cancelled / Rejected |
+| `project_not_found` | the project does not exist in your organisation |
+| `invalid_id` | an id is not a valid uuid |
+| `supplier_mismatch` / `project_mismatch` / `currency_mismatch` | the document's supplier, project or currency differs from the purchase |
+| `gate_request_before_order`, `gate_approval_before_order`, `gate_receipt_before_invoice`, `gate_approval_before_payment` | an organisation procurement gate refuses that step |
+| any other sentence | a guard refused the resulting status (e.g. "separation of duties: approver cannot pay own procurement") |
+
+
+**Setting overhead aside** (Admin and Finance only). Rent, insurance, cloud and similar invoices never join a
+project purchase; set them aside so the orphan list shows only what still needs a home. The file is JSON or CSV
+with the header `erp_doctype,erp_name,note` (`erp_doctype` and `note` optional; `note` is up to 500 characters and
+is kept when a document is set aside or brought back). Setting aside changes nothing in ERPNext or in actuals, can
+be undone (`--undo`; a note is refused with `--undo`), and a document that is later linked leaves the set-aside
+list. `--dry-run` runs the same checks and writes nothing. The file is refused (exit 2) for the same reasons as a
+link file: unknown column or field, a ragged CSV row, an unclosed quote, a missing `erp_name`, a document listed
+twice. Extra reason codes: `document_linked` (already in a purchase; unlink it in the app first), `note_too_long`,
+`note_invalid`; a row that changes nothing is reported `skip` / `no_change`. Counts are `apply`, `skip`, `refused`.
+A note without setting aside is a screen feature (the database function supports it); the CLI sets notes only with set-aside.
+
+---
+
+## 5b. Activating a budget and mapping accounts — `pmo budgets`, `pmo accounts` (#1270)
+
+```bash
+node scripts/pmo.mjs budgets link <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
+node scripts/pmo.mjs budgets activate <version id>        # currently refuses: not enabled yet
+node scripts/pmo.mjs budgets activate <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
+node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance" --dry-run   # ALWAYS first
+node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance"
+```
+
+**`budgets activate`** is **not enabled yet**. It checks its arguments (version id, `--source` shape), then stops with
+"budget activation from the CLI is not enabled yet — activate in the app" and exit 2, before any request: the API-client
+guard has no `activate_budget_version` tier until the owner rules on one. The pieces behind it are in place and tested
+(the database's activation check `budget_activation_mode`, allowed by the guard to active Admin, Executive, Project
+Manager and Finance, and the source-file link below), so enabling it later is a guard tier plus one switch in
+`scripts/lib/pmo-budgets.mjs`. `--source` takes a SharePoint row (`drive_id, item_id, web_url, name, kind`).
+
+**`budgets link <version id> --source <row>`** attaches the file to a Draft version through `link_m365_documents_batch`
+(one `budget_version_id` row), which accepts only links on the organisation's own SharePoint host (an organisation with no
+default library is refused with `m365_not_configured`). Linking the same item twice is a no-op. The same host rule now
+applies to `pmo purchases link-file` (`link_procurement_sharepoint_item`).
+
+**`accounts map set <category> <account...>`** is for an active Admin (the database refuses anyone else). The FIRST
+account becomes the category's push account (the only one the ERP Budget is sent to); the rest count toward actuals only.
+Same checks as the Admin → Accounting setup screen, read from the same ERP account chart: every account must be an
+enabled Expense ledger account (not a group), the push account must be a direct-cost account (cost of sales / direct
+cost group or 51-numbered; overhead is not a substitute), and an account already mapped to another category is refused
+by name. Accounts already on the category stay as they are, accounts you do not list are left in place (the report
+lists them under `left_in_place`), and nothing is deleted: remove an account in the app. Adding the new push account
+first and then moving the push flag is atomic per step; if a step fails the error lists what `applied`. Re-running the
+same command changes nothing. `--dry-run` runs every check and prints the plan (`add`, `add_push`, `make_push`, `keep`,
+`keep_push`) without writing. If the ERP chart cannot be read (ERP not connected), the command stops: nothing is guessed.
+
+---
+
+## 6. ERP setup reads — `pmo erp`
+
+```bash
+node scripts/pmo.mjs erp readiness
+node scripts/pmo.mjs erp list-projects
+node scripts/pmo.mjs erp verify-links
+```
+
+These call the existing `external-set-company` ERP setup actions using the signed-in user token (Admin only, as in the app); no ERP credentials are read or printed by the CLI. `readiness` reports setup gaps, `list-projects` lists active ERP projects for the connected company, and `verify-links` checks each mapped project's ERP record (same key, connected company, active, same project name) and prints mismatches; the PMO code is not compared, since ERPNext may allocate its own project key. Exit 0 means the call completed (mismatches are report data); a server refusal exits 1.
+
+## 7. Project documents — `pmo documents`
+
+```bash
+node scripts/pmo.mjs documents list --project <project-id>
+node scripts/pmo.mjs documents link links.json --dry-run
+node scripts/pmo.mjs documents link links.csv
+```
+
+Link input is a JSON array or CSV with columns `project_id,budget_version_id,procurement_id,drive_id,item_id,web_url,name,kind`. Each row names exactly one target id; `kind` is `file` or `folder`. `--dry-run` uses the same org-, role- and reference-validation RPC as a real run and returns its validation plan without writes. Active Admin, Executive, Project Manager and Finance memberships can link; unlinking stays in the app. Every `web_url` must be on the organisation's own SharePoint host (taken from its default library); an organisation with no default library is refused with `m365_not_configured`. A folder already linked to another project or purchase is refused. Link files are limited to 500 rows per call.
+
+## 8. Microsoft 365 setup — `pmo m365 status`
+
+```bash
+node scripts/pmo.mjs m365 status
+```
+
+Reports the configured default library, the caller's Microsoft connection status, and the latest `Link existing folders` sweep state, counts and unmatched record ids. Sweep summaries accumulate across pages and are scoped to the organization; the stored unmatched list is de-duplicated and capped at 500 (`unmatched_truncated` says when it was cut). A page whose summary could not be saved still succeeds and carries `summary_warning`.
+
+## 9. For Claude Code
 
 - Run `node scripts/pmo.mjs whoami` first; if it says "Not signed in", ask the owner to run
   `node scripts/pmo.mjs login` — never try to sign in on their behalf.

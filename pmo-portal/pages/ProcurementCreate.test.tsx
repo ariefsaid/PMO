@@ -73,6 +73,14 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true });
   });
 
+  it('the create page asks only for a request: no first-document choice, and Save opens the plain purchase page', async () => {
+    renderCreate();
+    expect(screen.queryByLabelText('First document')).toBeNull();
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+  });
+
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
     const { unmount } = renderCreate('/procurement/new?project=p1');
     expect(screen.getByText('Project One')).toBeVisible();

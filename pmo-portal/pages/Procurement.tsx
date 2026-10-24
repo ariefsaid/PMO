@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
@@ -257,7 +258,7 @@ const ProcurementPage: React.FC = () => {
     {
       key: 'project',
       header: t('procurement.column.project', 'Project'),
-      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} className="text-muted-foreground" />,
+      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project ? projectDisplayName(r.project) : undefined} legalName={r.project?.name} className="text-muted-foreground" />,
       exportValue: (r) => r.project?.name ?? '',
     },
     {
@@ -363,7 +364,7 @@ const ProcurementPage: React.FC = () => {
                 <>
                   {' '}
                   <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
-                    {tf('erpPurchases.title', 'Purchases recorded in ERPNext')}
+                    {tf('erpLinks.bannerLink', 'ERPNext documents not in a purchase')}
                   </Link>
                 </>
               )}

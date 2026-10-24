@@ -10,7 +10,7 @@ import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 const h = vi.hoisted(() => ({
   data: [] as unknown[],
-  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }],
+  projectOptions: [{ value: 'proj-1', label: 'Alpha Platform', contractualName: 'Contractual Alpha Platform', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false }],
   isError: false,
   isPending: false,
   enabled: [] as boolean[],
@@ -90,6 +90,7 @@ beforeEach(() => {
   h.route = 'pmo';
   h.deny = [];
   h.projectOptions[0].label = 'Alpha Platform';
+  h.projectOptions[0].contractualName = 'Contractual Alpha Platform';
 });
 
 const region = () => screen.getByRole('region', { name: 'Customer invoices awaiting you' });
@@ -98,9 +99,10 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
-  it('RF-028 keeps the full project identity readable in invoice evidence', () => {
+  it('AC-003 #1325: invoice approval evidence uses the contractual project name, not the picker alias', () => {
     const projectName = 'North Coast Materials Recovery and Logistics Programme';
-    h.projectOptions[0].label = projectName;
+    h.projectOptions[0].label = 'North Coast Logistics';
+    h.projectOptions[0].contractualName = projectName;
     render(
       <FinanceI18nTestProvider>
         <MemoryRouter>

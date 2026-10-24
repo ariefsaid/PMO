@@ -86,7 +86,7 @@ interface KindConfig {
   showAmount: boolean;
   /** Whether the predecessor-FK "Links to invoice" select is shown (payment only). */
   showInvoiceFk: boolean;
-  /** Submit-button label (GR/VI keep the compact "Save GR"/"Save VI"). */
+  /** Submit-button label (GR/VI keep the compact "Save GR"/"Save vendor invoice"). */
   saveLabel: string;
   /** data-testid for the <form>. */
   formTestId: string;
@@ -176,7 +176,7 @@ function kindConfig(kind: RecordKind): KindConfig {
       dateLabel: 'Invoice date',
       showAmount: true,
       showInvoiceFk: false,
-      saveLabel: 'Save VI',
+      saveLabel: 'Save vendor invoice',
       formTestId: 'form-create-vi',
       refTestId: VI_FIELD_TEST_IDS.ref,
       statusTestId: VI_FIELD_TEST_IDS.status,
@@ -327,6 +327,8 @@ export interface RecordCaptureFormProps {
   vendorId?: string | null;
   /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
   itemsNet?: number | null;
+  /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
+  currency?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +345,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
   vendorId = null,
   itemsNet = null,
+  currency = null,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -646,6 +649,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             className="text-[12px] font-semibold text-muted-foreground"
           >
             {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
+            {currency ? ` · ${currency}` : null}
           </label>
           <input
             id={`${formId}-amount`}
@@ -810,7 +814,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save VI') : cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save vendor invoice') : cfg.saveLabel}
         </Button>
         <Button
           type="button"

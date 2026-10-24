@@ -1,5 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useTranslation } from 'react-i18next';
 import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -71,6 +72,10 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
           </RailSectionLabel>
           <dl className="divide-y divide-border/70 border-y border-border/70">
+            {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
+            {projectDisplayName(project) !== project.name && (
+              <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
+            )}
             <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
             {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
                 is omitted rather than rendered as "Not set". */}

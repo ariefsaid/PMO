@@ -3,6 +3,7 @@ import {
   PR_STAGES,
   stageIndexForStatus,
   lifecycleSteps,
+  visibleLifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
   selectedQuotation,
@@ -275,5 +276,42 @@ describe('procurement helper — openPR navigates to the detail route (AC-NAV-00
     const row = { id: 'proc-abcdef12', title: 'Crane hire', code: null };
     openPR(navigate, row);
     expect(navigate).toHaveBeenCalledWith('/procurement/proc-abcdef12');
+  });
+});
+
+describe('visibleLifecycleSteps — only steps that happened, plus the next (AC-PFE-006 progress)', () => {
+  const happened = (...stages: Array<'pr' | 'vq' | 'po' | 'gr' | 'vi'>) => ({
+    pr: false, vq: false, po: false, gr: false, vi: false, ...Object.fromEntries(stages.map((s) => [s, true])),
+  });
+
+  it('a purchase started at the invoice shows the invoice, then Payment — never the earlier steps it skipped', () => {
+    const steps = visibleLifecycleSteps(lifecycleSteps('Vendor Invoiced' as ProcurementStatus), happened('vi'));
+    expect(steps.map((s) => s.label)).toEqual(['Vendor Invoice', 'Payment']);
+    expect(steps.map((s) => s.state)).toEqual(['current', 'upcoming']);
+  });
+
+  it('a normal flow keeps every step that has a record, and exactly one upcoming step', () => {
+    const steps = visibleLifecycleSteps(lifecycleSteps('Ordered' as ProcurementStatus), happened('pr', 'po'));
+    expect(steps.map((s) => s.label)).toEqual(['Purchase Request', 'Purchase Order', 'Goods Receipt']);
+  });
+
+  it('a skipped quote step (no quotation) is not shown once the order exists', () => {
+    const labels = visibleLifecycleSteps(lifecycleSteps('Ordered' as ProcurementStatus), happened('pr', 'po')).map((s) => s.label);
+    expect(labels).not.toContain('Vendor Quote');
+  });
+
+  it('a Paid purchase shows what happened plus Payment as paid', () => {
+    const steps = visibleLifecycleSteps(lifecycleSteps('Paid' as ProcurementStatus), happened('vi'));
+    expect(steps.map((s) => [s.label, s.state])).toEqual([['Vendor Invoice', 'done'], ['Payment', 'paid']]);
+  });
+
+  it('a Rejected or Cancelled purchase keeps its abandoned track untouched', () => {
+    const all = lifecycleSteps('Rejected' as ProcurementStatus);
+    expect(visibleLifecycleSteps(all, happened())).toEqual(all);
+  });
+
+  it('a Draft with nothing recorded shows the first step as current and the next as upcoming', () => {
+    const steps = visibleLifecycleSteps(lifecycleSteps('Draft' as ProcurementStatus), happened());
+    expect(steps.map((s) => s.state)).toEqual(['current', 'upcoming']);
   });
 });

@@ -284,3 +284,32 @@ describe('Combobox: required + invalid wiring', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Select a client company.');
   });
 });
+
+describe('Combobox: long sub-lines never hide the option label', () => {
+  it('D1 render: the sub-line yields before the label and keeps its full text as a tooltip', async () => {
+    const sub = 'VoltEdge Inverters · Purchase Order · different supplier · different currency';
+    render(
+      <Combobox
+        label="Purchase"
+        value={null}
+        onChange={() => {}}
+        loadOptions={() => Promise.resolve([{ value: 'p1', label: 'Central Inverters & Transformers', sub }])}
+      />,
+    );
+    await userEvent.click(screen.getByRole('combobox'));
+    const option = await screen.findByRole('option', { name: /Central Inverters/ });
+    const subEl = option.querySelector(`[title="${sub}"]`);
+    expect(subEl).not.toBeNull();
+    // The sub shrinks faster than the label, so the label keeps its room.
+    expect(subEl!.className).toMatch(/shrink-\[3\]/);
+    expect(subEl!.className).toMatch(/truncate/);
+  });
+});
+
+describe('short-name project picker disclosure (AC-002 #1325)', () => {
+  it('keeps the contractual title on the selected trigger when the alias is visible', () => {
+    render(<Combobox label="Project" value="p1" selectedOption={{ value: 'p1', label: 'Depot', sub: 'Contractual Project Name' }} onChange={() => {}} loadOptions={loadOk} />);
+    expect(screen.getByRole('combobox', { name: 'Project' })).toHaveAttribute('title', 'Depot — Contractual Project Name');
+    expect(screen.getByText('Depot')).toBeInTheDocument();
+  });
+});

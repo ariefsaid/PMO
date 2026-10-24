@@ -304,8 +304,8 @@ hosted-grant sweep — and if a step is refused, stops there and hands the owner
 work around a refusal). The after-push probes stay **owner-run**: the probe driver rotates the smoke-org Admin
 password and keeps the probe secrets inside the one process the owner runs.
 ⚑ GoTrue throttles password sign-ins right after the two smokes — wait a minute before the isolation probe's
-sign-in. ⚑ `supabase db query --linked` works only from the linked main checkout (a worktree has no
-`supabase/.temp/project-ref`).
+sign-in. ⚑ Read the cloud DB (sweeps, counts, migration level) with `scripts/prod-read.sh`, never the `supabase`
+CLI with `--linked` (it needs a management token the session lacks; `.claude/hooks/prod-db-path-gate.sh` blocks it).
 
 ### Production auth floor (cloud project — NOT in the committed `config.toml`)
 
@@ -465,6 +465,10 @@ cd ~/Coding/frappe-docker-pmo && docker compose -p pmo-erpnext -f pwd.yml exec -
 #    ERPNEXT_TEST_FAULTS=1
 #    ERPNEXT_TEST_FAULTS_ALLOW_HOST=localhost,127.0.0.1  # ⚑ Kong forwards the host WITHOUT the port — port-suffixed values alone never match
 #    (ERPNEXT_SITE_URL / ERPNEXT_BENCH_URL default to host.docker.internal:8080 / localhost:8080 — leave them)
+#    serve-functions.sh sets ERPNEXT_ALLOW_LOCAL_BENCH=1 for you: the ERP host guard then lets the served
+#    functions reach the plain-http bench, but only the origins in ERPNEXT_LOCAL_BENCH_ORIGINS (default
+#    http://host.docker.internal:8080,http://localhost:8080) and only while SUPABASE_URL is a local stack —
+#    it is inert on the hosted project. Without it every bench call fails "ERPNext destination is not permitted".
 # 3. run — e2e-local exports the local Supabase URL/keys from `supabase status` and takes the DB lock itself:
 scripts/with-erpnext-lock.sh scripts/serve-functions.sh -- \
   scripts/e2e-local.sh --project=serial --workers=1 e2e/serial/AC-TSP- e2e/serial/AC-ENA-05 --reporter=line
@@ -563,7 +567,7 @@ per-deployed-project sign-off is the control.
 
 ⛔ **Do not read a number here as current** — `docs/backlog.md` § *Deployment state* holds the four
 commands that are the answer (`git rev-parse origin/{production,main,dev}`, the two `rev-list --count`s,
-`supabase migration list --linked`). This section keeps only the rules and the last dated snapshot.
+`scripts/prod-read.sh -c "select max(version) from supabase_migrations.schema_migrations"`). This section keeps only the rules and the last dated snapshot.
 
 **Snapshot 2026-10-09 (orientation only):** `production` == `main` == `97c00cf7` (**v0.17.0**, tag `v0.17.0`); cloud
 DB at **`0282`** (`0262`–`0282` pushed 2026-10-09 under an explicit owner deploy instruction); all 24 edge functions

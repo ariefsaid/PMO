@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
+import { MemoryRouter } from 'react-router';
 
 // ── Mocks ─────────────────────────────────────────────────────────────────────
 
@@ -24,7 +25,9 @@ const { procState } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [] }), useHasErpPurchases: () => ({ data: false }) }));
+const { erpState } = vi.hoisted(() => ({ erpState: { data: [] as unknown[] } }));
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => erpState, useErpOrphans: () => ({ data: erpState.data.filter((r) => (r as { procurementId: string | null }).procurementId === null) }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,
@@ -66,13 +69,16 @@ import ProcurementTab from '../tabs/ProcurementTab';
 const renderTab = (role: Role = 'Project Manager') => {
   realRole = role;
   return render(
-    <ToastProvider>
-      <ProcurementTab projectId="proj-abc" />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <ProcurementTab projectId="proj-abc" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 };
 
 beforeEach(() => {
+  erpState.data = [];
   procState.data = [];
   procState.isPending = false;
   procState.isError = false;
@@ -95,6 +101,18 @@ describe('AC-JR-T13: ProcurementTab shows a gated "New request" button', () => {
     expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
     expect(screen.queryByText('Requests raised against this project, tracked through their lifecycle.')).toBeNull();
+  });
+
+  it('review 8: the empty state points below only when ERPNext documents are shown there', () => {
+    procState.data = [];
+    const { unmount } = renderTab('Project Manager');
+    expect(screen.getByText(/No purchase requests for this project yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/appear below/)).toBeNull();
+    unmount();
+    erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'],
+      currency: 'IDR', outstanding: 0, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
+    renderTab('Project Manager');
+    expect(screen.getByText(/appear below/)).toBeInTheDocument();
   });
 
   it('AC-JR-T13: "New request" button is visible for Engineer role too (create: allow(ALL))', () => {

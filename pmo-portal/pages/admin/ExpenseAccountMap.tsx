@@ -24,7 +24,8 @@ import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterS
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
 
 /**
- * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 7 keys an expense posting needs.
+ * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 8 keys an expense posting needs
+ * (OD-EXP-PB-1: a delivery-project claim posts to Project direct cost, other claims to their expense type).
  * Saving goes through `external-set-company`, which reads the account from ERPNext and refuses one that does not fit
  * (FR-EXP-112 — e.g. the supplier payable account, an untyped advance account); its message is shown in the form.
  * Admin-only actions via `can('manage', 'integration')`; the table and the edge action are the authority (ADR-0016).
@@ -59,6 +60,7 @@ const ExpenseAccountMap: React.FC = () => {
   const label = (key: ExpenseAccountKey): string => ({
     employee_payable: t('admin.expenseMap.key.employeePayable', 'Employee payable'),
     employee_advance: t('admin.expenseMap.key.employeeAdvance', 'Employee advances'),
+    project_direct_cost: t('expenseClaims:accountMap.projectDirectCost', 'Project direct cost'),
     Travel: t('admin.expenseMap.key.travel', 'Travel'),
     Accommodation: t('admin.expenseMap.key.accommodation', 'Accommodation'),
     Meals: t('admin.expenseMap.key.meals', 'Meals'),

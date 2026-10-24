@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   claim: null as unknown,
   route: null as unknown,
   outstanding: null as number | null,
-  projects: [] as Array<{ id: string; name: string }>,
+  projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
   agingRows: [] as Array<Record<string, unknown>>,
   userId: 'eng',
   realRole: 'Engineer',
@@ -87,6 +87,13 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
+  it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
+    h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
+    as('eng', 'Engineer');
+    renderAt();
+    expect(screen.getByRole('link', { name: 'North Terminal' })).toHaveAttribute('title', 'Contractual Project one');
+  });
+
   it('AC-EXP-061 the claimant of a Draft can add lines and submit', () => {
     h.claim = { ...base };
     as('eng', 'Engineer');
@@ -177,7 +184,7 @@ describe('ExpenseClaimDetail', () => {
       project: { name: 'Project one' }, budget_category: 'Special expenses',
       purpose: 'Original purpose', advance_id: 'advance-1',
     };
-    h.projects = [{ id: 'project-1', name: 'Project one' }];
+    h.projects = [{ id: 'project-1', name: 'Contractual Project one', short_name: 'North Terminal' }];
     h.agingRows = [{ advanceId: 'advance-1', claimantId: 'eng', claimNumber: 'ADV-1', outstanding: 50, currency: 'IDR' }];
     as('eng', 'Engineer');
     renderAt();
@@ -190,6 +197,7 @@ describe('ExpenseClaimDetail', () => {
     const selects = within(dialog).getAllByRole('combobox');
     expect(textboxes[0]).toHaveValue('Original visit');
     expect(selects[0]).toHaveValue('project-1');
+    expect(within(selects[0]).getByRole('option', { name: 'North Terminal' })).toHaveValue('project-1');
     expect(selects[1]).toHaveValue('Special expenses');
     expect(textboxes[1]).toHaveValue('Original purpose');
     expect(selects[2]).toHaveValue('advance-1');

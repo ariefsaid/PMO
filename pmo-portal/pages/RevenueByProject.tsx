@@ -65,25 +65,29 @@ const RevenueByProject: React.FC = () => {
     );
   }
 
+  // Screen shows the short name; exports and the contractual title stay `project_name` (AC-003 #1325).
+  const shown = (row: RevenueByProjectRow) => row.project_name ? row.project_short_name?.trim() || row.project_name : null;
+
   const columns: Column<RevenueByProjectRow>[] = [
     {
       key: 'project_name',
       header: t('financeCopy.project', "Project"),
       kind: 'primary',
       size: 300,
-      primaryTitle: (row) => row.project_name ?? t('financeCopy.unassigned', "Unassigned"),
+      primaryTitle: (row) => shown(row) ?? t('financeCopy.unassigned', "Unassigned"),
       // FIN-S6: the whole row opens the project (or the unassigned list); the name is the keyboard doorway.
-      cell: (row) => row.project_name ? (
+      cell: (row) => shown(row) ? (
         <button
           type="button"
-          aria-label={`Open ${row.project_name} (${row.currency})`}
+          aria-label={`Open ${shown(row)} (${row.currency})`}
+          title={row.project_name !== shown(row) ? row.project_name ?? undefined : undefined}
           className="w-fit text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
             navigate(`/projects/${row.project_id}`);
           }}
         >
-          {row.project_name}
+          {shown(row)}
         </button>
       ) : (
         <button

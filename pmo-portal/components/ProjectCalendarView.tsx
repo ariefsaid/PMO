@@ -14,6 +14,7 @@ import {
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { MilestoneDate } from '@/src/lib/db/milestones';
 import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 type CalEventKind = 'start' | 'end' | 'milestone';
 
@@ -26,6 +27,8 @@ interface CalEvent {
   label: string;
   /** Accessible button name. */
   ariaLabel: string;
+  /** Contractual project identity, with phase context for milestones. */
+  contractualTitle: string;
 }
 
 export interface ProjectCalendarViewProps {
@@ -58,15 +61,17 @@ function deriveEvents(
   t: TFunction,
 ): CalEvent[] {
   const events: CalEvent[] = [];
-  const nameById = new Map(projects.map((p) => [p.id, p.name]));
+  const nameById = new Map(projects.map((p) => [p.id, projectDisplayName(p)]));
+  const contractualNameById = new Map(projects.map((p) => [p.id, p.name]));
   for (const p of projects) {
     if (p.start_date) {
       events.push({
         kind: 'start',
         iso: p.start_date,
         projectId: p.id,
-        label: p.name,
-        ariaLabel: `${p.name} — start`,
+        label: projectDisplayName(p),
+        ariaLabel: `${projectDisplayName(p)} — start`,
+        contractualTitle: p.name,
       });
     }
     if (p.end_date) {
@@ -74,15 +79,17 @@ function deriveEvents(
         kind: 'end',
         iso: p.end_date,
         projectId: p.id,
-        label: p.name,
-        ariaLabel: `${p.name} — end`,
+        label: projectDisplayName(p),
+        ariaLabel: `${projectDisplayName(p)} — end`,
+        contractualTitle: p.name,
       });
     }
   }
   for (const m of milestoneDates ?? []) {
     const projectName = nameById.get(m.projectId);
+    const contractualName = contractualNameById.get(m.projectId);
     // A milestone for a project not in the visible set is skipped (defensive).
-    if (!projectName) continue;
+    if (!projectName || !contractualName) continue;
     events.push({
       kind: 'milestone',
       iso: m.targetDate,
@@ -95,6 +102,7 @@ function deriveEvents(
         project: projectName,
         phase: m.name,
       }),
+      contractualTitle: `${contractualName} · ${m.name}`,
     });
   }
   return events;
@@ -109,7 +117,7 @@ const ProjectEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void
     type="button"
     onClick={() => onOpen(event.projectId)}
     aria-label={event.ariaLabel}
-    title={event.ariaLabel}
+    title={event.contractualTitle}
     className={cn(
       'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
@@ -129,7 +137,7 @@ const MilestoneEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => vo
     type="button"
     onClick={() => onOpen(event.projectId)}
     aria-label={event.ariaLabel}
-    title={event.ariaLabel}
+    title={event.contractualTitle}
     className={cn(
       'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',

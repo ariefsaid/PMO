@@ -8,6 +8,8 @@ export interface EnsureRecordFolderRequest extends RecordFolderTarget {
 export interface RecordFolderCursor {
   kind: 'project' | 'procurement';
   after: string | null;
+  /** The sweep's run id, set by the server on every continuation cursor; echo the cursor back unchanged. */
+  run?: string;
 }
 export interface RecordFolderBackfillRequest {
   action: 'link_existing_record_folders';
@@ -20,6 +22,9 @@ export interface RecordFolderBackfillPage {
   missing: number;
   failed: number;
   skipped: number;
+  unmatched: string[];
+  /** Set only when the running summary for `pmo m365 status` could not be saved; the page itself succeeded. */
+  summary_warning?: string;
   next: RecordFolderCursor | null;
   stopped?: 'connection' | 'default_changed' | 'unavailable';
   /** Capped whole seconds Microsoft asked us to wait, present only with `stopped: 'unavailable'`. */

@@ -46,7 +46,8 @@ import type {
 } from '@/src/lib/db/expenseClaims';
 import type { ExpenseReceiptRow } from '@/src/lib/db/expenseReceipts';
 import type { ExpenseAccountMapRow, ExpensePostingRow } from './expensePostings';
-import type { ErpPurchaseRow } from './erpPurchases';
+import type { ErpLinkResponse, ErpLinkRow, ErpPurchaseRow } from './erpPurchases';
+import type { ProcurementGates } from '@/src/lib/db/orgs';
 import type { TransitionProjectOpts, ProjectStatus } from '@/src/lib/db/projectTransitions';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import type {
@@ -88,6 +89,7 @@ import type {
   ProcurementItemRow,
   ProcurementDocumentInput,
   ProcurementDocumentRow,
+  DocumentTarget,
 } from '@/src/lib/db/procurementCrud';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
@@ -455,6 +457,7 @@ export interface ProcurementRepository {
     procurementId: string,
     reference: MicrosoftReferenceInput,
     metadata?: { referenceNumber?: string | null; date?: string | null },
+    target?: DocumentTarget,
   ): Promise<ProcurementDocumentRow>;
   linkMicrosoftDocument(id: string, reference: MicrosoftReferenceInput): Promise<void>;
   unlinkMicrosoftDocument(id: string): Promise<void>;
@@ -807,10 +810,15 @@ export interface ExpenseReceiptRepository {
 }
 
 /** #775 phase B — read-only views of the expense posting side mirror and the account map (RLS-scoped, 0270). */
-/** FR-EPR-006/007: ERP-native purchases, read-only (DD-XING-2). Never summed into spent/committed. */
+/** ADR-0093: ERP purchase documents, linked into purchases (never adopted, never pushed). */
 export interface ErpPurchaseRepository {
   list(projectId?: string): Promise<ErpPurchaseRow[]>;
+  /** The default orphan list: set-aside documents are left out. */
+  listOrphans(projectId?: string): Promise<ErpPurchaseRow[]>;
   hasAny(): Promise<boolean>;
+  listLinked(procurementId: string): Promise<ErpPurchaseRow[]>;
+  link(rows: ErpLinkRow[], dryRun?: boolean): Promise<ErpLinkResponse>;
+  unlink(linkId: string): Promise<void>;
 }
 
 export interface ExpensePostingRepository {
@@ -922,6 +930,8 @@ export interface OrgSettingsRepository {
   getVendorTaxAccounts(): Promise<OrgVendorTaxAccounts>;
   setVendorTaxAccounts(input: OrgVendorTaxAccounts): Promise<void>;
   getDownPaymentItem(): Promise<string | null>;
+  getProcurementGates(): Promise<ProcurementGates>;
+  setProcurementGates(patch: Partial<ProcurementGates>): Promise<ProcurementGates>;
   setDownPaymentItem(item: string | null): Promise<void>;
   getProjectClassificationOptions(): Promise<ProjectClassificationOptions>;
   setProjectClassificationOptions(options: ProjectClassificationOptions): Promise<void>;
@@ -1113,6 +1123,9 @@ export interface ErpSetupReadiness {
   domains: string[];
   unmappedProjects: Array<{ id: string; name: string; code: string | null }>;
   budgetMappedCategories: string[];
+  /** #1326: which of Travel & accommodation / Vehicle the org has budget lines in. Absent from an older
+   *  edge function — then neither is required. */
+  budgetUsedOptionalCategories?: string[];
   unlinkedEmployeeCount: number;
 }
 export interface ErpProjectOption { name: string; project_name: string; company: string; is_active: string }

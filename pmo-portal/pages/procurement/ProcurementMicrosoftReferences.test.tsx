@@ -65,11 +65,12 @@ const emptyRow = (over: Record<string, unknown> = {}) => legacyRow({ id: 'empty-
 
 const picked = { drive_id: 'drive-2', item_id: 'item-2', web_url: 'https://example.invalid/sites/y/file', name: 'Picked file', item_kind: 'file' as const };
 
-function renderIt() {
+type Target = { value: string; label: string; recordKind: 'erp_document' | 'vendor_invoice'; recordId: string };
+function renderIt(targets: Target[] = []) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ProcurementMicrosoftReferences procurementId="case-1" requestNumber="PR-2026-001" createdAt="2026-10-01T00:00:00Z" />
+      <ProcurementMicrosoftReferences procurementId="case-1" requestNumber="PR-2026-001" createdAt="2026-10-01T00:00:00Z" targets={targets} />
     </QueryClientProvider>,
   );
 }
@@ -331,5 +332,82 @@ describe('F5 (case side): "Choose existing folder" opens the picker', () => {
     h.perms.create = false;
     renderIt();
     expect(h.folderAction.props?.onChooseExisting).toBeUndefined();
+  });
+});
+
+describe('AC-PFE-009 files per document and folders', () => {
+  const erpTarget: Target = { value: 'erp_document:d1', label: 'Supplier invoice ACC-PINV-0001', recordKind: 'erp_document', recordId: 'd1' };
+
+  it('AC-PFE-009: a linked folder shows as a folder without status or category; a file shows under its ERP invoice', () => {
+    h.rows = [
+      msRow({ id: 'f', ms_item_name: 'Supplier docs', status: 'Draft', record_kind: null, record_id: null }),
+      msRow({ id: 'x', ms_item_name: 'Bill.pdf', ms_item_kind: 'file', ms_item_id: 'item-9', status: 'Draft', record_kind: 'erp_document', record_id: 'd1' }),
+    ];
+    renderIt([erpTarget]);
+    const folder = screen.getByRole('listitem', { name: /Supplier docs/ });
+    expect(folder).toHaveTextContent('Open folder');
+    expect(folder).not.toHaveTextContent('Draft');
+    expect(screen.getByRole('group', { name: 'Supplier invoice ACC-PINV-0001' })).toHaveTextContent('Bill.pdf');
+  });
+
+  it('a reference whose record is no longer a target stays in the plain list', () => {
+    h.rows = [msRow({ id: 'x', ms_item_name: 'Orphan.pdf', ms_item_kind: 'file', record_kind: 'erp_document', record_id: 'gone' })];
+    renderIt([erpTarget]);
+    expect(screen.queryByRole('group')).toBeNull();
+    expect(screen.getByText('Orphan.pdf')).toBeInTheDocument();
+  });
+
+  it('asks "Attach to" inside the link flow, only when the purchase has something to attach to, defaulting to this purchase', async () => {
+    const { unmount } = renderIt();
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    // Nothing to attach to: the link is written straight away, with no extra question.
+    expect(h.hook.create.mutateAsync).toHaveBeenLastCalledWith({ reference: picked });
+    expect(screen.queryByLabelText('Attach to')).toBeNull();
+    unmount();
+    h.hook.create.mutateAsync.mockClear();
+    renderIt([erpTarget]);
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    expect(h.hook.create.mutateAsync).not.toHaveBeenCalled();
+    const select = screen.getByLabelText('Attach to') as HTMLSelectElement;
+    expect(select.value).toBe('');
+    expect(within(select).getByRole('option', { name: 'This purchase' })).toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: 'Supplier invoice ACC-PINV-0001' })).toBeInTheDocument();
+  });
+
+  it('the answer decides the write: this purchase by default, or the chosen document', async () => {
+    renderIt([erpTarget]);
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    fireEvent.click(screen.getByRole('button', { name: 'Link' }));
+    await waitFor(() => expect(h.hook.create.mutateAsync).toHaveBeenLastCalledWith({ reference: picked }));
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    fireEvent.change(screen.getByLabelText('Attach to'), { target: { value: 'erp_document:d1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Link' }));
+    await waitFor(() => expect(h.hook.create.mutateAsync).toHaveBeenLastCalledWith({ reference: picked, target: { recordKind: 'erp_document', recordId: 'd1' } }));
+  });
+
+  it('a refused link keeps the question open and says so', async () => {
+    h.hook.create.mutateAsync.mockRejectedValueOnce(new Error('nope'));
+    renderIt([erpTarget]);
+    await act(async () => { await h.picker.props!.onSelect(picked); });
+    fireEvent.click(screen.getByRole('button', { name: 'Link' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The reference was not changed');
+    expect(screen.getByLabelText('Attach to')).toBeInTheDocument();
+  });
+
+  it('with several groups the purchase own links get the same kind of heading', () => {
+    h.rows = [
+      msRow({ id: 'a', ms_item_name: 'Plain.pdf', ms_item_kind: 'file', ms_item_id: 'i-a' }),
+      msRow({ id: 'x', ms_item_name: 'Bill.pdf', ms_item_kind: 'file', ms_item_id: 'i-x', record_kind: 'erp_document', record_id: 'd1' }),
+    ];
+    renderIt([erpTarget]);
+    expect(screen.getByRole('group', { name: 'This purchase' })).toHaveTextContent('Plain.pdf');
+    expect(screen.getByRole('group', { name: 'Supplier invoice ACC-PINV-0001' })).toHaveTextContent('Bill.pdf');
+  });
+
+  it('shows no link action (so no Attach to question) without link permission', () => {
+    h.perms.create = false;
+    renderIt([erpTarget]);
+    expect(screen.queryByRole('button', { name: 'Link from Microsoft 365' })).toBeNull();
+    expect(screen.queryByLabelText('Attach to')).toBeNull();
   });
 });

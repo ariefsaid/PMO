@@ -35,7 +35,7 @@ async function capture(fn: () => Promise<unknown>): Promise<AppError> {
 }
 
 const page = (over: Record<string, unknown> = {}) => ({
-  scanned: 3, linked: 1, needs_choice: 1, missing: 1, failed: 0, skipped: 0, next: null, ...over,
+  scanned: 3, linked: 1, needs_choice: 1, missing: 1, failed: 0, skipped: 0, unmatched: [], next: null, ...over,
 });
 
 beforeEach(() => invoke.mockReset());
@@ -123,6 +123,25 @@ describe('AC-M365DOC-072 — linkExistingRecordFolders transport', () => {
     });
   });
 
+  it('accepts the run id on a continuation cursor and echoes the cursor back unchanged', async () => {
+    const RUN = '10200000-0000-4000-8000-0000000000a1';
+    invoke.mockResolvedValueOnce({ data: page({ next: { kind: 'project', after: NEXT, run: RUN } }), error: null });
+    const first = await linkExistingRecordFolders();
+    expect(first.next).toEqual({ kind: 'project', after: NEXT, run: RUN });
+    invoke.mockResolvedValueOnce({ data: page(), error: null });
+    await linkExistingRecordFolders(first.next!);
+    expect(invoke).toHaveBeenLastCalledWith('m365-token-custody', {
+      body: { action: 'link_existing_record_folders', cursor: { kind: 'project', after: NEXT, run: RUN } },
+    });
+  });
+
+  it('passes through a summary warning and rejects a non-string one', async () => {
+    invoke.mockResolvedValueOnce({ data: page({ summary_warning: 'not saved' }), error: null });
+    expect((await linkExistingRecordFolders()).summary_warning).toBe('not saved');
+    invoke.mockResolvedValueOnce({ data: page({ summary_warning: 7 }), error: null });
+    await expect(linkExistingRecordFolders()).rejects.toBeDefined();
+  });
+
   it('passes through a stopped marker', async () => {
     invoke.mockResolvedValueOnce({ data: page({ stopped: 'connection' }), error: null });
     expect((await linkExistingRecordFolders()).stopped).toBe('connection');
@@ -137,6 +156,8 @@ describe('AC-M365DOC-072 — linkExistingRecordFolders transport', () => {
     ['extra key', page({ detail: 'x' })],
     ['bad cursor kind', page({ next: { kind: 'budget', after: null } })],
     ['bad cursor id', page({ next: { kind: 'project', after: 'x' } })],
+    ['bad cursor run id', page({ next: { kind: 'project', after: null, run: 'x' } })],
+    ['extra cursor key', page({ next: { kind: 'project', after: null, table: 'profiles' } })],
     ['unknown stopped', page({ stopped: 'because' })],
   ])('rejects a malformed page (%s) so the UI loop cannot continue', async (_n, body) => {
     invoke.mockResolvedValueOnce({ data: body, error: null });

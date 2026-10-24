@@ -4,7 +4,7 @@
 -- column + the company FK references (profiles/projects/procurements → companies):
 --   AC-CO-101  a write-role (PM) can INSERT a company (org_id defaulted from auth_org_id(), never sent).
 --   AC-CO-102  a write-role (PM) can UPDATE a company (name/type) in its own org.
---   AC-CO-103  a write-role (PM) can archive a company (set archived_at) — and it persists.
+--   AC-CO-103  a PM cannot archive a company: archiving is Admin·Executive only (0353).
 --   AC-CO-104  an Engineer (non-write-role) CANNOT INSERT a company (WITH CHECK denies → 42501).
 --   AC-CO-105  an Engineer (non-write-role) CANNOT UPDATE/archive a company (USING hides it → 0-row no-op).
 --   AC-CO-106  hard-delete of a company REFERENCED by a project is REJECTED by the FK guard (23503) — by Admin.
@@ -170,22 +170,23 @@ select lives_ok(
        where id = '00510000-0000-0000-0000-000000000010' $$,
   'AC-CO-102: a write-role (PM) can UPDATE a company in its own org');
 
--- AC-CO-103: PM can archive a company (set archived_at).
-select lives_ok(
+-- AC-CO-103: a PM cannot archive a company (archiving is Admin·Executive only, 0353).
+select throws_ok(
   $$ update companies set archived_at = now()
        where id = '00510000-0000-0000-0000-000000000011' $$,
-  'AC-CO-103: a write-role (PM) can archive a company (set archived_at)');
+  '42501', null,
+  'AC-CO-103: a PM cannot archive a company (archiving is Admin and Executive only)');
 
 -- AC-CO-109: a write-role PM CANNOT hard-delete. Migration 0013's RESTRICTIVE Admin-only DELETE policy
 -- fails for a PM, so the row is invisible to the DELETE → silent 0-row no-op (DELETE has no WITH CHECK,
--- so RLS denial is a no-op, not 42501). The PM keeps INSERT/UPDATE/archive (above) — only DELETE narrows.
+-- so RLS denial is a no-op, not 42501). The PM keeps INSERT/UPDATE (above) — only DELETE narrows.
 select lives_ok(
   $$ delete from companies where id = '00510000-0000-0000-0000-000000000011' $$,
   'AC-CO-109: PM DELETE companies runs without error (restrictive Admin-only DELETE policy → RLS no-op)');
 
 reset role;
 
--- Confirm the PM deleted nothing: the (now-archived) unreferenced vendor still exists.
+-- Confirm the PM deleted nothing: the unreferenced vendor still exists.
 select ok(
   (select exists (select 1 from companies where id = '00510000-0000-0000-0000-000000000011')),
   'AC-CO-109: PM DELETE affected 0 rows (the company still exists; only Admin may hard-delete)');
@@ -196,10 +197,10 @@ select is(
   '00000000-0000-0000-0000-000000000001',
   'AC-CO-101: the PM-inserted company is stamped with the caller''s org (org_id column default)');
 
--- AC-CO-103: confirm the archive persisted (no silent RLS no-op for the write-role).
+-- AC-CO-103: the refused archive left the company live.
 select ok(
-  (select archived_at is not null from companies where id = '00510000-0000-0000-0000-000000000011'),
-  'AC-CO-103: companies.archived_at persisted (the archive write took effect)');
+  (select archived_at is null from companies where id = '00510000-0000-0000-0000-000000000011'),
+  'AC-CO-103: the refused PM archive left companies.archived_at null');
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- AC-CO-106/107: ADMIN is the only role that may hard-delete (migration 0013).

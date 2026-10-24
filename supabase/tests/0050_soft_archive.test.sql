@@ -53,12 +53,15 @@ insert into organizations (id, name) values
 insert into auth.users (id, email) values
   ('00500000-0000-0000-0000-0000000000a1','sa-pm@example.com'),
   ('00500000-0000-0000-0000-0000000000a2','sa-eng@example.com'),
+  ('00500000-0000-0000-0000-0000000000a3','sa-exec@example.com'),
   ('00500000-0000-0000-0000-0000000000b1','sa-pm-b@example.com');
 insert into profiles (id, org_id, full_name, email, role) values
   ('00500000-0000-0000-0000-0000000000a1','00500000-0000-0000-0000-000000000001',
    'SA PM','sa-pm@example.com','Project Manager'),
   ('00500000-0000-0000-0000-0000000000a2','00500000-0000-0000-0000-000000000001',
    'SA Eng','sa-eng@example.com','Engineer'),
+  ('00500000-0000-0000-0000-0000000000a3','00500000-0000-0000-0000-000000000001',
+   'SA Exec','sa-exec@example.com','Executive'),
   ('00500000-0000-0000-0000-0000000000b1','00500000-0000-0000-0000-000000000002',
    'SA PM B','sa-pm-b@example.com','Project Manager');
 insert into companies (id, org_id, name, type) values
@@ -127,23 +130,23 @@ select ok(
   (select archived_at is null from companies where id = '00500000-0000-0000-0000-000000000010'),
   'ADR-0018 org boundary: cross-org archive attempt affected 0 rows on companies (archived_at still NULL)');
 
--- ── (2) A write-role can set archived_at on its OWN org rows (RLS + grant) ──
--- Act as the in-org PM (a write-role; passes projects_write / companies_write role gate).
+-- ── (2) An archive role can set archived_at on its OWN org rows (RLS + grant) ──
+-- Act as the in-org Executive: archiving is Admin·Executive only (0353; a PM is refused there).
 -- Runs AFTER the negative tests so archived_at IS NULL is still the baseline going in.
 set local role authenticated;
-set local request.jwt.claims = '{"sub":"00500000-0000-0000-0000-0000000000a1","role":"authenticated"}';
+set local request.jwt.claims = '{"sub":"00500000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 
--- A PM can archive its own org PROJECT (proves the 0012 GRANT UPDATE(archived_at) un-does the 0008 revoke).
+-- An Executive can archive its own org PROJECT (proves the 0012 GRANT UPDATE(archived_at) un-does the 0008 revoke).
 select lives_ok(
   $$ update projects set archived_at = now()
        where id = '00500000-0000-0000-0000-000000000020' $$,
-  'ADR-0018: a write-role can set projects.archived_at on its own org row (column grant + FOR ALL policy)');
+  'ADR-0018: an archive role can set projects.archived_at on its own org row (column grant + FOR ALL policy)');
 
--- A PM can archive its own org COMPANY (companies was never column-revoked; table grant covers it).
+-- An Executive can archive its own org COMPANY (companies was never column-revoked; table grant covers it).
 select lives_ok(
   $$ update companies set archived_at = now()
        where id = '00500000-0000-0000-0000-000000000010' $$,
-  'ADR-0018: a write-role can set companies.archived_at on its own org row');
+  'ADR-0018: an archive role can set companies.archived_at on its own org row');
 
 reset role;
 

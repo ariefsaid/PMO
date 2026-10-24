@@ -5,7 +5,7 @@
  */
 import {
   AGENT_MASTER_DATA_ROLES,
-  AGENT_DELIVERY_WITH_ENGINEER_ROLES,
+  AGENT_TASK_STATUS_ROLES,
   AGENT_REVENUE_WRITE_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
 
@@ -13,7 +13,7 @@ export function agentCan(action: string, entity: string, ctx: { realRole: string
   const role = ctx.realRole;
   if (!role) return false;
   if (entity === 'contactActivity' && action === 'create') return AGENT_MASTER_DATA_ROLES.includes(role);
-  if (entity === 'taskStatus' && action === 'edit') return AGENT_DELIVERY_WITH_ENGINEER_ROLES.includes(role);
+  if (entity === 'taskStatus' && action === 'edit') return AGENT_TASK_STATUS_ROLES.includes(role);
   if (entity === 'salesInvoice' && action === 'create') return AGENT_REVENUE_WRITE_ROLES.includes(role);
   return false;
 }

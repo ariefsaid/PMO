@@ -22,6 +22,7 @@
 import { test, expect } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAR_CURRENCY } from './_sarHelpers';
+import { runFullSweep } from './_sweepHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -31,7 +32,6 @@ const SITE_URL = process.env.ERPNEXT_SITE_URL ?? 'http://host.docker.internal:80
 const BENCH_URL = process.env.ERPNEXT_BENCH_URL ?? 'http://localhost:8080';
 const BENCH_KEY = process.env.ERPNEXT_BENCH_API_KEY ?? '';
 const BENCH_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
-const SWEEP_SECRET = process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret';
 const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 const ADMIN_EMAIL = 'admin@acme.test';
 const SEED_PASSWORD = 'Passw0rd!dev';
@@ -207,13 +207,8 @@ test('AC-VWH-005 a bill with PPh withheld is recorded gross with VAT and withhol
     expect(await readDoc('Purchase Invoice', piName)).toMatchObject({ status: 'Paid', outstanding_amount: 0 });
 
     // 5. The feed brings the settlement back: Paid in PMO, gross / VAT / withheld unchanged.
-    const sweep = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-      body: JSON.stringify({ org_id: ORG_ID }),
-    });
+    const sweep = await runFullSweep(FUNCTIONS_URL, ORG_ID);
     expect([200, 202]).toContain(sweep.status);
-    await sweep.arrayBuffer();
     await expect.poll(async () => (await bill()).data?.status, { timeout: 15_000 }).toBe('Paid');
     const { data: settled } = await bill();
     expect(settled).toMatchObject({ status: 'Paid', erp_outstanding_amount: 0, amount: 1110000, tax_amount: 110000, withheld_amount: 20000 });

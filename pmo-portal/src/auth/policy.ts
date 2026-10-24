@@ -74,6 +74,7 @@ export type Entity =
   | 'userView'
   | 'salesInvoice'
   | 'procurementInvoice'
+  | 'erpPurchaseLink'
   | 'vendorWithholdingSlip'
   | 'incomingPayment'
   | 'externalBinding'
@@ -131,6 +132,7 @@ const MASTER_DATA: Role[] = ['Admin', 'Executive', 'Project Manager', 'Finance']
 const ARCHIVE_ROLES: Role[] = ['Admin', 'Executive'];
 const MONEY_AUTHORITY: Role[] = ['Admin', 'Executive', 'Finance']; // contract_value-on-won SoD
 const CONFIRM_BAST: Role[] = ['Admin', 'Finance']; // BAST confirmation / any-draft withdrawal (DD-CQ-8)
+const TASK_CONTRIBUTOR: Role[] = ['Finance', 'Engineer']; // task: own-created edit + own-assigned status (0355)
 const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Admin only
 /**
  * Revenue WRITE set — who may raise a sales invoice, record an incoming receipt, cancel either, or
@@ -333,7 +335,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     // DD-TASK-8 (#551, migration 0204): an Engineer may create tasks. The old exclusion had no
     // ruling behind it — it traced to the 0002 bootstrap role list and was copied forward by four
     // migrations, while OD-MTG-1 ruled every role may minute a meeting whose /action creates a task.
-    create: allow([...DELIVERY, 'Engineer']),
+    // Owner ruling 2026-10-23 (migration 0355): Finance is scoped exactly like an Engineer on tasks —
+    // create, edit what it created, set status on what it is assigned; no edit-all, archive or delete.
+    create: allow(ALL),
     // Record-scoped, mirroring the RLS disjunct in 0204 §3 exactly: a write role, OR the CREATOR.
     // ⚑ NOT the assignee — the 3-lens review removed the assignee disjunct from `tasks_update` (it
     // was redundant with `tasks_update_own_status` and its only net effect was bypassing the ClickUp
@@ -346,14 +350,15 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
       if (!ctx.currentUserId) return false;
       return ctx.record?.created_by === ctx.currentUserId;
     },
-    archive: allow(MASTER_DATA),
+    archive: allow(DELIVERY), // 0355: Finance lost the write-role path (archived_at is a lifecycle column)
     delete: allow(DELIVERY),
   },
   taskStatus: {
-    // Managers may set any task's status; an Engineer may set status only on their OWN task.
+    // Managers may set any task's status; an Engineer or Finance member may set status only on
+    // their OWN (assigned) task — RLS tasks_update_own_status (0355 scopes Finance like Engineer).
     edit: (role, ctx) => {
       if (has(DELIVERY, role)) return true;
-      if (role === 'Engineer') {
+      if (has(TASK_CONTRIBUTOR, role)) {
         const owns = !!ctx.currentUserId && ctx.record?.assignee_id === ctx.currentUserId;
         return owns;
       }
@@ -540,6 +545,13 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
     view: allow(MASTER_DATA),
     // DD-EFK-1: vendor e-Faktur facts use the same Admin/Finance UX gate as outgoing invoices.
     record_efaktur: allow(REVENUE_WRITE),
+  },
+  erpPurchaseLink: {
+    // ADR-0093: linking an ERPNext purchase document into a purchase (FR-PFE-020) — the ERP-purchase audience; an
+    // Engineer reads no ERP purchase documents (0350). Unlink (FR-PFE-031) is Admin/Finance. UX only — the
+    // link/unlink RPCs are the enforcement authority.
+    create: allow(MASTER_DATA),
+    delete: allow(REVENUE_WRITE),
   },
   vendorWithholdingSlip: {
     // Every role except Engineer, who reads no payment records (owner ruling 2026-10-23, migration 0350);

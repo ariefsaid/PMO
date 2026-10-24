@@ -33,14 +33,52 @@ export const WON_STAGES = Object.freeze(['Won, Pending KoM', 'Ongoing Project', 
 /** public.budget_category — budgetLoadParity.test.ts proves it equals the generated enum (AC-CSD-011). */
 export const BUDGET_CATEGORIES = Object.freeze([
   'Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses',
+  'Travel & accommodation', 'Vehicle',
 ]);
+
+// #1326 (FR-TVC-004): SBP travel and vehicle costs have their own categories now. Whole words, English and
+// Indonesian, as the client's SBPs write them. Fuel alone is NOT a vehicle cost (a generator burns fuel too):
+// it moves to Vehicle only when the line also names a vehicle or a rental.
+const word = (alternatives) => new RegExp(`(^|[^\\p{L}])(${alternatives})(?![\\p{L}])`, 'iu');
+const TRAVEL_WORDS = word('travel|hotels?|lodging|accommodation|tickets?|per[\\s-]?diem|tiket|akomodasi|penginapan|uang harian|perjalanan dinas');
+const VEHICLE_WORDS = word('vehicles?|cars?|trucks?|truk|mobil|kendaraan|car rental|car hire|sewa mobil');
+const RENTAL_WORDS = word('rental|sewa');
+const FUEL_WORDS = word('fuel|bbm|bahan bakar|solar|bensin');
+const KEPT_FUEL = 'fuel with no vehicle word — kept in Special expenses';
+
+/**
+ * How a file line's category is decided (AC-TVC-004): `{ category, reason }`. `reason` is null when the line
+ * names nothing this rule looks at (it is then not reported). Only "Special expenses" lines are considered:
+ *   • travel, hotel, tickets or per diem → Travel & accommodation;
+ *   • a vehicle word, or fuel together with a rental → Vehicle;
+ *   • fuel with no vehicle or rental word → kept, and reported so the operator sees it;
+ *   • travel AND a vehicle or fuel word → kept (never a guess), and reported.
+ * The line's import key still uses the FILE's category, so a Draft loaded before #1326 is matched, not doubled.
+ */
+export function classifyBudgetLine(category, description) {
+  if (category !== 'Special expenses') return { category, reason: null };
+  const text = String(description ?? '');
+  const travel = TRAVEL_WORDS.test(text);
+  const fuel = FUEL_WORDS.test(text);
+  const vehicle = VEHICLE_WORDS.test(text) || (fuel && RENTAL_WORDS.test(text));
+  if (travel && (vehicle || fuel)) return { category, reason: 'names both travel and a vehicle or fuel — kept in Special expenses' };
+  if (travel) return { category: 'Travel & accommodation', reason: 'travel' };
+  if (vehicle) return { category: 'Vehicle', reason: 'vehicle' };
+  if (fuel) return { category, reason: KEPT_FUEL };
+  return { category, reason: null };
+}
+
+/** The category a file line is WRITTEN under (see classifyBudgetLine). */
+export function classifyBudgetLineCategory(category, description) {
+  return classifyBudgetLine(category, description).category;
+}
 
 /** The name the app's budget import gives a version it creates (budgetDescriptor.ts). */
 export const IMPORT_VERSION_NAME = 'Imported';
 
 // Classification (#770): passed through as-is; the database checks each value against the org's own option lists.
 const CLASSIFICATION_FIELDS = Object.freeze(['service_line', 'sector', 'location', 'award_type', 'bidding_entity']);
-const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', ...CLASSIFICATION_FIELDS]);
+const OPTIONAL_PROJECT_FIELDS = Object.freeze(['start_date', 'end_date', 'project_manager_id', 'short_name', ...CLASSIFICATION_FIELDS]);
 const PROJECT_FIELDS = new Set([
   'code', 'name', 'client', 'end_client', 'stage', 'contract_value', 'tax_treatment', 'tax_amount', 'tax_rate',
   'tax_base_numerator', 'tax_base_denominator', 'tax_template', 'customer_contract_ref', 'contract_date', 'budget', 'contract_lines',
@@ -50,7 +88,7 @@ const LINE_FIELDS = new Set(['category', 'description', 'budgeted_amount', 'fisc
 const CONTRACT_LINE_FIELDS = new Set(['key', 'line_no', 'item_code', 'description', 'unit', 'quantity', 'rate', 'basis']);
 const CONTRACT_LINE_BASES = Object.freeze(['unit_rate', 'lump_sum']);
 const COMPANY_FIELDS = new Set(['name', 'short_name']);
-const PROJECT_SELECT = 'id,code,name,client_id,status,contract_value,pmo_project_number';
+const PROJECT_SELECT = 'id,code,name,short_name,client_id,status,contract_value,pmo_project_number';
 /** PostgREST answers at most max_rows (1000) rows: a read that fills it cannot prove a key is absent. */
 const READ_CAP = 1000;
 
@@ -133,6 +171,7 @@ export function validateLoadFile(doc) {
     const add = (m) => problems.push(`projects[${i}] (${key}): ${m}`);
     for (const k of Object.keys(p)) if (!PROJECT_FIELDS.has(k)) add(`unknown field "${k}"`);
     if (p.code !== undefined && !isText(p.code)) add('"code" must be text');
+    if (p.short_name !== undefined && typeof p.short_name !== 'string') add('"short_name" must be text');
     if (!isText(p.name)) add('"name" is required');
     if (!isText(p.client)) add('"client" (the client company\'s legal name) is required');
     if (p.end_client !== undefined && !isText(p.end_client)) add('"end_client" must be a company\'s legal name');
@@ -286,7 +325,9 @@ export async function resolveLoad(doc, api) {
   }
 
   const projects = [];
-  for (const p of doc.projects ?? []) {
+  for (const source of doc.projects ?? []) {
+    // Blank aliases are an absent loader enhancement, never an implicit clearing operation.
+    const p = { ...source, ...(typeof source.short_name === 'string' ? { short_name: source.short_name.trim() || undefined } : {}) };
     const key = projectKey(p);
     const client = await companyRef(p.client, 'client', key);
     const endClient = p.end_client ? await companyRef(p.end_client, 'end customer', key) : null;
@@ -310,6 +351,8 @@ export async function resolveLoad(doc, api) {
       pmo_project_number: existing?.pmo_project_number ?? null,
       path: existing ? remainingPath(p.stage, existing.status) : [...LOAD_STAGE_PATHS[p.stage]],
       value: !p.contract_value ? 'none' : current === 0 ? 'set' : current === p.contract_value ? 'same' : 'differs',
+      shortName: !p.short_name ? 'none' : p.short_name === (existing?.short_name?.trim() || null) ? 'same' : existing?.short_name?.trim() ? 'differs' : 'set',
+      currentShortName: existing?.short_name?.trim() || null,
       budget: null,
       contractLines: null,
     };
@@ -322,7 +365,12 @@ export async function resolveLoad(doc, api) {
 
 /** The app import's rule (DD-BIMP-7): the highest Draft, else a new one; skip once a budget was activated. */
 async function resolveBudget(api, entry, problems) {
-  const lines = entry.input.budget.map((l) => ({ ...l, import_key: lineKey(entry.key, l) }));
+  const lines = entry.input.budget.map((l, row) => {
+    const { category, reason } = classifyBudgetLine(l.category, l.description);
+    const decision = reason === null ? null
+      : { row, description: l.description ?? null, from: l.category, to: category, reason };
+    return { ...l, category, import_key: lineKey(entry.key, l), decision };
+  });
   if (!entry.existing) return { state: 'new', versionId: null, lines };
   const versions = await api.get('budget_versions', params({ select: 'id,status,version', project_id: eq(entry.id), order: 'version.desc' }));
   if (versions.some((v) => v.status !== 'Draft')) {
@@ -352,6 +400,11 @@ async function resolveContractLines(api, entry, problems) {
   }
   const loaded = new Set(have.map((r) => r.import_key));
   return { lines: lines.map((line) => ({ line, exists: loaded.has(line.key) })) };
+}
+
+/** The per-org unique short-name index rejected the write (#1325). */
+function isShortNameConflict(err) {
+  return err?.code === '23505' && String(err.message ?? '').includes('projects_org_short_name_uidx');
 }
 
 function projectPayload(e) {
@@ -430,11 +483,34 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       note({ kind: 'project.skip', key: e.key, id: e.id, pmo_project_number: e.pmo_project_number });
     } else {
       await write({ kind: 'project.create', key: e.key }, async () => {
-        const [row] = await api.post('projects', projectPayload(e));
+        let row;
+        try {
+          [row] = await api.post('projects', projectPayload(e));
+        } catch (err) {
+          // #1325: a short name already used in the org is a conflict to report, not a reason to lose the project.
+          if (!isShortNameConflict(err)) throw err;
+          const { short_name: _taken, ...withoutAlias } = projectPayload(e);
+          [row] = await api.post('projects', withoutAlias);
+          note({ kind: 'project.short_name_conflict', key: e.key, id: row.id, file: e.input.short_name });
+        }
         e.id = row.id;
         e.pmo_project_number = row.pmo_project_number ?? null;
         return { id: e.id, pmo_project_number: e.pmo_project_number };
       });
+    }
+    if (e.existing && e.shortName === 'set') {
+      await write({ kind: 'project.set_short_name', key: e.key, id: e.id, short_name: e.input.short_name }, async () => {
+        let rows;
+        try {
+          rows = await api.patch('projects', params({ id: eq(e.id) }), { short_name: e.input.short_name });
+        } catch (err) {
+          if (!isShortNameConflict(err)) throw err;
+          return { kind: 'project.short_name_conflict' };
+        }
+        if (!rows?.length) throw Object.assign(new Error(`The short name of "${e.input.name}" was not changed — the database did not allow it`), { code: 'no_rows' });
+      });
+    } else if (e.existing && e.shortName === 'differs') {
+      note({ kind: 'project.short_name_differs', key: e.key, id: e.id, current: e.currentShortName, file: e.input.short_name });
     }
     if (e.value === 'set') {
       await write({ kind: 'project.contract_value', key: e.key, value: e.input.contract_value }, async () => {
@@ -487,6 +563,8 @@ async function applyContractLines(e, api, write, note) {
 async function applyBudget(e, api, write, note, { batchId, importedAt }) {
   if (e.budget.state === 'skip') return note({ kind: 'budget.skip', key: e.key, id: e.id, reason: e.budget.reason });
   if (e.budget.lines.length === 0) return note({ kind: 'budget.skip', key: e.key, id: e.id, reason: 'every line is already in the draft' });
+  // AC-TVC-004: every line whose category the loader decided (moved, or fuel kept) is listed, in file order.
+  for (const l of e.budget.lines) if (l.decision) note({ kind: 'budget.category', key: e.key, ...l.decision });
   let versionId = e.budget.versionId;
   if (!versionId) {
     // `status` is omitted on purpose: the column default is Draft and the 0176 trigger refuses anything else.

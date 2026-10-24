@@ -15,7 +15,7 @@ import {
 } from '@/src/lib/features';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { useUserViews } from '@/src/hooks/useUserViews';
-import { MODULES } from './routeMatch';
+import { MODULES, RAIL_PARENT_FOR_PATH } from './routeMatch';
 
 // Map profiles.role string → UserRole enum explicitly (preserved from Sidebar.tsx).
 // A future enum rename is a compile error here rather than a silent nav bug.
@@ -83,7 +83,8 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
@@ -295,7 +296,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
         className={({ isActive }: { isActive: boolean }) => {
-          const active = isActive;
+          // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
+          const active = isActive || RAIL_PARENT_FOR_PATH[location.pathname] === item.to;
           return cn(
             NAV_LINK_BASE,
             active

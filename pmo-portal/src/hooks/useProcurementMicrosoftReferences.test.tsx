@@ -53,6 +53,13 @@ describe('useProcurementMicrosoftReferences', () => {
     expect(client.getQueryCache().findAll({ queryKey: ['procurement-documents', 'org-1', 'case-1'] })).toHaveLength(1);
   });
 
+  it('AC-PFE-009: create forwards an attach-to target to the repository', async () => {
+    const { result } = renderHook(() => useProcurementMicrosoftReferences('case-1'), { wrapper: wrap(freshClient()) });
+    const target = { recordKind: 'vendor_invoice' as const, recordId: 'vi-1' };
+    await act(async () => { await result.current.create.mutateAsync({ reference, target }); });
+    expect(procurement.createMicrosoftDocument).toHaveBeenCalledWith('case-1', reference, undefined, target);
+  });
+
   it('AC-M365DOC-051: is disabled without a case id', () => {
     const { result } = renderHook(() => useProcurementMicrosoftReferences(''), { wrapper: wrap(freshClient()) });
     expect(procurement.listDocuments).not.toHaveBeenCalled();

@@ -125,6 +125,8 @@ export interface ProjectContractTaxColumns {
 /** The create-form fields that have nothing to do with the contract value. */
 interface CreateProjectBase extends ProjectClassification {
   name: string;
+  /** Optional display identity; contractual `name` remains required. */
+  short_name?: string | null;
   /** Must be an origination status (Leads / Internal Project). */
   status: ProjectStatus;
   /** Optional, separately supplied Client Project Code (OD-ID-1). */
@@ -177,6 +179,8 @@ export type CreateProjectInput = CreateProjectBase &
 /** The editable header fields (name/code/client/PM/dates). NOT contract_value (SoD) / status (RPC). */
 export interface ProjectHeaderInput extends ProjectClassification {
   name: string;
+  /** Omitted preserves the existing alias; null/blank clears it. */
+  short_name?: string | null;
   code: string | null;
   client_id: string | null;
   /** The end customer, nullable (#758) — editable alongside the client. */
@@ -282,6 +286,7 @@ export async function createProject(input: CreateProjectInput): Promise<ProjectR
     .from('projects')
     .insert({
       name: input.name,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
       status: input.status,
       ...(input.code !== undefined ? { code: input.code } : {}),
       ...(input.pmo_project_number !== undefined ? { pmo_project_number: input.pmo_project_number } : {}),
@@ -341,6 +346,7 @@ export async function updateProjectHeader(id: string, input: ProjectHeaderInput)
     .from('projects')
     .update({
       name: input.name,
+      ...(input.short_name !== undefined ? { short_name: input.short_name?.trim() || null } : {}),
       code: input.code,
       client_id: input.client_id,
       end_client_id: input.end_client_id,

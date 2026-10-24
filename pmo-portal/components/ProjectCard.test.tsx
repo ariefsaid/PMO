@@ -55,6 +55,13 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Example')).toBeInTheDocument();
     expect(screen.queryByText('Example Legal Company')).not.toBeInTheDocument();
   });
+  it('AC-002 #1325: delivery card shows the project alias and keeps contractual name as hover title', () => {
+    render(<ProjectCard project={{ ...base, short_name: 'Harbor Operations' }} onOpen={vi.fn()} />);
+    const title = screen.getByRole('button', { name: /Harbor Operations/ });
+    expect(title).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(title).toBeVisible();
+  });
+
   it('renders the project name, customer, contract value and PM (AC-401 strings)', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();

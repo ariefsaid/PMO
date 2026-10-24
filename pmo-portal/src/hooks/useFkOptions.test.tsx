@@ -64,6 +64,21 @@ describe('useVendorOptions — vendor FK picker', () => {
 });
 
 describe('useProjectOptions — project FK picker (archived-filtered)', () => {
+  it('AC-002 #1325 shows the alias first, keeps legal name and code searchable, and excludes archived rows', async () => {
+    repo.project.list.mockResolvedValue([
+      { id: 'p-alias', name: 'Contractual North Terminal', short_name: 'North Terminal', code: 'PRJ-1', archived_at: null },
+      { id: 'p2', name: 'Old Job', short_name: 'Old Alias', code: 'PRJ-2', archived_at: '2026-01-01T00:00:00Z' },
+      { id: 'p3', name: 'No Code', short_name: null, code: null, archived_at: null },
+    ]);
+    const { result } = renderHook(() => useProjectOptions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data).toEqual([
+      { value: 'p-alias', label: 'North Terminal', sub: 'Contractual North Terminal · PRJ-1' },
+      { value: 'p3', label: 'No Code', sub: undefined },
+    ]);
+    expect(result.current.data?.map((option) => option.value)).toEqual(['p-alias', 'p3']);
+  });
+
   it('excludes archived projects and maps id→value, name→label, code→sub', async () => {
     repo.project.list.mockResolvedValue([
       { id: 'p1', name: 'HQ Fit-Out', code: 'PRJ-1', archived_at: null },
@@ -118,9 +133,23 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
     const { result } = renderHook(() => useInvoiceProjectOptions(), { wrapper: wrapper() });
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data).toEqual([
-      { value: 'p1', label: 'Alpha', sub: 'A-1', clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false },
-      { value: 'p2', label: 'Beta', sub: undefined, clientId: null, subjectToVat: false, taxRate: null, archived: true },
+      { value: 'p1', label: 'Alpha', sub: 'A-1', contractualName: 'Alpha', clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false },
+      { value: 'p2', label: 'Beta', sub: undefined, contractualName: 'Beta', clientId: null, subjectToVat: false, taxRate: null, archived: true },
     ]);
+  });
+
+  it('AC-002 #1325 keeps invoice selector display separate from its contractual document identity', async () => {
+    repo.project.list.mockResolvedValue([{
+      id: 'p-contract', name: 'Contractual Terminal Expansion', short_name: 'Terminal North', code: 'CLIENT-8',
+      client_id: 'c1', subject_to_vat: true, tax_rate: 12, archived_at: null,
+    }]);
+    const { result } = renderHook(() => useInvoiceProjectOptions(), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.data).toBeDefined());
+    expect(result.current.data).toEqual([{
+      value: 'p-contract', label: 'Terminal North', sub: 'Contractual Terminal Expansion · CLIENT-8',
+      contractualName: 'Contractual Terminal Expansion', clientId: 'c1', subjectToVat: true,
+      taxRate: 12, archived: false,
+    }]);
   });
 
   it('AC-S15-002 carries project currency and the stored tax-base fraction without recomputing either', async () => {
@@ -135,7 +164,7 @@ describe('useInvoiceProjectOptions — the sales-invoice project picker (#784)',
     await waitFor(() => expect(result.current.data).toBeDefined());
     expect(result.current.data).toEqual([
       {
-        value: 'p-source', label: 'Source-currency project', sub: undefined,
+        value: 'p-source', label: 'Source-currency project', sub: undefined, contractualName: 'Source-currency project',
         clientId: 'c1', subjectToVat: true, taxRate: 12, archived: false,
         currency: 'EUR', taxBaseNumerator: 11, taxBaseDenominator: 12,
       },

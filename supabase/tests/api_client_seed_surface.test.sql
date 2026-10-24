@@ -77,7 +77,7 @@ select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/rpc/transition_project');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: transition_project refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_versions');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: GET budget_versions refused');
+select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 Project Manager client: GET budget_versions allowed — operator reads (#1270), rows still scoped by RLS');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/boq_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CQ-018 Project Manager client: GET contract lines refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/boq_items');
@@ -85,7 +85,7 @@ select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/budget_versions');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: POST budget_versions refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'GET', '/budget_line_items');
-select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: GET budget_line_items refused');
+select lives_ok('select public.api_client_request_guard()', 'AC-CSD-013 Project Manager client: GET budget_line_items allowed — operator reads (#1270), rows still scoped by RLS');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'POST', '/budget_line_items');
 select throws_ok('select public.api_client_request_guard()', '42501', null, 'AC-CSD-013 Project Manager client: POST budget_line_items refused');
 select pg_temp.req('07960000-0000-0000-0000-0000000000a2', 'PATCH', '/budget_versions');

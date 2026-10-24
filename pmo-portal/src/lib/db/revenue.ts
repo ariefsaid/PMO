@@ -377,6 +377,8 @@ export async function setSalesInvoiceEfaktur(
 export interface RevenueByProjectRow {
   project_id: string | null;
   project_name: string | null;
+  /** Display alias for the screen only; `project_name` stays contractual for exports. */
+  project_short_name?: string | null;
   /** The invoices' own currency — totals are per (project, currency), never converted (#831). */
   currency: string;
   /** NET of tax, from the shared `sales_invoice_work_billed` view (the management pack's definition). */
@@ -446,19 +448,22 @@ export async function getRevenueByProject(): Promise<RevenueByProjectRow[]> {
   // Resolve project names for non-null project_ids
   const projectIds = Array.from(new Set(Array.from(agg.values()).map((v) => v.project_id).filter((id): id is string => id !== null)));
   let projectNames = new Map<string, string>();
+  let projectShortNames = new Map<string, string | null>();
   if (projectIds.length > 0) {
     const { data: projects } = await supabase
       .from('projects')
-      .select('id, name')
+      .select('id, name, short_name')
       .in('id', projectIds);
     if (projects) {
       projectNames = new Map(projects.map((p: { id: string; name: string }) => [p.id, p.name]));
+      projectShortNames = new Map(projects.map((p: { id: string; short_name?: string | null }) => [p.id, p.short_name?.trim() || null]));
     }
   }
 
   return Array.from(agg.values()).map((v) => ({
     project_id: v.project_id,
     project_name: v.project_id ? (projectNames.get(v.project_id) ?? null) : null,
+    ...(v.project_id && projectShortNames.get(v.project_id) ? { project_short_name: projectShortNames.get(v.project_id) } : {}),
     currency: v.currency,
     total_amount: v.total_amount,
     open_ar: v.open_ar,

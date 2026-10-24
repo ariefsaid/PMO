@@ -363,13 +363,18 @@ describe('AC-IXD-PROC-W5-C3-D9: stepper nodes show full-word stage names', () =>
     expect(within(stepper).getByText('PR-2606100001')).toBeInTheDocument();
   });
 
-  it('D9-10: the stepper contains all six node labels (all full-word)', () => {
+  it('D9-10: every stepper node label is a full word, and the Paid purchase ends on Payment', () => {
     detailState.data = { ...paidFixture };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
-    // Six stages: PR · VQ · PO · GR · VI · Paid (approval is a gate, not a node)
-    expect(items).toHaveLength(6);
+    // ADR-0093 (deliberate change from "always six"): the bar shows the steps that happened plus the next, so a
+    // purchase that skipped a step no longer shows it. The six stages are still PR · VQ · PO · GR · VI · Payment.
+    const labels = items.map((i) => (i.getAttribute('aria-label') ?? '').split(':')[0].trim());
+    const FULL = ['Purchase Request', 'Vendor Quote', 'Purchase Order', 'Goods Receipt', 'Vendor Invoice', 'Payment'];
+    expect(labels.length).toBeGreaterThan(0);
+    labels.forEach((l) => expect(FULL).toContain(l));
+    expect(labels[labels.length - 1]).toBe('Payment');
   });
 });
 
@@ -557,15 +562,17 @@ describe('AC-IXD-PROC-W5-C3 non-regression: existing DecisionCard behaviors unch
     expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
   });
 
-  it('non-regression: stepper still has 6 nodes regardless of status', () => {
+  it('ADR-0093: the stepper shows the request and the next step only, not all six, for a Requested purchase', () => {
     detailState.data = { ...base, status: 'Requested' };
     renderPage();
     const stepper = screen.getByRole('list', { name: /procurement lifecycle/i });
     const items = within(stepper).getAllByRole('listitem');
-    expect(items).toHaveLength(6);
+    expect(items.map((i) => (i.getAttribute('aria-label') ?? '').split(':')[0].trim())).toEqual(['Purchase Request', 'Vendor Quote']);
   });
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

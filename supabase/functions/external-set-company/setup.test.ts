@@ -135,6 +135,7 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
       }]);
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", (call) => {
       assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
       assertEquals(call.url.searchParams.get("timesheets.org_id"), "eq.org-1");
@@ -249,6 +250,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects"
         ));
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", () => jsonResponse([])),
     supabaseSelect("erp_employees", () => jsonResponse([])),
   ], async ({ calls }) => {
@@ -638,28 +640,34 @@ Deno.test("project link in another org refuses before any ERP or configuration w
     assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
-Deno.test("AC-SETUP-001 project creation stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
+Deno.test("AC-SETUP-001 AC-003 #1325: project creation uses the contractual title, never its short name, stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
   let created = false, posts = 0;
   await withFetchMock([
     ...base(),
-    supabaseSelect("projects", () =>
-      jsonResponse({
+    supabaseSelect("projects", (call) => {
+      assertEquals(call.url.searchParams.get("select"), "id,name,code,status");
+      // The fixture has a distinct alias, but the contractual boundary's requested projection excludes it.
+      const project = {
         id: "project-2",
-        name: "Example Delivery",
+        name: "Contractual Delivery Title",
+        short_name: "Delivery",
         code: "SYNTH-2",
-      })),
+        status: "Ongoing Project",
+      };
+      return jsonResponse({ id: project.id, name: project.name, code: project.code, status: project.status });
+    }),
     erp("erp.example.test", "/api/resource/Project", (call) => {
       if (call.method === "POST") {
         posts++;
         created = true;
         assertEquals(call.bodyJson, {
-          project_name: "Example Delivery",
+          project_name: "Contractual Delivery Title",
           company: "Example Company",
         });
         return jsonResponse({
           data: {
             name: "PROJ-00042",
-            project_name: "Example Delivery",
+            project_name: "Contractual Delivery Title",
             company: "Example Company",
             is_active: "Yes",
           },
@@ -677,13 +685,13 @@ Deno.test("AC-SETUP-001 project creation stores the ERP returned identity and re
       assertEquals(filters, [["company", "=", "Example Company"], [
         "project_name",
         "=",
-        "Example Delivery",
+        "Contractual Delivery Title",
       ]]);
       return jsonResponse({
         data: created
           ? [{
             name: "PROJ-00042",
-            project_name: "Example Delivery",
+            project_name: "Contractual Delivery Title",
             company: "Example Company",
             is_active: "Yes",
           }]
@@ -1221,6 +1229,7 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
         { id: "m3", category: "Materials", erp_account: "Materials - EX", is_push_target: false },
         { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
       ])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", () => jsonResponse([])),
     supabaseSelect("erp_employees", () => jsonResponse([])),
   ], async () => {
@@ -1230,6 +1239,34 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
     assertEquals(response.status, 200);
     const body = await response.json();
     assertEquals(body.budgetMappedCategories, ["Labor", "Equipment"]);
+    assertEquals(body.budgetUsedOptionalCategories, []);
+  });
+});
+
+Deno.test("AC-TVC-002 readiness reports which split-out categories the org budgets in, scoped to the org", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("external_domain_ownership", () => jsonResponse([])),
+    supabaseSelect("projects", () => jsonResponse([])),
+    supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", (call) => {
+      assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
+      assertEquals(call.url.searchParams.get("limit"), "1");
+      return jsonResponse(call.url.searchParams.get("category") === "eq.Vehicle" ? [{ category: "Vehicle" }] : []);
+    }),
+    supabaseSelect("timesheet_entries", () => jsonResponse([])),
+    supabaseSelect("erp_employees", () => jsonResponse([])),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "readiness" }),
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(body.budgetUsedOptionalCategories, ["Vehicle"]);
+    assertEquals(
+      calls.filter((call) => call.url.pathname.endsWith("/budget_line_items")).map((call) => call.url.searchParams.get("category")).sort(),
+      ["eq.Travel & accommodation", "eq.Vehicle"],
+    );
   });
 });
 
@@ -1363,6 +1400,83 @@ Deno.test("AC-EXP-120 a Project Manager is refused; an unknown key or a blank ac
   const clearBogus = await withFetchMock([...base()], async () =>
     (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "clear-expense-account", accountKey: "Bogus" }))).status);
   assertEquals(clearBogus, 400);
+});
+
+// OD-EXP-PB-1 (2026-10-23): the single project direct-cost account is one more validated key (FR-EXP-112 expense rule).
+Deno.test("AC-EXP-120 an Admin maps project_direct_cost to an Expense account; a Liability account is refused; it can be cleared", async () => {
+  const save = (account: string, over: Record<string, unknown>) =>
+    withFetchMock([
+      ...base(), companyRoute, mapWrite("POST"),
+      erp("erp.example.test", `/api/resource/Account/${encodeURIComponent(account)}`, () => ACCOUNT(account, over)),
+    ], async ({ calls }) => {
+      const res = await handleSetCompanyRequest(await request({
+        tier: "erpnext", setupAction: "save-expense-account", accountKey: "project_direct_cost", erpAccount: account,
+      }));
+      return { status: res.status, text: await res.text(), calls };
+    });
+  const ok = await save("Project Direct Cost - EX", { root_type: "Expense", account_type: "" });
+  assertEquals(ok.status, 200, ok.text);
+  const row = restCall(ok.calls, "expense_account_map", "POST")[0].bodyJson as Record<string, unknown>;
+  assertEquals([row.org_id, row.account_key, row.erp_account], ["org-1", "project_direct_cost", "Project Direct Cost - EX"]);
+
+  const wrong = await save("Employee Payable - EX", {});
+  assertEquals(wrong.status, 422, wrong.text);
+  assertEquals(wrong.text.includes("must be an Expense account"), true, wrong.text);
+  assertEquals(restCall(wrong.calls, "expense_account_map").length, 0);
+
+  const cleared = await withFetchMock([...base(), mapWrite("DELETE")], async ({ calls }) => {
+    const res = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "clear-expense-account", accountKey: "project_direct_cost" }));
+    return { status: res.status, calls };
+  });
+  assertEquals(cleared.status, 200);
+  assertEquals(restCall(cleared.calls, "expense_account_map", "DELETE")[0].url.searchParams.get("account_key"), "eq.project_direct_cost");
+});
+
+Deno.test("pmo erp read actions are Admin-only: Executive, Project Manager and Finance are refused with 403", async () => {
+  for (const role of ["Executive", "Project Manager", "Finance", "Engineer"]) {
+    for (const setupAction of ["verify-links", "readiness", "list-projects"]) {
+      const status = await withFetchMock([...base(role)], async () =>
+        (await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction }))).status);
+      assertEquals(status, 403, `${role} ${setupAction}`);
+    }
+  }
+});
+
+async function verifyLinks(projects: unknown[], erpDoc: Record<string, unknown> | null) {
+  const result = await withFetchMock([
+    ...base(),
+    supabaseSelect("projects", () => jsonResponse(projects)),
+    erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () =>
+      erpDoc ? jsonResponse({ data: erpDoc }) : jsonResponse({ message: "not found" }, { status: 404 })),
+  ], async () => {
+    const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
+    return { status: response.status, body: await response.json() };
+  });
+  assertEquals(result.status, 200);
+  return result.body as { checked: number; mismatches: Array<Record<string, unknown>> };
+}
+const erpProjectDoc = (over: Record<string, unknown> = {}) => ({
+  name: "ERP-PROJECT-1", project_name: "PMO Project", company: "Example Company", is_active: "Yes", ...over,
+});
+
+Deno.test("pmo erp verify-links reports a mapped project valid when ERPNext auto-named it differently from the PMO code", async () => {
+  // ensure-project creates by project_name and stores whatever key ERPNext allocates; the PMO code is not that key.
+  const body = await verifyLinks([{ id: "project-1", name: "PMO Project", code: "CLIENT-77" }], erpProjectDoc());
+  assertEquals(body, { checked: 1, mismatches: [] });
+});
+
+Deno.test("pmo erp verify-links still flags a mapped ERP project whose name, company or active state is wrong", async () => {
+  const project = [{ id: "project-1", name: "PMO Project", code: "CLIENT-77" }];
+  const named = await verifyLinks(project, erpProjectDoc({ project_name: "Different ERP Name" }));
+  assertEquals(named.mismatches.map((m) => [m.reason, m.erp_project, m.erp_project_name]), [["name_mismatch", "ERP-PROJECT-1", "Different ERP Name"]]);
+  const company = await verifyLinks(project, erpProjectDoc({ company: "Other Company" }));
+  assertEquals(company.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const inactive = await verifyLinks(project, erpProjectDoc({ is_active: "No" }));
+  assertEquals(inactive.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const missing = await verifyLinks(project, null);
+  assertEquals(missing.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const renamed = await verifyLinks(project, erpProjectDoc({ name: "ERP-PROJECT-9" }));
+  assertEquals(renamed.mismatches.map((m) => [m.reason, m.erp_project]), [["identity_changed", "ERP-PROJECT-9"]]);
 });
 
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard

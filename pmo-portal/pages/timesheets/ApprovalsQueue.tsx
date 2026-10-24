@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -69,7 +70,8 @@ function buildGrid(sheet: TimesheetAwaitingApproval): { days: TimesheetDay[]; ro
       row = {
         id: key,
         projectId: key,
-        project: e.project?.name ?? 'Unknown Project',
+        project: e.project ? projectDisplayName(e.project) : 'Unknown Project',
+        projectLegalName: e.project?.name,
         code: e.project?.code ?? null,
         hours: [0, 0, 0, 0, 0, 0, 0],
       };

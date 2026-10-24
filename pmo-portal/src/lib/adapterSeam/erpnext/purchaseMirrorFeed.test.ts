@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { feedPurchaseMirror, purchaseWmDomain } from './purchaseMirrorFeed.ts';
+import { feedPurchaseMirror, purchaseWmDomain, toPurchaseMirrorRow } from './purchaseMirrorFeed.ts';
 import { FakePostgrest } from '@/test/postgrestFake.ts';
 
 const PO = { name: 'PUR-ORD-1', supplier: 'SUP-1', supplier_name: 'Acme', transaction_date: '2026-01-05', schedule_date: '2026-01-20',
@@ -7,7 +7,7 @@ const PO = { name: 'PUR-ORD-1', supplier: 'SUP-1', supplier_name: 'Acme', transa
 const PI = { name: 'ACC-PINV-1', supplier: 'SUP-1', supplier_name: 'Acme', posting_date: '2026-02-01', due_date: '2026-03-01',
   bill_no: 'INV-77', currency: 'IDR', grand_total: 500000, outstanding_amount: 500000, status: 'Unpaid', docstatus: 1,
   is_return: 0, project: null, modified: '2026-02-01 10:00:00' };
-const PURCHASE_CURSOR_DOMAINS = ['Purchase Order', 'Purchase Invoice'].map((doctype) => `purchases::v2::${doctype}`);
+const PURCHASE_CURSOR_DOMAINS = ['Purchase Order', 'Purchase Invoice'].map((doctype) => `purchases::v3::${doctype}`);
 
 function harness(docs: Record<string, unknown[]>) {
   const fake = new FakePostgrest({ external_sync_watermarks: [] }, { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
@@ -19,6 +19,7 @@ function harness(docs: Record<string, unknown[]>) {
     const doctype = decodeURIComponent(new URL(url).pathname.split('/').pop()!);
     const filters = JSON.parse(new URL(url).searchParams.get('filters') ?? '[]') as Array<[string, string, unknown]>;
     const selected = ((docs[doctype] ?? []) as Array<Record<string, unknown>>).filter((doc) => filters.every(([field, op, value]) => {
+      if (field === 'parent' && op === 'in') return (value as string[]).includes(String(doc.parent));
       if (field === 'modified' && op === '=') return doc.modified === value;
       if (field === 'modified' && op === '>') return String(doc.modified) > String(value);
       if (field === 'name' && op === '>') return String(doc.name) > String(value);
@@ -49,22 +50,22 @@ describe('erpnext/purchaseMirrorFeed', () => {
       grand_total: '500000', outstanding_amount: '500000', erp_status: 'Unpaid', erp_project: null, is_return: false })]);
     const wm = Object.fromEntries(h.fake.rowsOf('external_sync_watermarks').map((r) => [r.domain, r.watermark_cursor]));
     expect(wm).toEqual({
-      'purchases::v2::Purchase Order': JSON.stringify({ version: 2, modified: PO.modified, name: PO.name }),
-      'purchases::v2::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified, name: PI.name }),
+      'purchases::v3::Purchase Order': JSON.stringify({ version: 2, modified: PO.modified, name: PO.name }),
+      'purchases::v3::Purchase Invoice': JSON.stringify({ version: 2, modified: PI.modified, name: PI.name }),
     });
     // Company-scoped, drafts never listed.
-    expect(h.urls.every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
+    expect(h.urls.filter((u) => !u.includes('Purchase Invoice Item')).every((u) => u.includes('["company","=","Example Co"]') && u.includes('["docstatus","in",[1,2]]'))).toBe(true);
   });
 
   it('AC-EPR-001 resumes inclusively from the stored legacy watermark and re-stamps on idle', async () => {
     const h = harness({});
-    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00' });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Receipt'), watermark_cursor: '2026-02-01 10:00:00' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
-    expect(h.urls.find((u) => u.includes('Purchase Invoice'))).toContain('["modified","=","2026-02-01 10:00:00"]');
+    expect(h.urls.find((u) => u.includes('/Purchase Receipt?'))).toContain('["modified","=","2026-02-01 10:00:00"]');
     expect(h.rpc).toHaveBeenCalledTimes(1);
     expect(h.rpc).toHaveBeenCalledWith('upsert_erp_purchase_documents', { p_org_id: 'org-1', p_rows: [] });
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
-      domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: '2026-02-01 10:00:00',
+      domain: purchaseWmDomain('Purchase Receipt'), watermark_cursor: '2026-02-01 10:00:00',
     }));
   });
 
@@ -97,7 +98,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
   it('re-stamps an idle tick exactly once with empty rows', async () => {
     const h = harness({});
     const cursor = JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-1' });
-    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice', watermark_cursor: cursor });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v3::Purchase Invoice', watermark_cursor: cursor });
 
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
 
@@ -123,7 +124,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
   it('resumes a name-less v2 cursor inclusively at its timestamp', async () => {
     const boundary = { ...PI, name: 'ACC-PINV-LATE', modified: PI.modified };
     const h = harness({ 'Purchase Invoice': [boundary] });
-    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice',
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v3::Purchase Invoice',
       watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified }) });
 
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
@@ -134,7 +135,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
   it('does not write a cursor on an idle tick with a named boundary', async () => {
     const h = harness({});
-    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v2::Purchase Invoice',
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: 'purchases::v3::Purchase Invoice',
       watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-1' }) });
     let cursorWrites = 0;
     const from = (table: string) => {
@@ -178,7 +179,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(rows).toHaveLength(2);
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')).toMatchObject({ erp_status: 'Paid', outstanding_amount: '0' });
     expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')).toMatchObject({ grand_total: null, due_date: null });
-    const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === 'purchases::v2::Purchase Invoice');
+    const wm = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === 'purchases::v3::Purchase Invoice');
     expect(wm?.watermark_cursor).toBe(JSON.stringify({ version: 2, modified: '2026-02-03 00:00:00', name: 'ACC-PINV-1' }));
   });
 
@@ -202,7 +203,7 @@ describe('erpnext/purchaseMirrorFeed', () => {
     expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-16-DIGITS', grand_total: null }));
     expect(mirrored).toContainEqual(expect.objectContaining({ erp_name: 'ACC-PINV-VALID' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
-      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-VALID' }),
+      domain: 'purchases::v3::Purchase Invoice', watermark_cursor: JSON.stringify({ version: 2, modified: PI.modified, name: 'ACC-PINV-VALID' }),
     }));
   });
 
@@ -231,7 +232,8 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     const first = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(first.caughtUp).toBe(false);
-    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(5500);
+    // 12 page reads per pass; the three idle doctypes (PR, PI, PE) spend one each, leaving 9 PO pages.
+    expect(rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(4500);
     const firstCount = rpc.mock.calls.flatMap((call) => call[1].p_rows).length;
     const second = await feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' });
     expect(second.caughtUp).toBe(false);
@@ -254,10 +256,11 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const initial = JSON.stringify({ version: 2, modified: PI.modified });
     const winner = JSON.stringify({ version: 2, modified: '2026-03-01 00:00:00' });
     const fake = new FakePostgrest({ external_sync_watermarks: [{ org_id: 'org-1', external_tier: 'erpnext',
-      domain: 'purchases::v2::Purchase Invoice', watermark_cursor: initial }] },
+      domain: 'purchases::v3::Purchase Invoice', watermark_cursor: initial }] },
     { upsertKeys: { external_sync_watermarks: ['org_id', 'external_tier', 'domain'] } });
     const rpc = vi.fn(async (_n: string, args: { p_rows: unknown[] }) => ({ data: args.p_rows.length, error: null }));
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ data: [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 }));
+    const fetchImpl = vi.fn(async (url: string) => new Response(JSON.stringify({
+      data: decodeURIComponent(url).includes('Purchase Invoice Item') ? [] : [{ ...PI, name: 'ACC-PINV-2' }] }), { status: 200 })) as unknown as typeof fetch;
     const from = (table: string) => {
       const builder = fake.from(table) as Record<string, (...args: unknown[]) => unknown>;
       return { ...builder, update: (...args: unknown[]) => {
@@ -283,19 +286,21 @@ describe('erpnext/purchaseMirrorFeed', () => {
 
     await expect(feedPurchaseMirror(sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow('later read failed');
 
-    const saved = fake.rowsOf('external_sync_watermarks').find((row) => row.domain === 'purchases::v2::Purchase Order');
+    const saved = fake.rowsOf('external_sync_watermarks').find((row) => row.domain === 'purchases::v3::Purchase Order');
     expect(JSON.parse(String(saved?.watermark_cursor))).toEqual({ version: 2, modified: rows[499].modified, name: rows[499].name });
     expect(rpc).toHaveBeenCalledTimes(1);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it('replays a legacy timestamp boundary once, then keeps the canonical cursor idle', async () => {
-    const h = harness({ 'Purchase Invoice': [{ ...PI, modified: '2026-02-01 10:00:00', status: 'Corrected' }] });
-    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Invoice'), watermark_cursor: PI.modified });
+    const RC = { name: 'MAT-PRE-1', supplier: 'SUP-1', supplier_name: 'Acme', posting_date: '2026-02-01', currency: 'IDR', grand_total: 1,
+      net_total: 1, status: 'Corrected', docstatus: 1, is_return: 0, project: null, modified: '2026-02-01 10:00:00' };
+    const h = harness({ 'Purchase Receipt': [RC] });
+    h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain('Purchase Receipt'), watermark_cursor: RC.modified });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toHaveLength(2);
-    expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: PI.name, erp_status: 'Corrected' }));
+    expect(h.rpc.mock.calls[0][1].p_rows).toContainEqual(expect.objectContaining({ erp_name: RC.name, erp_status: 'Corrected' }));
     expect(h.fake.rowsOf('external_sync_watermarks')).toContainEqual(expect.objectContaining({
       domain: expect.stringContaining('v2'), watermark_cursor: expect.stringContaining('2026-02-01 10:00:00'),
     }));
@@ -322,7 +327,8 @@ describe('erpnext/purchaseMirrorFeed', () => {
     const h = harness({ 'Purchase Order': orders, 'Purchase Invoice': [PI] });
     const result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
     expect(result.caughtUp).toBe(false);
-    expect(h.urls.slice(0, 2).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!))).toEqual(['Purchase Order', 'Purchase Invoice']);
+    expect(h.urls.filter((u) => !u.includes('Purchase Invoice Item')).slice(0, 4).map((url) => decodeURIComponent(new URL(url).pathname.split('/').pop()!)))
+      .toEqual(['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry']);
     expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows)).toContainEqual(expect.objectContaining({ erp_doctype: 'Purchase Invoice', erp_name: PI.name }));
     expect(h.rpc.mock.calls.every((call) => call[1].p_rows.length <= 500)).toBe(true);
   });
@@ -447,5 +453,245 @@ describe('erpnext/purchaseMirrorFeed', () => {
   it('refuses to run without a company', async () => {
     const h = harness({});
     await expect(feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: ' ' })).rejects.toThrow(/company/);
+  });
+});
+
+describe('AC-PFE-020 receipts and supplier payments', () => {
+  it('AC-PFE-020: maps a Purchase Receipt with net and grand totals', () => {
+    expect(toPurchaseMirrorRow('Purchase Receipt', {
+      name: 'MAT-PRE-1', supplier: 'SUP-1', supplier_name: 'Supplier One', posting_date: '2026-02-03', currency: 'IDR',
+      grand_total: 1110, net_total: 1000, status: 'To Bill', docstatus: 1, is_return: 0, project: 'ERP-A', modified: '2026-02-03 10:00:00',
+    })).toMatchObject({ erp_doctype: 'Purchase Receipt', erp_name: 'MAT-PRE-1', supplier: 'SUP-1', doc_date: '2026-02-03',
+      grand_total: '1110', net_total: '1000', erp_status: 'To Bill', erp_project: 'ERP-A', bill_no: null, outstanding_amount: null });
+  });
+  it('AC-PFE-020: maps a Pay-type supplier Payment Entry (party → supplier, received_amount → totals)', () => {
+    expect(toPurchaseMirrorRow('Payment Entry', {
+      name: 'ACC-PAY-1', party: 'SUP-1', party_name: 'Supplier One', posting_date: '2026-02-04', paid_to_account_currency: 'IDR',
+      received_amount: 1110, status: 'Submitted', docstatus: 1, project: 'ERP-A', modified: '2026-02-04 10:00:00',
+    })).toMatchObject({ erp_doctype: 'Payment Entry', supplier: 'SUP-1', supplier_name: 'Supplier One', currency: 'IDR',
+      grand_total: '1110', net_total: null, doc_date: '2026-02-04' });
+  });
+  it('AC-PFE-020: the feed reads all four doctypes and filters Payment Entries to supplier payments', async () => {
+    const h = harness({});
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    expect(h.urls.some((p) => p.includes('/api/resource/Purchase Receipt'))).toBe(true);
+    const pe = h.urls.find((p) => p.includes('/api/resource/Payment Entry'));
+    expect(pe).toContain('["payment_type","=","Pay"]');
+    expect(pe).toContain('["party_type","=","Supplier"]');
+  });
+
+  it('AC-PFE-040 sends the distinct item-line Purchase Orders per invoice, [] when none', async () => {
+    const PI2 = { ...PI, name: 'ACC-PINV-2', modified: '2026-02-02 10:00:00' };
+    const h = harness({ 'Purchase Invoice': [PI, PI2], 'Purchase Invoice Item': [
+      { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-1' }, { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-2' },
+      { parent: 'ACC-PINV-1', purchase_order: 'PUR-ORD-1' }, { parent: 'ACC-PINV-1', purchase_order: null },
+      { parent: 'ACC-PINV-2', purchase_order: '' }, { parent: 'ACC-PINV-2' },
+    ] });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    const rows = h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ erp_name: string; purchase_orders: string[] }>;
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-1')!.purchase_orders).toEqual(['PUR-ORD-1', 'PUR-ORD-2']);
+    expect(rows.find((r) => r.erp_name === 'ACC-PINV-2')!.purchase_orders).toEqual([]);
+  });
+
+  it('AC-PFE-040 fails the pass rather than send an empty list when the item read fails', async () => {
+    const h = harness({ 'Purchase Invoice': [PI] });
+    const real = h.client.fetchImpl;
+    const client = { ...h.client, fetchImpl: (async (url: string) => decodeURIComponent(url).includes('Purchase Invoice Item')
+      ? new Response('{}', { status: 500 }) : real(url)) as unknown as typeof fetch };
+    await expect(feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toBeDefined();
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it('AC-PFE-020 mirrors a USD supplier paid from an IDR bank in the supplier (payables) currency and amount', () => {
+    expect(toPurchaseMirrorRow('Payment Entry', {
+      name: 'ACC-PAY-2', party: 'SUP-US', party_name: 'US Supplier', posting_date: '2026-02-04',
+      paid_from_account_currency: 'IDR', paid_amount: 16000000, paid_to_account_currency: 'USD', received_amount: 1000,
+      status: 'Submitted', docstatus: 1, project: null, modified: '2026-02-04 10:00:00',
+    })).toMatchObject({ currency: 'USD', grand_total: '1000' });
+  });
+
+  it('AC-PFE-040 ignores stored v2 cursors for orders and invoices and re-reads them from the beginning', async () => {
+    const h = harness({ 'Purchase Order': [PO], 'Purchase Invoice': [PI] });
+    for (const [doctype, d] of [['Purchase Order', PO], ['Purchase Invoice', PI]] as const) {
+      h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: `purchases::v2::${doctype}`,
+        watermark_cursor: JSON.stringify({ version: 2, modified: '2099-01-01 00:00:00', name: d.name }) });
+      h.fake.rowsOf('external_sync_watermarks').push({ org_id: 'org-1', external_tier: 'erpnext', domain: purchaseWmDomain(doctype), watermark_cursor: '2099-01-01 00:00:00' });
+    }
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    for (const doctype of ['Purchase Order', 'Purchase Invoice']) {
+      const filters = new URL(h.urls.find((u) => u.includes(`/${doctype}?`))!).searchParams.get('filters')!;
+      expect(filters).not.toContain('"modified"');
+    }
+    expect(h.rpc.mock.calls.flatMap((call) => call[1].p_rows).map((r: { erp_name: string }) => r.erp_name).sort()).toEqual([PI.name, PO.name]);
+  });
+
+  it('AC-PFE-040 batches item reads: 120 invoices make >=3 short item requests with every invoice covered', async () => {
+    const invoices = Array.from({ length: 120 }, (_, i) => ({ ...PI, name: `ACC-PINV-LONGER-NAME-${String(i).padStart(4, '0')}` }));
+    const items = invoices.map((inv) => ({ parent: inv.name, purchase_order: 'PUR-ORD-1' }));
+    const h = harness({ 'Purchase Invoice': invoices, 'Purchase Invoice Item': items });
+    await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+    const itemUrls = h.fetchImpl.mock.calls.map((c) => String(c[0])).filter((u) => u.includes('Purchase%20Invoice%20Item'));
+    expect(itemUrls.length).toBeGreaterThanOrEqual(3);
+    expect(itemUrls.every((u) => u.length < 4000)).toBe(true);
+    const rows = h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ purchase_orders: string[] }>;
+    expect(rows).toHaveLength(120);
+    expect(rows.every((r) => r.purchase_orders.length === 1)).toBe(true);
+  });
+
+  it('AC-PFE-040 reports an honest error (and sends nothing) when one batch exceeds the item page cap', async () => {
+    const h = harness({ 'Purchase Invoice': [PI] });
+    const real = h.client.fetchImpl;
+    const full = Array.from({ length: 1000 }, () => ({ parent: PI.name, purchase_order: 'PUR-ORD-1' }));
+    const client = { ...h.client, fetchImpl: (async (url: string) => decodeURIComponent(url).includes('Purchase Invoice Item')
+      ? new Response(JSON.stringify({ data: full }), { status: 200 }) : real(url)) as unknown as typeof fetch };
+    await expect(feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow(/exceeded .* rows.*not mirrored/);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['missing data', {}],
+    ['malformed data', { data: 'nope' }],
+    ['rows without a parent', { data: [{ purchase_order: 'PUR-ORD-1' }] }],
+  ])('AC-PFE-040 fails the pass on a 200 item response with %s', async (_label, payload) => {
+    const h = harness({ 'Purchase Invoice': [PI] });
+    const real = h.client.fetchImpl;
+    const client = { ...h.client, fetchImpl: (async (url: string) => decodeURIComponent(url).includes('Purchase Invoice Item')
+      ? new Response(JSON.stringify(payload), { status: 200 }) : real(url)) as unknown as typeof fetch };
+    await expect(feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toThrow(/malformed/);
+    expect(h.rpc).not.toHaveBeenCalled();
+  });
+});
+
+const T0 = '2026-05-01 09:00:00';
+const T1 = '2026-05-01 09:00:01';
+const DOC_BY_TYPE: Record<string, Record<string, unknown>> = {
+  'Purchase Order': PO,
+  'Purchase Receipt': { name: 'MAT-PRE-1', supplier: 'SUP-1', supplier_name: 'Acme', posting_date: '2026-02-01', currency: 'IDR', grand_total: 1,
+    net_total: 1, status: 'To Bill', docstatus: 1, is_return: 0, project: null, modified: T0 },
+  'Purchase Invoice': PI,
+  'Payment Entry': { name: 'ACC-PAY-1', party: 'SUP-1', party_name: 'Acme', posting_date: '2026-02-04', paid_to_account_currency: 'IDR',
+    received_amount: 1, status: 'Submitted', docstatus: 1, project: null, modified: T0 },
+};
+const mirroredNames = (rpc: ReturnType<typeof vi.fn>, doctype: string) => new Set((rpc.mock.calls.flatMap((call) => call[1].p_rows) as
+  Array<{ erp_doctype: string; erp_name: string }>).filter((r) => r.erp_doctype === doctype).map((r) => r.erp_name));
+
+describe('purchase feed reads past a finished timestamp boundary', () => {
+  it.each(['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'])(
+    'reads strictly later %s documents when the boundary document itself moved on', async (doctype) => {
+      const docs: Record<string, Array<Record<string, unknown>>> = { [doctype]: [{ ...DOC_BY_TYPE[doctype], name: 'DOC-A', modified: T0 }] };
+      const h = harness(docs);
+      await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+      docs[doctype][0] = { ...docs[doctype][0], modified: T1, status: 'Cancelled', docstatus: 2 };
+      const second = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+      const rows = h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ erp_name: string; erp_docstatus: number }>;
+      expect(rows.filter((r) => r.erp_name === 'DOC-A').map((r) => r.erp_docstatus)).toEqual([1, 2]);
+      expect(second.caughtUp).toBe(true);
+    });
+
+  it.each(['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'])(
+    'mirrors a %s modified after the stored boundary document on the next sweep', async (doctype) => {
+      const docs: Record<string, unknown[]> = { [doctype]: [{ ...DOC_BY_TYPE[doctype], name: 'DOC-A', modified: T0 }] };
+      const h = harness(docs);
+      await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+      docs[doctype].push({ ...DOC_BY_TYPE[doctype], name: 'DOC-B', modified: T1 });
+      const second = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+
+      expect(mirroredNames(h.rpc, doctype)).toEqual(new Set(['DOC-A', 'DOC-B']));
+      expect(h.urls.some((u) => u.includes(`/${doctype}?`) && u.includes(`["modified",">","${T0}"]`))).toBe(true);
+      expect(second.caughtUp).toBe(true);
+      const domain = h.fake.rowsOf('external_sync_watermarks').find((r) => String(r.domain).endsWith(`::${doctype}`) && String(r.domain).includes('::v'));
+      expect(JSON.parse(String(domain?.watermark_cursor))).toMatchObject({ modified: T1, name: 'DOC-B' });
+    });
+
+  it('mirrors a multi-timestamp history of more than 500 rows for every doctype across sweeps, then later additions', async () => {
+    const stamps = ['2026-05-01 09:00:00', '2026-05-01 09:00:05', '2026-05-02 10:00:00', '2026-05-03 11:00:00', '2026-05-04 12:00:00'];
+    const sizes = [120, 430, 3, 610, 140];
+    const docs: Record<string, unknown[]> = {};
+    for (const doctype of PURCHASE_DOCTYPES_UNDER_TEST) {
+      docs[doctype] = stamps.flatMap((modified, s) => Array.from({ length: sizes[s] }, (_, i) =>
+        ({ ...DOC_BY_TYPE[doctype], name: `${doctype.slice(0, 3)}-${s}-${String(i).padStart(4, '0')}`, modified })));
+    }
+    const h = harness(docs);
+    const run = async () => {
+      let result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+      for (let tick = 0; tick < 40 && !result.caughtUp; tick += 1) result = await feedPurchaseMirror(h.sc, { client: h.client, orgId: 'org-1', company: 'Example Co' });
+      return result;
+    };
+    expect((await run()).caughtUp).toBe(true);
+    for (const doctype of PURCHASE_DOCTYPES_UNDER_TEST) expect(mirroredNames(h.rpc, doctype).size).toBe(1303);
+
+    for (const doctype of PURCHASE_DOCTYPES_UNDER_TEST) docs[doctype].push({ ...DOC_BY_TYPE[doctype], name: `${doctype.slice(0, 3)}-LATER`, modified: '2026-06-01 00:00:00' });
+    expect((await run()).caughtUp).toBe(true);
+    for (const doctype of PURCHASE_DOCTYPES_UNDER_TEST) expect(mirroredNames(h.rpc, doctype)).toContain(`${doctype.slice(0, 3)}-LATER`);
+  });
+});
+const PURCHASE_DOCTYPES_UNDER_TEST = ['Purchase Order', 'Purchase Receipt', 'Purchase Invoice', 'Payment Entry'];
+
+describe('invoice enrichment is resumable within the pass budget', () => {
+  it('500 invoices with 3-second item reads progress every sweep with complete order lists, without starving payments', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const stamps = ['2026-05-01 09:00:00', '2026-05-02 09:00:00', '2026-05-03 09:00:00'];
+      const invoices = Array.from({ length: 500 }, (_, i) => ({ ...PI, name: `ACC-PINV-${String(i).padStart(4, '0')}`, modified: stamps[i % 3] }))
+        .sort((a, b) => a.modified.localeCompare(b.modified) || a.name.localeCompare(b.name));
+      const items = invoices.flatMap((inv) => [{ parent: inv.name, purchase_order: `PO-${inv.name}-A` }, { parent: inv.name, purchase_order: `PO-${inv.name}-B` }]);
+      const payments = Array.from({ length: 600 }, (_, i) => ({ ...DOC_BY_TYPE['Payment Entry'], name: `ACC-PAY-${String(i).padStart(4, '0')}` }));
+      const h = harness({ 'Purchase Invoice': invoices, 'Purchase Invoice Item': items, 'Payment Entry': payments });
+      const real = h.client.fetchImpl;
+      const reads: string[] = [];
+      const client = { ...h.client, fetchImpl: (async (url: string) => {
+        reads.push(decodeURIComponent(new URL(url).pathname.split('/').pop()!));
+        vi.setSystemTime(Date.now() + (decodeURIComponent(url).includes('Purchase Invoice Item') ? 3000 : 200));
+        return real(url);
+      }) as unknown as typeof fetch };
+
+      const invoiceRows = () => (h.rpc.mock.calls.flatMap((call) => call[1].p_rows) as Array<{ erp_doctype: string; erp_name: string; purchase_orders?: string[] }>)
+        .filter((r) => r.erp_doctype === 'Purchase Invoice');
+      let previous = 0;
+      let caughtUp = false;
+      let sweeps = 0;
+      for (let sweep = 0; sweep < 6 && !caughtUp; sweep += 1) {
+        caughtUp = (await feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).caughtUp;
+        sweeps += 1;
+        const mirrored = mirroredNames(h.rpc, 'Purchase Invoice');
+        if (!caughtUp || sweep === 0) expect(mirrored.size).toBeGreaterThan(previous);
+        previous = mirrored.size;
+        if (sweep === 0) {
+          expect(mirroredNames(h.rpc, 'Payment Entry').size).toBeGreaterThan(0);
+          // Payments get their turn after two invoice units, not after the whole invoice page.
+          const itemReadsBeforePayments = reads.slice(0, reads.indexOf('Payment Entry')).filter((d) => d === 'Purchase Invoice Item').length;
+          expect(itemReadsBeforePayments).toBe(2);
+        }
+        // The stored cursor never passes an invoice that has not been written with its orders.
+        const stored = h.fake.rowsOf('external_sync_watermarks').find((r) => r.domain === 'purchases::v3::Purchase Invoice');
+        if (stored) {
+          const cursor = JSON.parse(String(stored.watermark_cursor)) as { modified: string; name: string };
+          const covered = invoices.filter((inv) => inv.modified < cursor.modified || (inv.modified === cursor.modified && inv.name <= cursor.name));
+          expect(covered.every((inv) => mirrored.has(inv.name))).toBe(true);
+        }
+        vi.setSystemTime(Date.now() + 60_000);
+      }
+      expect(caughtUp).toBe(true);
+      expect(sweeps).toBeGreaterThan(1);
+      expect(mirroredNames(h.rpc, 'Purchase Invoice').size).toBe(500);
+      expect(mirroredNames(h.rpc, 'Payment Entry').size).toBe(600);
+      expect(invoiceRows().every((r) => r.purchase_orders?.length === 2
+        && r.purchase_orders.includes(`PO-${r.erp_name}-A`) && r.purchase_orders.includes(`PO-${r.erp_name}-B`))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a failing invoice item read still lets later doctypes progress, then fails the pass without advancing invoices', async () => {
+    const h = harness({ 'Purchase Invoice': [PI], 'Payment Entry': [DOC_BY_TYPE['Payment Entry']] });
+    const real = h.client.fetchImpl;
+    const client = { ...h.client, fetchImpl: (async (url: string) => decodeURIComponent(url).includes('Purchase Invoice Item')
+      ? new Response('{}', { status: 500 }) : real(url)) as unknown as typeof fetch };
+    await expect(feedPurchaseMirror(h.sc, { client, orgId: 'org-1', company: 'Example Co' })).rejects.toBeDefined();
+    expect(mirroredNames(h.rpc, 'Payment Entry')).toEqual(new Set(['ACC-PAY-1']));
+    expect(mirroredNames(h.rpc, 'Purchase Invoice').size).toBe(0);
+    expect(h.fake.rowsOf('external_sync_watermarks').some((r) => r.domain === 'purchases::v3::Purchase Invoice')).toBe(false);
   });
 });

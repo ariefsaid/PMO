@@ -39,7 +39,7 @@ import { serveWithErrorReporting } from '../_shared/serveWithErrorReporting.ts';
 import { agentChatHandler } from '../agent-chat/handler.ts';
 import {
   AGENT_MASTER_DATA_ROLES,
-  AGENT_DELIVERY_WITH_ENGINEER_ROLES,
+  AGENT_TASK_STATUS_ROLES,
 } from '../../../pmo-portal/src/auth/agentRoles.ts';
 
 serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response> => {
@@ -132,12 +132,12 @@ serveWithErrorReporting('agent-dispatch', async (req: Request): Promise<Response
 
   // Same can() deputy re-auth as interactive (FR-AAN-017) — threaded to the fired run via extras.
   const MASTER_DATA_SET = new Set(AGENT_MASTER_DATA_ROLES);
-  const DELIVERY_WITH_ENGINEER_SET = new Set(AGENT_DELIVERY_WITH_ENGINEER_ROLES);
+  const TASK_STATUS_SET = new Set(AGENT_TASK_STATUS_ROLES);
   const agentCan = (action: string, entity: string, ctx: { realRole: string | null }): boolean => {
     const role = ctx.realRole;
     if (!role) return false;
     if (entity === 'contactActivity' && action === 'create') return MASTER_DATA_SET.has(role);
-    if (entity === 'taskStatus' && action === 'edit') return DELIVERY_WITH_ENGINEER_SET.has(role);
+    if (entity === 'taskStatus' && action === 'edit') return TASK_STATUS_SET.has(role);
     return false;
   };
 

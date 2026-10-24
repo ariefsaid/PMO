@@ -242,6 +242,25 @@ select is(
 
 -- D5. the three create_procurement_* RPCs (M-3: the quotation one had no positive control before)
 --     and select_procurement_quote still run end to end as their postgres owner.
+--     ⚑ AMENDED BY 0362 (ADR-0093, FR-PFE-002): the quote control runs FIRST. Recording a vendor invoice
+--     under a user JWT now derives the purchase to Vendor Invoiced, after which no quote can be selected;
+--     the control proves select_procurement_quote from Vendor Quoted, so it must run before the records.
+set local role authenticated;
+set local request.jwt.claims =
+  '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
+
+select lives_ok(
+  $$ select select_procurement_quote('01680000-0000-0000-0000-0000000000e3'::uuid) $$,
+  'AC-UPS-032 CONTROL select_procurement_quote still succeeds — the sanctioned is_selected authority');
+
+reset role;
+select is(
+  (select is_selected::text from public.procurement_quotations where id = '01680000-0000-0000-0000-0000000000e3')
+  || '/' || (select status::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1')
+  || '/' || (select total_value::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1'),
+  'true/Quote Selected/500.00',
+  'AC-UPS-032 the RPC set is_selected AND synced the header stage + total in one txn (what the direct UPDATE skipped)');
+
 set local role authenticated;
 set local request.jwt.claims =
   '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
@@ -269,22 +288,6 @@ select is(
        and total_amount = 900 and vq_number is not null),
   1,
   'AC-UPS-031 the RPC-created quotation landed WITH a minted vq_number (the sequence still runs)');
-
-set local role authenticated;
-set local request.jwt.claims =
-  '{"sub":"01680000-0000-0000-0000-0000000000a2","role":"authenticated"}';
-
-select lives_ok(
-  $$ select select_procurement_quote('01680000-0000-0000-0000-0000000000e3'::uuid) $$,
-  'AC-UPS-032 CONTROL select_procurement_quote still succeeds — the sanctioned is_selected authority');
-
-reset role;
-select is(
-  (select is_selected::text from public.procurement_quotations where id = '01680000-0000-0000-0000-0000000000e3')
-  || '/' || (select status::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1')
-  || '/' || (select total_value::text from public.procurements where id = '01680000-0000-0000-0000-0000000000d1'),
-  'true/Quote Selected/500.00',
-  'AC-UPS-032 the RPC set is_selected AND synced the header stage + total in one txn (what the direct UPDATE skipped)');
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 -- E. ADR-0055 / FR-ENA-130 Finding 8 — the PMO enhancement stays reachable under an ERPNext flip.

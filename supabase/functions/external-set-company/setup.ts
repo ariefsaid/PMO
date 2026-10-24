@@ -20,6 +20,9 @@ import {
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts";
 import { sweepKindsForOrg } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts";
 
+/** #1326: split out of Special expenses; required in setup only when budgeted (pmo-portal erpSetupIncompleteness). */
+const OPTIONAL_BUDGET_CATEGORIES = ["Travel & accommodation", "Vehicle"] as const;
+
 export interface ErpSetupBody {
   setupAction?: string;
   activityType?: string;
@@ -65,6 +68,7 @@ export async function applyErpSetup(
   if (body.setupAction === "list-projects") {
     return await listErpProjects(body, ctx);
   }
+  if (body.setupAction === "verify-links") return await verifyErpProjectLinks(ctx);
   if (body.setupAction === "ensure-project") {
     return await ensureErpProject(body, ctx);
   }
@@ -225,6 +229,16 @@ async function readErpSetup(ctx: ErpSetupContext) {
   if (ownership.error) {
     throw new AppError(ownership.error.message, ownership.error.code);
   }
+  // #1326: Travel & accommodation and Vehicle need a mapping only once the org budgets in them.
+  const optionalUse = await Promise.all(
+    OPTIONAL_BUDGET_CATEGORIES.map((category) =>
+      ctx.serviceClient.from("budget_line_items").select("category").eq("org_id", ctx.orgId)
+        .eq("category", category).limit(1)
+    ),
+  );
+  for (const result of optionalUse) {
+    if (result.error) throw new AppError(result.error.message, result.error.code);
+  }
   const linkedProfiles = new Set(
     employees.filter((row) => row.link_state === "confirmed").map((row) =>
       row.profile_id
@@ -264,6 +278,9 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ).map((row) => row.category),
       ),
     ],
+    budgetUsedOptionalCategories: OPTIONAL_BUDGET_CATEGORIES.filter((_, i) =>
+      (optionalUse[i].data ?? []).length > 0
+    ),
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
     unlinkedEmployeeCount: members.filter((row) =>
@@ -526,6 +543,39 @@ async function ensureErpProject(body: ErpSetupBody, ctx: ErpSetupContext) {
   assertErpProject(target, ctx.company);
   await saveProjectMap(ctx, project.id, target.name as string);
   return { ok: true, erpProject: target.name };
+}
+
+async function verifyErpProjectLinks(ctx: ErpSetupContext) {
+  const projectMap = (ctx.config.project_map ?? {}) as Record<string, unknown>;
+  const projects = await fetchAllRowsByKeyset<{ id: string; name: string; code: string | null }>(
+    (after, limit) => {
+      let query = ctx.serviceClient.from("projects").select("id,name,code")
+        .eq("org_id", ctx.orgId).is("archived_at", null).order("id").limit(limit);
+      if (after) query = query.gt("id", after);
+      return query as never;
+    },
+  );
+  const mismatches: Array<Record<string, unknown>> = [];
+  for (const project of projects) {
+    const erpName = typeof projectMap[project.id] === "string" ? String(projectMap[project.id]).trim() : "";
+    if (!erpName) {
+      mismatches.push({ project_id: project.id, code: project.code, name: project.name, reason: "unmapped" });
+      continue;
+    }
+    // The link is the stored ERP key (ERPNext may auto-name it), so the PMO business code is not compared: verify the
+    // mapped identity, its company and active state, and the contractual project name.
+    try {
+      const erp = await getDoc(ctx.client, "Project", erpName) as Record<string, unknown>;
+      assertErpProject(erp, ctx.company);
+      const reason = erp.name !== erpName ? "identity_changed" : erp.project_name !== project.name ? "name_mismatch" : null;
+      if (reason) {
+        mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason });
+      }
+    } catch {
+      mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" });
+    }
+  }
+  return { checked: projects.length, mismatches };
 }
 
 async function listErpProjects(body: ErpSetupBody, ctx: ErpSetupContext) {

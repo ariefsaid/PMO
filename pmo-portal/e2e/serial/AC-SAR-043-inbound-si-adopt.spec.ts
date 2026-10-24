@@ -30,6 +30,7 @@ import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac } from 'node:crypto';
 import { seedSAR, cleanupSAR } from './_sarHelpers';
+import { runFullSweep } from './_sweepHelpers';
 
 const FUNCTIONS_URL = process.env.SUPABASE_FUNCTIONS_URL ?? '';
 const AUTH_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? FUNCTIONS_URL;
@@ -45,14 +46,6 @@ const ERPNEXT_ADMIN_SECRET = process.env.ERPNEXT_BENCH_API_SECRET ?? '';
  *  reads the SAME value from its own process env (default matches the documented local convention so
  *  the lane works out-of-the-box once `.env.local` carries `DEMO_ERP_WEBHOOK_SECRET=e2e-erpnext-webhook-secret`). */
 const WEBHOOK_SECRET = process.env.DEMO_ERP_WEBHOOK_SECRET ?? 'e2e-erpnext-webhook-secret';
-
-/** The dedicated sweep-secret bearer the test shares with the served `erpnext-sweep` fn. The fn
- *  constant-time-compares `Authorization: Bearer <secret>` to `Deno.env.get('ERPNEXT_SWEEP_SECRET')`
- *  (least-privilege — NOT the service_role key), else 401. The Director exports the secret and
- *  `scripts/serve-functions.sh` forwards it into the fn env; the test reads the SAME value from its
- *  own process env (default matches the documented convention so the lane works out-of-the-box once
- *  `ERPNEXT_SWEEP_SECRET=e2e-erpnext-sweep-secret` is exported alongside serve-functions.sh). */
-const SWEEP_SECRET = process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret';
 
 /** Compute the Frappe `X-Frappe-Webhook-Signature` (base64 HMAC-SHA256 of the raw body) for the
  *  shared secret — the exact algorithm `webhookSignature.ts`'s `verifyErpWebhookSignature` recomputes
@@ -195,13 +188,9 @@ test.describe('AC-SAR-043: Inbound Sales Invoice adoption (native ERP creation �
 
       // ── 4. SWEEP RE-SURFACES IT (idempotent re-application) ──
       // Call the sweep function's revenue-adopt path (or re-fire webhook) — should NOT duplicate
-      // The sweep fn's SOLE trust boundary is the dedicated `ERPNEXT_SWEEP_SECRET` bearer
-      // (constant-time-compared — FR-SAR gate); without it the call 401s and the re-surface is a no-op.
-      const sweepRes = await fetch(`${FUNCTIONS_URL}/functions/v1/erpnext-sweep`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${SWEEP_SECRET}` },
-        body: JSON.stringify({ scope: 'revenue', org_id: ORG_ID }),
-      });
+      // The sweep fn's SOLE trust boundary is the dedicated `ERPNEXT_SWEEP_SECRET` bearer (runFullSweep sends it;
+      // constant-time-compared — FR-SAR gate); without it the call 401s and the re-surface is a no-op.
+      const sweepRes = await runFullSweep(FUNCTIONS_URL, ORG_ID);
       // Sweep may return 200 or 202; either is fine as long as it doesn't 500
       expect([200, 202]).toContain(sweepRes.status);
 

@@ -2050,7 +2050,7 @@
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> pada <project/>, diminta oleh <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, diminta oleh <person>{{name}}</person>",
       "saveGR": "Simpan GR",
-      "saveVI": "Simpan VI",
+      "saveVI": "Simpan faktur vendor",
       "terminal": "Ini tindakan akhir untuk permintaan ini dan tidak dapat dibatalkan.",
       "viBody": "Ini mencatat invoice vendor untuk {{request}}.",
       "viTitle": "Catat invoice vendor ini?"

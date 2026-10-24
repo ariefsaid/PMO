@@ -1197,4 +1197,16 @@ describe('S-28: long project names in the add-project picker (RF-061)', () => {
     await userEvent.selectOptions(picker, 'pL');
     expect(screen.getByLabelText(`${longName}, Mon hours`)).toBeInTheDocument();
   });
+
+  it('AC-002 #1325: with a short name the option is code + short name only and the row leads with it, hovering to the legal title', async () => {
+    projectsState.data = [{ id: 'pL', name: longName, short_name: 'Regional DC', code: 'P-777', status: 'Ongoing Project' }];
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    renderPage();
+    const picker = screen.getByLabelText(/add a project/i);
+    const option = within(picker).getByRole('option', { name: /P-777/ });
+    expect(option.textContent).toBe('P-777 · Regional DC');
+    await userEvent.selectOptions(picker, 'pL');
+    expect(screen.getByLabelText('Regional DC, Mon hours')).toBeInTheDocument();
+    expect(screen.getAllByTitle(longName).length).toBeGreaterThan(0);
+  });
 });

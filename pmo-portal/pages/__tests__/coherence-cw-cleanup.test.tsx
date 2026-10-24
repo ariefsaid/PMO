@@ -30,6 +30,7 @@ const emptyProjects: PipelineProject[] = [
   {
     id: 'q1',
     name: 'Alpha Deal',
+    short_name: null,
     client_name: 'Acme',
     tax_treatment: 'exclusive',
     status: 'Quotation Submitted',
@@ -284,5 +285,7 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

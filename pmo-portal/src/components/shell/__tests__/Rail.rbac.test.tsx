@@ -97,6 +97,11 @@ describe('Rail — role-shaped nav Approvals (B-2, AC-W2-IXD-003)', () => {
     expect(within(link).queryByText('Your assigned work across projects')).not.toBeInTheDocument();
   });
 
+  it('AC-TASK-FIN-001: Finance gets the My Tasks doorway in the rail', () => {
+    renderRailAs('Finance');
+    expect(screen.getByRole('link', { name: /^My Tasks$/ })).toHaveAttribute('href', '/my-tasks');
+  });
+
   it('UXS-007: the personal task doorway does not change Executive navigation', () => {
     renderRailAs('Executive');
     expect(screen.queryByRole('link', { name: 'My Tasks' })).not.toBeInTheDocument();

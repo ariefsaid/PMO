@@ -29,6 +29,7 @@ import { useAuth } from '@/src/auth/useAuth';
 export const OPPORTUNITY_COLUMNS = [
   'id',
   'name',
+  'short_name',
   'code',
   'pmo_project_number',
   'status',

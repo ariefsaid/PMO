@@ -61,6 +61,61 @@
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
   },
   "ledger": {
-    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda."
+    "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
+    "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.",
+    "awaitingApproval": "Menunggu persetujuan. Dokumen dapat dicatat setelah disetujui.",
+    "approveToStart": "Setujui untuk mulai mencatat dokumen.",
+    "emptyTitle": "Belum ada dokumen",
+    "waitingApproval": "Menunggu persetujuan.",
+    "recordFirst": "Catat dokumen pertama di bawah.",
+    "nothingRecorded": "Tidak ada yang dicatat untuk pembelian ini.",
+    "first": {
+      "label": "Catat dokumen pertama",
+      "helper": "Mulai dari dokumen yang sudah Anda miliki. Aturan pembelian organisasi Anda tetap berlaku.",
+      "request": "Permintaan",
+      "rfq": "Permintaan penawaran",
+      "order": "Pesanan",
+      "receipt": "Penerimaan barang",
+      "invoice": "Faktur vendor",
+      "payment": "Pembayaran",
+      "needsRequest": "perlu permintaan dulu",
+      "needsApproval": "perlu persetujuan dulu",
+      "needsReceipt": "perlu penerimaan barang dulu"
+    }
+  },
+  "gates": {
+    "heading": "Aturan pembelian",
+    "intro": "Semua mati: pembelian dapat dimulai dari langkah mana pun. Aktifkan aturan hanya bila akuntansi Anda membutuhkannya.",
+    "loadError": "Aturan pembelian tidak dapat dimuat",
+    "onlyAdmin": "Hanya Admin yang dapat mengubah ini.",
+    "request_before_order": "Wajib permintaan sebelum pesanan",
+    "approval_before_order": "Wajib persetujuan sebelum pesanan",
+    "receipt_before_invoice": "Wajib penerimaan barang sebelum faktur",
+    "approval_before_payment": "Wajib persetujuan sebelum pembayaran",
+    "saving": "Menyimpan…",
+    "saved": "Tersimpan",
+    "request_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan pembelian lebih dulu.",
+    "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
+    "receipt_before_invoiceHelp": "Jika aktif, faktur vendor memerlukan penerimaan barang lebih dulu.",
+    "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+  },
+  "documents": {
+    "attachTo": "Lampirkan ke",
+    "thisPurchase": "Pembelian ini",
+    "openFolder": "Buka folder",
+    "attachTitle": "Lampirkan tautan ini",
+    "attachConfirm": "Tautkan",
+    "type": {
+      "pr": "Permintaan pembelian",
+      "rfq": "Permintaan penawaran",
+      "quote": "Penawaran",
+      "po": "Pesanan pembelian",
+      "gr": "Penerimaan barang",
+      "invoice": "Faktur vendor",
+      "payment": "Pembayaran"
+    }
+  },
+  "detail": {
+    "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
   }
 }

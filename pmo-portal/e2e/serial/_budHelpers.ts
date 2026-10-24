@@ -20,6 +20,7 @@
  */
 import { expect, type Page } from '@playwright/test';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { runFullSweep } from './_sweepHelpers';
 
 export const ORG_ID = process.env.E2E_ORG_ID ?? '00000000-0000-0000-0000-000000000001';
 /** The local seed password every e2e user shares (`supabase/seed.sql`). */
@@ -584,12 +585,7 @@ export async function dispatchBudgetPushRaw(
 
 /** Drive the REAL `erpnext-sweep` tick (the budget push's SECOND originator). */
 export async function runSweepBud(functionsUrl: string): Promise<{ status: number; body: unknown }> {
-  const res = await fetch(`${functionsUrl}/functions/v1/erpnext-sweep`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${process.env.ERPNEXT_SWEEP_SECRET ?? 'e2e-erpnext-sweep-secret'}`, 'Content-Type': 'application/json' },
-    body: '{}',
-  });
-  return { status: res.status, body: await res.json() };
+  return runFullSweep(functionsUrl, ORG_ID);
 }
 
 /** This version's outbox row, as the recovery machinery sees it. */

@@ -74,6 +74,34 @@
 -- approval route, with its separation-of-duties exclusions proved by
 -- supabase/tests/0349_procurement_payment_ceiling.test.sql (AC-SEC-211/215).
 --
+-- ⚑ AMENDED BY 0360 (#1319): `set_procurement_gates` joins the retained set (+1, count 75). A SECURITY DEFINER
+-- writer called under a member's JWT that re-asserts active membership, the Admin role and the caller's org,
+-- and refuses unknown keys / non-boolean values; proved by supabase/tests/procurement_flexible_foundation.test.sql
+-- (FR-PFE-011). The other 0360 definers are service-role-only or non-writers and are deliberately NOT listed.
+--
+-- ⚑ AMENDED BY 0361 (#1319): `link_erp_purchase_documents`, `unlink_erp_purchase_document` and
+-- `link_procurement_sharepoint_item` join the retained set (+3, count 78). Each is a SECURITY DEFINER writer
+-- called under a member's JWT that re-asserts active membership, the caller's org and its role set
+-- (link/SharePoint: Admin, Executive, Project Manager, Finance; unlink: Admin, Finance); linking refuses
+-- cross-org, closed, mismatched and gated targets. Proved by supabase/tests/procurement_erp_links.test.sql
+-- (FR-PFE-020, NFR-PFE-012, AC-PFE-023) and supabase/tests/erp_purchase_orphans.test.sql (AC-PFE-017).
+-- The other 0361 definers are non-writers (`procurement_ledger_held`) or have no client EXECUTE.
+--
+-- ⚑ AMENDED BY 0364 (#1319 AC-13): `mark_erp_purchase_documents` joins the retained set (+1, count 79). A SECURITY
+-- DEFINER writer called under a member's JWT that re-asserts active membership, the Admin/Finance role and the
+-- caller's org, and refuses linked documents; proved by supabase/tests/procurement_erp_set_aside.test.sql (AC-13d).
+-- The 0364 trigger functions (org stamp, clear-on-link) have no client EXECUTE and are deliberately NOT listed; the
+-- clear-on-link effect is proved in the same file.
+--
+-- ⚑ AMENDED BY 0366 (#1326): `recategorise_budget_lines` joins the retained set (+1, count 80 after rebasing onto 0364, re-derived by hand
+-- from the list). A SECURITY DEFINER writer called under a member's JWT (the app, `pmo rpc`) that re-asserts
+-- active membership, the Admin role and the caller's org, and refuses lines on a non-Draft version; proved by
+-- supabase/tests/budget_travel_vehicle_categories.test.sql (AC-TVC-003/005).
+--
+-- ⚑ AMENDED BY 0367 (#1270 A): `link_m365_documents_batch` joins the retained set (+1, count 81 after 0366's 80). A SECURITY
+-- DEFINER writer under a member's JWT: active Admin/Executive/PM/Finance, org-scoped, host-pinned; proved by
+-- supabase/tests/api_client_operator_reads.test.sql (AC-OPR-003/005).
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -139,6 +167,10 @@ insert into client_callable_rpc_names (proname) values
   ('get_sales_pipeline'),
   ('get_win_rate'),
   ('is_operator'),
+  ('link_erp_purchase_documents'),
+  ('link_procurement_sharepoint_item'),
+  ('mark_erp_purchase_documents'),
+  ('link_m365_documents_batch'),
   ('admin_change_domain_ownership'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
@@ -154,12 +186,14 @@ insert into client_callable_rpc_names (proname) values
   ('org_usage_summary'),
   ('record_expense_advance_return'),
   ('record_native_receipt'),
+  ('recategorise_budget_lines'),
   ('release_credits'),
   ('release_outbox_hold'),
   ('reserve_credits'),
   ('save_timesheet_week'),
   ('select_procurement_quote'),
   ('set_procurement_invoice_efaktur'),
+  ('set_procurement_gates'),
   ('set_project_contract_value'),
   ('set_sales_invoice_efaktur'),
   ('set_sales_invoice_received_date'),
@@ -173,6 +207,7 @@ insert into client_callable_rpc_names (proname) values
   ('transition_project'),
   ('transition_timesheet'),
   ('transition_work_order'),
+  ('unlink_erp_purchase_document'),
   ('withdraw_progress_claim'),
   ('withdraw_work_order_acceptance');
 
@@ -196,8 +231,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  74,
-  'AC-ACL-002 all 74 retained client-callable RPC names still have a public function');
+  81,
+  'AC-ACL-002 all 81 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -206,8 +241,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  74,
-  'AC-ACL-003 all 74 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  81,
+  'AC-ACL-003 all 81 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

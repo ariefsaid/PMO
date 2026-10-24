@@ -11,7 +11,7 @@ vi.mock('@/src/lib/db/procurements', () => ({
     { id: 'pc1', title: 'Workstations & AV', project: null, vendor: null, requested_by: null },
   ]),
   listProcurementsByProject: vi.fn().mockResolvedValue([{ id: 'pc9', project_id: 'proj-1' }]),
-  getProjectCommittedSpend: vi.fn().mockResolvedValue(200000),
+  getProjectCommittedSpend: vi.fn().mockResolvedValue({ amount: 200000, otherCurrencies: [{ currency: 'EUR', amount: 900 }] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
@@ -50,6 +50,8 @@ describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
     const { result } = renderHook(() => useProjectCommittedSpend('proj-1', true), { wrapper: wrap });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toBe(200000);
+    // 0373: other currencies travel beside the project-currency figure, never inside it.
+    expect(result.current.otherCurrencies).toEqual([{ currency: 'EUR', amount: 900 }]);
     expect(result.current.commitmentSource).toBe('pmo');
     expect(getProjectCommittedSpend).toHaveBeenCalledWith('proj-1');
   });

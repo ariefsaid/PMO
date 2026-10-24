@@ -30,6 +30,7 @@ const budgetState = {
 };
 const committedState = {
   data: undefined as number | undefined,
+  otherCurrencies: [] as Array<{ currency: string; amount: number }>,
   isPending: false,
   isError: false,
 };
@@ -84,6 +85,7 @@ function tileValue(label: RegExp): HTMLElement {
 }
 
 beforeEach(() => {
+  committedState.otherCurrencies = [];
   budgetState.data = undefined;
   budgetState.isPending = false;
   budgetState.isError = false;
@@ -316,6 +318,22 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     expect(screen.getByText(/^available$/i)).toBeInTheDocument();
     // Scope to the Available tile (After this request also shows $500 here).
     expect(tileValue(/^available$/i).textContent).toMatch(/\$500\b/);
+  });
+  it('0373: commitments in other currencies are named under Available, never subtracted as project currency', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    committedState.otherCurrencies = [{ currency: 'EUR', amount: 90 }];
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
+    expect(tileValue(/^available$/i).textContent).toMatch(/\$500\b/);
+    expect(screen.getByText('Not counting commitments in other currencies: €90')).toBeInTheDocument();
+  });
+  it('0373: no other-currency note when every commitment is in the project currency', () => {
+    budgetState.data = 1000;
+    committedState.data = 300;
+    reservedState.data = 200;
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
+    expect(screen.queryByText(/other currencies/)).not.toBeInTheDocument();
   });
   it('AC-RB-004: Available tile uses neg tone when negative', () => {
     budgetState.data = 1000;

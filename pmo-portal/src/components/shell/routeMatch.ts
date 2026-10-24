@@ -5,6 +5,7 @@ import { projectStatusGroup, type ProjectStatusGroup } from '@/src/lib/db/projec
 import type { RunContext } from '@/src/lib/agent/runtime/port';
 import type { ListReturnNavigation } from '@/src/lib/listReturnContext';
 import { UserRole } from '../../../types';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 export interface ModuleDef {
   module: string;
@@ -126,7 +127,8 @@ export const MODULES: ModuleDef[] = [
   // #775: Expenses — every role (own claims); RLS scopes reads.
   { module: 'expenses', icon: 'expenses', label: 'Expenses', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.expenses', path: '/expenses', detail: { pattern: '/expenses/:claimId', param: 'claimId' } },
-  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Engineers and Admins.
+  // UXS-007: My Tasks is the assignee-scoped personal doorway for PMs, Finance, Engineers and Admins
+  // (Finance works assigned tasks like an Engineer, owner 2026-10-23).
   // Project-level Tasks remain available for oversight; Executive navigation is unchanged.
   {
     module: 'my-tasks',
@@ -134,7 +136,7 @@ export const MODULES: ModuleDef[] = [
     label: 'My Tasks', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
     labelKey: 'shell.nav.myTasks',
     path: '/my-tasks',
-    roles: [UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin],
+    roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin],
   },
   // Fix #7 (AC-FIX7-CMDK-*): Approvals — promoted from PLACEHOLDER_TITLES to MODULES
   // so it appears in the ⌘K Navigate group for roles that can approve (mirrors Rail).
@@ -237,6 +239,19 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
   '/revenue-by-project': 'Revenue by Project',
+};
+
+/**
+ * Routes that belong to a rail module without living under its URL. The rail highlights the parent
+ * item, and the breadcrumb reads `<parent> > <page>` instead of falling through to "Not found".
+ */
+export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
+  // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
+  '/erp-purchases': '/procurement',
+};
+
+const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+  '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
 };
 
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
@@ -345,6 +360,20 @@ export function breadcrumbForPath(
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
+
+  const childCrumb = CHILD_PAGE_CRUMB[pathname];
+  const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
+  if (childCrumb && childParent) {
+    return [
+      {
+        label: childParent.label,
+        ...(childParent.labelKey ? { i18nKey: childParent.labelKey } : {}),
+        href: childParent.path,
+        onClick: () => navigate?.(childParent.path),
+      },
+      childCrumb,
+    ];
+  }
 
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).
@@ -457,8 +486,8 @@ export function breadcrumbForPath(
 
 /** Cached index lists the breadcrumb reads to resolve a detail route's name. */
 export interface RecordLists {
-  projects?: { id: string; name: string }[];
-  opportunities?: { id: string; name: string }[];
+  projects?: { id: string; name: string; short_name?: string | null }[];
+  opportunities?: { id: string; name: string; short_name?: string | null }[];
   procurements?: { id: string; title: string }[];
   /** CW-4a: incidents — the record "name" is its `type` (there is no title column). */
   incidents?: { id: string; type: string }[];
@@ -560,25 +589,10 @@ export function recordLabelForPath(
   pathname: string,
   lists: RecordLists,
 ): string | undefined {
-  const idFrom = (prefix: string): string | undefined => {
-    if (!pathname.startsWith(`${prefix}/`)) return undefined;
-    // segment after the module prefix, dropping any trailing `/budget` etc.
-    return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
-  };
+  const idFrom = (prefix: string): string | undefined => routeIdFrom(pathname, prefix);
 
-  const projectId = idFrom('/projects');
-  if (projectId) {
-    // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
-    // internal record is in the active projects list; a pre-win / lost record is in the
-    // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
-    return (
-      lists.projects?.find((p) => p.id === projectId)?.name ??
-      lists.opportunities?.find((o) => o.id === projectId)?.name
-    );
-  }
-
-  const salesId = idFrom('/sales');
-  if (salesId) return lists.opportunities?.find((o) => o.id === salesId)?.name;
+  const project = projectIdentityForPath(pathname, lists);
+  if (project) return projectDisplayName(project);
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
@@ -610,6 +624,28 @@ export function recordLabelForPath(
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
 
   return undefined;
+}
+
+/** Segment after the module prefix, dropping any trailing `/budget` etc. */
+function routeIdFrom(pathname: string, prefix: string): string | undefined {
+  if (!pathname.startsWith(`${prefix}/`)) return undefined;
+  return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
+}
+
+function projectIdentityForPath(pathname: string, lists: RecordLists) {
+  // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
+  // internal record is in the active projects list; a pre-win / lost record is in the
+  // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
+  const projectId = routeIdFrom(pathname, '/projects');
+  if (projectId) return lists.projects?.find((p) => p.id === projectId) ?? lists.opportunities?.find((o) => o.id === projectId);
+  const salesId = routeIdFrom(pathname, '/sales');
+  if (salesId) return lists.opportunities?.find((o) => o.id === salesId);
+  return undefined;
+}
+
+/** Contractual project title for hover disclosure on project and pipeline detail crumbs. */
+export function recordContractualNameForPath(pathname: string, lists: RecordLists): string | undefined {
+  return projectIdentityForPath(pathname, lists)?.name;
 }
 
 /**

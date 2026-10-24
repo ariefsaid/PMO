@@ -165,6 +165,15 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks[0].getAttribute('href')).toBe('/projects/proj-1');
   });
 
+  it('review 12: without a request number the header meta starts with the project, not a stray "·"', () => {
+    detailState.data = { ...baseProcurement, code: null };
+    renderPage();
+    const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
+    const meta = link.parentElement!.parentElement!;
+    expect(meta.textContent?.trim().startsWith('·')).toBe(false);
+    expect(meta.textContent).toContain('Bridge Alpha · requested by Eng User');
+  });
+
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {
     // Finance role, different requester — can Approve
     detailState.data = { ...baseProcurement, status: 'Requested' as const };
@@ -224,5 +233,24 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
+
+describe('AC-002 #1325: ProcurementDetails shows the short name but keeps money confirms contractual', () => {
+  it('the header project link shows the short name described by the contractual title', () => {
+    detailState.data = { ...baseProcurement, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
+    renderPage();
+    const link = screen.getAllByRole('link', { name: 'Open Bridge' })[0];
+    expect(link).toHaveAccessibleDescription('Bridge Alpha Contractual');
+    expect(link.getAttribute('href')).toBe('/projects/proj-1');
+  });
+
+  it('the Approve money sentence names the contractual project', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested' as const, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: /approve/i }));
+    expect(screen.getByRole('dialog').textContent).toContain('on Bridge Alpha Contractual,');
+  });
+});

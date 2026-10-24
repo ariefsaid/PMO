@@ -260,6 +260,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
           {showVICapture ? (
             <VIInlineCapture
               vendorId={p.vendor_id}
+              currency={p.currency}
               busy={mutations.transition.isPending || mutations.createInvoice.isPending}
               onSubmit={(capture) => void submitVICapture(capture)}
               onCancel={() => { setShowVICapture(false); setMutationError(null); }}
@@ -357,6 +358,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                   kind="vendor_invoice"
                   vendorId={p.vendor_id}
                   itemsNet={itemsNetTotal(p.items)}
+                  currency={p.currency}
                   busy={mutations.createInvoice.isPending}
                   onCreate={() => Promise.resolve()}
                   onStage={(staged) => {
@@ -409,9 +411,11 @@ interface VIInlineCaptureProps {
   onCancel: () => void;
   /** #876 slice 2: the vendor whose default tax treatment pre-fills the bill. */
   vendorId?: string | null;
+  /** The purchase's currency: the bill is recorded in it (no conversion), so the amount field names it. */
+  currency?: string | null;
 }
 
-const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null }) => {
+const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCancel, vendorId = null, currency = null }) => {
   const { t } = useTranslation();
   // Hidden on an ERP-owned org: the dispatched create never carries it (see groupRefIsPmoAuthored).
   const showGroupRef = groupRefIsPmoAuthored();
@@ -517,7 +521,7 @@ const VIInlineCapture: React.FC<VIInlineCaptureProps> = ({ busy, onSubmit, onCan
           </label>
         )}
         <label className="flex flex-col gap-1 text-[12px] font-semibold text-muted-foreground">
-          {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')} 
+          {t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)')}{currency ? ` · ${currency}` : null}
           <input
             type="text"
             inputMode="decimal"

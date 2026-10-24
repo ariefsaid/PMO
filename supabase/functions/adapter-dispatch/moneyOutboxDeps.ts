@@ -90,12 +90,22 @@ export async function canonicalCommandDigest(command: { domain: string; operatio
   return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/** The claim's named refusal of a queued procurement create: `procurement-(payment|create)-refused: <reason>`. */
+export function isQueuedProcurementRefusal(message: unknown): boolean {
+  return typeof message === 'string' && /^procurement-(payment|create)-refused: [a-z_]+$/.test(message);
+}
+
 /** RPC helper: `claim_outbox_for_commit`/`quarantine_committing` both return a single composite row or
  *  `NULL` (not-claimable-now) — never a Postgrest error for the "not claimable" case. A real error
  *  (connectivity, bad grant) throws. */
 async function callRowRpc(client: OutboxServiceClient, fn: string, id: string): Promise<OutboxRow | null> {
   const { data, error } = await client.rpc(fn, { p_id: id });
-  if (error) throw new AppError(error.message, error.code);
+  if (error) {
+    // The claim refuses a queued procurement create the org's current purchase rules would refuse (0368/0373): nothing
+    // was claimed and nothing reaches ERP. That is a business refusal with a named reason, not a server failure.
+    if (fn === 'claim_outbox_for_commit' && isQueuedProcurementRefusal(error.message)) throw new AppError(error.message, 'commit-rejected');
+    throw new AppError(error.message, error.code);
+  }
   // PostgREST serializes a NULL composite return as a row of ALL-NULL FIELDS (`{id:null,state:null,…}`),
   // NOT as JSON null — so the not-claimable case must be detected by the never-null PK, not by falsiness.
   // (Found live: a same-key retry against a fresh `committing` row — the F1 back-off flow — got a
@@ -279,7 +289,8 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     async markOutboxFailed(id, lastError, claimGeneration) {
       const { data, error } = await serviceClient
         .from('external_command_outbox')
-        .update({ state: 'failed', last_error: lastError })
+        // 0357: the retry delay runs from the failure, so the failure stamps updated_at.
+        .update({ state: 'failed', last_error: lastError, updated_at: new Date().toISOString() })
         .eq('id', id)
         .eq('claim_generation', String(claimGeneration))
         .select('id');

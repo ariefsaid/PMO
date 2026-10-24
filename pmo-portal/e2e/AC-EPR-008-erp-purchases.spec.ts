@@ -27,21 +27,22 @@ test('AC-EPR-008: a project shows its ERPNext purchases and the org list names t
   const { error: dErr } = await admin.from('erp_purchase_documents').insert({
     org_id: ORG_ID, erp_doctype: 'Purchase Invoice', erp_name: invoiceName, supplier_name: supplier,
     doc_date: '2026-02-01', due_date: '2026-03-01', bill_no: 'INV-E2E', currency: 'IDR', grand_total: 4_321_000,
-    outstanding_amount: 0, erp_status: 'Paid', erp_docstatus: 1, project_ids: [projectId], erp_modified: '2026-02-01 10:00:00',
+    net_total: 4_321_000, outstanding_amount: 0, erp_status: 'Paid', erp_docstatus: 1, project_ids: [projectId], erp_modified: '2026-02-01 10:00:00',
   });
   if (dErr) throw new Error(`seed ERP purchase failed: ${dErr.message}`);
   try {
     await signIn(page, 'finance@acme.test');
     await page.goto(`/projects/${projectId}/procurement`);
 
-    const section = page.getByRole('region', { name: 'Purchases recorded in ERPNext' });
+    const section = page.getByRole('region', { name: 'ERPNext documents not in a purchase' });
     await expect(section.getByText(/Already counted in Actuals/)).toBeVisible();
     const row = section.locator('tr', { hasText: invoiceName });
     await expect(row).toContainText(supplier);
     await expect(row).toContainText(/4[.,]321[.,]000/);
-    await expect(row).toContainText('Paid');
+    // D1 deliberately dropped the ERP status column from this list (it is a to-do list of unlinked documents); the goal
+    // oracle — supplier, amount, project — is unchanged.
 
-    await section.getByRole('link', { name: 'All ERP purchases' }).click();
+    await section.getByRole('link', { name: 'All unlinked ERPNext documents' }).click();
     await expect(page).toHaveURL(/\/erp-purchases$/);
     await expect(page.locator('tr', { hasText: invoiceName })).toContainText(projectName);
   } finally {

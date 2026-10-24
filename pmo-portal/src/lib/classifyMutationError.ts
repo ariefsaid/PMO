@@ -176,6 +176,11 @@ function boundReasonCode(code: string | undefined): string {
  * Only the constraint families whose text is MACHINE-generated are listed — see the module
  * docstring for why app-authored messages are deliberately absent.
  */
+/** The four org purchase rules (0360 `procurement_gate_message`). Their refusal text is server-authored product copy. */
+const PURCHASE_RULE_DETAILS: ReadonlySet<string> = new Set([
+  'gate_request_before_order', 'gate_approval_before_order', 'gate_receipt_before_invoice', 'gate_approval_before_payment',
+]);
+
 const POSTGRES_GENERATED_DETAIL: Record<string, string> = {
   '23514': 'This change conflicts with the current document state. Refresh and try again.',
   '42501': 'Your role does not allow this change. Ask an administrator if you think it should.',
@@ -271,8 +276,11 @@ export function classifyMutationError(
   const databaseDetails = typeof (err as { details?: unknown } | null)?.details === 'string'
     ? (err as { details: string }).details
     : undefined;
+  const isPurchaseRule = code === '23514' && databaseDetails !== undefined && PURCHASE_RULE_DETAILS.has(databaseDetails);
   const safeCheckDetail = code === '23514'
-    ? databaseDetails === 'm365-source-collision'
+    ? isPurchaseRule
+      ? rawDetail
+      : databaseDetails === 'm365-source-collision'
       ? 'This entry already has a file or link; refresh and clear it before relinking.'
       : POSTGRES_GENERATED_DETAIL['23514']
     : undefined;
@@ -303,6 +311,8 @@ export function classifyMutationError(
   if (code && overrides && Object.prototype.hasOwnProperty.call(overrides, code)) {
     return { headline: overrides[code], detail, rawDetail, classification };
   }
+
+  if (isPurchaseRule) return { headline: 'A purchase rule applies', detail, rawDetail, classification };
 
   switch (code) {
     case 'P0001':

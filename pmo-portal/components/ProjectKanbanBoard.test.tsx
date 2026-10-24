@@ -85,6 +85,13 @@ const renderBoard = (
 describe('ProjectKanbanBoard', () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it('AC-002 #1325: delivery kanban shows a short alias with the contractual title', () => {
+    renderBoard([mkProject({ id: 'alias', name: 'Contractual delivery project', short_name: 'North Terminal', status: 'Ongoing Project' })]);
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText('North Terminal')).toBeVisible();
+    expect(within(card).getByTitle('Contractual delivery project')).toHaveTextContent('North Terminal');
+  });
+
   it('AC-CODE-003: Kanban card shows both identifiers as values on one line; labels stay in its accessible name', () => {
     renderBoard([mkProject({ id: 'pn', name: 'Numbered', status: 'Ongoing Project', pmo_project_number: 'PMO-26-0071', code: 'CLIENT-71' })]);
     const card = screen.getByTestId('project-card');

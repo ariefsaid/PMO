@@ -84,6 +84,16 @@ describe('Breadcrumb', () => {
     expect(click.defaultPrevented).toBe(false);
   });
 
+  it('AC-002 #1325: breadcrumb links and current short-name crumbs expose the contractual title', () => {
+    render(<Breadcrumb parts={[
+      { label: 'Project site', href: '/projects', title: 'Contractual project title' },
+      { label: 'Site North', title: 'Contractual project title' },
+    ]} />);
+    expect(screen.getByRole('link', { name: 'Project site' })).toHaveAttribute('title', 'Contractual project title');
+    expect(screen.getByText('Site North')).toHaveAttribute('title', 'Contractual project title');
+    expect(screen.getByText('Site North')).toHaveAttribute('aria-current', 'page');
+  });
+
   it('current part is not a button', () => {
     render(<Breadcrumb parts={[{ label: 'Alpha' }]} />);
     expect(screen.queryByRole('button', { name: 'Alpha' })).not.toBeInTheDocument();

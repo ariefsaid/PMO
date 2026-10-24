@@ -337,7 +337,7 @@ git fetch -q origin && for b in production main dev; do \
   printf '%-11s %s %s\n' "$b" "$(git rev-parse --short origin/$b)" "$(git log -1 --format=%cs origin/$b)"; done
 git rev-list --count origin/production..origin/main   # what is on main and NOT deployed
 git rev-list --count origin/main..origin/dev          # what is on dev and NOT promoted
-supabase migration list --linked                      # the CLOUD DB's real migration level
+scripts/prod-read.sh -c "select max(version) from supabase_migrations.schema_migrations"   # the CLOUD DB's real migration level
 ```
 
 ⚑ **`main` → `production` needs an EXPLICIT, per-instance owner instruction naming production**

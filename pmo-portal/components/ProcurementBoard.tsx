@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
 import { Kanban, KanbanColumn, KanbanCard } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
@@ -50,10 +51,11 @@ const PrCard: React.FC<{
           inside the role=button KanbanCard (invalid HTML). Navigate to the project
           via the procurement detail page which already links there. */}
       <span
-        aria-label={pr.project?.name ? `Project: ${pr.project.name}` : undefined}
+        aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
+        title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
         className="truncate text-[11px] text-muted-foreground"
       >
-        {pr.project?.name ?? '—'}
+        {pr.project ? projectDisplayName(pr.project) : '—'}
       </span>
     </div>
   </KanbanCard>

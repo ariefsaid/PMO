@@ -2,7 +2,7 @@
 -- All rows below are synthetic and are rolled back at the end of the test.
 begin;
 create extension if not exists pgtap;
-select plan(28);
+select plan(30);
 
 select ok((select p.provolatile = 's'
                  and not p.prosecdef
@@ -68,6 +68,7 @@ insert into projects (id, org_id, code, name, status, contract_value, tax_treatm
   ('03290000-0000-0000-0000-000000000d09', '03290000-0000-0000-0000-000000000001', null, 'S40 Backslash Reference', 'Leads', 0, null, null,
    'WILD' || chr(92) || 'X-1', null, null);
 
+update projects set short_name = 'S40 Display Alias' where id = '03290000-0000-0000-0000-000000000d01';
 insert into sales_invoices (id, org_id, project_id, customer_id, si_number, reference_number, invoice_date,
                             amount, tax_treatment, tax_amount, currency, status) values
   ('03290000-0000-0000-0000-000000000f01', '03290000-0000-0000-0000-000000000001', '03290000-0000-0000-0000-000000000d01', '03290000-0000-0000-0000-000000000c01',
@@ -96,6 +97,7 @@ insert into incoming_payments (id, org_id, customer_id, sales_invoice_id, pmo_nu
 values ('03290000-0000-0000-0000-000000000e02', '03290000-0000-0000-0000-000000000001', '03290000-0000-0000-0000-000000000c01',
         '03290000-0000-0000-0000-000000000010', 'RCV-S40-1', '2026-10-01', 100, 100, 0, 'IDR', 'Paid', true);
 
+update projects set short_name = '   ' where id = '03290000-0000-0000-0000-000000000d02';
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03290000-0000-0000-0000-000000000101","role":"authenticated"}';
 select is(jsonb_array_length(public.search_record_references('ORD-ALPHA-01', 8) -> 'items'), 4,
@@ -115,6 +117,19 @@ select ok(exists (select 1
                     from jsonb_array_elements(public.search_record_references('S40-CODE-AL', 8) -> 'items') as rows(item)
                    where item ->> 'kind' = 'project' and item ->> 'id' = '03290000-0000-0000-0000-000000000d01'),
   'AC-S40-003 project code prefixes are searchable');                                           -- 9
+select ok(
+  (select item ->> 'title' = 'S40 Display Alias' and position('S40 Main Project' in item ->> 'context') > 0
+     from jsonb_array_elements(public.search_record_references('ORD-ALPHA-01', 8) -> 'items') as rows(item)
+    where item ->> 'id' = '03290000-0000-0000-0000-000000000d01')
+  and (select item ->> 'title' = 'S40 Display Alias' and position('S40 Main Project' in item ->> 'context') > 0
+         from jsonb_array_elements(public.search_record_references('S40-CODE-ALPHA', 8) -> 'items') as rows(item)
+        where item ->> 'id' = '03290000-0000-0000-0000-000000000d01')
+  and (select item ->> 'title' = 'S40 Display Alias' and position('S40 Main Project' in item ->> 'context') > 0
+         from jsonb_array_elements(public.search_record_references('S40-P-0001', 8) -> 'items') as rows(item)
+        where item ->> 'id' = '03290000-0000-0000-0000-000000000d01'),
+  'AC-002 project reference search shows the alias and contractual context for customer order, client code and PMO number'); -- 10
+select is((public.search_record_references('ORD-ALPHA-01-EXT', 8) -> 'items' -> 0) ->> 'title', 'S40 Prefix Project',
+  'AC-002 blank aliases fall back to the contractual project title');                              -- 11
 select is((select item ->> 'id'
              from jsonb_array_elements(public.search_record_references('S40-P-UNIQUE', 8) -> 'items') as rows(item)
             where item ->> 'kind' = 'project'),

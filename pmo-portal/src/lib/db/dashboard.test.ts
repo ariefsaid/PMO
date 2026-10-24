@@ -133,7 +133,7 @@ describe('getSalesPipeline', () => {
         { status: 'PQ Submitted', count: 1, total_value: 800000, win_probability: 0.25, weighted_value: 200000 },
       ],
       projects: [
-        { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
+        { id: 'p2', name: 'Contractual Northwind Rollout', short_name: 'Northwind Site', client_name: 'Northwind', status: 'Tender Submitted', contract_value: 1200000, win_probability: 0.5 },
       ],
     };
     rpc.mockResolvedValue({ data: pipelinePayload, error: null });
@@ -142,6 +142,7 @@ describe('getSalesPipeline', () => {
     expect(result.stages).toHaveLength(2);
     expect(result.stages[0].status).toBe('Tender Submitted');
     expect(result.projects[0].client_name).toBe('Northwind');
+    expect(result.projects[0]).toMatchObject({ name: 'Contractual Northwind Rollout', short_name: 'Northwind Site' });
 
     // error branch
     rpc.mockResolvedValue({ data: null, error: { message: 'sp-error' } });

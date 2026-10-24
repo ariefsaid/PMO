@@ -14,18 +14,18 @@ import { formatCurrency } from '@/src/lib/format';
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
-  { id: 't1', name: 'Tender Deal Bravo', client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
-  { id: 'w1', name: 'Won Deal Charlie', client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 1 },
-  { id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
+  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  { id: 't1', name: 'Tender Deal Bravo', short_name: null, client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
+  { id: 'w1', name: 'Won Deal Charlie', short_name: null, client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 1 },
+  { id: 'l1', name: 'Lost Deal Delta', short_name: null, client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
   // #530 / FR-L10N-020: a mixed-currency pair proves a card renders ITS OWN currency, not the
   // USD org default — a single-currency fixture set cannot tell a record currency from a
   // hardcoded literal (which is exactly how this issue shipped in 0044).
-  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
-  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  { id: 'idr1', name: 'IDR Deal', short_name: null, client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
+  { id: 'usd1', name: 'USD Deal', short_name: null, client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
   // 0197 permits a NULL basis ONLY at zero value, and OD-TAX-1 says render NOTHING for it rather
   // than invent one. Without this row the "unknown renders nothing" branch has no witness here.
-  { id: 'nb1', name: 'Unpriced Deal', client_name: 'Umbrella', status: 'Quotation Submitted', contract_value: 0, currency: 'USD', tax_treatment: null, win_probability: 0.4 },
+  { id: 'nb1', name: 'Unpriced Deal', short_name: null, client_name: 'Umbrella', status: 'Quotation Submitted', contract_value: 0, currency: 'USD', tax_treatment: null, win_probability: 0.4 },
 ];
 
 describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
@@ -34,6 +34,7 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
       ...projects[4],
       id: 'compact-long-id',
       name: 'Integrated maintenance planning for regional facilities and remote teams',
+      short_name: 'Remote teams',
       client_name: 'PT Garuda Regional Infrastructure Services',
       pmo_project_number: 'PMO-26-0042',
       code: 'CLIENT-77',
@@ -47,7 +48,8 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
 
     expect(screen.queryByTestId('stage-Tender Submitted')).toBeNull();
     const card = screen.getByTestId('project-card');
-    expect(within(card).getByText(longProject.name)).toBeVisible();
+    expect(within(card).getByText(longProject.short_name!)).toBeVisible();
+    expect(within(card).getByTitle(longProject.name)).toHaveTextContent(longProject.short_name!);
     expect(within(card).getByText(longProject.client_name!)).toBeVisible();
     expect(within(card).queryByText(longProject.status)).toBeNull();
     expect(within(card).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
@@ -57,12 +59,26 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
     expect(within(card).getByText('40%')).toBeVisible();
     expect(within(card).queryByText(/wtd/)).toBeNull();
 
-    await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.name) }));
+    await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.short_name!) }));
     expect(onOpen).toHaveBeenCalledWith(longProject);
   });
 });
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
+  it('AC-002 #1325: the avatar initial stays the client\'s first letter, not the short name\'s', () => {
+    const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'Zulu Terminal', client_name: 'Acme' };
+    render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText('A')).toBeInTheDocument();
+    expect(within(card).queryByText('Z')).toBeNull();
+  });
+  it('AC-002 #1325: open pipeline DealCard shows the alias and preserves the contractual title', () => {
+    const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'North Terminal' };
+    render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText('North Terminal')).toBeVisible();
+    expect(within(card).getByTitle('Contractual pipeline deal')).toHaveTextContent('North Terminal');
+  });
   // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.
   it('AC-IXD-PROJ-007: renders the five open stages + separate terminal Won and Lost columns in fixed order', () => {
     render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
@@ -95,7 +111,7 @@ describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
   it('AC-DEC-001: the Lost column shows Lost and Declined counts separately', () => {
     const withDeclined: PipelineProject[] = [
       ...projects,
-      { id: 'dc1', name: 'Declined Deal Echo', client_name: 'Echo', status: 'Declined', contract_value: 300_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
+      { id: 'dc1', name: 'Declined Deal Echo', short_name: null, client_name: 'Echo', status: 'Declined', contract_value: 300_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
     ];
     render(<SalesKanbanBoard projects={withDeclined} onOpen={vi.fn()} />);
     const lostCol = screen.getByTestId('stage-Lost');

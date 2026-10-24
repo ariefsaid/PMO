@@ -48,8 +48,17 @@ describe('makeBudgetImportDescriptor', () => {
 
   const make = () => makeBudgetImportDescriptor(projects, 'batch-1');
 
+  it('AC-TVC-001: the app budget import accepts Travel & accommodation and Vehicle', () => {
+    const validate = make().fields.find((field) => field.key === 'category')!.validate;
+    expect(BUDGET_CATEGORIES.slice(8)).toEqual(['Travel & accommodation', 'Vehicle']);
+    expect(validate('Travel & accommodation')).toBeNull();
+    expect(validate(' Vehicle ')).toBeNull();
+    expect(validate('Travel')).not.toBeNull();
+  });
+
   it('AC-CAT-003: accepts and imports the eighth category without changing the seven existing values', async () => {
-    expect(BUDGET_CATEGORIES).toEqual([
+    // 0366 (#1326) appends two more; this test still owns #804's claim: the first eight, in order.
+    expect(BUDGET_CATEGORIES.slice(0, 8)).toEqual([
       'Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses',
     ]);
     const d = make();

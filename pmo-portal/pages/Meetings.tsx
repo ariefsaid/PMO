@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -77,7 +78,7 @@ const Meetings: React.FC = () => {
   const projectOptions = useMemo(
     () => [
       { value: 'All', label: t('meetings.filters.allProjects', 'All projects') },
-      ...(projects ?? []).map((p) => ({ value: p.id, label: p.name })),
+      ...(projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })),
     ],
     [projects, t],
   );
@@ -135,7 +136,7 @@ const Meetings: React.FC = () => {
     {
       key: 'project',
       header: t('meetings.columns.project', 'Project'),
-      cell: (m) => <span className="truncate">{m.project?.name ?? '—'}</span>,
+      cell: (m) => <span className="truncate" title={m.project?.name}>{m.project ? projectDisplayName(m.project) : '—'}</span>,
       exportValue: (m) => m.project?.name ?? '',
     },
     {

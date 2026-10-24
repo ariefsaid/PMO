@@ -70,6 +70,7 @@ interface FakeRow {
   claim_generation: number;
   last_error: string | null;
   payload_digest?: string | null;
+  updated_at?: string;
 }
 
 function makeFakeClient(seed: FakeRow[] = []) {
@@ -506,6 +507,22 @@ Deno.test('markOutboxCommitted/Failed: guarded write-backs affect 1 row when the
 
   const failedStaleCount = await deps.markOutboxFailed('outbox-1', 'boom', 2);
   assertEquals(failedStaleCount, 1, 'the current token marks failed');
+});
+
+Deno.test('AC-ENA-CAD-004 markOutboxFailed stamps updated_at — the 0357 retry delay runs from the failure, not the claim', async () => {
+  const claimedAt = '2026-10-23T07:00:00.000Z';
+  const { client, rows } = makeFakeClient([
+    {
+      id: 'outbox-1', org_id: 'org-1', domain: 'procurement', pmo_record_id: 'pmo-1', idempotency_key: 'key-1',
+      external_tier: 'erpnext', operation: 'create', state: 'committing', external_record_id: null, canonical: null,
+      claim_generation: 1, last_error: null, updated_at: claimedAt,
+    },
+  ]);
+  const deps = createDbMoneyOutboxDeps({ serviceClient: client, orgId: 'org-1', externalTier: 'erpnext', operation: 'create', probeByRemarksKey: () => Promise.resolve(null) });
+  const before = Date.now();
+  assertEquals(await deps.markOutboxFailed('outbox-1', 'rejected', 1), 1);
+  const stamped = Date.parse(String(rows.get('outbox-1')?.updated_at));
+  assert(stamped >= before && stamped <= Date.now(), `updated_at was not stamped at the failure: ${rows.get('outbox-1')?.updated_at}`);
 });
 
 Deno.test('H-1 recordOutboxRef + confirmOutbox: fenced ref upsert then confirm, only for the current token (0 when superseded)', async () => {

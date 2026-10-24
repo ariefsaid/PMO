@@ -37,6 +37,7 @@ export interface ProcurementOverviewTabProps {
   projectId: string | null | undefined;
   /** Linked project display name. */
   projectName: string | null | undefined;
+  projectLegalName?: string | null;
   /** This request's total_value (the Budget signal "This request" figure). */
   totalValue: number;
   /** The case's current status — drives the Budget signal's per-stage math + visibility. */
@@ -51,6 +52,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   events,
   projectId,
   projectName,
+  projectLegalName,
   totalValue,
   status,
   currency,
@@ -67,6 +69,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         projectId={projectId}
         totalValue={totalValue}
         projectName={projectName ?? null}
+        projectLegalName={projectLegalName}
         status={status}
         currency={currency}
       />

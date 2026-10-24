@@ -21,12 +21,12 @@ const seedStages = [
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
 const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
-  { id: 'p10', name: 'Regional Services', client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
+  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
+  { id: 'p10', name: 'Regional Services', short_name: null as string | null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
   // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
   // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
-  { id: 'idr1', name: 'IDR Deal', client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
-  { id: 'usd1', name: 'USD Deal', client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
+  { id: 'idr1', name: 'IDR Deal', short_name: null as string | null, client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
+  { id: 'usd1', name: 'USD Deal', short_name: null as string | null, client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
 ];
 
 const pipelineState: {
@@ -124,6 +124,28 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
     // the live Export outline button is kept.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
+  });
+
+  it('AC-002 #1325: open pipeline cards and table search by both identities while disclosing the contractual title', async () => {
+    const contractualName = 'Contractual Regional Development Agreement';
+    const shortName = 'North Terminal';
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [{ ...seedProjects[0], name: contractualName, short_name: shortName }],
+    };
+    renderPage();
+
+    const boardTitle = screen.getByText(shortName).closest('[title]');
+    expect(boardTitle).toHaveAttribute('title', contractualName);
+    const search = screen.getByRole('searchbox', { name: /search projects/i });
+    fireEvent.change(search, { target: { value: contractualName } });
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+    fireEvent.change(search, { target: { value: shortName } });
+    expect(screen.getByText(shortName)).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).not.toBeInTheDocument();
   });
 
   it('AC-CODE-003: searches pipeline deals by PMO Project Number and Client Project Code', async () => {

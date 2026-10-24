@@ -324,6 +324,26 @@ export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): Lifec
   });
 }
 
+/** Which of the five document steps have a record on the purchase (PR · quote · PO · receipt · invoice). */
+export type StepRecords = Record<'pr' | 'vq' | 'po' | 'gr' | 'vi', boolean>;
+
+/**
+ * Flexible-entry progress bar (ADR-0093): a purchase may start at any step, so the bar shows only the steps that
+ * actually have a record, the current step, and the single next step — never an earlier step once a later document
+ * exists. A Rejected/Cancelled track (`skipped` steps) is returned unchanged.
+ */
+export function visibleLifecycleSteps(steps: LifecycleStep[], records: StepRecords): LifecycleStep[] {
+  if (steps.some((s) => s.state === 'skipped')) return steps;
+  let nextShown = false;
+  return steps.filter((s, i) => {
+    if (s.state === 'current' || s.state === 'paid') return true;
+    if (s.state === 'done') return records[PR_STAGES[i].key as keyof StepRecords] === true;
+    if (nextShown) return false;
+    nextShown = true;
+    return true;
+  });
+}
+
 /**
  * Navigates to the procurement's detail route (AC-NAV-006). With the workspace
  * tab layer removed, the row drill is a plain react-router navigate; the URL is

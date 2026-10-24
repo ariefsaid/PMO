@@ -9,7 +9,7 @@ export type TimesheetEntryRow = Tables<'timesheet_entries'>;
 
 /** An entry row with its project name/code resolved in SQL (kills render-time .find()). */
 export type TimesheetEntryWithProject = TimesheetEntryRow & {
-  project: { name: string; code: string | null } | null;
+  project: { name: string; short_name?: string | null; code: string | null } | null;
 };
 
 /** A timesheet header with its entries (each carrying the joined project) resolved in one query. */
@@ -17,7 +17,7 @@ export type TimesheetWithEntries = TimesheetRow & {
   entries: TimesheetEntryWithProject[];
 };
 
-const SELECT = '*, entries:timesheet_entries(*, project:projects(name,code))';
+const SELECT = '*, entries:timesheet_entries(*, project:projects(name,short_name,code))';
 
 /**
  * List the given user's timesheets + entries for the caller's org. org_id is NEVER sent — RLS

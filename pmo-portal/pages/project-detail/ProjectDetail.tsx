@@ -105,6 +105,7 @@ const ProjectDetail: React.FC = () => {
   const readsProjectWideSpend = may('view', 'procurement');
   const committedSpendQuery = useProjectCommittedSpend(readsProjectWideSpend ? projectId || null : null, readsProjectWideSpend);
   const committedSpend = readsProjectWideSpend ? committedSpendQuery.data : undefined;
+  const committedOtherCurrencies = readsProjectWideSpend ? committedSpendQuery.otherCurrencies : undefined;
   const commitmentSource = (readsProjectWideSpend && committedSpendQuery.commitmentSource) || 'unavailable';
   const ledgerBasis = (readsProjectWideSpend && committedSpendQuery.ledgerBasis) || 'unavailable';
   const commitmentPending = readsProjectWideSpend && committedSpendQuery.isPending;
@@ -230,6 +231,7 @@ const ProjectDetail: React.FC = () => {
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
+              committedOtherCurrencies={committedOtherCurrencies}
               commitmentSource={commitmentSource}
               ledgerBasis={ledgerBasis}
               commitmentPending={commitmentPending}
@@ -300,6 +302,7 @@ const ProjectDetail: React.FC = () => {
           <ProjectDetailHeader
             project={project}
             committedSpend={committedSpend}
+            committedOtherCurrencies={committedOtherCurrencies}
             commitmentSource={commitmentSource}
             ledgerBasis={ledgerBasis}
             commitmentPending={commitmentPending}
@@ -336,6 +339,7 @@ const ProjectDetail: React.FC = () => {
             <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}
+              committedOtherCurrencies={committedOtherCurrencies}
               commitmentSource={commitmentSource}
               ledgerBasis={ledgerBasis}
               commitmentPending={commitmentPending}
@@ -365,6 +369,7 @@ const ProjectDetail: React.FC = () => {
             ...pickClassification(project),
             id: project.id,
             name: project.name,
+            short_name: project.short_name,
             code: project.code,
             client_id: project.client_id,
             project_manager_id: project.project_manager_id,

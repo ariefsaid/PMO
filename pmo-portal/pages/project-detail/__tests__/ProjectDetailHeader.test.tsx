@@ -251,6 +251,19 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
   });
 
+  it('AC-002 #1325: delivery and pipeline headers display a short name with contractual hover and NULL fallback', () => {
+    const delivery = { ...onHand, short_name: 'Harbor Operations' } as ProjectWithRefs;
+    const pipeline = { ...preWin, short_name: 'Tender package' } as ProjectWithRefs;
+    const { rerender } = renderHeader('Project Manager', delivery);
+    const deliveryName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Harbor Operations' });
+    expect(within(deliveryName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Harbor Operations');
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
+    const pipelineName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Tender package' });
+    expect(within(pipelineName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Tender package');
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
+    expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+  });
+
   it('CW-3a: the Project detail opens with the shared RecordHeader (icon + name + status + action zone)', () => {
     renderHeader();
     const header = screen.getByTestId('record-header');

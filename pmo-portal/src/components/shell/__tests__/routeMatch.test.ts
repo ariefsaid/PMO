@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { breadcrumbForPath, recordLabelForPath, MODULES } from '../routeMatch';
+import { breadcrumbForPath, recordLabelForPath, recordContractualNameForPath, MODULES, RAIL_PARENT_FOR_PATH } from '../routeMatch';
 import {
   createListReturnContext,
   LIST_RETURN_CONTEXT_KEY,
@@ -315,6 +315,26 @@ describe('breadcrumbForPath — contextual list return', () => {
 // ── /views/:viewId breadcrumb and recordLabel (FR-VR-053, FR-VR-082) ─────────
 import { vi } from 'vitest';
 
+describe('AC-002 #1325 project breadcrumb identities', () => {
+  const lists = {
+    projects: [{ id: 'delivery-1', name: 'Contractual Delivery', short_name: 'Site North' }],
+    opportunities: [{ id: 'pipeline-1', name: 'Contractual Pipeline', short_name: 'Tender West' }],
+  };
+
+  it('shows cached short names and resolves contractual titles for canonical and legacy detail paths', () => {
+    expect(recordLabelForPath('/projects/delivery-1', lists)).toBe('Site North');
+    expect(recordContractualNameForPath('/projects/delivery-1/budget', lists)).toBe('Contractual Delivery');
+    expect(recordLabelForPath('/projects/pipeline-1', lists)).toBe('Tender West');
+    expect(recordContractualNameForPath('/sales/pipeline-1', lists)).toBe('Contractual Pipeline');
+  });
+
+  it('falls back to the legal name and keeps cold details free of a foreign identity', () => {
+    const noAlias = { projects: [{ id: 'plain', name: 'Contractual Only', short_name: '  ' }] };
+    expect(recordLabelForPath('/projects/plain', noAlias)).toBe('Contractual Only');
+    expect(recordContractualNameForPath('/projects/missing', noAlias)).toBeUndefined();
+  });
+});
+
 describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
   const navigate = vi.fn();
 
@@ -348,3 +368,20 @@ describe('routeMatch — /views/:viewId (FR-VR-053, FR-VR-082)', () => {
     expect(crumbs[1].label).toBe('Not found');
   });
 });
+
+describe('review 7: /erp-purchases breadcrumb', () => {
+  it('reads Procurement (link) > ERPNext documents not in a purchase, never "Not found"', () => {
+    const navigate = vi.fn();
+    const parts = breadcrumbForPath('/erp-purchases', undefined, navigate);
+    expect(parts.map((p) => p.label)).toEqual(['Procurement', 'ERPNext documents not in a purchase']);
+    expect(parts[0]).toMatchObject({ href: '/procurement', i18nKey: 'shell.nav.procurement' });
+    expect(parts[1].i18nKey).toBe('finance:erpLinks.orphansTitle');
+    parts[0].onClick?.();
+    expect(navigate).toHaveBeenCalledWith('/procurement');
+  });
+
+  it('maps /erp-purchases to the Procurement rail item', () => {
+    expect(RAIL_PARENT_FOR_PATH['/erp-purchases']).toBe('/procurement');
+  });
+});
+

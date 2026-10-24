@@ -16,6 +16,9 @@ export interface ExpenseGateTruth {
   claim_number: string | null;
   claimant_id: string;
   project_id: string | null;
+  /** 0354 (FR-EXP-119): the claim's project is an `Internal Project`, read by the gate at this attempt; false when
+   *  the claim names no project. Decides direct-cost vs overhead — never sent by a client, never defaulted. */
+  project_is_internal: boolean;
   currency: string;
   amount: string;
   lines: Array<{ expense_type: string; amount: string }>;
@@ -53,10 +56,11 @@ export function parseExpenseGateTruth(data: unknown): ExpenseGateTruth {
     return { expense_type: l.expense_type as string, amount: l.amount as string };
   });
   if (typeof d.approval_posting_exists !== 'boolean') bad('approval_posting_exists');
+  if (typeof d.project_is_internal !== 'boolean') bad('project_is_internal');
   return {
     mirror_id: text('mirror_id'), posting: posting as ExpensePosting, posting_identity: text('posting_identity'),
     subject_id: text('subject_id'), claim_id: text('claim_id'), claim_number: textOrNull('claim_number'),
-    claimant_id: text('claimant_id'), project_id: textOrNull('project_id'), currency: text('currency'), amount, lines,
+    claimant_id: text('claimant_id'), project_id: textOrNull('project_id'), project_is_internal: d.project_is_internal as boolean, currency: text('currency'), amount, lines,
     state_stamp: text('state_stamp'), posting_date: postingDate, approval_posting_exists: d.approval_posting_exists as boolean,
     actor_id: text('actor_id'),
   };

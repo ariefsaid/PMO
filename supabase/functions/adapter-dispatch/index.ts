@@ -81,6 +81,7 @@ import { checkErpnextCommandAuthorization, type AuthorizationClient } from './au
 import { authorizeClickUpTaskCommand } from './taskAuthorization.ts';
 import { enforcePaymentGate, isProcurementPaymentCreate } from './paymentGate.ts';
 import { checkSiProjectGate } from './projectGateGuard.ts';
+import { checkProcurementGate, checkQueuedProcurementCreate } from './procurementGateGuard.ts';
 import { checkCreateTargetUnmapped, checkRevenueErpPathTarget, checkTransitionTargetBinding, isCanonicalUuid, isOpaqueIdempotencyKey } from './transitionTargetGuard.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from './moneyOutboxDeps.ts';
 import {
@@ -361,6 +362,12 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     payload,
     payloadDigest,
     encodeExternalRecordId,
+    // A quarantined procurement create whose probe finds nothing is reissued as a NEW ERP document; the org's purchase
+    // rules are asked again at that moment (under a lock on the purchase), as the outbox claim does for pending and
+    // failed rows. A refusal holds the row for an operator; an adopt of a document that already landed never asks.
+    ...(ctx.command.domain === 'procurement' && String(ctx.command.operation) === 'create'
+      ? { reauthorizeRecoveryReissue: () => checkQueuedProcurementCreate(ctx.serviceClient as never, ctx.orgId, ctx.command as never, ctx.userId) }
+      : {}),
     probeByRemarksKey: !anchorField
       ? async () => null
       : !entry.anchorMutable
@@ -1070,6 +1077,17 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
     if (!projectGate.ok) {
       return new Response(JSON.stringify({ error: 'commit-rejected', message: projectGate.message }), {
         status: projectGate.status,
+        headers,
+      });
+    }
+  }
+
+  // FR-PFE-010 (#1319) — the org's purchase rules, before any adapter/outbox/ERP work (rejection = no outbox row).
+  {
+    const procurementGate = await checkProcurementGate(serviceClient as never, orgId, command as never);
+    if (!procurementGate.ok) {
+      return new Response(JSON.stringify({ error: 'commit-rejected', message: procurementGate.message }), {
+        status: procurementGate.status,
         headers,
       });
     }

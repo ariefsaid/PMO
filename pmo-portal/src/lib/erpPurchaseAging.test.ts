@@ -4,7 +4,8 @@ import type { ErpPurchaseRow } from './repositories/erpPurchases';
 
 const pi = (over: Partial<ErpPurchaseRow>): ErpPurchaseRow => ({
   id: 'x', doctype: 'Purchase Invoice', name: 'PINV', supplier: 'Acme', docDate: '2026-01-01', dueDate: '2026-02-01',
-  billNo: null, currency: 'IDR', grandTotal: 100, outstanding: 100, erpStatus: 'Unpaid', isReturn: false, projectIds: ['p1'], ...over,
+  billNo: null, currency: 'IDR', grandTotal: 100, netTotal: null, outstanding: 100, erpStatus: 'Unpaid', isReturn: false, projectIds: ['p1'],
+  procurementId: null, linkId: null, ...over,
 });
 const TODAY = '2026-03-15';
 

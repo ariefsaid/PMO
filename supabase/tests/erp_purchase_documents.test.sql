@@ -121,9 +121,21 @@ select ok(
                except select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1')))
   and not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                    where n.nspname = 'public' and p.prosrc ilike '%erp_purchase_documents%'
-                     and p.proname <> 'upsert_erp_purchase_documents')
-  and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'),
-  'AC-EPR-006 ERP purchases never feed actuals: project_mapped_actuals unchanged and no other function or view reads the table');
+                     and p.proname not in ('upsert_erp_purchase_documents','guard_procurement_erp_link_org',
+                       'procurement_evidenced_step','procurement_gate_violation','procurement_ledger_held',
+                       'refresh_erp_linked_purchase_total','link_erp_purchase_documents','unlink_erp_purchase_document',
+                       'guard_procurement_document_record',
+                       'procurement_payment_within_ceiling',
+                       -- AMENDED BY 0362 (FR-PFE-006): reads linked ERP documents only as step evidence for its no-op.
+                       'transition_procurement',
+                       -- AMENDED BY 0363/0364: the guard names the link/mark RPCs in its allow-lists; reads no rows
+                       'mark_erp_purchase_documents','stamp_erp_purchase_document_mark_org',
+                       'api_client_request_guard',  -- names the link/mark RPCs in its allow-lists; reads no table
+                       -- AMENDED BY 0372: the linked-documents total (0361 §4's basis, moved into one helper) — a commitment reader.
+                       'erp_linked_documents_total'))
+  and not exists (select 1 from pg_views where schemaname = 'public' and definition ilike '%erp_purchase_documents%'
+                    and viewname not in ('erp_purchase_documents_linked','erp_purchase_orphans','erp_purchase_orphans_all')),
+  'AC-EPR-006 (re-baselined by AC-PFE-005) ERP purchases never feed actuals; only the named link/commitment readers touch the table');
 
 select * from finish();
 rollback;

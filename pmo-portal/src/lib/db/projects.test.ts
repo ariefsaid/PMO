@@ -361,6 +361,23 @@ describe('AC-CODE-002 project identifier DAL contract', () => {
     expect(calls.insert[0]).toMatchObject({ pmo_project_number: 'PMO-26-0001', code: 'CLIENT-42' });
   });
 
+  it('AC-001 #1325: create trims the optional alias independently and never sends org_id', async () => {
+    const calls = makeWriteBuilder({ data: { id: 'p1', name: 'Contractual project', short_name: 'North Terminal' }, error: null });
+    await createProject({
+      name: 'Contractual project', short_name: '  North Terminal  ', status: 'Leads', client_id: 'client-1',
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+    });
+    expect(calls.insert[0]).toMatchObject({ name: 'Contractual project', short_name: 'North Terminal' });
+    expect(calls.insert[0]).not.toHaveProperty('org_id');
+
+    const omitted = makeWriteBuilder({ data: { id: 'p2' }, error: null });
+    await createProject({
+      name: 'Required contractual project', status: 'Leads', client_id: null,
+      project_manager_id: null, start_date: null, end_date: null, contract_value: 0,
+    });
+    expect(omitted.insert[0]).not.toHaveProperty('short_name');
+  });
+
   it('AC-CODE-002 preserves a duplicate-number 23505 as an AppError code', async () => {
     makeWriteBuilder({ data: null, error: { message: 'duplicate key', code: '23505' } });
     await expect(createProject({
@@ -397,6 +414,37 @@ describe('AC-PRJ-004 updateProjectHeader (edit name/client/PM/code/dates)', () =
     expect(patch).not.toHaveProperty('status');
     expect(calls.eq).toContainEqual(['id', 'p1']);
     expect(JSON.stringify(patch)).not.toContain('org_id');
+  });
+
+  it('AC-001 #1325: alias header updates trim values, clear explicit blank/null, and omission preserves the column', async () => {
+    const set = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: '  North Terminal  ', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(set.update[0]).toMatchObject({ name: 'Contractual name unchanged', short_name: 'North Terminal' });
+    expect(set.update[0]).not.toHaveProperty('org_id');
+
+    const blank = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: '   ', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(blank.update[0]).toHaveProperty('short_name', null);
+
+    const cleared = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', short_name: null, code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(cleared.update[0]).toHaveProperty('short_name', null);
+
+    const omitted = makeWriteBuilder({ data: [{ id: 'p1' }], error: null });
+    await updateProjectHeader('p1', {
+      name: 'Contractual name unchanged', code: null, client_id: null,
+      end_client_id: null, project_manager_id: null, start_date: null, end_date: null,
+    });
+    expect(omitted.update[0]).not.toHaveProperty('short_name');
   });
 
   it('AC-EC-002: updateProjectHeader sends end_client_id as NULL when cleared', async () => {

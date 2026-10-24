@@ -31,7 +31,8 @@ const profile = () =>
     return jsonResponse({ org_id: 'org-test' }, { headers: objectHeaders });
   });
 const actor = (role: string) => supabaseRpc('actor_authorization_state', (call) => {
-  assertEquals(call.headers.get('authorization')?.startsWith('Bearer ey'), true);
+  // AC-CLI-B3: service client, not the caller's token — the API-client guard refuses this RPC for a user token.
+  assertEquals(call.headers.get('authorization'), `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`);
   assertEquals(call.bodyJson, { p_org_id: 'org-test', p_user_id: 'user-test' });
   return jsonResponse({ role, active: true });
 });

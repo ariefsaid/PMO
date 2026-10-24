@@ -17,7 +17,7 @@ const h = vi.hoisted(() => {
     workPages: [] as Array<Array<Record<string, unknown>>>,
     /** Tables the DAL scanned, in order. */
     scanned: [] as string[],
-    projects: [] as Array<{ id: string; name: string }>,
+    projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
     /** Singular reads: data served by `.maybeSingle()` per table. */
     singles: {} as Record<string, Record<string, unknown> | null>,
     /** Every `.select(columns)` the DAL issued, in order. */
@@ -164,6 +164,14 @@ describe('AC-EFK-004 sales e-Faktur DAL', () => {
 });
 
 describe('db/revenue getRevenueByProject — net of tax, per currency, paged', () => {
+  it('AC-002 #1325: a short name rides beside the contractual project_name, which stays contractual for exports', async () => {
+    h.state.projects = [{ id: 'proj-1', name: 'Alpha Contractual', short_name: 'Alpha' }];
+    h.state.workPages = [work(1, 'proj-1', 100)];
+    h.state.invoicePages = [invoices(1, 'proj-1', 111, 40)];
+    const rows = await getRevenueByProject();
+    expect(rows[0]).toMatchObject({ project_name: 'Alpha Contractual', project_short_name: 'Alpha' });
+  });
+
   it('AC-831-1: sums the NET (shared work-billed view), never the gross amount, and reads Open AR from the invoices', async () => {
     h.state.projects = [{ id: 'proj-1', name: 'Alpha' }];
     // The view already nets tax out: a gross 111 PPN invoice arrives as net 100.

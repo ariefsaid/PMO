@@ -273,11 +273,13 @@ describe('TasksTab — list (AC-TASK-001)', () => {
     expect(screen.queryByText('Plan, assign, and track the work for this project.')).toBeNull();
   });
 
-  it('AC-TASK-001: empty state for a read-only role shows no create action', () => {
+  // ⚑ INVERTED BY the owner ruling of 2026-10-23 (migration 0355): Finance was the last role that
+  // could not create a task; it is now scoped like an Engineer, so its empty state offers create.
+  it('AC-TASK-001 + AC-TASK-FIN-001: Finance\'s empty state offers the one gated New task action', () => {
     listState.data = [];
     renderTab('Finance');
     expect(screen.getByText(/no tasks yet/i)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /new task/i })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /new task/i })).toHaveLength(1);
   });
 });
 
@@ -287,9 +289,23 @@ describe('TasksTab — gating (rbac-visibility §F)', () => {
     expect(screen.getByRole('button', { name: /new task/i })).toBeInTheDocument();
   });
 
-  it('AC-TASK-003 gate: Finance (read-only on Tasks) does NOT see New task', () => {
-    renderTab('Finance');
-    expect(screen.queryByRole('button', { name: /new task/i })).not.toBeInTheDocument();
+  // ⚑ INVERTED BY the owner ruling of 2026-10-23 (migration 0355): Finance is scoped exactly like an
+  // Engineer — New task, Edit on rows it CREATED only, Delete/Archive nowhere, status on its own
+  // assigned row only. Fixture ids are role-independent, so 'eng-1' here is a Finance user.
+  it('AC-TASK-FIN-001 gate: Finance gets New task + Edit on THEIR row only, Delete nowhere, status on own assigned task', async () => {
+    renderTab('Finance', 'eng-1');
+    expect(screen.getByRole('button', { name: /new task/i })).toBeInTheDocument();
+    const own = screen.getByText('Mobilise crew').closest('tr')!;
+    await userEvent.click(within(own).getByRole('button', { name: /row actions/i }));
+    expect(screen.getByRole('menuitem', { name: /edit/i })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /delete/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: /archive/i })).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    const assigned = screen.getByText('Survey the site').closest('tr')!;
+    expect(within(assigned).queryByRole('button', { name: /row actions/i })).not.toBeInTheDocument();
+    // Status: own assigned task (t1) is a control; t2 (assigned to pm-1) is a static pill.
+    expect(screen.getByLabelText(/status for survey the site/i)).toBeEnabled();
+    expect(screen.queryByLabelText(/status for mobilise crew/i)).not.toBeInTheDocument();
   });
 
   it('AC-TASK-005 gate: Engineer assigned to t1 can change ITS status (own task)', () => {

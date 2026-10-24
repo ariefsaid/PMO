@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
@@ -156,7 +157,7 @@ export const PMDashboard: React.FC = () => {
                         title={p.name}
                         className="min-w-[8rem] flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                       >
-                        {p.name}
+                        {projectDisplayName(p)}
                       </Link>
                       {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
                       {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}

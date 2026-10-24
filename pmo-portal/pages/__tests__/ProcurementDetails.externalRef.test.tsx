@@ -284,7 +284,7 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     // staged, not yet written
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         expect.objectContaining({ externalRef: 'PRO-0026100002' }),
@@ -306,7 +306,7 @@ describe('AC-EXT-001: staged vendor-invoice capture is forwarded through the con
     await userEvent.selectOptions(screen.getByTestId('vi-tax-template-select'), 'Input VAT 11');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({ taxTemplate: 'Input VAT 11' })),
     );
@@ -345,7 +345,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
     await userEvent.type(screen.getByTestId('vi-withheld-input'), '20000');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(
       expect.objectContaining({ taxAmount: 110000, withheldAmount: 20000, withheldPphType: 'pph23' })));
   });
@@ -360,7 +360,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
     await userEvent.selectOptions(screen.getByTestId('vi-pph-type-select'), 'pph23');
     await userEvent.type(screen.getByTestId('vi-erp-withheld-input'), '20000');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
-    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vi/i }));
+    await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /save vendor invoice/i }));
     await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledWith(expect.objectContaining({
       erpTaxAmounts: { vatAmount: 110000, withheldAmount: 20000, pphType: 'pph23' } })));
     expect(mockCreateInvoice.mock.calls[0][0]).not.toHaveProperty('taxTemplate');
@@ -368,5 +368,7 @@ describe('AC-VWH-030 / AC-VWH-032 (#876 slice 2): vendor tax reaches the write',
 });
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

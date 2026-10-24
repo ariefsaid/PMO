@@ -34,7 +34,10 @@ type Kind = RecordFolderTarget["kind"];
 type Stop = NonNullable<RecordFolderBackfillPage["stopped"]>;
 type Bucket = "linked" | "needs_choice" | "missing" | "failed" | "skipped";
 
-/** Exact request shape: `{action}` or `{action, cursor:{kind, after}}`; anything else is refused. */
+/**
+ * Exact request shape: `{action}` or `{action, cursor:{kind, after[, run]}}`; anything else is refused. `run` is the
+ * sweep's run id, handed out in every continuation cursor; a request without one starts a new run.
+ */
 export function parseBackfillRequest(
   body: unknown,
 ): { cursor: RecordFolderCursor } | null {
@@ -45,14 +48,24 @@ export function parseBackfillRequest(
     return keys === "action" ? { cursor: { kind: "project", after: null } } : null;
   }
   const cursor = body.cursor;
-  if (!isRecord(cursor) || Object.keys(cursor).sort().join(",") !== "after,kind") {
+  const cursorKeys = isRecord(cursor) ? Object.keys(cursor).sort().join(",") : "";
+  if (!isRecord(cursor) || (cursorKeys !== "after,kind" && cursorKeys !== "after,kind,run")) {
     return null;
   }
   if (cursor.kind !== "project" && cursor.kind !== "procurement") return null;
   if (cursor.after !== null && (typeof cursor.after !== "string" || !UUID.test(cursor.after))) {
     return null;
   }
-  return { cursor: { kind: cursor.kind, after: cursor.after } };
+  if (cursorKeys === "after,kind,run" && (typeof cursor.run !== "string" || !UUID.test(cursor.run))) {
+    return null;
+  }
+  return {
+    cursor: {
+      kind: cursor.kind,
+      after: cursor.after,
+      ...(typeof cursor.run === "string" ? { run: cursor.run.toLowerCase() } : {}),
+    },
+  };
 }
 
 async function fetchCandidates(
@@ -78,6 +91,11 @@ async function fetchCandidates(
   }
   return ids;
 }
+
+/** Outcomes of `m365_record_folder_sweep_save` that mean this page's counts are (already) in the summary. */
+const SUMMARY_COUNTED = new Set(["accepted", "replayed"]);
+const SUMMARY_NOT_ADDED =
+  "Another folder sweep has started or this page is out of order; its counts were not added to the saved summary. The links above were made.";
 
 export async function handleLinkExistingRecordFolders(
   body: unknown,
@@ -111,8 +129,11 @@ export async function handleLinkExistingRecordFolders(
     missing: 0,
     failed: 0,
     skipped: 0,
+    unmatched: [],
     next: null,
   };
+  // One run id per sweep: continuation cursors carry it, so the summary is applied once per run and page.
+  const runId = request.cursor.run ?? crypto.randomUUID();
   let kind: Kind = request.cursor.kind;
   let after = request.cursor.after;
   let lastProcessed: string | null = null;
@@ -192,6 +213,7 @@ export async function handleLinkExistingRecordFolders(
       }
       page.scanned += 1;
       page[done.bucket] += 1;
+      if (done.bucket === "missing") page.unmatched.push(id);
       lastProcessed = id;
       graphFailures = done.graphFailed ? graphFailures + 1 : 0;
       if (graphFailures >= 2) {
@@ -209,11 +231,31 @@ export async function handleLinkExistingRecordFolders(
   if (stop) page.stopped = stop.reason;
   if (stop?.reason === "unavailable" && retryAfter !== undefined) page.retry_after_seconds = retryAfter;
   if (lastProcessed !== null && (stop || budgetEnded || moreInKind)) {
-    page.next = { kind, after: lastProcessed };
+    page.next = { kind, after: lastProcessed, run: runId };
   } else if (kind === "project") {
-    page.next = { kind: "procurement", after: null };
+    page.next = { kind: "procurement", after: null, run: runId };
   } else {
     page.next = null;
+  }
+  // The running summary is advisory (`pmo m365 status`): a failed save never fails a page whose links already landed.
+  // The server applies the page atomically and at most once per run and page (0375).
+  try {
+    const { data, error } = await deps.serviceClient.rpc("m365_record_folder_sweep_save", {
+      p_org_id: caller.orgId,
+      p_actor_id: deps.userId,
+      p_run_id: runId,
+      p_start: request.cursor.run === undefined,
+      p_from: { kind: request.cursor.kind, after: request.cursor.after },
+      p_next: page.next && { kind: page.next.kind, after: page.next.after },
+      p_counts: Object.fromEntries(
+        (["scanned", "linked", "needs_choice", "missing", "failed", "skipped"] as const).map((key) => [key, page[key]]),
+      ),
+      p_unmatched: page.unmatched,
+    });
+    if (error) throw error;
+    if (!SUMMARY_COUNTED.has(data as string)) page.summary_warning = SUMMARY_NOT_ADDED;
+  } catch {
+    page.summary_warning = "The folder-sweep summary could not be saved; the links above were made.";
   }
   return { status: 200, body: page, headers: HEADERS };
 }

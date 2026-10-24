@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KanbanCard, CompanyNameLink } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
@@ -11,6 +11,8 @@ export interface ProjectCardShellProps {
   initial: string;
   /** Project name — the activation target. */
   name: string;
+  /** Contractual title disclosed on hover when `name` is short-first. */
+  contractualName?: string;
   /** Customer name (em-dash fallback for a missing client). */
   client: string | null | undefined;
   /**
@@ -65,6 +67,7 @@ export interface ProjectCardShellProps {
 const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   initial,
   name,
+  contractualName,
   client,
   clientId,
   pmoProjectNumber,
@@ -78,6 +81,8 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
   className,
 }) => {
   const { t } = useTranslation();
+  const legalId = useId();
+  const legal = contractualName && contractualName !== name ? contractualName : undefined;
   const isKanban = variant === 'kanban';
   const cardLabel = [
     name,
@@ -102,7 +107,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           // target, so the name is plain text (no nested button in role=button).
           <div
             className="block max-w-full break-words text-[13px] font-semibold text-foreground leading-5"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </div>
@@ -110,12 +115,14 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           <button
             type="button"
             onClick={onOpen}
+            aria-describedby={legal ? legalId : undefined}
             className="block max-w-full break-words text-left text-sm font-semibold text-foreground line-clamp-2 leading-5 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            title={name}
+            title={contractualName ?? name}
           >
             {name}
           </button>
         )}
+        {legal && <span id={legalId} className="sr-only">{legal}</span>}
         {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         {isKanban ? (
           // Board: values only, one line — the labelled identities stay in the card's accessible name.
@@ -159,6 +166,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
         onActivate={onOpen}
         selected={selected}
         aria-label={cardLabel}
+        aria-describedby={legal ? legalId : undefined}
         data-testid="project-card"
         className={className}
       >
