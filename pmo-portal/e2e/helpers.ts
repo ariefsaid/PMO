@@ -338,6 +338,6 @@ export async function clickOrphanAction(page: Page, row: Locator, action: 'Link 
   await expect(row).toBeVisible();
   const direct = row.getByRole('button', { name: new RegExp(`^${action}`) });
   if (await direct.count()) { await direct.first().click(); return; }
-  await row.getByRole('button', { name: /^Link…/ }).click();
+  await row.getByRole('button', { name: /^Link\b/ }).click();
   await page.getByRole('menuitem', { name: new RegExp(`^${action}`) }).click();
 }
