@@ -1442,20 +1442,41 @@ Deno.test("pmo erp read actions are Admin-only: Executive, Project Manager and F
   }
 });
 
-Deno.test("pmo erp verify-links checks both ERP project code and name for every mapped project", async () => {
+async function verifyLinks(projects: unknown[], erpDoc: Record<string, unknown> | null) {
   const result = await withFetchMock([
     ...base(),
-    supabaseSelect("projects", () => jsonResponse([{ id: "project-1", name: "PMO Project", code: "ERP-PROJECT-1" }])),
-    erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () => jsonResponse({ data: {
-      name: "ERP-PROJECT-1", project_name: "Different ERP Name", company: "Example Company", is_active: "Yes",
-    } })),
-  ], async ({ calls }) => {
+    supabaseSelect("projects", () => jsonResponse(projects)),
+    erp("erp.example.test", "/api/resource/Project/ERP-PROJECT-1", () =>
+      erpDoc ? jsonResponse({ data: erpDoc }) : jsonResponse({ message: "not found" }, { status: 404 })),
+  ], async () => {
     const response = await handleSetCompanyRequest(await request({ tier: "erpnext", setupAction: "verify-links" }));
-    return { status: response.status, body: await response.json(), calls };
+    return { status: response.status, body: await response.json() };
   });
   assertEquals(result.status, 200);
-  assertEquals(result.body.checked, 1);
-  assertEquals(result.body.mismatches[0].reason, "code_or_name_mismatch");
+  return result.body as { checked: number; mismatches: Array<Record<string, unknown>> };
+}
+const erpProjectDoc = (over: Record<string, unknown> = {}) => ({
+  name: "ERP-PROJECT-1", project_name: "PMO Project", company: "Example Company", is_active: "Yes", ...over,
+});
+
+Deno.test("pmo erp verify-links reports a mapped project valid when ERPNext auto-named it differently from the PMO code", async () => {
+  // ensure-project creates by project_name and stores whatever key ERPNext allocates; the PMO code is not that key.
+  const body = await verifyLinks([{ id: "project-1", name: "PMO Project", code: "CLIENT-77" }], erpProjectDoc());
+  assertEquals(body, { checked: 1, mismatches: [] });
+});
+
+Deno.test("pmo erp verify-links still flags a mapped ERP project whose name, company or active state is wrong", async () => {
+  const project = [{ id: "project-1", name: "PMO Project", code: "CLIENT-77" }];
+  const named = await verifyLinks(project, erpProjectDoc({ project_name: "Different ERP Name" }));
+  assertEquals(named.mismatches.map((m) => [m.reason, m.erp_project, m.erp_project_name]), [["name_mismatch", "ERP-PROJECT-1", "Different ERP Name"]]);
+  const company = await verifyLinks(project, erpProjectDoc({ company: "Other Company" }));
+  assertEquals(company.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const inactive = await verifyLinks(project, erpProjectDoc({ is_active: "No" }));
+  assertEquals(inactive.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const missing = await verifyLinks(project, null);
+  assertEquals(missing.mismatches.map((m) => m.reason), ["missing_or_invalid_erp_project"]);
+  const renamed = await verifyLinks(project, erpProjectDoc({ name: "ERP-PROJECT-9" }));
+  assertEquals(renamed.mismatches.map((m) => [m.reason, m.erp_project]), [["identity_changed", "ERP-PROJECT-9"]]);
 });
 
 // ── #775 phase B — the `expenses` employ switch (FR-EXP-118, DD-EXP-22). It opens only with #901 (the release guard

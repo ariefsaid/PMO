@@ -8,6 +8,8 @@ export interface EnsureRecordFolderRequest extends RecordFolderTarget {
 export interface RecordFolderCursor {
   kind: 'project' | 'procurement';
   after: string | null;
+  /** The sweep's run id, set by the server on every continuation cursor; echo the cursor back unchanged. */
+  run?: string;
 }
 export interface RecordFolderBackfillRequest {
   action: 'link_existing_record_folders';

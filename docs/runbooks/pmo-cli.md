@@ -383,7 +383,7 @@ node scripts/pmo.mjs erp list-projects
 node scripts/pmo.mjs erp verify-links
 ```
 
-These call the existing `external-set-company` ERP setup actions using the signed-in user token (Admin only, as in the app); no ERP credentials are read or printed by the CLI. `readiness` reports setup gaps, `list-projects` lists active ERP projects for the connected company, and `verify-links` compares PMO project names/codes against that list and prints mismatches. Exit 0 means the call completed (mismatches are report data); a server refusal exits 1.
+These call the existing `external-set-company` ERP setup actions using the signed-in user token (Admin only, as in the app); no ERP credentials are read or printed by the CLI. `readiness` reports setup gaps, `list-projects` lists active ERP projects for the connected company, and `verify-links` checks each mapped project's ERP record (same key, connected company, active, same project name) and prints mismatches; the PMO code is not compared, since ERPNext may allocate its own project key. Exit 0 means the call completed (mismatches are report data); a server refusal exits 1.
 
 ## 7. Project documents — `pmo documents`
 

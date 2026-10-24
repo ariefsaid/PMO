@@ -58,8 +58,7 @@ export interface World {
   refresh: (call: FetchCall) => Response | Promise<Response>;
   /** Synthetic fixture value captured for exact refresh-generation assertions. */
   seededRefreshCiphertext?: string;
-  /** Stored folder-sweep summary returned for continuation pages, and an override for the summary save. */
-  sweepPrior?: Record<string, unknown> | null;
+  /** Answer of the run-aware summary save RPC (default `"accepted"`). */
   sweepSave?: (call: FetchCall) => Response;
 }
 
@@ -141,8 +140,7 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
       const settings = world.settings;
       return Array.isArray(settings) ? rows(settings) : jsonResponse(settings.error, { status: 403 });
     }),
-    table("m365_record_folder_sweeps", () => rows(world.sweepPrior ? [world.sweepPrior] : [])),
-    { label: "save-sweep-summary", method: "POST", pathname: "/rest/v1/m365_record_folder_sweeps", response: (call) => world.sweepSave ? world.sweepSave(call) : jsonResponse(call.bodyJson, OBJECT_HEADERS) },
+    { label: "save-sweep-summary", pathname: "/rest/v1/rpc/m365_record_folder_sweep_save", response: (call) => world.sweepSave ? world.sweepSave(call) : jsonResponse("accepted") },
     table("ms_graph_connections", () =>
       world.connectionMissing
         ? jsonResponse({ message: "none" }, { status: 406 })

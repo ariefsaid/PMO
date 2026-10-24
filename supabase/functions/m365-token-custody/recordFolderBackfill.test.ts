@@ -22,6 +22,7 @@ import {
   ROOT,
   tableCalls,
   type World,
+  USER,
 } from "./recordFolderTestKit.ts";
 import { jsonResponse } from "../_shared/testing/edgeTestKit.ts";
 
@@ -104,9 +105,13 @@ function sweepWorld(fx: Fixture): World {
 
 interface Page {
   scanned: number; linked: number; needs_choice: number; missing: number; failed: number; skipped: number;
-  unmatched: string[]; next: { kind: string; after: string | null } | null; stopped?: string;
+  unmatched: string[]; next: { kind: string; after: string | null; run?: string } | null; stopped?: string;
+  summary_warning?: string;
 }
 const page = async (response: Response) => (await response.json()) as Page;
+/** The keyset position of a continuation cursor, without its run id. */
+const at = (next: Page["next"]) => next && { kind: next.kind, after: next.after };
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
 const sum = (p: Page) => p.linked + p.needs_choice + p.missing + p.failed + p.skipped;
 
 Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bounded counts", async (t) => {
@@ -119,7 +124,7 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
     });
     await run(world, async ({ call, calls, token }) => {
       const body = await page(await call(sweep));
-      assertEquals(body, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1, unmatched: [projectId(3), projectId(4)], next: { kind: "procurement", after: null } });
+      assertEquals({ ...body, next: at(body.next) }, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1, unmatched: [projectId(3), projectId(4)], next: { kind: "procurement", after: null } });
       assertEquals(sum(body), body.scanned);
       // match-only: every Graph call is a GET (no create); the Projects listing is read ONCE for the whole page.
       assert(graphSummary(calls).every((line) => line.startsWith("GET ")), graphSummary(calls).join("\n"));
@@ -133,12 +138,15 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
       assertEquals(links[0]!.p_kind, "project");
       const linkCall = calls.find((c) => c.url.pathname.endsWith("m365_link_record_folder"))!;
       assertEquals(linkCall.headers.get("authorization"), `Bearer ${token}`);
-      // The page's counts and unmatched record ids are saved for `pmo m365 status` (first page: nothing to add to).
-      const [saved] = tableCalls(calls, "m365_record_folder_sweeps").filter((c) => c.method === "POST");
-      const row = saved!.bodyJson as Record<string, unknown>;
-      assertEquals(row.state, "in_progress");
-      assertEquals(row.counts, { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1 });
-      assertEquals(row.unmatched, [projectId(3), projectId(4)]);
+      // The page's counts and unmatched record ids are saved for `pmo m365 status`: the first page starts a new run.
+      const [saved] = rpcBodies(calls, "m365_record_folder_sweep_save");
+      assert(UUID_RE.test(body.next!.run ?? ""), "the continuation cursor carries the run id");
+      assertEquals(saved, {
+        p_org_id: ORG, p_actor_id: USER, p_run_id: body.next!.run, p_start: true,
+        p_from: { kind: "project", after: null }, p_next: { kind: "procurement", after: null },
+        p_counts: { scanned: 5, linked: 1, needs_choice: 1, missing: 2, failed: 0, skipped: 1 },
+        p_unmatched: [projectId(3), projectId(4)],
+      });
       // Candidate paging is by keyset on the caller client, never by offset.
       const [firstPage] = rpcBodies(calls, "m365_record_folder_candidates");
       assertEquals(firstPage, { p_kind: "project", p_after: null });
@@ -172,6 +180,8 @@ Deno.test("AC-M365DOC-072 Admin match-only sweep links singles and reports bound
       { ...sweep, cursor: { kind: "project", after: "not-a-uuid" } },
       { ...sweep, cursor: { kind: "project" } },
       { ...sweep, cursor: { kind: "project", after: null, table: "profiles" } },
+      { ...sweep, cursor: { kind: "project", after: null, run: "not-a-uuid" } },
+      { ...sweep, cursor: { kind: "project", after: null, run: null } },
       { ...sweep, cursor: "project" },
       { ...sweep, cursor: null },
       { ...sweep, org_id: ORG },
@@ -217,12 +227,12 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
     await run(sweepWorld({ projects: [1, 2, 3, 4, 5, 6, 7] }), async ({ call, calls }) => {
       const first = await page(await call(sweep));
       assertEquals(first.scanned, 5);
-      assertEquals(first.next, { kind: "project", after: projectId(5) });
+      assertEquals(at(first.next), { kind: "project", after: projectId(5) });
       assertEquals(sum(first), 5);
       assertEquals(rpcBodies(calls, "m365_link_record_folder").length, 5);
       const second = await page(await call({ ...sweep, cursor: first.next }));
       assertEquals(second.scanned, 2);
-      assertEquals(second.next, { kind: "procurement", after: null });
+      assertEquals(at(second.next), { kind: "procurement", after: null });
       assertEquals(rpcBodies(calls, "m365_record_folder_candidates")[1], { p_kind: "project", p_after: projectId(5) });
     });
   });
@@ -250,7 +260,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
     await run(sweepWorld({ projects: [1, 2, 3, 4, 5], listing: () => graphError(429, "activityLimitReached", { "Retry-After": "9" }) }), async ({ call }) => {
       const body = await page(await call(sweep)) as Page & { retry_after_seconds?: number };
       assertEquals([body.scanned, body.failed, body.stopped, body.retry_after_seconds], [2, 2, "unavailable", 9]);
-      assertEquals(body.next, { kind: "project", after: projectId(2) });
+      assertEquals(at(body.next), { kind: "project", after: projectId(2) });
     });
     // A success in between resets the streak: failure, success, failure never stops the page.
     await run(sweepWorld({ projects: [1, 2, 3], projectItems: [{ id: "x", name: "C-2 Synthetic" }], listing: (n) => n === 1 || n === 3 ? graphError(503, "serviceNotAvailable") : undefined }), async ({ call }) => {
@@ -275,7 +285,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
         const body = await page(await call(sweep));
         assertEquals(body.scanned, 2);
         assertEquals(body.linked, 2);
-        assertEquals(body.next, { kind: "project", after: projectId(2) });
+        assertEquals(at(body.next), { kind: "project", after: projectId(2) });
         assertFalse("stopped" in body);
       });
     } finally {
@@ -312,7 +322,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
       assertEquals(body.scanned, 1);
       assertEquals(body.linked, 1);
       assertEquals(body.stopped, "default_changed");
-      assertEquals(body.next, { kind: "project", after: projectId(1) });
+      assertEquals(at(body.next), { kind: "project", after: projectId(1) });
     });
   });
 
@@ -325,7 +335,7 @@ Deno.test("AC-M365DOC-072 keyset pages process at most five, leave the sixth unp
         assertEquals(body.scanned, 1);
         assertEquals(body.stopped, "unavailable");
         assertEquals(body.failed, 0);
-        assertEquals(body.next, { kind: "project", after: projectId(1) });
+        assertEquals(at(body.next), { kind: "project", after: projectId(1) });
       });
     } finally {
       time.restore();
@@ -394,25 +404,30 @@ Deno.test("AC-M365DOC-072 the running summary never fails a page: a save error b
   });
 });
 
-Deno.test("AC-M365DOC-072 the stored unmatched list is de-duplicated, capped at 500 and flagged truncated", async () => {
-  const prior = Array.from({ length: 499 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`);
-  const world = sweepWorld({
-    projects: [], cases: [1, 2], caseItems: [],
-    extra: {
-      sweepPrior: {
-        counts: { scanned: 3, linked: 0, needs_choice: 0, missing: 3, failed: 0, skipped: 0 },
-        unmatched: [...prior, caseId(1)], unmatched_truncated: false,
-      },
-    },
+Deno.test("AC-M365DOC-072 a continuation saves into its own run: same run id, its from cursor, never a new run", async () => {
+  const RUN = "10200000-0000-4000-8000-0000000000a1";
+  await run(sweepWorld({ projects: [1, 2, 3, 4, 5, 6, 7] }), async ({ call, calls }) => {
+    const body = await page(await call({ ...sweep, cursor: { kind: "project", after: projectId(5), run: RUN } }));
+    assertEquals(body.next, { kind: "procurement", after: null, run: RUN });
+    const [saved] = rpcBodies(calls, "m365_record_folder_sweep_save");
+    assertEquals([saved!.p_run_id, saved!.p_start, saved!.p_from, saved!.p_next], [RUN, false, { kind: "project", after: projectId(5) }, { kind: "procurement", after: null }]);
   });
-  await run(world, async ({ call, calls }) => {
-    const body = await page(await call({ ...sweep, cursor: { kind: "procurement", after: null } }));
-    assertEquals(body.unmatched, [caseId(1), caseId(2)]);
-    const [saved] = tableCalls(calls, "m365_record_folder_sweeps").filter((c) => c.method === "POST");
-    const row = saved!.bodyJson as { unmatched: string[]; unmatched_truncated: boolean; counts: Record<string, number> };
-    assertEquals(row.unmatched.length, 500);
-    assertEquals(new Set(row.unmatched).size, 500, "no duplicates");
-    assertEquals(row.unmatched_truncated, true);
-    assertEquals(row.counts.scanned, 5, "counts accumulate across pages");
+});
+
+Deno.test("AC-M365DOC-072 a replayed page is silent; a page of a superseded run says its counts were not added", async () => {
+  const RUN = "10200000-0000-4000-8000-0000000000a2";
+  const continuation = { ...sweep, cursor: { kind: "procurement", after: null, run: RUN } };
+  await run(sweepWorld({ projects: [], cases: [1], extra: { sweepSave: () => jsonResponse("replayed") } }), async ({ call }) => {
+    const body = await page(await call(continuation));
+    assertEquals([body.scanned, body.summary_warning], [1, undefined]);
   });
+  for (const outcome of ["superseded", "out_of_order"]) {
+    await run(sweepWorld({ projects: [], cases: [1], extra: { sweepSave: () => jsonResponse(outcome) } }), async ({ call }) => {
+      const response = await call(continuation);
+      assertEquals(response.status, 200);
+      const body = await page(response);
+      assertEquals(body.linked, 1, "the links still landed");
+      assert(body.summary_warning?.includes("not added"), `${outcome}: ${body.summary_warning}`);
+    });
+  }
 });
