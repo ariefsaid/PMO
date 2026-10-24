@@ -88,11 +88,11 @@ interface FormValues {
   doc_date: string;
 }
 
-const validate = (v: FormValues, t: TFunction): Partial<Record<keyof FormValues, string>> => {
+const validate = (v: FormValues, t: TFunction, isFolder = false): Partial<Record<keyof FormValues, string>> => {
   const errors: Partial<Record<keyof FormValues, string>> = {};
   if (!v.title.trim())
     errors.title = t('projectDetail.documents.form.errors.titleRequired', 'Title is required.');
-  if (!v.category.trim())
+  if (!isFolder && !v.category.trim())
     errors.category = t(
       'projectDetail.documents.form.errors.categoryRequired',
       'Category is required.',
@@ -296,7 +296,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       header: t('projectDetail.documents.column.category', 'Category'),
       size: 112, minSize: 112, maxSize: 112,
       colClassName: 'hidden md:table-cell w-[112px]',
-      cell: (d) => <span className="text-[13px] text-muted-foreground">{d.category}</span>,
+      cell: (d) => isMicrosoftFolder(d)
+        ? <span className="text-muted-foreground">{'—'}</span>
+        : <span className="text-[13px] text-muted-foreground">{d.category}</span>,
     },
     {
       key: 'doc_date',
@@ -315,7 +317,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       header: t('projectDetail.documents.column.status', 'Status'),
       size: 112, minSize: 112, maxSize: 112,
       colClassName: 'w-[112px] min-w-[112px]',
-      cell: (d) => <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
+      // A folder is never issued or approved, so it carries no issue status.
+      cell: (d) => isMicrosoftFolder(d)
+        ? <span className="text-muted-foreground">{'—'}</span>
+        : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
   ];
 
@@ -985,6 +990,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
 }) => {
   const { t } = useTranslation();
   const hasFooter = canEdit || canDelete;
+  const isFolder = isMicrosoftFolder(doc);
   // The primary transition (Issue / Approve) reads as One-Blue; Reject reads as
   // destructive (danger flag from statusActions); the rest are quiet outlines.
   // ⚑ Compared through the SAME keys statusActions builds the labels from -- RowMenuItem
@@ -997,7 +1003,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
     <Drawer
       open
       title={doc.title}
-      subtitle={<StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>}
+      subtitle={isFolder ? undefined : <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>}
       nestedOpen={nestedOpen}
       onClose={onClose}
       footer={
@@ -1018,26 +1024,30 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
       }
     >
       <dl className="flex flex-col gap-4">
-        {doc.revision && (
+        {!isFolder && doc.revision && (
           <DocField label={t('projectDetail.documents.field.revision', 'Revision')}>
             {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
           </DocField>
         )}
-        <DocField label={t('projectDetail.documents.field.code', 'Code')}>
-          {doc.code ? (
-            <span className="font-mono text-[13px]">{doc.code}</span>
-          ) : (
-            <span className="text-muted-foreground">{'—'}</span>
-          )}
-        </DocField>
-        <DocField label={t('projectDetail.documents.field.category', 'Category')}>{doc.category}</DocField>
-        <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
-          {doc.doc_date ? (
-            <span className="tabular">{doc.doc_date}</span>
-          ) : (
-            <span className="text-muted-foreground">{'—'}</span>
-          )}
-        </DocField>
+        {!isFolder && (
+          <>
+            <DocField label={t('projectDetail.documents.field.code', 'Code')}>
+              {doc.code ? (
+                <span className="font-mono text-[13px]">{doc.code}</span>
+              ) : (
+                <span className="text-muted-foreground">{'—'}</span>
+              )}
+            </DocField>
+            <DocField label={t('projectDetail.documents.field.category', 'Category')}>{doc.category}</DocField>
+            <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
+              {doc.doc_date ? (
+                <span className="tabular">{doc.doc_date}</span>
+              ) : (
+                <span className="text-muted-foreground">{'—'}</span>
+              )}
+            </DocField>
+          </>
+        )}
         {parentDoc?.revision && (
           <DocField label={t('projectDetail.documents.field.lineage', 'Revision lineage')}>
             <LineageButton
@@ -1076,9 +1086,11 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             </button>
           </DocField>
         )}
-        <DocField label={t('projectDetail.documents.field.status', 'Status')}>
-          <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>
-        </DocField>
+        {!isFolder && (
+          <DocField label={t('projectDetail.documents.field.status', 'Status')}>
+            <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>
+          </DocField>
+        )}
       </dl>
 
       {/* Status workflow — promoted out of the ⋯ menu. Buttons reuse the EXACT
@@ -1151,13 +1163,15 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const isEdit = !!doc;
+  // A folder is a reference, not a register document: it has no category, revision, code or date.
+  const isFolder = reference ? reference.item_kind === 'folder' : !!doc && isMicrosoftFolder(doc);
   // Memoised on `t` so the validator identity is stable between renders.
-  const validateWithT = useCallback((v: FormValues) => validate(v, t), [t]);
+  const validateWithT = useCallback((v: FormValues) => validate(v, t, isFolder), [t, isFolder]);
   const form = useEntityForm<FormValues>({
     initialValues: {
       title: doc?.title ?? (reference ? seedTitle(reference) : ''),
       code: doc?.code ?? '',
-      category: doc?.category ?? 'Drawing',
+      category: doc?.category ?? (isFolder ? 'Reference' : 'Drawing'),
       revision: doc?.revision ?? '',
       doc_date: doc?.doc_date ?? '',
     },
@@ -1166,7 +1180,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
     module: 'projects',
     // F8 (AC-IXD-FORM-F8): submit stays disabled until the required title + category
     // are present (category defaults to a value, so the title is the live gate).
-    requiredFields: ['title', 'category'],
+    requiredFields: isFolder ? ['title'] : ['title', 'category'],
   });
 
   const titleField = form.fieldProps('title');
@@ -1220,7 +1234,9 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
         isEdit
           ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
           : reference
-            ? t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
+            ? isFolder
+              ? t('m365Documents.docsTab.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
+              : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
             : t(
                 'projectDetail.documents.form.newSubtitle',
                 'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
@@ -1263,45 +1279,49 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
             placeholder={t('projectDetail.documents.form.titlePlaceholder', 'e.g. Foundation general arrangement')}
             fullWidth
           />
-          <TextField
-            id={codeField.id}
-            label={t('projectDetail.documents.form.code', 'Code')}
-            mono
-            value={codeField.value}
-            onChange={codeField.onChange}
-            onBlur={codeField.onBlur}
-            placeholder={t('projectDetail.documents.form.codePlaceholder', 'e.g. DWG-001')}
-            helper={t(
-              'projectDetail.documents.form.codeHelper',
-              'Optional document number or drawing code.',
-            )}
-          />
-          <SelectField
-            id={categoryField.id}
-            label={t('projectDetail.documents.form.category', 'Category')}
-            required
-            value={categoryField.value}
-            onChange={categoryField.onChange}
-            onBlur={categoryField.onBlur}
-            error={categoryField.error}
-            options={CATEGORY_OPTIONS}
-          />
-          <TextField
-            id={revisionField.id}
-            label={t('projectDetail.documents.form.revision', 'Revision')}
-            value={revisionField.value}
-            onChange={revisionField.onChange}
-            onBlur={revisionField.onBlur}
-            placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
-          />
-          <TextField
-            id={dateField.id}
-            label={t('projectDetail.documents.form.docDate', 'Document date')}
-            type="date"
-            value={dateField.value}
-            onChange={dateField.onChange}
-            onBlur={dateField.onBlur}
-          />
+          {!isFolder && (
+            <>
+            <TextField
+              id={codeField.id}
+              label={t('projectDetail.documents.form.code', 'Code')}
+              mono
+              value={codeField.value}
+              onChange={codeField.onChange}
+              onBlur={codeField.onBlur}
+              placeholder={t('projectDetail.documents.form.codePlaceholder', 'e.g. DWG-001')}
+              helper={t(
+                'projectDetail.documents.form.codeHelper',
+                'Optional document number or drawing code.',
+              )}
+            />
+            <SelectField
+              id={categoryField.id}
+              label={t('projectDetail.documents.form.category', 'Category')}
+              required
+              value={categoryField.value}
+              onChange={categoryField.onChange}
+              onBlur={categoryField.onBlur}
+              error={categoryField.error}
+              options={CATEGORY_OPTIONS}
+            />
+            <TextField
+              id={revisionField.id}
+              label={t('projectDetail.documents.form.revision', 'Revision')}
+              value={revisionField.value}
+              onChange={revisionField.onChange}
+              onBlur={revisionField.onBlur}
+              placeholder={t('projectDetail.documents.form.revisionPlaceholder', 'e.g. A')}
+            />
+            <TextField
+              id={dateField.id}
+              label={t('projectDetail.documents.form.docDate', 'Document date')}
+              type="date"
+              value={dateField.value}
+              onChange={dateField.onChange}
+              onBlur={dateField.onBlur}
+            />
+            </>
+          )}
         </FormGrid>
       </FormSection>
     </EntityFormModal>
