@@ -408,9 +408,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       )}
                     >
                       <Avatar opt={opt} size={22} />
-                      <span className="truncate">{opt.label}</span>
+                      <span className="min-w-0 truncate">{opt.label}</span>
                       {opt.sub && (
-                        <span className="ml-1.5 shrink-0 text-[11.5px] text-muted-foreground">{opt.sub}</span>
+                        <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
                       )}
                       {isSelected && (
                         <Icon name="check" className="ml-auto size-[15px] shrink-0 text-primary" />

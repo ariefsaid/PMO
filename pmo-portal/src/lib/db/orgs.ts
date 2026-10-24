@@ -1,4 +1,5 @@
 import { supabase } from '@/src/lib/supabase/client';
+import type { Json } from '@/src/lib/supabase/database.types';
 import { AppError, assertWriteLanded } from '@/src/lib/appError';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
@@ -278,4 +279,25 @@ export async function setOrgVendorTaxAccounts(input: OrgVendorTaxAccounts): Prom
   const { data: updated, error: updateError } = await supabase.from('organizations').update(patch).eq('id', data[0].id).select('id');
   if (updateError) throw new Error(updateError.message);
   assertWriteLanded(updated, 'Only an Admin can change the tax accounts.');
+}
+
+/** FR-PFE-011 — the org's purchase rules (all OFF by default). */
+export interface ProcurementGates {
+  request_before_order: boolean;
+  approval_before_order: boolean;
+  approval_before_payment: boolean;
+  receipt_before_invoice: boolean;
+}
+
+export async function getOrgProcurementGates(): Promise<ProcurementGates> {
+  const { data, error } = await supabase.rpc('get_procurement_gates');
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as ProcurementGates;
+}
+
+/** Admin-only, audited server-side (set_procurement_gates). */
+export async function setOrgProcurementGates(patch: Partial<ProcurementGates>): Promise<ProcurementGates> {
+  const { data, error } = await supabase.rpc('set_procurement_gates', { p_gates: patch as unknown as Json });
+  if (error) throw new AppError(error.message, error.code);
+  return data as unknown as ProcurementGates;
 }

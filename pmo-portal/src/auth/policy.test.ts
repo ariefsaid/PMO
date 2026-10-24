@@ -668,3 +668,12 @@ describe('can() — expenseClaim (#775; migration 0247 is the enforcement author
     expect(allowedRoles('edit', 'expenseClaim', { currentUserId: 'u2', record: { claimant_id: 'u1', status: 'Draft' } })).toEqual([]);
   });
 });
+
+describe('can() — ERPNext document links (FR-PFE-020/031; link_erp_purchase_documents / unlink_erp_purchase_document are the authority)', () => {
+  it('FR-PFE-020: Admin, Executive, Project Manager and Finance may link; an Engineer may not', () => {
+    expect(allowedRoles('create', 'erpPurchaseLink')).toEqual(['Admin', 'Executive', 'Project Manager', 'Finance']);
+  });
+  it('FR-PFE-031: only Admin and Finance may unlink', () => {
+    expect(allowedRoles('delete', 'erpPurchaseLink')).toEqual(['Admin', 'Finance']);
+  });
+});

@@ -849,11 +849,14 @@ const ProcurementDetails: React.FC = () => {
   ];
   const stats = statTilesRaw.filter((t): t is StatTile => t !== null);
 
+  // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
+  // document) must not start with a stray "·".
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
-    p.project?.name ? <span key="proj"> · <ProjectNameLink projectId={p.project_id} name={p.project.name} /></span> : null,
-    p.requested_by?.full_name ? <span key="req"> · {t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
-  ].filter(Boolean);
+    p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={p.project.name} /> : null,
+    p.requested_by?.full_name ? <span key="req">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
+  ].filter((part): part is React.ReactElement => part !== null)
+    .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
 
   // Overview Detail <dl> rows (the Field grammar). Vendor / Approved-by read a muted
   // "Not yet selected" / "Pending" while absent rather than a bare blank (G5 honesty).

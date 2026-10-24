@@ -165,6 +165,15 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     expect(projectLinks[0].getAttribute('href')).toBe('/projects/proj-1');
   });
 
+  it('review 12: without a request number the header meta starts with the project, not a stray "·"', () => {
+    detailState.data = { ...baseProcurement, code: null };
+    renderPage();
+    const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
+    const meta = link.parentElement!.parentElement!;
+    expect(meta.textContent?.trim().startsWith('·')).toBe(false);
+    expect(meta.textContent).toContain('Bridge Alpha · requested by Eng User');
+  });
+
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {
     // Finance role, different requester — can Approve
     detailState.data = { ...baseProcurement, status: 'Requested' as const };

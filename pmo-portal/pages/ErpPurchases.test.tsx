@@ -7,12 +7,15 @@ const { purchasesMock, projectsMock, mayMock } = vi.hoisted(() => ({ purchasesMo
 vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: purchasesMock }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: projectsMock }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => mayMock }));
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [] }) }));
 
 import ErpPurchasesPage from './ErpPurchases';
 
 const renderPage = () => render(<MemoryRouter><ErpPurchasesPage /></MemoryRouter>);
 const row = { id: 'r1', doctype: 'Purchase Order', name: 'PUR-ORD-9', supplier: 'Acme', docDate: '2026-01-05', dueDate: null, billNo: null,
-  currency: 'IDR', grandTotal: 900, outstanding: null, erpStatus: 'To Bill', isReturn: false, projectIds: ['p1'] };
+  currency: 'IDR', grandTotal: 900, netTotal: 800, outstanding: null, erpStatus: 'To Bill', isReturn: false, projectIds: ['p1'],
+  procurementId: null as string | null, linkId: null as string | null };
 
 beforeEach(() => {
   mayMock.mockReset().mockReturnValue(true);
@@ -21,12 +24,21 @@ beforeEach(() => {
 });
 
 describe('ErpPurchases page', () => {
-  it('FR-EPR-007 lists org purchases with their project and the ERP status of an order', () => {
-    purchasesMock.mockReturnValue({ data: [row, { ...row, id: 'r2', name: 'PUR-ORD-10', projectIds: [] }] });
+  it('FR-PFE-041 lists the org\'s ERP documents not in a purchase, with their project, and offers linking', () => {
+    purchasesMock.mockReturnValue({ data: [row, { ...row, id: 'r2', name: 'PUR-ORD-10', projectIds: [] },
+      { ...row, id: 'r3', name: 'PUR-ORD-LINKED', procurementId: 'pur-1', linkId: 'l1' }] });
     renderPage();
+    expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
     expect(screen.getAllByText('Tower Retrofit').length).toBeGreaterThan(0);
     expect(screen.getAllByText('No project').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('To Bill').length).toBeGreaterThan(0);
+    expect(screen.queryByText('PUR-ORD-LINKED')).toBeNull();
+    expect(screen.getAllByRole('button', { name: /^Link PUR-ORD-/ })).toHaveLength(2);
+  });
+
+  it('when every ERP document is in a purchase, says so instead of an empty table', () => {
+    purchasesMock.mockReturnValue({ data: [{ ...row, procurementId: 'pur-1', linkId: 'l1' }], isPending: false });
+    renderPage();
+    expect(screen.getByText('Every ERPNext document is in a purchase')).toBeInTheDocument();
   });
 
   it('shows empty, error and no-access states instead of a table', () => {
@@ -36,12 +48,16 @@ describe('ErpPurchases page', () => {
     unmount();
 
     purchasesMock.mockReturnValue({ isError: true, refetch: vi.fn() });
-    renderPage().unmount();
+    const errored = renderPage();
+    expect(screen.getByText("Couldn't load the ERPNext documents not in a purchase")).toBeInTheDocument();
+    expect(screen.queryByText(/ERP purchases/)).toBeNull();
+    errored.unmount();
 
     mayMock.mockReturnValue(false);
     purchasesMock.mockReturnValue({ data: undefined });
     renderPage();
     expect(screen.getByText("You don't have access to the organization's purchases")).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Procurement requests' })).toBeNull();
     expect(purchasesMock).toHaveBeenLastCalledWith(undefined, { enabled: false });
   });
 });

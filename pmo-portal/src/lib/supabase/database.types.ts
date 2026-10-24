@@ -2284,6 +2284,7 @@ export type Database = {
           grand_total: number | null
           id: string
           is_return: boolean
+          net_total: number | null
           org_id: string
           outstanding_amount: number | null
           pmo_owned: boolean
@@ -2306,6 +2307,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null
           pmo_owned?: boolean
@@ -2328,6 +2330,7 @@ export type Database = {
           grand_total?: number | null
           id?: string
           is_return?: boolean
+          net_total?: number | null
           org_id?: string
           outstanding_amount?: number | null
           pmo_owned?: boolean
@@ -3940,6 +3943,7 @@ export type Database = {
           name: string
           pph23_payable_account: string | null
           pph4_2_payable_account: string | null
+          procurement_gates: Json
           project_number_pattern: string | null
           sector_options: string[]
           service_line_options: string[]
@@ -3959,6 +3963,7 @@ export type Database = {
           name: string
           pph23_payable_account?: string | null
           pph4_2_payable_account?: string | null
+          procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -3978,6 +3983,7 @@ export type Database = {
           name?: string
           pph23_payable_account?: string | null
           pph4_2_payable_account?: string | null
+          procurement_gates?: Json
           project_number_pattern?: string | null
           sector_options?: string[]
           service_line_options?: string[]
@@ -4244,6 +4250,8 @@ export type Database = {
           ms_linked_by: string | null
           org_id: string
           procurement_id: string
+          record_id: string | null
+          record_kind: string | null
           reference_number: string | null
           source: Database["public"]["Enums"]["doc_source"] | null
           status: Database["public"]["Enums"]["doc_status"]
@@ -4262,6 +4270,8 @@ export type Database = {
           ms_linked_by?: string | null
           org_id?: string
           procurement_id: string
+          record_id?: string | null
+          record_kind?: string | null
           reference_number?: string | null
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
@@ -4280,6 +4290,8 @@ export type Database = {
           ms_linked_by?: string | null
           org_id?: string
           procurement_id?: string
+          record_id?: string | null
+          record_kind?: string | null
           reference_number?: string | null
           source?: Database["public"]["Enums"]["doc_source"] | null
           status?: Database["public"]["Enums"]["doc_status"]
@@ -4302,6 +4314,76 @@ export type Database = {
           },
           {
             foreignKeyName: "procurement_documents_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procurement_erp_links: {
+        Row: {
+          erp_purchase_document_id: string
+          id: string
+          linked_at: string
+          linked_by: string | null
+          org_id: string
+          procurement_id: string
+        }
+        Insert: {
+          erp_purchase_document_id: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id: string
+          procurement_id: string
+        }
+        Update: {
+          erp_purchase_document_id?: string
+          id?: string
+          linked_at?: string
+          linked_by?: string | null
+          org_id?: string
+          procurement_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procurement_erp_links_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_documents_linked"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_erp_purchase_document_id_fkey"
+            columns: ["erp_purchase_document_id"]
+            isOneToOne: true
+            referencedRelation: "erp_purchase_orphans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_linked_by_fkey"
+            columns: ["linked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_procurement_id_fkey"
             columns: ["procurement_id"]
             isOneToOne: false
             referencedRelation: "procurements"
@@ -4906,6 +4988,7 @@ export type Database = {
           import_key: string | null
           imported_at: string | null
           org_id: string
+          origin: string | null
           po_number: string | null
           pr_number: string | null
           project_id: string | null
@@ -4934,6 +5017,7 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
+          origin?: string | null
           po_number?: string | null
           pr_number?: string | null
           project_id?: string | null
@@ -4962,6 +5046,7 @@ export type Database = {
           import_key?: string | null
           imported_at?: string | null
           org_id?: string
+          origin?: string | null
           po_number?: string | null
           pr_number?: string | null
           project_id?: string | null
@@ -7500,6 +7585,78 @@ export type Database = {
         }
         Relationships: []
       }
+      erp_purchase_documents_linked: {
+        Row: {
+          bill_no: string | null
+          currency: string | null
+          doc_date: string | null
+          due_date: string | null
+          erp_docstatus: number | null
+          erp_doctype: string | null
+          erp_name: string | null
+          erp_project: string | null
+          erp_status: string | null
+          grand_total: number | null
+          id: string | null
+          is_return: boolean | null
+          link_id: string | null
+          linked_at: string | null
+          net_total: number | null
+          org_id: string | null
+          outstanding_amount: number | null
+          pmo_owned: boolean | null
+          procurement_id: string | null
+          project_ids: string[] | null
+          supplier: string | null
+          supplier_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_purchase_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procurement_erp_links_procurement_id_fkey"
+            columns: ["procurement_id"]
+            isOneToOne: false
+            referencedRelation: "procurements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      erp_purchase_orphans: {
+        Row: {
+          bill_no: string | null
+          currency: string | null
+          doc_date: string | null
+          due_date: string | null
+          erp_doctype: string | null
+          erp_name: string | null
+          erp_project: string | null
+          erp_status: string | null
+          grand_total: number | null
+          id: string | null
+          is_return: boolean | null
+          net_total: number | null
+          org_id: string | null
+          outstanding_amount: number | null
+          project_ids: string[] | null
+          supplier: string | null
+          supplier_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "erp_purchase_documents_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sales_invoice_work_billed: {
         Row: {
           currency: string | null
@@ -7727,6 +7884,10 @@ export type Database = {
           p_status: Database["public"]["Enums"]["profile_status"]
         }
         Returns: undefined
+      }
+      advance_procurement_status: {
+        Args: { p_note: string; p_procurement_id: string }
+        Returns: Database["public"]["Enums"]["procurement_status"]
       }
       agent_dispatch_tick: { Args: never; Returns: undefined }
       api_client_request_guard: { Args: never; Returns: undefined }
@@ -8435,6 +8596,7 @@ export type Database = {
           route: string
         }[]
       }
+      get_procurement_gates: { Args: never; Returns: Json }
       get_project_billing: { Args: { p_project_id: string }; Returns: Json }
       get_project_budget: { Args: { p_project_id: string }; Returns: number }
       get_project_drawdown: {
@@ -8616,6 +8778,19 @@ export type Database = {
       is_valid_project_number_pattern: {
         Args: { p_pattern: string }
         Returns: boolean
+      }
+      link_erp_purchase_documents: {
+        Args: { p_dry_run?: boolean; p_rows: Json }
+        Returns: Json
+      }
+      link_procurement_sharepoint_item: {
+        Args: {
+          p_item: Json
+          p_procurement_id: string
+          p_record_id: string
+          p_record_kind: string
+        }
+        Returns: string
       }
       list_budget_fiscal_years: {
         Args: { p_project_id: string }
@@ -9146,6 +9321,30 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
       }
+      procurement_evidenced_step: {
+        Args: { p_procurement_id: string }
+        Returns: Database["public"]["Enums"]["procurement_status"]
+      }
+      procurement_gate: {
+        Args: { p_key: string; p_org: string }
+        Returns: boolean
+      }
+      procurement_gate_message: { Args: { p_code: string }; Returns: string }
+      procurement_gate_violation: {
+        Args: {
+          p_procurement_id: string
+          p_step: Database["public"]["Enums"]["procurement_status"]
+        }
+        Returns: string
+      }
+      procurement_ledger_held: {
+        Args: { p_procurement_id: string }
+        Returns: number
+      }
+      procurement_open_commitment: {
+        Args: { p: Database["public"]["Tables"]["procurements"]["Row"] }
+        Returns: number
+      }
       stage_erp_statement_report: {
         Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
         Returns: undefined
@@ -9232,6 +9431,10 @@ export type Database = {
         }
         Returns: string
       }
+      unlink_erp_purchase_document: {
+        Args: { p_link_id: string }
+        Returns: undefined
+      }
       withdraw_work_order_acceptance: {
         Args: { p_id: string }
         Returns: undefined
@@ -9256,6 +9459,10 @@ export type Database = {
       progress_assessment_line_ok: {
         Args: { p_boq_item_id: string; p_entry_id: string }
         Returns: boolean
+      }
+      project_committed_spend: {
+        Args: { p_project_id: string }
+        Returns: number
       }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }
@@ -9494,6 +9701,7 @@ export type Database = {
         }
         Returns: string
       }
+      set_procurement_gates: { Args: { p_gates: Json }; Returns: Json }
       set_procurement_invoice_efaktur: {
         Args: {
           p_efaktur_date: string

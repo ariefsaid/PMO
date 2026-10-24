@@ -14,6 +14,7 @@ export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from '
 export { KPITile, type KPITileProps, type KPITone, type KPIDelta, type KPIDualLens } from './KPITile';
 export {
   DataTable,
+  MenuButton,
   Toolbar,
   SearchMini,
   TableFoot,

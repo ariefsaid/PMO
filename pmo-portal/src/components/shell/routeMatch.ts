@@ -240,6 +240,19 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   '/revenue-by-project': 'Revenue by Project',
 };
 
+/**
+ * Routes that belong to a rail module without living under its URL. The rail highlights the parent
+ * item, and the breadcrumb reads `<parent> > <page>` instead of falling through to "Not found".
+ */
+export const RAIL_PARENT_FOR_PATH: Record<string, string> = {
+  // FR-PFE-041: the org-wide list of ERPNext documents not yet in a purchase is part of Procurement.
+  '/erp-purchases': '/procurement',
+};
+
+const CHILD_PAGE_CRUMB: Record<string, { label: string; i18nKey: string }> = {
+  '/erp-purchases': { label: 'ERPNext documents not in a purchase', i18nKey: 'finance:erpLinks.orphansTitle' }, // i18n-exempt: fallback label is replaced from i18nKey at render
+};
+
 /** Canonical Administration child routes and their route-derived breadcrumb labels (English source). */
 export const ADMINISTRATION_SECTION_LABELS = {
   users: 'Users',
@@ -346,6 +359,20 @@ export function breadcrumbForPath(
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
+
+  const childCrumb = CHILD_PAGE_CRUMB[pathname];
+  const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);
+  if (childCrumb && childParent) {
+    return [
+      {
+        label: childParent.label,
+        ...(childParent.labelKey ? { i18nKey: childParent.labelKey } : {}),
+        href: childParent.path,
+        onClick: () => navigate?.(childParent.path),
+      },
+      childCrumb,
+    ];
+  }
 
   // Placeholder routes win first — they are not tracked modules, so they would
   // otherwise fall through to the Dashboard fallback (AC-NAV-005).

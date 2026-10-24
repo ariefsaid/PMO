@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
 import { ListState } from './ListState';
+import { buttonClasses } from './buttonClasses';
 import { useIsDesktop } from './useIsDesktop';
 import { trackSearchUsed } from '@/src/lib/analytics';
 import { AuthContext } from '@/src/auth/AuthContext';
@@ -495,7 +496,7 @@ export function DataTable<Row>({
                       return (
                         <div
                           role="separator"
-                          aria-label={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key })}
+                          aria-label={t('table.resizeColumn', 'Resize {{column}} column', { column: typeof col.header === 'string' ? col.header : col.key.charAt(0).toUpperCase() + col.key.slice(1) })}
                           aria-controls={`datatable-header-${tableInstanceId}-${col.key}`}
                           aria-orientation="vertical"
                           aria-valuenow={header.getSize()}
@@ -867,7 +868,12 @@ function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; 
 const GUTTER = 16; // matches the `max-[921px]:px-4` shell gutter (DESIGN.md spacing.4)
 const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spacing.1)
 
-const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
+/**
+ * The row-actions menu. Default trigger: the compact ⋯ ("Row actions"). With `label`, the trigger is a
+ * small outline button showing that text (e.g. "Link…") — exported as `MenuButton` for one labelled action
+ * per row; `ariaLabel` names the trigger for its row (e.g. "Link PINV-1").
+ */
+const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: string }> = ({ items, label, ariaLabel }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -989,7 +995,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
       <button
         ref={triggerRef}
         type="button"
-        aria-label={t('table.rowActions', 'Row actions')}
+        aria-label={ariaLabel ?? (label ? undefined : t('table.rowActions', 'Row actions'))}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => (open ? close() : setOpen(true))}
@@ -997,11 +1003,20 @@ const RowMenu: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
         // which made the ⋯ undiscoverable on touch + keyboard. The trigger is now visible by
         // default so every row's actions are reachable without a hover event. Touch targets ≥44px
         // come from the `.touch-target` utility (coarse-pointer min hit area).
-        className="touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground"
+        className={label
+          ? buttonClasses('outline', 'sm', 'touch-target gap-1')
+          : 'touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
       >
-        <span aria-hidden className="text-base leading-none">
-          ⋯
-        </span>
+        {label ? (
+          <>
+            {label}
+            <Icon name="chev" aria-hidden className="size-3.5 rotate-90 text-muted-foreground" />
+          </>
+        ) : (
+          <span aria-hidden className="text-base leading-none">
+            ⋯
+          </span>
+        )}
       </button>
       {open &&
         createPortal(
@@ -1175,3 +1190,6 @@ export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
     {children}
   </div>
 );
+
+/** A labelled menu trigger for a row's single action group (the row-actions menu with a text button). */
+export const MenuButton = RowMenu;
