@@ -80,16 +80,16 @@ select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Or
 set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a2","role":"authenticated"}';
 select is(procurement_ledger_held('03720000-0000-0000-0000-0000000000e1'), null::numeric,
   'a disabled former Finance member reads no ledger-held amount, though the token is still valid');
-select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), 'purchase_not_found',
-  'a disabled former member gets no purchase state');
+select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), null,
+  'a disabled former member gets no purchase state (null: the write''s own guard and RLS refuse)');
 set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a3","role":"authenticated"}';
 select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), 'awaiting_approval',
   'an Engineer reads the state of their own purchase');
 set local request.jwt.claims = '{"sub":"03720000-0000-0000-0000-0000000000a4","role":"authenticated"}';
-select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), 'purchase_not_found',
+select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), null,
   'an Engineer cannot learn the state of another requester''s purchase (hidden from them by RLS)');
-select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e1', 'Paid'), 'purchase_not_found',
-  'an Engineer gets the same answer for any purchase they cannot see');
+select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e1', 'Paid'), null,
+  'an Engineer gets the same answer (null) for any purchase they cannot see');
 reset role;
 select set_config('request.jwt.claims', '', true);
 select is(procurement_gate_violation('03720000-0000-0000-0000-0000000000e2', 'Ordered'), 'awaiting_approval',

@@ -3,7 +3,7 @@
 --
 -- §1–§3 Purchase-state and financial helpers a member can call answer only an ACTIVE member (an offboarded member's
 --    still-valid token reads nothing), and procurement_gate_violation answers only for a purchase RLS shows the caller
---    (an Engineer sees their own requests only). The server path (no user) is unchanged. Every other client-callable
+--    (an Engineer sees their own requests only); otherwise it returns null, so the write's own guard and RLS refuse. The server path (no user) is unchanged. Every other client-callable
 --    definer added in 0360–0371 already checks active membership: get_procurement_gates, set_procurement_gates,
 --    procurement_payment_within_ceiling, link_erp_purchase_documents, unlink_erp_purchase_document,
 --    link_procurement_sharepoint_item, transition_procurement, mark_erp_purchase_documents, recategorise_budget_lines,
@@ -58,21 +58,24 @@ language sql stable security definer set search_path = public, pg_catalog as $$
 $$;
 
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
--- §3 — procurement_gate_violation: 0368 body; the not-found test also covers an inactive member and a purchase RLS hides.
+-- §3 — procurement_gate_violation: 0368 body; an inactive member or a purchase RLS hides gets null (lines marked 0372).
 -- ════════════════════════════════════════════════════════════════════════════════════════════════
 create or replace function public.procurement_gate_violation(p_procurement_id uuid, p_step public.procurement_status)
 returns text language plpgsql stable security definer set search_path = public, pg_catalog as $$
 declare v_row public.procurements%rowtype;
 begin
   select * into v_row from public.procurements where id = p_procurement_id;
-  -- 0372: a member reads the state of a purchase only while active and only if RLS shows it to them
-  -- (procurements_select + procurements_engineer_read_scope); otherwise it does not exist for them.
-  if not found or (auth.uid() is not null
-                   and (v_row.org_id is distinct from public.auth_org_id()
-                        or not public.is_active_member()                                              -- 0372
-                        or not (coalesce(public.auth_role()::text in ('Admin','Executive','Project Manager','Finance'), false)  -- 0372
-                                or v_row.requested_by_id = auth.uid()))) then                         -- 0372
+  if not found or (auth.uid() is not null and v_row.org_id is distinct from public.auth_org_id()) then
     return 'purchase_not_found';
+  end if;
+  -- 0372: a member learns a purchase's state only while active and only if RLS shows it to them
+  -- (procurements_select + procurements_engineer_read_scope). Otherwise the answer is null — the same for every such
+  -- purchase, so it reveals nothing — and the write's own role/SoD guard and RLS refuse with their own codes.
+  if auth.uid() is not null
+     and (not public.is_active_member()                                                                  -- 0372
+          or not (coalesce(public.auth_role()::text in ('Admin','Executive','Project Manager','Finance'), false)  -- 0372
+                  or v_row.requested_by_id = auth.uid())) then                                          -- 0372
+    return null;                                                                                         -- 0372
   end if;
   -- 0368: a purchase awaiting approval (Requested, including one a quote re-opened) takes no document of any kind —
   -- an order, receipt, invoice or payment would skip the pending approval.
