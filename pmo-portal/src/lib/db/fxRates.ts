@@ -8,13 +8,11 @@ import type {
   FxRateRow,
 } from '@/src/lib/repositories/types';
 
-const commitCountsSchema: z.ZodType<FxCommitCounts> = z
-  .object({
-    new: z.number().int().nonnegative(),
-    changed: z.number().int().nonnegative(),
-    unchanged: z.number().int().nonnegative(),
-  })
-  .strict();
+const commitCountsSchema: z.ZodType<FxCommitCounts> = z.strictObject({
+  new: z.number().int().nonnegative(),
+  changed: z.number().int().nonnegative(),
+  unchanged: z.number().int().nonnegative(),
+});
 
 export async function listFxRates(before?: string): Promise<FxRatePage> {
   let query = supabase
