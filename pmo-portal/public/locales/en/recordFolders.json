@@ -3,6 +3,7 @@
     "create": "Create folder in SharePoint",
     "choose": "Choose existing folder",
     "reconnect": "Reconnect Microsoft",
+    "chooseLibrary": "Choose the default document library",
     "allowFolders": "Allow folder creation"
   },
   "status": {

@@ -2,6 +2,7 @@
   "action": {
     "create": "Buat folder di SharePoint",
     "choose": "Pilih folder yang ada",
+    "chooseLibrary": "Pilih pustaka dokumen default",
     "allowFolders": "Izinkan pembuatan folder",
     "reconnect": "Hubungkan ulang Microsoft"
   },
