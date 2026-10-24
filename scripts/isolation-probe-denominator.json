@@ -128,6 +128,7 @@
     "procurement_evidenced_step(uuid)",
     "procurement_gate_violation(uuid,procurement_status)",
     "procurement_payment_allowed(uuid)",
+    "erp_supplier_company(uuid,text,text)",
     "procurement_gate(uuid,text)",
     "set_procurement_gates(jsonb)",
     "link_erp_purchase_documents(jsonb,boolean)",
