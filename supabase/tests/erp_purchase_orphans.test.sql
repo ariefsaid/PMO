@@ -10,6 +10,8 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('03630000-0000-0000-0000-0000000000a1','03630000-0000-0000-0000-00000000000a','Fin','pfo-fin@example.com','Finance','active'),
   ('03630000-0000-0000-0000-0000000000a2','03630000-0000-0000-0000-00000000000a','Eng','pfo-eng@example.com','Engineer','active'),
   ('03630000-0000-0000-0000-0000000000b1','03630000-0000-0000-0000-00000000000b','B','pfo-b@example.com','Finance','active');
+insert into org_m365_document_settings (org_id, default_site_id, default_site_name, default_drive_id, default_drive_name, updated_by) values
+  ('03630000-0000-0000-0000-00000000000a','example.sharepoint.com,site-a,web-a','Site','drive-a','Library','03630000-0000-0000-0000-0000000000a1');
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
   ('03630000-0000-0000-0000-00000000000a','procurement','pmo-x','erpnext','PI-PMO');
 select upsert_erp_purchase_documents('03630000-0000-0000-0000-00000000000a', $$[

@@ -143,6 +143,12 @@ changed — none matched, or the database did not let you change it.
   into purchases through `link_erp_purchase_documents` and `link_procurement_sharepoint_item` (§5).
   Unlinking stays in the app. Admin and Finance tokens also set documents aside as overhead with
   `mark_erp_purchase_documents` and read `erp_purchase_orphans_all` (migration `0364`, §5).
+- **`pmo budgets activate`** (#1270, migration `0370`): **not enabled yet** — the command refuses with "budget
+  activation from the CLI is not enabled yet — activate in the app" and sends nothing, because the API-client guard has
+  no tier for `activate_budget_version` (pending an owner ruling). The guard does allow the activation check
+  (`budget_activation_mode`) to active Admin, Executive, Project Manager and Finance, and **`pmo budgets link`**
+  attaches a SharePoint file to a Draft through `link_m365_documents_batch` (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
+  ERP account map with the Accounting setup screen's checks (§5b).
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
   restore in the app), and a project can only be created as `Leads` or `Internal Project`. Moving a project through its stages, contract values, work orders,
@@ -285,6 +291,41 @@ link file: unknown column or field, a ragged CSV row, an unclosed quote, a missi
 twice. Extra reason codes: `document_linked` (already in a purchase; unlink it in the app first), `note_too_long`,
 `note_invalid`; a row that changes nothing is reported `skip` / `no_change`. Counts are `apply`, `skip`, `refused`.
 A note without setting aside is a screen feature (the database function supports it); the CLI sets notes only with set-aside.
+
+---
+
+## 5b. Activating a budget and mapping accounts — `pmo budgets`, `pmo accounts` (#1270)
+
+```bash
+node scripts/pmo.mjs budgets link <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
+node scripts/pmo.mjs budgets activate <version id>        # currently refuses: not enabled yet
+node scripts/pmo.mjs budgets activate <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
+node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance" --dry-run   # ALWAYS first
+node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance"
+```
+
+**`budgets activate`** is **not enabled yet**. It checks its arguments (version id, `--source` shape), then stops with
+"budget activation from the CLI is not enabled yet — activate in the app" and exit 2, before any request: the API-client
+guard has no `activate_budget_version` tier until the owner rules on one. The pieces behind it are in place and tested
+(the database's activation check `budget_activation_mode`, allowed by the guard to active Admin, Executive, Project
+Manager and Finance, and the source-file link below), so enabling it later is a guard tier plus one switch in
+`scripts/lib/pmo-budgets.mjs`. `--source` takes a SharePoint row (`drive_id, item_id, web_url, name, kind`).
+
+**`budgets link <version id> --source <row>`** attaches the file to a Draft version through `link_m365_documents_batch`
+(one `budget_version_id` row), which accepts only links on the organisation's own SharePoint host (an organisation with no
+default library is refused with `m365_not_configured`). Linking the same item twice is a no-op. The same host rule now
+applies to `pmo purchases link-file` (`link_procurement_sharepoint_item`).
+
+**`accounts map set <category> <account...>`** is for an active Admin (the database refuses anyone else). The FIRST
+account becomes the category's push account (the only one the ERP Budget is sent to); the rest count toward actuals only.
+Same checks as the Admin → Accounting setup screen, read from the same ERP account chart: every account must be an
+enabled Expense ledger account (not a group), the push account must be a direct-cost account (cost of sales / direct
+cost group or 51-numbered; overhead is not a substitute), and an account already mapped to another category is refused
+by name. Accounts already on the category stay as they are, accounts you do not list are left in place (the report
+lists them under `left_in_place`), and nothing is deleted: remove an account in the app. Adding the new push account
+first and then moving the push flag is atomic per step; if a step fails the error lists what `applied`. Re-running the
+same command changes nothing. `--dry-run` runs every check and prints the plan (`add`, `add_push`, `make_push`, `keep`,
+`keep_push`) without writing. If the ERP chart cannot be read (ERP not connected), the command stops: nothing is guessed.
 
 ---
 

@@ -64,6 +64,7 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     .eq('id', userId)
     .maybeSingle();
   if (profileError || !profile?.org_id) return json({ error: 'FORBIDDEN' }, 403);
+  const service = createClient(url, key, clientOptions);
   let purpose: unknown;
   try {
     purpose = (await req.json()).purpose;
@@ -74,7 +75,10 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
     return json({ error: 'BAD_REQUEST' }, 400);
 
   if (purpose === 'budget-accounts') {
-    const { data: actorState, error: actorError } = await caller.rpc('actor_authorization_state', {
+    // The lookup runs with the service client, keyed to the verified caller: an OAuth API client (the CLI) is not allowed
+    // to call actor_authorization_state through PostgREST, and the answer is the same either way (the profile above was
+    // read under the caller's JWT, and the ids come from the verified token, never the request).
+    const { data: actorState, error: actorError } = await service.rpc('actor_authorization_state', {
       p_org_id: profile.org_id,
       p_user_id: userId,
     });
@@ -83,7 +87,6 @@ export async function handleItemsRequest(req: Request): Promise<Response> {
       return json({ error: 'FORBIDDEN' }, 403);
   }
 
-  const service = createClient(url, key, clientOptions);
   if (purpose === 'budget-accounts') {
     const { data: binding, error: bindingError } = await service
       .from('external_org_bindings')
