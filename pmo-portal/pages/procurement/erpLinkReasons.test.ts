@@ -8,7 +8,8 @@ describe('erpLinkReasonText', () => {
     for (const code of ['erp_name_missing', 'invalid_id', 'document_not_found', 'document_ambiguous', 'document_cancelled',
       'document_recorded_by_pmo', 'document_linked_to_another_purchase', 'purchase_not_found', 'purchase_closed', 'project_not_found',
       'supplier_mismatch', 'project_mismatch', 'currency_mismatch', 'gate_request_before_order', 'gate_approval_before_order',
-      'gate_receipt_before_invoice', 'gate_approval_before_payment']) {
+      'gate_receipt_before_invoice', 'gate_approval_before_payment', 'document_spans_projects', 'sharepoint_host_not_allowed',
+      'm365_not_configured']) {
       const text = erpLinkReasonText(code, t);
       expect(text).not.toBe(code);
       expect(text).toMatch(/^[A-Z].*\.$/);
@@ -18,6 +19,11 @@ describe('erpLinkReasonText', () => {
   it('review 2: a project refusal tells the user where to add the document instead', () => {
     expect(erpLinkReasonText('project_mismatch', t))
       .toBe('This document is recorded against other projects. Open one of its projects to add it there.');
+  });
+
+  it('an invoice split across projects says how to add it instead', () => {
+    expect(erpLinkReasonText('document_spans_projects', t))
+      .toBe('This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.');
   });
 
   it('passes server sentences (e.g. the SoD refusal) through unchanged', () => {

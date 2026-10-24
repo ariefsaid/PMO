@@ -119,8 +119,10 @@ linking, by the ERP mirror, or by the record forms as today).
   another purchase (`document_linked_to_another_purchase`); the purchase is not found or not in the org
   (`purchase_not_found`) or closed (`purchase_closed`); the project is not found (`project_not_found`); an id is
   malformed (`invalid_id`); the supplier differs (`supplier_mismatch`); the project differs (`project_mismatch`);
-  the currency differs (`currency_mismatch`); a gate refuses the step (`gate_*`); or a guard refuses the derived
-  status (its message, e.g. the SoD sentence).
+  the currency differs (`currency_mismatch`); an ERP invoice is attributed to more than one project
+  (`document_spans_projects`, FR-PFE-025); a SharePoint item on the row is not on the organization's own SharePoint
+  host (`sharepoint_host_not_allowed`) or the organization has no default SharePoint library (`m365_not_configured`);
+  a gate refuses the step (`gate_*`); or a guard refuses the derived status (its message, e.g. the SoD sentence).
 - **FR-PFE-024** Supplier match: the purchase's supplier identity is the ERP supplier mapped to its vendor company
   (`external_refs`, domain `companies`); when the vendor has no mapping, the vendor's name compared trimmed and
   case-insensitively with the document's supplier name; and in all cases the supplier of every document already
@@ -128,6 +130,9 @@ linking, by the ERP mirror, or by the record forms as today).
   when one exists.
 - **FR-PFE-025** Project match: a document whose attributed projects (`project_ids`) are non-empty shall be linked
   only to a purchase whose project is one of them; a document with no attributed project may link to any purchase.
+  An ERP Purchase Invoice attributed to more than one project shall not be linked (one purchase would deduct the whole
+  invoice while each project's actuals carry only its share): link it from ERPNext per project, or record it in PMO.
+  An ERP order and the invoices billing it are linked one at a time, so they always end up in one purchase.
 - **FR-PFE-026** When a row names no purchase, the system shall create a Draft purchase (requester = caller, currency
   = the document's, project = the row's project, title = the row's title or "<supplier> <document number>",
   `origin = 'erp_link'`, a purchase number in `code` minted as PROC-YYMMDD#### by the normal minter, and the vendor
@@ -136,15 +141,21 @@ linking, by the ERP mirror, or by the record forms as today).
   number) and the same project go into one new purchase.
 - **FR-PFE-027** For a purchase with `origin = 'erp_link'`, `total_value` shall be kept equal to the pre-tax total of
   its linked Purchase Orders when it has any, else of its linked Purchase Invoices, else Purchase Receipts, else
-  the amount of its linked Payment Entries. Linking into a PMO-originated purchase never changes its `total_value`.
+  the amount of its linked Payment Entries. Linking into a PMO-originated purchase never changes its `total_value`,
+  except (0372) a PMO purchase with no line items that never entered approval and whose total is 0 — or is still the
+  total its linked documents gave it — takes the same linked-documents total when a document is linked or unlinked.
+  An item-derived, approved or typed total is never changed.
 - **FR-PFE-028** Re-running the same rows shall be safe: a document already linked to the row's purchase, or a row
   naming no purchase whose document is already linked, is reported `skip` with the existing purchase id.
-- **FR-PFE-029** A row may carry one SharePoint item (drive id, item id, web URL, name, kind file|folder); on a
-  `link` outcome the system shall attach it to that linked document on the purchase (FR-PFE-050).
+- **FR-PFE-029** A row may carry one SharePoint item (drive id, item id, web URL, name, kind file|folder) on the
+  organization's own SharePoint host; on a `link` outcome the system shall attach it to that linked document on the
+  purchase (FR-PFE-050).
 - **FR-PFE-030** When `p_dry_run` is true, the link RPC shall run the identical per-row code, report the identical
   outcomes, and roll back every write (new purchases are reported with `procurement_id = null`).
 - **FR-PFE-031** The system shall let an active Admin or Finance member unlink a linked document; the purchase
   status does not move back; SharePoint items attached to that document move to the purchase level; it is audited.
+  Unlinking and attaching a file to one recorded document serialize on the purchase, so a file is never left pointing
+  at a document that is no longer linked.
 - **FR-PFE-032** The purchase shall show each linked ERP document with its doctype, ERP number, date, amount,
   currency and ERP status, marked "From ERPNext".
 

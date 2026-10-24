@@ -106,7 +106,10 @@
       "gateRequest": "Your organization requires a purchase request before an order.",
       "gateApprovalOrder": "Your organization requires an approval before an order.",
       "gateReceipt": "Your organization requires a goods receipt before a vendor invoice.",
-      "gateApprovalPayment": "Your organization requires an approval before payment."
+      "gateApprovalPayment": "Your organization requires an approval before payment.",
+      "spansProjects": "This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.",
+      "sharepointHost": "The file is not on your organization’s SharePoint site.",
+      "m365NotConfigured": "Choose your organization’s default SharePoint library first."
     },
     "awaitingApprovalProject_one": "{{count}} purchase on this project is waiting for approval. It can take documents once approved.",
     "awaitingApprovalProject_other": "{{count}} purchases on this project are waiting for approval. They can take documents once approved.",
@@ -115,6 +118,7 @@
     "thisProject": "the project",
     "openProject": "Open {{project}} to add it",
     "newNoProject": "New purchase with no project",
+    "splitInvoice": "Split across projects: link it per project in ERPNext, or record it in PMO",
     "linkMenu": "Link…",
     "linkMenuNamed": "Link {{name}}",
     "selectHint": "Select documents to link several at once.",
