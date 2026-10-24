@@ -1162,6 +1162,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   onError,
 }) => {
   const { t } = useTranslation();
+  const { t: tf } = useTranslation('recordFolders');
   const isEdit = !!doc;
   // A folder is a reference, not a register document: it has no category, revision, code or date.
   const isFolder = reference ? reference.item_kind === 'folder' : !!doc && isMicrosoftFolder(doc);
@@ -1235,7 +1236,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           ? t('projectDetail.documents.form.editSubtitle', 'Update this register entry')
           : reference
             ? isFolder
-              ? t('m365Documents.docsTab.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
+              ? tf('folderFiles.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
               : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
             : t(
                 'projectDetail.documents.form.newSubtitle',

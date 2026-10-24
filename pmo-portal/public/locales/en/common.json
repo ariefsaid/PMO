@@ -5035,7 +5035,6 @@
     "revisionLinkedSubtitle": "Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.",
     "docsTab": {
       "linkedSubtitle": "Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.",
-      "linkedFolderSubtitle": "Link this folder to the project. Its files stay in Microsoft 365.",
       "change": "Change",
       "notConnected": "Connect Microsoft 365 first to browse documents.",
       "myIntegrations": "My integrations"

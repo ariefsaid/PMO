@@ -4,11 +4,11 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { AppError } from '@/src/lib/appError';
 import { formatInstantDate } from '@/src/lib/format';
-import { getItem, listVersions, type GraphItem } from '@/src/lib/m365/graphClient';
+import { getItem, listChildren, listVersions, type GraphItem } from '@/src/lib/m365/graphClient';
 import type { MicrosoftReference, ReferenceOwner } from '@/src/lib/m365/reference';
 import { LinkedDocumentCell } from './LinkedDocumentCell';
 
-vi.mock('@/src/lib/m365/graphClient', () => ({ getItem: vi.fn(), listVersions: vi.fn() }));
+vi.mock('@/src/lib/m365/graphClient', () => ({ getItem: vi.fn(), listChildren: vi.fn(), listVersions: vi.fn() }));
 
 const SP_URL = 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Plan.docx';
 const LIST_ID = '0f0f0f0f-1111-4222-8333-444455556666';
@@ -335,5 +335,30 @@ describe('LinkedDocumentCell drift and verification state', () => {
     unmount();
     view(ref({ last_verified_at: verified }), procurement);
     expect(screen.queryByText(/Changed since|Not verified|Unchanged/)).not.toBeInTheDocument();
+  });
+});
+
+describe('#1320 AC-2 linked folder expands to its files', () => {
+  const folder = () => ref({ item_kind: 'folder', name: 'Project folder', web_url: 'https://tenant.sharepoint.com/sites/synthetic/Shared%20Documents/Project' });
+
+  it('AC-2: reads nothing until expanded, then lists the folder files; collapsing hides them', async () => {
+    vi.mocked(listChildren).mockResolvedValue({
+      value: [graphItem({ item_id: 'f1', name: 'Plan.pdf', modified_at: '2026-05-04T10:00:00Z' })], next: null, unsupported_count: 0,
+    });
+    view(folder(), projectOwner({ status: 'Draft', drift_state: null }));
+    expect(listChildren).not.toHaveBeenCalled();
+    const toggle = screen.getByRole('button', { name: 'Show files' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(toggle);
+    expect(await screen.findByText('Plan.pdf')).toBeInTheDocument();
+    expect(listChildren).toHaveBeenCalledWith('drive-1', 'item-1');
+    expect(screen.getByRole('button', { name: 'Hide files' })).toHaveAttribute('aria-expanded', 'true');
+    await userEvent.click(screen.getByRole('button', { name: 'Hide files' }));
+    expect(screen.queryByText('Plan.pdf')).not.toBeInTheDocument();
+  });
+
+  it('AC-2: a file reference and the compact register cell offer no expander', () => {
+    view(ref(), projectOwner({ status: 'Draft', drift_state: null }));
+    expect(screen.queryByRole('button', { name: 'Show files' })).not.toBeInTheDocument();
   });
 });

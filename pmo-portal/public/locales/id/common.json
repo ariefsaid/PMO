@@ -5035,7 +5035,6 @@
     "revisionLinkedSubtitle": "Buat revisi berikutnya dari dokumen ini. Revisi ini menaut ke file Microsoft terbaru, jadi tidak ada yang perlu diunggah.",
     "docsTab": {
       "linkedSubtitle": "Catat gambar, spesifikasi, atau transmittal. File-nya tetap berada di Microsoft 365.",
-      "linkedFolderSubtitle": "Tautkan folder ini ke proyek. File-nya tetap berada di Microsoft 365.",
       "change": "Ubah",
       "notConnected": "Hubungkan Microsoft 365 terlebih dahulu untuk menelusuri dokumen.",
       "myIntegrations": "Integrasi saya"
