@@ -579,6 +579,22 @@ describe('ProjectDetailHeader — Actual tile derives from mapped project financ
     expect(actual).not.toHaveTextContent('$2,100,000');
   });
 
+  it('AC-CAT-016 names attributed cost under the Actual tile only when there is some', () => {
+    financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', tagged_total: '1500000.00', attributed_total: '300000.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } } as typeof financeBox.data;
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual).toHaveTextContent('Includes $300,000.00 attributed');
+  });
+
+  it('AC-CAT-016 leaves the Actual tile unchanged when attributed cost is zero', () => {
+    financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', tagged_total: '1800000.00', attributed_total: '0.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } } as typeof financeBox.data;
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual?.textContent).not.toMatch(/attributed/i);
+  });
+
   it('DD-MONEY-1: ERP Actual keeps its source currency and withholds project-currency ratios', () => {
     financeBox.data = { actuals: { currency: 'IDR', total: '1800000.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };

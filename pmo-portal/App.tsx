@@ -183,6 +183,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/administration/projects', element: <AdministrationPage /> },
   { path: '/administration/credits', element: <AdministrationPage /> },
   { path: '/administration/exchange-rates', element: <AdministrationPage /> },
+  { path: '/administration/cost-attribution', element: <AdministrationPage /> },
   { path: '/administration/usage', element: <AdministrationPage /> },
   { path: '/administration/features', element: <AdministrationPage /> },
   // Keep malformed/deprecated Administration section links inside the Administration shell so
