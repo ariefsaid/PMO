@@ -13,7 +13,8 @@ export const PURCHASE_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 
 export const purchaseWmDomain = (doctype: PurchaseDoctype) => `purchases::${doctype}`;
 const CURSOR_VERSION = 2;
 // Orders and invoices moved to a v3 cursor namespace so rows mirrored before net_total / purchase_orders existed
-// are re-read once. A v3 namespace never falls back to the legacy timestamp (that would skip the re-read).
+// are re-read once (the 0374 upsert fills those fields on the unchanged ERP version). A v3 namespace never falls
+// back to the legacy timestamp (that would skip the re-read).
 const REREAD_DOCTYPES: readonly PurchaseDoctype[] = ['Purchase Order', 'Purchase Invoice'];
 const purchaseCursorDomain = (doctype: PurchaseDoctype) => `purchases::${REREAD_DOCTYPES.includes(doctype) ? 'v3' : 'v2'}::${doctype}`;
 
@@ -214,8 +215,20 @@ async function saveCursor(sc: PurchaseFeedServiceClient, orgId: string, domain: 
   if (stored !== next && stored !== previous) throw new AppError('Purchase feed cursor changed concurrently; resume on the next sweep', 'cursor-conflict');
 }
 
-/** Persist each successful page before making another remote request. Cursor JSON is a v2 namespace,
- * separate from the shared timestamp-only monotonic feeds; the legacy timestamp is read only to seed it. */
+// Invoices are written in item-read-sized units so a slow ERP still makes durable progress each pass, and
+// each turn handles at most this many units before the other doctypes get theirs (the rest of the page is kept).
+const INVOICE_UNITS_PER_TURN = 2;
+
+type Phase = 'all' | 'equal' | 'after';
+interface FeedState {
+  doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean;
+  /** Rows of the current list page not yet written, with how that page was read. */
+  page?: { rows: Record<string, unknown>[]; full: boolean; phase: Phase };
+}
+
+/** Persist each written unit and its cursor before making another remote request. Cursor JSON is a v2 namespace,
+ * separate from the shared timestamp-only monotonic feeds; the legacy timestamp is read only to seed it.
+ * Each cursor resumes inclusively at its timestamp boundary and then always reads strictly later documents. */
 export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { client: ErpClientDeps; orgId: string; company: string }): Promise<FeedPurchaseMirrorResult> {
   if (!opts.company?.trim()) throw new AppError('ERPNext company is required for the purchase feed', 'config-rejected');
   const deadline = Date.now() + PASS_BUDGET_MS;
@@ -223,7 +236,9 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
   let reads = 0;
   let fed = 0;
   let wroteRows = false;
-  const pending: Array<{ doctype: PurchaseDoctype; domain: string; stored: string | null; cursor: PurchaseCursor | null; equalityDone: boolean }> = [];
+  let deferred: unknown;
+  let outOfTime = false;
+  const pending: FeedState[] = [];
   for (const doctype of PURCHASE_DOCTYPES) {
     const domain = purchaseCursorDomain(doctype);
     const stored = await withinBudget(deadline, () => readWm(sc, opts.orgId, domain));
@@ -234,52 +249,87 @@ export async function feedPurchaseMirror(sc: PurchaseFeedServiceClient, opts: { 
     pending.push({ doctype, domain, stored, cursor, equalityDone: false });
   }
 
-  // Alternate durable pages so both document types progress within the shared budget.
-  while (pending.length > 0 && reads < MAX_PAGE_READS) {
+  // Alternate durable units so every document type progresses within the shared budget.
+  while (pending.length > 0) {
     const remainingMs = deadline - Date.now();
     if (remainingMs <= 0) break;
-    const state = pending.shift()!;
-    const { doctype, domain, cursor, equalityDone } = state;
-    const rows = await readPage(transport, doctype, opts.company, cursor, !equalityDone, 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
-    reads += 1;
-    if (rows.length === 0) {
-      if (!equalityDone && cursor) {
-        state.equalityDone = true;
-        pending.push(state);
+    const state = pending[0];
+    if (!state.page && reads >= MAX_PAGE_READS) break;
+    pending.shift();
+    const { doctype, domain } = state;
+    if (!state.page) {
+      const phase: Phase = !state.cursor ? 'all' : state.equalityDone ? 'after' : 'equal';
+      const rows = await readPage(transport, doctype, opts.company, state.cursor, phase === 'equal', 0, Math.min(REQUEST_TIMEOUT_MS, remainingMs));
+      reads += 1;
+      if (rows.length === 0) {
+        // A finished boundary always continues with the strictly-later read; anything else is caught up.
+        if (phase === 'equal') {
+          state.equalityDone = true;
+          pending.push(state);
+        }
+        continue;
       }
+      state.page = { rows, full: rows.length >= PAGE_SIZE, phase };
+    }
+
+    const page = state.page;
+    const isInvoice = doctype === 'Purchase Invoice';
+    const unitSize = isInvoice ? ITEM_BATCH_SIZE : PAGE_SIZE;
+    let units = 0;
+    try {
+      while (page.rows.length > 0 && (!isInvoice || units < INVOICE_UNITS_PER_TURN)) {
+        // Start an invoice unit only when its item read can finish within the pass; the rest waits for the next sweep.
+        if (isInvoice && deadline - Date.now() <= REQUEST_TIMEOUT_MS) { outOfTime = true; break; }
+        const unit = page.rows.slice(0, unitSize);
+        const latest = new Map<string, PurchaseMirrorRow>();
+        for (const source of unit) {
+          const row = toPurchaseMirrorRow(doctype, source);
+          if (!row) continue;
+          const existing = latest.get(row.erp_name);
+          if (!existing || row.erp_modified > existing.erp_modified) latest.set(row.erp_name, row);
+        }
+        if (isInvoice && latest.size > 0) {
+          const orders = await readInvoiceOrders(transport, [...latest.keys()], deadline);
+          for (const [name, row] of latest) row.purchase_orders = orders.get(name) ?? [];
+        }
+        if (latest.size > 0) {
+          const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...latest.values()] }));
+          if (error) throw new AppError(error.message, error.code);
+          fed += Number(data ?? 0);
+          wroteRows = true;
+        }
+        const last = unit[unit.length - 1];
+        const cursor: PurchaseCursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
+        const next = encodeCursor(cursor);
+        await saveCursor(sc, opts.orgId, domain, state.stored, next, deadline);
+        state.cursor = cursor;
+        state.stored = next;
+        page.rows = page.rows.slice(unit.length);
+        units += 1;
+      }
+    } catch (error) {
+      // Invoice enrichment failures leave the invoice cursor at its last written unit and let the other doctypes
+      // run; the pass still fails once they have had their turn. Other failures stop the pass immediately.
+      if (!isInvoice || deadline - Date.now() <= 0) throw error;
+      deferred ??= error;
       continue;
     }
-    const pageLatest = new Map<string, PurchaseMirrorRow>();
-    for (const source of rows) {
-      const row = toPurchaseMirrorRow(doctype, source);
-      if (!row) continue;
-      const existing = pageLatest.get(row.erp_name);
-      if (!existing || row.erp_modified > existing.erp_modified) pageLatest.set(row.erp_name, row);
+    if (page.rows.length > 0) {
+      if (!outOfTime) pending.push(state);
+      continue;
     }
-    if (doctype === 'Purchase Invoice' && pageLatest.size > 0) {
-      const orders = await readInvoiceOrders(transport, [...pageLatest.keys()], deadline);
-      for (const [name, row] of pageLatest) row.purchase_orders = orders.get(name) ?? [];
-    }
-    if (pageLatest.size > 0) {
-      const { data, error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [...pageLatest.values()] }));
-      if (error) throw new AppError(error.message, error.code);
-      fed += Number(data ?? 0);
-      wroteRows = true;
-    }
-    const last = rows[rows.length - 1];
-    const completed = rows.length < PAGE_SIZE && (equalityDone || Boolean(cursor?.name));
-    state.cursor = { version: CURSOR_VERSION, modified: String(last.modified), name: String(last.name) };
-    const next = encodeCursor(state.cursor);
-    await saveCursor(sc, opts.orgId, domain, state.stored, next, deadline);
-    state.stored = next;
-    if (!completed) {
-      state.equalityDone = rows.length < PAGE_SIZE;
+    state.page = undefined;
+    // A short page ends the boundary (go strictly later) or the feed (strictly-later/initial read); a full page
+    // resumes inclusively at its last row.
+    if (page.full || page.phase === 'equal') {
+      state.equalityDone = !page.full;
       pending.push(state);
     }
   }
+  if (deferred !== undefined) throw deferred;
   if (!wroteRows) {
     const { error } = await withinBudget(deadline, () => sc.rpc('upsert_erp_purchase_documents', { p_org_id: opts.orgId, p_rows: [] }));
     if (error) throw new AppError(error.message, error.code);
   }
-  return { fed, caughtUp: pending.length === 0 };
+  return { fed, caughtUp: pending.length === 0 && !outOfTime };
 }
