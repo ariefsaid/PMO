@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router';
 import { Button, Icon } from '@/src/components/ui';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useFeature } from '@/src/auth/useFeature';
@@ -75,6 +76,14 @@ export function RecordFolderAction({ target, hasFolder, onChooseExisting }: Reco
             {failed.key === 'error.missingIdentifier' && target.kind === 'project'
               ? t('error.missingProjectCode', 'Add a project code to create its folder.')
               : recordFolderText(t, failed.key)}
+            {retryUseless && roles.realRole === 'Admin' && roles.effectiveRole === 'Admin' && (
+              <>
+                {' '}
+                <Link to="/administration/integrations#m365-default-library" className="text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                  {t('action.chooseLibrary', 'Choose the default document library')}
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

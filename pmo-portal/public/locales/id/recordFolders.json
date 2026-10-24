@@ -2,6 +2,7 @@
   "action": {
     "create": "Buat folder di SharePoint",
     "choose": "Pilih folder yang ada",
+    "chooseLibrary": "Pilih pustaka dokumen default",
     "allowFolders": "Izinkan pembuatan folder",
     "reconnect": "Hubungkan ulang Microsoft"
   },
@@ -33,5 +34,16 @@
     "interrupted": "Berhenti lebih awal. Jumlah sejauh ini disimpan; lanjutkan untuk memeriksa sisanya.",
     "needsDefault": "Pilih pustaka dokumen bawaan terlebih dahulu.",
     "summary": "Tertaut {{linked}} · Perlu dipilih {{needsChoice}} · Tidak cocok/kode {{missing}} · Gagal {{failed}} · Sudah tertaut {{skipped}}"
+  },
+  "folderFiles": {
+    "linkedFolderSubtitle": "Tautkan folder ini ke proyek. File-nya tetap berada di Microsoft 365.",
+    "show": "Tampilkan file",
+    "hide": "Sembunyikan file",
+    "loading": "Memuat file…",
+    "empty": "Folder ini kosong.",
+    "list": "File di folder ini",
+    "openNamed": "Buka {{name}}",
+    "partial": "Hanya menampilkan file pertama. Buka folder di Microsoft untuk melihat sisanya.",
+    "open": "Buka"
   }
 }

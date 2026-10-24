@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon } from '@/src/components/ui';
 import { APPROVED_STATUSES, microsoftProvenance, validMicrosoftBrowserUrl, type MicrosoftReference, type ReferenceOwner } from '@/src/lib/m365/reference';
+import { LinkedFolderFiles } from './LinkedFolderFiles';
 import { DocumentDriftBadge } from './DocumentDriftBadge';
 import { ApprovedVersionHistory, LinkedDocumentVersionsModal } from './LinkedDocumentVersions';
 
@@ -26,8 +27,10 @@ export interface LinkedDocumentCellProps {
  */
 export function LinkedDocumentCell({ reference, title, owner, compact = false }: LinkedDocumentCellProps) {
   const { t } = useTranslation();
+  const { t: tf } = useTranslation('recordFolders');
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [openRefused, setOpenRefused] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const place = microsoftProvenance(reference.web_url);
   const isFolder = reference.item_kind === 'folder';
   const project = owner.kind === 'project' ? owner : null;
@@ -67,12 +70,19 @@ export function LinkedDocumentCell({ reference, title, owner, compact = false }:
           <Icon name="eye" />
           {compact ? t('m365Documents.cell.openShort', 'Open') : openText}
         </Button>
+        {!compact && isFolder && (
+          <Button variant="ghost" size="sm" aria-expanded={filesOpen} onClick={() => setFilesOpen((open) => !open)}>
+            <Icon name="folder" />
+            {filesOpen ? tf('folderFiles.hide', 'Hide files') : tf('folderFiles.show', 'Show files')}
+          </Button>
+        )}
         {!compact && !isFolder && (
           <Button variant="ghost" size="sm" aria-label={t('m365Documents.cell.versionsOf', 'Versions of {{name}}', { name: label })} onClick={() => setVersionsOpen(true)}>
             {t('m365Documents.cell.versions', 'Versions')}
           </Button>
         )}
       </div>
+      {!compact && isFolder && filesOpen && <LinkedFolderFiles reference={reference} />}
       {openRefused && <p role="alert" className="text-[12px] text-destructive-text">{t('m365Documents.cell.openRefused', 'This Microsoft link cannot be opened.')}</p>}
       {!compact && (
         <span className="break-words text-[12px] text-muted-foreground">
