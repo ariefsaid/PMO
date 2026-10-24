@@ -13,7 +13,7 @@
 export const MAP_TABLE = 'budget_category_account_map';
 export const MAP_RPC = 'set_budget_push_account';
 export const MAP_COLUMNS = Object.freeze(['id', 'category', 'erp_account', 'is_push_target']);
-export const BUDGET_CATEGORIES = Object.freeze(['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses']);
+export const BUDGET_CATEGORIES = Object.freeze(['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses', 'Travel & accommodation', 'Vehicle']);
 
 export function isDirectCostPostingAccount(account) {
   if (account.disabled || account.isGroup || account.rootType !== 'Expense') return false;

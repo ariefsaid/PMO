@@ -40,7 +40,7 @@ import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
-import { activateBudget, ActivationRefused, validateSource } from './lib/pmo-budgets.mjs';
+import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, validateSource } from './lib/pmo-budgets.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -1067,6 +1067,9 @@ async function budgets(ctx, positionals, flags) {
     source = await readPayload(ctx, flags.source);
     const problems = validateSource(source);
     if (problems.length > 0) throw new CliError(`The --source row has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_source', details: problems });
+  }
+  if (!ACTIVATION_ENABLED) {
+    throw new CliError('budget activation from the CLI is not enabled yet — activate in the app', { exit: 2, code: 'activation_not_enabled' });
   }
   const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
   try {

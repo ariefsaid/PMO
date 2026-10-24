@@ -13,7 +13,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { run, writeCredentials } from './pmo.mjs';
-import { activateBudget, validateSource } from './lib/pmo-budgets.mjs';
+import { ACTIVATION_ENABLED, ActivationRefused, activateBudget, validateSource } from './lib/pmo-budgets.mjs';
 import { BUDGET_CATEGORIES, isDirectCostPostingAccount, planMapSet } from './lib/pmo-accounts.mjs';
 
 const V = '11111111-2222-3333-4444-555555555555';
@@ -67,97 +67,27 @@ async function cli(argv, f, { stdin } = {}) {
 
 // ── budgets activate ─────────────────────────────────────────────────────────────────────────────
 
-const activateRoutes = (mode, extra = {}) => ({
-  'POST /rest/v1/rpc/budget_activation_mode': [200, mode],
-  'POST /rest/v1/rpc/link_budget_version_sharepoint_item': [200, 'link-1'],
-  'POST /rest/v1/rpc/activate_budget_version': [204],
-  ...extra,
-});
+// The CLI does not activate yet: the guard has no activate_budget_version tier (owner has not ruled on it), so the
+// command refuses up front, before any request. The activation flow below stays tested as a library so enabling it
+// is a guard-tier change plus flipping ACTIVATION_ENABLED, not a rewrite.
+const ROUTES = { 'POST /rest/v1/rpc/budget_activation_mode': [200, 'allowed'] };
 
-test('AC-CLI-B1: activate asks the activation rule, links the source while Draft, then activates through the app RPC', async () => {
-  const f = await fake(activateRoutes('allowed'));
+test('AC-CLI-B1: activation from the CLI is refused clearly and sends nothing (activate_budget_version has no guard tier)', async () => {
+  assert.equal(ACTIVATION_ENABLED, false);
+  const f = await fake(ROUTES);
   try {
-    const r = await cli(['budgets', 'activate', V, '--source', JSON.stringify(SOURCE)], f);
-    assert.equal(r.code, 0, JSON.stringify(r.error));
-    assert.deepEqual(r.json, { version_id: V, activated: true, activation_mode: 'allowed', source_link_id: 'link-1' });
-    assert.deepEqual(calls(f), [
-      'POST /rest/v1/rpc/budget_activation_mode',
-      'POST /rest/v1/rpc/link_budget_version_sharepoint_item',
-      'POST /rest/v1/rpc/activate_budget_version',
-    ]);
-    assert.deepEqual(f.requests.at(-2).body, { p_version_id: V, p_item: SOURCE });
-    assert.deepEqual(f.requests.at(-1).body, { version_id: V });
+    for (const argv of [['budgets', 'activate', V], ['budgets', 'activate', V, '--source', JSON.stringify(SOURCE)]]) {
+      const r = await cli(argv, f);
+      assert.equal(r.code, 2);
+      assert.equal(r.error.code, 'activation_not_enabled');
+      assert.match(r.error.message, /budget activation from the CLI is not enabled yet — activate in the app/);
+    }
+    assert.deepEqual(calls(f), []);
   } finally { await f.close(); }
 });
 
-test('AC-CLI-B1: activate without --source links nothing', async () => {
-  const f = await fake(activateRoutes('sole_operator'));
-  try {
-    const r = await cli(['budgets', 'activate', V], f);
-    assert.equal(r.code, 0);
-    assert.equal(r.json.activation_mode, 'sole_operator');
-    assert.equal(r.json.source_link_id, null);
-    assert.deepEqual(calls(f), ['POST /rest/v1/rpc/budget_activation_mode', 'POST /rest/v1/rpc/activate_budget_version']);
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: a drafter blocked by separation of duties is refused before anything is linked or activated', async () => {
-  const f = await fake(activateRoutes('blocked_editor'));
-  try {
-    const r = await cli(['budgets', 'activate', V, '--source', JSON.stringify(SOURCE)], f);
-    assert.equal(r.code, 1);
-    assert.equal(r.error.code, 'activation_refused');
-    assert.match(r.error.message, /someone else must activate it/);
-    assert.deepEqual(calls(f), ['POST /rest/v1/rpc/budget_activation_mode']);
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: no recorded drafter and a non-Admin/Finance caller is refused with the app wording', async () => {
-  const f = await fake(activateRoutes('blocked_no_drafter'));
-  try {
-    const r = await cli(['budgets', 'activate', V], f);
-    assert.equal(r.code, 1);
-    assert.match(r.error.message, /Admin or Finance only/);
-    assert.deepEqual(calls(f), ['POST /rest/v1/rpc/budget_activation_mode']);
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: a version the caller cannot see (blocked) is refused and nothing is written', async () => {
-  const f = await fake(activateRoutes('blocked'));
-  try {
-    const r = await cli(['budgets', 'activate', V], f);
-    assert.equal(r.code, 1);
-    assert.equal(r.error.details.activation_mode, 'blocked');
-    assert.deepEqual(calls(f), ['POST /rest/v1/rpc/budget_activation_mode']);
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: when the activation RPC refuses after the source was linked, the report says the file stays linked', async () => {
-  const f = await fake(activateRoutes('allowed', {
-    'POST /rest/v1/rpc/activate_budget_version': [400, { code: 'P0001', message: 'only a Draft version can be activated' }],
-  }));
-  try {
-    const r = await cli(['budgets', 'activate', V, '--source', JSON.stringify(SOURCE)], f);
-    assert.equal(r.code, 1);
-    assert.equal(r.error.code, 'P0001');
-    assert.equal(r.error.details.source_link_id, 'link-1');
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: a refusal by the link RPC (e.g. role) is passed through and activation is never attempted', async () => {
-  const f = await fake(activateRoutes('allowed', {
-    'POST /rest/v1/rpc/link_budget_version_sharepoint_item': [403, { code: '42501', message: 'Cannot change evidence on this budget version.' }],
-  }));
-  try {
-    const r = await cli(['budgets', 'activate', V, '--source', JSON.stringify(SOURCE)], f);
-    assert.equal(r.code, 1);
-    assert.equal(r.error.code, '42501');
-    assert.ok(!calls(f).includes('POST /rest/v1/rpc/activate_budget_version'));
-  } finally { await f.close(); }
-});
-
-test('AC-CLI-B1: a bad version id or a bad --source is refused before anything is sent', async () => {
-  const f = await fake(activateRoutes('allowed'));
+test('AC-CLI-B1: a bad version id or a bad --source is still a usage error before anything is sent', async () => {
+  const f = await fake(ROUTES);
   try {
     const noId = await cli(['budgets', 'activate'], f);
     const badId = await cli(['budgets', 'activate', 'not-a-uuid'], f);
@@ -172,23 +102,57 @@ test('AC-CLI-B1: a bad version id or a bad --source is refused before anything i
   } finally { await f.close(); }
 });
 
-test('AC-CLI-B1: --source can come from stdin', async () => {
-  const f = await fake(activateRoutes('allowed'));
-  try {
-    const r = await cli(['budgets', 'activate', V, '--source', '-'], f, { stdin: (async function* () { yield Buffer.from(JSON.stringify(SOURCE)); })() });
-    assert.equal(r.code, 0, JSON.stringify(r.error));
-    assert.deepEqual(f.requests.find((q) => q.path.endsWith('link_budget_version_sharepoint_item')).body.p_item, SOURCE);
-  } finally { await f.close(); }
+/** A recording fake of the RPC seam activateBudget talks to. */
+function rpcFake(answers) {
+  const seen = [];
+  return { seen, rpc: async (name, body) => { seen.push([name, body]); const a = answers[name]; if (a instanceof Error) throw a; return a; } };
+}
+
+test('AC-CLI-B1: activateBudget asks the activation rule, links the source while Draft, then activates through the app RPC', async () => {
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: 'link-1', activate_budget_version: null });
+  const out = await activateBudget(api, V, { source: SOURCE });
+  assert.deepEqual(out, { version_id: V, activated: true, activation_mode: 'allowed', source_link_id: 'link-1' });
+  assert.deepEqual(api.seen, [
+    ['budget_activation_mode', { version_id: V }],
+    ['link_budget_version_sharepoint_item', { p_version_id: V, p_item: SOURCE }],
+    ['activate_budget_version', { version_id: V }],
+  ]);
 });
 
-test('AC-CLI-B1: validateSource and activateBudget unit behaviour', async () => {
+test('AC-CLI-B1: activateBudget without a source links nothing (sole operator)', async () => {
+  const api = rpcFake({ budget_activation_mode: 'sole_operator', activate_budget_version: null });
+  const out = await activateBudget(api, V);
+  assert.equal(out.activation_mode, 'sole_operator');
+  assert.equal(out.source_link_id, null);
+  assert.deepEqual(api.seen.map(([n]) => n), ['budget_activation_mode', 'activate_budget_version']);
+});
+
+test('AC-CLI-B1: separation of duties, no drafter and not-visible answers are refused with the app wording before any write', async () => {
+  const cases = [['blocked_editor', /someone else must activate it/], ['blocked_no_drafter', /Admin or Finance only/], ['blocked', /cannot activate this budget version/]];
+  for (const [mode, re] of cases) {
+    const api = rpcFake({ budget_activation_mode: mode });
+    await assert.rejects(activateBudget(api, V, { source: SOURCE }), (e) => e instanceof ActivationRefused && e.mode === mode && re.test(e.message));
+    assert.deepEqual(api.seen.map(([n]) => n), ['budget_activation_mode']);
+  }
+});
+
+test('AC-CLI-B1: when activation refuses after the source was linked, the error carries the link id', async () => {
+  const boom = new Error('only a Draft version can be activated');
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: 'link-1', activate_budget_version: boom });
+  await assert.rejects(activateBudget(api, V, { source: SOURCE }), (e) => e === boom && e.sourceLinkId === 'link-1');
+});
+
+test('AC-CLI-B1: a refusal by the link RPC is passed through and activation is never attempted', async () => {
+  const denied = new Error('Cannot change evidence on this budget version.');
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: denied });
+  await assert.rejects(activateBudget(api, V, { source: SOURCE }), (e) => e === denied);
+  assert.ok(!api.seen.some(([n]) => n === 'activate_budget_version'));
+});
+
+test('AC-CLI-B1: validateSource unit behaviour', () => {
   assert.deepEqual(validateSource(SOURCE), []);
   assert.ok(validateSource(null).length > 0);
   assert.ok(validateSource({ ...SOURCE, name: ' ' }).some((p) => /needs name/.test(p)));
-  const seen = [];
-  const out = await activateBudget({ rpc: async (n) => { seen.push(n); return n === 'budget_activation_mode' ? 'allowed' : null; } }, V);
-  assert.equal(out.activated, true);
-  assert.deepEqual(seen, ['budget_activation_mode', 'activate_budget_version']);
 });
 
 // ── accounts map set ─────────────────────────────────────────────────────────────────────────────
@@ -344,6 +308,6 @@ test('AC-CLI-B2: planMapSet and the direct-cost rule', () => {
   assert.ok(isDirectCostPostingAccount(acct('a', { parentAccount: 'Cost of Goods Sold - X' })));
   assert.ok(!isDirectCostPostingAccount(acct('a', { parentAccount: 'Overheads', accountNumber: '5200' })));
   assert.ok(!isDirectCostPostingAccount(acct('a', { rootType: 'Income' })));
-  assert.equal(BUDGET_CATEGORIES.length, 8);
+  assert.equal(BUDGET_CATEGORIES.length, 10);
   assert.throws(() => planMapSet({ category: 'Labor', accounts: [], rows: [], catalogue: CHART }), /at least one/);
 });

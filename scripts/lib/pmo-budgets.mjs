@@ -7,6 +7,11 @@
 
 /** The BUDGET-ACTIVATION tier of the API-client guard — keep in step with the guard's allow-list. */
 export const BUDGET_RPCS = Object.freeze(['budget_activation_mode', 'link_budget_version_sharepoint_item', 'activate_budget_version']);
+/**
+ * OFF until the API-client guard carries an `activate_budget_version` tier. The owner has not ruled on it, so the
+ * guard refuses that RPC and the CLI says so up front instead of linking a file and then failing.
+ */
+export const ACTIVATION_ENABLED = false;
 const SP_FIELDS = ['drive_id', 'item_id', 'web_url', 'name', 'kind'];
 const ALLOWED_MODES = new Set(['allowed', 'sole_operator']);
 const MODE_REASONS = {
