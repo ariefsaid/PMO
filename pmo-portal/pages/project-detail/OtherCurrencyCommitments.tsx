@@ -14,7 +14,7 @@ export function OtherCurrencyCommitments({ positions }: { positions: CommittedOt
   const amounts = positions.map((position) => formatCurrency(position.amount, position.currency)).join(', ');
   return (
     <span className="block text-xs text-muted-foreground" data-testid="committed-other-currencies">
-      {t('uxs01.otherCurrencies', 'Plus amounts in other currencies: {{amounts}}', { amounts })}
+      {t('projects:committed.otherCurrencies', 'Plus amounts in other currencies: {{amounts}}', { amounts })}
     </span>
   );
 }
