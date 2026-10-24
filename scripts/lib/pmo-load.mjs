@@ -276,8 +276,12 @@ export async function resolveLoad(doc, api) {
   const found = new Map(); // legal name -> row | null | 'ambiguous'
   async function lookup(name) {
     if (!found.has(name)) {
-      const rows = await api.get('companies', params({ select: 'id,name,short_name,archived_at', name: eq(name) }));
-      found.set(name, rows.length === 0 ? null : rows.length === 1 ? rows[0] : 'ambiguous');
+      const rows = await api.get('companies', params({ select: 'id,name,short_name,type,archived_at', name: eq(name) }));
+      // ERPNext keeps Customer and Supplier apart, so one legal name can be a Client row and a Vendor row (#1316):
+      // the Client wins; two rows of the same type stay a real ambiguity.
+      const clients = rows.filter((r) => r.type === 'Client');
+      const pick = rows.length === 1 ? rows : clients.length === 1 ? clients : rows;
+      found.set(name, pick.length === 0 ? null : pick.length === 1 ? pick[0] : 'ambiguous');
     }
     return found.get(name);
   }

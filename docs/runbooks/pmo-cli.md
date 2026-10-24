@@ -184,7 +184,8 @@ violates row-level security policy").
 
 1. In the app (Admin): configure classification options (service lines, sectors). If ERPNext owns
    companies, create every missing company first — in the app (Companies → New, pushed to ERPNext)
-   or as a Customer in ERPNext — and wait for it to appear in PMO.
+   or as a Customer in ERPNext — and wait for it to appear in PMO. The loader matches a company by
+   legal name and prefers the Client row when a Vendor row shares the name; two Client rows are refused.
 2. Claude writes the load file (spec §2) **outside the repository** from the client's spreadsheets.
    For contract quantities, convert each project's price sheet or SPK (the contractual service list)
    into `projects[].contract_lines[]`: one row per item with a stable `key` (e.g. the sheet's row id),

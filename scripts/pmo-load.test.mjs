@@ -730,3 +730,35 @@ test('AC-004 #1325: creating a project whose short name is taken still creates i
   assert.equal(created[1].body.name, 'Legal project name');
   assert.ok(actions.some((a) => a.kind === 'project.short_name_conflict' && a.file === 'Depot'));
 });
+
+test('#1316: a Client and a Vendor with one legal name resolve to the Client, for client and end_client', async () => {
+  const both = (name, id) => [
+    { id: `${id}-v`, name, type: 'Vendor', short_name: null, archived_at: null },
+    { id: `${id}-c`, name, type: 'Client', short_name: null, archived_at: null },
+  ];
+  const api = fakeApi({ tables: { companies: [...both('Client Legal A', 'a'), ...both('Owner Legal B', 'b')] } });
+  const { problems, plan } = await resolveLoad({ projects: [DOC().projects[0]] }, api);
+  assert.deepEqual(problems, []);
+  assert.ok(api.calls.some((c) => c.kind === 'get' && c.target === 'companies' && /type/.test(c.query)));
+  const [p] = plan.projects;
+  assert.equal(p.client.id, 'a-c');
+  assert.equal(p.endClient.id, 'b-c');
+});
+
+test('#1316: two Clients with one legal name stay ambiguous, for client and end_client', async () => {
+  const twin = (name, id) => [1, 2].map((n) => ({ id: `${id}-${n}`, name, type: 'Client', short_name: null, archived_at: null }));
+  const api = fakeApi({ tables: { companies: [...twin('Client Legal A', 'a'), ...twin('Owner Legal B', 'b')], projects: [EXISTING()] } });
+  const { problems } = await resolveLoad({ projects: [DOC().projects[0]] }, api);
+  assert.equal(problems.length, 2, problems.join('\n'));
+  assert.match(problems[0], /more than one company is named "Client Legal A"/);
+  assert.match(problems[1], /more than one company is named "Owner Legal B"/);
+});
+
+test('#1316: a name held only by a Vendor still resolves as before, and two Vendors stay ambiguous', async () => {
+  const vendor = (id) => ({ id, name: 'Client Legal A', type: 'Vendor', short_name: null, archived_at: null });
+  const one = await resolveLoad({ projects: [DOC().projects[1]] }, fakeApi({ tables: { companies: [vendor('v-1')] } }));
+  assert.deepEqual(one.problems, []);
+  assert.equal(one.plan.projects[0].client.id, 'v-1');
+  const two = await resolveLoad({ projects: [DOC().projects[1]] }, fakeApi({ tables: { companies: [vendor('v-1'), vendor('v-2')] } }));
+  assert.match(two.problems[0], /more than one company is named/);
+});
