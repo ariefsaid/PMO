@@ -121,6 +121,7 @@ const CostAttribution: React.FC = () => {
       </p>
       <div className="mt-3.5">
         <DataTable
+          tableId="cost-attribution-rules"
           rows={data}
           columns={columns}
           rowKey={(r) => r.rule_key}
