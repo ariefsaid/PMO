@@ -1,5 +1,5 @@
 -- 0367_api_client_operator_reads.sql — operator CLI reads and SharePoint linking surface (#1270 A).
--- Rebuilds 0364's guard body (every 0363/0364 tier kept) adding narrow, active-member operator read tiers
+-- Rebuilds 0366's guard body (every 0363/0364/0366 tier kept) adding narrow, active-member operator read tiers
 -- (lines marked 0367). Unlink/delete and account-map writes remain app-only.
 -- Rollback: supabase/migrations/rollback/0367_api_client_operator_reads_down.sql.
 create or replace function public.api_client_request_guard()
@@ -21,6 +21,8 @@ declare
   purchase_read_views constant text[] := array['erp_purchase_orphans', 'erp_purchase_orphans_all'];  -- 0364
   -- ADMIN/FINANCE TIER (`pmo purchases set-aside`, #1319 AC-13)  -- 0364
   set_aside_rpcs constant text[] := array['mark_erp_purchase_documents'];  -- 0364
+  -- ACTIVE-ADMIN `pmo rpc` TIER (#1326) — keep in step with scripts/pmo.mjs ADMIN_RPCS.  -- 0366
+  admin_cli_rpcs constant text[] := array['recategorise_budget_lines'];  -- 0366
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
   operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps'];  -- 0367
   operator_read_rpcs constant text[] := array['project_mapped_actuals', 'link_m365_documents_batch'];  -- 0367
@@ -72,6 +74,11 @@ begin
         return;  -- 0364
       end if;  -- 0364
     end if;  -- 0364
+    if method = 'POST' and target = any (admin_cli_rpcs) then  -- 0366
+      if coalesce(public.auth_role() = 'Admin'::public.user_role and public.is_active_member(), false) then  -- 0366
+        return;  -- 0366
+      end if;  -- 0366
+    end if;  -- 0366
   else
     target := substr(path, 2); -- exact table name; anything longer matches no list entry
     if method = 'GET' and (target = any (write_tables) or target = any (read_only_tables)) then
