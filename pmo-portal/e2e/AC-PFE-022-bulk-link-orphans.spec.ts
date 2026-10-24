@@ -42,7 +42,7 @@ test('AC-PFE-022: bulk-link two ERPNext invoices to a purchase', async ({ page }
 
     // GOAL: we land on the purchase and both invoices are on it, marked From ERPNext.
     await expect(page).toHaveURL(new RegExp(`/procurement/${purchaseId}`));
-    await page.getByRole('tab', { name: /Documents/ }).click();
+    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: /Documents/ }).click();
     for (const n of names) {
       await expect(page.getByRole('row', { name: new RegExp(n) })).toContainText('From ERPNext');
     }
