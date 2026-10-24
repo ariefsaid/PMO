@@ -264,6 +264,7 @@ export const ADMINISTRATION_SECTION_LABELS = {
   usage: 'Usage',
   features: 'Features',
   'exchange-rates': 'Exchange rates',
+  'cost-attribution': 'Cost attribution',
 } as const;
 
 /**
@@ -284,6 +285,7 @@ export const ADMINISTRATION_SECTION_I18N_KEY: Record<
   usage: 'admin.nav.usage',
   features: 'admin.nav.features',
   'exchange-rates': 'admin.nav.exchangeRates',
+  'cost-attribution': 'costAttribution:title',
 };
 
 const administrationBreadcrumbForPath = (
@@ -301,7 +303,7 @@ const administrationBreadcrumbForPath = (
   const sectionKey =
     ADMINISTRATION_SECTION_I18N_KEY[section as keyof typeof ADMINISTRATION_SECTION_I18N_KEY] ??
     ADMINISTRATION_SECTION_I18N_KEY.users;
-  const parentPath = section === 'exchange-rates' ? '/administration/exchange-rates' : '/administration/users';
+  const parentPath = section === 'exchange-rates' || section === 'cost-attribution' ? '/administration/exchange-rates' : '/administration/users';
   return [
     {
       label: parentLabel,

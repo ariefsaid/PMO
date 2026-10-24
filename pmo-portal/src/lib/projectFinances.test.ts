@@ -227,3 +227,19 @@ describe('exact project-finance money', () => {
     expect(isProjectFinances({ ...valid, actuals: { ...valid.actuals, categories: [{ category: 1, mapped: true, amount: null }] } })).toBe(false);
   });
 });
+
+describe('attributedSplit (#1271 AC-3)', () => {
+  it('returns nothing when there is no attributed cost, so screens without rules stay unchanged', async () => {
+    const { attributedSplit } = await import('./projectFinances');
+    expect(attributedSplit({ tagged: '100.00', attributed: '0.00' })).toBeNull();
+    expect(attributedSplit({ tagged: '100.00' })).toBeNull();
+    expect(attributedSplit({ tagged: '100.00', attributed: null })).toBeNull();
+    expect(attributedSplit({ attributed: 'abc' })).toBeNull();
+  });
+
+  it('returns the attributed amount and the tagged remainder when attributed is nonzero', async () => {
+    const { attributedSplit } = await import('./projectFinances');
+    expect(attributedSplit({ tagged: '100.00', attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: '100.00' });
+    expect(attributedSplit({ tagged: null, attributed: '40.50' })).toEqual({ attributed: '40.50', tagged: null });
+  });
+});

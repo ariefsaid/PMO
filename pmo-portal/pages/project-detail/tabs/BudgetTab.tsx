@@ -1,6 +1,7 @@
 import React from 'react';
 import ProjectBudget from '../../ProjectBudget';
 import BudgetProjection from '../../BudgetProjection';
+import { AttributedSpendingNote } from '../AttributedSpendingNote';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { useBudgetVersions } from '@/src/hooks/useBudget';
 
@@ -46,7 +47,12 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
     // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
     // answers — and the version ledger/operations follow. Same two components, only the order changes.
     <div className="flex flex-col gap-5">
-      {employsExternalBudget && hasActiveVersion && <BudgetProjection projectId={projectId} />}
+      {employsExternalBudget && hasActiveVersion && (
+        <>
+          <AttributedSpendingNote projectId={projectId} />
+          <BudgetProjection projectId={projectId} />
+        </>
+      )}
       <ProjectBudget projectId={projectId} />
     </div>
   );

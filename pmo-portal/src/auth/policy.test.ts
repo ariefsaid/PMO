@@ -638,6 +638,11 @@ it('AC-TAG-001 project classification option administration is Admin-only', () =
   expect(allowedRoles('manage', 'orgProjectClassification')).toEqual(['Admin']);
 });
 
+it('AC-CAT-014 cost attribution rules are managed by Finance and Admin only (RPCs are the authority)', () => {
+  expect(allowedRoles('manage', 'costAttribution')).toEqual(['Admin', 'Finance']);
+  expect(can('manage', 'costAttribution', { realRole: null })).toBe(false);
+});
+
 describe('can() — JISDOR FX maintenance authority', () => {
   it('AC-FX-009/010 Finance and Admin may view/upload; only Admin may manually create/edit', () => {
     expect(allowedRoles('view', 'fxRate')).toEqual(['Admin', 'Finance']);

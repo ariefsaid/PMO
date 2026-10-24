@@ -84,10 +84,10 @@ function renderPage(path: string, role: Role, operator = false, pending = false,
 afterEach(() => cleanup());
 
 describe('AC-FX-010 Administration access', () => {
-  it('Finance lands on FX only and settled operator status does not gate it', async () => {
+  it('Finance lands on FX with only Cost attribution beside it, and settled operator status does not gate it', async () => {
     renderPage('/administration/exchange-rates', 'Finance', false, true);
     expect(await screen.findByTestId('administration-panel-exchange-rates')).toBeInTheDocument();
-    expect(screen.getAllByRole('link')).toHaveLength(1);
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Exchange rates', 'Cost attribution']);
     expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute(
       'aria-current',
       'page',
