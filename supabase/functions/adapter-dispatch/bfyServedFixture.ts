@@ -103,6 +103,9 @@ export interface ServedRoutesResult {
   /** Every ERP `Budget` document the mocked ERP now holds, in creation order. */
   erpBudgets: Array<{ name: string; body: Record<string, unknown>; docstatus: number }>;
   accountMirrorRows: Array<Record<string, unknown>>;
+  /** The outbox rows this fixture holds, keyed `<pmo_record_id>|<idempotency_key>` — so a test can state the
+   *  shape a row was left in (its saved canonical, its digest) by a writer outside this request. */
+  outboxRows: Map<string, Record<string, unknown>>;
 }
 
 /**
@@ -328,7 +331,7 @@ export function servedRoutes(seed: ServedSeed, versionMajor = 15, siteUrl = ERP_
     },
   ];
 
-  return { routes, erpBudgets, accountMirrorRows };
+  return { routes, erpBudgets, accountMirrorRows, outboxRows };
 }
 
 /** `?pmo_record_id=eq.<id>&idempotency_key=eq.<key>` → the map key the fixture stores rows under. */

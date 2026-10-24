@@ -342,6 +342,15 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     operation: ctx.command.operation as string,
     record: digestPayload,
   });
+  // A budget unit no longer carries the Retry's `target_fiscal_year` (see the fan-out). A row a Retry
+  // stored before that change bound it to the unit's own year, so that digest still names this command.
+  const legacyPayloadDigests = isBudgetPushCommand(ctx.command) && typeof digestPayload.fiscal_year === 'string'
+    ? [await canonicalCommandDigest({
+        domain: ctx.command.domain,
+        operation: ctx.command.operation as string,
+        record: { ...digestPayload, target_fiscal_year: digestPayload.fiscal_year },
+      })]
+    : undefined;
 
   return createDbMoneyOutboxDeps({
     serviceClient: ctx.serviceClient as never,
@@ -361,6 +370,7 @@ async function resolveErpMoneyOutboxDeps(ctx: AdapterSelectContext): Promise<Dis
     reissueOnInconclusiveAbsence: reissueOnInconclusiveAbsence(entry),
     payload,
     payloadDigest,
+    legacyPayloadDigests,
     encodeExternalRecordId,
     // A quarantined procurement create whose probe finds nothing is reissued as a NEW ERP document; the org's purchase
     // rules are asked again at that moment (under a lock on the purchase), as the outbox claim does for pending and
@@ -930,6 +940,12 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
       // TIME (no body-level split — the split is the plan's, and the plan is PMO's own line items).
       // ⚑ HIGH 5 (FR-BFY-056): scope the fan-out to the retried year, if one was named. Fail closed on a
       // year the plan does not contain — a retry must act on exactly the row the operator clicked.
+      // ⚑ `target_fiscal_year` only scopes WHICH units this request drives; it is not part of any unit's
+      // command. Left on the unit record it entered the outbox payload digest, so an operator's per-year
+      // Retry no longer matched the digest its own activation saved under the same key: an account
+      // already confirmed in ERPNext was refused as a key-reuse mismatch, recorded `failed`, and then
+      // parked `held` by the sweep with nothing left to re-send it. Activation and Retry build the same unit.
+      const { target_fiscal_year: _targetFiscalYear, ...unitRecordBase } = command.record as AdapterCommand['record'] & { target_fiscal_year?: unknown };
       const planEntries = targetFiscalYear === null
         ? gate.plan
         : gate.plan.filter((entry) => entry.fiscal_year === targetFiscalYear);
@@ -979,7 +995,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
               identity,
               idempotencyKey: budgetAccountPushKey(identity, gate.activatedAt),
               record: {
-                ...command.record,
+                ...unitRecordBase,
                 id: gate.versionId,
                 erp_doc_kind: 'budget',
                 projectId: gate.projectId,
@@ -1006,7 +1022,7 @@ serveWithErrorReporting('adapter-dispatch', async (req: Request): Promise<Respon
             identity,
             idempotencyKey: budgetPushKey(gate.versionId, encodedFiscalYear, gate.activatedAt),
             record: {
-              ...command.record,
+              ...unitRecordBase,
               projectId: gate.projectId,
               fiscal_year: entry.fiscal_year,
               line_items: entry.line_items,
