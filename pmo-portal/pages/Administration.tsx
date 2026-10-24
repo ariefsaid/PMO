@@ -35,13 +35,16 @@ export type AdministrationSection =
   | 'projects'
   | 'credits'
   | 'exchange-rates'
+  | 'cost-attribution'
   | 'usage'
   | 'features';
 
 /** Canonical section order (Task 4/6): the four organization destinations, then the Operator-only pair. */
 const ORGANIZATION_SECTIONS: AdministrationSection[] = ['users', 'integrations', 'accounting', 'projects', 'credits', 'exchange-rates'];
 const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
-const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, ...OPERATOR_SECTIONS];
+/** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
+const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
+const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'cost-attribution', ...OPERATOR_SECTIONS];
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
@@ -51,6 +54,7 @@ const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
   projects: 'Project setup',
   credits: 'Credits',
   'exchange-rates': 'Exchange rates',
+  'cost-attribution': 'Cost attribution',
   usage: 'Usage',
   features: 'Features',
 };
@@ -67,6 +71,7 @@ const buildSectionLabels = (t: TFunction): Record<AdministrationSection, string>
   projects: t('admin.nav.projects', SECTION_LABEL_DEFAULTS.projects),
   credits: t('admin.nav.credits', SECTION_LABEL_DEFAULTS.credits),
   'exchange-rates': t('admin.nav.exchangeRates', SECTION_LABEL_DEFAULTS['exchange-rates']),
+  'cost-attribution': t('costAttribution:title', SECTION_LABEL_DEFAULTS['cost-attribution']),
   usage: t('admin.nav.usage', SECTION_LABEL_DEFAULTS.usage),
   features: t('admin.nav.features', SECTION_LABEL_DEFAULTS.features),
 });
@@ -127,7 +132,7 @@ const AdministrationNavigation: React.FC<{
   return (
     <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
       <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
-        {links(ORGANIZATION_SECTIONS.filter((id) => sections.includes(id)))}
+        {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
         {isOperator && (
           <>
             <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
@@ -249,6 +254,12 @@ const SelectedAdministrationPanel: React.FC<{
           </div>
         </div>
       );
+    case 'cost-attribution':
+      return (
+        <div data-testid="administration-panel-cost-attribution" className="min-w-0">
+          <CostAttribution />
+        </div>
+      );
     case 'projects':
       return (
         <div data-testid="administration-panel-projects" className="min-w-0">
@@ -298,14 +309,16 @@ const Administration: React.FC = () => {
   const section = administrationSectionForPath(pathname);
   const isAdminViewer = may('view', 'user');
   const canFx = may('view', 'fxRate');
+  const canManageCostAttribution = may('manage', 'costAttribution');
   const isFinance = realRole === 'Finance';
   const isOperator = operatorMembership.isOperator;
   const operatorRoute = section !== undefined && isOperatorSection(section);
   const fxRoute = section === 'exchange-rates';
-  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx);
+  const costAttributionRoute = section === 'cost-attribution';
+  const canEnterAdministration = isAdminViewer || isOperator || (fxRoute && isFinance && canFx) || (costAttributionRoute && isFinance && canManageCostAttribution);
   const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
   const navigationSections: AdministrationSection[] = isFinance
-    ? ['exchange-rates']
+    ? FINANCE_SECTIONS
     : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];

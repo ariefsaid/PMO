@@ -44,6 +44,7 @@ describe('Application route table', () => {
       '/administration/usage',
       '/administration/features',
       '/administration/exchange-rates',
+      '/administration/cost-attribution',
     ];
 
     for (const path of paths) {

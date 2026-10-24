@@ -164,7 +164,7 @@ vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
 } }));
 // #775 phase B — proven by its own test (AC-EXP-130); kept off the network here like its BudgetAccountMap sibling.
 vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => <div id="expense-account-map" tabIndex={-1} /> }));
-vi.mock('./admin/CostAttribution', () => ({ default: () => <div id="cost-attribution" tabIndex={-1} /> }));
+vi.mock('./admin/CostAttribution', () => ({ default: () => <div id="cost-attribution" tabIndex={-1}>Cost attribution panel</div> }));
 vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));
@@ -267,6 +267,28 @@ describe('Administration route-backed shell', () => {
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/exchange-rates'));
     expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId('administration-panel-exchange-rates')).toHaveTextContent('Exchange rates panel');
+  });
+
+  it('AC-CAT-017: Finance sees Cost attribution beside Exchange rates, can open it, and sees no other Accounting setup', async () => {
+    renderShell('/administration/exchange-rates', 'Finance');
+    const nav = await screen.findByRole('navigation', { name: 'Administration sections' });
+    expect(within(nav).getAllByRole('link').map((l) => l.getAttribute('href'))).toEqual([
+      '/administration/exchange-rates',
+      '/administration/cost-attribution',
+    ]);
+    await userEvent.click(within(nav).getByRole('link', { name: 'Cost attribution' }));
+    await waitFor(() => expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel'));
+    expect(screen.getByRole('link', { name: 'Cost attribution' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+    expect(panelMounts.accounting).toBe(0);
+  });
+
+  it('AC-CAT-017: Finance is still refused the rest of Accounting setup', async () => {
+    renderShell('/administration/accounting', 'Finance');
+    expect(await screen.findByText(/You don't have access/)).toBeInTheDocument();
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('administration-panel-cost-attribution')).not.toBeInTheDocument();
+    expect(panelMounts.accounting).toBe(0);
   });
 
   it('AC-ADMIA-002: an Operator sees all eight destinations and only mounts the requested panel', async () => {
