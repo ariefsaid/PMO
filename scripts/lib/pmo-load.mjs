@@ -402,6 +402,11 @@ async function resolveContractLines(api, entry, problems) {
   return { lines: lines.map((line) => ({ line, exists: loaded.has(line.key) })) };
 }
 
+/** The per-org unique short-name index rejected the write (#1325). */
+function isShortNameConflict(err) {
+  return err?.code === '23505' && String(err.message ?? '').includes('projects_org_short_name_uidx');
+}
+
 function projectPayload(e) {
   const p = e.input;
   const body = { name: p.name, status: 'Leads', client_id: e.client.id };
@@ -478,7 +483,16 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
       note({ kind: 'project.skip', key: e.key, id: e.id, pmo_project_number: e.pmo_project_number });
     } else {
       await write({ kind: 'project.create', key: e.key }, async () => {
-        const [row] = await api.post('projects', projectPayload(e));
+        let row;
+        try {
+          [row] = await api.post('projects', projectPayload(e));
+        } catch (err) {
+          // #1325: a short name already used in the org is a conflict to report, not a reason to lose the project.
+          if (!isShortNameConflict(err)) throw err;
+          const { short_name: _taken, ...withoutAlias } = projectPayload(e);
+          [row] = await api.post('projects', withoutAlias);
+          note({ kind: 'project.short_name_conflict', key: e.key, id: row.id, file: e.input.short_name });
+        }
         e.id = row.id;
         e.pmo_project_number = row.pmo_project_number ?? null;
         return { id: e.id, pmo_project_number: e.pmo_project_number };
@@ -486,7 +500,13 @@ export async function applyLoad(plan, api, { dryRun, batchId = crypto.randomUUID
     }
     if (e.existing && e.shortName === 'set') {
       await write({ kind: 'project.set_short_name', key: e.key, id: e.id, short_name: e.input.short_name }, async () => {
-        const rows = await api.patch('projects', params({ id: eq(e.id) }), { short_name: e.input.short_name });
+        let rows;
+        try {
+          rows = await api.patch('projects', params({ id: eq(e.id) }), { short_name: e.input.short_name });
+        } catch (err) {
+          if (!isShortNameConflict(err)) throw err;
+          return { kind: 'project.short_name_conflict' };
+        }
         if (!rows?.length) throw Object.assign(new Error(`The short name of "${e.input.name}" was not changed — the database did not allow it`), { code: 'no_rows' });
       });
     } else if (e.existing && e.shortName === 'differs') {

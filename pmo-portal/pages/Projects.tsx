@@ -449,9 +449,11 @@ const Projects: React.FC = () => {
                   }}
                   className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
                   title={p.name}
+                  aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
                 >
                   {projectDisplayName(p)}
                 </button>
+                {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && (
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>

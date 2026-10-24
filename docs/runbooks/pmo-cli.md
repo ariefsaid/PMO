@@ -240,6 +240,10 @@ has diverged from its load-file stage is still skipped for stage movement; use t
 `pmo update` command to backfill its alias separately. Re-running a successful load does not repeat the
 alias write.
 
+Short names are unique per organization (case-insensitive). A load whose alias is already used by another
+project reports `project.short_name_conflict` and carries on: a new project is still created without its alias,
+and an existing project keeps its current value. Pick another alias and set it with `pmo update`.
+
 Re-runs never overwrite: a different stored value, stage or short name is reported, not changed. A
 contract line whose `key` already exists is skipped even if its quantity or rate in the file differs
 (`contract_line.skip`): correct it in the app (Billing). The load never creates work-order allocations

@@ -45,7 +45,7 @@ const DealCard: React.FC<{
 }> = ({ project, selected, onActivate }) => {
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
-  const initial = displayName.trim().charAt(0).toUpperCase() || '•';
+  const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
   return (
     <ProjectCardShell
       variant="kanban"
@@ -94,7 +94,7 @@ const CompactDealCard: React.FC<{
 }> = ({ project, onActivate, hideStatus }) => {
   const statusLabel = useProjectStatusLabel();
   const displayName = projectDisplayName(project);
-  const initial = displayName.trim().charAt(0).toUpperCase() || '•';
+  const initial = (project.client_name ?? displayName).trim().charAt(0).toUpperCase() || '•';
 
   return (
     <ProjectCardShell

@@ -14,6 +14,8 @@ export interface StatusCount<S> {
 export interface TopProject {
   id: string;
   name: string;
+  /** Optional display alias (PM dashboard payload); `name` stays contractual. */
+  short_name?: string | null;
   client_name: string | null;
   contract_value: number | null;
   currency: string;

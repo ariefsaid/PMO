@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -50,9 +51,10 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             />
             <Link
               to={`/projects/${p.id}`}
+              title={projectDisplayName(p) !== p.name ? p.name : undefined}
               className="min-w-0 truncate text-[13px] font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
-              {p.name}
+              {projectDisplayName(p)}
             </Link>
             {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
             <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
@@ -69,7 +71,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             value={pct}
             widthless
             className="w-full [&>span:first-child]:flex-1"
-            aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: p.name, percent: pct })}
+            aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: projectDisplayName(p), percent: pct })}
           />}
           {p.actual_coverage_total != null && p.actual_coverage_total > (p.actual_coverage_count ?? 0) && (
             <span className="text-[12px] text-muted-foreground">

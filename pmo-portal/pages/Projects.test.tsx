@@ -296,6 +296,7 @@ describe('Projects index — IA-3 (real data)', () => {
     renderPage();
     const search = screen.getByRole('searchbox', { name: /search projects/i });
     expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAccessibleDescription('Innovate Corp HQ Fit-Out');
     await userEvent.type(search, 'Harbor Operations');
     expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();

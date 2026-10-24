@@ -54,9 +54,9 @@ beforeEach(() => {
 });
 
 describe('AC-MTG1-001 one-page meeting creation', () => {
-  it('AC-002 #1325: new meeting project option shows alias plus contractual name on its stable UUID', () => {
+  it('AC-002 #1325: new meeting project option shows the short name only on its stable UUID', () => {
     renderPage();
-    expect(screen.getByRole('option', { name: 'North Terminal — Harbour Upgrade' })).toHaveValue('p1');
+    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
   });
 
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {

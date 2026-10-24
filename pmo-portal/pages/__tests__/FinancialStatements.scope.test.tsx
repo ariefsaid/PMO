@@ -187,7 +187,7 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(await screen.findByRole('combobox', { name: 'Scope' })).toBeInTheDocument();
     await waitFor(() => expect(projectGetSpy).toHaveBeenCalledTimes(1));
     expect(projectGetSpy).toHaveBeenCalledWith(projectId);
-    expect(screen.getByRole('option', { name: 'PRJ-42 · North Terminal — Named delivery project' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'PRJ-42 · North Terminal' })).toBeInTheDocument();
     expect(companyListSpy).not.toHaveBeenCalled();
 
     const firstInput = readSpy.mock.calls[0]?.[0];

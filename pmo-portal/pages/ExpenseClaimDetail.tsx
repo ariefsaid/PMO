@@ -1,4 +1,4 @@
-import { projectPickerLabel } from '@/src/lib/projectDisplayName';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -40,7 +40,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update } = useExpenseClaimMutations();
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectPickerLabel(p) })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const backLabel = t('expenses.detail.back', 'Expenses');
   const goBack = () => navigate('/expenses');
@@ -95,7 +95,7 @@ const ExpenseClaimDetail: React.FC = () => {
             <span>{expenseKindLabel(claim.kind, t)}</span>
             <span>{claim.claimant?.full_name ?? '—'}</span>
             {claim.project_id ? (
-              <Link to={`/projects/${claim.project_id}`} className="text-primary-text hover:underline">{claim.project?.name ?? '—'}</Link>
+              <Link to={`/projects/${claim.project_id}`} className="text-primary-text hover:underline" title={claim.project?.name}>{claim.project ? projectDisplayName(claim.project) : '—'}</Link>
             ) : (
               <span>{t('expenses.overhead', 'Overhead')}</span>
             )}

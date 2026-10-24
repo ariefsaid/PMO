@@ -68,3 +68,14 @@ describe('AC-JR-W1-04 / AC-C-PR-2: ProcurementBoard card — single activation t
     expect(screen.queryByRole('link', { name: /Open /i })).toBeNull();
   });
 });
+
+describe('AC-002 #1325: ProcurementBoard card shows the short name with the contractual title on hover', () => {
+  it('leads with the short name, titles the contractual one, and falls back without an alias', () => {
+    const { unmount } = wrap([row({ project: { name: 'Eastfield Phase 2 Contractual', short_name: 'Eastfield', code: 'PRJ-001' } })]);
+    expect(screen.getByText('Eastfield')).toHaveAttribute('title', 'Eastfield Phase 2 Contractual');
+    expect(screen.queryByText('Eastfield Phase 2 Contractual')).toBeNull();
+    unmount();
+    wrap([row()]);
+    expect(screen.getByText('Eastfield Phase 2')).not.toHaveAttribute('title');
+  });
+});

@@ -55,4 +55,20 @@ describe('ProjectFormModal short name (AC-001 #1325)', () => {
     expect(screen.getByRole('button', { name: 'Create project' })).toBeDisabled();
     expect(screen.getByLabelText(/^Project name/)).toBeRequired();
   });
+
+  it('shows a field error when the short name is already used in the organization, and clears it on edit', async () => {
+    const onError = vi.fn();
+    const onSubmit = vi.fn().mockRejectedValue(Object.assign(new Error('duplicate key value violates unique constraint "projects_org_short_name_uidx"'), { code: '23505' }));
+    renderForm({ onSubmit, onError });
+    await userEvent.type(screen.getByLabelText(/^Project name/), 'Contractual delivery');
+    const alias = screen.getByLabelText('Short name (optional)');
+    await userEvent.type(alias, 'Taken');
+    await chooseClient();
+    await userEvent.click(screen.getByRole('button', { name: 'Create project' }));
+    expect(await screen.findAllByText('Another project already uses this short name')).not.toHaveLength(0);
+    expect(alias).toHaveAccessibleDescription(/Another project already uses this short name/);
+    expect(onError).toHaveBeenCalled();
+    await userEvent.type(alias, 'x');
+    expect(screen.queryByText('Another project already uses this short name')).toBeNull();
+  });
 });

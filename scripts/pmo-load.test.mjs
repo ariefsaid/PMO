@@ -705,3 +705,28 @@ test('AC-004 #1325: dry-run and zero-row refusal preserve alias-only write seman
   assert.deepEqual(writes(diverged), []);
   assert.ok(divergedActions.some((action) => action.kind === 'project.diverged'));
 });
+
+const SHORT_NAME_TAKEN = () => Object.assign(
+  new Error('duplicate key value violates unique constraint "projects_org_short_name_uidx"'), { code: '23505', status: 409 });
+
+test('AC-004 #1325: a short name already used in the org is reported as a conflict on backfill, not a failed load', async () => {
+  const doc = { projects: [{ name: 'Plant upgrade', short_name: 'Depot', client: 'Client Legal A', stage: 'Leads' }] };
+  const api = fakeApi({ tables: { companies: COMPANIES(), projects: [EXISTING({ status: 'Leads', contract_value: 0 })] } });
+  api.patch = async (t, q, body) => { api.calls.push({ kind: 'patch', target: t, query: q.toString(), body }); throw SHORT_NAME_TAKEN(); };
+  const actions = await load(api, doc);
+  assert.ok(actions.some((a) => a.kind === 'project.short_name_conflict'));
+  assert.ok(!actions.some((a) => a.kind === 'project.set_short_name'));
+});
+
+test('AC-004 #1325: creating a project whose short name is taken still creates it, without the alias, and reports the conflict', async () => {
+  const doc = { projects: [{ name: 'Legal project name', short_name: 'Depot', client: 'Client Legal A', stage: 'Leads' }] };
+  const api = fakeApi({ tables: { companies: COMPANIES() } });
+  const post = api.post.bind(api);
+  api.post = async (t, body) => { if (t === 'projects' && body.short_name) { api.calls.push({ kind: 'post', target: t, body }); throw SHORT_NAME_TAKEN(); } return post(t, body); };
+  const actions = await load(api, doc);
+  const created = api.calls.filter((c) => c.kind === 'post' && c.target === 'projects');
+  assert.equal(created.length, 2);
+  assert.equal(created[1].body.short_name, undefined);
+  assert.equal(created[1].body.name, 'Legal project name');
+  assert.ok(actions.some((a) => a.kind === 'project.short_name_conflict' && a.file === 'Depot'));
+});

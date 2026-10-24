@@ -1,4 +1,4 @@
-import { projectPickerLabel } from '@/src/lib/projectDisplayName';
+import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
 import { useEffect, useMemo, useState } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -90,9 +90,7 @@ const FinancialStatements: React.FC = () => {
     if (!query || query.isError) return [];
     const project = query.data;
     if (!project || typeof project.name !== 'string' || project.name.trim() === '') return [];
-    const contractualName = project.name;
-    const pickerLabel = project.code ? `${project.code} · ${projectPickerLabel(project)}` : projectPickerLabel(project);
-    return [{ value: projectId, label: pickerLabel, contractualName }];
+    return [{ value: projectId, label: projectCodedPickerLabel(project) }];
   });
 
   useEffect(() => {

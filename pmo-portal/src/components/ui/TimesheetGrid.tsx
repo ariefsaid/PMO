@@ -26,6 +26,8 @@ export interface TimesheetGridRow {
   hours: number[];
   /** Owning project id — present only in read-only contexts; enables click-to-open (AC-JR-W1-08). */
   projectId?: string;
+  /** Contractual title behind a short `project` label — hover + accessible description (#1325). */
+  projectLegalName?: string;
 }
 
 export interface TimesheetGridProps {
@@ -154,7 +156,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         // One delete control, one accessible name.
         <div className="flex min-w-0 items-start gap-2">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium" title={r.project}>
+            <div className="truncate text-sm font-medium" title={r.projectLegalName ?? r.project}>
               {r.project}
             </div>
             {r.code && (
@@ -189,6 +191,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
           <ProjectNameLink
             projectId={r.projectId}
             name={r.project}
+            legalName={r.projectLegalName}
             className="truncate text-sm font-medium"
           />
           {r.code && (
@@ -379,7 +382,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
               <div className="min-w-0 flex-1">
                 {editable ? (
                   // Editable mobile: plain text (no link while editing)
-                  <div className="truncate text-sm font-medium text-foreground" title={r.project}>
+                  <div className="truncate text-sm font-medium text-foreground" title={r.projectLegalName ?? r.project}>
                     {r.project}
                   </div>
                 ) : (
@@ -387,6 +390,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                   <ProjectNameLink
                     projectId={r.projectId}
                     name={r.project}
+                    legalName={r.projectLegalName}
                     className="truncate text-sm font-medium"
                   />
                 )}

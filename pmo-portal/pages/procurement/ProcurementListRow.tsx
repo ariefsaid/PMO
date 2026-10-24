@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 /**
  * Fix #5 — Inline expand/preview for the procurement list (AC-FIX5-PREVIEW-*).
  *
@@ -109,7 +110,8 @@ const ExpandedPanel: React.FC<{
           <DecisionSupportPanel
             projectId={detail.data.project_id}
             totalValue={detail.data.total_value}
-            projectName={detail.data.project?.name}
+            projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
+            projectLegalName={detail.data.project?.name}
             status={detail.data.status}
             currency={detail.data.currency}
           />
@@ -250,7 +252,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
         <dl className="contents">
           <div className={`${columnFields[1].span} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
-            <dd><ProjectNameLink projectId={row.project_id} name={row.project?.name ?? null} className="block whitespace-normal break-words" /></dd>
+            <dd><ProjectNameLink projectId={row.project_id} name={row.project ? projectDisplayName(row.project) : null} legalName={row.project?.name} className="block whitespace-normal break-words" /></dd>
           </div>
           <div className={`${columnFields[2].span} min-w-0 break-words`}>
             <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>

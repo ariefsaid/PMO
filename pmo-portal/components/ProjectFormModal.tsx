@@ -243,6 +243,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const numberProposal = useProjectNumberProposal(form.values.clientId, !isEdit);
   const appliedProposal = useRef<string | null>(null);
   const [numberConflict, setNumberConflict] = useState(false);
+  const [shortNameConflict, setShortNameConflict] = useState(false);
   useEffect(() => {
     if (!isEdit && numberProposal.status === 'success' && numberProposal.number !== appliedProposal.current) {
       form.setValue('pmoProjectNumber', numberProposal.number);
@@ -329,10 +330,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   // F8 (AC-IXD-FORM-F8): the value (estimated contract) field can carry a FORMAT
   // error (non-blank but unparseable) — it is anchored here so a still-invalid
   // submit moves focus to it (the completeness gate cannot block a non-blank field).
+  const shortNameDuplicate = t('projects:shortName.duplicate', 'Another project already uses this short name');
   const errorSummary = [
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
+    shortNameConflict ? { fieldId: shortNameField.id, message: shortNameDuplicate } : null,
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
 
@@ -416,7 +419,9 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         }
       } catch (err) {
         const failure = err as { code?: string; message?: string };
-        if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
+        if (failure.code === '23505' && failure.message?.includes('projects_org_short_name_uidx')) {
+          setShortNameConflict(true);
+        } else if (failure.code === '23505' && (!failure.message || failure.message.includes('pmo_project_number'))) {
           setNumberConflict(true);
         }
         onError(err);
@@ -444,9 +449,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             id={shortNameField.id}
             label={t('projects:shortName.label', 'Short name (optional)')}
             value={shortNameField.value}
-            onChange={shortNameField.onChange}
+            onChange={(value) => {
+              shortNameField.onChange(value);
+              setShortNameConflict(false);
+            }}
             onBlur={shortNameField.onBlur}
-            helper={t('projects:shortName.hint', 'Used in lists and search. The contractual project name stays unchanged.')}
+            error={shortNameConflict ? shortNameDuplicate : undefined}
+            helper={t('projects:shortName.hint', 'Shown in lists. Contract name is unchanged.')}
           />
 
           <Combobox

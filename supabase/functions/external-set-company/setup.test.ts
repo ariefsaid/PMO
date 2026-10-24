@@ -640,7 +640,7 @@ Deno.test("project link in another org refuses before any ERP or configuration w
     assertEquals(calls.filter((call) => call.method === "PATCH").length, 0);
   });
 });
-Deno.test("AC-003 #1325: ERP Project uses the contractual title, never its short name", async () => {
+Deno.test("AC-SETUP-001 AC-003 #1325: project creation uses the contractual title, never its short name, stores the ERP returned identity and retry resolves the existing project without another POST", async () => {
   let created = false, posts = 0;
   await withFetchMock([
     ...base(),

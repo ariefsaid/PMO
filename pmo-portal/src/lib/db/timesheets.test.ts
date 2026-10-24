@@ -94,7 +94,7 @@ describe('listTimesheets', () => {
     builderResolving({ data: rows, error: null });
     const result = await listTimesheets('00000000-0000-0000-0000-0000000000a2');
     expect(mockFrom).toHaveBeenCalledWith('timesheets');
-    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,code))');
+    expect(mockSelect).toHaveBeenCalledWith('*, entries:timesheet_entries(*, project:projects(name,short_name,code))');
     expect(mockEq).toHaveBeenCalledWith('user_id', '00000000-0000-0000-0000-0000000000a2');
     expect(mockOrder).toHaveBeenCalledWith('week_start_date', { ascending: false });
     expect(result[0].entries[0].project?.name).toBe('Innovate Corp HQ Fit-Out');

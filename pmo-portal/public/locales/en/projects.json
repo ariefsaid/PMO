@@ -13,8 +13,10 @@
   },
   "shortName": {
     "label": "Short name (optional)",
-    "hint": "Used in lists and search. The contractual project name stays unchanged.",
+    "hint": "Shown in lists. Contract name is unchanged.",
     "searchProject": "Project · {{name}}",
-    "searchPipeline": "Project · Pipeline · {{name}}"
+    "searchPipeline": "Project · Pipeline · {{name}}",
+    "contractName": "Contract name",
+    "duplicate": "Another project already uses this short name"
   }
 }

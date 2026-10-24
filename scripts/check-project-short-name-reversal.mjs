@@ -49,6 +49,7 @@ do $$ begin
   end if;
   perform public.get_sales_pipeline();
   perform public.search_record_references('reversal probe');
+  perform public.get_pm_dashboard_projects();
 end $$;
 
 ${up}

@@ -310,3 +310,16 @@ describe('RevenueByProject — never reports a figure it does not have (BLOCK 2)
     expect(screen.queryByText(/2,001,000/)).not.toBeInTheDocument();
   });
 });
+
+describe('RevenueByProject short names (AC-002 #1325)', () => {
+  it('shows the short name in the project doorway while the contractual title stays on hover', () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Contractual Depot Expansion', project_short_name: 'Depot', currency: 'USD', total_amount: 1000, open_ar: 0, invoice_count: 1 },
+    ] as never;
+    renderPage();
+    const open = screen.getByRole('button', { name: 'Open Depot (USD)' });
+    expect(open).toHaveTextContent('Depot');
+    expect(open).toHaveAttribute('title', 'Contractual Depot Expansion');
+    expect(screen.queryByText('Contractual Depot Expansion')).toBeNull();
+  });
+});

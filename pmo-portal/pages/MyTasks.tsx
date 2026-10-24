@@ -78,7 +78,7 @@ const MyTasks: React.FC = () => {
       const isCompleted = task.status === 'Done';
       if (isCompleted !== (queue === 'completed')) return false;
       if (!normalizedSearch) return true;
-      return `${task.name} ${task.project_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
+      return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
   }, [tasks, queue, search]);
 
@@ -89,13 +89,14 @@ const MyTasks: React.FC = () => {
     // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
     // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
     // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
-    const map = new Map<string, { projectId: string | null; projectName: string; items: typeof tasks }>();
+    const map = new Map<string, { projectId: string | null; projectName: string; legalName?: string | null; items: typeof tasks }>();
     for (const task of visibleTasks) {
       const key = task.project_id ?? NO_PROJECT;
       if (!map.has(key)) {
         map.set(key, {
           projectId: task.project_id,
           projectName: task.project_name ?? t('myTasks.noProjectGroup', 'No project'),
+          legalName: task.project_contractual_name,
           items: [],
         });
       }
@@ -212,6 +213,7 @@ const MyTasks: React.FC = () => {
                 {group.projectId ? (
                   <Link
                     to={`/projects/${group.projectId}/tasks`}
+                    title={group.legalName && group.legalName !== group.projectName ? group.legalName : undefined}
                     className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {group.projectName}

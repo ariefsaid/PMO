@@ -174,6 +174,15 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(within(row).getByText('Site office')).toBeInTheDocument();
   });
 
+  it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
+    const original = listState.data;
+    listState.data = [{ ...(seed[0] as object), project: { id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'Harbour', project_manager_id: null, pm: null } }];
+    renderPage();
+    const row = screen.getByText('Kickoff with Acme').closest('tr')!;
+    expect(within(row).getByTitle('Harbour Upgrade')).toHaveTextContent('Harbour');
+    listState.data = original;
+  });
+
   it('a row activates into the /meetings/:id detail route', async () => {
     renderPage();
     await userEvent.click(screen.getByText('Kickoff with Acme'));
@@ -315,9 +324,9 @@ describe('AC-PLC-005/006 (#684): New-meeting "When" prefill and submit follow th
 // opening a row stamps a validated Meetings return context onto the navigation's router state.
 // The existing deferred SERVER search + newest-first query are unchanged (see Meetings.tsx).
 describe('Meetings index — list working set + return context (AC-LRC-008)', () => {
-  it('AC-002 #1325: project filter offers the alias while retaining contractual identity and UUID', () => {
+  it('AC-002 #1325: project filter offers the short name only (no contractual suffix) on the stable UUID', () => {
     renderPage('Admin');
-    expect(screen.getByRole('option', { name: 'North Terminal — Harbour Upgrade' })).toHaveValue('33333333-3333-4333-8333-333333333333');
+    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('33333333-3333-4333-8333-333333333333');
   });
 
   it('AC-LRC-001: a direct URL with ?project= restores the selected filter and queries the server for it', () => {

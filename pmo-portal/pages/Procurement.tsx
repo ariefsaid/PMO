@@ -1,3 +1,4 @@
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ListPage,
@@ -257,7 +258,7 @@ const ProcurementPage: React.FC = () => {
     {
       key: 'project',
       header: t('procurement.column.project', 'Project'),
-      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} className="text-muted-foreground" />,
+      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project ? projectDisplayName(r.project) : undefined} legalName={r.project?.name} className="text-muted-foreground" />,
       exportValue: (r) => r.project?.name ?? '',
     },
     {

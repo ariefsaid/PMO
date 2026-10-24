@@ -167,7 +167,7 @@ export async function attestTimesheetNoErpDocument(id: string, reason: string): 
 // ---------------------------------------------------------------------------
 
 const AWAITING_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,code))';
+  '*, owner:profiles!timesheets_user_id_fkey(full_name,manager_id), entries:timesheet_entries(*, project:projects(name,short_name,code))';
 
 /**
  * Returns Submitted timesheets visible to the caller (via RLS) excluding their own (SoD).
@@ -262,7 +262,7 @@ export type ReopenableApprovedTimesheet = TimesheetAwaitingApproval & {
 };
 
 const REOPENABLE_SELECT =
-  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
+  '*, owner:profiles!timesheets_user_id_fkey(full_name), entries:timesheet_entries(*, project:projects(name,short_name,code)), mirror:timesheet_erp_mirror!timesheet_erp_mirror_timesheet_id_fkey(ts_number, push_state, erp_cancelled_at, post_submit_unknown_at)';
 
 /**
  * Slice A (FR-TSC-060 / F5) — the Approved sheets an approver may consider re-opening: other users'

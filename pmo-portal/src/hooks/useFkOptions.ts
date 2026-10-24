@@ -1,5 +1,5 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { projectDisplayName, projectOptionSub } from '@/src/lib/projectDisplayName';
 import { useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -49,10 +49,7 @@ export function useProjectOptions() {
       const rows = await repositories.project.list();
       return rows
         .filter((p) => p.archived_at == null)
-        .map((p) => {
-          const display = projectDisplayName(p);
-          return { value: p.id, label: display, sub: [display !== p.name ? p.name : null, p.code].filter(Boolean).join(' · ') || undefined };
-        });
+        .map((p) => ({ value: p.id, label: projectDisplayName(p), sub: projectOptionSub(p) }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,
@@ -87,12 +84,10 @@ export function useInvoiceProjectOptions() {
     queryKey: ['fk-options', 'invoice-project', orgId],
     queryFn: async () => {
       const rows = await repositories.project.list();
-      return rows.map((p) => {
-        const display = projectDisplayName(p);
-        return {
+      return rows.map((p) => ({
         value: p.id,
-        label: display,
-        sub: [display !== p.name ? p.name : null, p.code].filter(Boolean).join(' · ') || undefined,
+        label: projectDisplayName(p),
+        sub: projectOptionSub(p),
         contractualName: p.name,
         clientId: p.client_id,
         ...(p.currency !== undefined ? { currency: p.currency } : {}),
@@ -102,8 +97,7 @@ export function useInvoiceProjectOptions() {
         taxRate: p.tax_rate,
         customerContractRef: p.customer_contract_ref,
         archived: p.archived_at != null,
-      };
-      });
+      }));
     },
     enabled: Boolean(orgId),
     staleTime: FK_STALE_MS,

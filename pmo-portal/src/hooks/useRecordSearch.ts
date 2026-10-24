@@ -82,13 +82,14 @@ export function useRecordSearch(
     const out: PaletteItem[] = [];
 
     for (const p of projects.data ?? []) {
+      const display = projectDisplayName(p);
       const projectSearchCodes = [p.pmo_project_number, p.code, p.customer_contract_ref]
         .filter((value): value is string => Boolean(value));
       out.push({
         id: `projects:${p.id}`,
         group: 'Records',
-        title: projectDisplayName(p),
-        sub: projectDisplayName(p) !== p.name
+        title: display,
+        sub: display !== p.name
           ? t('projects:shortName.searchProject', { name: p.name, defaultValue: 'Project · {{name}}' })
           : t('shell.palette.recordProject', 'Project'),
         code: [
@@ -109,12 +110,13 @@ export function useRecordSearch(
 
     if (mayViewPipeline) {
       for (const o of pipeline.data?.projects ?? []) {
+        const display = projectDisplayName(o);
         const pipelineCodes = [o.pmo_project_number, o.code].filter((value): value is string => Boolean(value));
         out.push({
           id: `sales:${o.id}`,
           group: 'Records',
-          title: projectDisplayName(o),
-          sub: projectDisplayName(o) !== o.name
+          title: display,
+          sub: display !== o.name
             ? t('projects:shortName.searchPipeline', { name: o.name, defaultValue: 'Project · Pipeline · {{name}}' })
             : t('shell.palette.projectPipeline', 'Project · Pipeline'),
           code: [

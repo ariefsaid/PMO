@@ -327,7 +327,9 @@ describe('CommandPalette', () => {
     await userEvent.type(screen.getByRole('combobox'), 'PO-ALIAS-42');
     const result = await screen.findByRole('option', { name: /North Terminal/ });
     expect(within(result).getByText('North Terminal')).toBeInTheDocument();
-    expect(within(result).getByText(/Contractual terminal refurbishment$/)).toBeInTheDocument();
+    const context = within(result).getByText(/Contractual terminal refurbishment$/);
+    expect(context).toHaveClass('truncate');
+    expect(context).toHaveAttribute('title', 'Project · Contractual terminal refurbishment');
   });
 
   it('AC-V24P-016: a server project hit already cached as a pipeline record appears once; distinct hits stay and open their canonical route', async () => {

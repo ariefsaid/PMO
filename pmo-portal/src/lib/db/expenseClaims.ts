@@ -25,7 +25,7 @@ export type BudgetCategory = Database['public']['Enums']['budget_category'];
 
 export type ExpenseClaimWithRefs = ExpenseClaimRow & {
   claimant: { full_name: string } | null;
-  project: { name: string } | null;
+  project: { name: string; short_name?: string | null } | null;
 };
 
 export interface ExpenseClaimFilters {
@@ -78,7 +78,7 @@ export interface ExpenseAdvanceAgingRow {
 export const EXPENSE_LIST_LIMIT = 200;
 export const AGING_LIMIT = 500;
 
-const SELECT = '*, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name)';
+const SELECT = '*, claimant:profiles!expense_claims_claimant_id_fkey(full_name), project:projects(name,short_name)';
 
 interface PostgrestErrorLike { message: string; code?: string }
 function throwWrite(error: PostgrestErrorLike): never {

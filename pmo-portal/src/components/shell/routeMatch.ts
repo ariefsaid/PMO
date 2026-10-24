@@ -589,38 +589,56 @@ export function recordLabelForPath(
   pathname: string,
   lists: RecordLists,
 ): string | undefined {
-  const idFrom = (prefix: string): string | undefined => {
-    if (!pathname.startsWith(`${prefix}/`)) return undefined;
-    return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
-  };
+  const idFrom = (prefix: string): string | undefined => routeIdFrom(pathname, prefix);
 
   const project = projectIdentityForPath(pathname, lists);
   if (project) return projectDisplayName(project);
 
   const procurementId = idFrom('/procurement');
   if (procurementId) return lists.procurements?.find((p) => p.id === procurementId)?.title;
+
+  // CW-4a: an incident's human label is its `type` (no title column).
   const incidentId = idFrom('/incidents');
   if (incidentId) return lists.incidents?.find((i) => i.id === incidentId)?.type;
+
+  // CW-4b: a company's label is its `name`, a contact's is its `full_name`.
   const companyId = idFrom('/companies');
   if (companyId) return lists.companies?.find((c) => c.id === companyId)?.name;
+
   const contactId = idFrom('/contacts');
   if (contactId) return lists.contacts?.find((c) => c.id === contactId)?.full_name;
+
+  // #526: a meeting's label is its `title`.
   const meetingId = idFrom('/meetings');
   if (meetingId) return lists.meetings?.find((m) => m.id === meetingId)?.title;
+
+  // Expense detail breadcrumb uses its human-facing claim number, then its title.
   const expenseId = idFrom('/expenses');
   if (expenseId) {
     const claim = lists.expenses?.find((item) => item.id === expenseId);
     return claim?.claim_number || claim?.title || undefined;
   }
+
+  // I3: user views — resolve view name from the useUserViews() cache (FR-VR-082).
   const viewId = idFrom('/views');
   if (viewId) return lists.userViews?.find((v) => v.id === viewId)?.name;
+
   return undefined;
 }
 
+/** Segment after the module prefix, dropping any trailing `/budget` etc. */
+function routeIdFrom(pathname: string, prefix: string): string | undefined {
+  if (!pathname.startsWith(`${prefix}/`)) return undefined;
+  return pathname.slice(prefix.length + 1).split('/')[0] || undefined;
+}
+
 function projectIdentityForPath(pathname: string, lists: RecordLists) {
-  const projectId = pathname.startsWith('/projects/') ? pathname.slice('/projects/'.length).split('/')[0] : undefined;
+  // Model B (ADR-0020): /projects/:id is the canonical route for EVERY stage. An on-hand /
+  // internal record is in the active projects list; a pre-win / lost record is in the
+  // pipeline (opportunities) list only — fall back to it so the crumb resolves either way.
+  const projectId = routeIdFrom(pathname, '/projects');
   if (projectId) return lists.projects?.find((p) => p.id === projectId) ?? lists.opportunities?.find((o) => o.id === projectId);
-  const salesId = pathname.startsWith('/sales/') ? pathname.slice('/sales/'.length).split('/')[0] : undefined;
+  const salesId = routeIdFrom(pathname, '/sales');
   if (salesId) return lists.opportunities?.find((o) => o.id === salesId);
   return undefined;
 }

@@ -52,7 +52,7 @@ describe('listProcurements', () => {
     const result = await listProcurements();
     expect(mockFrom).toHaveBeenCalledWith('procurements');
     expect(mockSelect).toHaveBeenCalledWith(
-      '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment',
+      '*, project:projects(name,short_name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment',
     );
     expect(result[0].project?.name).toBe('Innovate Corp HQ Fit-Out');
     expect(result[0].requested_by?.full_name).toBe('Alice Manager');
@@ -190,7 +190,7 @@ describe('listProcurementsByProject', () => {
     makeBuilder({ data: rows, error: null });
     const out = await listProcurementsByProject('proj-1');
     expect(mockFrom).toHaveBeenCalledWith('procurements');
-    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,code)'));
+    expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining('project:projects(name,short_name,code)'));
     expect(mockEq).toHaveBeenCalledWith('project_id', 'proj-1');
     expect(out.map((r) => r.id)).toEqual(['pr1']);
   });
