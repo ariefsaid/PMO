@@ -2050,7 +2050,7 @@
       "moneyOnProjectRequestedBy": "<amount>{{amount}}</amount> on <project/>, requested by <person>{{name}}</person>",
       "moneyRequestedBy": "<amount>{{amount}}</amount>, requested by <person>{{name}}</person>",
       "saveGR": "Save GR",
-      "saveVI": "Save VI",
+      "saveVI": "Save vendor invoice",
       "terminal": "This is a terminal action for this request and cannot be undone.",
       "viBody": "This records a vendor invoice against {{request}}.",
       "viTitle": "Record this vendor invoice?"

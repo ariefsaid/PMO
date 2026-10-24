@@ -104,6 +104,7 @@ vi.mock('@/src/hooks/useVendorWithholdingSlips', () => ({
 }));
 
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({
   useProcurementMicrosoftReferences: () => ({ query: { data: refs.rows } }),
 }));

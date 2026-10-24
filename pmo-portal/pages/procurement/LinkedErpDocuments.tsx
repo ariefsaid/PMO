@@ -60,7 +60,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
     ...(canUnlink ? [{
       key: 'actions', header: <span className="sr-only">{t('erpLinks.actions', 'Actions')}</span>, kind: 'actions' as const, size: 120,
       cell: (d: ErpPurchaseRow) => d.linkId ? (
-        <Button size="sm" variant="ghost" aria-label={t('erpLinks.unlinkOne', 'Unlink {{name}}', { name: d.name })}
+        <Button size="sm" variant="outline" aria-label={t('erpLinks.unlinkOne', 'Unlink {{name}}', { name: d.name })}
           onClick={() => { setUnlinkError(null); setConfirming(d); }}>
           {t('erpLinks.unlink', 'Unlink')}
         </Button>
@@ -70,9 +70,9 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
 
   return (
     <section aria-labelledby={headingId} className="mt-6 border-t border-border pt-4">
-      <h3 id={headingId} className="mb-2 px-1 text-[14px] font-semibold text-foreground">
+      <h2 id={headingId} className="mb-2 px-1 text-[14px] font-semibold text-foreground">
         {t('erpLinks.linkedTitle', 'Documents from ERPNext')}
-      </h3>
+      </h2>
       {query.isError ? (
         <ListState variant="error" title={t('erpLinks.linkedError', "Couldn't load the documents from ERPNext")} onRetry={() => void query.refetch()} />
       ) : (

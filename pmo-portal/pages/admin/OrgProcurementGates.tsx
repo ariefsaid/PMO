@@ -5,40 +5,30 @@ import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { FieldError, ListState } from '@/src/components/ui';
+import { FieldError, ListState, Switch } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProcurementGates } from '@/src/lib/db/orgs';
+import { PROCUREMENT_GATES_KEY } from '@/src/hooks/useProcurementGates';
 
-const RULES: { key: keyof ProcurementGates; label: string }[] = [
-  { key: 'request_before_order', label: 'Request required before order' },
-  { key: 'approval_before_order', label: 'Approval required before order' },
-  { key: 'receipt_before_invoice', label: 'Receipt required before invoice' },
-  { key: 'approval_before_payment', label: 'Approval required before payment' },
+const RULES: { key: keyof ProcurementGates; label: string; help: string }[] = [
+  { key: 'request_before_order', label: 'Request required before order', help: 'When on, an order needs a purchase request first.' },
+  { key: 'approval_before_order', label: 'Approval required before order', help: 'When on, an order needs an approved request first.' },
+  { key: 'receipt_before_invoice', label: 'Receipt required before invoice', help: 'When on, a vendor invoice needs a goods receipt first.' },
+  { key: 'approval_before_payment', label: 'Approval required before payment', help: 'When on, a payment needs an approved amount first.' },
 ];
 
-const QUERY_KEY = 'org-procurement-gates';
-
-/** One rule: a switch named by its visible text; the whole row is the click target. */
-const RuleSwitch: React.FC<{ label: string; on: boolean; disabled: boolean; onToggle: () => void }> = ({ label, on, disabled, onToggle }) => {
+/** One rule: a switch named by its visible text, with what it does when on; the whole row is the click target. */
+const RuleSwitch: React.FC<{ label: string; help: string; on: boolean; disabled: boolean; onToggle: (next: boolean) => void }> = ({ label, help, on, disabled, onToggle }) => {
   const labelId = useId();
+  const helpId = useId();
   return (
     <li>
-      <label className={cn('flex min-h-8 items-center gap-3 text-[13px]', disabled ? 'cursor-default' : 'cursor-pointer')}>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={on}
-          aria-labelledby={labelId}
-          disabled={disabled}
-          onClick={onToggle}
-          className={cn(
-            'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full border border-border transition-colors disabled:opacity-60',
-            on ? 'bg-primary' : 'bg-muted',
-          )}
-        >
-          <span aria-hidden className={cn('pointer-events-none size-4 rounded-full bg-background shadow-sm transition-transform', on ? 'translate-x-4' : 'translate-x-0.5')} />
-        </button>
-        <span id={labelId}>{label}</span>
+      <label className={cn('flex min-h-11 items-start gap-3 py-1.5 text-[13px]', disabled ? 'cursor-default' : 'cursor-pointer')}>
+        <Switch checked={on} onChange={onToggle} labelledBy={labelId} describedBy={helpId} disabled={disabled} className="mt-0.5" />
+        <span className="min-w-0">
+          <span id={labelId} className="block font-medium">{label}</span>
+          <span id={helpId} className="block text-muted-foreground">{help}</span>
+        </span>
       </label>
     </li>
   );
@@ -53,7 +43,7 @@ export default function OrgProcurementGates() {
   const orgId = useAuth().currentUser?.org_id;
   const canManage = usePermission()('manage', 'orgAccounting');
   const qc = useQueryClient();
-  const queryKey = [QUERY_KEY, orgId];
+  const queryKey = [PROCUREMENT_GATES_KEY, orgId];
   const query = useQuery({ queryKey, queryFn: () => repositories.orgSettings.getProcurementGates(), enabled: Boolean(orgId) });
   const mutation = useMutation({
     mutationFn: (patch: Partial<ProcurementGates>) => repositories.orgSettings.setProcurementGates(patch),
@@ -74,18 +64,22 @@ export default function OrgProcurementGates() {
           : query.isPending ? <ListState variant="loading" rows={4} />
           : (
             <ul className="space-y-1">
-              {RULES.map(({ key, label }) => (
+              {RULES.map(({ key, label, help }) => (
                 <RuleSwitch
                   key={key}
                   label={t(`procurement:gates.${key}`, label)}
+                  help={t(`procurement:gates.${key}Help`, help)}
                   on={query.data[key]}
                   disabled={!canManage || mutation.isPending}
-                  onToggle={() => { mutation.reset(); mutation.mutate({ [key]: !query.data[key] }); }}
+                  onToggle={(next) => { mutation.reset(); mutation.mutate({ [key]: next }); }}
                 />
               ))}
             </ul>
           )}
         {!canManage && <p className="mt-2 text-[13px] text-muted-foreground">{t('procurement:gates.onlyAdmin', 'Only an Admin can change this.')}</p>}
+        <p role="status" className="mt-1 min-h-5 text-[13px] text-muted-foreground">
+          {mutation.isPending ? t('procurement:gates.saving', 'Saving…') : mutation.isSuccess ? t('procurement:gates.saved', 'Saved') : ''}
+        </p>
         {saveError && <FieldError>{saveError.detail || saveError.headline}</FieldError>}
       </div>
     </section>

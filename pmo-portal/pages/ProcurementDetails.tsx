@@ -42,6 +42,11 @@ import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
 import { ProcurementHeaderEdit } from './procurement/ProcurementHeaderEdit';
 import { ProcurementLedger } from './procurement/ProcurementLedger';
+import { erpDoctypeLabel } from './procurement/erpLinkReasons';
+import { useProcurementGates } from '@/src/hooks/useProcurementGates';
+import { itemsNetTotal } from '@/src/lib/itemsNet';
+import { purchaseHasValue } from './procurement/purchaseValue';
+import { recordableFirstKinds } from './procurement/firstDocument';
 import { useLinkedErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
 import { LinkedErpDocuments } from './procurement/LinkedErpDocuments';
 import { ProcurementMicrosoftReferences } from './procurement/ProcurementMicrosoftReferences';
@@ -51,7 +56,7 @@ import {
   ProcurementDecisionZone,
   type VendorInvoiceCapture,
 } from './procurement/ProcurementDecisionZone';
-import { buildLedgerRows } from '@/src/lib/db/procurementLedger';
+import { buildLedgerRows, type LedgerRow } from '@/src/lib/db/procurementLedger';
 import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
@@ -68,6 +73,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import {
   lifecycleSteps,
+  visibleLifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
   selectedQuotation,
@@ -92,6 +98,7 @@ const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also a
 const LEDGER_KIND = {
   PR: 'purchase_request', RFQ: 'rfq', Quote: 'quotation', PO: 'purchase_order', GR: 'goods_receipt', Invoice: 'vendor_invoice', Payment: 'payment',
 } as const;
+const REQUEST_STAGE_STATUSES: ReadonlySet<string> = new Set(['Requested', 'Approved', 'Vendor Quoted', 'Quote Selected']);
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 // ---------------------------------------------------------------------------
@@ -176,6 +183,8 @@ function allowedActions(
   routeAllows: boolean = true,
   /** FR-PFE-005: a payment was recorded at an earlier step (payment-first). */
   hasPaymentRecord: boolean = false,
+  /** D2 review C3: Mark as Paid needs something to pay — a line item or a recorded amount. */
+  hasValue: boolean = true,
 ): { to: ProcurementStatus; label: string; variant: ActionVariant }[] {
   const actions: { to: ProcurementStatus; label: string; variant: ActionVariant }[] = [];
 
@@ -240,13 +249,13 @@ function allowedActions(
   // Vendor Invoiced → Paid: Finance only, AND not the user who approved the
   // request. SoD-b is enforced server-side and ALWAYS rejects pay-by-approver,
   // so offering it cosmetically produced a "click that does nothing" — gate it.
-  if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover) {
+  if (legal('Paid') && INVOICE_PAY_ROLES.has(role) && !isApprover && hasValue) {
     actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
   }
 
   // FR-PFE-005 payment-first: a recorded (scheduled) payment can be paid from an earlier step. Same role and SoD rule as above.
   if (hasPaymentRecord && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received'].includes(status)
-      && INVOICE_PAY_ROLES.has(role) && !isApprover) {
+      && INVOICE_PAY_ROLES.has(role) && !isApprover && hasValue) {
     actions.push({ to: 'Paid', label: t('procurementDetail.action.markAsPaid', 'Mark as Paid'), variant: 'primary' });
   }
 
@@ -306,12 +315,10 @@ const ProcurementDetails: React.FC = () => {
   const bupotParams = new URLSearchParams(location.search);
   const bupotId = bupotParams.get('bupot');
   const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
-  // FR-PFE-001: the first document chosen on the create page (read only while the ledger is empty, in the capture row).
-  const startAtParam = bupotParams.get('startAt');
-  const startAt = (['purchase_order', 'goods_receipt', 'vendor_invoice', 'payment'] as const).find((k) => k === startAtParam) ?? null;
 
   const detailQuery = useProcurementDetail(procurementId);
   const linkedDocs = useLinkedErpDocuments(procurementId).data;
+  const gates = useProcurementGates().data;
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
@@ -464,7 +471,8 @@ const ProcurementDetails: React.FC = () => {
     p.approvalRoute && !routeAllows && !isRequester
       ? approvalRouteNote(p.approvalRoute, p.budget_category, t, realRole)
       : null;
-  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0));
+  const hasValue = purchaseHasValue(p);
+  const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -532,7 +540,12 @@ const ProcurementDetails: React.FC = () => {
     />
   ) : null;
   const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
-  const gateMsg = sodGateMessage(p, role, isRequester);
+  // C3: the one line saying why "Mark as Paid" is absent — only to someone who would otherwise be offered it.
+  const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
+    && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
+    && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
+  const gateMsg = sodGateMessage(p, role, isRequester)
+    ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
   // Received); the VI form only while the request is at Vendor Invoiced. Neither
@@ -921,13 +934,26 @@ const ProcurementDetails: React.FC = () => {
   const ledgerRows = buildLedgerRows(p);
   // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
   // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
-  const documentsCount = ledgerRows.length;
+  // The badge counts the purchase's own records plus the ERPNext documents linked to it. SharePoint links stay out of it:
+  // they are fetched only when this tab opens (#1020 F8).
+  const documentsCount = ledgerRows.length + (linkedDocs?.length ?? 0);
   // FR-PFE-038: a SharePoint link can be attached to any record of the purchase or a linked ERP document.
+  const attachTypeName: Record<LedgerRow['type'], string> = {
+    PR: t('procurement:documents.type.pr', 'Purchase request'), RFQ: t('procurement:documents.type.rfq', 'Quote request'),
+    Quote: t('procurement:documents.type.quote', 'Quotation'), PO: t('procurement:documents.type.po', 'Purchase order'),
+    GR: t('procurement:documents.type.gr', 'Goods receipt'), Invoice: t('procurement:documents.type.invoice', 'Vendor invoice'),
+    Payment: t('procurement:documents.type.payment', 'Payment'),
+  };
+  // Labelled by type + number (never a raw id); a record with no number yet is just its type.
   const attachTargets = [
     ...ledgerRows.map((r) => ({
-      value: `${LEDGER_KIND[r.type]}:${r.recordId}`, label: r.systemNumber ?? r.id, recordKind: LEDGER_KIND[r.type], recordId: r.recordId,
+      value: `${LEDGER_KIND[r.type]}:${r.recordId}`,
+      label: r.systemNumber ? `${attachTypeName[r.type]} ${r.systemNumber}` : attachTypeName[r.type],
+      recordKind: LEDGER_KIND[r.type], recordId: r.recordId,
     })),
-    ...(linkedDocs ?? []).map((d) => ({ value: `erp_document:${d.id}`, label: d.name, recordKind: 'erp_document' as const, recordId: d.id })),
+    ...(linkedDocs ?? []).map((d) => ({
+      value: `erp_document:${d.id}`, label: `${erpDoctypeLabel(t, d.doctype)} ${d.name}`, recordKind: 'erp_document' as const, recordId: d.id,
+    })),
   ];
   const procTabs: TabItem<ProcTab>[] = [
     { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
@@ -997,7 +1023,7 @@ const ProcurementDetails: React.FC = () => {
         <CardPad>
           <LifecycleStepper
             variant="bar"
-            steps={lifecycleSteps(p.status, {
+            steps={visibleLifecycleSteps(lifecycleSteps(p.status, {
               // I1 (design-review): refs must come from ACTUAL record rows, not the
               // denormalized header columns (p.pr_number / p.po_number). The header
               // columns may be set even when no record exists in the ledger, causing
@@ -1010,6 +1036,13 @@ const ProcurementDetails: React.FC = () => {
               po_number: p.purchase_orders?.[0]?.po_number ?? null,
               gr_number: p.receipts[0]?.gr_number,
               vi_number: p.invoices[0]?.vi_number,
+            }), {
+              // The approval path (Requested → Approved → quoting) always began with a request, whether or not its record row is loaded.
+              pr: (p.purchase_requests?.length ?? 0) > 0 || REQUEST_STAGE_STATUSES.has(p.status),
+              vq: (p.quotations?.length ?? 0) > 0,
+              po: (p.purchase_orders?.length ?? 0) > 0,
+              gr: p.receipts.length > 0,
+              vi: p.invoices.length > 0,
             })}
             aria-label={t('procurementDetail.lifecycleLabel', 'Procurement lifecycle')}
           />
@@ -1123,7 +1156,16 @@ const ProcurementDetails: React.FC = () => {
               onViewWithholdingSlip={(slipId) => setBupotSelection(slipId)}
               onWithholdingHistory={(invoiceId) => { historyReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setSlipHistoryInvoiceId(invoiceId); }}
               isApprover={isApprover}
-              startAt={startAt}
+              firstDocumentKinds={recordableFirstKinds({
+                canSource: canSource(role),
+                canReceive: isRequester || RECEIPT_ROLES.has(role),
+                canInvoicePay: INVOICE_PAY_ROLES.has(role),
+              })}
+              canApprove={canApproveAmount}
+              onStageRecord={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
+              vendorId={p.vendor_id}
+              itemsNet={itemsNetTotal(p.items)}
+              gates={gates}
             />
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
@@ -1316,7 +1358,7 @@ const ProcurementDetails: React.FC = () => {
             ? pendingConfirm.confirmLabel
             : pendingConfirm?.kind === 'createGR'
               ? t('procurementDetail.confirm.saveGR', 'Save GR')
-              : t('procurementDetail.confirm.saveVI', 'Save VI')
+              : t('procurementDetail.confirm.saveVI', 'Save vendor invoice')
         }
         cancelLabel={
           pendingConfirm?.kind === 'transition' ? pendingConfirm.cancelLabel : undefined

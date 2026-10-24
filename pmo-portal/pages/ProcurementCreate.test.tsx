@@ -10,11 +10,10 @@ const mocks = vi.hoisted(() => ({
   navigate: vi.fn(),
   toast: vi.fn(),
   canCreate: true,
-  canRecord: true,
   currency: 'USD',
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (_action: string, entity: string) => (entity === 'procFile' ? mocks.canRecord : mocks.canCreate) }));
+vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => mocks.canCreate }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'p1', label: 'Project One' }] }),
@@ -41,7 +40,6 @@ describe('AC-PROC1 one-page request creation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.canCreate = true;
-    mocks.canRecord = true;
     mocks.currency = 'USD';
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
@@ -75,25 +73,12 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true });
   });
 
-  it('AC-PFE-001: choosing Order as the first document opens the purchase at the order capture', async () => {
+  it('the create page asks only for a request: no first-document choice, and Save opens the plain purchase page', async () => {
     renderCreate();
-    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
-    fireEvent.change(screen.getByLabelText('First document'), { target: { value: 'purchase_order' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id?startAt=purchase_order', { replace: true }));
-  });
-
-  it('keeps the plain detail URL when the default first document (a request) is kept', async () => {
-    renderCreate();
+    expect(screen.queryByLabelText('First document')).toBeNull();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
-  });
-
-  it('an Engineer (cannot record documents) sees no First document choice, only a request', () => {
-    mocks.canRecord = false;
-    renderCreate();
-    expect(screen.queryByLabelText('First document')).toBeNull();
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {

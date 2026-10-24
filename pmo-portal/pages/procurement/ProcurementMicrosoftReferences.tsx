@@ -62,6 +62,9 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [attachTo, setAttachTo] = useState('');
+  /** A picked item waiting for its "Attach to" answer (asked only when the purchase has something to attach to). */
+  const [picked, setPicked] = useState<MicrosoftReferenceInput | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const pickerOpener = useRef<HTMLElement | null>(null);
 
   /** Matching browse refresh: only for rows the picker itself surfaced, never for absent results. */
@@ -79,8 +82,21 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   /** A failed create rejects out of here, so the picker keeps the selection and reports it. */
   async function onPickerSelect(selected: MicrosoftReferenceInput) {
     await refreshMatches(selected);
+    if (targets.length > 0) { setAttachTo(''); setAttachError(null); setPicked(selected); return; }
+    await create.mutateAsync({ reference: selected });
+  }
+
+  /** The "Attach to" answer: the purchase itself (default) or one of its documents. */
+  async function confirmAttach() {
+    if (!picked) return;
+    setAttachError(null);
     const target = targets.find((x) => x.value === attachTo);
-    await create.mutateAsync(target ? { reference: selected, target: { recordKind: target.recordKind, recordId: target.recordId } } : { reference: selected });
+    try {
+      await create.mutateAsync(target ? { reference: picked, target: { recordKind: target.recordKind, recordId: target.recordId } } : { reference: picked });
+      setPicked(null);
+    } catch {
+      setAttachError(t('m365Documents.procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
+    }
   }
 
   function openPicker(opener?: HTMLElement | null) {
@@ -162,15 +178,16 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     .map((x) => ({ ...x, rows: rows.filter((row) => row.record_kind && targetKey(row) === x.value) }))
     .filter((g) => g.rows.length > 0);
   const plain = rows.filter((row) => !groups.some((g) => g.value === targetKey(row)));
+  const thisPurchase = t('procurement:documents.thisPurchase', 'This purchase');
   const listName = t('m365Documents.procurement.heading', 'SharePoint links for this case');
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
   return (
     <section aria-labelledby="proc-case-references-heading" className="mt-6 border-t border-border pt-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
-        <h3 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
+        <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {listName}
-        </h3>
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           <RecordFolderAction
             target={{ kind: 'procurement', id: procurementId }}
@@ -188,20 +205,6 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
       <p className="mt-1 px-1 text-[12px] text-muted-foreground">
         {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
-      {canCreate && targets.length > 0 && (
-        <div className="mt-2 max-w-xs px-1">
-          <SelectField
-            id="proc-case-attach-to"
-            label={t('procurement:documents.attachTo', 'Attach to')}
-            value={attachTo}
-            onChange={setAttachTo}
-            options={[
-              { value: '', label: t('procurement:documents.thisPurchase', 'This purchase') },
-              ...targets.map((x) => ({ value: x.value, label: x.label })),
-            ]}
-          />
-        </div>
-      )}
       <div className="mt-2">
         {query.isPending ? (
           <ListState variant="loading" rows={2} />
@@ -221,7 +224,16 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           />
         ) : (
           <>
-            {plain.length > 0 && <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>}
+            {plain.length > 0 && (
+              groups.length === 0
+                ? <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>
+                : (
+                  <div role="group" aria-label={thisPurchase}>
+                    <p className="px-1 text-[12px] font-semibold text-muted-foreground">{thisPurchase}</p>
+                    <ul className="divide-y divide-border">{plain.map(renderItem)}</ul>
+                  </div>
+                )
+            )}
             {groups.map((g) => (
               <div key={g.value} role="group" aria-label={g.label} className="mt-3">
                 <p className="px-1 text-[12px] font-semibold text-muted-foreground">{g.label}</p>
@@ -237,6 +249,32 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         context={pickerContext}
         onClose={closePicker}
         onSelect={onPickerSelect}
+      />
+
+      <ConfirmDialog
+        open={picked !== null}
+        title={t('procurement:documents.attachTitle', 'Attach this link')}
+        description={(
+          <>
+            <span className="mb-3 block break-words">{picked?.name}</span>
+            <SelectField
+              id="proc-case-attach-to"
+              label={t('procurement:documents.attachTo', 'Attach to')}
+              value={attachTo}
+              onChange={setAttachTo}
+              options={[
+                { value: '', label: t('procurement:documents.thisPurchase', 'This purchase') },
+                ...targets.map((x) => ({ value: x.value, label: x.label })),
+              ]}
+            />
+            {attachError && <span role="alert" className="mt-2 block text-destructive-text">{attachError}</span>}
+          </>
+        )}
+        confirmLabel={t('procurement:documents.attachConfirm', 'Link')}
+        tone="default"
+        loading={create.isPending}
+        onConfirm={() => void confirmAttach()}
+        onCancel={() => setPicked(null)}
       />
 
       <ConfirmDialog

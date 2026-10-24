@@ -881,21 +881,73 @@ describe('Action bar covers mid-flow transitions', () => {
     expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
-  it('ADR-0093: the Documents tab of a Requested purchase offers no record action, only waiting-for-approval text', () => {
+  it('ADR-0093: a Requested purchase offers no record action; an approver is told to approve, the requester to wait', () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
+    const first = renderPage('proc-001', 'documents');
+    expect(screen.getByText('Approve to start recording documents.')).toBeInTheDocument();
+    expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
+    first.unmount();
+    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage('proc-001', 'documents');
-    expect(screen.getByText(/waiting for approval\. documents can be recorded once it is approved/i)).toBeInTheDocument();
+    expect(screen.getByText('Waiting for approval.')).toBeInTheDocument();
     expect(screen.queryByTestId('ledger-capture-open')).not.toBeInTheDocument();
   });
 
-  it('AC-PFE-010: ?startAt=vendor_invoice on a new Draft purchase offers the vendor invoice capture', () => {
+  it('AC-PFE-010: an empty Draft offers "Record the first document", filtered by what the role may record', () => {
     detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
-    render(
-      <MemoryRouter initialEntries={['/procurement/proc-001/documents?startAt=vendor_invoice']}>
-        <Routes><Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} /></Routes>
-      </MemoryRouter>,
-    );
+    renderPage('proc-001', 'documents');
+    const choice = screen.getByLabelText('Record the first document') as HTMLSelectElement;
+    // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no goods receipt.
+    expect([...choice.options].map((o) => o.text)).toEqual(['Request', 'Quote request', 'Order', 'Vendor invoice', 'Payment']);
+    fireEvent.change(choice, { target: { value: 'vendor_invoice' } });
     expect(screen.getByRole('button', { name: /capture vendor invoice/i })).toBeInTheDocument();
+  });
+
+  it('D2 C1/C2: a goods receipt chosen as the first document is written through the page confirm, and only then reported', async () => {
+    mockEffectiveRole = 'Project Manager';
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateReceipt.mockClear(); toast.mockClear();
+    renderPage('proc-001', 'documents');
+    fireEvent.change(screen.getByLabelText('Record the first document'), { target: { value: 'goods_receipt' } });
+    await userEvent.click(screen.getByRole('button', { name: /capture goods receipt/i }));
+    await userEvent.click(screen.getByTestId('btn-save-gr'));
+    // Staged, not written: nothing is created and nothing is toasted until the confirm.
+    expect(mockCreateReceipt).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await confirmInDialog(/save gr/i);
+    await waitFor(() => expect(mockCreateReceipt).toHaveBeenCalledTimes(1));
+    expect(mockCreateReceipt).toHaveBeenCalledWith(expect.objectContaining({ status: 'Complete' }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Goods receipt recorded', undefined, 'success'));
+  });
+
+  it('D2 C1/C2: a vendor invoice chosen as the first document is written through the page confirm, and only then reported', async () => {
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-other' };
+    mockCreateInvoice.mockClear(); toast.mockClear();
+    renderPage('proc-001', 'documents');
+    fireEvent.change(screen.getByLabelText('Record the first document'), { target: { value: 'vendor_invoice' } });
+    await userEvent.click(screen.getByRole('button', { name: /capture vendor invoice/i }));
+    await userEvent.selectOptions(screen.getByTestId('vi-tax-treatment-select'), 'exclusive');
+    await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '0');
+    await userEvent.click(screen.getByTestId('btn-save-vi'));
+    expect(mockCreateInvoice).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
+    await confirmInDialog(/save vendor invoice/i);
+    await waitFor(() => expect(mockCreateInvoice).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith('Vendor invoice recorded', undefined, 'success'));
+  });
+
+  it('a requester without a recording role is offered only the request (no choice to make)', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement, status: 'Draft', requested_by_id: 'u-alice' };
+    renderPage('proc-001', 'documents');
+    expect(screen.queryByLabelText('Record the first document')).toBeNull();
+  });
+
+  it('D2 C3: Mark as Paid is not offered on a purchase with nothing on it, and one line says why', () => {
+    detailState.data = { ...baseProcurement, status: 'Vendor Invoiced', requested_by_id: 'u-other', approved_by_id: 'u-someone-else', total_value: 0, items: [], invoices: [] };
+    renderPage();
+    expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Add a line item or a document with an amount before marking this paid.')).toBeInTheDocument();
   });
 
   it('Quote Selected status shows Generate Purchase Order for Finance', () => {
@@ -1173,7 +1225,7 @@ describe('VI creation panel (D3, AC-816 UI support)', () => {
     await userEvent.type(screen.getByTestId('vi-tax-amount-input'), '450');
     await userEvent.click(screen.getByTestId('btn-save-vi'));
     expect(mockCreateInvoice).not.toHaveBeenCalled();
-    await confirmInDialog(/save vi/i);
+    await confirmInDialog(/save vendor invoice/i);
     await waitFor(() =>
       expect(mockCreateInvoice).toHaveBeenCalledWith(
         // #505: the staged tax facts survive the confirm hop and reach the mutation.
@@ -1391,6 +1443,7 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));
 

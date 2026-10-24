@@ -36,7 +36,9 @@ import { EfakturCell } from '@/src/components/EfakturCell';
 import { LedgerCaptureRow } from './LedgerCaptureRow';
 import { LedgerFileCell } from './LedgerFileCell';
 import { WithholdingBreakdown } from './WithholdingBreakdown';
-import type { RecordKind } from './RecordCaptureForm';
+import type { RecordKind, StagedRecord } from './RecordCaptureForm';
+import type { TFunction } from 'i18next';
+import type { ProcurementGates } from '@/src/lib/db/orgs';
 import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
 import { usePermission } from '@/src/auth/usePermission';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
@@ -194,6 +196,21 @@ const FILTERED_EMPTY_SUB: Record<LedgerFilter, string> = {
   'has-file': 'Clear the filter to see all records.',
 };
 
+/** The empty ledger says what to do for THIS status, not a generic "capture the first record below". */
+function ledgerEmptyCopy(status: string, canApprove: boolean, t: TFunction): { title: string; sub: string } | null {
+  const title = t('procurement:ledger.emptyTitle', 'No documents yet');
+  if (status === 'Requested') {
+    return { title, sub: canApprove
+      ? t('procurement:ledger.approveToStart', 'Approve to start recording documents.')
+      : t('procurement:ledger.waitingApproval', 'Waiting for approval.') };
+  }
+  if (status === 'Draft') return { title, sub: t('procurement:ledger.recordFirst', 'Record the first document below.') };
+  if (status === 'Paid' || status === 'Cancelled' || status === 'Rejected') {
+    return { title, sub: t('procurement:ledger.nothingRecorded', 'Nothing was recorded for this purchase.') };
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -231,8 +248,17 @@ export interface ProcurementLedgerProps {
   targetInvoiceId?: string;
   /** Current user is the case approver; server SoD prevents them from paying an ERP-owned case. */
   isApprover?: boolean;
-  /** FR-PFE-001: first document chosen on the create page (drives the capture offer on an empty Draft). */
-  startAt?: RecordKind | null;
+  /** FR-PFE-001: the kinds the viewer's role may record as the first document of an empty Draft. */
+  firstDocumentKinds?: RecordKind[];
+  /** The viewer may approve this purchase (worded into the Requested empty state). */
+  canApprove?: boolean;
+  /** Goods receipt / vendor invoice stage a confirm-before-commit on the page instead of writing here. */
+  onStageRecord?: (staged: StagedRecord) => void;
+  /** #876: forwarded to the vendor-invoice capture's tax pre-fill. */
+  vendorId?: string | null;
+  itemsNet?: number | null;
+  /** The org's purchase rules, to hold back first-document choices they forbid. */
+  gates?: ProcurementGates;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,7 +287,12 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   onWithholdingHistory,
   targetInvoiceId,
   isApprover = false,
-  startAt = null,
+  firstDocumentKinds,
+  canApprove = false,
+  onStageRecord,
+  vendorId: invoiceVendorId,
+  itemsNet,
+  gates,
 }) => {
   const [filter, setFilter] = useState<LedgerFilter>('all');
   const [efakturTarget, setEfakturTarget] = useState<LedgerRow | null>(null);
@@ -362,10 +393,9 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   // Determine DataTable state
   const tableState = filteredRows.length === 0 ? 'empty' : undefined;
   const isFiltered = filter !== 'all';
-  const emptyTitle = isFiltered
-    ? FILTERED_EMPTY_TITLE[filter]
-    : FILTERED_EMPTY_TITLE.all;
-  const emptySub = isFiltered ? FILTERED_EMPTY_SUB[filter] : FILTERED_EMPTY_SUB.all;
+  const emptyCopy = ledgerEmptyCopy(detail.status, canApprove, t);
+  const emptyTitle = isFiltered ? FILTERED_EMPTY_TITLE[filter] : (emptyCopy?.title ?? FILTERED_EMPTY_TITLE.all);
+  const emptySub = isFiltered ? FILTERED_EMPTY_SUB[filter] : (emptyCopy ? emptyCopy.sub : FILTERED_EMPTY_SUB.all);
 
   // Handle capture onCreate dispatching to the right mutation
   const handleCreate = async (kind: RecordKind, input: unknown) => {
@@ -390,6 +420,10 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           input as Parameters<typeof mutations.createPayment.mutateAsync>[0],
         );
         break;
+      default:
+        // Goods receipt and vendor invoice are written through the page's confirm (`onStageRecord`), never here.
+        // Throwing keeps the form from ever reporting "recorded" for a kind that wrote nothing.
+        throw new Error(`No ledger writer for ${kind}`);
     }
   };
 
@@ -499,7 +533,14 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           invoices={invoices}
           invoiceIdentityContext={invoiceIdentityContext}
           isApprover={isApprover}
-          startAt={startAt}
+          firstDocumentKinds={firstDocumentKinds}
+          canApprove={canApprove}
+          emptyLedger={rows.length === 0}
+          onStage={onStageRecord}
+          resetKey={rows.length}
+          vendorId={invoiceVendorId}
+          itemsNet={itemsNet}
+          gates={gates}
           busy={captureBusy}
           onCreate={handleCreate}
         />

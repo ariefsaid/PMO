@@ -434,7 +434,7 @@ describe('AC-PR-S4-003: LedgerCaptureRow pre-selects the correct next type', () 
     detailState.data = { ...BASE, status: 'Requested', purchase_requests: [] };
     renderPage('proc-001', 'documents');
     expect(screen.queryByTestId('ledger-capture-open')).toBeNull();
-    expect(screen.getByTestId('ledger-awaiting-approval')).toHaveTextContent('Waiting for approval');
+    expect(screen.getByText(/Approve to start recording documents|Waiting for approval/)).toBeInTheDocument();
   });
 
   it('Approved: capture row pre-selects RFQ', () => {
@@ -773,5 +773,6 @@ describe('AC-PR-S4-008: confirm-before-write on consequential transitions', () =
 
 // Case-reference register (#1020) has its own tests; isolate it from the details-page harness.
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => import('@/pages/__tests__/helpers/erpPurchaseLinksMock'));
+vi.mock('@/src/hooks/useProcurementGates', () => import('@/pages/__tests__/helpers/procurementGatesMock'));
 vi.mock('@/src/hooks/useProcurementMicrosoftReferences', () => ({ useProcurementMicrosoftReferences: () => ({ query: { data: [] } }) }));
 vi.mock('@/pages/procurement/ProcurementMicrosoftReferences', () => ({ ProcurementMicrosoftReferences: () => null }));

@@ -26,6 +26,7 @@ describe('OrgProcurementGates', () => {
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     await userEvent.click(toggle);
     expect(h.set).toHaveBeenCalledWith({ approval_before_payment: true });
+    expect(await screen.findByText('Saved')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('switch', { name: 'Approval required before payment' })).toHaveAttribute('aria-checked', 'true'));
   });
 
@@ -43,6 +44,15 @@ describe('OrgProcurementGates', () => {
     renderIt();
     expect(await screen.findByRole('switch', { name: 'Approval required before payment' })).toBeDisabled();
     expect(screen.getByText('Only an Admin can change this.')).toBeInTheDocument();
+  });
+
+  it('says what each rule does when it is on', async () => {
+    h.get.mockResolvedValue(OFF);
+    renderIt();
+    const toggle = await screen.findByRole('switch', { name: 'Receipt required before invoice' });
+    expect(toggle).toHaveAccessibleDescription('When on, a vendor invoice needs a goods receipt first.');
+    expect(screen.getByRole('switch', { name: 'Approval required before payment' }))
+      .toHaveAccessibleDescription('When on, a payment needs an approved amount first.');
   });
 
   it('shows all four rules, each named', async () => {
