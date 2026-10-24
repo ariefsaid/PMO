@@ -5,8 +5,8 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 
-const { purchasesMock, mayMock } = vi.hoisted(() => ({ purchasesMock: vi.fn(), mayMock: vi.fn() }));
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: purchasesMock }));
+const { purchasesMock, orphansMock, mayMock } = vi.hoisted(() => ({ purchasesMock: vi.fn(), orphansMock: vi.fn(), mayMock: vi.fn() }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: purchasesMock, useErpOrphans: orphansMock }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => mayMock }));
 vi.mock('@/src/lib/efaktur', () => ({ localToday: () => '2026-03-15' }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
@@ -24,11 +24,18 @@ const renderSection = () => render(<MemoryRouter><ErpPurchasesSection projectId=
 beforeEach(() => {
   mayMock.mockReset().mockReturnValue(true);
   purchasesMock.mockReset();
+  orphansMock.mockReset();
 });
+
+/** The aging reads every submitted document; the orphan list reads the default orphan view (linked ones are not in it). */
+const both = (res: { data?: ErpPurchaseRow[]; isError?: boolean; refetch?: () => void }) => {
+  purchasesMock.mockReturnValue(res);
+  orphansMock.mockReturnValue({ ...res, data: res.data?.filter((r) => r.procurementId === null) });
+};
 
 describe('ErpPurchasesSection', () => {
   it('AC-EPR-007 / FR-PFE-041 lists the ERP documents not in a purchase, says they are already in Actuals, and ages only the unshared', () => {
-    purchasesMock.mockReturnValue({ data: [
+    both({ data: [
       row({ name: 'PINV-PAID', supplier: 'Paid Supplier', outstanding: 0, grandTotal: 400 }),
       row({ name: 'PINV-LATE', supplier: 'Late Supplier', outstanding: 250, grandTotal: 250, dueDate: '2026-03-01' }),
       row({ name: 'PINV-SHARED', supplier: 'Shared Supplier', outstanding: 900, projectIds: ['p1', 'p2'] }),
@@ -51,7 +58,7 @@ describe('ErpPurchasesSection', () => {
   });
 
   it('FR-PFE-042: a linked invoice still counts in the aging but is not listed', () => {
-    purchasesMock.mockReturnValue({ data: [
+    both({ data: [
       row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' }),
       row({ name: 'PINV-ORPHAN', outstanding: 200, grandTotal: 200 }),
     ] });
@@ -63,7 +70,7 @@ describe('ErpPurchasesSection', () => {
   });
 
   it('FR-PFE-042: with every unpaid invoice linked, the aging still shows and no list does', () => {
-    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
+    both({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
     renderSection();
     expect(screen.getByLabelText(/Unpaid by age · IDR/)).toBeInTheDocument();
     expect(screen.queryByRole('table')).toBeNull();
@@ -71,14 +78,14 @@ describe('ErpPurchasesSection', () => {
 
   it('without link rights the documents are listed read-only', () => {
     mayMock.mockImplementation((action: string) => action === 'view');
-    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-ORPHAN' })] });
+    both({ data: [row({ name: 'PINV-ORPHAN' })] });
     renderSection();
     expect(screen.getAllByText('PINV-ORPHAN').length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: /Link/ })).toBeNull();
   });
 
   it('review 4: the aging carries its own title, separate from the not-in-a-purchase list', () => {
-    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
+    both({ data: [row({ name: 'PINV-LINKED', outstanding: 300, grandTotal: 300, procurementId: 'x', linkId: 'l1' })] });
     renderSection();
     const heading = screen.getByRole('heading', { name: 'Unpaid ERPNext invoices (incl. linked)' });
     expect(heading.closest('section')).toContainElement(screen.getByLabelText(/Unpaid by age · IDR/));
@@ -86,7 +93,7 @@ describe('ErpPurchasesSection', () => {
 
   it('review 6: a failed load shows an error with Retry, never a blank tab', async () => {
     const refetch = vi.fn();
-    purchasesMock.mockReturnValue({ data: undefined, isError: true, refetch });
+    both({ data: undefined, isError: true, refetch });
     renderSection();
     expect(screen.getByRole('heading', { name: 'ERPNext documents not in a purchase' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Retry|Try again/ }));
@@ -94,17 +101,26 @@ describe('ErpPurchasesSection', () => {
   });
 
   it('renders nothing for a project with no ERP purchases, only paid linked ones, or for a role without the procurement view', () => {
-    purchasesMock.mockReturnValue({ data: [row({ outstanding: 0, procurementId: 'x', linkId: 'l1' })] });
+    both({ data: [row({ outstanding: 0, procurementId: 'x', linkId: 'l1' })] });
     renderSection().unmount();
     expect(screen.queryByRole('heading')).toBeNull();
-    purchasesMock.mockReturnValue({ data: [] });
+    both({ data: [] });
     const { container, unmount } = renderSection();
     expect(container).toBeEmptyDOMElement();
     unmount();
 
     mayMock.mockReturnValue(false);
-    purchasesMock.mockReturnValue({ data: [row({})] });
+    both({ data: [row({})] });
     expect(renderSection().container).toBeEmptyDOMElement();
     expect(purchasesMock).toHaveBeenLastCalledWith('p1', { enabled: false });
+  });
+
+  it('lists the rows of the default orphan view only: a set-aside document is not offered, nor does it count', () => {
+    purchasesMock.mockReturnValue({ data: [row({ name: 'PINV-OPEN' }), row({ name: 'PINV-ASIDE' })] });
+    orphansMock.mockReturnValue({ data: [row({ name: 'PINV-OPEN' })] });
+    renderSection();
+    expect(screen.getAllByRole('button', { name: /^Link PINV-/ })).toHaveLength(1);
+    expect(screen.queryByText('PINV-ASIDE')).toBeNull();
+    expect(orphansMock).toHaveBeenCalledWith('p1', { enabled: true });
   });
 });

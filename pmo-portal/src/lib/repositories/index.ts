@@ -21,7 +21,7 @@ import { companyCollectionsRepository } from './companyCollections';
 import { vendorWithholdingSlipsRepository } from './vendorWithholdingSlips';
 import { listExpenseAccountMap, listExpensePostings } from './expensePostings';
 import {
-  hasErpPurchases, linkErpPurchaseDocuments, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
+  hasErpPurchases, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
 } from './erpPurchases';
 import { parseErpActivationRefusal, withErpActivationRefusal } from './erpActivationRefusal';
 import { supabase } from '@/src/lib/supabase/client';
@@ -1284,6 +1284,7 @@ const expensePostings: ExpensePostingRepository = {
 
 const erpPurchases: ErpPurchaseRepository = {
   list: (projectId) => wrap(() => listErpPurchases(projectId)),
+  listOrphans: (projectId) => wrap(() => listErpOrphans(projectId)),
   hasAny: () => wrap(() => hasErpPurchases()),
   listLinked: (procurementId) => wrap(() => listLinkedErpDocuments(procurementId)),
   link: (rows, dryRun) => wrap(() => linkErpPurchaseDocuments(rows, dryRun ?? false)),

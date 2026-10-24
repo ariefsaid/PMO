@@ -61,6 +61,7 @@
     "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
   },
   "ledger": {
+    "paymentInErp": "Record the payment in ERPNext; it links here on the next sync.",
     "billsHiddenForRole": "Vendor bills and payments are not shown for your role.",
     "awaitingApproval": "Waiting for approval. Documents can be recorded once it is approved.",
     "approveToStart": "Approve to start recording documents.",

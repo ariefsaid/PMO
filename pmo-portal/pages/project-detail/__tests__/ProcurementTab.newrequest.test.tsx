@@ -27,7 +27,7 @@ const { procState } = vi.hoisted(() => ({
 
 const { erpState } = vi.hoisted(() => ({ erpState: { data: [] as unknown[] } }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => erpState, useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => erpState, useErpOrphans: () => ({ data: erpState.data.filter((r) => (r as { procurementId: string | null }).procurementId === null) }), useHasErpPurchases: () => ({ data: false }) }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,

@@ -813,6 +813,8 @@ export interface ExpenseReceiptRepository {
 /** ADR-0093: ERP purchase documents, linked into purchases (never adopted, never pushed). */
 export interface ErpPurchaseRepository {
   list(projectId?: string): Promise<ErpPurchaseRow[]>;
+  /** The default orphan list: set-aside documents are left out. */
+  listOrphans(projectId?: string): Promise<ErpPurchaseRow[]>;
   hasAny(): Promise<boolean>;
   listLinked(procurementId: string): Promise<ErpPurchaseRow[]>;
   link(rows: ErpLinkRow[], dryRun?: boolean): Promise<ErpLinkResponse>;

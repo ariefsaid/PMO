@@ -68,7 +68,8 @@ type Raw = {
   doc_date: string | null; due_date: string | null; bill_no: string | null; currency: string | null;
   grand_total: number | string | null; net_total: number | string | null; outstanding_amount: number | string | null;
   erp_status: string | null; is_return: boolean | null; project_ids: string[] | null;
-  procurement_id: string | null; link_id: string | null;
+  /** Absent on the orphan view (an orphan is, by definition, not linked). */
+  procurement_id?: string | null; link_id?: string | null;
 };
 
 const num = (v: number | string | null): number | null => (v === null ? null : Number(v));
@@ -88,8 +89,8 @@ const toRow = (r: Raw): ErpPurchaseRow => ({
   erpStatus: r.erp_status,
   isReturn: r.is_return === true,
   projectIds: r.project_ids ?? [],
-  procurementId: r.procurement_id,
-  linkId: r.link_id,
+  procurementId: r.procurement_id ?? null,
+  linkId: r.link_id ?? null,
 });
 
 const byDateDesc = (a: ErpPurchaseRow, b: ErpPurchaseRow) =>
@@ -102,6 +103,23 @@ export async function listErpPurchases(projectId?: string): Promise<ErpPurchaseR
     if (projectId) q = q.contains('project_ids', [projectId]);
     q = q.order('id', { ascending: true });
     // The view types every column nullable; `id` is the document's primary key, so it is never null here.
+    return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as unknown as PromiseLike<PageResult<Raw>>;
+  });
+  return rows.map(toRow).sort(byDateDesc);
+}
+
+const ORPHAN_COLUMNS =
+  'id, erp_doctype, erp_name, supplier, supplier_name, doc_date, due_date, bill_no, currency, grand_total, net_total, outstanding_amount, erp_status, is_return, project_ids';
+
+/**
+ * The default orphan list: submitted ERP documents in no purchase, with the ones set aside left out — the same view the
+ * presence check reads, so the count, the indicator and the rows agree. Paged past max_rows.
+ */
+export async function listErpOrphans(projectId?: string): Promise<ErpPurchaseRow[]> {
+  const rows = await fetchAllRowsByKeyset<Raw>((afterId, limit) => {
+    let q = supabase.from('erp_purchase_orphans').select(ORPHAN_COLUMNS);
+    if (projectId) q = q.contains('project_ids', [projectId]);
+    q = q.order('id', { ascending: true });
     return (afterId === null ? q : q.gt('id', afterId)).limit(limit) as unknown as PromiseLike<PageResult<Raw>>;
   });
   return rows.map(toRow).sort(byDateDesc);

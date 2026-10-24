@@ -35,14 +35,21 @@ export function recordableFirstKinds(roles: FirstDocumentRoles): RecordKind[] {
 
 export type GateHold = 'request' | 'approval' | 'receipt';
 
-/** What, if anything, an ON purchase rule says must come before this kind. A kind with no hold is free. */
+const STEP_RANK: Record<RecordKind, number> = {
+  purchase_request: 0, rfq: 3, purchase_order: 5, goods_receipt: 6, vendor_invoice: 7, payment: 8,
+};
+
+/**
+ * What, if anything, an ON purchase rule says must come before this kind on an empty Draft. Mirrors the server's
+ * procurement_gate_violation (0368): rules apply cumulatively by the step the record reaches — order rules from
+ * Ordered up, the receipt rule from Vendor Invoiced up, the payment rule at Paid — checked in the server's order.
+ */
 export function gateHold(kind: RecordKind, gates: ProcurementGates | undefined): GateHold | null {
   if (!gates) return null;
-  if (kind === 'purchase_order') {
-    if (gates.request_before_order) return 'request';
-    if (gates.approval_before_order) return 'approval';
-  }
-  if (kind === 'vendor_invoice' && gates.receipt_before_invoice) return 'receipt';
+  const rank = STEP_RANK[kind];
+  if (rank >= 5 && gates.request_before_order) return 'request';
+  if (rank >= 5 && gates.approval_before_order) return 'approval';
+  if (rank >= 7 && gates.receipt_before_invoice) return 'receipt';
   if (kind === 'payment' && gates.approval_before_payment) return 'approval';
   return null;
 }

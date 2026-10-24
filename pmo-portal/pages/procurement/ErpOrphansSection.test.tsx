@@ -131,20 +131,26 @@ describe('ErpOrphansSection', () => {
     expect(linkMock).not.toHaveBeenCalled();
   });
 
-  it('review 2a: org-wide, a document with no project cannot start a purchase; the menu says why', async () => {
+  it('org-wide, an untagged document can start an explicit no-project purchase', async () => {
+    linkMock.mockResolvedValueOnce({ dry_run: false, counts: { link: 1, skip: 0, refused: 0 }, results: [
+      { row: 1, erp_name: 'PUR-ORD-1', outcome: 'link', reason: null, procurement_id: 'new-1', new_purchase: true }] });
     renderAt(<ErpOrphansSection rows={[row('PUR-ORD-1', { projectIds: [] })]} canLink projectNames={new Map()} />);
     await openMenu('PUR-ORD-1');
-    const blocked = screen.getByRole('menuitem', { name: 'New purchase needs a project in ERPNext' });
-    expect(blocked).toHaveAttribute('aria-disabled', 'true');
-    await userEvent.click(blocked);
-    expect(linkMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('menuitem', { name: 'New purchase from this' })).toBeNull();
+    await userEvent.click(screen.getByRole('menuitem', { name: 'New purchase with no project' }));
+    expect(linkMock).toHaveBeenCalledWith({ rows: [{ erp_doctype: 'Purchase Invoice', erp_name: 'PUR-ORD-1', project_id: null }] });
+    expect(await screen.findByText('purchase page')).toBeInTheDocument();
   });
 
-  it('review 2a: org-wide bulk New purchase is unavailable while a selected document has no single project', async () => {
-    renderAt(<ErpOrphansSection rows={[row('PINV-1', { projectIds: ['p1'] }), row('PINV-2', { projectIds: [] })]} canLink projectNames={new Map()} />);
-    await userEvent.click(within(bulkBar()).getByRole('checkbox', { name: 'Select all 2 documents' }));
-    expect(screen.getByRole('button', { name: 'New purchase from 2' })).toBeDisabled();
-    expect(bulkBar()).toHaveTextContent('Open the project to add documents without a single project.');
+  it('org-wide bulk New purchase works for untagged documents, and stays blocked only while one is split across projects', async () => {
+    renderAt(<ErpOrphansSection rows={[row('PINV-1', { projectIds: ['p1'] }), row('PINV-2', { projectIds: [] }), row('PINV-3', { projectIds: ['p1', 'p2'] })]}
+      canLink projectNames={new Map()} />);
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select PINV-1' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select PINV-2' }));
+    expect(screen.getByRole('button', { name: 'New purchase from 2' })).toBeEnabled();
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select PINV-3' }));
+    expect(screen.getByRole('button', { name: 'New purchase from 3' })).toBeDisabled();
+    expect(bulkBar()).toHaveTextContent('Open the project to add documents split across several projects.');
   });
 
   it('a rejected call is shown as a classified message, not thrown', async () => {

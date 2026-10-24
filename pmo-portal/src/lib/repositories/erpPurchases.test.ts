@@ -20,7 +20,7 @@ const h = vi.hoisted(() => {
 vi.mock('@/src/lib/supabase/client', () => ({ supabase: { from: h.from, rpc: h.rpc } }));
 
 import {
-  hasErpPurchases, linkErpPurchaseDocuments, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
+  hasErpPurchases, linkErpPurchaseDocuments, listErpOrphans, listErpPurchases, listLinkedErpDocuments, unlinkErpPurchaseDocument,
 } from './erpPurchases';
 
 const db = (over: Record<string, unknown>) => ({
@@ -96,5 +96,14 @@ describe('erpPurchases repository', () => {
     expect(h.calls).toContainEqual(['from', ['erp_purchase_orphans']]);
     h.set({ data: [{ id: 'x' }], error: null });
     expect(await hasErpPurchases()).toBe(true);
+  });
+
+  it('listErpOrphans reads the default orphan view (set-aside left out), scoped to a project, with money as numbers', async () => {
+    h.set({ data: [db({ procurement_id: undefined, link_id: undefined })], error: null });
+    const rows = await listErpOrphans('p1');
+    expect(h.calls).toContainEqual(['from', ['erp_purchase_orphans']]);
+    expect(h.calls).not.toContainEqual(['from', ['erp_purchase_documents_linked']]);
+    expect(h.calls).toContainEqual(['contains', ['project_ids', ['p1']]]);
+    expect(rows[0]).toMatchObject({ name: 'PINV-A', procurementId: null, linkId: null, grandTotal: 100 });
   });
 });

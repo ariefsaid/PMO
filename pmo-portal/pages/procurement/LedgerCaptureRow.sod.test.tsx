@@ -6,12 +6,14 @@ import { LedgerCaptureRow } from './LedgerCaptureRow';
 
 afterEach(() => clearOwnershipCache());
 
+const bill = [{ id: 'inv-1', reference_number: 'INV-1', vi_number: 'VI-1', invoice_date: '2026-01-02' }] as never;
 const renderRow = (isApprover: boolean) => render(
   <LedgerCaptureRow
     status="Vendor Invoiced"
     existingTypes={new Set()}
     onCreate={async () => undefined}
     canWrite
+    invoices={bill}
     isApprover={isApprover}
   />,
 );

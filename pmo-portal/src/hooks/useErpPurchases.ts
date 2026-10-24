@@ -12,6 +12,16 @@ export function useErpPurchases(projectId?: string, opts?: { enabled?: boolean }
   });
 }
 
+/** The default orphan list (set-aside documents excluded) for one project, or the whole org. */
+export function useErpOrphans(projectId?: string, opts?: { enabled?: boolean }) {
+  const orgId = useAuth().currentUser?.org_id;
+  return useQuery({
+    queryKey: ['erp-purchases', orgId, projectId ?? null, 'orphans'],
+    queryFn: () => repositories.erpPurchases.listOrphans(projectId),
+    enabled: Boolean(orgId) && opts?.enabled !== false,
+  });
+}
+
 export function useHasErpPurchases(opts?: { enabled?: boolean }) {
   const orgId = useAuth().currentUser?.org_id;
   return useQuery({
