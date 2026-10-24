@@ -1,5 +1,24 @@
--- Rollback of 0370_cli_ops_writes.sql. Links already written stay: they are ordinary evidence rows.
-drop function if exists public.link_budget_version_sharepoint_item(uuid, jsonb);
+-- Rollback of 0370_cli_ops_writes.sql. Restores the 0361 link_procurement_sharepoint_item body (no host pin) and the 0367 guard body.
+create or replace function public.link_procurement_sharepoint_item(p_procurement_id uuid, p_record_kind text, p_record_id uuid, p_item jsonb)
+returns uuid language plpgsql security definer set search_path = public, pg_catalog as $$
+declare v_id uuid; v_org uuid := public.auth_org_id();
+begin
+  perform public.assert_is_active_member();
+  if coalesce(public.auth_role()::text, '') not in ('Admin','Executive','Project Manager','Finance') then
+    raise exception 'Cannot change this procurement reference.' using errcode = '42501';
+  end if;
+  if not exists (select 1 from public.procurements p where p.id = p_procurement_id and p.org_id = v_org) then
+    raise exception 'purchase not found' using errcode = 'P0002';
+  end if;
+  if p_item is null or jsonb_typeof(p_item) <> 'object' or coalesce(p_item->>'kind', '') not in ('file','folder') then
+    raise exception 'A SharePoint item needs drive_id, item_id, web_url, name and kind (file or folder).' using errcode = '22023';
+  end if;
+  insert into public.procurement_documents (org_id, procurement_id, type, link, source, ms_drive_id, ms_item_id, ms_item_name, ms_item_kind, record_kind, record_id)
+  values (v_org, p_procurement_id, 'Microsoft reference', p_item->>'web_url', 'onedrive', p_item->>'drive_id', p_item->>'item_id',
+          p_item->>'name', p_item->>'kind', nullif(btrim(p_record_kind), ''), p_record_id)
+  returning id into v_id;
+  return v_id;
+end $$;
 -- Restore the 0367 guard body verbatim (drops only the 0370 tiers).
 create or replace function public.api_client_request_guard()
   returns void

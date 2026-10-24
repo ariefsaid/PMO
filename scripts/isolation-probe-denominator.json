@@ -136,7 +136,6 @@
     "link_procurement_sharepoint_item(uuid,text,uuid,jsonb)",
     "mark_erp_purchase_documents(jsonb,text,boolean)",
     "link_m365_documents_batch(jsonb,boolean)",
-    "link_budget_version_sharepoint_item(uuid,jsonb)",
     "procurement_ledger_held(uuid)",
     "refresh_erp_linked_purchase_total(uuid)",
     "unlink_erp_purchase_document(uuid)",

@@ -145,9 +145,9 @@ changed — none matched, or the database did not let you change it.
   `mark_erp_purchase_documents` and read `erp_purchase_orphans_all` (migration `0364`, §5).
 - **`pmo budgets activate`** (#1270, migration `0370`): **not enabled yet** — the command refuses with "budget
   activation from the CLI is not enabled yet — activate in the app" and sends nothing, because the API-client guard has
-  no tier for `activate_budget_version` (pending an owner ruling). The guard does allow the two helper calls
-  (`budget_activation_mode`, `link_budget_version_sharepoint_item`) to active Admin, Executive, Project Manager and
-  Finance (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
+  no tier for `activate_budget_version` (pending an owner ruling). The guard does allow the activation check
+  (`budget_activation_mode`) to active Admin, Executive, Project Manager and Finance, and **`pmo budgets link`**
+  attaches a SharePoint file to a Draft through `link_m365_documents_batch` (§5b). **`pmo accounts map set`** (active Admin; #1270): writes the budget category →
   ERP account map with the Accounting setup screen's checks (§5b).
 - **No delete.** Archive or delete in the app.
 - **No `contract_value`** in any payload, **no project status change**, **no `archived_at`** (archive and
@@ -297,6 +297,7 @@ A note without setting aside is a screen feature (the database function supports
 ## 5b. Activating a budget and mapping accounts — `pmo budgets`, `pmo accounts` (#1270)
 
 ```bash
+node scripts/pmo.mjs budgets link <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
 node scripts/pmo.mjs budgets activate <version id>        # currently refuses: not enabled yet
 node scripts/pmo.mjs budgets activate <version id> --source '{"drive_id":"…","item_id":"…","web_url":"https://…","name":"SBP.xlsx","kind":"file"}'
 node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance" --dry-run   # ALWAYS first
@@ -306,9 +307,14 @@ node scripts/pmo.mjs accounts map set Labor "5110 - Salary" "5120 - Allowance"
 **`budgets activate`** is **not enabled yet**. It checks its arguments (version id, `--source` shape), then stops with
 "budget activation from the CLI is not enabled yet — activate in the app" and exit 2, before any request: the API-client
 guard has no `activate_budget_version` tier until the owner rules on one. The pieces behind it are in place and tested
-(the database's activation check `budget_activation_mode`, and the Draft-only `link_budget_version_sharepoint_item`, both
-allowed by the guard to active Admin, Executive, Project Manager and Finance), so enabling it later is a guard tier plus
-one switch in `scripts/lib/pmo-budgets.mjs`. `--source` takes a SharePoint row (`drive_id, item_id, web_url, name, kind`).
+(the database's activation check `budget_activation_mode`, allowed by the guard to active Admin, Executive, Project
+Manager and Finance, and the source-file link below), so enabling it later is a guard tier plus one switch in
+`scripts/lib/pmo-budgets.mjs`. `--source` takes a SharePoint row (`drive_id, item_id, web_url, name, kind`).
+
+**`budgets link <version id> --source <row>`** attaches the file to a Draft version through `link_m365_documents_batch`
+(one `budget_version_id` row), which accepts only links on the organisation's own SharePoint host (an organisation with no
+default library is refused with `m365_not_configured`). Linking the same item twice is a no-op. The same host rule now
+applies to `pmo purchases link-file` (`link_procurement_sharepoint_item`).
 
 **`accounts map set <category> <account...>`** is for an active Admin (the database refuses anyone else). The FIRST
 account becomes the category's push account (the only one the ERP Budget is sent to); the rest count toward actuals only.

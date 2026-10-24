@@ -3,7 +3,7 @@
 -- down/up round trip of the guard body (down restores the 0367 body).
 begin;
 create extension if not exists pgtap;
-select plan(53);
+select plan(51);
 insert into organizations (id,name) values ('03700000-0000-0000-0000-0000000000a0','CLI guard org'),('03700000-0000-0000-0000-0000000000b0','CLI guard other org');
 insert into auth.users(id,email) values
  ('03700000-0000-0000-0000-0000000000c1','g-admin@example.com'),('03700000-0000-0000-0000-0000000000c2','g-exec@example.com'),('03700000-0000-0000-0000-0000000000c3','g-pm@example.com'),('03700000-0000-0000-0000-0000000000c4','g-fin@example.com'),
@@ -31,28 +31,16 @@ set local role authenticated;
 -- ── the tiers, at head ──
 select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/budget_activation_mode');
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Admin may call budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/link_budget_version_sharepoint_item');
-select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Admin may call link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c2','POST','/rpc/budget_activation_mode');
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Executive may call budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c2','POST','/rpc/link_budget_version_sharepoint_item');
-select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Executive may call link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c3','POST','/rpc/budget_activation_mode');
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Project Manager may call budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c3','POST','/rpc/link_budget_version_sharepoint_item');
-select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Project Manager may call link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c4','POST','/rpc/budget_activation_mode');
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Finance may call budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c4','POST','/rpc/link_budget_version_sharepoint_item');
-select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 active Finance may call link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c5','POST','/rpc/budget_activation_mode');
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Engineer refused budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c5','POST','/rpc/link_budget_version_sharepoint_item');
-select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Engineer refused link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c6','POST','/rpc/budget_activation_mode');
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 disabled Admin refused budget_activation_mode');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c6','POST','/rpc/link_budget_version_sharepoint_item');
-select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 disabled Admin refused link_budget_version_sharepoint_item');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c4','GET','/rpc/budget_activation_mode');
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 GET on the budget ops RPCs is refused');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/activate_budget_version');
@@ -106,10 +94,27 @@ select pg_temp.req('03700000-0000-0000-0000-0000000000c7','POST','/rpc/budget_ac
 select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 a foreign-org Admin passes the guard on role alone (the guard is not the tenancy check)');
 select is(public.budget_activation_mode('03700000-0000-0000-0000-0000000000e1'),'blocked','AC-CLI-B3 foreign org: budget_activation_mode answers blocked for another organisation''s version');
 select is(public.budget_activation_mode('03700000-0000-0000-0000-0000000000e2'),'allowed','AC-CLI-B3 own org: the foreign Admin''s own version is allowed (control)');
-select throws_ok($q$select public.link_budget_version_sharepoint_item('03700000-0000-0000-0000-0000000000e1','{"drive_id":"d","item_id":"i","web_url":"https://x.sharepoint.com/a","name":"A","kind":"file"}')$q$,'P0002',null,'AC-CLI-B3 foreign org: link RPC cannot see another organisation''s version');
 select is((select count(*)::int from public.budget_category_account_map),1,'AC-CLI-B3 foreign org: account map read shows only the caller org');
 select throws_ok($q$insert into public.budget_category_account_map(org_id,category,erp_account) values ('03700000-0000-0000-0000-0000000000a0','Labor','5120 - Allowance')$q$,'42501',null,'AC-CLI-B3 foreign org: cannot insert a map row into another organisation');
 select throws_ok($q$select public.set_budget_push_account('03700000-0000-0000-0000-0000000000f1')$q$,'P0002',null,'AC-CLI-B3 foreign org: set_budget_push_account cannot see another organisation''s map row');
+-- ── Prefer: resolution=… (upsert) is refused on every new POST tier ──
+create or replace function pg_temp.reqp(p_sub text,p_method text,p_path text,p_prefer text) returns void language sql as $$
+select set_config('request.jwt.claims',json_build_object('sub',p_sub,'role','authenticated','client_id','pmo-cli')::text,true),
+set_config('request.method',p_method,true),set_config('request.path',p_path,true),
+set_config('request.headers',json_build_object('prefer',p_prefer)::text,true);$$;
+select pg_temp.reqp('03700000-0000-0000-0000-0000000000c1','POST','/budget_category_account_map','resolution=merge-duplicates');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Admin POST account map with Prefer merge-duplicates is refused');
+select pg_temp.reqp('03700000-0000-0000-0000-0000000000c1','POST','/budget_category_account_map','return=representation,resolution=ignore-duplicates');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Admin POST account map with Prefer ignore-duplicates is refused');
+select pg_temp.reqp('03700000-0000-0000-0000-0000000000c1','POST','/rpc/set_budget_push_account','resolution=merge-duplicates');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Admin set_budget_push_account with Prefer merge-duplicates is refused');
+select pg_temp.reqp('03700000-0000-0000-0000-0000000000c4','POST','/rpc/budget_activation_mode','resolution=merge-duplicates');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 Finance budget_activation_mode with Prefer merge-duplicates is refused');
+select pg_temp.reqp('03700000-0000-0000-0000-0000000000c1','POST','/budget_category_account_map','return=representation');
+select lives_ok('select public.api_client_request_guard()','AC-CLI-B3 control: Prefer return=representation (what the CLI sends) is allowed');
+-- external-items now reads actor_authorization_state with the service client, because an API client may not call it:
+select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/actor_authorization_state');
+select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 an API-client token is refused actor_authorization_state (so external-items must not use the caller token for it)');
 -- ── down/up round trip ──
 reset role;
 do $do$ begin execute $down$
@@ -227,8 +232,6 @@ $down$; end $do$;
 set local role authenticated;
 select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/budget_activation_mode');
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 down: budget_activation_mode is refused again');
-select pg_temp.req('03700000-0000-0000-0000-0000000000c4','POST','/rpc/link_budget_version_sharepoint_item');
-select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 down: link_budget_version_sharepoint_item is refused again');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/budget_category_account_map');
 select throws_ok('select public.api_client_request_guard()','42501',null,'AC-CLI-B3 down: account map POST is refused again');
 select pg_temp.req('03700000-0000-0000-0000-0000000000c1','POST','/rpc/set_budget_push_account');

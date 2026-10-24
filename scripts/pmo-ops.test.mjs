@@ -109,12 +109,12 @@ function rpcFake(answers) {
 }
 
 test('AC-CLI-B1: activateBudget asks the activation rule, links the source while Draft, then activates through the app RPC', async () => {
-  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: 'link-1', activate_budget_version: null });
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_m365_documents_batch: { dry_run: false, results: [{ row: 1, state: 'linked', document_id: 'link-1' }] }, activate_budget_version: null });
   const out = await activateBudget(api, V, { source: SOURCE });
   assert.deepEqual(out, { version_id: V, activated: true, activation_mode: 'allowed', source_link_id: 'link-1' });
   assert.deepEqual(api.seen, [
     ['budget_activation_mode', { version_id: V }],
-    ['link_budget_version_sharepoint_item', { p_version_id: V, p_item: SOURCE }],
+    ['link_m365_documents_batch', { p_rows: [{ budget_version_id: V, ...SOURCE }], p_dry_run: false }],
     ['activate_budget_version', { version_id: V }],
   ]);
 });
@@ -138,15 +138,38 @@ test('AC-CLI-B1: separation of duties, no drafter and not-visible answers are re
 
 test('AC-CLI-B1: when activation refuses after the source was linked, the error carries the link id', async () => {
   const boom = new Error('only a Draft version can be activated');
-  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: 'link-1', activate_budget_version: boom });
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_m365_documents_batch: { dry_run: false, results: [{ row: 1, state: 'linked', document_id: 'link-1' }] }, activate_budget_version: boom });
   await assert.rejects(activateBudget(api, V, { source: SOURCE }), (e) => e === boom && e.sourceLinkId === 'link-1');
 });
 
 test('AC-CLI-B1: a refusal by the link RPC is passed through and activation is never attempted', async () => {
   const denied = new Error('Cannot change evidence on this budget version.');
-  const api = rpcFake({ budget_activation_mode: 'allowed', link_budget_version_sharepoint_item: denied });
+  const api = rpcFake({ budget_activation_mode: 'allowed', link_m365_documents_batch: denied });
   await assert.rejects(activateBudget(api, V, { source: SOURCE }), (e) => e === denied);
   assert.ok(!api.seen.some(([n]) => n === 'activate_budget_version'));
+});
+
+test('AC-CLI-B1: `budgets link` sends link_m365_documents_batch with one budget_version_id row (host-pinned RPC), never the removed single-purpose RPC', async () => {
+  const f = await fake({ 'POST /rest/v1/rpc/link_m365_documents_batch': [200, { dry_run: false, results: [{ row: 1, state: 'linked', document_id: 'doc-9' }] }] });
+  try {
+    const r = await cli(['budgets', 'link', V.toUpperCase(), '--source', JSON.stringify(SOURCE)], f);
+    assert.equal(r.code, 0, JSON.stringify(r.error));
+    assert.deepEqual(r.json, { version_id: V, state: 'linked', link_id: 'doc-9' });
+    assert.deepEqual(calls(f), ['POST /rest/v1/rpc/link_m365_documents_batch']);
+    assert.deepEqual(f.requests.at(-1).body, { p_rows: [{ budget_version_id: V, ...SOURCE }], p_dry_run: false });
+    const noSource = await cli(['budgets', 'link', V], f);
+    assert.equal(noSource.code, 2);
+    assert.equal(f.requests.filter((q) => q.path.endsWith('link_m365_documents_batch')).length, 1);
+  } finally { await f.close(); }
+});
+
+test('AC-CLI-B1: a host refusal from the batch RPC is passed through', async () => {
+  const f = await fake({ 'POST /rest/v1/rpc/link_m365_documents_batch': [400, { code: '22023', message: 'web_url host is not the organisation SharePoint host (row 1)' }] });
+  try {
+    const r = await cli(['budgets', 'link', V, '--source', JSON.stringify({ ...SOURCE, web_url: 'https://evil.example.com/a' })], f);
+    assert.equal(r.code, 1);
+    assert.match(r.error.message, /not the organisation SharePoint host/);
+  } finally { await f.close(); }
 });
 
 test('AC-CLI-B1: validateSource unit behaviour', () => {

@@ -1,47 +1,46 @@
--- 0370 link a SharePoint source file to a budget version (CLI `pmo budgets activate --source`; #1270 B).
+-- 0370 CLI ops writes (#1270 B): API-client guard tiers for `pmo budgets` and `pmo accounts map set`, and the SharePoint
+-- host pin on link_procurement_sharepoint_item.
 -- Rollback: supabase/migrations/rollback/0370_cli_ops_writes_down.sql
--- The app writes this table directly (0292 grants + insert policy); the API client cannot, so the CLI gets one
--- RPC with the same predicate: active member, Admin/Executive/Project Manager/Finance, own org, Draft version.
--- Activation itself is NOT touched, and the API-client guard gets NO activate_budget_version tier (owner has not ruled):
--- the CLI refuses activation up front.
+--
+-- The API-client guard gets NO activate_budget_version tier (owner has not ruled): the CLI refuses activation up front.
+-- A Draft budget version's source file is linked through link_m365_documents_batch (0367), which already pins links to
+-- the organisation's own SharePoint host; no new definer is added.
 -- The guard below is rebuilt from the 0367 body (every 0363/0364/0366/0367 tier kept); lines marked `-- 0370` are new:
--- POST budget_activation_mode + link_budget_version_sharepoint_item (active Admin/Executive/PM/Finance, as the RPCs
--- themselves), GET/POST budget_category_account_map and POST set_budget_push_account (active Admin).
-create function public.link_budget_version_sharepoint_item(p_version_id uuid, p_item jsonb)
+-- POST budget_activation_mode (active Admin/Executive/PM/Finance, as the RPC itself), GET/POST budget_category_account_map
+-- and POST set_budget_push_account (active Admin).
+
+-- link_procurement_sharepoint_item (0361): the CLI is its only caller, and it took any web_url. Pin it to the
+-- organisation's own SharePoint host with the same block and the same refusal as link_m365_documents_batch (0367).
+create or replace function public.link_procurement_sharepoint_item(p_procurement_id uuid, p_record_kind text, p_record_id uuid, p_item jsonb)
 returns uuid language plpgsql security definer set search_path = public, pg_catalog as $$
-declare
-  v_org uuid := public.auth_org_id();
-  v_status public.budget_status;
-  v_id uuid;
+declare v_id uuid; v_org uuid := public.auth_org_id(); v_host text;
 begin
   perform public.assert_is_active_member();
   if coalesce(public.auth_role()::text, '') not in ('Admin','Executive','Project Manager','Finance') then
-    raise exception 'Cannot change evidence on this budget version.' using errcode = '42501';
+    raise exception 'Cannot change this procurement reference.' using errcode = '42501';
   end if;
-  select v.status into v_status from public.budget_versions v where v.id = p_version_id and v.org_id = v_org for update;
-  if not found then
-    raise exception 'budget version not found' using errcode = 'P0002';
+  if not exists (select 1 from public.procurements p where p.id = p_procurement_id and p.org_id = v_org) then
+    raise exception 'purchase not found' using errcode = 'P0002';
   end if;
-  if v_status <> 'Draft' then
-    raise exception 'A source file can only be attached to a Draft budget version.' using errcode = 'P0001';
+  if p_item is null or jsonb_typeof(p_item) <> 'object' or coalesce(p_item->>'kind', '') not in ('file','folder') then
+    raise exception 'A SharePoint item needs drive_id, item_id, web_url, name and kind (file or folder).' using errcode = '22023';
   end if;
-  if p_item is null or jsonb_typeof(p_item) <> 'object'
-     or coalesce(p_item->>'kind', '') not in ('file','folder')
-     or coalesce(btrim(p_item->>'drive_id'), '') = '' or coalesce(btrim(p_item->>'item_id'), '') = ''
-     or coalesce(btrim(p_item->>'name'), '') = '' or not public.m365_browser_url_valid(p_item->>'web_url') then
-    raise exception 'A SharePoint item needs drive_id, item_id, web_url (https), name and kind (file or folder).' using errcode = '22023';
+  -- Links must point at the org's own SharePoint host: a Graph site id is `<host>,<collection>,<site>`.
+  select lower(nullif(btrim(split_part(default_site_id,',',1)),'')) into v_host
+    from public.org_m365_document_settings where org_id=v_org;
+  if v_host is null or position('.' in v_host)=0 then
+    raise exception using errcode='22023',message='m365_not_configured',
+      hint='Choose the default SharePoint library in the app first';
   end if;
-  -- Linking the same item twice is a no-op, so a retried command does not stack duplicate evidence.
-  select l.id into v_id from public.budget_version_document_links l
-   where l.budget_version_id = p_version_id and l.ms_drive_id = p_item->>'drive_id' and l.ms_item_id = p_item->>'item_id';
-  if found then return v_id; end if;
-  insert into public.budget_version_document_links (org_id, budget_version_id, ms_drive_id, ms_item_id, ms_web_url, ms_item_name, ms_item_kind)
-  values (v_org, p_version_id, p_item->>'drive_id', p_item->>'item_id', p_item->>'web_url', p_item->>'name', p_item->>'kind')
+  if lower(substring(p_item->>'web_url' from '^https://([^/:?#]+)')) is distinct from v_host then
+    raise exception using errcode='22023',message='web_url host is not the organisation SharePoint host';
+  end if;
+  insert into public.procurement_documents (org_id, procurement_id, type, link, source, ms_drive_id, ms_item_id, ms_item_name, ms_item_kind, record_kind, record_id)
+  values (v_org, p_procurement_id, 'Microsoft reference', p_item->>'web_url', 'onedrive', p_item->>'drive_id', p_item->>'item_id',
+          p_item->>'name', p_item->>'kind', nullif(btrim(p_record_kind), ''), p_record_id)
   returning id into v_id;
   return v_id;
 end $$;
-revoke all on function public.link_budget_version_sharepoint_item(uuid, jsonb) from public, anon;
-grant execute on function public.link_budget_version_sharepoint_item(uuid, jsonb) to authenticated;
 
 create or replace function public.api_client_request_guard()
   returns void
@@ -67,9 +66,10 @@ declare
   -- OPERATOR READ TIER (`pmo get/documents/m365`, #1270) — keep in step with scripts/pmo.mjs.  -- 0367
   operator_read_tables constant text[] := array['budget_versions', 'budget_line_items', 'budget_category_account_map', 'erp_gl_entry_mirror', 'project_documents', 'org_m365_document_settings', 'm365_record_folder_sweeps'];  -- 0367
   operator_read_rpcs constant text[] := array['project_mapped_actuals', 'link_m365_documents_batch'];  -- 0367
-  -- BUDGET OPS TIER (`pmo budgets activate --source`, #1270 B): the activation check and the Draft source-file link.
-  -- Same role set as those RPCs' own checks. activate_budget_version is deliberately NOT here (owner has not ruled).  -- 0370
-  budget_ops_rpcs constant text[] := array['budget_activation_mode', 'link_budget_version_sharepoint_item'];  -- 0370
+  -- BUDGET OPS TIER (`pmo budgets`, #1270 B): the activation check. Same role set as the RPC's own check. A Draft's source
+  -- file goes through link_m365_documents_batch (0367 tier, host-pinned). activate_budget_version is deliberately NOT here
+  -- (owner has not ruled).  -- 0370
+  budget_ops_rpcs constant text[] := array['budget_activation_mode'];  -- 0370
   -- ACTIVE-ADMIN ACCOUNT-MAP TIER (`pmo accounts map set`, #1270 B) — the same Admin rule as the table's own policy.  -- 0370
   account_map_tables constant text[] := array['budget_category_account_map'];  -- 0370
   account_map_rpcs constant text[] := array['set_budget_push_account'];  -- 0370

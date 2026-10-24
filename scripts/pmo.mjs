@@ -18,7 +18,8 @@
  *   pmo erp readiness | list-projects | verify-links
  *   pmo documents list --project <id> | link <json|csv|-> [--dry-run]
  *   pmo m365 status
- *   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, PM, Finance; #1270)
+ *   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, PM, Finance; #1270; not enabled yet)
+ *   pmo budgets link <version_id> --source <json | @file | ->   (Admin, Executive, PM, Finance; Draft versions; #1270)
  *   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; #1270)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
@@ -40,7 +41,7 @@ import { pathToFileURL } from 'node:url';
 
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
-import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, validateSource } from './lib/pmo-budgets.mjs';
+import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -763,6 +764,7 @@ const USAGE = `usage:
   pmo m365 status
   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, Project Manager, Finance; the
                                                                    app's activation and separation-of-duties rules apply)
+  pmo budgets link <version_id> --source <json | @file | ->   (attach a SharePoint file to a Draft; host-pinned to the organisation's library)
   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; the first account is the push account)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
@@ -1060,13 +1062,18 @@ async function purchases(ctx, positionals, flags) {
  */
 async function budgets(ctx, positionals, flags) {
   const [sub, versionId] = positionals;
-  if (sub !== 'activate') throw usage(`Unknown budgets command '${sub ?? ''}'. Use activate.`);
-  if (!versionId || !UUID.test(versionId)) throw usage('budgets activate needs a budget version id (uuid): pmo budgets activate <version_id> [--source <json>]');
+  if (sub !== 'activate' && sub !== 'link') throw usage(`Unknown budgets command '${sub ?? ''}'. Use activate or link.`);
+  if (!versionId || !UUID.test(versionId)) throw usage(`budgets ${sub} needs a budget version id (uuid): pmo budgets ${sub} <version_id> ${sub === 'link' ? '--source <json>' : '[--source <json>]'}`);
+  if (sub === 'link' && flags.source === undefined) throw usage('budgets link needs --source <json | @file | ->: {drive_id, item_id, web_url, name, kind}');
   let source;
   if (flags.source !== undefined) {
     source = await readPayload(ctx, flags.source);
     const problems = validateSource(source);
     if (problems.length > 0) throw new CliError(`The --source row has ${problems.length} problem(s); nothing was sent.`, { exit: 2, code: 'invalid_source', details: problems });
+  }
+  if (sub === 'link') {
+    // One budget_version_id row through link_m365_documents_batch: host-pinned to the org's SharePoint, Draft versions only.
+    return linkBudgetSource({ rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) }, versionId.toLowerCase(), source);
   }
   if (!ACTIVATION_ENABLED) {
     throw new CliError('budget activation from the CLI is not enabled yet — activate in the app', { exit: 2, code: 'activation_not_enabled' });
