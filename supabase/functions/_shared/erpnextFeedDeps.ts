@@ -218,7 +218,10 @@ export function createErpFeedDeps(serviceClient: SupabaseClient, orgId: string, 
     // for the budget figure (OD-BUDGET-1), so a Desk-created ERP Budget must NEVER be adopted. See
     // `mintMirrorRow`'s `domain === 'budget'` branch below for the throw.
     // #775 phase B — the expense kinds take the IDENTICAL exclusion (never adopt, FR-EXP-113).
-    ...(kind === 'timesheet' || kind === 'budget' || KIND_DOMAIN[kind] === 'expenses' ? {} : {
+    // 0378 — and so do the procurement kinds: their mint always refuses (the PMO purchase link is dispatch-owned, see
+    // `mintMirrorRow`'s last throw), so a claim-first adopt left a procurement reference to a PMO id nothing was ever
+    // minted for, and that dangling reference made a native ERP bill or payment look recorded by PMO.
+    ...(kind === 'timesheet' || kind === 'budget' || KIND_DOMAIN[kind] === 'expenses' || KIND_DOMAIN[kind] === 'procurement' ? {} : {
       adoptAtomically: {
         newPmoRecordId: () => crypto.randomUUID(),
         claimExternalRef: (mapping) => recordExternalRef(serviceClient as never, { orgId, ...mapping }),

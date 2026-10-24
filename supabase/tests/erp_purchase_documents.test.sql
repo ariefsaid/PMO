@@ -24,8 +24,14 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
 insert into erp_gl_entry_mirror (org_id, erp_name, account, project, voucher_type, voucher_no, debit, credit, is_cancelled, erp_modified) values
   ('03350000-0000-0000-0000-00000000000a','GLE-1','5100 - Expense','ERP-A','Purchase Invoice','PINV-2',100,0,false,'2026-01-01'),
   ('03350000-0000-0000-0000-00000000000a','GLE-2','5100 - Expense','ERP-B','Purchase Invoice','PINV-2',100,0,true,'2026-01-01');
+-- AMENDED BY 0378: a document is recorded by PMO only while its procurement reference points at a live PMO record of
+-- its kind, so the PMO-pushed fixture is a real vendor bill (it pointed at nothing before).
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03350000-0000-0000-0000-0000000000f8','03350000-0000-0000-0000-00000000000a','PMO pushed','03350000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03350000-0000-0000-0000-0000000000f9','03350000-0000-0000-0000-0000000000f8','03350000-0000-0000-0000-00000000000a','Received',5,'IDR','exclusive',0);
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
-  ('03350000-0000-0000-0000-00000000000a','procurement','pmo-pi-1','erpnext','PINV-PMO');
+  ('03350000-0000-0000-0000-00000000000a','procurement','03350000-0000-0000-0000-0000000000f9','erpnext','PINV-PMO');
 
 create temp table actuals_before as
   select * from project_mapped_actuals('03350000-0000-0000-0000-0000000000d1');
@@ -96,7 +102,7 @@ select is((select count(*) from erp_purchase_documents), 0::bigint,
 reset role;
 
 delete from external_refs where org_id='03350000-0000-0000-0000-00000000000a'
- and domain='procurement' and pmo_record_id='pmo-pi-1';
+ and domain='procurement' and pmo_record_id='03350000-0000-0000-0000-0000000000f9';
 select is(upsert_erp_purchase_documents('03350000-0000-0000-0000-00000000000a','[]'),0,
  'AC-EPR-004 an ownership refresh does not insert documents');
 select ok(not (select pmo_owned from erp_purchase_documents where erp_name='PINV-PMO'),

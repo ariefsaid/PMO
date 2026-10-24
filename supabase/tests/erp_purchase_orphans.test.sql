@@ -12,8 +12,14 @@ insert into profiles (id, org_id, full_name, email, role, status) values
   ('03630000-0000-0000-0000-0000000000b1','03630000-0000-0000-0000-00000000000b','B','pfo-b@example.com','Finance','active');
 insert into org_m365_document_settings (org_id, default_site_id, default_site_name, default_drive_id, default_drive_name, updated_by) values
   ('03630000-0000-0000-0000-00000000000a','example.sharepoint.com,site-a,web-a','Site','drive-a','Library','03630000-0000-0000-0000-0000000000a1');
+-- AMENDED BY 0378: a document is recorded by PMO only while its procurement reference points at a live PMO record of
+-- its kind, so the PMO-pushed fixture is a real vendor bill (it pointed at nothing before).
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03630000-0000-0000-0000-0000000000f8','03630000-0000-0000-0000-00000000000a','PMO pushed','03630000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03630000-0000-0000-0000-0000000000f9','03630000-0000-0000-0000-0000000000f8','03630000-0000-0000-0000-00000000000a','Received',5,'IDR','exclusive',0);
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
-  ('03630000-0000-0000-0000-00000000000a','procurement','pmo-x','erpnext','PI-PMO');
+  ('03630000-0000-0000-0000-00000000000a','procurement','03630000-0000-0000-0000-0000000000f9','erpnext','PI-PMO');
 select upsert_erp_purchase_documents('03630000-0000-0000-0000-00000000000a', $$[
  {"erp_doctype":"Purchase Invoice","erp_name":"PI-ORPHAN","supplier":"S","currency":"IDR","grand_total":1,"erp_docstatus":1,"erp_modified":"2026-02-01"},
  {"erp_doctype":"Purchase Invoice","erp_name":"PI-LINKED","supplier":"S","currency":"IDR","grand_total":1,"erp_docstatus":1,"erp_modified":"2026-02-01"},
