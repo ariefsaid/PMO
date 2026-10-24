@@ -138,6 +138,7 @@
     "link_m365_documents_batch(jsonb,boolean)",
     "procurement_ledger_held(uuid)",
     "refresh_erp_linked_purchase_total(uuid)",
+    "refresh_procurement_recorded_total(uuid)",
     "unlink_erp_purchase_document(uuid)",
     "_erp_ack_statement_dirty_dates(uuid,text,bigint)",
     "_erp_statement_native_has_amount_rows(jsonb)",
