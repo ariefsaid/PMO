@@ -82,6 +82,15 @@ revision changes only the accounts that changed.
   original, the unchanged account is untouched, a duplicate is refused, and everything is rolled back. Evidence in
   the PR. The full-route harness (`scripts/bv16-rehearsal.mjs`) stays available for when a private route exists.
   *Found by (b): v16 rejects a text `budget_amount` before casting — the body now sends a number.*
+- **AC-BV16-009** *(pgTAP)* — Given a committed v16 account push whose mirror slot has no ERP name yet (the state the
+  dispatch writes before the push), when the finalize records the ref, then the ref is written under the command's
+  account identity; a slot already naming a different Budget is still refused. *(0379 — found on production: the
+  ref step refused every fresh v16 push, so the ERP Budget was created but PMO never recorded it.)*
+- **AC-BV16-010** *(pgTAP)* — Given a v16 account commit stranded by that refusal, when 0379's one-off finalize runs,
+  then the ref, a `pushed` mirror naming the ERP Budget, and a confirmed outbox row result; a commit for a version no
+  longer Active, a tombstoned slot, a Budget owned by another identity, or any other disagreeing fact is left
+  untouched, and the function is dropped once it has run (`scripts/test-budget-v16-fresh-ref-rollback.sh`). A later
+  Retry posts only the accounts that never reached ERPNext (`budgetV16RetryAfterRepair.test.ts`).
 
 ## Out of scope
 
