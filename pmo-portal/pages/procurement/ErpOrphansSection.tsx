@@ -28,7 +28,7 @@ type Outcome =
   | { kind: 'error'; headline: string; detail?: string };
 
 /** FR-PFE-041 — ERPNext documents not yet in a purchase: one "Link…" action per row, plus bulk link / new purchase. */
-export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, projectId, canLink, projectNames, tableId = 'erp-orphans-table' }) => {
+export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, projectId, canLink, projectNames, tableId }) => {
   const { t } = useTranslation('finance');
   const navigate = useNavigate();
   const link = useLinkErpDocuments();
@@ -204,7 +204,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         rows={rows}
         columns={columns}
         rowKey={(r) => r.id}
-        tableId={tableId}
+        tableId={tableId ?? 'erp-orphans-table'}
         accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
       />
       {dialogDocs && (
