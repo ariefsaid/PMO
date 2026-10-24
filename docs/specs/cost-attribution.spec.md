@@ -75,6 +75,11 @@ read-side only: PMO never writes to ERPNext or to any mirror/snapshot table.
 **NFR**
 - NFR-CAT-001 Org scope comes from the JWT (`auth_org_id()`), never an argument.
 - NFR-CAT-002 Read cost: one partial index on unprojected ledger lines by (org, account, posting date).
+- NFR-CAT-003 Attributed lines whose party type is Employee shall count only for a caller with spend-approval rank
+  (Project Manager and above), the same narrowing as the ledger mirror's own read policy.
+- NFR-CAT-004 The executive and PM dashboards shall read project actuals once per call (`project_mapped_actuals_all`),
+  not once per project per figure. Measured locally with 50k ledger lines, 20 projects and 4 rules: 1.6 s each (was
+  74 s and 136 s).
 
 ## 3. Contract (stable — UI and CLI build against this)
 
@@ -140,6 +145,9 @@ All four are on the OAuth API-client guard for active Admin/Finance (list: + Exe
 - `attributed_to_date numeric` — rule-attributed lines in that category / fiscal year.
 - `actuals_to_date` = tagged + attributed (null if either is unknown, same null rules as before);
   `source_sum`, `has_rows`, `actuals_as_of` include attributed lines.
+
+`project_mapped_actuals_all(p_fiscal_year text default null)` returns the same columns as `project_mapped_actuals`
+plus a leading `project_id`, for every project the caller can see, in one pass (used by the dashboards).
 
 `get_project_finances(p_project_id)` → `actuals` gains `tagged_total`, `attributed_total` (text, same null rule
 as `total`), and each `categories[]` item gains `tagged_amount`, `attributed_amount`. `total` / `amount` are

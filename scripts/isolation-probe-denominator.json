@@ -188,6 +188,7 @@
     "confirm_outbox(uuid,integer)",
     "confirm_work_order_acceptance(uuid)",
     "correct_vendor_withholding_slip(uuid,integer,text,date,date,text)",
+    "cost_attribution_org_actuals(text)",
     "cost_attribution_project_actuals(uuid,text)",
     "end_cost_attribution_rule(uuid,date,integer)",
     "preview_cost_attribution(jsonb)",

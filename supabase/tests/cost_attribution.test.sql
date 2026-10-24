@@ -1,10 +1,11 @@
 -- cost_attribution.test.sql — 0376 (#1271). Owns AC-CAT-001..013 (docs/specs/cost-attribution.spec.md).
 -- Mutation checks (each must go red): in cost_attribution_allocations drop `coalesce(l.project,'') = ''`
 -- (AC-CAT-007 + AC-CAT-010 rows), or flip `ra.specificity desc` to `asc` (AC-CAT-008 rows); in
--- cost_attribution_assert_no_conflict replace the conflict query with `where false` (AC-CAT-009 rows).
+-- cost_attribution_assert_no_conflict replace the conflict query with `where false` (AC-CAT-009 rows); in
+-- cost_attribution_project_actuals drop the Employee-party condition (AC-CAT-016 Engineer rows).
 begin;
 create extension if not exists pgtap;
-select plan(78);
+select plan(97);
 
 -- ── fixtures ────────────────────────────────────────────────────────────────────────────────────────
 insert into organizations (id, name, default_currency) values
@@ -269,6 +270,65 @@ reset role;
 -- ── AC-CAT-001 read-side only ────────────────────────────────────────────────────────────────────────
 select is((select count(*)::text from erp_gl_entry_mirror), (select v from _ca where k='gl_count'), 'AC-CAT-001 no ledger mirror row was written');
 select is((select count(*)::text from erp_actuals_snapshot), (select v from _ca where k='snap_count'), 'AC-CAT-001 no snapshot row was written');
+
+-- ── AC-CAT-016 an Employee party's pay is hidden below spend-approval rank (0270 §5b narrowing) ──────────
+insert into erp_gl_entry_mirror (id, org_id, erp_name, company, account, cost_center, fiscal_year, project, party_type, party, posting_date, debit, credit, is_cancelled, erp_modified) values
+  ('03760000-0000-0000-0000-0000000001c0','03760000-0000-0000-0000-00000000000a','GL-10','RIS','Bonus - RIS',null,'2025',null,'Employee','EMP-9','2025-06-01',300,0,false,'1');
+set local role authenticated;
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a1');
+select lives_ok($$ select save_cost_attribution_rule('{"name":"EMP-9 bonus","account":"Bonus - RIS","party_type":"Employee","party":"EMP-9","effective_from":"2025-01-01",
+  "targets":[{"project_id":"03760000-0000-0000-0000-0000000000c2","percent":100}]}'::jsonb) $$, 'AC-CAT-016 Finance saves an Employee-party rule');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c2','Labor'), 800::numeric, 'AC-CAT-016 Finance sees both Employee-party lines (GL-2 500 + GL-10 300)');
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a4');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c2','Labor'), 800::numeric, 'AC-CAT-016 an Executive sees them');
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a3');
+select is((get_project_finances('03760000-0000-0000-0000-0000000000c2')->'actuals'->>'attributed_total')::numeric, 833.33::numeric,
+  'AC-CAT-016 a Project Manager reads attributed cost through project finances (Labor 800 + Overheads 33.33)');
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a5');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c2','Labor'), 0::numeric, 'AC-CAT-016 an Engineer reading project actuals gets none of the Employee-party pay');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c2','Overheads'), 33.33::numeric, 'AC-CAT-016 an Engineer still sees non-personal attributed cost');
+select is((select coalesce(sum(amount), 0) from cost_attribution_project_actuals('03760000-0000-0000-0000-0000000000c2', null) where category = 'Labor'), 0::numeric,
+  'AC-CAT-016 an Engineer calling the helper directly gets none of it either');
+reset role;
+
+-- ── AC-CAT-017 edge cases of the split, the window and the fiscal year ───────────────────────────────
+insert into erp_gl_entry_mirror (id, org_id, erp_name, company, account, cost_center, fiscal_year, project, party_type, party, posting_date, debit, credit, is_cancelled, erp_modified) values
+  ('03760000-0000-0000-0000-0000000001c1','03760000-0000-0000-0000-00000000000a','GL-11','RIS','Utilities - RIS',null,'2025',null,null,null,'2025-06-01',0,10,false,'1'),
+  ('03760000-0000-0000-0000-0000000001c2','03760000-0000-0000-0000-00000000000a','GL-12','RIS','Utilities - RIS',null,'2025',null,null,null,'2025-06-02',100.005,0,false,'1'),
+  ('03760000-0000-0000-0000-0000000001c3','03760000-0000-0000-0000-00000000000a','GL-13','RIS','Utilities - RIS',null,'2025',null,null,null,'2025-06-03',0.01,0,false,'1'),
+  ('03760000-0000-0000-0000-0000000001c4','03760000-0000-0000-0000-00000000000a','GL-14','RIS','Salary - RIS','Eng - RIS','2025',null,null,null,'2025-01-01',50,0,false,'1');
+create or replace function pg_temp.split(p_gl text) returns numeric[] language sql as $$
+  select array_agg(amount order by project_id) from cost_attribution_allocations('03760000-0000-0000-0000-00000000000a', null, null) where gl_id = p_gl::uuid $$;
+select is(pg_temp.split('03760000-0000-0000-0000-0000000001c1'), array[-3.33, -3.33, -3.34]::numeric[], 'AC-CAT-017 a credit line splits negative, to the cent, summing to the line');
+select is((select sum(x) from unnest(pg_temp.split('03760000-0000-0000-0000-0000000001c2')) x), 100.005::numeric, 'AC-CAT-017 a line with 3 decimals splits and sums exactly');
+select is(pg_temp.split('03760000-0000-0000-0000-0000000001c3'), array[0.00, 0.00, 0.01]::numeric[], 'AC-CAT-017 0.01 split three ways sums exactly');
+select is((select r.name from cost_attribution_allocations('03760000-0000-0000-0000-00000000000a', null, null) a join cost_attribution_rules r on r.id = a.rule_id
+  where a.gl_id = '03760000-0000-0000-0000-0000000001c4' limit 1), 'Salary to anchor', 'AC-CAT-017 a line posted on effective_from is attributed');
+set local role authenticated;
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a1');
+select is((select attributed_to_date from project_mapped_actuals('03760000-0000-0000-0000-0000000000c3', '2025') where category = 'Labor'), 575::numeric,
+  'AC-CAT-017 the 2025 view excludes the fiscal-2024 line GL-6 (50% of 1000 + 100 + 50)');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c3','Labor'), 1275::numeric, 'AC-CAT-017 the all-years view includes it (575 + 700)');
+select is((save_cost_attribution_rule('{"name":"Void rent","account":"Rent - RIS","effective_from":"2025-01-01","effective_to":"2024-12-31",
+  "targets":[{"project_id":"03760000-0000-0000-0000-0000000000c1","percent":100}]}'::jsonb))->>'version', '1', 'AC-CAT-017 a voided rule (ends the day before it starts) saves');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c1','Overheads'), 33.33::numeric - 3.33 + 33.33 + 0.00, 'AC-CAT-017 a voided rule contributes nothing (rent stays off the anchor)');
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a4');
+select is(pg_temp.attr('03760000-0000-0000-0000-0000000000c1','Labor'), 575::numeric, 'AC-CAT-017 an Executive reads the anchor''s attributed cost through project actuals (50% of 1150)');
+reset role;
+
+-- ── NFR-CAT-002 the org-wide read the dashboards use equals the per-project read, row for row ─────────
+create or replace function pg_temp.parity_gap(p_fy text) returns int language sql as $$
+  select (select count(*)::int from (select * from project_mapped_actuals_all(p_fy)
+            except select p.id, x.* from projects p cross join lateral project_mapped_actuals(p.id, p_fy) x) d)
+       + (select count(*)::int from (select p.id, x.* from projects p cross join lateral project_mapped_actuals(p.id, p_fy) x
+            except select * from project_mapped_actuals_all(p_fy)) d) $$;
+set local role authenticated;
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a1');
+select is(pg_temp.parity_gap(null), 0, 'NFR-CAT-002 Finance: org-wide actuals equal the per-project actuals (all years)');
+select is(pg_temp.parity_gap('2025'), 0, 'NFR-CAT-002 Finance: org-wide actuals equal the per-project actuals (2025)');
+select pg_temp.as_user('03760000-0000-0000-0000-0000000000a5');
+select is(pg_temp.parity_gap(null), 0, 'NFR-CAT-002 Engineer: the org-wide read applies the same Employee-party narrowing');
+reset role;
 
 -- ── AC-CAT-013 OAuth API client tiers ────────────────────────────────────────────────────────────────
 create or replace function pg_temp.req(p_sub text, p_path text) returns void language sql as $$
