@@ -1,6 +1,6 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { StatusPill, useToast } from '@/src/components/ui';
+import { StatusPill, Switch, useToast } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
@@ -13,7 +13,6 @@ import {
   type OrgFeatureKey,
   type EntitleableKey,
 } from '@/src/lib/features';
-import { cn } from '@/src/components/ui/cn';
 
 /**
  * Administration › Features section (ops-admin-surface S6, FR-ENT-008, AC-ENT-004).
@@ -38,11 +37,6 @@ export interface AdministrationFeaturesProps {
   /** The org whose features are being managed (the Operator's selected org or the caller's own). */
   orgId: string;
 }
-
-const TRACK_STYLE =
-  'relative inline-flex h-[22px] w-[40px] shrink-0 items-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring';
-const THUMB_STYLE =
-  'pointer-events-none block size-[16px] translate-x-[3px] rounded-full bg-white shadow-sm transition-transform';
 
 export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
   isOperator,
@@ -93,26 +87,12 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
             return (
               <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
                 <span className="text-[13.5px] font-medium">{label}</span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={enabled}
-                  aria-label={label}
+                <Switch
+                  checked={enabled}
+                  onChange={() => handleToggle(key, enabled)}
+                  label={label}
                   disabled={toggleMutation.isPending}
-                  onClick={() => handleToggle(key, enabled)}
-                  className={cn(
-                    TRACK_STYLE,
-                    enabled ? 'bg-primary' : 'bg-secondary',
-                  )}
-                >
-                  <span
-                    aria-hidden
-                    className={cn(
-                      THUMB_STYLE,
-                      enabled && 'translate-x-[21px]',
-                    )}
-                  />
-                </button>
+                />
               </li>
             );
           }

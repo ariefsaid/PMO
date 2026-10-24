@@ -37,6 +37,22 @@ describe('classifyMutationError (ADR-0017, promoted from ProcurementDetails)', (
     });
   });
 
+  it.each([
+    ['gate_request_before_order', 'Your organization requires a purchase request before an order.'],
+    ['gate_approval_before_order', 'Your organization requires an approval before an order.'],
+    ['gate_receipt_before_invoice', 'Your organization requires a goods receipt before a vendor invoice.'],
+    ['gate_approval_before_payment', 'Your organization requires an approval before payment.'],
+  ])('AC-PFE-003 a purchase-rule refusal (%s) shows the server rule message, not the generic conflict text', (gate, message) => {
+    const { headline, detail } = classifyMutationError(new AppError(message, '23514', gate));
+    expect(detail).toBe(message);
+    expect(headline).toBe('A purchase rule applies');
+  });
+
+  it('a 23514 whose detail merely starts like a rule name but is not one keeps the generic copy', () => {
+    const { detail } = classifyMutationError(new AppError('internal text', '23514', 'gate_something_else'));
+    expect(detail).toBe('This change conflicts with the current document state. Refresh and try again.');
+  });
+
   it('AC-M365DOC-062 unknown 23514 check detail is replaced with safe generic copy', () => {
     const error = new AppError('new row violates check constraint "synthetic_rule"', '23514');
     const result = classifyMutationError(error);

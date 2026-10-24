@@ -2,7 +2,7 @@ import { RecordFolderAction } from '@/src/components/m365/RecordFolderAction';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQueryClient } from '@tanstack/react-query';
-import { Button, ConfirmDialog, Icon, ListState } from '@/src/components/ui';
+import { Button, ConfirmDialog, Icon, ListState, SelectField } from '@/src/components/ui';
 import { LinkedDocumentCell } from '@/src/components/m365/LinkedDocumentCell';
 import { MicrosoftDocumentPicker } from '@/src/components/m365/MicrosoftDocumentPicker';
 import { useDocumentLinkPermissions } from '@/src/components/m365/DocumentLinkPermissions';
@@ -11,13 +11,18 @@ import { useAuth } from '@/src/auth/useAuth';
 import { formatInstantDate } from '@/src/lib/format';
 import { refreshMicrosoftReferences } from '@/src/lib/m365/graphClient';
 import { procurementReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
-import type { ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
+import type { DocumentTarget, ProcurementDocumentRow } from '@/src/lib/db/procurementCrud';
 
 export interface ProcurementMicrosoftReferencesProps {
   procurementId: string;
   /** The case's purchase-request number (`procurements.pr_number`); only a picker search hint. */
   requestNumber: string | null;
   createdAt: string;
+  /**
+   * FR-PFE-038: what a new link can be attached to besides the purchase itself — its records and linked ERP documents.
+   * `value` is `<recordKind>:<recordId>`. Rows already attached to one show under its label.
+   */
+  targets?: Array<DocumentTarget & { value: string; label: string }>;
 }
 
 /** A legacy plain link is opened as an ordinary external link only when it is a plain http(s) URL. */
@@ -40,7 +45,7 @@ type Confirm = { kind: 'unlink' | 'clear'; row: ProcurementDocumentRow };
  * link is not repeated here. Works for overhead cases with no project and at any stage. It never
  * changes a money transition or a ledger total.
  */
-export function ProcurementMicrosoftReferences({ procurementId, requestNumber, createdAt }: ProcurementMicrosoftReferencesProps) {
+export function ProcurementMicrosoftReferences({ procurementId, requestNumber, createdAt, targets = [] }: ProcurementMicrosoftReferencesProps) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { currentUser } = useAuth();
@@ -56,6 +61,10 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   const [pickerOpen, setPickerOpen] = useState(false);
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [attachTo, setAttachTo] = useState('');
+  /** A picked item waiting for its "Attach to" answer (asked only when the purchase has something to attach to). */
+  const [picked, setPicked] = useState<MicrosoftReferenceInput | null>(null);
+  const [attachError, setAttachError] = useState<string | null>(null);
   const pickerOpener = useRef<HTMLElement | null>(null);
 
   /** Matching browse refresh: only for rows the picker itself surfaced, never for absent results. */
@@ -73,7 +82,21 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   /** A failed create rejects out of here, so the picker keeps the selection and reports it. */
   async function onPickerSelect(selected: MicrosoftReferenceInput) {
     await refreshMatches(selected);
+    if (targets.length > 0) { setAttachTo(''); setAttachError(null); setPicked(selected); return; }
     await create.mutateAsync({ reference: selected });
+  }
+
+  /** The "Attach to" answer: the purchase itself (default) or one of its documents. */
+  async function confirmAttach() {
+    if (!picked) return;
+    setAttachError(null);
+    const target = targets.find((x) => x.value === attachTo);
+    try {
+      await create.mutateAsync(target ? { reference: picked, target: { recordKind: target.recordKind, recordId: target.recordId } } : { reference: picked });
+      setPicked(null);
+    } catch {
+      setAttachError(t('m365Documents.procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
+    }
   }
 
   function openPicker(opener?: HTMLElement | null) {
@@ -129,15 +152,42 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     );
   }
 
+  function renderItem(row: ProcurementDocumentRow) {
+    const reference = procurementReference(row);
+    return (
+      <li key={row.id} aria-label={reference?.name ?? row.type} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
+        {canEdit && (
+          <Button
+            variant="ghost" size="sm" className="touch-target shrink-0"
+            aria-label={reference
+              ? t('m365Documents.procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
+              : t('m365Documents.procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
+            onClick={() => { setConfirmError(null); setConfirm({ kind: reference ? 'unlink' : 'clear', row }); }}
+          >
+            {reference ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
+          </Button>
+        )}
+      </li>
+    );
+  }
+
+  // A link attached to one of the purchase's records shows under that record; one whose record is gone stays in the plain list.
+  const targetKey = (row: ProcurementDocumentRow) => `${row.record_kind}:${row.record_id}`;
+  const groups = targets
+    .map((x) => ({ ...x, rows: rows.filter((row) => row.record_kind && targetKey(row) === x.value) }))
+    .filter((g) => g.rows.length > 0);
+  const plain = rows.filter((row) => !groups.some((g) => g.value === targetKey(row)));
+  const thisPurchase = t('procurement:documents.thisPurchase', 'This purchase');
   const listName = t('m365Documents.procurement.heading', 'SharePoint links for this case');
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
   return (
     <section aria-labelledby="proc-case-references-heading" className="mt-6 border-t border-border pt-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
-        <h3 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
+        <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
           {listName}
-        </h3>
+        </h2>
         <div className="flex flex-wrap items-center gap-2">
           <RecordFolderAction
             target={{ kind: 'procurement', id: procurementId }}
@@ -173,27 +223,24 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
             className="py-6"
           />
         ) : (
-          <ul aria-label={listName} className="divide-y divide-border">
-            {rows.map((row) => {
-              const reference = procurementReference(row);
-              return (
-                <li key={row.id} className="flex min-w-0 flex-wrap items-start justify-between gap-2 px-1 py-2">
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">{renderLink(row)}</div>
-                  {canEdit && (
-                    <Button
-                      variant="ghost" size="sm" className="touch-target shrink-0"
-                      aria-label={reference
-                        ? t('m365Documents.procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
-                        : t('m365Documents.procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
-                      onClick={() => { setConfirmError(null); setConfirm({ kind: reference ? 'unlink' : 'clear', row }); }}
-                    >
-                      {reference ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
-                    </Button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+          <>
+            {plain.length > 0 && (
+              groups.length === 0
+                ? <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>
+                : (
+                  <div role="group" aria-label={thisPurchase}>
+                    <p className="px-1 text-[12px] font-semibold text-muted-foreground">{thisPurchase}</p>
+                    <ul className="divide-y divide-border">{plain.map(renderItem)}</ul>
+                  </div>
+                )
+            )}
+            {groups.map((g) => (
+              <div key={g.value} role="group" aria-label={g.label} className="mt-3">
+                <p className="px-1 text-[12px] font-semibold text-muted-foreground">{g.label}</p>
+                <ul className="divide-y divide-border">{g.rows.map(renderItem)}</ul>
+              </div>
+            ))}
+          </>
         )}
       </div>
 
@@ -202,6 +249,32 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         context={pickerContext}
         onClose={closePicker}
         onSelect={onPickerSelect}
+      />
+
+      <ConfirmDialog
+        open={picked !== null}
+        title={t('procurement:documents.attachTitle', 'Attach this link')}
+        description={(
+          <>
+            <span className="mb-3 block break-words">{picked?.name}</span>
+            <SelectField
+              id="proc-case-attach-to"
+              label={t('procurement:documents.attachTo', 'Attach to')}
+              value={attachTo}
+              onChange={setAttachTo}
+              options={[
+                { value: '', label: t('procurement:documents.thisPurchase', 'This purchase') },
+                ...targets.map((x) => ({ value: x.value, label: x.label })),
+              ]}
+            />
+            {attachError && <span role="alert" className="mt-2 block text-destructive-text">{attachError}</span>}
+          </>
+        )}
+        confirmLabel={t('procurement:documents.attachConfirm', 'Link')}
+        tone="default"
+        loading={create.isPending}
+        onConfirm={() => void confirmAttach()}
+        onCancel={() => setPicked(null)}
       />
 
       <ConfirmDialog

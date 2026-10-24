@@ -61,6 +61,60 @@
     "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
   },
   "ledger": {
-    "billsHiddenForRole": "Vendor bills and payments are not shown for your role."
+    "billsHiddenForRole": "Vendor bills and payments are not shown for your role.",
+    "awaitingApproval": "Waiting for approval. Documents can be recorded once it is approved.",
+    "approveToStart": "Approve to start recording documents.",
+    "emptyTitle": "No documents yet",
+    "waitingApproval": "Waiting for approval.",
+    "recordFirst": "Record the first document below.",
+    "nothingRecorded": "Nothing was recorded for this purchase.",
+    "first": {
+      "label": "Record the first document",
+      "helper": "Start from the document you already have. Your organization’s purchase rules still apply.",
+      "request": "Request",
+      "rfq": "Quote request",
+      "order": "Order",
+      "receipt": "Goods receipt",
+      "invoice": "Vendor invoice",
+      "payment": "Payment",
+      "needsRequest": "needs a request first",
+      "needsApproval": "needs an approval first",
+      "needsReceipt": "needs a goods receipt first"
+    }
+  },
+  "gates": {
+    "heading": "Purchase rules",
+    "intro": "All off: a purchase can start at any step. Turn a rule on only when your accounting needs it.",
+    "loadError": "Couldn’t load purchase rules",
+    "onlyAdmin": "Only an Admin can change this.",
+    "request_before_order": "Request required before order",
+    "approval_before_order": "Approval required before order",
+    "receipt_before_invoice": "Receipt required before invoice",
+    "approval_before_payment": "Approval required before payment",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "request_before_orderHelp": "When on, an order needs a purchase request first.",
+    "approval_before_orderHelp": "When on, an order needs an approved request first.",
+    "receipt_before_invoiceHelp": "When on, a vendor invoice needs a goods receipt first.",
+    "approval_before_paymentHelp": "When on, a payment needs an approved amount first."
+  },
+  "documents": {
+    "attachTo": "Attach to",
+    "thisPurchase": "This purchase",
+    "openFolder": "Open folder",
+    "attachTitle": "Attach this link",
+    "attachConfirm": "Link",
+    "type": {
+      "pr": "Purchase request",
+      "rfq": "Quote request",
+      "quote": "Quotation",
+      "po": "Purchase order",
+      "gr": "Goods receipt",
+      "invoice": "Vendor invoice",
+      "payment": "Payment"
+    }
+  },
+  "detail": {
+    "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
   }
 }

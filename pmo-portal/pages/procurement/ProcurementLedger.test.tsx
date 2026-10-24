@@ -327,8 +327,20 @@ describe('AC-PR-LEDGER-011: filter chips', () => {
 });
 
 describe('AC-PR-LEDGER-012: empty state', () => {
-  it('shows taught empty state when no rows exist', () => {
-    wrap(<ProcurementLedger {...BASE_PROPS} rows={[]} />);
+  // D2 review (Important 5): the empty state says what to do for THIS status, not a generic "capture below".
+  it.each([
+    ['Draft', false, 'Record the first document below.'],
+    ['Requested', true, 'Approve to start recording documents.'],
+    ['Requested', false, 'Waiting for approval.'],
+    ['Paid', false, 'Nothing was recorded for this purchase.'],
+  ] as const)('shows the %s empty state for an approver=%s viewer', (status, canApprove, sub) => {
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status })} rows={[]} canApprove={canApprove} />);
+    expect(screen.getByText('No documents yet')).toBeInTheDocument();
+    expect(screen.getByText(sub)).toBeInTheDocument();
+  });
+
+  it('keeps the generic empty state for a status with no special wording', () => {
+    wrap(<ProcurementLedger {...BASE_PROPS} detail={makeDetail({ status: 'Ordered' })} rows={[]} />);
     expect(screen.getByText(/No records captured yet/i)).toBeInTheDocument();
   });
 

@@ -33,6 +33,11 @@ const rows: ProcurementWithRefs[] = [
 ];
 
 describe('T3 — summarizeProcurement', () => {
+  it('FR-PFE-037: uses the server open commitment when present', () => {
+    const row = { ...makeRow('g', 'Ordered', 1000, '2026-01-07T00:00:00Z'), open_commitment: 400 };
+    expect(summarizeProcurement([row]).committedTotal).toBe(400);
+  });
+
   it('counts Open bucket: Draft + Requested + Approved + in-flight non-terminal statuses (T3)', () => {
     const result = summarizeProcurement(rows);
     // Open: Draft(a), Requested(b), Ordered(f) = 3

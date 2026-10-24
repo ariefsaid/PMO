@@ -333,6 +333,15 @@ describe('AC-M365DOC-051/062 procurement Microsoft references', () => {
     expect(JSON.stringify(h.calls.insert)).not.toMatch(/org_id|ms_linked_by|ms_linked_at/);
   });
 
+  it('AC-PFE-009: a reference attached to a document carries its record kind and id; none without a target', async () => {
+    h.result.value = { data: { id: 'doc-1' }, error: null };
+    await createMicrosoftProcurementDocument('case-1', reference, undefined, { recordKind: 'erp_document', recordId: 'd1' });
+    expect(h.calls.insert.at(-1)).toMatchObject({ procurement_id: 'case-1', record_kind: 'erp_document', record_id: 'd1' });
+    await createMicrosoftProcurementDocument('case-1', reference);
+    expect(h.calls.insert.at(-1)).not.toHaveProperty('record_kind');
+    expect(h.calls.insert.at(-1)).not.toHaveProperty('record_id');
+  });
+
   it('links/unlinks a row with single canonical updates and does not overwrite unrelated metadata', async () => {
     h.result.value = { data: [{ id: 'doc-1' }], error: null };
     await linkMicrosoftProcurementDocument('doc-1', reference);

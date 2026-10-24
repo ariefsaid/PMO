@@ -86,7 +86,7 @@ interface KindConfig {
   showAmount: boolean;
   /** Whether the predecessor-FK "Links to invoice" select is shown (payment only). */
   showInvoiceFk: boolean;
-  /** Submit-button label (GR/VI keep the compact "Save GR"/"Save VI"). */
+  /** Submit-button label (GR/VI keep the compact "Save GR"/"Save vendor invoice"). */
   saveLabel: string;
   /** data-testid for the <form>. */
   formTestId: string;
@@ -176,7 +176,7 @@ function kindConfig(kind: RecordKind): KindConfig {
       dateLabel: 'Invoice date',
       showAmount: true,
       showInvoiceFk: false,
-      saveLabel: 'Save VI',
+      saveLabel: 'Save vendor invoice',
       formTestId: 'form-create-vi',
       refTestId: VI_FIELD_TEST_IDS.ref,
       statusTestId: VI_FIELD_TEST_IDS.status,
@@ -810,7 +810,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           disabled={taxIncomplete}
           data-testid={cfg.saveTestId}
         >
-          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save VI') : cfg.saveLabel}
+          {kind === 'payment' ? t('procurementDetail.savePayment', 'Save Payment') : kind === 'vendor_invoice' ? t('procurementDetail.confirm.saveVI', 'Save vendor invoice') : cfg.saveLabel}
         </Button>
         <Button
           type="button"

@@ -14,7 +14,7 @@ export interface ProcurementSummary {
   open: number;
   completed: number;
   closed: number;
-  /** Sum of total_value for all non-Cancelled/Rejected rows. */
+  /** Sum of the server open commitment (falls back to total_value) for all non-Cancelled/Rejected rows. */
   committedTotal: number;
   /** Count of non-Cancelled/Rejected rows. */
   count: number;
@@ -42,7 +42,7 @@ export function summarizeProcurement(rows: ProcurementWithRefs[]): ProcurementSu
     }
 
     if (!CLOSED.has(s)) {
-      committedTotal += Number(row.total_value) || 0;
+      committedTotal += Number(row.open_commitment ?? row.total_value) || 0;
       count++;
     }
   }

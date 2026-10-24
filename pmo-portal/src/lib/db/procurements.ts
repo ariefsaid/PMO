@@ -17,6 +17,8 @@ export type ProcurementWithRefs = ProcurementRow & {
   pr_refs?: { external_ref: string | null }[];
   po_refs?: { external_ref: string | null }[];
   vi_refs?: { external_ref: string | null }[];
+  /** FR-PFE-037: the server's open commitment (SQL `procurement_open_commitment`); the list sums this, not total_value. */
+  open_commitment?: number | null;
 };
 
 /** Every non-empty external reference on a case's PR / PO / vendor-invoice records, in that order. */
@@ -27,7 +29,7 @@ export function externalRefsOf(p: ProcurementWithRefs): string[] {
 }
 
 const SELECT =
-  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name)';
+  '*, project:projects(name,code), vendor:companies(name), requested_by:profiles!procurements_requested_by_id_fkey(full_name), open_commitment:procurement_open_commitment';
 
 /** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
  *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */
@@ -52,17 +54,14 @@ export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Paid',
 ];
 
+/**
+ * Committed spend for ONE project — SINGLE DEFINITION is SQL `project_committed_spend` (0361, FR-PFE-037): Σ open commitment
+ * over Ordered..Paid purchases; in an ERP-ledger org an invoice already on the ledger is not counted again (ADR-0093).
+ */
 export async function getProjectCommittedSpend(projectId: string): Promise<number> {
-  const { data, error } = await supabase
-    .from('procurements')
-    .select('total_value')
-    .eq('project_id', projectId)
-    .in('status', COMMITTED_STATUSES);
+  const { data, error } = await supabase.rpc('project_committed_spend', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return (data ?? []).reduce(
-    (sum, row) => sum + Number((row as { total_value: number }).total_value ?? 0),
-    0,
-  );
+  return Number(data ?? 0);
 }
 
 /**

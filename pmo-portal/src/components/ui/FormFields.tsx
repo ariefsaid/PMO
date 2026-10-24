@@ -354,6 +354,8 @@ export const TextArea: React.FC<TextAreaProps> = ({
 export interface SelectOption {
   value: string;
   label: string;
+  /** Offered but not choosable (e.g. an option an org rule holds back); the label should say why. */
+  disabled?: boolean;
 }
 
 export interface SelectFieldProps
@@ -419,7 +421,7 @@ export const SelectField: React.FC<SelectFieldProps> = ({
           </option>
         )}
         {options.map((o) => (
-          <option key={o.value} value={o.value}>
+          <option key={o.value} value={o.value} disabled={o.disabled}>
             {o.label}
           </option>
         ))}

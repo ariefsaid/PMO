@@ -8,6 +8,7 @@ export { chartTheme, type ChartTheme } from './chartTheme';
 export { Button, type ButtonProps, type ButtonVariant, type ButtonSize } from './Button';
 export { buttonClasses } from './buttonClasses';
 export { Checkbox, type CheckboxProps } from './Checkbox';
+export { Switch, type SwitchProps } from './Switch';
 export { TaxBasisLabel, type TaxBasisLabelProps } from './TaxBasisLabel';
 export { StatusPill, Badge, type StatusVariant, type StatusPillProps, type BadgeProps } from './StatusPill';
 export { Card, CardHead, CardPad, type CardProps, type CardHeadingLevel } from './Card';

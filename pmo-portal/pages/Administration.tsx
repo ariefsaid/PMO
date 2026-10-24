@@ -21,6 +21,7 @@ import SpendApprovers from './admin/SpendApprovers';
 import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import OrgProcurementGates from './admin/OrgProcurementGates';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
@@ -161,6 +162,7 @@ const AccountingSectionNavigation: React.FC = () => {
     { id: 'withholding-account-heading', label: t('uxs31.accounting.withholding', 'Receipt withholding') },
     { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Vendor bill tax accounts') },
     { id: 'down-payment-item-heading', label: t('uxs31.accounting.downPayments', 'Down payments') },
+    { id: 'procurement-gates-heading', label: t('procurement:gates.heading', 'Purchase rules') },
     { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
     { id: 'expense-account-map', label: t('uxs31.accounting.expenseMap', 'Expense account map') },
   ];
@@ -238,6 +240,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgWithholdingAccount />
             <OrgVendorTaxAccounts />
             <OrgDownPaymentItem />
+            <OrgProcurementGates />
             <BudgetAccountMap />
             <ExpenseAccountMap />
           </div>
