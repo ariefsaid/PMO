@@ -40,8 +40,14 @@ insert into procurements (id, org_id, title, requested_by_id, project_id, curren
 -- AMENDED BY 0362 (FR-PFE-017): PAY has a request number, so it entered approval; without one 0362 lets it be paid with no approval.
 update procurements set pr_number = 'PR-PAY' where id = '03640000-0000-0000-0000-0000000000e7';
 -- PINV-PUSHED is pushed by PMO after the last mirror sweep: its pmo_owned stamp is still false.
+-- AMENDED BY 0378: a document is recorded by PMO only while its procurement reference points at a live PMO record of
+-- its kind, so the PMO-pushed fixture is a real vendor bill (it pointed at nothing before).
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03640000-0000-0000-0000-0000000000f8','03640000-0000-0000-0000-00000000000a','PMO pushed','03640000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03640000-0000-0000-0000-0000000000f9','03640000-0000-0000-0000-0000000000f8','03640000-0000-0000-0000-00000000000a','Received',5,'IDR','exclusive',0);
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
-  ('03640000-0000-0000-0000-00000000000a','procurement','pmo-late','erpnext','PINV-PUSHED');
+  ('03640000-0000-0000-0000-00000000000a','procurement','03640000-0000-0000-0000-0000000000f9','erpnext','PINV-PUSHED');
 
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03640000-0000-0000-0000-0000000000a1","role":"authenticated"}';
