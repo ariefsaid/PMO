@@ -147,6 +147,8 @@ export interface DbMoneyOutboxDepsOpts {
   /** M-3 (audit): the canonical digest of THIS command's payload (`canonicalCommandDigest`) — persisted
    *  at insert + exposed on the deps so dispatch can reject key-reuse with a different payload. */
   payloadDigest?: string;
+  /** Older stored digests of this same command (`DispatchMoneyOutboxDeps.legacyPayloadDigests`). */
+  legacyPayloadDigests?: readonly string[];
   /** BLOCK 7: the VERIFIED dispatching user (index.ts's `verified.sub` — never a client-supplied
    *  field), persisted at INSERT into `actor_user_id` (0108). The caller's identity otherwise lives
    *  only in the live request JWT, so a LATER sweep finalize cannot attribute the author and
@@ -301,6 +303,7 @@ export function createDbMoneyOutboxDeps(opts: DbMoneyOutboxDepsOpts): DispatchMo
     probeByRemarksKey: opts.probeByRemarksKey,
     backoff: opts.backoff ?? defaultBackoff,
     payloadDigest: opts.payloadDigest,
+    ...(opts.legacyPayloadDigests?.length ? { legacyPayloadDigests: opts.legacyPayloadDigests } : {}),
     // FIX 2: undefined on the synchronous path (byte-for-byte); the sweep recovery path supplies it.
     ...(opts.reauthorizeRecoveryReissue ? { reauthorizeRecoveryReissue: opts.reauthorizeRecoveryReissue } : {}),
   };

@@ -139,6 +139,10 @@ export interface DispatchMoneyOutboxDeps {
    *  insert and compared against a re-read row's stored digest to reject idempotency-key reuse with a
    *  different payload. Absent ⇒ the binding check is skipped (P0/P1 and pre-M-3 callers). */
   payloadDigest?: string;
+  /** Digests an OLDER dispatch stored for this SAME command before a field it wrongly bound was dropped
+   *  from the payload (e.g. a budget Retry's request-scoping `target_fiscal_year`). A stored row matching
+   *  one of these is the same command, not key reuse. Absent ⇒ only `payloadDigest` is accepted. */
+  legacyPayloadDigests?: readonly string[];
   /**
    * FIX 2 (round-9 cross-family SHOULD-FIX): re-assert the recorded actor's CURRENT authorization at a
    * post-window RECOVERY REISSUE — a `quarantined` immutable-anchor claim whose probe MISSES, about to
@@ -642,7 +646,8 @@ export async function dispatchMoneyWrite(deps: DispatchMoneyWriteDeps): Promise<
   // different payload (a DIFFERENT amount/party/references digest) must be REJECTED, never silently
   // reconciled to the original command (which could hide a wrong-amount money doc). Skipped when either
   // digest is absent (P0/P1 / pre-M-3 rows).
-  if (row.payloadDigest && money.payloadDigest && row.payloadDigest !== money.payloadDigest) {
+  if (row.payloadDigest && money.payloadDigest && row.payloadDigest !== money.payloadDigest &&
+      !money.legacyPayloadDigests?.includes(row.payloadDigest)) {
     throw toDispatchError(new AdapterError('commit-rejected', 'idempotency-key-payload-mismatch'));
   }
   return reconcileOutbox(row, deps);
