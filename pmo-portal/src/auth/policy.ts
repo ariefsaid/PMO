@@ -80,6 +80,7 @@ export type Entity =
   | 'externalBinding'
   | 'integration'
   | 'orgAccounting'
+  | 'costAttribution'
   | 'vendorTaxDefault'
   | 'orgProjectNumbering'
   | 'orgProjectClassification'
@@ -150,6 +151,8 @@ const MILESTONE_WRITE: Role[] = ['Admin', 'Project Manager']; // OD-DEL-7: PM+Ad
 const REVENUE_WRITE: Role[] = ['Admin', 'Finance'];
 /** #876 slice 2 (DD-VWH-11): who may set a vendor's default tax treatment — mirrors set_vendor_tax_defaults (0273). */
 const TAX_SETUP: Role[] = ['Admin', 'Finance'];
+/** #1271: who may save / end / preview cost attribution rules — mirrors the 0376 RPC gate. */
+const COST_ATTRIBUTION_WRITE: Role[] = ['Admin', 'Finance'];
 
 const has = (set: Role[], role: Role | null): boolean => role != null && set.includes(role);
 
@@ -589,6 +592,9 @@ const POLICY: Partial<Record<Entity, Partial<Record<Action, Predicate>>>> = {
   orgAccounting: {
     manage: allow(ADMIN),
   },
+  // #1271: cost attribution rules — mirrors save/end/preview_cost_attribution (0376: active Admin or Finance).
+  // UX ONLY — the RPCs are the authority (ADR-0016).
+  costAttribution: { manage: allow(COST_ATTRIBUTION_WRITE) },
   // #876 slice 2: a vendor's default VAT / PPh treatment. UX ONLY — set_vendor_tax_defaults is the authority.
   vendorTaxDefault: { manage: allow(TAX_SETUP) },
   orgProjectNumbering: {

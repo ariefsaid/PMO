@@ -14,6 +14,8 @@ export interface GraphDrive { id: string; name: string; web_url: string }
 export interface GraphItem extends MicrosoftReferenceInput {
   parent_path: string | null;
   content_tag: string | null;
+  /** Microsoft's last-modified instant (lastModifiedDateTime); absent when Microsoft omits it. */
+  modified_at?: string | null;
   sharepoint_ids: { site_url: string; list_id: string; list_item_id: string } | null;
 }
 export interface GraphVersion { id: string; modified_at: string | null }
@@ -108,6 +110,7 @@ function decodeItem(value: unknown): GraphItem | null {
     item_kind: kind,
     parent_path: path,
     content_tag: readText(item.cTag),
+    modified_at: readText(item.lastModifiedDateTime),
     sharepoint_ids: siteUrl && listId && listItemId
       ? { site_url: siteUrl, list_id: listId, list_item_id: listItemId }
       : null,

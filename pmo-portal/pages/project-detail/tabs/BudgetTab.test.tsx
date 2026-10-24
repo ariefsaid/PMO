@@ -32,6 +32,7 @@ vi.mock('@/src/hooks/useErpnextBinding', () => ({
 vi.mock('../../ProjectBudget', () => ({
   default: () => <div data-testid="pmo-budget-grid">PMO budget grid</div>,
 }));
+vi.mock('../AttributedSpendingNote', () => ({ AttributedSpendingNote: () => null }));
 vi.mock('../../BudgetProjection', () => ({
   default: () => <div data-testid="erp-projection-panel">ERP projection</div>,
 }));

@@ -21,6 +21,8 @@
  *   pmo budgets activate <version_id> [--source <json | @file | ->]   (Admin, Executive, PM, Finance; #1270; not enabled yet)
  *   pmo budgets link <version_id> --source <json | @file | ->   (Admin, Executive, PM, Finance; Draft versions; #1270)
  *   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; #1270)
+ *   pmo attribution preview <file> [--json] | set <file> [--dry-run] | end <rule_key> --to <date> --version <n>   (Admin, Finance; #1271)
+ *   pmo attribution list [--history]   (Admin, Finance, Executive, PM; #1271)
  *
  * Output is JSON on stdout; errors are JSON on stderr. Exit 0 = ok, 1 = the server refused or
  * failed, 2 = the CLI refused (usage, allow-list, DD-API-3 guard) before sending anything.
@@ -42,6 +44,7 @@ import { pathToFileURL } from 'node:url';
 import { applyLoad, countActions, resolveLoad, validateLoadFile } from './lib/pmo-load.mjs';
 import { applyMapSet, MAP_COLUMNS, MAP_TABLE, MapSetError, planMapSet } from './lib/pmo-accounts.mjs';
 import { ACTIVATION_ENABLED, activateBudget, ActivationRefused, linkBudgetSource, validateSource } from './lib/pmo-budgets.mjs';
+import { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS, AttributionFileError, explainError, formatPreview, previewRules, readRules, setRules, validateEnd } from './lib/pmo-attribution.mjs';
 import { LinkFileError, MAX_BATCH, PURCHASE_READ_VIEWS, parseCsv, rowsFromCsv, runLink, runSetAside, setAsideRowsFromCsv, validateLinkRows, validateSetAsideRows } from './lib/pmo-purchases.mjs';
 
 // ── the public surface (DD-API-1 / DD-API-3) ─────────────────────────────────────────────────────
@@ -102,8 +105,11 @@ export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items'
  */
 export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
 
+/** The cost attribution tiers (#1271, migration 0376), used only by `pmo attribution`: preview/save/end for active Admin/Finance, list also for Executive/PM. */
+export { ATTRIBUTION_READ_RPCS, ATTRIBUTION_WRITE_RPCS };
+
 /** The verbs. There is deliberately no delete (DD-API-3). */
-export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts']);
+export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases', 'erp', 'documents', 'm365', 'budgets', 'accounts', 'attribution']);
 
 const DELETE_VERBS = new Set(['delete', 'del', 'rm', 'remove', 'destroy']);
 
@@ -152,6 +158,13 @@ class CliError extends Error {
 const usage = (message) => new CliError(message, { exit: 2 });
 
 /** A result printed on stdout with a non-zero exit (e.g. a link report with refused rows). */
+/** Plain text for stdout (a human-readable table) instead of JSON. */
+class Printed {
+  constructor(text) {
+    this.text = text;
+  }
+}
+
 class Reported {
   constructor(result, exit) {
     this.result = result;
@@ -652,8 +665,8 @@ function defaultOpenBrowser(url) {
 
 // ── argument parsing ─────────────────────────────────────────────────────────────────────────────
 
-const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'source']);
-const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside']);
+const VALUE_FLAGS = new Set(['url', 'key', 'client-id', 'select', 'filter', 'limit', 'timeout', 'project', 'source', 'to', 'version']);
+const BOOL_FLAGS = new Set(['no-browser', 'help', 'dry-run', 'csv', 'undo', 'include-set-aside', 'json', 'history']);
 
 export function parseArgs(argv) {
   const flags = { filter: [] };
@@ -766,6 +779,10 @@ const USAGE = `usage:
                                                                    app's activation and separation-of-duties rules apply)
   pmo budgets link <version_id> --source <json | @file | ->   (attach a SharePoint file to a Draft; host-pinned to the organisation's library)
   pmo accounts map set <category> <account...> [--dry-run]   (active Admin; the first account is the push account)
+  pmo attribution preview <file.json | -> [--json]   (Admin, Finance: amount per project, month and category)
+  pmo attribution set <file.json | -> [--dry-run]   (Admin, Finance: one rule or an array; --dry-run previews and saves nothing)
+  pmo attribution end <rule_key> --to <YYYY-MM-DD> --version <n>   (Admin, Finance: a new version with that end date)
+  pmo attribution list [--history]   (Admin, Finance, Executive, Project Manager)
 
 common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABASE_URL})
                 --key <publishable key> (PMO_SUPABASE_KEY)
@@ -897,6 +914,8 @@ async function dispatch(ctx, command, positionals, flags) {
       return budgets(ctx, positionals, flags);
     case 'accounts':
       return accounts(ctx, positionals, flags);
+    case 'attribution':
+      return attribution(ctx, positionals, flags);
     default:
       throw usage(`Unknown command '${command}'.\n${USAGE}`);
   }
@@ -1124,6 +1143,50 @@ async function accounts(ctx, positionals, flags) {
 }
 
 /**
+ * `pmo attribution` (#1271): cost attribution rules. The database validates, refuses ties and stale versions, and
+ * decides who may call (Admin/Finance; list also Executive/PM). Errors keep the database's reason, with a plain lead-in.
+ */
+async function attribution(ctx, positionals, flags) {
+  const [sub, arg] = positionals;
+  const api = { rpc: (name, body) => authed(ctx, 'POST', `/rest/v1/rpc/${name}`, { body }) };
+  const explain = (e) => {
+    if (e instanceof AttributionFileError) {
+      return new CliError(`Nothing was sent: ${e.problems.length} problem(s).`, { exit: 2, code: 'invalid_attribution', details: e.problems });
+    }
+    if ((e instanceof CliError && e.exit === 2) || e?.code === undefined) return e;
+    const err = new CliError(`${e.ruleIndex ? `Rule ${e.ruleIndex}: ` : ''}${explainError(e)}`, { code: e.code, status: e.status, hint: e.hint });
+    if (e.applied) err.details = { applied: e.applied, note: 'Rules listed in applied were saved; fix the failing rule and run set again for the rest.' };
+    return err;
+  };
+  const rulesFrom = async () => {
+    if (!arg) throw usage(`attribution ${sub} needs a rule file: pmo attribution ${sub} <file.json | ->`);
+    return readRules(await readPayload(ctx, arg === '-' ? '-' : `@${arg.replace(/^@/, '')}`));
+  };
+  try {
+    if (sub === 'preview') {
+      const previews = await previewRules(api, await rulesFrom());
+      if (flags.json) return { previews };
+      const ids = [...new Set(previews.flatMap((p) => p.rows.map((r) => r.project_id)))].filter((id) => UUID.test(id ?? ''));
+      const names = new Map();
+      if (ids.length > 0) {
+        const q = new URLSearchParams({ select: 'id,name', id: `in.(${ids.join(',')})` });
+        const rows = await authed(ctx, 'GET', `/rest/v1/projects?${q}`);
+        for (const r of Array.isArray(rows) ? rows : []) names.set(r.id, r.name);
+      }
+      return new Printed(formatPreview(previews, names));
+    }
+    if (sub === 'set') return await setRules(api, await rulesFrom(), { dryRun: Boolean(flags['dry-run']) });
+    if (sub === 'end') {
+      return await api.rpc('end_cost_attribution_rule', validateEnd({ ruleKey: arg, to: flags.to, version: flags.version }));
+    }
+    if (sub === 'list') return await api.rpc('list_cost_attribution_rules', { p_include_history: Boolean(flags.history) });
+  } catch (e) {
+    throw explain(e);
+  }
+  throw usage(`Unknown attribution command '${sub ?? ''}'. Use preview, set, end or list.`);
+}
+
+/**
  * Run the CLI. Returns the exit code; never calls process.exit (so tests can drive it).
  * @param {string[]} argv
  * @param {{env?: Record<string,string|undefined>, stdout?: {write(s:string):unknown}, stderr?: {write(s:string):unknown},
@@ -1164,6 +1227,10 @@ export async function run(argv, io = {}) {
       ...resolveTarget(env, flags),
     };
     const result = await dispatch(ctx, command, positionals, flags);
+    if (result instanceof Printed) {
+      stdout.write(result.text);
+      return 0;
+    }
     if (result instanceof Reported) {
       stdout.write(`${JSON.stringify(result.result, null, 2)}\n`);
       return result.exit;

@@ -6,7 +6,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -60,6 +60,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       formatExactMoney(row.amount, actuals.currency, i18n.language) !== null;
     (known ? knownCategories : unavailableCategories).push(row);
   }
+  // #1271 AC-3: tagged vs rule-attributed cost, named only when some of the (complete, ERP-ledger) total is attributed.
+  const split = actualPosition.basis === 'erp' && actualPosition.complete
+    ? attributedSplit({ tagged: actuals.tagged_total, attributed: actuals.attributed_total })
+    : null;
   const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
   const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
@@ -168,6 +172,15 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           : hasCoverage && !completeCoverage && <p className="text-xs text-muted-foreground">
             {t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
           </p>}
+        {split && (
+          <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
+            {split.tagged
+              ? t('costAttribution:split.note', 'Includes {{attributed}} attributed by cost rules · {{tagged}} tagged in the ERP', {
+                attributed: money(split.attributed, actualPosition.currency), tagged: money(split.tagged, actualPosition.currency) })
+              : t('costAttribution:split.noteAttributedOnly', 'Includes {{attributed}} attributed by cost rules', {
+                attributed: money(split.attributed, actualPosition.currency) })}
+          </p>
+        )}
         {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
           <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
@@ -200,6 +213,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                   </th>
                   <td className="break-words text-right tabular-nums">
                     {money(row.amount, actuals.currency)}
+                    {(() => {
+                      const part = attributedSplit({ attributed: row.attributed_amount });
+                      return part && (
+                        <span className="block text-xs font-normal text-muted-foreground">
+                          {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: money(part.attributed, actuals.currency) })}
+                        </span>
+                      );
+                    })()}
                   </td>
                 </tr>
               ))}

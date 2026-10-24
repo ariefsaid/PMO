@@ -29,9 +29,15 @@ insert into org_m365_document_settings (org_id, default_site_id, default_site_na
 insert into companies (id, org_id, name, type) values
   ('03610000-0000-0000-0000-0000000000c1','03610000-0000-0000-0000-00000000000a','Supplier One','Vendor'),
   ('03610000-0000-0000-0000-0000000000c3','03610000-0000-0000-0000-00000000000a','Supplier Three','Vendor');
+-- AMENDED BY 0378: a document is recorded by PMO only while its procurement reference points at a live PMO record of
+-- its kind, so the PMO-pushed fixture is a real vendor bill (it pointed at nothing before).
+insert into procurements (id, org_id, title, requested_by_id, currency, total_value, status) values
+  ('03610000-0000-0000-0000-0000000000f8','03610000-0000-0000-0000-00000000000a','PMO pushed','03610000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
+insert into procurement_invoices (id, procurement_id, org_id, status, amount, currency, tax_treatment, tax_amount) values
+  ('03610000-0000-0000-0000-0000000000f9','03610000-0000-0000-0000-0000000000f8','03610000-0000-0000-0000-00000000000a','Received',5,'IDR','exclusive',0);
 insert into external_refs (org_id, domain, pmo_record_id, external_tier, external_record_id) values
   ('03610000-0000-0000-0000-00000000000a','companies','03610000-0000-0000-0000-0000000000c1','erpnext','SUP-1'),
-  ('03610000-0000-0000-0000-00000000000a','procurement','pmo-pi','erpnext','PINV-PMO');
+  ('03610000-0000-0000-0000-00000000000a','procurement','03610000-0000-0000-0000-0000000000f9','erpnext','PINV-PMO');
 select upsert_erp_purchase_documents('03610000-0000-0000-0000-00000000000a', $$[
  {"erp_doctype":"Purchase Invoice","erp_name":"PINV-1","supplier":"SUP-1","supplier_name":"Supplier One","currency":"IDR","grand_total":666,"net_total":600,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},
  {"erp_doctype":"Purchase Invoice","erp_name":"PINV-2","supplier":"SUP-2","supplier_name":"Supplier Two","currency":"IDR","grand_total":100,"net_total":100,"erp_docstatus":1,"erp_project":"ERP-A","erp_modified":"2026-02-01"},

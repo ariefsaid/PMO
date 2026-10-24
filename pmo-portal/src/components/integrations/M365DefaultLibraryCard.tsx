@@ -1,5 +1,5 @@
 import { LinkExistingRecordFolders } from '@/src/components/m365/LinkExistingRecordFolders';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Card, ConfirmDialog, EntityFormModal, FormGrid, Icon, ListState, SelectField, useEntityForm, type SubmitError } from '@/src/components/ui';
@@ -30,6 +30,11 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
   const [clearOpen, setClearOpen] = useState(false);
   const [clearError, setClearError] = useState<SubmitError | null>(null);
 
+  // Arriving by the "Choose the default document library" link: bring this card into view.
+  useEffect(() => {
+    if (window.location.hash === '#m365-default-library') document.getElementById('m365-default-library')?.scrollIntoView?.({ block: 'start' });
+  }, []);
+
   const canManage = permissions.manageDefault() && setDefault !== null;
   const connected = connection?.connected === true && connection.status === 'active';
   const readFailed = defaultError != null;
@@ -49,7 +54,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
   }
 
   return (
-    <Card className="mb-3.5 p-4" data-testid="m365-default-library">
+    <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
         <h3 className="text-[15px] font-semibold text-foreground">

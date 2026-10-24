@@ -3,6 +3,7 @@
     "create": "Create folder in SharePoint",
     "choose": "Choose existing folder",
     "reconnect": "Reconnect Microsoft",
+    "chooseLibrary": "Choose the default document library",
     "allowFolders": "Allow folder creation"
   },
   "status": {
@@ -33,5 +34,16 @@
     "interrupted": "Stopped early. Counts so far are kept; continue to check the rest.",
     "needsDefault": "Choose a default document library first.",
     "summary": "Linked {{linked}} · Need a choice {{needsChoice}} · No match/code {{missing}} · Failed {{failed}} · Already linked {{skipped}}"
+  },
+  "folderFiles": {
+    "linkedFolderSubtitle": "Link this folder to the project. Its files stay in Microsoft 365.",
+    "show": "Show files",
+    "hide": "Hide files",
+    "loading": "Loading files…",
+    "empty": "This folder is empty.",
+    "list": "Files in this folder",
+    "openNamed": "Open {{name}}",
+    "partial": "Showing the first files only. Open the folder in Microsoft to see the rest.",
+    "open": "Open"
   }
 }

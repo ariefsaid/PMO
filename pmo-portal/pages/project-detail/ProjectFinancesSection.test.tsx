@@ -64,6 +64,33 @@ beforeEach(() => {
   h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp', otherCurrencies: [] };
 });
 
+describe('ProjectFinancesSection attributed cost (#1271 AC-3)', () => {
+  const withSplit = (attributed: string | undefined) => payload({ actuals: {
+    currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '150.00', tagged_total: '100.00',
+    ...(attributed === undefined ? {} : { attributed_total: attributed }),
+    excludes_restricted_rows: false,
+    categories: [
+      { category: 'Labor', mapped: true, amount: '150.00', tagged_amount: '100.00', ...(attributed === undefined ? {} : { attributed_amount: attributed }) },
+    ] } });
+
+  it('AC-CAT-016 labels attributed cost apart from tagged cost, in the total and the category drill-down', () => {
+    h.query.data = withSplit('50.00');
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.getByTestId('spending-attributed-note')).toHaveTextContent('Includes $50.00 attributed by cost rules · $100.00 tagged in the ERP');
+    fireEvent.click(screen.getByText('Show category details'));
+    const disclosure = screen.getByText('Show category details').closest('details')!;
+    expect(within(disclosure).getByText('incl. $50.00 attributed')).toBeInTheDocument();
+  });
+
+  it.each([['0.00'], [undefined]])('AC-CAT-016 shows no split when attributed is %s, so screens without rules are unchanged', (attributed) => {
+    h.query.data = withSplit(attributed);
+    render(<ProjectFinancesSection project={project} />);
+    fireEvent.click(screen.getByText('Show category details'));
+    expect(screen.queryByTestId('spending-attributed-note')).toBeNull();
+    expect(screen.queryByText(/attributed/i)).toBeNull();
+  });
+});
+
 describe('ProjectFinancesSection reading states', () => {
   it('AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys', async () => {
     await localeI18n.init({

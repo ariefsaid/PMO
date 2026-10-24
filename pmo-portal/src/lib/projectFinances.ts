@@ -41,11 +41,16 @@ export interface ProjectFinances {
     currency: string | null;
     as_of: string | null;
     total: ExactMoney | null;
+    /** #1271 (0376): `total` = tagged (ERP project) + attributed (cost rule). Absent on a payload from before 0376. */
+    tagged_total?: ExactMoney | null;
+    attributed_total?: ExactMoney | null;
     excludes_restricted_rows: boolean;
     categories: Array<{
       category: string;
       mapped: boolean;
       amount: ExactMoney | null;
+      tagged_amount?: ExactMoney | null;
+      attributed_amount?: ExactMoney | null;
     }>;
   };
 }
@@ -307,6 +312,18 @@ export function parseProjectReceiptCash(value: unknown): ProjectReceiptCash {
   }
 
   return unavailableCash('invalid-reading');
+}
+
+/**
+ * #1271 AC-3: the attributed part of an actual, or null when there is none to show. Screens without cost rules
+ * (attributed zero, absent, or not a readable amount) stay exactly as they were — the split appears only when
+ * attributed cost is nonzero. `tagged` is returned only when it is itself a readable amount.
+ */
+export function attributedSplit(value: { tagged?: ExactMoney | null; attributed?: ExactMoney | null }):
+  { attributed: ExactMoney; tagged: ExactMoney | null } | null {
+  const attributed = moneyUnits(value.attributed ?? null);
+  if (attributed === null || attributed === 0n) return null;
+  return { attributed: value.attributed as ExactMoney, tagged: moneyUnits(value.tagged ?? null) === null ? null : (value.tagged as ExactMoney) };
 }
 
 export function deriveMargin(
