@@ -562,11 +562,14 @@ async function verifyErpProjectLinks(ctx: ErpSetupContext) {
       mismatches.push({ project_id: project.id, code: project.code, name: project.name, reason: "unmapped" });
       continue;
     }
+    // The link is the stored ERP key (ERPNext may auto-name it), so the PMO business code is not compared: verify the
+    // mapped identity, its company and active state, and the contractual project name.
     try {
       const erp = await getDoc(ctx.client, "Project", erpName) as Record<string, unknown>;
       assertErpProject(erp, ctx.company);
-      if (erp.name !== (project.code || erpName) || erp.project_name !== project.name) {
-        mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason: "code_or_name_mismatch" });
+      const reason = erp.name !== erpName ? "identity_changed" : erp.project_name !== project.name ? "name_mismatch" : null;
+      if (reason) {
+        mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erp.name, erp_project_name: erp.project_name, reason });
       }
     } catch {
       mismatches.push({ project_id: project.id, code: project.code, name: project.name, erp_project: erpName, reason: "missing_or_invalid_erp_project" });
