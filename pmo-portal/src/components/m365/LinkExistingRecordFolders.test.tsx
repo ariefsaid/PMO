@@ -28,7 +28,7 @@ import { LinkExistingRecordFolders } from './LinkExistingRecordFolders';
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
 const page = (over: Partial<RecordFolderBackfillPage> = {}): RecordFolderBackfillPage => ({
-  scanned: 2, linked: 1, needs_choice: 1, missing: 0, failed: 0, skipped: 0, next: null, ...over,
+  scanned: 2, linked: 1, needs_choice: 1, missing: 0, failed: 0, skipped: 0, unmatched: [], next: null, ...over,
 });
 let qc: QueryClient;
 const deferred = <T,>() => {

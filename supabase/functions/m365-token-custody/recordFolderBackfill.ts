@@ -79,6 +79,9 @@ async function fetchCandidates(
   return ids;
 }
 
+/** Most unmatched record ids kept in the stored sweep summary (the rest are flagged as truncated). */
+const UNMATCHED_STORE_CAP = 500;
+
 export async function handleLinkExistingRecordFolders(
   body: unknown,
   deps: HandlerDeps,
@@ -111,6 +114,7 @@ export async function handleLinkExistingRecordFolders(
     missing: 0,
     failed: 0,
     skipped: 0,
+    unmatched: [],
     next: null,
   };
   let kind: Kind = request.cursor.kind;
@@ -192,6 +196,7 @@ export async function handleLinkExistingRecordFolders(
       }
       page.scanned += 1;
       page[done.bucket] += 1;
+      if (done.bucket === "missing") page.unmatched.push(id);
       lastProcessed = id;
       graphFailures = done.graphFailed ? graphFailures + 1 : 0;
       if (graphFailures >= 2) {
@@ -214,6 +219,30 @@ export async function handleLinkExistingRecordFolders(
     page.next = { kind: "procurement", after: null };
   } else {
     page.next = null;
+  }
+  // The running summary is advisory (`pmo m365 status`): a failed save never fails a page whose links already landed.
+  try {
+    const firstPage = request.cursor.kind === "project" && request.cursor.after === null;
+    type SweepPrior = { counts?: Record<string, number>; unmatched?: string[]; unmatched_truncated?: boolean };
+    let prior = null as SweepPrior | null;
+    if (!firstPage) {
+      const { data, error } = await deps.serviceClient.from("m365_record_folder_sweeps")
+        .select("counts,unmatched,unmatched_truncated").eq("org_id", caller.orgId).maybeSingle();
+      if (error) throw error;
+      prior = data as SweepPrior | null;
+    }
+    const countKeys = ["scanned", "linked", "needs_choice", "missing", "failed", "skipped"] as const;
+    const counts = Object.fromEntries(countKeys.map((key) => [key, (prior?.counts?.[key] ?? 0) + page[key]]));
+    const all = [...new Set([...(prior?.unmatched ?? []), ...page.unmatched])];
+    const { error: saveError } = await deps.serviceClient.from("m365_record_folder_sweeps").upsert({
+      org_id: caller.orgId, actor_id: deps.userId, state: page.next ? "in_progress" : "complete",
+      counts, unmatched: all.slice(0, UNMATCHED_STORE_CAP),
+      unmatched_truncated: Boolean(prior?.unmatched_truncated) || all.length > UNMATCHED_STORE_CAP,
+      updated_at: (deps.now?.() ?? new Date()).toISOString(),
+    }, { onConflict: "org_id" }).select("org_id").single();
+    if (saveError) throw saveError;
+  } catch {
+    page.summary_warning = "The folder-sweep summary could not be saved; the links above were made.";
   }
   return { status: 200, body: page, headers: HEADERS };
 }

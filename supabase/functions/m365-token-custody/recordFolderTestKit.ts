@@ -58,6 +58,9 @@ export interface World {
   refresh: (call: FetchCall) => Response | Promise<Response>;
   /** Synthetic fixture value captured for exact refresh-generation assertions. */
   seededRefreshCiphertext?: string;
+  /** Stored folder-sweep summary returned for continuation pages, and an override for the summary save. */
+  sweepPrior?: Record<string, unknown> | null;
+  sweepSave?: (call: FetchCall) => Response;
 }
 
 export const projectRow = (over: Record<string, unknown> = {}) => ({
@@ -138,6 +141,8 @@ function routesFor(world: World, connection: Record<string, unknown>): MockRoute
       const settings = world.settings;
       return Array.isArray(settings) ? rows(settings) : jsonResponse(settings.error, { status: 403 });
     }),
+    table("m365_record_folder_sweeps", () => rows(world.sweepPrior ? [world.sweepPrior] : [])),
+    { label: "save-sweep-summary", method: "POST", pathname: "/rest/v1/m365_record_folder_sweeps", response: (call) => world.sweepSave ? world.sweepSave(call) : jsonResponse(call.bodyJson, OBJECT_HEADERS) },
     table("ms_graph_connections", () =>
       world.connectionMissing
         ? jsonResponse({ message: "none" }, { status: 406 })

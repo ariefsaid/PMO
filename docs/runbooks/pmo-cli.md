@@ -52,7 +52,7 @@ sign-in that is no longer used expires on its own.
 | Variable | Meaning | Default |
 |---|---|---|
 | `PMO_SUPABASE_URL` | Supabase project URL (`--url`) | `http://127.0.0.1:54321` (local stack) |
-| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | none — required |
+| `PMO_SUPABASE_KEY` | the project's publishable (anon) key (`--key`) | the key saved by `pmo login` (set it once at login; later calls need no env var); secret keys (`sb_secret_…`, or a JWT with role `service_role`) are refused and never saved |
 | `PMO_CLIENT_ID` | the registered client id (`--client-id`), needed for `login` | none |
 | `PMO_CONFIG_DIR` | where credentials are stored | `~/.config/pmo` |
 
@@ -101,6 +101,8 @@ pmo get projects --select id,name,status --filter status=eq.Leads --limit 20
 pmo get companies --select id,name --filter name=ilike.*Steel*
 pmo get tasks --filter project_id=eq.<uuid> --filter archived_at=is.null
 pmo get profiles --filter role=eq.Engineer      # people, for project_manager_id / assignee_id
+pmo get budget_line_items --filter budget_version_id=eq.<uuid>   # read-only: ids for re-categorising; also budget_versions, budget_category_account_map, erp_gl_entry_mirror, project_documents
+pmo rpc project_mapped_actuals '{"p_project_id":"<uuid>"}'      # read-only, Admin/Executive/PM/Finance tokens
 
 # create — inline JSON, @file, or - for stdin; one object or a list
 pmo create companies '{"name":"Solaris Grid EPC","type":"Client"}'
@@ -286,7 +288,35 @@ A note without setting aside is a screen feature (the database function supports
 
 ---
 
-## 6. For Claude Code
+## 6. ERP setup reads — `pmo erp`
+
+```bash
+node scripts/pmo.mjs erp readiness
+node scripts/pmo.mjs erp list-projects
+node scripts/pmo.mjs erp verify-links
+```
+
+These call the existing `external-set-company` ERP setup actions using the signed-in user token (Admin only, as in the app); no ERP credentials are read or printed by the CLI. `readiness` reports setup gaps, `list-projects` lists active ERP projects for the connected company, and `verify-links` compares PMO project names/codes against that list and prints mismatches. Exit 0 means the call completed (mismatches are report data); a server refusal exits 1.
+
+## 7. Project documents — `pmo documents`
+
+```bash
+node scripts/pmo.mjs documents list --project <project-id>
+node scripts/pmo.mjs documents link links.json --dry-run
+node scripts/pmo.mjs documents link links.csv
+```
+
+Link input is a JSON array or CSV with columns `project_id,budget_version_id,procurement_id,drive_id,item_id,web_url,name,kind`. Each row names exactly one target id; `kind` is `file` or `folder`. `--dry-run` uses the same org-, role- and reference-validation RPC as a real run and returns its validation plan without writes. Active Admin, Executive, Project Manager and Finance memberships can link; unlinking stays in the app. Every `web_url` must be on the organisation's own SharePoint host (taken from its default library); an organisation with no default library is refused with `m365_not_configured`. A folder already linked to another project or purchase is refused. Link files are limited to 500 rows per call.
+
+## 8. Microsoft 365 setup — `pmo m365 status`
+
+```bash
+node scripts/pmo.mjs m365 status
+```
+
+Reports the configured default library, the caller's Microsoft connection status, and the latest `Link existing folders` sweep state, counts and unmatched record ids. Sweep summaries accumulate across pages and are scoped to the organization; the stored unmatched list is de-duplicated and capped at 500 (`unmatched_truncated` says when it was cut). A page whose summary could not be saved still succeeds and carries `summary_warning`.
+
+## 9. For Claude Code
 
 - Run `node scripts/pmo.mjs whoami` first; if it says "Not signed in", ask the owner to run
   `node scripts/pmo.mjs login` — never try to sign in on their behalf.

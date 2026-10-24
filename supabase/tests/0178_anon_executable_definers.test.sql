@@ -98,6 +98,10 @@
 -- active membership, the Admin role and the caller's org, and refuses lines on a non-Draft version; proved by
 -- supabase/tests/budget_travel_vehicle_categories.test.sql (AC-TVC-003/005).
 --
+-- ⚑ AMENDED BY 0367 (#1270 A): `link_m365_documents_batch` joins the retained set (+1, count 81 after 0366's 80). A SECURITY
+-- DEFINER writer under a member's JWT: active Admin/Executive/PM/Finance, org-scoped, host-pinned; proved by
+-- supabase/tests/api_client_operator_reads.test.sql (AC-OPR-003/005).
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -166,6 +170,7 @@ insert into client_callable_rpc_names (proname) values
   ('link_erp_purchase_documents'),
   ('link_procurement_sharepoint_item'),
   ('mark_erp_purchase_documents'),
+  ('link_m365_documents_batch'),
   ('admin_change_domain_ownership'),
   ('list_budget_fiscal_years'),
   ('operator_agent_run_stats'),
@@ -226,8 +231,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  80,
-  'AC-ACL-002 all 80 retained client-callable RPC names still have a public function');
+  81,
+  'AC-ACL-002 all 81 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -236,8 +241,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  80,
-  'AC-ACL-003 all 80 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  81,
+  'AC-ACL-003 all 81 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration

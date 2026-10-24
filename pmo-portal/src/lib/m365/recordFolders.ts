@@ -102,8 +102,9 @@ const isCount = (value: unknown): value is number =>
 
 function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBackfillPage {
   if (!isRecord(data)) throw malformed();
-  const allowed = ['scanned', ...BUCKETS, 'next', 'stopped', 'retry_after_seconds'];
-  if (!hasExactKeys(data, allowed, ['scanned', ...BUCKETS, 'next'])) throw malformed();
+  const allowed = ['scanned', ...BUCKETS, 'unmatched', 'next', 'stopped', 'retry_after_seconds', 'summary_warning'];
+  if (!hasExactKeys(data, allowed, ['scanned', ...BUCKETS, 'unmatched', 'next'])) throw malformed();
+  if (!Array.isArray(data.unmatched) || !data.unmatched.every((id) => typeof id === 'string' && UUID.test(id))) throw malformed();
   const counts = [data.scanned, ...BUCKETS.map((key) => data[key])];
   if (!counts.every(isCount)) throw malformed();
   const scanned = data.scanned as number;
@@ -123,8 +124,13 @@ function decodePage(data: unknown, request?: RecordFolderCursor): RecordFolderBa
     missing: data.missing as number,
     failed: data.failed as number,
     skipped: data.skipped as number,
+    unmatched: data.unmatched as string[],
     next,
   };
+  if (data.summary_warning !== undefined) {
+    if (typeof data.summary_warning !== 'string' || data.summary_warning.length > 200) throw malformed();
+    page.summary_warning = data.summary_warning;
+  }
   if (data.stopped !== undefined) page.stopped = data.stopped as NonNullable<RecordFolderBackfillPage['stopped']>;
   if (retry !== undefined) page.retry_after_seconds = retry as number;
   return page;

@@ -195,7 +195,8 @@ before loading) · people and roles.
 - **AC-CSD-012** Given the server refuses the win step, when the load runs, then it stops there, exits 1,
   and the error carries the actions done and the failed one; no later write is sent.
 - **AC-CSD-013** Given OAuth-client tokens, then an active Admin may POST the two RPCs and GET/POST the
-  two budget tables; a Project Manager or a disabled Admin is refused (`42501`) on all of them; the
+  two budget tables; a Project Manager or a disabled Admin is refused (`42501`) on all of them, except that
+  since #1270 an active Admin, Executive, Project Manager or Finance client may GET the budget tables (operator reads, RLS-scoped); the
   Admin is still refused PATCH/DELETE on budget tables, `activate_budget_version` and
   `set_work_order_value`; any client may GET but not POST `external_domain_ownership`.
 - **AC-CSD-014** Given the CLI and the latest guard migration, then the CLI's load-tier lists equal the

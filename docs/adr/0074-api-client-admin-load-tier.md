@@ -30,8 +30,12 @@ OAuth client would hand the same surface to any future non-owner client or MCP c
 2. **`external_domain_ownership` becomes a read-only endpoint for every client**, so a load can tell
    whether ERPNext owns companies before it plans.
 3. **Everything else stays closed**, including for the Admin: PATCH/DELETE on budget tables,
-   `activate_budget_version`, work-order and money RPCs, edge functions by intent (the CLI does not call
-   them), the ERPNext project map.
+   `activate_budget_version`, work-order and money RPCs, the ERPNext project map.
+   **Edge functions (amended for #1270).** The CLI now calls exactly these edge-function actions with the
+   signed-in user's token: `external-set-company` with `setupAction` `readiness`, `list-projects` and
+   `verify-links` (all read-only, Admin-gated by the function), and `m365-token-custody` with action
+   `connection_status` (read-only). When edge functions are closed to API clients (FR-CLI-011), those
+   three plus `connection_status` are the allow-list; nothing else is opened.
 4. **The CLI mirrors the tier** (`LOAD_TABLES`, `LOAD_RPCS`) and uses it only from `pmo load`; a drift
    test compares the lists with the latest migration, as `0222`'s already does.
 
