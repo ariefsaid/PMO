@@ -23,8 +23,8 @@ select is(to_regprocedure('public.finalize_wedged_v16_budget_commits()') is null
 -- @0379_UP@
 select is(public.record_outbox_ref('0b799333-0000-0000-0000-000000000001',1,'budget','x','erpnext','BUDGET-RT'),1,
  'up: a fresh v16 ref is recorded');
-select is(to_regprocedure('public.finalize_wedged_v16_budget_commits()') is not null,true,
- 'up: the one-off finalize exists');
+select is(to_regprocedure('public.finalize_wedged_v16_budget_commits()') is null,true,
+ 'up: the one-off finalize ran and was dropped');
 
 select * from finish();
 rollback;

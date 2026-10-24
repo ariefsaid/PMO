@@ -88,7 +88,9 @@ revision changes only the accounts that changed.
   ref step refused every fresh v16 push, so the ERP Budget was created but PMO never recorded it.)*
 - **AC-BV16-010** *(pgTAP)* — Given a v16 account commit stranded by that refusal, when 0379's one-off finalize runs,
   then the ref, a `pushed` mirror naming the ERP Budget, and a confirmed outbox row result; a commit for a version no
-  longer Active, or whose facts disagree, is left untouched.
+  longer Active, a tombstoned slot, a Budget owned by another identity, or any other disagreeing fact is left
+  untouched, and the function is dropped once it has run (`scripts/test-budget-v16-fresh-ref-rollback.sh`). A later
+  Retry posts only the accounts that never reached ERPNext (`budgetV16RetryAfterRepair.test.ts`).
 
 ## Out of scope
 

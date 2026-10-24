@@ -5,10 +5,10 @@
 -- the slot to already carry the ERP name, so record_outbox_ref refused every fresh v16 account push: the
 -- ERP Budget was created and submitted, the outbox row stayed 'committed', and the finalize never ran.
 -- §1 accepts a slot with no name yet (a slot naming a DIFFERENT Budget is still refused).
--- §2 finalizes, once, the commits that were stranded before this migration.
+-- §2 finalizes, once, the commits that were stranded before this migration, then drops the function.
 -- Rollback: rollback/0379_budget_v16_fresh_ref_down.sql.
 
--- §1 — 0293's body; only the destination-name test changes.
+-- §1 — 0293's body; only the two destination-name tests change.
 create or replace function public.record_outbox_ref(
   p_id uuid, p_generation int,
   p_domain text, p_pmo_record_id text, p_external_tier text, p_external_record_id text
@@ -42,6 +42,9 @@ begin
        -- 0379: the slot carries NO name until the success writer runs AFTER this ref, so a NULL name is
        -- the ordinary fresh state. Only a slot that already names a DIFFERENT Budget is refused.
        or (dest.erp_budget_name is not null and dest.erp_budget_name is distinct from p_external_record_id)
+       -- 0379: the name must be the one this command's own commit stored, so a slot with no name cannot be
+       -- claimed for any other Budget.
+       or (v.external_record_id is not null and v.external_record_id is distinct from p_external_record_id)
        or p_external_tier is distinct from v.external_tier then
       return 0;
     end if;
@@ -138,6 +141,8 @@ begin
      for update;
     continue when dest.id is null or dest.budget_intent <> 'ensure'
       or (dest.erp_budget_name is not null and dest.erp_budget_name <> o.external_record_id);
+    -- A tombstoned slot (its Budget was cancelled in ERPNext) is never revived as pushed.
+    continue when dest.erp_cancelled_at is not null;
     select * into ver from public.budget_versions where id=dest.budget_version_id and org_id=o.org_id for update;
     continue when ver.id is null or ver.status <> 'Active' or dest.activated_at_witness is distinct from ver.activated_at;
     continue when exists (select 1 from public.external_refs r
@@ -161,10 +166,12 @@ begin
      where id=dest.id;
     update public.external_command_outbox set state='confirmed', updated_at=now()
      where id=o.id and claim_generation=o.claim_generation and state='committed';
-    n := n + 1;
+    if found then n := n + 1; end if;
   end loop;
   return n;
 end; $$;
 revoke all on function public.finalize_wedged_v16_budget_commits() from public, anon, authenticated, service_role;
 
 select public.finalize_wedged_v16_budget_commits();
+-- One-off: dropped as soon as it has run, so nothing can call it again.
+drop function public.finalize_wedged_v16_budget_commits();
