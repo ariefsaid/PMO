@@ -20,6 +20,9 @@ import {
 } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/binding.ts";
 import { sweepKindsForOrg } from "../../../pmo-portal/src/lib/adapterSeam/erpnext/feedKinds.ts";
 
+/** #1326: split out of Special expenses; required in setup only when budgeted (pmo-portal erpSetupIncompleteness). */
+const OPTIONAL_BUDGET_CATEGORIES = ["Travel & accommodation", "Vehicle"] as const;
+
 export interface ErpSetupBody {
   setupAction?: string;
   activityType?: string;
@@ -225,6 +228,16 @@ async function readErpSetup(ctx: ErpSetupContext) {
   if (ownership.error) {
     throw new AppError(ownership.error.message, ownership.error.code);
   }
+  // #1326: Travel & accommodation and Vehicle need a mapping only once the org budgets in them.
+  const optionalUse = await Promise.all(
+    OPTIONAL_BUDGET_CATEGORIES.map((category) =>
+      ctx.serviceClient.from("budget_line_items").select("category").eq("org_id", ctx.orgId)
+        .eq("category", category).limit(1)
+    ),
+  );
+  for (const result of optionalUse) {
+    if (result.error) throw new AppError(result.error.message, result.error.code);
+  }
   const linkedProfiles = new Set(
     employees.filter((row) => row.link_state === "confirmed").map((row) =>
       row.profile_id
@@ -264,6 +277,9 @@ async function readErpSetup(ctx: ErpSetupContext) {
         ).map((row) => row.category),
       ),
     ],
+    budgetUsedOptionalCategories: OPTIONAL_BUDGET_CATEGORIES.filter((_, i) =>
+      (optionalUse[i].data ?? []).length > 0
+    ),
     // Only people with recorded time-entry participation need an ERP employee link.
     // Role membership alone is not evidence that a person uses time entry.
     unlinkedEmployeeCount: members.filter((row) =>

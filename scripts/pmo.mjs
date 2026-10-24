@@ -77,6 +77,14 @@ export const ALLOWED_RPCS = Object.freeze(['get_project_milestones']);
 export const LOAD_RPCS = Object.freeze(['set_project_contract_value', 'transition_project']);
 export const LOAD_TABLES = Object.freeze(['budget_versions', 'budget_line_items', 'boq_items']);
 
+/**
+ * The ACTIVE-ADMIN `pmo rpc` tier (#1326). The database guard (migration 0366) admits these only to an active
+ * Admin's OAuth token, POST only; each RPC still re-checks role, membership and org itself.
+ * recategorise_budget_lines: move Draft Special-expenses budget lines to Travel & accommodation or Vehicle,
+ * e.g. `pmo rpc recategorise_budget_lines '{"p_line_ids":["…"],"p_category":"Vehicle"}'`.
+ */
+export const ADMIN_RPCS = Object.freeze(['recategorise_budget_lines']);
+
 /** The verbs. There is deliberately no delete (DD-API-3). */
 export const COMMANDS = Object.freeze(['login', 'logout', 'whoami', 'get', 'create', 'update', 'rpc', 'load', 'purchases']);
 
@@ -223,8 +231,8 @@ function assertRpc(name) {
   if (LOAD_RPCS.includes(name)) {
     throw usage(`RPC '${name}' is not available to \`pmo rpc\`; only \`pmo load\` uses it. Move stages and set contract values in the app.`);
   }
-  if (!ALLOWED_RPCS.includes(name)) {
-    throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}`);
+  if (!ALLOWED_RPCS.includes(name) && !ADMIN_RPCS.includes(name)) {
+    throw usage(`RPC '${name}' is not available from the CLI. Available: ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}`);
   }
 }
 
@@ -721,7 +729,7 @@ common options: --url <supabase url> (PMO_SUPABASE_URL, default ${DEFAULT_SUPABA
                 --key <publishable key> (PMO_SUPABASE_KEY)
 tables: ${ALLOWED_TABLES.join(', ')}
 read-only: ${Object.entries(READ_ONLY_TABLES).map(([t, c]) => `${t} (${c.join(', ')})`).join('; ')}
-rpcs:   ${ALLOWED_RPCS.join(', ')}
+rpcs:   ${ALLOWED_RPCS.join(', ')}; active Admin: ${ADMIN_RPCS.join(', ')}
 There is no delete. See docs/runbooks/pmo-cli.md.
 `;
 

@@ -14,6 +14,8 @@ const EN = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common
 const ID = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
 const EN_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/dashboard.json'), 'utf8'));
 const ID_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/dashboard.json'), 'utf8'));
+const EN_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/finance.json'), 'utf8'));
+const ID_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -23,8 +25,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD },
-      en: { common: EN, dashboard: EN_DASHBOARD },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

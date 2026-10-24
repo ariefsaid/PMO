@@ -58,5 +58,9 @@
       "sharedExcluded_one": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini.",
       "sharedExcluded_other": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini."
     }
+  },
+  "budgetCategory": {
+    "travelAccommodation": "Perjalanan & akomodasi",
+    "vehicle": "Kendaraan"
   }
 }

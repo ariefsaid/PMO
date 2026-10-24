@@ -111,8 +111,9 @@ cat tasks.json | pmo create tasks -
 # update — at least one --filter; one object
 pmo update projects --filter id=eq.<uuid> '{"name":"Depot Expansion Phase 1"}'
 
-# rpc — allow-listed read helpers only
+# rpc — allow-listed read helpers, plus the active-Admin tier
 pmo rpc get_project_milestones '{"p_project_id":"<uuid>"}'
+pmo rpc recategorise_budget_lines '{"p_line_ids":["<line uuid>","<line uuid>"],"p_category":"Vehicle"}'
 ```
 
 (`pmo` = `node scripts/pmo.mjs`.) Filters are PostgREST filters: `col=op.value` with `eq neq gt gte lt
@@ -128,6 +129,10 @@ changed — none matched, or the database did not let you change it.
   narrower one is allowed, and filters are limited to the same columns). Change people in the app.
   Also read-only: `external_domain_ownership` (`domain, external_tier`).
 - RPCs: `get_project_milestones`.
+- **Active Admin RPCs** (#1326): `recategorise_budget_lines` moves Draft "Special expenses" budget lines to
+  `Travel & accommodation` or `Vehicle`, one or many per call, all or nothing. It refuses a line on an
+  Active or Archived budget, and returns how many lines moved. It takes line ids; `pmo get` does not list
+  budget lines (AC-CSD-016), so the ids come from outside the CLI.
 - **`pmo load`** (active Admin only, ADR-0074): companies, projects at their real stage with contract
   value, draft budgets and contract lines from one JSON file. It alone uses `set_project_contract_value`,
   `transition_project`, `budget_versions`, `budget_line_items`, `boq_items`; `rpc` / `create` refuse them.
@@ -175,6 +180,13 @@ violates row-level security policy").
    (`contract_line.create` / `contract_line.skip` per line).
 4. `node scripts/pmo.mjs load <file.json>` — companies → projects (Leads → value → stage) → draft
    budgets → contract lines. On exit 1, read `details.failed`, fix the cause, run it again: it resumes.
+   Since #1326, a `Special expenses` line whose description names travel, hotel, tickets or per diem is
+   written as `Travel & accommodation`, and one naming a vehicle (or fuel with a vehicle or rental) as
+   `Vehicle` (a line naming both travel and a vehicle or fuel stays `Special expenses`). Its key still uses the file's category, so re-running an older file over a
+   Draft it already loaded adds nothing; move those older lines with `recategorise_budget_lines`.
+   Fuel with no vehicle word (e.g. "BBM genset") stays `Special expenses`; the output lists every line whose
+   category the loader decided (`budget.category`: row, from, to).
+   ⚑ Order of the switch-over: activate the split Draft budget (with its Travel & accommodation and Vehicle lines) before the new accounts are mapped or posted to. Otherwise budget-vs-actual shows the reclass window as unbudgeted: actuals land in the new categories while the Active budget still holds that money under Special expenses.
 5. In the app: review and activate each draft budget; link each project to its ERP project (#772);
    work orders are created by the client's users.
 

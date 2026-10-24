@@ -17,6 +17,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  ADMIN_RPCS,
   ALLOWED_RPCS,
   ALLOWED_TABLES,
   READ_ONLY_TABLES,
@@ -1114,6 +1115,32 @@ test('AC-CLI-015: the CLI allow-lists match the database guard (latest migration
   assert.deepEqual(guardList('write_tables'), [...ALLOWED_TABLES].sort());
   assert.deepEqual(guardList('read_only_tables'), Object.keys(READ_ONLY_TABLES).sort());
   assert.deepEqual(guardList('rpcs'), [...ALLOWED_RPCS].sort());
+});
+
+test('AC-TVC-007: the CLI active-Admin rpc tier matches the guard tier', () => {
+  assert.deepEqual(guardList('admin_cli_rpcs'), [...ADMIN_RPCS].sort());
+  assert.deepEqual([...ADMIN_RPCS], ['recategorise_budget_lines']);
+  for (const name of ADMIN_RPCS) {
+    assert.equal(ALLOWED_RPCS.includes(name), false, `${name} is Admin-only, not in the ordinary tier`);
+    assert.equal(LOAD_RPCS.includes(name), false, `${name} is not a load-only RPC`);
+  }
+});
+
+test('AC-TVC-007: pmo rpc recategorise_budget_lines posts the lines and target category unchanged', async () => {
+  const fake = await fakeSupabase();
+  const configDir = tmpDir();
+  try {
+    seedCredentials(configDir, fake.url);
+    const args = { p_line_ids: ['l1', 'l2'], p_category: 'Vehicle' };
+    const r = await runCli(['rpc', 'recategorise_budget_lines', JSON.stringify(args), '--url', fake.url], { configDir });
+    assert.equal(r.code, 0, r.err);
+    const call = fake.requests.find((q) => q.path === '/rest/v1/rpc/recategorise_budget_lines');
+    assert.equal(call.method, 'POST');
+    assert.deepEqual(JSON.parse(call.body), args);
+  } finally {
+    await fake.close();
+    fs.rmSync(configDir, { recursive: true, force: true });
+  }
 });
 
 test('AC-CQ-018: contract lines are in the load tier only, never the ordinary allow-list', () => {

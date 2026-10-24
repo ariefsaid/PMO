@@ -37,6 +37,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import BudgetAccountMap from './BudgetAccountMap';
+import { Constants } from '@/src/lib/supabase/database.types';
 
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
@@ -133,7 +134,7 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
   });
 
   it('hides the proposal panel when every budget category already has a posting account', async () => {
-    listMock.mockResolvedValue(['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses'].map((category, index) => ({
+    listMock.mockResolvedValue(Constants.public.Enums.budget_category.map((category, index) => ({
       id: `mapped-${index}`, category, erpAccount: `Account ${index}`, isPushTarget: true,
     })));
     renderPage();
@@ -177,13 +178,14 @@ describe('BudgetAccountMap — account proposals (AC-UX-076/077)', () => {
 });
 
 describe('BudgetAccountMap — all categories always present (AC-BUD-010/011/012)', () => {
-  it('AC-CAT-004: renders all eight categories with mapped accounts and actionable unmapped states', async () => {
+  it('AC-CAT-004 / AC-TVC-002: renders all ten categories with mapped accounts and actionable unmapped states', async () => {
     renderPage();
-    for (const cat of ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses']) {
+    for (const cat of ['Labor', 'Materials', 'Subcontractors', 'Equipment', 'Permits & Fees', 'Overheads', 'Contingency', 'Special expenses',
+      'Travel & accommodation', 'Vehicle']) {
       expect(await screen.findByText(cat)).toBeInTheDocument();
     }
     expect(screen.getByText('5100 - Direct Costs')).toBeInTheDocument();
-    expect(screen.getAllByText(/^Not mapped/)).toHaveLength(7);
+    expect(screen.getAllByText(/^Not mapped/)).toHaveLength(9);
   });
 
   it('shows a loading state while the map is fetching', () => {
@@ -230,6 +232,51 @@ describe('BudgetAccountMap — CRUD (AC-BUD-010/011/012)', () => {
     await selectCatalogueAccount(user, modal, '5400 - Travel Expenses');
     await user.click(within(modal).getByRole('button', { name: /save/i }));
     await waitFor(() => expect(createMock).toHaveBeenCalledWith('Special expenses', '5400 - Travel Expenses', true));
+  });
+
+  const PROJECT_ACCOUNTS = { source: 'mirror' as const, accounts: [
+    { account: 'TEST-HOTEL - Project hotel', accountName: 'Project hotel', accountNumber: 'TEST-HOTEL', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: 'TEST-TRAVEL - Project transport and travel', accountName: 'Project transport and travel', accountNumber: 'TEST-TRAVEL', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+    { account: 'TEST-VEHICLE - Project vehicle rental', accountName: 'Project vehicle rental', accountNumber: 'TEST-VEHICLE', parentAccount: 'Cost of Sales', rootType: 'Expense', isGroup: false, disabled: false },
+  ] };
+
+  it('AC-TVC-002: maps Travel & accommodation to its push account', async () => {
+    const user = userEvent.setup();
+    catalogueMock.mockResolvedValue(PROJECT_ACCOUNTS);
+    renderPage();
+    const travel = await openRowOptions(user, 'Travel & accommodation');
+    await user.click(within(travel).getByRole('button', { name: 'Map Travel & accommodation' }));
+    const modal = await screen.findByRole('dialog');
+    await selectCatalogueAccount(user, modal, 'TEST-HOTEL - Project hotel');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', 'TEST-HOTEL - Project hotel', true));
+  });
+
+  it('AC-TVC-002: adds a second, actuals-only account to Travel & accommodation', async () => {
+    const user = userEvent.setup();
+    catalogueMock.mockResolvedValue(PROJECT_ACCOUNTS);
+    listMock.mockResolvedValue([
+      { id: 'm-hotel', category: 'Travel & accommodation', erpAccount: 'TEST-HOTEL - Project hotel', isPushTarget: true },
+    ]);
+    renderPage();
+    const travel = await openRowOptions(user, 'Travel & accommodation');
+    await user.click(within(travel).getByRole('button', { name: 'Add account to Travel & accommodation' }));
+    const modal = await screen.findByRole('dialog', { name: 'Add account to Travel & accommodation' });
+    await selectCatalogueAccount(user, modal, 'TEST-TRAVEL - Project transport and travel');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Travel & accommodation', 'TEST-TRAVEL - Project transport and travel', false));
+  });
+
+  it('AC-TVC-002: maps Vehicle to the vehicle rental account', async () => {
+    const user = userEvent.setup();
+    catalogueMock.mockResolvedValue(PROJECT_ACCOUNTS);
+    renderPage();
+    const vehicle = await openRowOptions(user, 'Vehicle');
+    await user.click(within(vehicle).getByRole('button', { name: 'Map Vehicle' }));
+    const modal = await screen.findByRole('dialog');
+    await selectCatalogueAccount(user, modal, 'TEST-VEHICLE - Project vehicle rental');
+    await user.click(within(modal).getByRole('button', { name: /save/i }));
+    await waitFor(() => expect(createMock).toHaveBeenCalledWith('Vehicle', 'TEST-VEHICLE - Project vehicle rental', true));
   });
 
   it('maps a previously-unmapped category (create)', async () => {

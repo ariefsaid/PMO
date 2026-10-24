@@ -9319,6 +9319,13 @@ export type Database = {
       }
       read_vault_secret: { Args: { p_secret_ref: string }; Returns: string }
       reconcile_procurement_line_totals: { Args: never; Returns: undefined }
+      recategorise_budget_lines: {
+        Args: {
+          p_category: Database["public"]["Enums"]["budget_category"]
+          p_line_ids: string[]
+        }
+        Returns: number
+      }
       record_expense_advance_return: {
         Args: { p_amount: number; p_id: string; p_reference?: string }
         Returns: undefined
@@ -9867,6 +9874,8 @@ export type Database = {
         | "Overheads"
         | "Contingency"
         | "Special expenses"
+        | "Travel & accommodation"
+        | "Vehicle"
       budget_status: "Draft" | "Active" | "Archived"
       company_type: "Internal" | "Client" | "Vendor"
       crm_activity_kind: "Call" | "Email" | "Meeting" | "Note"
@@ -10071,6 +10080,8 @@ export const Constants = {
         "Overheads",
         "Contingency",
         "Special expenses",
+        "Travel & accommodation",
+        "Vehicle",
       ],
       budget_status: ["Draft", "Active", "Archived"],
       company_type: ["Internal", "Client", "Vendor"],

@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
-import { Constants } from '@/src/lib/supabase/database.types';
 import {
   Button,
   ConfirmDialog,
@@ -15,7 +14,7 @@ import {
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { domainLabel } from './integrationLabels';
 import { EXPENSES_EMPLOYABLE } from '@/src/lib/adapterSeam/erpnext/expenseEnablement';
-import { COMPANY_DEFAULTS, getErpSetupIncompleteness } from './erpSetupIncompleteness';
+import { COMPANY_DEFAULTS, getErpSetupIncompleteness, requiredBudgetCategories } from './erpSetupIncompleteness';
 import { ProjectMatchReview } from './ProjectMatchReview';
 
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
@@ -285,8 +284,8 @@ export function ErpSetupChecklist(
                       'integrations.erpSetup.configured',
                       '{{count}} of {{total}} configured',
                       {
-                        count: setup.data.budgetMappedCategories.length,
-                        total: Constants.public.Enums.budget_category.length,
+                        count: requiredBudgetCategories(setup.data).filter((category) => setup.data.budgetMappedCategories.includes(category)).length,
+                        total: requiredBudgetCategories(setup.data).length,
                       },
                     )}
                   </p>

@@ -235,6 +235,8 @@ if [ -n "$A_SLIP" ] && [ "$A_SLIP" != null ]; then
 else skip "correct_vendor_withholding_slip (vendor_withholding_slips)"; skip "void_vendor_withholding_slip (vendor_withholding_slips)"; fi
 if [ -n "$A_CLAIM" ] && [ "$A_CLAIM" != null ]; then c=$(rpc record_expense_advance_return "{\"p_id\":\"$A_CLAIM\",\"p_amount\":0.01,\"p_reference\":\"probe\"}"); else skip "record_expense_advance_return (expense_claims)"; fi
 if [ -n "$A_BUDGET" ] && [ "$A_BUDGET" != null ]; then c=$(rpc activate_budget_version "{\"version_id\":\"$A_BUDGET\"}"); else skip "activate_budget_version (budget_versions)"; fi
+A_BUDGET_LINE=$(jq -r '.[]|select(.table=="budget_line_items")|.id' "$A_ROWS_JSON")
+if [ -n "$A_BUDGET_LINE" ] && [ "$A_BUDGET_LINE" != null ]; then c=$(rpc recategorise_budget_lines "{\"p_line_ids\":[\"$A_BUDGET_LINE\"],\"p_category\":\"Vehicle\"}"); else skip "recategorise_budget_lines (budget_line_items)"; fi
 checks=$(wc -l < "$_work/checks" | tr -d ' ')
 leaks=$(wc -l < "$_work/leaks" | tr -d ' ')
 errors=$(wc -l < "$_work/errors" | tr -d ' ')

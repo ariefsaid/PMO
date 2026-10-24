@@ -11,6 +11,8 @@ export function budgetCategoryLabel(category: string, t: Translate): string {
     case 'Overheads': return t('financeCopy.budgetCategoryOverheads', 'Overheads');
     case 'Contingency': return t('financeCopy.budgetCategoryContingency', 'Contingency');
     case 'Special expenses': return t('budget.category.specialExpenses', 'Special expenses');
+    case 'Travel & accommodation': return t('finance:budgetCategory.travelAccommodation', 'Travel & accommodation');
+    case 'Vehicle': return t('finance:budgetCategory.vehicle', 'Vehicle');
     default: return category;
   }
 }

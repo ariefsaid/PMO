@@ -45,6 +45,35 @@ describe('resolveV16BudgetAccounts', () => {
   });
 });
 
+describe('resolveV16BudgetAccounts — #1326 Travel & accommodation and Vehicle', () => {
+  // The reader passes only PUSH rows (#768): TEST-TRAVEL is an actuals-only Travel account and never reaches here.
+  const pushMap: CategoryAccountMapRow[] = [
+    { category: 'Special expenses', erp_account: 'Travel expenses' },
+    { category: 'Travel & accommodation', erp_account: 'TEST-HOTEL - Project hotel' },
+    { category: 'Vehicle', erp_account: 'TEST-VEHICLE - Project vehicle rental' },
+  ];
+
+  it('AC-TVC-002 pushes each new category to its own mapped account, summed per category in exact cents', () => {
+    expect(resolveV16BudgetAccounts([
+      { category: 'Travel & accommodation', budgeted_amount: '100.10' },
+      { category: 'Vehicle', budgeted_amount: '50.20' },
+      { category: 'Travel & accommodation', budgeted_amount: '0.20' },
+      { category: 'Vehicle', budgeted_amount: '30.30' },
+      { category: 'Special expenses', budgeted_amount: '40.40' },
+    ], pushMap)).toEqual([
+      { account: 'TEST-HOTEL - Project hotel', budget_amount: '100.30' },
+      { account: 'TEST-VEHICLE - Project vehicle rental', budget_amount: '80.50' },
+      { account: 'Travel expenses', budget_amount: '40.40' },
+    ]);
+  });
+
+  it('AC-TVC-002 refuses a non-zero new category with no push account, naming it', () => {
+    expect(() => resolveV16BudgetAccounts([
+      { category: 'Vehicle', budgeted_amount: '1.00' },
+    ], pushMap.filter((row) => row.category !== 'Vehicle'))).toThrow('budget categories have no ERP account mapping: Vehicle');
+  });
+});
+
 describe('planBudgetAccountIntents', () => {
   const desired = [
     { account: 'Salary', budget_amount: '60000.00' },

@@ -67,6 +67,17 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByRole('dialog', { name: 'Petakan Biaya khusus' })).toBeInTheDocument();
   });
 
+  it('AC-TVC-001: translates Travel & accommodation and Vehicle from the finance catalogue', async () => {
+    listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
+    renderPage();
+    expect(await screen.findByText('Perjalanan & akomodasi')).toBeInTheDocument();
+    expect(screen.getByText('Kendaraan')).toBeInTheDocument();
+    const row = screen.getByText('Kendaraan').closest('tr')!;
+    await userEvent.click(within(row).getByText('Opsi akun'));
+    await userEvent.click(within(row).getByRole('button', { name: 'Petakan Kendaraan' }));
+    expect(await screen.findByRole('dialog', { name: 'Petakan Kendaraan' })).toBeInTheDocument();
+  });
+
   it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
@@ -80,7 +91,7 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(7);
+    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(9);
     const labor = (await screen.findByText('Labor')).closest('tr')!;
     expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
     await userEvent.click(within(labor).getByText('Opsi akun'));

@@ -135,6 +135,7 @@ Deno.test("AC-SETUP-002 / RF-049 readiness lists actionable configuration and co
       }]);
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", (call) => {
       assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
       assertEquals(call.url.searchParams.get("timesheets.org_id"), "eq.org-1");
@@ -249,6 +250,7 @@ Deno.test("AC-S09-001 readiness proposes only own, unlinked reviewable projects"
         ));
     }),
     supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", () => jsonResponse([])),
     supabaseSelect("erp_employees", () => jsonResponse([])),
   ], async ({ calls }) => {
@@ -1221,6 +1223,7 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
         { id: "m3", category: "Materials", erp_account: "Materials - EX", is_push_target: false },
         { id: "m4", category: "Equipment", erp_account: "Equipment - EX", is_push_target: true },
       ])),
+    supabaseSelect("budget_line_items", () => jsonResponse([])),
     supabaseSelect("timesheet_entries", () => jsonResponse([])),
     supabaseSelect("erp_employees", () => jsonResponse([])),
   ], async () => {
@@ -1230,6 +1233,34 @@ Deno.test("AC-BAM-007 readiness counts each category with a push account exactly
     assertEquals(response.status, 200);
     const body = await response.json();
     assertEquals(body.budgetMappedCategories, ["Labor", "Equipment"]);
+    assertEquals(body.budgetUsedOptionalCategories, []);
+  });
+});
+
+Deno.test("AC-TVC-002 readiness reports which split-out categories the org budgets in, scoped to the org", async () => {
+  await withFetchMock([
+    ...base(),
+    supabaseSelect("external_domain_ownership", () => jsonResponse([])),
+    supabaseSelect("projects", () => jsonResponse([])),
+    supabaseSelect("budget_category_account_map", () => jsonResponse([])),
+    supabaseSelect("budget_line_items", (call) => {
+      assertEquals(call.url.searchParams.get("org_id"), "eq.org-1");
+      assertEquals(call.url.searchParams.get("limit"), "1");
+      return jsonResponse(call.url.searchParams.get("category") === "eq.Vehicle" ? [{ category: "Vehicle" }] : []);
+    }),
+    supabaseSelect("timesheet_entries", () => jsonResponse([])),
+    supabaseSelect("erp_employees", () => jsonResponse([])),
+  ], async ({ calls }) => {
+    const response = await handleSetCompanyRequest(
+      await request({ tier: "erpnext", setupAction: "readiness" }),
+    );
+    assertEquals(response.status, 200);
+    const body = await response.json();
+    assertEquals(body.budgetUsedOptionalCategories, ["Vehicle"]);
+    assertEquals(
+      calls.filter((call) => call.url.pathname.endsWith("/budget_line_items")).map((call) => call.url.searchParams.get("category")).sort(),
+      ["eq.Travel & accommodation", "eq.Vehicle"],
+    );
   });
 });
 

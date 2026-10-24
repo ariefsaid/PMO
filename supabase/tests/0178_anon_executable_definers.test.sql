@@ -93,6 +93,11 @@
 -- The 0364 trigger functions (org stamp, clear-on-link) have no client EXECUTE and are deliberately NOT listed; the
 -- clear-on-link effect is proved in the same file.
 --
+-- ⚑ AMENDED BY 0366 (#1326): `recategorise_budget_lines` joins the retained set (+1, count 80 after rebasing onto 0364, re-derived by hand
+-- from the list). A SECURITY DEFINER writer called under a member's JWT (the app, `pmo rpc`) that re-asserts
+-- active membership, the Admin role and the caller's org, and refuses lines on a non-Draft version; proved by
+-- supabase/tests/budget_travel_vehicle_categories.test.sql (AC-TVC-003/005).
+--
 -- ⚑ MERGE HAZARD, learned the hard way here: the list and its CARDINALITY live in this one file.
 -- Two branches each adding one name merge cleanly in the LIST (different lines) while the count
 -- line is a real conflict that resolves to one side — leaving a list of 51 asserted as 50. That is
@@ -176,6 +181,7 @@ insert into client_callable_rpc_names (proname) values
   ('org_usage_summary'),
   ('record_expense_advance_return'),
   ('record_native_receipt'),
+  ('recategorise_budget_lines'),
   ('release_credits'),
   ('release_outbox_hold'),
   ('reserve_credits'),
@@ -220,8 +226,8 @@ select is(
      join pg_namespace n on n.oid = p.pronamespace
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'),
-  79,
-  'AC-ACL-002 all 79 retained client-callable RPC names still have a public function');
+  80,
+  'AC-ACL-002 all 80 retained client-callable RPC names still have a public function');
 
 select is(
   (select count(*)::int
@@ -230,8 +236,8 @@ select is(
      join client_callable_rpc_names c on c.proname = p.proname
     where n.nspname = 'public'
       and has_function_privilege('authenticated', p.oid, 'EXECUTE')),
-  79,
-  'AC-ACL-003 all 79 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
+  80,
+  'AC-ACL-003 all 80 retained client-callable RPCs retain authenticated EXECUTE after the default guard');
 
 -- The production sweep: direct role ACL entries are the oracle. `distinct` prevents one function
 -- granted to both roles from being named twice. The empty allow-list is intentional here: migration
