@@ -376,6 +376,41 @@ same command changes nothing. `--dry-run` runs every check and prints the plan (
 
 ---
 
+## 5c. Cost attribution rules — `pmo attribution` (#1271)
+
+Ledger lines with no ERP project (payroll, overhead) reach projects through a rule. PMO only reads; nothing is
+written to ERPNext. Attributed cost counts in project actuals and in budget vs actual, through the same
+account → category map as tagged cost, and is shown apart from it. Contract: `docs/specs/cost-attribution.spec.md`.
+
+```bash
+pmo attribution preview rules.json            # amount per project, month and category (table); --json for rows
+pmo attribution set rules.json --dry-run      # preview + validation, saves nothing
+pmo attribution set rules.json                # saves each rule in order (new rule, or a new version of rule_key)
+pmo attribution list [--history]              # current rules; --history adds past versions
+pmo attribution end <rule_key> --to 2025-12-31 --version 2   # new version ending on that date
+```
+
+The file holds one rule or an array of them:
+
+```json
+{ "name": "Engineer payroll to anchor project",
+  "account": "Salary - RIS",
+  "cost_center": null, "party_type": null, "party": null,
+  "effective_from": "2025-01-01", "effective_to": null,
+  "targets": [{ "project_id": "<uuid>", "percent": 100 }] }
+```
+
+- Use `account_group` instead of `account` to cover every account under a group. Percentages need at most
+  4 decimals and must total 100.
+- To edit a rule, add `"rule_key"` and `"expected_version"` (the current version from `list`). If someone changed
+  the rule since, the save is refused.
+- The most specific rule takes a line: cost centre or party first, then account, then group. A rule that ties an
+  existing one is refused. Narrow it, or change its dates.
+- To void a mistaken rule, end it the day before it starts.
+- `--dry-run` checks each rule against the saved rules, not against the other rules in the same file. Two new
+  rules in one file that tie each other pass the dry run, and the second is refused at the real save.
+- Roles: Admin and Finance preview, set and end. Executive and Project Manager can list.
+
 ## 6. ERP setup reads — `pmo erp`
 
 ```bash
