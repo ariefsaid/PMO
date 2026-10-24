@@ -62,12 +62,10 @@ test('AC-M365DOC-011/040/058: a PM adds a project document from a OneDrive folde
   await picker.getByRole('button', { name: `Select folder ${FOLDER_NAME}` }).click();
   await picker.getByRole('button', { name: 'Link from Microsoft 365' }).click();
 
-  // Ordinary document form, seeded from the folder name; give it a unique title.
+  // A folder asks only for a title (#1320): no category, code, revision or date.
   const form = page.getByRole('dialog');
   await form.getByLabel(/title/i).fill(title);
-  const code = form.getByLabel(/code/i);
-  if (await code.count()) await code.fill(`M365-${runId}`);
-  await form.getByLabel(/category/i).selectOption({ index: 1 });
+  await expect(form.getByLabel(/category/i)).toHaveCount(0);
   await form.getByRole('button', { name: /^(add|save) document$/i }).click();
   await expect(form).not.toBeVisible({ timeout: 15_000 });
 
