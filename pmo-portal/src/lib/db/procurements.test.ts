@@ -114,19 +114,29 @@ describe('getProjectCommittedSpend', () => {
   beforeEach(() => rpcSpy.mockReset());
 
   it('FR-PFE-037: committed spend is the server open commitment, not a client sum', async () => {
-    rpcSpy.mockResolvedValueOnce({ data: 400, error: null });
-    await expect(getProjectCommittedSpend('p1')).resolves.toBe(400);
+    rpcSpy.mockResolvedValueOnce({ data: [{ currency: 'IDR', amount: 400, is_project_currency: true }], error: null });
+    await expect(getProjectCommittedSpend('p1')).resolves.toEqual({ amount: 400, otherCurrencies: [] });
     expect(rpcSpy).toHaveBeenCalledWith('project_committed_spend', { p_project_id: 'p1' });
     expect(mockFrom).not.toHaveBeenCalledWith('procurements');
   });
 
-  it('returns 0 when the server returns nothing', async () => {
+  it('keeps amounts in other currencies apart from the project-currency figure (never added together)', async () => {
+    rpcSpy.mockResolvedValueOnce({ data: [
+      { currency: 'IDR', amount: 100, is_project_currency: true },
+      { currency: 'USD', amount: '50.25', is_project_currency: false },
+    ], error: null });
+    await expect(getProjectCommittedSpend('p1')).resolves.toEqual({ amount: 100, otherCurrencies: [{ currency: 'USD', amount: 50.25 }] });
+  });
+
+  it('returns 0 and no other currencies when the server returns nothing', async () => {
     rpcSpy.mockResolvedValueOnce({ data: null, error: null });
-    await expect(getProjectCommittedSpend('proj-1')).resolves.toBe(0);
+    await expect(getProjectCommittedSpend('proj-1')).resolves.toEqual({ amount: 0, otherCurrencies: [] });
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
+    await expect(getProjectCommittedSpend('proj-1')).resolves.toEqual({ amount: 0, otherCurrencies: [] });
   });
 
   it('sends no org_id (RLS scopes it)', async () => {
-    rpcSpy.mockResolvedValueOnce({ data: 0, error: null });
+    rpcSpy.mockResolvedValueOnce({ data: [], error: null });
     await getProjectCommittedSpend('proj-1');
     expect(JSON.stringify(rpcSpy.mock.calls)).not.toContain('org_id');
   });

@@ -156,7 +156,9 @@ linking, by the ERP mirror, or by the record forms as today).
 - **FR-PFE-037** Committed spend of a project shall be Σ open commitment over its purchases in the committed
   statuses (Ordered, Received, Vendor Invoiced, Paid) — `project_committed_spend(project_id)` — and the client's
   `getProjectCommittedSpend` and the procurement list summary shall read the server's open commitment rather than
-  summing `total_value` themselves.
+  summing `total_value` themselves. The sum is per currency (0373): the project-currency position, plus a separate
+  position for each other currency with an open commitment; amounts in different currencies are never added, and a
+  surface showing the project-currency figure names the other-currency amounts beside it.
 - **NFR-PFE-001** The budget-line routing figure (`spend_approval_route.line_used`) stays procurement-sourced and
   unchanged: it has no ledger term, so a linked purchase's full value counts once on its line.
 - **NFR-PFE-002** For an org that does not read the ERP ledger every figure is unchanged (open commitment =

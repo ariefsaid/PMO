@@ -25,7 +25,7 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import type { CommitmentSource } from '@/src/hooks/useProcurements';
+import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
 import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
@@ -47,6 +47,7 @@ import {
 import type { ProjectWithRefs, TaxTreatment } from '@/src/lib/db/projects';
 import type { Role } from '@/src/auth/AuthContext';
 import { UnknownFigure } from './UnknownFigure';
+import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -82,6 +83,8 @@ interface PendingContractValue {
 export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   committedSpend?: number;
+  /** Committed amounts in other currencies — named beside the figure, never added to it (0373). */
+  committedOtherCurrencies?: CommittedOtherCurrencies;
   commitmentSource?: CommitmentSource;
   ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   commitmentPending?: boolean;
@@ -105,6 +108,7 @@ export interface ProjectDetailHeaderProps {
 const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
   committedSpend,
+  committedOtherCurrencies,
   commitmentSource = 'unavailable',
   ledgerBasis = 'unavailable',
   commitmentPending = false,
@@ -263,13 +267,16 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             : commitmentError || committed === undefined
               ? <UnknownFigure reason={actualUnavailable} />
               : formatCurrency(committed, project.currency),
+          ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
         }]
       : []),
     // Actual comes from the project-finances source and is withheld unless coverage is complete;
     // partial coverage is a one-word flag — the coverage + date live once in Project finances.
     { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
       sub: actualPosition.complete
-        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</>
+        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+          {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
+          {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
         : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
     ...(contractAfterCostLabel === null
       ? []

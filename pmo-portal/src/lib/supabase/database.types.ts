@@ -9465,7 +9465,11 @@ export type Database = {
       }
       project_committed_spend: {
         Args: { p_project_id: string }
-        Returns: number
+        Returns: {
+          amount: number
+          currency: string
+          is_project_currency: boolean
+        }[]
       }
       project_domain_externally_owned: {
         Args: { p_domain: string; p_project_id: string }

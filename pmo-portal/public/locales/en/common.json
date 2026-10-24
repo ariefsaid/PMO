@@ -4574,6 +4574,7 @@
     "recordedSpending": "Recorded spending",
     "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
+    "otherCurrencies": "Plus amounts in other currencies: {{amounts}}",
     "actualUnavailable": "Unavailable",
     "actualLoading": "Loading Actual…",
     "actualPartial": "Incomplete — see spending details",

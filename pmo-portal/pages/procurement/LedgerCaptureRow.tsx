@@ -86,6 +86,8 @@ export interface LedgerCaptureRowProps {
   /** #876: forwarded to the vendor-invoice form's tax pre-fill. */
   vendorId?: string | null;
   itemsNet?: number | null;
+  /** The purchase's currency, named on the capture form's amount field. */
+  currency?: string | null;
   /** The org's purchase rules (read by the page). Unknown = nothing is held back; the server still enforces. */
   gates?: ProcurementGates;
 }
@@ -127,6 +129,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
   emptyLedger = false,
   vendorId,
   itemsNet,
+  currency,
   gates,
 }) => {
   const [open, setOpen] = useState(false);
@@ -177,6 +180,7 @@ export const LedgerCaptureRow: React.FC<LedgerCaptureRowProps> = ({
           invoiceIdentityContext={invoiceIdentityContext}
           vendorId={vendorId}
           itemsNet={itemsNet}
+          currency={currency}
           busy={busy}
           onCreate={(input) => onCreate(nextKind, input)}
           onStage={onStage && (nextKind === 'goods_receipt' || nextKind === 'vendor_invoice') ? onStage : undefined}

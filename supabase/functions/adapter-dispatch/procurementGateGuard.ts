@@ -30,3 +30,33 @@ export async function checkProcurementGate(client: ProcurementGateClient, orgId:
   if (error) { console.error('[adapter-dispatch] procurement_gate_violation failed:', error); return FAILED; }
   return data === null || data === undefined ? OK : { ok: false, status: 422, message: String(data) };
 }
+
+export interface QueuedCreateCheck { ok: boolean; message: string }
+type RpcOnlyClient = Pick<ProcurementGateClient, 'rpc'>;
+
+/**
+ * The same question asked again before a QUEUED procurement create is reissued to ERP (a quarantined order, receipt or
+ * vendor invoice whose recovery probe found nothing, so a new ERP document would be minted). The rules can have changed
+ * since the command was queued: `procurement_create_refusal` (0373) re-checks the target step's purchase rule and, for a
+ * payment, the payment rule, the recorded actor and the approved amount, under a lock on the purchase. The outbox claim
+ * asks the same function for pending and failed rows. Fails closed: an unanswerable check refuses.
+ */
+export async function checkQueuedProcurementCreate(
+  client: RpcOnlyClient,
+  orgId: string,
+  command: { domain: string; operation: string; record: { procurementId?: unknown; erp_doc_kind?: unknown } },
+  actorUserId: string | null | undefined,
+): Promise<QueuedCreateCheck> {
+  if (command.domain !== 'procurement' || String(command.operation) !== 'create') return { ok: true, message: '' };
+  if (!(String(command.record.erp_doc_kind) in STEP_BY_KIND)) return { ok: true, message: '' };
+  const procurementId = typeof command.record.procurementId === 'string' && command.record.procurementId !== ''
+    ? command.record.procurementId : null;
+  const { data, error } = await client.rpc('procurement_create_refusal', {
+    p_org_id: orgId, p_procurement_id: procurementId, p_erp_doc_kind: command.record.erp_doc_kind, p_actor_user_id: actorUserId ?? null,
+  });
+  if (error) {
+    console.error('[adapter-dispatch] procurement_create_refusal failed:', error);
+    return { ok: false, message: 'purchase rule check failed' };
+  }
+  return data === null || data === undefined ? { ok: true, message: '' } : { ok: false, message: `purchase rule refused: ${String(data)}` };
+}

@@ -7,7 +7,7 @@ import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { ProjectFinancesSection } from '../ProjectFinancesSection';
-import { useProjectProcurements, type CommitmentSource } from '@/src/hooks/useProcurements';
+import { useProjectProcurements, type CommitmentSource, type CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
 import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
@@ -19,10 +19,13 @@ import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { UnknownFigure } from '../UnknownFigure';
+import { OtherCurrencyCommitments } from '../OtherCurrencyCommitments';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
   committedSpend?: number;
+  /** Committed amounts in other currencies — named beside the figure, never added to it (0373). */
+  committedOtherCurrencies?: CommittedOtherCurrencies;
   commitmentSource?: CommitmentSource;
   ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   commitmentPending?: boolean;
@@ -55,7 +58,7 @@ export interface OverviewTabProps {
  * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
  * is not rendered for them (showFinanceSummary is false/omitted).
  */
-const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, commitmentSource = 'unavailable', ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
+const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, committedOtherCurrencies, commitmentSource = 'unavailable', ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -130,13 +133,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, comm
                 : commitmentError || committedSpend === undefined
                   ? <UnknownFigure reason={unavailableReason} />
                   : formatCurrency(committedSpend, project.currency),
+              ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
             }]
           : []),
         {
           label: t('projectDetail.overview.finance.actual', 'Actual'),
           value: actualFigure,
           sub: actualPosition.complete
-            ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}</>
+            ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+              {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
+              {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
             : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined,
         },
         ...(contractAfterCostLabel === null

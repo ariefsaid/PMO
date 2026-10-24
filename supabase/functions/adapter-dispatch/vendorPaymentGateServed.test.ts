@@ -104,6 +104,8 @@ interface World {
   paymentAllowed?: string | null;
   /** An HTTP status the payment-rule RPC fails with (the rule cannot be evaluated). */
   paymentAllowedStatus?: number;
+  /** The outbox claim's named refusal (0368/0373): the rules in force when the queued payment is claimed refuse it. */
+  claimRefusal?: string;
 }
 
 function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amountApproverId: string | null = null, world: World = {}): MockRoute[] {
@@ -167,6 +169,9 @@ function routes(unexpected: FetchCall[], caller: string, ceilingOk = true, amoun
     { label: 'outbox update', method: 'PATCH', pathname: '/rest/v1/external_command_outbox',
       response: () => jsonResponse([{ id: 'outbox-1' }]) },
     supabaseRpc('claim_outbox_for_commit', () => {
+      if (world.claimRefusal) {
+        return jsonResponse({ code: 'P0001', message: world.claimRefusal, details: null, hint: null }, { status: 400 });
+      }
       const row = [...outbox.values()][0];
       return jsonResponse(row ? { ...row, state: 'committing', claim_generation: 1 } : null);
     }),
@@ -333,5 +338,16 @@ describe('#910 — the vendor-payment SoD gate through the SERVED adapter-dispat
     assertEquals(r.status, 422, r.body);
     assertEquals(JSON.parse(r.body).message, 'purchase_closed');
     assertEquals(r.calls.filter((c) => c.url.pathname.includes('external_command_outbox')).length, 0, 'no outbox row inserted');
+  });
+
+  // 0373: the rules can change between the foreground check and the claim (or a queued payment is retried later). The
+  // claim re-asks them under a lock on the purchase; its named refusal is a 422 and nothing is posted to ERP.
+  it('a queued payment the claim now refuses answers 422 with the named reason and posts nothing to ERP', async () => {
+    const r = await dispatchAs(PAYER_ID, { claimRefusal: 'procurement-payment-refused: gate_approval_before_order' });
+    assertEquals(r.unexpected.map((c) => `${c.method} ${c.url.pathname}${c.url.search}`), [], 'every read is mocked');
+    assertEquals(r.status, 422, r.body);
+    assertEquals(JSON.parse(r.body).message, 'procurement-payment-refused: gate_approval_before_order');
+    assert(r.calls.some((c) => c.url.pathname === '/rest/v1/rpc/claim_outbox_for_commit'), 'the claim was asked');
+    assertEquals(r.calls.filter((c) => c.url.host === ERP_HOST && c.method === 'POST').length, 0, 'no ERP document was created');
   });
 });

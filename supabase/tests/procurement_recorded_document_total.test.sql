@@ -47,7 +47,7 @@ set local request.jwt.claims = '{"sub":"03710000-0000-0000-0000-0000000000a2","r
 select lives_ok($$ select transition_procurement('03710000-0000-0000-0000-0000000000e1','Paid') $$, '0371 fixture: Finance pays it');
 select results_eq($$ select status::text, total_value from procurements where id = '03710000-0000-0000-0000-0000000000e1' $$,
   $$ values ('Paid', 1500::numeric) $$, '0371 the invoice amount still wins over the gross payment once paid');
-select is(project_committed_spend('03710000-0000-0000-0000-0000000000d1'), 1500::numeric,
+select is((select coalesce(sum(amount) filter (where is_project_currency), 0) from project_committed_spend('03710000-0000-0000-0000-0000000000d1')), 1500::numeric,
   '0371 a purchase started at a vendor invoice and paid counts its amount in committed spend');
 select is((select procurement_open_commitment(p) from procurements p where p.id = '03710000-0000-0000-0000-0000000000e1'), 1500::numeric,
   '0371 its open commitment is the recorded amount');
@@ -80,7 +80,7 @@ select is((select total_value from procurements where id = '03710000-0000-0000-0
 -- Foreign-org isolation is unchanged.
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"03710000-0000-0000-0000-0000000000b1","role":"authenticated"}';
-select is(project_committed_spend('03710000-0000-0000-0000-0000000000d1'), 0::numeric, '0371 another org sees none of this org''s committed spend');
+select is((select coalesce(sum(amount) filter (where is_project_currency), 0) from project_committed_spend('03710000-0000-0000-0000-0000000000d1')), 0::numeric, '0371 another org sees none of this org''s committed spend');
 select is((select count(*) from procurements where org_id = '03710000-0000-0000-0000-00000000000a'), 0::bigint, '0371 another org reads none of its purchases');
 reset role;
 reset request.jwt.claims;

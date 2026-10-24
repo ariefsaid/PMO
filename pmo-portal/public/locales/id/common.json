@@ -4574,6 +4574,7 @@
     "recordedSpending": "Pengeluaran tercatat",
     "pmoPurchaseOrders": "Pesanan pembelian PMO",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
+    "otherCurrencies": "Ditambah jumlah dalam mata uang lain: {{amounts}}",
     "actualUnavailable": "Tidak tersedia",
     "actualLoading": "Memuat Aktual…",
     "actualPartial": "Belum lengkap — lihat rincian pengeluaran",

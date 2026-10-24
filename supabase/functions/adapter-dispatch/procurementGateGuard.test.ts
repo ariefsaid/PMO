@@ -1,5 +1,5 @@
 import { assertEquals } from '@std/assert';
-import { checkProcurementGate } from './procurementGateGuard.ts';
+import { checkProcurementGate, checkQueuedProcurementCreate } from './procurementGateGuard.ts';
 
 function fakeClient(opts: { orgRow?: unknown; rowError?: boolean; violation?: string | null; rpcError?: boolean }) {
   const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
@@ -59,4 +59,30 @@ Deno.test('fails closed: purchase of another org, unreadable row, RPC failure, m
   assertEquals((await checkProcurementGate(fakeClient({ orgRow: { org_id: 'o1' }, rpcError: true }) as never, 'o1', cmd('purchase-order'))).message, 'gate-check-failed');
   const noId = { domain: 'procurement', operation: 'create', record: { id: 'r1', erp_doc_kind: 'purchase-order' } };
   assertEquals((await checkProcurementGate(fakeClient({}) as never, 'o1', noId as never)).message, 'gate-check-failed');
+});
+
+// 0373: the queued-create re-check asked before a quarantined procurement create is reissued.
+Deno.test('a queued create the purchase rules now refuse is refused with the named reason', async () => {
+  const c = fakeClient({ violation: 'gate_receipt_before_invoice' });
+  assertEquals(await checkQueuedProcurementCreate(c as never, 'o1', cmd('purchase-invoice'), 'u1'),
+    { ok: false, message: 'purchase rule refused: gate_receipt_before_invoice' });
+  assertEquals(c.calls[0], { fn: 'procurement_create_refusal',
+    args: { p_org_id: 'o1', p_procurement_id: 'p1', p_erp_doc_kind: 'purchase-invoice', p_actor_user_id: 'u1' } });
+});
+Deno.test('a queued create the rules allow passes; other domains, kinds and operations are not asked', async () => {
+  const c = fakeClient({ violation: null });
+  assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', cmd('goods-receipt'), 'u1')).ok, true);
+  assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', cmd('quotation'), 'u1')).ok, true);
+  assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', cmd('purchase-order', 'transition'), 'u1')).ok, true);
+  assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', { ...cmd('purchase-order'), domain: 'revenue' }, 'u1')).ok, true);
+  assertEquals(c.calls.length, 1);
+});
+Deno.test('the queued-create check fails closed when the rules cannot be read, and sends no id it does not have', async () => {
+  assertEquals(await checkQueuedProcurementCreate(fakeClient({ rpcError: true }) as never, 'o1', cmd('purchase-order'), 'u1'),
+    { ok: false, message: 'purchase rule check failed' });
+  const c = fakeClient({ violation: 'purchase_not_found' });
+  const noId = { domain: 'procurement', operation: 'create', record: { erp_doc_kind: 'purchase-order' } };
+  assertEquals((await checkQueuedProcurementCreate(c as never, 'o1', noId, null)).ok, false);
+  assertEquals(c.calls[0].args.p_procurement_id, null);
+  assertEquals(c.calls[0].args.p_actor_user_id, null);
 });

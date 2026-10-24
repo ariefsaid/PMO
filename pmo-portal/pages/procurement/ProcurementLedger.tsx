@@ -540,6 +540,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           resetKey={rows.length}
           vendorId={invoiceVendorId}
           itemsNet={itemsNet}
+          currency={detail.currency}
           gates={gates}
           busy={captureBusy}
           onCreate={handleCreate}

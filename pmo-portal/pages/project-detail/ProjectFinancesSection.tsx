@@ -8,6 +8,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
+import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
@@ -160,7 +161,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </span>}
         </p>
         {actualPosition.basis === 'pmo'
-          ? <p className="text-xs text-muted-foreground">{t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}</p>
+          ? <p className="text-xs text-muted-foreground">
+            {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
+            <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
+          </p>
           : hasCoverage && !completeCoverage && <p className="text-xs text-muted-foreground">
             {t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
           </p>}
