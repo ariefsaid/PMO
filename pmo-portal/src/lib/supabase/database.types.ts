@@ -1329,6 +1329,124 @@ export type Database = {
           },
         ]
       }
+      cost_attribution_rule_targets: {
+        Row: {
+          org_id: string
+          percent: number
+          position: number
+          project_id: string
+          rule_id: string
+        }
+        Insert: {
+          org_id?: string
+          percent: number
+          position: number
+          project_id: string
+          rule_id: string
+        }
+        Update: {
+          org_id?: string
+          percent?: number
+          position?: number
+          project_id?: string
+          rule_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_attribution_rule_targets_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_attribution_rule_targets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_attribution_rule_targets_rule_id_fkey"
+            columns: ["rule_id"]
+            isOneToOne: false
+            referencedRelation: "cost_attribution_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cost_attribution_rules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          is_current: boolean
+          match_account: string | null
+          match_account_group: string | null
+          match_cost_center: string | null
+          match_party: string | null
+          match_party_type: string | null
+          name: string
+          org_id: string
+          rule_key: string
+          specificity: number
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          name: string
+          org_id?: string
+          rule_key: string
+          specificity: number
+          version: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          is_current?: boolean
+          match_account?: string | null
+          match_account_group?: string | null
+          match_cost_center?: string | null
+          match_party?: string | null
+          match_party_type?: string | null
+          name?: string
+          org_id?: string
+          rule_key?: string
+          specificity?: number
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cost_attribution_rules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cost_attribution_rules_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credit_reservations: {
         Row: {
           amount: number
@@ -8464,6 +8582,14 @@ export type Database = {
         Args: { p_domain: string; p_org_id: string; p_tier: string }
         Returns: boolean
       }
+      end_cost_attribution_rule: {
+        Args: {
+          p_effective_to: string
+          p_expected_version: number
+          p_rule_key: string
+        }
+        Returns: Json
+      }
       enqueue_expense_posting: {
         Args: {
           p_actor: string
@@ -8800,6 +8926,27 @@ export type Database = {
         Returns: {
           fiscal_year: string
           is_active_push: boolean
+        }[]
+      }
+      list_cost_attribution_rules: {
+        Args: { p_include_history?: boolean }
+        Returns: {
+          created_at: string
+          created_by: string
+          effective_from: string
+          effective_to: string
+          id: string
+          is_current: boolean
+          match_account: string
+          match_account_group: string
+          match_cost_center: string
+          match_party: string
+          match_party_type: string
+          name: string
+          rule_key: string
+          specificity: number
+          targets: Json
+          version: number
         }[]
       }
       list_record_history: {
@@ -9324,6 +9471,16 @@ export type Database = {
         Args: { p_org_id: string; p_holder: string; p_binding: Json }
         Returns: undefined
       }
+      preview_cost_attribution: {
+        Args: { p_rule: Json }
+        Returns: {
+          amount: number
+          category: Database["public"]["Enums"]["budget_category"]
+          line_count: number
+          month: string
+          project_id: string
+        }[]
+      }
       procurement_evidenced_step: {
         Args: { p_procurement_id: string }
         Returns: Database["public"]["Enums"]["procurement_status"]
@@ -9348,6 +9505,7 @@ export type Database = {
         Args: { p: Database["public"]["Tables"]["procurements"]["Row"] }
         Returns: number
       }
+      save_cost_attribution_rule: { Args: { p_rule: Json }; Returns: Json }
       stage_erp_statement_report: {
         Args: { p_org_id: string; p_holder: string; p_batch_id: string; p_report: Json }
         Returns: undefined
@@ -9484,10 +9642,12 @@ export type Database = {
         Returns: {
           actuals_as_of: string
           actuals_to_date: number
+          attributed_to_date: number
           category: Database["public"]["Enums"]["budget_category"]
           has_rows: boolean
           mapped: boolean
           source_sum: number
+          tagged_to_date: number
         }[]
       }
       project_number_null_insert_default: { Args: never; Returns: string }

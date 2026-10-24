@@ -24,6 +24,7 @@ import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
+import CostAttribution from './admin/CostAttribution';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -165,6 +166,7 @@ const AccountingSectionNavigation: React.FC = () => {
     { id: 'procurement-gates-heading', label: t('procurement:gates.heading', 'Purchase rules') },
     { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
     { id: 'expense-account-map', label: t('uxs31.accounting.expenseMap', 'Expense account map') },
+    { id: 'cost-attribution', label: t('costAttribution:title', 'Cost attribution') },
   ];
   return (
     <nav aria-label={t('uxs31.accounting.sectionsLabel', 'Accounting setup sections')} className="mb-5">
@@ -243,6 +245,7 @@ const SelectedAdministrationPanel: React.FC<{
             <OrgProcurementGates />
             <BudgetAccountMap />
             <ExpenseAccountMap />
+            <CostAttribution />
           </div>
         </div>
       );

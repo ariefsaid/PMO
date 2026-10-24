@@ -164,6 +164,7 @@ vi.mock('./admin/BudgetAccountMap', () => ({ default: () => {
 } }));
 // #775 phase B — proven by its own test (AC-EXP-130); kept off the network here like its BudgetAccountMap sibling.
 vi.mock('./admin/ExpenseAccountMap', () => ({ default: () => <div id="expense-account-map" tabIndex={-1} /> }));
+vi.mock('./admin/CostAttribution', () => ({ default: () => <div id="cost-attribution" tabIndex={-1} /> }));
 vi.mock('@/src/components/admin/AgentCostMetrics', () => ({
   AgentCostMetrics: () => <div>Agent cost metrics</div>,
 }));

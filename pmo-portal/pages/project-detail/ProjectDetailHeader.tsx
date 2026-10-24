@@ -26,7 +26,7 @@ import { useProjectMutations } from '@/src/hooks/useProjects';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import type { CommitmentSource, CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
-import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { useProjectVatEditability } from '@/src/hooks/useProjectVatEditability';
 import { Checkbox } from '@/src/components/ui/Checkbox';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -179,6 +179,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       : moneyPosition.headlineState === 'partial'
         ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
         : <UnknownFigure reason={actualUnavailable} />;
+  const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
+    ? attributedSplit({ attributed: authorizedActuals.attributed_total })
+    : null;
   const actualCoverage = moneyPosition.coverage.kind === 'pmo'
     ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
     : moneyPosition.coverage.kind === 'complete'
@@ -275,6 +278,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
       sub: actualPosition.complete
         ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+          {/* #1271 AC-3: attributed cost is named apart from tagged cost, only when there is some. */}
+          {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
+            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language) ?? attributedActual.attributed })}
+          </span>}
           {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
           {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
         : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
