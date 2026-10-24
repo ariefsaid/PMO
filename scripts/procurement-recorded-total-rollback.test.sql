@@ -11,7 +11,7 @@ insert into procurements (id, org_id, title, requested_by_id, currency, total_va
   ('03719000-0000-0000-0000-0000000000e1','03719000-0000-0000-0000-00000000000a','RT down','03719000-0000-0000-0000-0000000000a1','IDR',0,'Draft'),
   ('03719000-0000-0000-0000-0000000000e2','03719000-0000-0000-0000-00000000000a','RT up','03719000-0000-0000-0000-0000000000a1','IDR',0,'Draft');
 -- @0371_DOWN@
-select hasnt_function('public','refresh_procurement_recorded_total', array['uuid'], 'down 0371: the refresh function is gone');
+select hasnt_function('public','refresh_procurement_recorded_total', array['uuid','boolean'], 'down 0371: the refresh function is gone');
 select hasnt_function('public','refresh_procurement_total_on_record', 'down 0371: the trigger function is gone');
 select hasnt_trigger('public','payments','zy_payments_recorded_total', 'down 0371: the payment trigger is gone');
 set local request.jwt.claims = '{"sub":"03719000-0000-0000-0000-0000000000a1","role":"authenticated"}';
@@ -21,9 +21,9 @@ reset request.jwt.claims;
 select is((select total_value from procurements where id = '03719000-0000-0000-0000-0000000000e1'), 0::numeric,
   'down 0371 (mutation check): without the refresh a purchase started at a vendor invoice stays at 0');
 -- @0371_UP@
-select has_function('public','refresh_procurement_recorded_total', array['uuid'], 'up again: the refresh function');
-select ok(not has_function_privilege('authenticated','public.refresh_procurement_recorded_total(uuid)','execute')
-          and not has_function_privilege('anon','public.refresh_procurement_recorded_total(uuid)','execute'),
+select has_function('public','refresh_procurement_recorded_total', array['uuid','boolean'], 'up again: the refresh function');
+select ok(not has_function_privilege('authenticated','public.refresh_procurement_recorded_total(uuid,boolean)','execute')
+          and not has_function_privilege('anon','public.refresh_procurement_recorded_total(uuid,boolean)','execute'),
   'up again: the refresh is not callable by clients');
 select has_trigger('public','procurement_invoices','zy_procurement_invoices_recorded_total', 'up again: the invoice trigger');
 set local request.jwt.claims = '{"sub":"03719000-0000-0000-0000-0000000000a1","role":"authenticated"}';
