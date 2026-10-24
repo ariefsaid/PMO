@@ -21,7 +21,7 @@ const h = vi.hoisted(() => ({
   canViewFinance: true,
   getProjectFinances: vi.fn(),
   budget: { data: 40 as number | undefined, isPending: false, isError: false },
-  commitments: { data: 10, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp' },
+  commitments: { data: 10, otherCurrencies: [] as Array<{ currency: string; amount: number }>, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp' },
 }));
 
 vi.mock('@/src/lib/projectFinances', async (importOriginal) => {
@@ -172,6 +172,7 @@ function renderSurfaces(options: {
   showFinanceSummary?: boolean;
   ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   committedSpend?: number;
+  committedOtherCurrencies?: Array<{ currency: string; amount: number }>;
   includeHeader?: boolean;
   includeOverview?: boolean;
 } = {}) {
@@ -181,12 +182,14 @@ function renderSurfaces(options: {
     showFinanceSummary = false,
     ledgerBasis = 'erp',
     committedSpend = 10,
+    committedOtherCurrencies = [],
     includeHeader = true,
     includeOverview = true,
   } = options;
   h.realRole = realRole;
   h.commitments = {
     data: committedSpend,
+    otherCurrencies: committedOtherCurrencies,
     isPending: false,
     isError: false,
     commitmentSource: ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked',
@@ -203,6 +206,7 @@ function renderSurfaces(options: {
               <ProjectDetailHeader
                 project={currentProject}
                 committedSpend={committedSpend}
+                committedOtherCurrencies={committedOtherCurrencies}
                 commitmentSource={ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked'}
                 ledgerBasis={ledgerBasis}
               />
@@ -211,6 +215,7 @@ function renderSurfaces(options: {
               <OverviewTab
                 project={currentProject}
                 committedSpend={committedSpend}
+                committedOtherCurrencies={committedOtherCurrencies}
                 commitmentSource={ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked'}
                 ledgerBasis={ledgerBasis}
                 showFinanceSummary={showFinanceSummary}
@@ -256,7 +261,7 @@ beforeEach(async () => {
   h.realRole = 'Finance';
   h.canViewFinance = true;
   h.budget = { data: 40, isPending: false, isError: false };
-  h.commitments = { data: 10, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp' };
+  h.commitments = { data: 10, otherCurrencies: [], isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp' };
   h.getProjectFinances.mockReset().mockImplementation(async (projectId: string) => financeReading(projectId));
   vi.mocked(projectFinancesModule.buildProjectMoneyPosition).mockClear();
 });
@@ -366,6 +371,27 @@ describe('project money position consumer parity', () => {
     expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
       .getByText(formatSignedExactMoney('100.00', 'USD', 'en')!)).toBeInTheDocument();
     expect(within(statTile(t('projectDetail.overview.finance.spend', 'Spend'))).getByText('0%')).toBeInTheDocument();
+  });
+
+  it('0373 shows the project-currency committed figure and names other currencies beside it, never in its sum', async () => {
+    h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
+    const { client } = renderSurfaces({ ledgerBasis: 'pmo', committedSpend: 10, committedOtherCurrencies: [{ currency: 'EUR', amount: 40 }] });
+    await waitForFinance(client);
+    const tile = statTile(t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'));
+    expect(tile).toHaveTextContent('$10');
+    expect(tile).not.toHaveTextContent('$50');
+    expect(within(tile).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+    // Named once per strip: the PMO purchase-order tile carries it, so the Actual tile does not repeat it.
+    expect(within(statTile(t('projectDetail.header.tile.actual', 'Actual'))).queryByTestId('committed-other-currencies')).toBeNull();
+  });
+
+  it('0373 the delivery-role summary names other-currency commitments too', async () => {
+    h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
+    const { client } = renderSurfaces({ status: 'Internal Project', realRole: 'Engineer', showFinanceSummary: true,
+      ledgerBasis: 'pmo', committedSpend: 10, committedOtherCurrencies: [{ currency: 'EUR', amount: 40 }] });
+    await waitForFinance(client);
+    expect(within(screen.getByTestId('financial-summary')).getAllByTestId('committed-other-currencies')[0])
+      .toHaveTextContent('Plus amounts in other currencies: €40');
   });
 
   it('AC-PMP-006 keeps pipeline Project finances visible and fetching beside the hidden header', async () => {

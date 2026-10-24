@@ -133,6 +133,7 @@ import { guardedErpFetch, isPermittedErpSiteUrl } from '../_shared/erpHostGuard.
 import { resolveErpAuthPair, createErpAuthPairCache, type ErpAuthPairCache } from '../_shared/erpAuthPair.ts';
 import { canonicalCommandDigest, createDbMoneyOutboxDeps } from '../adapter-dispatch/moneyOutboxDeps.ts';
 import { checkErpnextCommandAuthorization, checkOutboxReplayAuthorization, replayMayIssueErpWrite } from '../adapter-dispatch/authGuard.ts';
+import { checkQueuedProcurementCreate } from '../adapter-dispatch/procurementGateGuard.ts';
 import { getReadModelWriter } from '../adapter-dispatch/readModelWriters.ts';
 import { recordExternalRef as recordExternalRefWrite } from '../../../pmo-portal/src/lib/adapterSeam/refs.ts';
 import { erpDatetime, probeErpByAnchorKey, probeErpByPaymentComposite, withholdingMatchFromPayload, type ErpProbeDeps } from '../../../pmo-portal/src/lib/adapterSeam/erpnext/recoveryProbe.ts';
@@ -3361,7 +3362,10 @@ export async function buildMoneyWriteDepsLive(
         operation,
         record: { id: args.outboxRecordId, erp_doc_kind: payload.erp_doc_kind },
       });
-      return { ok: res.ok, message: res.message };
+      if (!res.ok) return { ok: res.ok, message: res.message };
+      // A reissued procurement create answers the org's CURRENT purchase rules (the same question the outbox claim
+      // asks of a pending or failed row), so a rule turned on after the command was queued refuses the new document.
+      return checkQueuedProcurementCreate(serviceClient as never, org.orgId, { domain: command.domain, operation, record: payload }, args.actorUserId);
     },
   });
 

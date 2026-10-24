@@ -5,6 +5,7 @@ import {
   getProjectCommittedSpend,
   getProjectReservedSpend,
   type ProcurementWithRefs,
+  type ProjectCommittedSpend,
 } from '@/src/lib/db/procurements';
 import { useAuth } from '@/src/auth/useAuth';
 import { useExternalDomainOwnership } from '@/src/hooks/useExternalDomainOwnership';
@@ -49,11 +50,13 @@ export function useProjectProcurements(projectId: string | null | undefined) {
  * dashboards use. Powers the DecisionSupportPanel's "Committed spend" figure. Org-scoped via RLS.
  */
 export type CommitmentSource = 'pmo' | 'not-tracked' | 'unavailable';
+export type CommittedOtherCurrencies = ProjectCommittedSpend['otherCurrencies'];
+const NO_OTHER_CURRENCIES: CommittedOtherCurrencies = [];
 
 export function useProjectCommittedSpend(projectId: string | null | undefined, includeOwnership = false) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
-  const query = useQuery<number>({
+  const query = useQuery<ProjectCommittedSpend>({
     queryKey: ['project-committed-spend', orgId, projectId],
     queryFn: () => getProjectCommittedSpend(projectId as string),
     enabled: Boolean(orgId && projectId),
@@ -72,7 +75,12 @@ export function useProjectCommittedSpend(projectId: string | null | undefined, i
   const ledgerBasis = !includeOwnership || ledger.isPending || ledger.isError || ledger.data === undefined
     ? 'unavailable' as const
     : ledger.data ? 'erp' as const : 'pmo' as const;
-  return { ...query, commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError };
+  // `data` stays the project-currency figure every consumer formats with the project currency; amounts in other
+  // currencies travel beside it so a consumer can say they exist instead of folding them into that figure.
+  return {
+    ...query, data: query.data?.amount, otherCurrencies: query.data?.otherCurrencies ?? NO_OTHER_CURRENCIES,
+    commitmentSource, ledgerBasis, ownershipPending: ownership.isPending, ownershipError: ownership.isError,
+  };
 }
 
 /**

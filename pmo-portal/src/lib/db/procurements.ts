@@ -54,14 +54,29 @@ export const COMMITTED_STATUSES: ProcurementRow['status'][] = [
   'Paid',
 ];
 
+/** Committed spend for one project: the figure in the project's currency, and each other currency kept apart. */
+export interface ProjectCommittedSpend {
+  /** Open commitment in the project's currency. */
+  amount: number;
+  /** Open commitments in other currencies — never added to `amount` and never shown as the project currency. */
+  otherCurrencies: Array<{ currency: string; amount: number }>;
+}
+
 /**
- * Committed spend for ONE project — SINGLE DEFINITION is SQL `project_committed_spend` (0361, FR-PFE-037): Σ open commitment
- * over Ordered..Paid purchases; in an ERP-ledger org an invoice already on the ledger is not counted again (ADR-0093).
+ * Committed spend for ONE project — SINGLE DEFINITION is SQL `project_committed_spend` (0361, FR-PFE-037; per currency
+ * since 0373): Σ open commitment over Ordered..Paid purchases; in an ERP-ledger org an invoice already on the ledger is
+ * not counted again (ADR-0093). No conversion: a purchase in another currency is its own position.
  */
-export async function getProjectCommittedSpend(projectId: string): Promise<number> {
+export async function getProjectCommittedSpend(projectId: string): Promise<ProjectCommittedSpend> {
   const { data, error } = await supabase.rpc('project_committed_spend', { p_project_id: projectId });
   if (error) throw new Error(error.message);
-  return Number(data ?? 0);
+  const rows = data ?? [];
+  const own = rows.find((row) => row.is_project_currency);
+  return {
+    amount: Number(own?.amount ?? 0),
+    otherCurrencies: rows.filter((row) => !row.is_project_currency)
+      .map((row) => ({ currency: row.currency, amount: Number(row.amount) })),
+  };
 }
 
 /**

@@ -327,6 +327,8 @@ export interface RecordCaptureFormProps {
   vendorId?: string | null;
   /** #876 slice 2: the case's items total before tax — the base an ERP-bound bill's tax is pre-filled on. */
   itemsNet?: number | null;
+  /** The purchase's currency. The server records the document in it (no conversion), so the amount field names it. */
+  currency?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +345,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
   onStage,
   vendorId = null,
   itemsNet = null,
+  currency = null,
 }) => {
   const { toast } = useToast();
   const { t } = useTranslation();
@@ -646,6 +649,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             className="text-[12px] font-semibold text-muted-foreground"
           >
             {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
+            {currency ? ` · ${currency}` : null}
           </label>
           <input
             id={`${formId}-amount`}

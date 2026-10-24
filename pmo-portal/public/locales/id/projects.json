@@ -18,5 +18,8 @@
     "searchPipeline": "Proyek · Pipeline · {{name}}",
     "contractName": "Nama kontrak",
     "duplicate": "Proyek lain sudah memakai nama singkat ini"
+  },
+  "committed": {
+    "otherCurrencies": "Ditambah jumlah dalam mata uang lain: {{amounts}}"
   }
 }

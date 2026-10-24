@@ -18,5 +18,8 @@
     "searchPipeline": "Project · Pipeline · {{name}}",
     "contractName": "Contract name",
     "duplicate": "Another project already uses this short name"
+  },
+  "committed": {
+    "otherCurrencies": "Plus amounts in other currencies: {{amounts}}"
   }
 }

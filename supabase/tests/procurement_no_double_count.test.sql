@@ -37,7 +37,7 @@ select is((select procurement_open_commitment(p) from procurements p where p.id 
   'AC-PFE-005 open commitment excludes the linked invoice''s ledger-held net (1000 − 600)');
 select is((select procurement_open_commitment(p) from procurements p where p.id = '03620000-0000-0000-0000-0000000000e2'), 200::numeric,
   'AC-PFE-005 open commitment excludes a PMO-pushed, ledger-submitted invoice (500 − 300)');
-select is(project_committed_spend('03620000-0000-0000-0000-0000000000d1'), 600::numeric, 'AC-PFE-005 project committed spend = Σ open commitment');
+select is((select coalesce(sum(amount) filter (where is_project_currency), 0) from project_committed_spend('03620000-0000-0000-0000-0000000000d1')), 600::numeric, 'AC-PFE-005 project committed spend = Σ open commitment');
 select is(link_erp_purchase_documents('[{"erp_name":"PINV-RET","procurement_id":"03620000-0000-0000-0000-0000000000e1"}]') #>> '{results,0,reason}', 'document_is_return', 'M-6 a return / debit note is refused');
 select is((select procurement_open_commitment(p) from procurements p where p.id = '03620000-0000-0000-0000-0000000000e1'), 400::numeric,
   'AC-PFE-005 a refused return leaves the open commitment unchanged (1000 − 600)');

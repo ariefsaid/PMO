@@ -19,7 +19,8 @@ const h = vi.hoisted(() => ({
   },
   role: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
   effectiveRole: 'Project Manager' as 'Admin' | 'Finance' | 'Project Manager' | 'Engineer' | 'Executive',
-  commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable' },
+  commitments: { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked' as const, ledgerBasis: 'erp' as 'erp' | 'pmo' | 'unavailable',
+    otherCurrencies: [] as Array<{ currency: string; amount: number }> },
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
@@ -60,7 +61,7 @@ beforeEach(() => {
   h.query.refetch.mockReset().mockResolvedValue(undefined);
   h.role = 'Project Manager';
   h.effectiveRole = 'Project Manager';
-  h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp' };
+  h.commitments = { data: 75, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp', otherCurrencies: [] };
 });
 
 describe('ProjectFinancesSection reading states', () => {
@@ -131,6 +132,15 @@ describe('ProjectFinancesSection reading states', () => {
       categories: [{ category: 'Labor', mapped: true, amount: '50.00' }, { category: 'Materials', mapped: false, amount: null }] } });
     rerender(<ProjectFinancesSection project={project} />);
     expect(screen.getByText('Partial coverage · 1 of 2 categories recorded')).toBeInTheDocument();
+  });
+
+  it('0373 a PMO-basis spending figure stays in the project currency and names other-currency commitments beside it', () => {
+    h.query.data = payload({});
+    h.commitments.ledgerBasis = 'pmo';
+    h.commitments.otherCurrencies = [{ currency: 'EUR', amount: 40 }];
+    render(<ProjectFinancesSection project={project} />);
+    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
   });
 
   it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {

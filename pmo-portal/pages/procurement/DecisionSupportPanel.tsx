@@ -160,6 +160,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // Interdependent budget math lives in the pure computeBudgetSignal helper so it is
   // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
+  const otherCurrencyCommitted = (committed.otherCurrencies ?? [])
+    .map((position) => formatCurrency(position.amount, position.currency)).join(', ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
     computeBudgetSignal({
@@ -182,6 +184,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       label: 'Available',
       value: formatCurrency(available, currency),
       tone: available < 0 ? ('neg' as const) : undefined,
+      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
+      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
     },
     { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
     {
