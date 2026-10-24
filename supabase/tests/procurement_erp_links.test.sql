@@ -22,6 +22,10 @@ insert into external_org_bindings (org_id, external_tier, site_url, secret_ref, 
   ('03610000-0000-0000-0000-00000000000a','erpnext','https://erp.example.test','test-ref',
    '{"company":"Example Co","project_map":{"03610000-0000-0000-0000-0000000000d1":"ERP-A","03610000-0000-0000-0000-0000000000d2":"ERP-B"}}'::jsonb,
    now(), 'active');
+-- AMENDED BY 0372: a SharePoint file sent with a link must be on the organisation's own SharePoint host, so the org
+-- has a default library on the host the FR-PFE-029 row uses.
+insert into org_m365_document_settings (org_id, default_site_id, default_site_name, default_drive_id, default_drive_name, updated_by) values
+  ('03610000-0000-0000-0000-00000000000a','example.sharepoint.com,site-a,web-a','Site','drive-a','Library','03610000-0000-0000-0000-0000000000a1');
 insert into companies (id, org_id, name, type) values
   ('03610000-0000-0000-0000-0000000000c1','03610000-0000-0000-0000-00000000000a','Supplier One','Vendor'),
   ('03610000-0000-0000-0000-0000000000c3','03610000-0000-0000-0000-00000000000a','Supplier Three','Vendor');

@@ -121,13 +121,29 @@ describe('ErpOrphansSection', () => {
     expect(screen.queryByText('purchase page')).toBeNull();
   });
 
-  it('review 2a: org-wide, a document split across projects offers its projects instead of a one-click new purchase', async () => {
+  it('review 2a: org-wide, an order split across projects offers its projects instead of a one-click new purchase', async () => {
     const names = new Map([['p1', 'Tower'], ['p2', 'Plant']]);
-    renderAt(<ErpOrphansSection rows={[row('PINV-1', { projectIds: ['p1', 'p2'] })]} canLink projectNames={names} />);
-    await openMenu('PINV-1');
+    renderAt(<ErpOrphansSection rows={[row('PUR-ORD-1', { doctype: 'Purchase Order', projectIds: ['p1', 'p2'] })]} canLink projectNames={names} />);
+    await openMenu('PUR-ORD-1');
     expect(screen.queryByRole('menuitem', { name: 'New purchase from this' })).toBeNull();
     await userEvent.click(screen.getByRole('menuitem', { name: 'Open Plant to add it' }));
     expect(await screen.findByText('project page')).toBeInTheDocument();
+    expect(linkMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['org-wide', {}],
+    ['on a project tab', { projectId: 'p1' }],
+  ])('an invoice split across projects cannot be linked %s; the menu says how to add it instead', async (_where, scope) => {
+    const names = new Map([['p1', 'Tower'], ['p2', 'Plant']]);
+    renderAt(<ErpOrphansSection rows={[row('PINV-1', { projectIds: ['p1', 'p2'] })]} canLink projectNames={names} {...scope} />);
+    await openMenu('PINV-1');
+    expect(screen.queryByRole('menuitem', { name: 'Link to purchase' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'New purchase from this' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: /^Open .* to add it$/ })).toBeNull();
+    const blocked = screen.getByRole('menuitem', { name: 'Split across projects: link it per project in ERPNext, or record it in PMO' });
+    expect(blocked).toHaveAttribute('aria-disabled', 'true');
+    await userEvent.click(blocked);
     expect(linkMock).not.toHaveBeenCalled();
   });
 

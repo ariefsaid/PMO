@@ -89,6 +89,10 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
   };
 
   const rowMenu = (r: ErpPurchaseRow): RowMenuItem[] => {
+    // An invoice split across projects is not linked into one purchase (the server refuses it): say how to add it instead.
+    if (r.doctype === 'Purchase Invoice' && r.projectIds.length > 1) {
+      return [{ label: t('erpLinks.splitInvoice', 'Split across projects: link it per project in ERPNext, or record it in PMO'), onClick: () => undefined, disabled: true }];
+    }
     const items: RowMenuItem[] = [{ label: t('erpLinks.linkOne', 'Link to purchase'), onClick: () => openDialog([r]) }];
     if (targetProject(r) !== null) {
       items.push({ label: t('erpLinks.newOne', 'New purchase from this'), onClick: () => void newPurchaseFrom([r], r.id), disabled: busyKey !== null });

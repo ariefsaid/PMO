@@ -106,7 +106,10 @@
       "gateRequest": "Organisasi Anda mewajibkan permintaan pembelian sebelum pesanan.",
       "gateApprovalOrder": "Organisasi Anda mewajibkan persetujuan sebelum pesanan.",
       "gateReceipt": "Organisasi Anda mewajibkan penerimaan barang sebelum tagihan pemasok.",
-      "gateApprovalPayment": "Organisasi Anda mewajibkan persetujuan sebelum pembayaran."
+      "gateApprovalPayment": "Organisasi Anda mewajibkan persetujuan sebelum pembayaran.",
+      "spansProjects": "Faktur ini tercatat pada beberapa proyek. Tautkan dari ERPNext per proyek, atau catat di PMO.",
+      "sharepointHost": "Berkas tidak berada di situs SharePoint organisasi Anda.",
+      "m365NotConfigured": "Pilih pustaka SharePoint default organisasi Anda terlebih dahulu."
     },
     "awaitingApprovalProject_one": "{{count}} pembelian di proyek ini menunggu persetujuan. Dokumen dapat ditautkan setelah disetujui.",
     "awaitingApprovalProject_other": "{{count}} pembelian di proyek ini menunggu persetujuan. Dokumen dapat ditautkan setelah disetujui.",
@@ -115,6 +118,7 @@
     "thisProject": "proyeknya",
     "openProject": "Buka {{project}} untuk menambahkannya",
     "newNoProject": "Pembelian baru tanpa proyek",
+    "splitInvoice": "Terbagi ke beberapa proyek: tautkan per proyek di ERPNext, atau catat di PMO",
     "linkMenu": "Tautkan…",
     "linkMenuNamed": "Tautkan {{name}}",
     "selectHint": "Pilih dokumen untuk menautkan beberapa sekaligus.",
