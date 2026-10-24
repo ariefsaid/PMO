@@ -1,12 +1,11 @@
 -- Rolls back 0375. Before running this file, roll back the m365-token-custody function deploy: that version saves the
 -- folder-sweep summary through the function dropped below.
--- Restores link_m365_documents_batch to its exact 0367 body, drops the sweep save function and the run columns.
+-- Restores link_m365_documents_batch to its exact 0372 body, drops the sweep save function and the run columns.
 drop function if exists public.m365_record_folder_sweep_save(uuid,uuid,uuid,boolean,jsonb,jsonb,jsonb,jsonb);
 alter table public.m365_record_folder_sweeps
   drop column if exists run_id,
   drop column if exists last_cursor,
   drop column if exists next_cursor;
--- One bounded, org-scoped SharePoint link RPC shared by the CLI and app surface.
 create or replace function public.link_m365_documents_batch(p_rows jsonb, p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
 declare
@@ -18,7 +17,6 @@ declare
   v_id uuid;
   v_results jsonb := '[]'::jsonb;
   v_n integer := 0;
-  v_host text;
 begin
   if not public.is_active_member() or v_role not in ('Admin','Executive','Project Manager','Finance') then
     raise insufficient_privilege;
@@ -26,13 +24,9 @@ begin
   if v_org is null or p_rows is null or jsonb_typeof(p_rows)<>'array' or jsonb_array_length(p_rows)<1 or jsonb_array_length(p_rows)>500 then
     raise exception using errcode='22023',message='p_rows must contain 1 to 500 rows';
   end if;
-  -- Links must point at the org's own SharePoint host: a Graph site id is `<host>,<collection>,<site>`.
-  select lower(nullif(btrim(split_part(default_site_id,',',1)),'')) into v_host
-    from public.org_m365_document_settings where org_id=v_org;
-  if v_host is null or position('.' in v_host)=0 then
-    raise exception using errcode='22023',message='m365_not_configured',
-      hint='Choose the default SharePoint library in the app first';
-  end if;
+  -- Links must point at the org's own SharePoint host (0372: the shared rule). Asked once before any row is read, so an
+  -- organisation with no library is refused m365_not_configured whatever the rows hold.
+  perform public.sharepoint_url_on_org_host(v_org, null);
   for v_row in select value from jsonb_array_elements(p_rows) loop
     v_n := v_n + 1;
     v_target_count := (case when v_row ? 'project_id' then 1 else 0 end)
@@ -45,7 +39,7 @@ begin
       or not public.m365_browser_url_valid(v_row->>'web_url') then
       raise exception using errcode='22023',message=format('invalid document link row %s',v_n);
     end if;
-    if lower(substring(v_row->>'web_url' from '^https://([^/:?#]+)')) is distinct from v_host then
+    if not public.sharepoint_url_on_org_host(v_org, v_row->>'web_url') then
       raise exception using errcode='22023',message=format('web_url host is not the organisation SharePoint host (row %s)',v_n);
     end if;
     v_id := null;
@@ -102,6 +96,4 @@ exception when sqlstate 'P0001' then
   raise;
 end;
 $$;
-revoke all on function public.link_m365_documents_batch(jsonb,boolean) from public,anon;
-grant execute on function public.link_m365_documents_batch(jsonb,boolean) to authenticated;
 notify pgrst, 'reload config';

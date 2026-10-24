@@ -1,14 +1,14 @@
 -- 0375_m365_batch_and_sweep_runs.sql — SharePoint batch linking and folder-sweep summary consistency.
--- (1) link_m365_documents_batch is redefined from its 0367 head body (changes marked 0375).
+-- (1) link_m365_documents_batch is redefined from its 0372 head body (changes marked 0375).
 -- (2) The folder-sweep summary is kept per run and page: m365_record_folder_sweeps gains the run id and the last
 --     accepted / next expected page cursors, and m365_record_folder_sweep_save (service-only) applies a page
 --     atomically: a replayed page adds nothing and a page of an older run never appends to a newer run.
 -- Rollback: supabase/migrations/rollback/0375_m365_batch_and_sweep_runs_down.sql.
 
--- One bounded, org-scoped SharePoint link RPC shared by the CLI and app surface. 0375 changes (marked) on 0367's body:
--- folder rows take the canonical per-folder lock (0338) in key order before the "linked elsewhere" check; a dry run
--- performs the real inserts and rolls them back, so it predicts exactly what the real call does; a missing kind is
--- refused. The SharePoint host block is 0367's, unchanged.
+-- One bounded, org-scoped SharePoint link RPC shared by the CLI and app surface. 0375 changes (marked) on the
+-- 0372 body: folder rows take the canonical per-folder lock (0338) in key order before the "linked elsewhere" check;
+-- a dry run performs the real inserts and rolls them back, so it predicts exactly what the real call does; a missing
+-- kind is refused. The SharePoint host check is 0372's shared helper, unchanged.
 create or replace function public.link_m365_documents_batch(p_rows jsonb, p_dry_run boolean default false)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
 declare
@@ -20,7 +20,6 @@ declare
   v_id uuid;
   v_results jsonb := '[]'::jsonb;
   v_n integer := 0;
-  v_host text;
   v_lock text;  -- 0375
   v_new uuid[] := '{}';  -- 0375: ids inserted by this call (hidden from a dry run's results)
 begin
@@ -30,13 +29,9 @@ begin
   if v_org is null or p_rows is null or jsonb_typeof(p_rows)<>'array' or jsonb_array_length(p_rows)<1 or jsonb_array_length(p_rows)>500 then
     raise exception using errcode='22023',message='p_rows must contain 1 to 500 rows';
   end if;
-  -- Links must point at the org's own SharePoint host: a Graph site id is `<host>,<collection>,<site>`.
-  select lower(nullif(btrim(split_part(default_site_id,',',1)),'')) into v_host
-    from public.org_m365_document_settings where org_id=v_org;
-  if v_host is null or position('.' in v_host)=0 then
-    raise exception using errcode='22023',message='m365_not_configured',
-      hint='Choose the default SharePoint library in the app first';
-  end if;
+  -- Links must point at the org's own SharePoint host (0372: the shared rule). Asked once before any row is read, so an
+  -- organisation with no library is refused m365_not_configured whatever the rows hold.
+  perform public.sharepoint_url_on_org_host(v_org, null);
   -- 0375: serialise per folder with the same key as m365_link_record_folder (0338), every folder lock taken up front in
   -- one key order so the check below cannot interleave with another writer and two batches can never deadlock.
   for v_lock in
@@ -62,7 +57,7 @@ begin
       or not public.m365_browser_url_valid(v_row->>'web_url') then
       raise exception using errcode='22023',message=format('invalid document link row %s',v_n);
     end if;
-    if lower(substring(v_row->>'web_url' from '^https://([^/:?#]+)')) is distinct from v_host then
+    if not public.sharepoint_url_on_org_host(v_org, v_row->>'web_url') then
       raise exception using errcode='22023',message=format('web_url host is not the organisation SharePoint host (row %s)',v_n);
     end if;
     v_id := null;
@@ -119,8 +114,6 @@ begin
   return jsonb_build_object('dry_run',p_dry_run,'results',v_results);
 end;
 $$;
-revoke all on function public.link_m365_documents_batch(jsonb,boolean) from public,anon;
-grant execute on function public.link_m365_documents_batch(jsonb,boolean) to authenticated;
 alter table public.m365_record_folder_sweeps
   add column run_id uuid,
   add column last_cursor jsonb,
