@@ -1,4 +1,4 @@
--- Reverses 0381: restores the 0369 erp_supplier_company and the 0378 link_erp_purchase_documents bodies (a companies
+-- Reverses 0380: restores the 0369 erp_supplier_company and the 0378 link_erp_purchase_documents bodies (a companies
 -- reference is compared raw with the ERP supplier id). References were never changed.
 
 create or replace function public.erp_supplier_company(p_org uuid, p_supplier text, p_supplier_name text) returns uuid

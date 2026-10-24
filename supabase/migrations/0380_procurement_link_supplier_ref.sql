@@ -1,15 +1,15 @@
--- 0381 the supplier check of an ERP document link reads a company's ERPNext supplier identity from its 'Supplier:<id>'
+-- 0380 the supplier check of an ERP document link reads a company's ERPNext supplier identity from its 'Supplier:<id>'
 -- reference (spec procurement-flexible-entry, AC-PFE-025). The party feed stores a companies reference with its doctype
 -- ('Supplier:S-000018' / 'Customer:C-0001', feedKinds.externalIdForKind) while an ERP purchase document carries the bare
 -- supplier id ('S-000018'). The three places below compared the two raw, so they never matched: a mapped vendor was
--- refused with supplier_mismatch, and the mapping was never used to find a vendor. Now (lines marked 0381):
+-- refused with supplier_mismatch, and the mapping was never used to find a vendor. Now (lines marked 0380):
 --   a company's supplier ids = its 'Supplier:' references with the prefix removed, plus any legacy bare reference;
 --   a 'Customer:' reference is not a supplier identity (a party that is also a customer is checked by the name rule).
 -- §1 erp_supplier_company (0369 body): the mapping tier matches 'Supplier:<id>' or a legacy bare <id>.
 -- §2 link_erp_purchase_documents (0378 body): the vendor check passes when one of the vendor's supplier ids is the
 --    document's supplier and refuses when it has supplier ids and none matches; with none the name / erp_supplier_name
 --    rule is unchanged. A vendor-less purchase takes the company mapped by 'Supplier:<id>' or a legacy bare <id>.
--- Rollback: supabase/migrations/rollback/0381_procurement_link_supplier_ref_down.sql
+-- Rollback: supabase/migrations/rollback/0380_procurement_link_supplier_ref_down.sql
 -- No begin/commit: the rollback round trip wraps this file in its own transaction.
 
 -- §1
@@ -21,7 +21,7 @@ begin
   select array_agg(c.id) into v_ids from (
     select distinct c.id from public.external_refs x join public.companies c on c.id::text = x.pmo_record_id
      where x.org_id = p_org and x.domain = 'companies' and x.external_tier = 'erpnext'
-       and x.external_record_id in ('Supplier:' || p_supplier, p_supplier)                                     -- 0381
+       and x.external_record_id in ('Supplier:' || p_supplier, p_supplier)                                     -- 0380
        and c.org_id = p_org and c.archived_at is null) c;
   if cardinality(v_ids) = 1 then return v_ids[1]; elsif cardinality(v_ids) > 1 then return null; end if;
   select array_agg(c.id) into v_ids from public.companies c
@@ -51,7 +51,7 @@ declare
   v_group_key text; v_outcome text; v_reason text; v_gate text; v_vendor_name text;
   v_step public.procurement_status; v_sp jsonb; v_new boolean;
   v_orders text[]; v_sp_ok boolean; v_before numeric;                                                      -- 0372
-  v_vendor_suppliers text[];                                                                               -- 0381
+  v_vendor_suppliers text[];                                                                               -- 0380
 begin
   perform public.assert_is_active_member();
   if coalesce(public.auth_role()::text, '') not in ('Admin','Executive','Project Manager','Finance') then
@@ -172,15 +172,15 @@ begin
         end if;
         if v_proc.vendor_id is not null then
           v_vendor_name := null;
-          -- 0381: the vendor's ERPNext supplier ids: 'Supplier:<id>' references with the prefix removed, plus a legacy bare
+          -- 0380: the vendor's ERPNext supplier ids: 'Supplier:<id>' references with the prefix removed, plus a legacy bare
           -- reference; a 'Customer:' reference (a party that is also a customer), or any other doctype's, is not one.
           select array_agg(case when x.external_record_id like 'Supplier:%' then substr(x.external_record_id, 10)
                                 else x.external_record_id end)
             into v_vendor_suppliers from public.external_refs x
            where x.org_id = v_org and x.domain = 'companies' and x.external_tier = 'erpnext' and x.pmo_record_id = v_proc.vendor_id::text
              and x.external_record_id !~ '^(Customer|Contact|Employee):';
-          if cardinality(v_vendor_suppliers) > 0 then                                                              -- 0381
-            if v_doc.supplier is null or not (v_doc.supplier = any (v_vendor_suppliers)) then                      -- 0381
+          if cardinality(v_vendor_suppliers) > 0 then                                                              -- 0380
+            if v_doc.supplier is null or not (v_doc.supplier = any (v_vendor_suppliers)) then                      -- 0380
               raise exception using errcode = 'PFE02', message = 'supplier_mismatch';
             end if;
           else
@@ -223,7 +223,7 @@ begin
           update public.procurements p set vendor_id = x.pmo_record_id::uuid
             from (select pmo_record_id from public.external_refs
                    where org_id = v_org and domain = 'companies' and external_tier = 'erpnext'
-                     and external_record_id in ('Supplier:' || v_doc.supplier, v_doc.supplier)                          -- 0381
+                     and external_record_id in ('Supplier:' || v_doc.supplier, v_doc.supplier)                          -- 0380
                      and pmo_record_id ~* '^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$'
                    order by created_at limit 1) x
            where p.id = v_proc.id and p.vendor_id is null;

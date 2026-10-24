@@ -1,4 +1,4 @@
--- procurement_link_supplier_ref.test.sql — 0381. The supplier check of link_erp_purchase_documents reads a company's ERPNext
+-- procurement_link_supplier_ref.test.sql — 0380. The supplier check of link_erp_purchase_documents reads a company's ERPNext
 -- supplier identity from its 'Supplier:<id>' reference (the form the party feed writes, feedKinds.externalIdForKind), not
 -- the raw reference text, so a correctly mapped vendor is no longer refused with supplier_mismatch. A 'Customer:' reference
 -- is not a supplier identity; a legacy bare reference still counts. Link refusals generally: procurement_erp_links.
