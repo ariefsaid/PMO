@@ -43,17 +43,17 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
   const { data: versions } = useBudgetVersions(projectId);
   const employsExternalBudget = erpnextBinding?.status === 'active';
   const hasActiveVersion = (versions ?? []).some((v) => v.status === 'Active');
+  const showProjection = employsExternalBudget && hasActiveVersion;
   return (
-    // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
-    // answers — and the version ledger/operations follow. Same two components, only the order changes.
+    // The forecast answers first; the selected version's ledger follows before its source disclosure.
     <div className="flex flex-col gap-5">
-      {employsExternalBudget && hasActiveVersion && (
-        <>
-          <AttributedSpendingNote projectId={projectId} />
-          <BudgetProjection projectId={projectId} />
-        </>
-      )}
-      <ProjectBudget projectId={projectId} />
+      {showProjection ? (
+        <BudgetProjection
+          projectId={projectId}
+          attributionNote={<AttributedSpendingNote projectId={projectId} />}
+          afterForecast={<ProjectBudget projectId={projectId} />}
+        />
+      ) : <ProjectBudget projectId={projectId} />}
     </div>
   );
 };

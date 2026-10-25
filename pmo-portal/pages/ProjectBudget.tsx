@@ -94,7 +94,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -195,8 +195,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
+  const orderedLineItems = [...lineItems].sort((left, right) =>
+    budgetCategoryLabel(left.category as Enums<'budget_category'>, t).localeCompare(
+      budgetCategoryLabel(right.category as Enums<'budget_category'>, t),
+      i18n.language,
+    ) || (left.description ?? '').localeCompare(right.description ?? '', i18n.language),
+  );
   const rows: EditorRow[] = [
-    ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
+    ...orderedLineItems.map((li): EditorRow => ({ kind: 'item', li })),
     ...(adding ? [{ kind: 'new' } as EditorRow] : []),
   ];
 
@@ -469,12 +475,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       },
     },
   ];
+  const columnOrder = ['description', 'category', 'fiscal_year', 'amount', 'actions'];
+  const orderedColumns = [...columns].sort((left, right) => columnOrder.indexOf(left.key) - columnOrder.indexOf(right.key));
 
   return (
     <div className="relative mt-4">
       <DataTable
         rows={rows}
-        columns={columns}
+        columns={orderedColumns}
         rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
         tableId="budget-line-items-editor"
         accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
@@ -545,17 +553,23 @@ const VersionCard: React.FC<VersionCardProps> = ({
   updateIsPending,
   onLineItemSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
-  const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
+  const orderedLineItems = [...version.line_items].sort((left, right) =>
+    budgetCategoryLabel(left.category as Enums<'budget_category'>, t).localeCompare(
+      budgetCategoryLabel(right.category as Enums<'budget_category'>, t),
+      i18n.language,
+    ) || (left.description ?? '').localeCompare(right.description ?? '', i18n.language),
+  );
+  const showFiscalYear = orderedLineItems.some((li) => li.fiscal_year);
   const readOnlyColumns: Column<BudgetLineItemRow>[] = [
-    {
-      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
-      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
-    },
     {
       key: 'description', header: t('financeCopy.description', "Description"), kind: 'meta', size: 260,
       cell: (li) => <span className="text-muted-foreground">{li.description ?? '—'}</span>,
+    },
+    {
+      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
+      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
     },
     // FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
     // `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
@@ -664,7 +678,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
         version.line_items.length > 0 && (
           <div className="relative mt-4">
             <DataTable
-              rows={version.line_items}
+              rows={orderedLineItems}
               columns={readOnlyColumns}
               rowKey={(li) => li.id}
               tableId="budget-version-line-items"

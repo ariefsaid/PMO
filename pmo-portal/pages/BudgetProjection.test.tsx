@@ -174,6 +174,30 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(grid.getByText('75%')).toBeInTheDocument(); // projectedUtilization
   });
 
+  it('AC-PD-BUD-02 the forecast is name-sorted and its spending caveat is attached to recorded spending', async () => {
+    fetchMock.mockResolvedValue([
+      { ...ROW, category: 'Materials' as const },
+      { ...ROW, category: 'Labor' as const },
+    ]);
+    const attributionNote = <p data-testid="attributed-note">Attributed by cost rules</p>;
+    render(
+      <FinanceI18nTestProvider>
+        <MemoryRouter>
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+            <ToastProvider><BudgetProjection projectId="proj-1" attributionNote={attributionNote} /></ToastProvider>
+          </QueryClientProvider>
+        </MemoryRouter>
+      </FinanceI18nTestProvider>,
+    );
+    const rows = await screen.findAllByRole('row');
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(expect.arrayContaining([expect.stringContaining('Labor'), expect.stringContaining('Materials')]));
+    expect(rows[1]).toHaveTextContent('Labor');
+    const recordedSpending = within(screen.getByTestId('forecast-summary')).getByText('Recorded spending').closest('div');
+    expect(recordedSpending).toContainElement(screen.getByTestId('attributed-note'));
+    expect(recordedSpending?.querySelector('dd')).toHaveAttribute('aria-describedby', 'forecast-recorded-note');
+    expect(within(screen.getByTestId('forecast-summary')).queryByText('Budget')).not.toBeInTheDocument();
+  });
+
   // ── H-4 (audit r3): the screen's fiscal year must come from the data, never from the calendar. ──
   it('H-4 defaults to the fiscal year the Active version was pushed against, not the calendar year', async () => {
     renderPage();
@@ -1200,11 +1224,11 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
   const MATERIALS = { ...ROW, category: 'Materials' as const, pmoBudgetAmount: 100000, actualsToDate: 20000, pmoEtc: 30000, projectedFinalCost: 50000, projectedVariance: 50000, projectedUtilization: 0.5 };
   const UNMAPPED = { ...ROW, category: 'Travel' as const, pmoBudgetAmount: 10000, actualsToDate: null, pmoEtc: 0, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null };
 
-  it('UX-034/035 the five answers lead: Budget, Recorded spending, Cost to finish, Forecast final cost, Forecast overrun', async () => {
+  it('AC-PD-BUD-02 the forecast answer leads without repeating the selected version total', async () => {
     fetchMock.mockResolvedValue([LABOR, MATERIALS]);
     renderPage();
     const summary = within(await screen.findByTestId('forecast-summary'));
-    expect(summary.getByText('Budget').nextElementSibling).toHaveTextContent('$500,000');
+    expect(summary.queryByText('Budget')).not.toBeInTheDocument();
     expect(summary.getByText('Recorded spending').nextElementSibling).toHaveTextContent('$200,000');
     expect(summary.getByText('Cost to finish').nextElementSibling).toHaveTextContent('$280,000');
     expect(summary.getByText('Forecast final cost').nextElementSibling).toHaveTextContent('$480,000');
@@ -1256,10 +1280,11 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     const summary = within(screen.getByTestId('forecast-summary'));
     expect(summary.getByText('Recorded spending').nextElementSibling).not.toHaveTextContent('$');
     expect(summary.getByText('Forecast final cost').nextElementSibling).not.toHaveTextContent('$');
-    // SUB-D: said ONCE under the strip, not repeated inside each figure.
+    // The one incomplete-data explanation is grouped with the spending figure it qualifies.
     expect(screen.getAllByText(/spending unavailable for Travel/i)).toHaveLength(1);
-    expect(summary.queryByText(/spending unavailable for Travel/i)).not.toBeInTheDocument();
+    expect(summary.getByText(/spending unavailable for Travel/i)).toBeInTheDocument();
     expect(screen.getByTestId('forecast-incomplete')).toHaveTextContent(/spending unavailable for Travel/i);
+    expect(summary.getByText('Recorded spending').nextElementSibling).toHaveAttribute('aria-describedby', 'forecast-incomplete forecast-recorded-note');
   });
 
   it('SUB-D the Forecast head carries no standing intro sentence', async () => {

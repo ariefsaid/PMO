@@ -56,6 +56,10 @@ import {
 
 export interface BudgetProjectionProps {
   projectId: string;
+  /** Project-wide attributed spend, shown with the recorded-spending figure it qualifies. */
+  attributionNote?: React.ReactNode;
+  /** PMO's version selector and line ledger, ordered before the source disclosure. */
+  afterForecast?: React.ReactNode;
 }
 
 /**
@@ -140,8 +144,8 @@ const QUIET_PUSH_STATES = new Set(['pending', 'pushing', 'pushed']);
 
 const BLOCKED_STATES = new Set(['failed', 'held', 'never-pushed', 'unstamped-activation']);
 
-const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attributionNote, afterForecast }) => {
+  const { t, i18n } = useTranslation();
   const translatedCategory = (category: string) => budgetCategoryLabel(labelFor(category), t);
   const may = usePermission();
   const canEditEtc = may('edit', 'budgetLine');
@@ -411,14 +415,17 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // put a zeroed money screen in front of the user with no sign anything went wrong (H-4).
   if (yearsQuery.isError || isError) {
     return (
-      <ListState
-        variant="error"
-        title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
-        sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
-        onRetry={() => {
-          void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
-        }}
-      />
+      <>
+        <ListState
+          variant="error"
+          title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
+          sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
+          onRetry={() => {
+            void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
+          }}
+        />
+        {afterForecast}
+      </>
     );
   }
 
@@ -431,13 +438,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // grid behind an explanatory read.
   if (yearsQuery.isPending || isPending || categoryPhasingQuery.isPending) {
     return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={5} testId="budget-projection-loading" />
-      </div>
+      <>
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={5} testId="budget-projection-loading" />
+        </div>
+        {afterForecast}
+      </>
     );
   }
 
-  const rows = data ?? [];
+  const rows = [...(data ?? [])].sort((left, right) =>
+    translatedCategory(left.category).localeCompare(translatedCategory(right.category), i18n.language),
+  );
 
   // ⚑ HIGH-1 — is the PMO budget knowable for the year on screen? `isActivePush` is the SAME predicate
   // the RPC scopes `pmo_budget_amount` by ("the Active version is on record as covering this year"), so
@@ -612,7 +624,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   ];
 
   return (
-    <section aria-label={t('uxs04.forecast', 'Forecast')}>
+    <>
+      <section aria-label={t('uxs04.forecast', 'Forecast')}>
+      <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
         <div className="flex flex-wrap items-center gap-3">
@@ -680,28 +694,35 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         </div>
       ) : (
         <>
-          {/* UX-035/036: the answer first. Five figures, each from the SAME rows as the grid below; a
-              figure whose inputs are unknown is a dash AND says which categories are missing. */}
+          {/* UX-035/036: the forecast answer leads; the active total appears with the selected version below. */}
           <dl
             data-testid="forecast-summary"
-            className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 sm:grid-cols-5"
+            className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 sm:grid-cols-4"
           >
-            <SummaryFigure
-              label={t('uxs04.budget', 'Budget')}
-              value={summary.budget}
-              currency={orgCurrency}
-            />
             <SummaryFigure
               label={t('uxs04.recordedSpending', 'Recorded spending')}
               value={summary.recorded}
               currency={orgCurrency}
+              incomplete={incompleteNotes.length > 0}
+              noteId={attributionNote || incompleteNotes.length > 0 ? 'forecast-recorded-note' : undefined}
+              note={attributionNote || incompleteNotes.length > 0 ? (
+                <>
+                  {attributionNote}
+                  {incompleteNotes.length > 0 && (
+                    <p id="forecast-incomplete" data-testid="forecast-incomplete" className="text-[12px] text-muted-foreground">
+                      {incompleteNotes.join(' ')}
+                    </p>
+                  )}
+                </>
+              ) : undefined}
             />
-            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} />
+            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} incomplete={incompleteNotes.length > 0} />
             <SummaryFigure
               label={t('uxs04.forecastFinalCost', 'Forecast final cost')}
               value={summary.finalCost}
               currency={orgCurrency}
               strong
+              incomplete={incompleteNotes.length > 0}
             />
             <SummaryFigure
               label={overrun ? t('uxs04.forecastOverrun', 'Forecast overrun') : t('uxs04.forecastRemaining', 'Forecast remaining')}
@@ -709,14 +730,9 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
               currency={orgCurrency}
               strong
               alert={overrun}
+              incomplete={incompleteNotes.length > 0}
             />
           </dl>
-          {incompleteNotes.length > 0 && (
-            <p id="forecast-incomplete" data-testid="forecast-incomplete" className="mt-2 text-[12px] text-muted-foreground">
-              {incompleteNotes.join(' ')}
-            </p>
-          )}
-
           {actualsAsOf && (
             <p className="mt-2 text-[12px] text-muted-foreground">{t('uxs04.recordedAsOf', 'Recorded spending as of')}{' '}{formatInstantDate(actualsAsOf)}</p>
           )}
@@ -732,6 +748,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         </>
       )}
 
+      </div>
+      </section>
+      {afterForecast}
+
       {/* UX-037: where the numbers come from, and the ERP's enforcement state and document, on demand. */}
       {rows.length > 0 && (
         <details className="mt-3 text-[13px]">
@@ -744,7 +764,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
           ))}
         </details>
       )}
-    </section>
+    </>
   );
 };
 
@@ -755,14 +775,21 @@ const SummaryFigure: React.FC<{
   currency: string;
   strong?: boolean;
   alert?: boolean;
-}> = ({ label, value, currency, strong, alert }) => (
+  incomplete?: boolean;
+  noteId?: string;
+  note?: React.ReactNode;
+}> = ({ label, value, currency, strong, alert, incomplete, noteId, note }) => (
   <div className="min-w-0">
     <dt className="text-[12px] text-muted-foreground">{label}</dt>
     <dd
-      aria-describedby={value === null ? 'forecast-incomplete' : undefined}
+      aria-describedby={[
+        value === null && incomplete ? 'forecast-incomplete' : null,
+        noteId && note ? noteId : null,
+      ].filter(Boolean).join(' ') || undefined}
       className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}
     >
-      {value === null ? <span>—</span> : formatCurrency(value, currency)}
+      <span>{value === null ? '—' : formatCurrency(value, currency)}</span>
+      {note && <div id={noteId} className="mt-1 space-y-1">{note}</div>}
     </dd>
   </div>
 );
