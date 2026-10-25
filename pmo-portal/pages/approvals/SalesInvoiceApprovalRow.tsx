@@ -14,7 +14,13 @@ const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-mute
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean }> = ({ inv, showFx = false }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{
+  inv: SalesInvoiceRow;
+  showFx?: boolean;
+  showIdentity?: boolean;
+  showLineItems?: boolean;
+  showTotals?: boolean;
+}> = ({ inv, showFx = false, showIdentity = true, showLineItems = true, showTotals = true }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
@@ -34,16 +40,18 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
 
   return (
     <div className="space-y-3">
-      <dl className="grid gap-2 sm:grid-cols-2">
-        {facts.map((f) => (
-          <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
-            <dt className={EYEBROW}>{f.label}</dt>
-            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-[13px] font-medium">{f.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {showIdentity && (
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          {facts.map((f) => (
+            <div key={f.label} className="min-w-0 border-b border-border/70 pb-2">
+              <dt className="text-xs font-medium text-muted-foreground">{f.label}</dt>
+              <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-sm font-medium">{f.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
-      {inv.pmo_native ? (
+      {showLineItems && inv.pmo_native && (
         <section>
           <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
@@ -64,13 +72,14 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             ))}
           </ul>
         </section>
-      ) : showFx ? null : (
+      )}
+      {showLineItems && !inv.pmo_native && !showFx && (
         <p className="text-sm text-muted-foreground">
           {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
         </p>
       )}
 
-      <dl className="space-y-1 text-[13px]">
+      {showTotals && <dl className="max-w-xl space-y-1 text-[13px]">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
           <dd className="tabular">
@@ -92,7 +101,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-      </dl>
+      </dl>}
     </div>
   );
 };

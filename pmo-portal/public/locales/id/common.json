@@ -3788,6 +3788,7 @@
     "salesInvoices": "Faktur Penjualan",
     "newInvoice": "Faktur Baru",
     "customerProjectContext": "Pelanggan / proyek",
+    "customerUnavailable": "Pelanggan tidak tersedia",
     "statusDueContext": "Status / jatuh tempo",
     "sortInvoices": "Urutkan faktur",
     "dueSoonest": "Jatuh tempo terdekat",

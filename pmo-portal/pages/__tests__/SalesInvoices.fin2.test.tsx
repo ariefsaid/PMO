@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -96,6 +97,27 @@ describe('FIN-S2: invoice record facts', () => {
     expect(screen.getByText('Download the PDF and send it to your client yourself.')).toBeInTheDocument();
     expect(screen.queryByText(/does not mean the invoice was sent/)).not.toBeInTheDocument();
   });
+
+  it('places the approved PDF action in the record header', () => {
+    renderRecord();
+    const download = screen.getByRole('button', { name: 'Download approved PDF' });
+    expect(download.closest('[data-testid="money-in-page-header"]')).not.toBeNull();
+  });
+
+  it('renders native invoice lines from the native record once', () => {
+    h.invoice = invoice({
+      pmo_native: true,
+      native_lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: '2', rate: 500, amount: 1_000 }],
+    } as Partial<SalesInvoiceRow>);
+    h.evidence = {
+      data: { lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: '2', rate: 500, amount: 1_000 }], contact: null },
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    };
+    renderRecord();
+    expect(screen.getAllByText('Project mobilization')).toHaveLength(1);
+  });
 });
 
 describe('FIN-S2: evidence shows only what exists', () => {
@@ -109,10 +131,13 @@ describe('FIN-S2: evidence shows only what exists', () => {
     expect(screen.queryByRole('heading', { name: 'Invoice lines' })).not.toBeInTheDocument();
   });
 
-  it('shows the billing contact when one exists', () => {
+  it('keeps an available billing contact in a named disclosure', async () => {
     h.evidence.data = { lines: [], contact: { name: 'Dana Reyes', email: 'dana@example.test', phone: null } };
+    const user = userEvent.setup();
     renderRecord();
-    expect(screen.getByRole('heading', { name: 'Billing contact' })).toBeInTheDocument();
+    const contactDisclosure = screen.getByText('Billing contact');
+    expect(contactDisclosure.closest('details')).not.toHaveAttribute('open');
+    await user.click(contactDisclosure);
     expect(screen.getByText('Dana Reyes')).toBeInTheDocument();
   });
 

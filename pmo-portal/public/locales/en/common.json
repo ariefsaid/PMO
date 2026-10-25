@@ -3790,6 +3790,7 @@
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
     "customerProjectContext": "Customer / project",
+    "customerUnavailable": "Customer not available",
     "statusDueContext": "Status / due",
     "sortInvoices": "Sort invoices",
     "dueSoonest": "Due soonest",
