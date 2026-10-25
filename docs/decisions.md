@@ -3561,3 +3561,15 @@ work orders are not migrated (none has allocations; no closing value means they 
 Management-pack earned-value recognition is follow-up #1279.
 
 **OD-TASK-FIN-1 (owner, 2026-10-23)** — Finance works tasks exactly like an Engineer: creates tasks (incl. meeting `/action`), edits tasks it created, changes status on tasks assigned to it, and gets the My Tasks doorway (rail + ⌘K); it does not edit, delete or archive other people's tasks. Supersedes the earlier Finance task scope where it differs. Enforced by migration 0355 (RLS + column guard) and the ClickUp task authorization; proof `AC-TASK-FIN-001`.
+
+## OD-VISUAL-RESET — composition rulings are evidence, not locks; looks are judged rendered (owner 2026-10-25)
+
+Owner, after the #806 slices still read as patched tiles: "I don't want a redesign of changing colors and font. But logical, intent and intuitiveness of UX, IA and IxD of this app needs to be so much more enhanced", and the skills (impeccable, taste, ui-ux-pro-max) should drive the result, not owner-raised findings. Mirrors gordi-mos OD-2026-10-11-VISUAL-RESET. Decided:
+
+- Past rulings about layout, placement, page composition, molecules and "equal or simpler" (DESIGN.md §7, DD/OD layout notes, the subtraction rule as a veto) become **evidence** a design pass may overturn. Tokens, colour, type (ADR-0068), domain language, roles/RLS, money rules and accessibility stay binding.
+- `DESIGN.md` is the token sheet only. Page composition authority is `docs/ux/UX-STANDARD.md` (≤60 lines, page-type anatomy) plus the owner's approval of **rendered screens**. No document pins where a block sits.
+- A test asserts what a user can do, never how it looks. Look-pinning tests are deleted when the page they pin is recomposed; behaviour, a11y, money and role tests stay.
+- UI work is done only with 390 and 1440 screenshots of **every state** (each toggle, period, empty, light/dark), an empty impeccable detector result and no serious axe findings on the touched routes. A figure keeps its form across its own controls: a toggle changes the numbers, never the chart type or layout.
+- Redesign PRs get machine gates plus one security review only when auth, RLS or money files change. No spec or code-quality rounds on composition. Round cap: one review, one fix.
+- Every owner screenshot becomes a GitHub issue the same day (label `ux-owner`), before anyone touches code.
+- #806 is executed area by area (shell → projects → project detail → dashboards → sales → finance → admin), whole pages recomposed, one PR per area, owner judges screenshots only.
