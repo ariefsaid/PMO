@@ -98,7 +98,7 @@ describe('Executive dashboard localized figures', () => {
     const unknownDelivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
     const unknownRow = screen.getByTestId('dashboard-known-actual');
     expect(unknownRow).toHaveTextContent('—');
-    expect(within(unknownRow as HTMLElement).getByRole('link')).toHaveAttribute('href', '#executive-actual-note');
+    expect(within(unknownRow as HTMLElement).getByRole('link', { name: /USD/ })).toHaveAttribute('href', '#executive-actual-note');
     expect(unknownDelivery).toHaveTextContent('Beberapa nilai portofolio tidak tersedia');
   });
 

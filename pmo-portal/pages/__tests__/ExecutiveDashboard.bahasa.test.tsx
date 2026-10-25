@@ -81,7 +81,7 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByText('1 proyek berisiko')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tinjau permintaan' })).toHaveAttribute('href', '/approvals');
     expect(screen.getByText(/permintaan persetujuan perlu diputuskan/)).toBeInTheDocument();
-    expect(screen.getByText('Tingkat kemenangan')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tingkat kemenangan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Menurut jumlah' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '12 bulan terakhir' })).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-values-count')).toHaveTextContent('2 menang · 1 kalah');

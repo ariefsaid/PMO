@@ -301,7 +301,7 @@ const DeliveryBook: React.FC<{
               <ul className="mt-1 list-inside list-disc space-y-1">
                 {abnormalReasons.map((reason, index) => <li key={index}>{reason}</li>)}
               </ul>
-              <p className="mt-1">{mapNote}</p>
+              {!actualIncomplete && <p className="mt-1">{mapNote}</p>}
             </aside>
           )}
         </>

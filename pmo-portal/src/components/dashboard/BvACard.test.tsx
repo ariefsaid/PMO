@@ -32,7 +32,7 @@ describe('Executive spending comparison', () => {
   it('AC-RF-002 keeps an unknown Actual as a linked dash and draws no comparison bar', () => {
     renderCard([{ ...projects[0]!, spent: null, actual_complete: false }]);
     const table = screen.getByRole('table', { name: 'Spending comparison' });
-    expect(within(table).getByRole('link', { name: 'Actual unavailable; see data note' })).toBeInTheDocument();
+    expect(within(table).getByRole('link', { name: 'Actual unavailable; see coverage note' })).toBeInTheDocument();
     expect(within(table).getByText('USD $5,000,000')).toBeInTheDocument();
     expect(within(table).queryByRole('progressbar')).toBeNull();
   });

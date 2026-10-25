@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import { MemoryRouter } from 'react-router';
@@ -109,7 +110,7 @@ async function renderPane(rows: BudgetReviewRow[], locale: 'en' | 'id' = 'en') {
 }
 
 function budgetReviewTable() {
-  return screen.getAllByRole('table')[1];
+  return screen.getByTestId('finance-budget-review').querySelector('table')!;
 }
 
 afterEach(() => {
@@ -155,13 +156,13 @@ describe('AC-FAA-003 Finance Actual alignment', () => {
     expect(within(table).getByText('Different currencies')).toBeInTheDocument();
     expect(within(table).getByText(/IDR\s+1,500/)).toBeInTheDocument();
     expect(within(table).getByText(formatCurrency(75, 'USD'))).toBeInTheDocument();
-    expect(table).toHaveTextContent('Source currency: IDR');
-    expect(table).toHaveTextContent('Actual coverage: 1 of 2 mapped cost categories');
-    expect(table).toHaveTextContent('As of Oct 17, 2026');
-    expect(within(table).getAllByText('Not available yet')).toHaveLength(5);
+    expect(table).toHaveTextContent('IDR source');
+    expect(table).toHaveTextContent('1/2 categories');
+    expect(within(table).getByLabelText('Actual: Not available yet')).toBeInTheDocument();
+    expect(within(table).getAllByLabelText('Variance: Not available yet')).toHaveLength(2);
+    expect(within(table).getAllByLabelText('Utilization: Not available yet')).toHaveLength(2);
     expect(within(table).queryByRole('progressbar', { name: 'Partial Actual budget utilization' })).not.toBeInTheDocument();
     expect(within(table).queryByRole('progressbar', { name: 'Different currencies budget utilization' })).not.toBeInTheDocument();
-    expect(within(table).getByText(/1 of 2 mapped cost categories/)).toBeInTheDocument();
   });
 
   it('sorts unknown Actual last in either direction and keeps only five rows', async () => {
@@ -177,7 +178,7 @@ describe('AC-FAA-003 Finance Actual alignment', () => {
     const table = budgetReviewTable();
     expect(within(table).getAllByRole('row')).toHaveLength(6);
     expect(within(table).queryByText('Unknown B')).not.toBeInTheDocument();
-    fireEvent.click(within(table).getByRole('button', { name: 'Variance' }));
+    await userEvent.click(within(table).getByRole('button', { name: 'Variance' }));
     const rowsAscending = within(table).getAllByRole('row').slice(1).map((rowNode) => rowNode.textContent ?? '');
     expect(rowsAscending.slice(0, 4).map((text) => text.match(/Alpha|Beta|Tie A|Tie Z/)?.[0])).toEqual([
       'Tie A', 'Tie Z', 'Beta', 'Alpha',

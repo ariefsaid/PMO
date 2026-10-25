@@ -192,7 +192,8 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
 
   it('AC-IXD-DASH-W5-C2B-N16-5: each row has an explicit link to PR detail', () => {
     renderPane();
-    expect(screen.getByRole('link', { name: 'Open Scaffolding Invoice' })).toHaveAttribute('href', '/procurement/vi-1');
+    expect(screen.getByRole('link', { name: 'Request Scaffolding Invoice' })).toHaveAttribute('href', '/procurement/vi-1');
+    expect(screen.getByRole('link', { name: 'Review request: Scaffolding Invoice' })).toHaveAttribute('href', '/procurement/vi-1');
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-6: shows vendor-invoiced age column header', () => {
@@ -205,7 +206,7 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
   it('AC-806-FIN-PAY-COLUMNS-001 keeps request identity, age, value and open action in the required order', () => {
     const { container } = renderPane();
     const headers = Array.from(container.querySelectorAll('table thead th')).slice(0, 5).map((header) => header.textContent?.trim());
-    expect(headers).toEqual(['Request', 'Project', 'Invoiced age', 'Value', 'Open']);
+    expect(headers).toEqual(['Request', 'Project', 'Invoiced age', 'Value', 'Review']);
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-7: honest empty state — "Nothing awaiting payment" when no VI PRs', () => {
