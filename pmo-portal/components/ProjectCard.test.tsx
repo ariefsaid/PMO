@@ -256,7 +256,9 @@ describe('ProjectCard', () => {
       hasActiveBudget: false,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByText('Incomplete source coverage')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review project finances' })).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();

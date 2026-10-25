@@ -20,6 +20,8 @@ import ProjectFormModal from './ProjectFormModal';
 
 const en = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
 const id = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
+const enProjects = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/projects.json'), 'utf8')) as Record<string, unknown>;
+const idProjects = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/projects.json'), 'utf8')) as Record<string, unknown>;
 
 vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
@@ -129,8 +131,6 @@ describe('AC-EC-005 — end-customer i18n catalogue', () => {
       'projectForm.endCustomer.noun',
       'projects.filters.allEndCustomers',
       'projects.filters.endCustomerLabel',
-      'projects.mobile.endCustomer',
-      'projects.mobile.removeEndCustomer',
       'projectDetail.rail.endCustomer',
       'sales.column.endCustomer',
       'combobox.clear',
@@ -143,6 +143,8 @@ describe('AC-EC-005 — end-customer i18n catalogue', () => {
       expect(typeof i, k).toBe('string');
       expect((i as string).length, k + ' (id)').toBeGreaterThan(0);
     }
+    expect(KEY_PATH(enProjects, 'endCustomer')).toBe('End customer');
+    expect(KEY_PATH(idProjects, 'endCustomer')).toBe('Pelanggan akhir');
   });
 
   it('AC-EC-005: the Indonesian End customer label is exactly Pelanggan akhir', () => {

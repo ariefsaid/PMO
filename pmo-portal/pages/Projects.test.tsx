@@ -205,8 +205,9 @@ describe('Projects index — IA-3 (real data)', () => {
     projectsState.data = [{ ...seed[0], pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77' }] as unknown as ProjectWithRefs[];
     try {
       renderPage();
-      expect(screen.getByText(/PMO Project Number: PMO-26-0042/)).toBeVisible();
-      expect(screen.getByText(/Client Project Code: CLIENT-77/)).toBeVisible();
+      const identity = screen.getByTestId('projects-identity-secondary');
+      expect(identity).toHaveTextContent(/PMO Project Number:\s*PMO-26-0042/);
+      expect(identity).toHaveTextContent(/Client Project Code:\s*CLIENT-77/);
     } finally {
       projectsState.data = prev;
     }

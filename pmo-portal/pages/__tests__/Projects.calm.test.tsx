@@ -93,9 +93,10 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
   it('project identity keeps customer and references labelled and visible', () => {
     renderPage();
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
-    expect(within(first).getByText(/PMO Project Number: PMO-1000/)).toBeInTheDocument();
-    expect(within(first).getByText(/Client Project Code: CLI-0/)).toBeInTheDocument();
-    expect(within(first).getByText(/Customer contract reference: CONTRACT-0/)).toBeInTheDocument();
+    const identity = within(first).getByTestId('projects-identity-secondary');
+    expect(identity).toHaveTextContent(/PMO Project Number:\s*PMO-1000/);
+    expect(identity).toHaveTextContent(/Client Project Code:\s*CLI-0/);
+    expect(identity).toHaveTextContent(/Customer contract reference:\s*CONTRACT-0/);
   });
 
   it('classification fields live inside the one Filters disclosure (no second trigger)', async () => {
