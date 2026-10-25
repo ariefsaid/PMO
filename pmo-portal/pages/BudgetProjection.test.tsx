@@ -301,14 +301,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
   });
 
   // I-1 — DESIGN.md §3: `tabular-nums` is mandatory on every figure that can be compared.
-  it('I-1 every money cell carries tabular figures so columns align', async () => {
-    fetchMock.mockResolvedValue([ROW]);
-    renderPage();
-    const row = (await screen.findByText('Labor')).closest('tr')!;
-    const moneyCells = Array.from(row.querySelectorAll('td')).slice(1);
-    expect(moneyCells.length).toBeGreaterThan(0);
-    for (const cell of moneyCells) expect(cell.className).toContain('tabular');
-  });
+
 });
 
 // ════════════════════════════════════════════════════════════════════════════════════════════════

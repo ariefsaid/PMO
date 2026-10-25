@@ -84,6 +84,10 @@ components:
 
 # Design System: PMO Portal
 
+This file is the token sheet (colour, type, geometry, motion, component tokens).
+It does not govern page composition.
+Composition authority: `docs/ux/UX-STANDARD.md` plus the owner's approval of rendered screens (OD-VISUAL-RESET).
+
 ## 1. Overview
 
 **Creative North Star: "The Quiet Control Surface" — monochrome-calm (ADR-0068).**
@@ -623,85 +627,6 @@ The numbered-circle `node` variant is retired; the `inline` pip (9px dots in tab
   stepper/KPI-tile/project-card/list-toolbar grammar — reuse the §7 molecule.
 - **Don't** invent a per-feature create verb. Use **"New &lt;Entity&gt;"**; keep a domain verb only where
   the domain uses it, and make button + modal title + submit all say the same phrase.
-
----
-
-## 7. Coherence-Wave canonical molecules (enforced standard)
-
-The atoms (§2–§6) are shared; this section governs the **molecules** so every module behaves by one
-rulebook. Plan: `docs/plans/2026-06-14-coherence-wave.md`.
-
-### Terminology + create-verb
-- **Canonical noun = "Project"** in all UI copy. "Deal"/"opportunity" are removed. "Pipeline" is a valid
-  *stage-group* label, not a second noun.
-- **Create-verb = "New &lt;Entity&gt;"** (New project / company / contact / user). Domain verbs kept only
-  where the domain uses them; then button + modal title + submit must be identical.
-
-### RecordHeader (the one record-page header)
-Anatomy (non-optional): **[icon tile] [name] [status pill] … [Edit] [Archive/Delete by permission]**,
-actions top-right. Optional `meta` row + `StatTiles` strip below. Thin wrapper over `PageHeader`
-(`src/components/ui/PageHeader.tsx`); the Project detail header is the template.
-
-**Selected-job-first** (2026-10-09, UIP-005/006/009). Compact common identity/status comes before the tab
-strip; the selected tab's work follows without a mandatory tour of Overview cards. Full project phase cards
-stay actionable in Overview; other tabs keep a one-line phase summary (`Current: <phase>`, overdue named in
-text) with an adjacent Overview/blocker link. One idle contract-value presentation; the Read-only chip sits
-where the Edit control sits, so KPI values share one baseline. On phone, a long record title takes the full
-width; status/metadata stack below it. Approval previews keep readable request identity before secondary metadata.
-
-### Record-open paradigm (The Record-Open Rule)
-- **Every primary entity is a routable `/x/:id` page** with breadcrumb + Back + ⌘K indexing. Drawers are
-  optional quick-peek previews that carry a URL + "Open full record" — never the only home.
-- **Stage-aware project lens (ADR-0020):** the one `/projects/:id` shows a **pipeline lens** pre-win
-  (Value / Win probability / Weighted) and a **delivery lens** post-win (Contract/Committed/Actual strip,
-  S-curve, milestone stepper, delivery tabs). Tab/body visibility is driven by `projectStatusGroup`.
-
-### RecordActionZone (the record-action contract)
-The advance/approve verbs (Advance / Mark won / Approve / Reject) live in ONE consistently-placed,
-**never-below-the-fold** zone (sticky on desktop, fixed action bar on mobile), above the green
-"Ready to advance" banner. Edit/Archive live in the header; advance verbs live here — one rule.
-
-### ListPage shell
-Fixed grammar: **[title + count] … [primary "New &lt;Entity&gt;"]**, then a toolbar in fixed slot order
-**view-switcher · status filters · Search · Filter · Export · Import** (empty slots held in place). ONE
-`ViewToggle` with the shared `Table / Board / Calendar / Cards` label set. View-switcher right-aligned
-(icon segmented); status filters left as text chips — visually distinct. Implemented as `ListPage`
-(`src/components/ui/ListPage.tsx`): named slots `title / description / count / primaryAction` +
-`banner / filters / search / secondaryFilter / exportAction / importAction / view`.
-At phone width, a list may use the `mobileToolbar` slot to keep status, search, and the current view
-visible while grouping secondary controls in labelled inline disclosures. Opening one disclosure
-closes its sibling on click; an outside pointer-down must not collapse the first panel before the
-user's click reaches the second trigger. Keep the panels in document flow and their actions reachable.
-Escape and outside interaction close the active panel; a closed, inert shell dialog does not block
-dismissal. Restore focus after an action unmounts its panel, while preserving focus on another
-control the user intentionally selected.
-
-### Approvals (one inbox)
-`/approvals` is the single canonical inbox for ALL approval types, with per-module deep-link tabs, one
-`ApprovalRow`, one decision affordance (inline Approve/Return + "Open"). Rail label + H1 = "Approvals".
-
-### Dashboard states
-
-**A clear queue is compact, not absent** (2026-10-09, UIP-010/011). A dashboard work panel with no items states
-its exact scope in a compact region (≤120px at 1440, in every locale), letting active work below rise. Loading,
-error and unavailable states stay distinct. A displayed project exception links to its canonical record in one
-step; presentation changes never alter financial calculations.
-
-### Skeleton loading pattern
-- **Page-head skeleton:** two `skel` divs mirroring `DashPageHead` (h1 + two-line sub) — never a single
-  `skel h-8` (collapses the two-line structure → layout jump on ready). `skel-line` provides line height
-  + gap.
-- **Panel skeleton:** delegate to `<ChartFrame state="loading">` (emits `data-testid="liststate-loading"`).
-  Never hand-roll a panel spinner.
-- **Unified loading guard:** unify data-loading + still-compiling under one `isPending || compiling` guard
-  so the user sees a single stable skeleton with no FOUC. Reference: `UserViewRenderer` (I3).
-
-### FE design battery — 4 lenses, run twice
-Every UI issue passes a **4-lens design battery** twice (mockup round 1, built-UI round 2 per
-`docs/design-workflow.md`): **Lens A Visual / B Flow / C Structure / D Intent**. `design-reviewer` owns
-all four; Lens D grades against `docs/jtbd.md`. In the current (default) **portfolio** review mode
-(ADR-0030), this is the rendered Discover pass: `design-reviewer` renders the running app on rich seed and
-audits open-endedly; every finding graduates to a test + a `routes × oracles` cell + a DESIGN.md note.
 
 ---
 

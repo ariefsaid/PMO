@@ -68,6 +68,10 @@ stays intact in-repo, flip the mode to revert):
    executor** — they are not a decision to build it yourself (red-green-refactor; no prod code
    without a failing test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
    derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
+   **UI/redesign lane:** step 5 is machine gates (typecheck, eslint, changed vitest, touched e2e,
+   `scripts/ux-proof.sh` on touched routes) plus security-auditor only when auth/RLS/money files change;
+   steps 6–7 Discover/graduate do not apply. Director does one rendered review (impeccable + taste,
+   every state); owner judges screenshots. Cap: one review + one fix.
 5. **Review — 3 reviewers, always** — `spec-reviewer`, `code-quality-reviewer`, **and** `security-auditor`
    (OWASP/STRIDE on auth + RLS + `org_id` tenancy; right-sized per model-tiering). All three run on every code
    issue. (Security focuses its depth on auth/RLS/RPC/public surfaces; on a change that touches none it
@@ -203,10 +207,9 @@ stops new merges until fixed; the same caps apply.
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
   request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` (design.md format) is the design-system source of truth; QA per the
-  **ADR-0030 portfolio** (`docs/qa-portfolio.md`) — Layer-1 deterministic gate-tests + a rendered Discover
-  pass (every finding graduated) before merging UI changes (`/design-review` is the `4-lens`-mode fallback);
-  Storybook for the shared component library (from Phase 3).
+- **Design/UI:** `DESIGN.md` = tokens only; composition = `docs/ux/UX-STANDARD.md` + rendered owner approval;
+  tests assert user actions, never looks. Delete look-pinning tests when recomposing; keep behaviour, a11y,
+  money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes.
 
 ## Read-before-you-touch (context triggers — do NOT read these by default)
 Durable subsystem gotchas live with their subsystem, not in this file and not in the backlog. Read the

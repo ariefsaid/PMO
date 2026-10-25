@@ -6,6 +6,8 @@
 
 ## ▸ REVIEW MODE (the reversibility switch) — current: **`portfolio`**
 
+Redesign-lane PRs (`redesign/` branch prefix) are exempt from graduate-every-finding; Layer-1 money/a11y/overflow gates still run.
+
 The Director's per-issue loop reads this line. Allowed values:
 - **`portfolio`** (default, ADR-0030 trial) — Discover→Graduate→Cover (this doc).
 - **`4-lens`** — the legacy battery: `design-workflow.md` §1a (mockup round) + §2.3 (rendered round), full

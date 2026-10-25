@@ -41,14 +41,10 @@ describe('Terms page', () => {
     expect(screen.queryByRole('banner')).toBeNull();
   });
 
-  it('AC-LEG-004 / AC-LEG-027 / AC-LEG-009: one h1 (page-title token) + 8 h2 section headings (+ h2 heading token, prose body token)', () => {
-    const { container } = renderTerms();
+  it('AC-LEG-004 / AC-LEG-027: one h1 + 8 h2 section headings', () => {
+    renderTerms();
     const h1s = screen.getAllByRole('heading', { level: 1 });
     expect(h1s).toHaveLength(1);
-    // page-title token = 24px / 700 / -0.02em (DESIGN.md §3).
-    expect(h1s[0].className).toMatch(/text-\[24px\]/);
-    expect(h1s[0].className).toMatch(/font-bold/);
-    expect(h1s[0].className).toMatch(/tracking-\[-0\.02em\]/);
 
     const h2s = screen.getAllByRole('heading', { level: 2 });
     const h2Texts = h2s.map((h) => h.textContent ?? '');
@@ -57,12 +53,7 @@ describe('Terms page', () => {
       'Confidentiality', 'Limitation of Liability', 'Term and Termination', 'Governing Law',
     ].forEach((t) => expect(h2Texts).toContain(t));
 
-    // AMENDMENT (plan review): the h2 heading token class (20/700/-0.01em, DESIGN.md §3).
-    h2s.forEach((h2) => expect(h2.className).toMatch(/text-\[20px\]/));
 
-    // AMENDMENT (plan review): the body-container prose class (14/…).
-    const bodyContainer = container.querySelector('.text-\\[14px\\]');
-    expect(bodyContainer).not.toBeNull();
   });
 
   it('AC-LEG-006: renders config entity/domain/contact email; no bracket placeholders', () => {
