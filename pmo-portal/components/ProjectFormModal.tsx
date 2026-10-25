@@ -725,7 +725,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
           )}
           {fields}
         </div>
-        <div className="sticky bottom-0 mt-3 border-t border-border bg-background py-3">
+        <div className="mt-3 border-t border-border bg-background py-3 min-[920px]:sticky min-[920px]:bottom-0">
           <FormActions
             submitLabel={submitLabel}
             cancelLabel={t('entityForm.cancel', 'Cancel')}
