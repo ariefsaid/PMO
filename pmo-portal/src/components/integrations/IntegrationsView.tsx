@@ -38,7 +38,7 @@ import { TaskListMatchReview } from './TaskListMatchReview';
 import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
-const TIERS: ExternalTier[] = ['clickup', 'erpnext'];
+const TIERS: ExternalTier[] = ['erpnext', 'clickup'];
 
 /** Connect credential form values per tier */
 interface ConnectFormValues {
@@ -389,11 +389,10 @@ export const IntegrationsView: React.FC = () => {
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
-        {t('uxs07.organizationScope', 'Organization integrations are shared by your organization. Manage personal connections in ')}
+        {t('uxs07.organizationScope', 'Shared workspace connections. ')}
         <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
         </a>
-        {t('uxs07.scopeTail', '. Personal connections do not activate organization integrations.')}
       </p>
       {/* A failed status load must NOT hide the Connect affordance — surface it as a scoped banner and
           still render the tier cards. Each card additionally labels its own connection state as
@@ -411,15 +410,6 @@ export const IntegrationsView: React.FC = () => {
       )}
       {/* Connect/Disconnect cards for each tier */}
       <div className="flex flex-col gap-3.5" data-testid="integrations-connect-cards">
-        {/* M365 organisation approval (step 2) — its OWN block on this admin surface, NOT a TIERS
-            entry (⚠️ do NOT add 'm365' to TIERS). M365 has no external_org_bindings row, no health
-            probe, and no source-of-truth domains; forcing it into that array would hand it a
-            credential-and-health model it does not have. The card self-gates Admin-only on the FE;
-            the edge fn re-enforces Admin-of-org OR Operator (FR-M365SEP-004/009). */}
-        <M365OrgApprovalCard />
-        {/* Org default document library — an org setting, deliberately separate from the personal
-            connection and from the org approval above (it grants no access to anything). */}
-        <M365DefaultLibraryCard />
         {TIERS.map((tier) => {
           const binding = isError ? undefined : getBinding(tier);
           const isConnected = binding?.status === 'active';
@@ -605,6 +595,12 @@ export const IntegrationsView: React.FC = () => {
             </Card>
           );
         })}
+        {/* Microsoft 365 is the third shared service, after financial and project connections. Its
+            approval and default-library decisions stay distinct from each member's personal sign-in. */}
+        <div data-testid="m365-organization-service">
+          <M365DefaultLibraryCard />
+          <M365OrgApprovalCard />
+        </div>
       </div>
 
       {bindingMapVisible && (
@@ -687,15 +683,24 @@ export const IntegrationsView: React.FC = () => {
           )}
           {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (
             <>
-              <h5 className="mb-2 mt-5 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>
-              <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
-                {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
-                  <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">
-                    <span className="font-medium text-foreground">{list.name}</span>
-                    <span className="ml-2 text-muted-foreground">({list.space_name}{list.folder_name ? ` / ${list.folder_name}` : ''}) — {t('integrations.organization.readiness.map.untrackedNote', 'PMO does not track')}</span>
-                  </li>
-                ))}
-              </ul>
+              {clickupLists.some((list) => !boundListIds.has(list.id)) && (
+                <details className="mt-4 rounded-md border border-border px-3">
+                  <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                    {t('uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
+                  </summary>
+                  <div className="pb-3">
+                    <h5 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>
+                    <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
+                      {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
+                        <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">
+                          <span className="font-medium text-foreground">{list.name}</span>
+                          <span className="ml-2 text-muted-foreground">({list.space_name}{list.folder_name ? ` / ${list.folder_name}` : ''}) — {t('integrations.organization.readiness.map.untrackedNote', 'PMO does not track')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
+              )}
             </>
           )}
         </section>

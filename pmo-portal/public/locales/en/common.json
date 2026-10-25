@@ -1,9 +1,9 @@
 {
   "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
   "uxs07": {
-    "organizationScope": "Organization integrations are shared by your organization. Manage personal connections in ",
+    "organizationScope": "Shared workspace connections. ",
     "personalConnections": "My integrations",
-    "scopeTail": ". Personal connections do not activate organization integrations.",
+    "viewConfiguredConnections": "View configured connections and unused lists",
     "connectionOptions": "Connection options",
     "reviewRecords": "Review connected records",
     "liveRecordCheck": "Not yet verified — review a connected record to confirm the data is usable.",

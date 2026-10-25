@@ -137,6 +137,44 @@ describe('ERP setup checklist', () => {
   });
 })
 
+describe('administration integrations composition', () => {
+  it('AC-ADMIA-011: orders shared service rows ERPNext, ClickUp, Microsoft 365', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    expect(await screen.findByTestId('integrations-connect-cards')).toBeInTheDocument();
+    const services = screen.getByTestId('integrations-connect-cards');
+    const order = [
+      services.querySelector('[data-tier="erpnext"]'),
+      services.querySelector('[data-tier="clickup"]'),
+      services.querySelector('[data-testid="m365-organization-service"]'),
+    ];
+    expect(order.every(Boolean)).toBe(true);
+    expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-ADMIA-012: keeps the unused ClickUp list roll call behind configured connections', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      clickupLists: [{ id: 'list-untracked', name: 'Untracked Delivery', space_name: 'Work', folder_name: null }],
+      isListsPending: false,
+      isListsError: false,
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const untrackedList = await screen.findByText('Untracked Delivery');
+    const disclosure = untrackedList.closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(within(disclosure!).getByText(/View configured connections/i)).toBeInTheDocument();
+    expect(within(disclosure!).getByRole('heading', { name: 'ClickUp Lists PMO does not track' })).toBeInTheDocument();
+  });
+});
+
 describe('ERP domain setup actions', () => {
   it('AC-TH-003 refreshing Company defaults updates the setup checklist after Company selection succeeds', async () => {
     const erpBinding={...mockBinding,external_tier:'erpnext' as const,config:{company:'Example Company'}};

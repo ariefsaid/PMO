@@ -1,9 +1,9 @@
 {
   "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" } },
   "uxs07": {
-    "organizationScope": "Integrasi organisasi digunakan bersama oleh organisasi Anda. Kelola koneksi pribadi di ",
+    "organizationScope": "Koneksi bersama untuk ruang kerja. ",
     "personalConnections": "Integrasi saya",
-    "scopeTail": ". Koneksi pribadi tidak mengaktifkan integrasi organisasi.",
+    "viewConfiguredConnections": "Lihat koneksi yang dikonfigurasi dan daftar yang tidak digunakan",
     "connectionOptions": "Opsi koneksi",
     "reviewRecords": "Tinjau data dari koneksi",
     "liveRecordCheck": "Belum terverifikasi — tinjau data dari layanan terhubung untuk memastikan data dapat digunakan.",
