@@ -472,7 +472,7 @@ export const FinanceDashboard: React.FC = () => {
         return (
           <span className="inline-flex flex-col items-end gap-0.5">
             <span>{known ? formatCurrency(p.spent!, p.actual_currency!) : t('uxs03.notAvailableYet', 'Not available yet')}</span>
-            {details.length > 0 && <span className="text-[11px] text-muted-foreground">{details.join(' · ')}</span>}
+            {details.length > 0 && <span className="text-sm text-muted-foreground">{details.join(' · ')}</span>}
           </span>
         );
       },
