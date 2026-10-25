@@ -2342,6 +2342,8 @@ export type Database = {
           party: string | null
           party_type: string | null
           posting_date: string | null
+          voucher_no: string | null
+          voucher_type: string | null
         }
         Insert: {
           account: string
@@ -2359,6 +2361,8 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          voucher_no?: string | null
+          voucher_type?: string | null
         }
         Update: {
           account?: string
@@ -2376,6 +2380,8 @@ export type Database = {
           party?: string | null
           party_type?: string | null
           posting_date?: string | null
+          voucher_no?: string | null
+          voucher_type?: string | null
         }
         Relationships: [
           {
