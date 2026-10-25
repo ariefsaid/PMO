@@ -10,7 +10,7 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
 const project: PipelineProject = {
   id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme',
   status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD',
-  tax_treatment: 'exclusive', win_probability: 0.4, last_update: null,
+  tax_treatment: 'exclusive', win_probability: 0.4,
 };
 const renderBoard = (presentation: 'board' | 'list' = 'board') => render(
   <BahasaProvider><MemoryRouter><SalesKanbanBoard projects={[project]} onOpen={vi.fn()} presentation={presentation} /></MemoryRouter></BahasaProvider>,

@@ -10,7 +10,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
       { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4, pm_name: 'Project Manager A' },
-  { id: 't1', name: 'Tender Deal Bravo', short_name: null, client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5, last_update: null },
+  { id: 't1', name: 'Tender Deal Bravo', short_name: null, client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
   { id: 'l1', name: 'Lost Deal Delta', short_name: null, client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
   { id: 'idr1', name: 'IDR Deal', short_name: null, client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
   { id: 'usd1', name: 'USD Deal', short_name: null, client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
