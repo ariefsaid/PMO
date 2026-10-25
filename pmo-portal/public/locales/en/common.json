@@ -2641,6 +2641,15 @@
       "open": "Project sections",
       "overview": "Overview"
     },
+    "moneyPosition": {
+      "activeBudget": "Active budget",
+      "billing": "Billing",
+      "budgetCategories": "Budget categories",
+      "contract": "Contract",
+      "cost": "Cost",
+      "noActiveBudget": "No active budget",
+      "title": "Money position"
+    },
     "tabs": {
       "ariaLabel": "Project sections",
       "billing": "Billing",

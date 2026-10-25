@@ -2641,6 +2641,15 @@
       "open": "Bagian proyek",
       "overview": "Ringkasan"
     },
+    "moneyPosition": {
+      "activeBudget": "Anggaran aktif",
+      "billing": "Penagihan",
+      "budgetCategories": "Kategori anggaran",
+      "contract": "Kontrak",
+      "cost": "Biaya",
+      "noActiveBudget": "Tidak ada anggaran aktif",
+      "title": "Posisi keuangan"
+    },
     "tabs": {
       "ariaLabel": "Bagian proyek",
       "billing": "Penagihan",

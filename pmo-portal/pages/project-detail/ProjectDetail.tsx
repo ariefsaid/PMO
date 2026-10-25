@@ -11,7 +11,6 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
-import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -149,7 +148,6 @@ const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { realRole } = useEffectiveRole();
   const may = usePermission();
   const canSeeBilling = may('view', 'progressClaim');
   const { t } = useTranslation();
@@ -227,10 +225,6 @@ const ProjectDetail: React.FC = () => {
   const requestedTab = tabFromParam(tabParam);
   // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
   const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
-  // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
-  // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
-  // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
-  const isDeliveryForward = !hasFinanceView(realRole);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
     // Preserve collection return context, section-level query state and task/WO anchors.
@@ -325,8 +319,6 @@ const ProjectDetail: React.FC = () => {
           // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
           // nothing, so it leaves no empty slot or stray margin behind.
           <div className="flex min-w-0 flex-col gap-8">
-            {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -336,9 +328,9 @@ const ProjectDetail: React.FC = () => {
               commitmentPending={commitmentPending}
               commitmentError={commitmentError}
               setTab={setTab}
-              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-              // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
-              showFinanceSummary={isDeliveryForward && !isPipeline}
+              phaseSummary={<MilestoneStrip projectId={project.id} summary />}
+              phasePlanner={<MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />}
+              showMoneyPosition={!isPipeline}
             />
             <React.Suspense fallback={null}>
               <ProjectProfitLossSection projectId={project.id} />
@@ -401,6 +393,7 @@ const ProjectDetail: React.FC = () => {
         commitmentPending={commitmentPending}
         commitmentError={commitmentError}
         onEditProject={openEditProject}
+        showMoneySummary={false}
       />
 
       {isPipeline && tab === 'overview' && (

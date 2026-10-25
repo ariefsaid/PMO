@@ -6,7 +6,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
@@ -14,7 +14,15 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 
-export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
+export interface ProjectFinancesSectionProps {
+  project: ProjectWithRefs;
+  /** Render the one shared read as sibling Cost and Billing groups on the Overview. */
+  grouped?: boolean;
+  /** Budget totals and disclosures belong in the Cost group next to Actual. */
+  costSupplement?: React.ReactNode;
+}
+
+export function ProjectFinancesSection({ project, grouped = false, costSupplement }: ProjectFinancesSectionProps) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -28,12 +36,31 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     : unknown;
   const title = <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>;
 
-  if (query.isPending) return (
+  if (query.isPending) return grouped ? (
+    <>
+      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        {costSupplement}
+        <p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
+      </div>
+      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0" />
+    </>
+  ) : (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
       {title}<p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
     </section>
   );
-  if (query.isError || !query.data) return (
+  if (query.isError || !query.data) return grouped ? (
+    <>
+      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        {costSupplement}
+        <div role="alert" className="flex flex-wrap items-center gap-2">
+          {t('projectFinances.error', "Couldn't load project finances.")}
+          <Button variant="outline" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
+        </div>
+      </div>
+      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0" />
+    </>
+  ) : (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
       {title}
       <div role="alert">
@@ -49,6 +76,9 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
+  const contractAfterCost = moneyPosition.contractAfterCost === null
+    ? null
+    : formatSignedExactMoney(moneyPosition.contractAfterCost, project.currency, i18n.language);
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
   const completeCoverage = moneyPosition.coverage.kind === 'complete';
@@ -101,12 +131,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   );
   const hasInvoices = data.invoices.length > 0;
 
-  return (
-    <section
-      className="min-w-0 space-y-4 border-y border-border py-4"
-      data-testid="project-finances"
-      aria-label={t('projectFinances.title', 'Project finances')}
-    >
+  const billingContent = (
+    <>
       {title}
       {/* PD-C: with no invoices, one line replaces Cash received, Invoiced 0, Remaining = contract
           and the scope note. */}
@@ -152,7 +178,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </div>
         );
       })}
-      <div className="min-w-0 space-y-2">
+    </>
+  );
+  const spendingContent = (
+    <div className="min-w-0 space-y-2">
         <h3 className="text-sm font-semibold">
           {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
         </h3>
@@ -164,6 +193,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
             {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
           </span>}
         </p>
+        {contractAfterCost !== null && <p className="text-sm">
+          <span className="text-xs text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</span>
+          <span data-testid="contract-after-cost" className="ml-2 font-semibold tabular-nums">{contractAfterCost}</span>
+        </p>}
         {actualPosition.basis === 'pmo'
           ? <p className="text-xs text-muted-foreground">
             {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
@@ -242,6 +275,33 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           </details>
         )}
       </div>
+  );
+
+  if (grouped) {
+    return (
+      <>
+        <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+          {costSupplement}
+          {spendingContent}
+        </div>
+        <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
+          {billingContent}
+          {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
+            {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
+          </p>}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <section
+      className="min-w-0 space-y-4 border-y border-border py-4"
+      data-testid="project-finances"
+      aria-label={t('projectFinances.title', 'Project finances')}
+    >
+      {billingContent}
+      {spendingContent}
       {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
         {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
       </p>}

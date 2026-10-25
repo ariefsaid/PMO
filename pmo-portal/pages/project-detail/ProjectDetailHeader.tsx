@@ -92,6 +92,8 @@ export interface ProjectDetailHeaderProps {
   commitmentError?: boolean;
   onEditProject?: () => void;
   primaryAction?: React.ReactNode;
+  /** Route composes money facts in the Overview position groups instead of above section navigation. */
+  showMoneySummary?: boolean;
 }
 
 /**
@@ -117,6 +119,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentError = false,
   onEditProject,
   primaryAction,
+  showMoneySummary = true,
 }) => {
   const { t, i18n } = useTranslation();
   const projectStatusLabel = useProjectStatusLabel();
@@ -170,7 +173,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
   const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const financeQuery = useProjectFinances(project.id, { enabled: isDelivery && isFinanceForward });
+  const financeQuery = useProjectFinances(project.id, { enabled: showMoneySummary && isDelivery && isFinanceForward });
   const actuals = financeQuery.data?.actuals;
   const authorizedActuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : actuals;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
@@ -412,6 +415,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const actions = (
     <>
       {primaryAction}
+      {!showMoneySummary && isDelivery && canEditValue && isFinanceForward && !valueEditing && (
+        <Button variant="outline" size="sm" onClick={beginValueEdit}>
+          {t('projectDetail.header.editContractValue', 'Edit contract value')}
+        </Button>
+      )}
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEditProject}>
           {t('projectDetail.header.action.edit', 'Edit')}
@@ -564,7 +572,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         }
         // Identity, status, scope and primary action share the content-track frame.
         meta={meta}
-        actions={canEdit || canArchive || canDelete ? actions : undefined}
+        actions={canEdit || canArchive || canDelete || primaryAction || (!showMoneySummary && isDelivery && canEditValue && isFinanceForward) ? actions : undefined}
         variant="drawer"
         sharedPageHeading
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto [&_h1]:text-2xl [&_h1]:leading-tight [&_h1]:whitespace-normal [&_h1]:overflow-visible [&_h1]:text-clip [&_[data-page-scope]]:text-sm"
@@ -572,7 +580,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
           The editor and its confirm remain unchanged; no finance or authority changes. */}
-      {isDelivery && isFinanceForward && (
+      {isDelivery && isFinanceForward && showMoneySummary && (
         <>
           <div className="mb-1 min-w-0">
             <details open={isDesktop} className="min-w-0">
@@ -596,6 +604,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           )}
           <div className={valueEditing ? 'mb-2' : undefined}>{sodRow}</div>
         </>
+      )}
+
+      {!showMoneySummary && isDelivery && valueEditing && (
+        <div className="mb-2">{sodRow}</div>
       )}
 
       {/* Delivery-forward roles (Engineer): the finance strip and SoD row are relocated
