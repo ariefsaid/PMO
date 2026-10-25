@@ -762,7 +762,7 @@ export const IntegrationsView: React.FC = () => {
               canConfirm={canManageIntegrations}
               onClose={() => setTaskListBatchOpen(false)}
               onComplete={() => void refetchBindings()}
-              onConfirm={(input) => linkProject.mutateAsync(input)}
+              onConfirm={async (input) => { await linkProject.mutateAsync(input); }}
             />
           )}
           {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (

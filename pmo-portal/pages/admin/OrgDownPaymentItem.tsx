@@ -12,9 +12,16 @@ import { useTranslation } from 'react-i18next';
 
 const ITEM_QUERY_KEY = 'org-down-payment-item';
 
+interface OrgDownPaymentItemProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
+
 /** #766 / ADR-0077 — the item remains an existing ERP choice; its posting account is not visible here. */
-export default function OrgDownPaymentItem() {
+export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDownPaymentItemProps = {}) {
   const { t } = useTranslation();
+  const isEditing = editing ?? true;
   const { currentUser } = useAuth();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -72,6 +79,7 @@ export default function OrgDownPaymentItem() {
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.downPaymentSaved', 'Down payment item saved'), undefined, 'success');
+      onClose?.();
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -103,7 +111,7 @@ export default function OrgDownPaymentItem() {
       <div className="mt-3 max-w-md">
         {query.isError ? <ListState variant="error" title={t('uxs11.downPaymentLoadError', "Couldn't load the down payment item")} onRetry={() => void query.refetch()} />
           : query.isPending ? <ListState variant="loading" rows={1} />
-          : canManage ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
+          : canManage && isEditing ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
             {remoteChanged && (
               <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
                 <p>{t('uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p>
@@ -137,8 +145,16 @@ export default function OrgDownPaymentItem() {
             {loadedItems?.length === 0 && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentNoItems', 'No ERPNext sales items were returned. Ask your accounting administrator to review the enabled item list; no substitute was selected.')}</p>}
             {loadedItems && draft && !loadedItems.some((item) => item.value === draft) && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentItemUnavailable', 'Saved item is not in the current item list; it remains saved until replaced.')}</p>}
             {error && <FieldError>{error}</FieldError>}
-            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
-          </form> : <p className="text-[13px]">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
+            <div className="flex flex-wrap gap-2">
+              <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
+              {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('uxs11.doneEditing', 'Done editing')}</Button>}
+            </div>
+          </form> : canManage ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[13px] font-medium">{savedValue}</p>
+              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('uxs11.editSetting', 'Edit setting')}</Button>
+            </div>
+          ) : <p className="text-[13px]">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
       </div>
     </section>
   );

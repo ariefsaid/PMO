@@ -14,6 +14,12 @@ import { useTranslation } from 'react-i18next';
 
 const ACCOUNT_QUERY_KEY = 'org-withholding-account';
 
+interface OrgWithholdingAccountProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
+
 function accountOption(account: BudgetPostingAccount, context?: string): ComboboxOption {
   return {
     value: account.account,
@@ -22,8 +28,9 @@ function accountOption(account: BudgetPostingAccount, context?: string): Combobo
   };
 }
 
-export default function OrgWithholdingAccount() {
+export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgWithholdingAccountProps = {}) {
   const { t } = useTranslation();
+  const isEditing = editing ?? true;
   const { currentUser } = useAuth();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -88,6 +95,7 @@ export default function OrgWithholdingAccount() {
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.withholdingSaved', 'Receipt withholding account saved'), undefined, 'success');
+      onClose?.();
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -113,7 +121,7 @@ export default function OrgWithholdingAccount() {
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title={t('uxs11.withholdingLoadError', "Couldn't load the tax-prepaid account")} onRetry={() => void query.refetch()} />
         : query.isPending ? <ListState variant="loading" rows={1} />
-        : canManage ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
+        : canManage && isEditing ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
           {remoteChanged && (
             <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
               <p>{t('uxs11.withholdingRemoteChanged', 'The saved account changed. Your edit is kept; reload the saved value to discard it.')}</p>
@@ -148,8 +156,19 @@ export default function OrgWithholdingAccount() {
           {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
           {canBrowse && candidates.length === 0 && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.')}</p>}
           {error && <FieldError>{error}</FieldError>}
-          <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
-        </form> : <p className="text-[13px]">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
+            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('uxs11.doneEditing', 'Done editing')}</Button>}
+          </div>
+        </form> : canManage ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[13px] font-medium">{readOnlyValue}</p>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">{savedContext}</p>
+            </div>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('uxs11.editSetting', 'Edit setting')}</Button>
+          </div>
+        ) : <p className="text-[13px]">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
     </div>
   </section>;
 }

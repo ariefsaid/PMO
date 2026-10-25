@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AdministrationUsage } from '../AdministrationUsage';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
@@ -45,6 +46,8 @@ const operatorRow: OperatorUsageSummaryRow = {
   margin_usd: null,
 };
 
+const renderUsage = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+
 describe('AdministrationUsage — a null provider cost renders as unknown, not zero', () => {
   /**
    * Regression for a defect the `database.types.ts` resync exposed. The cell guarded on
@@ -57,21 +60,22 @@ describe('AdministrationUsage — a null provider cost renders as unknown, not z
    */
   it('shows an em-dash, never $0.00, when provider_cost_usd is null', () => {
     const nullCost = { ...operatorRow, provider_cost_usd: null } as OperatorUsageSummaryRow;
-    render(<AdministrationUsage rows={[nullCost]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    renderUsage(<AdministrationUsage rows={[nullCost]} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByRole('columnheader', { name: /provider cost/i })).toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    expect(screen.getByText(/provider cost is unavailable for this scope/i)).toBeInTheDocument();
   });
 });
 
 describe('AdministrationUsage — Provider-cost column is Operator-only (AC-USE-007)', () => {
   it('does not render a Provider-cost column for org-Admin rows (org_usage_summary has no provider_cost_usd)', () => {
-    render(<AdministrationUsage rows={[orgAdminRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    renderUsage(<AdministrationUsage rows={[orgAdminRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.queryByRole('columnheader', { name: /provider cost/i })).not.toBeInTheDocument();
   });
 
   it('renders the Provider-cost column for Operator rows (operator_usage_summary keeps provider_cost_usd)', () => {
-    render(<AdministrationUsage rows={[operatorRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
+    renderUsage(<AdministrationUsage rows={[operatorRow]} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByRole('columnheader', { name: /provider cost/i })).toBeInTheDocument();
   });
 });
@@ -79,7 +83,7 @@ describe('AdministrationUsage — Provider-cost column is Operator-only (AC-USE-
 describe('AdministrationUsage — AC-L10N-021 (FR-L10N-023): platform AI billing stays USD in an IDR org', () => {
   it('provider cost / credits spent / margin render `$…` even when the org currency is IDR', () => {
     const idrOrgRows = [{ ...operatorRow, provider_cost_usd: 0.03, cost: 0.1, margin_usd: 0.07 } as OperatorUsageSummaryRow];
-    render(<AdministrationUsage rows={idrOrgRows} isPending={false} isError={false} onRetry={vi.fn()} />);
+    renderUsage(<AdministrationUsage rows={idrOrgRows} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByText('$0.03')).toBeInTheDocument();
     expect(screen.getByText('$0.10')).toBeInTheDocument();
     expect(screen.getByText('$0.07')).toBeInTheDocument();

@@ -50,6 +50,7 @@ export interface AgentCostMetricsProps {
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
+  scopeDescription?: string;
 }
 
 const DASH = '—';
@@ -144,6 +145,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   isPending,
   isError,
   onRetry,
+  scopeDescription = 'Across all actions and months.',
 }) => {
   const kpis = useMemo(() => deriveKpis(summaryRows, runStatsRows), [summaryRows, runStatsRows]);
   const monthlyCacheHit = useMemo(() => deriveMonthlyCacheHit(summaryRows), [summaryRows]);
@@ -197,7 +199,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
         {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
             single-cohort statistic. */}
-        <p className="mb-3 text-[12px] text-muted-foreground">Across all actions and months.</p>
+        <p className="mb-3 text-[12px] text-muted-foreground">{scopeDescription}</p>
         <StatTiles tiles={tiles} columns={5} />
       </div>
 

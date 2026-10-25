@@ -16,6 +16,11 @@ import type { OrgVendorTaxAccounts as Accounts } from '@/src/lib/db/orgs';
 
 const QUERY_KEY = 'org-vendor-tax-accounts';
 const NO_ACCOUNTS: BudgetPostingAccount[] = [];
+interface OrgVendorTaxAccountsProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
 type AccountField = 'inputVatAccount' | 'pph23PayableAccount' | 'pph42PayableAccount';
 type VendorTaxPurpose = Exclude<TaxSetupPurpose, 'receipt-withholding'>;
 
@@ -38,8 +43,9 @@ function valueOption(value: string, choices: BudgetPostingAccount[], staleLabel?
   return account ? accountOption(account) : { value, label: value, sub: staleLabel };
 }
 
-export default function OrgVendorTaxAccounts() {
+export default function OrgVendorTaxAccounts({ editing, onEdit, onClose }: OrgVendorTaxAccountsProps = {}) {
   const { t } = useTranslation();
+  const isEditing = editing ?? true;
   const { currentUser } = useAuth();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -116,6 +122,7 @@ export default function OrgVendorTaxAccounts() {
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.vendorTaxSaved', 'Vendor tax accounts saved'), undefined, 'success');
+      onClose?.();
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -166,7 +173,7 @@ export default function OrgVendorTaxAccounts() {
           <ListState variant="error" title={t('uxs11.vendorTaxLoadError', "Couldn't load the tax accounts")} onRetry={() => void query.refetch()} />
         ) : query.isPending ? (
           <ListState variant="loading" rows={3} />
-        ) : canManage ? (
+        ) : canManage && isEditing ? (
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -236,7 +243,17 @@ export default function OrgVendorTaxAccounts() {
             <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSave}>
               {t('uxs11.saveVendorTax', 'Save accounts')}
             </Button>
+            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('uxs11.doneEditing', 'Done editing')}</Button>}
           </form>
+        ) : canManage ? (
+          <div className="space-y-3">
+            <dl className="space-y-1 text-[13px]">
+              <div><dt className="inline text-muted-foreground">{t('uxs11.inputVatLabel', 'Input VAT account')}: </dt><dd className="inline font-medium">{current?.inputVatAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline font-medium">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline font-medium">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
+            </dl>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('uxs11.editSetting', 'Edit setting')}</Button>
+          </div>
         ) : (
           <>
             <dl className="space-y-1 text-[13px]">

@@ -14,13 +14,9 @@ import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
 import AdministrationFeatures from './AdministrationFeatures';
 import AdministrationExchangeRates from './AdministrationExchangeRates';
-import { AgentCostMetrics } from '@/src/components/admin/AgentCostMetrics';
 import { IntegrationsView } from '@/src/components/integrations/IntegrationsView';
-import OrgTaxDefault from './admin/OrgTaxDefault';
 import SpendApprovers from './admin/SpendApprovers';
-import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
-import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
-import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
+import TaxAdvancesTask from './admin/TaxAdvancesTask';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import CostAttribution from './admin/CostAttribution';
 import PostingAccountsTask from './admin/PostingAccountsTask';
@@ -224,26 +220,16 @@ const UsagePanel: React.FC = () => {
   const runStatsQuery = useAgentRunStats();
 
   return (
-    <>
-      <div className="mb-4">
-        <AgentCostMetrics
-          summaryRows={usageQuery.data ?? []}
-          runStatsRows={runStatsQuery.data ?? []}
-          isPending={usageQuery.isPending || runStatsQuery.isPending}
-          isError={usageQuery.isError || runStatsQuery.isError}
-          onRetry={() => {
-            void usageQuery.refetch();
-            void runStatsQuery.refetch();
-          }}
-        />
-      </div>
-      <AdministrationUsage
-        rows={usageQuery.data ?? []}
-        isPending={usageQuery.isPending}
-        isError={usageQuery.isError}
-        onRetry={() => void usageQuery.refetch()}
-      />
-    </>
+    <AdministrationUsage
+      rows={usageQuery.data ?? []}
+      runStatsRows={runStatsQuery.data ?? []}
+      isPending={usageQuery.isPending}
+      isError={usageQuery.isError}
+      onRetry={() => void usageQuery.refetch()}
+      isStatsPending={runStatsQuery.isPending}
+      isStatsError={runStatsQuery.isError}
+      onRetryStats={() => void runStatsQuery.refetch()}
+    />
   );
 };
 
@@ -273,7 +259,7 @@ const SelectedAdministrationPanel: React.FC<{
           <AccountingSectionNavigation selected={accountingTask} />
           <div id={accountingTask} tabIndex={-1} className="min-w-0 space-y-5 focus:outline-none">
             {accountingTask === 'posting-accounts' && <PostingAccountsTask />}
-            {accountingTask === 'tax-advances' && <><OrgTaxDefault /><OrgWithholdingAccount /><OrgVendorTaxAccounts /><OrgDownPaymentItem /></>}
+            {accountingTask === 'tax-advances' && <TaxAdvancesTask />}
             {accountingTask === 'purchase-rules' && <OrgProcurementGates />}
             {accountingTask === 'spend-approvers' && <SpendApprovers />}
           </div>
