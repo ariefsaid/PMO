@@ -348,9 +348,9 @@ export const IntegrationsView: React.FC = () => {
     const domains = domainsByTier[tier] ?? [];
     return (
       <section className="border-t border-border pt-3" data-testid={`service-information-${tier}`}>
-        <h4 className="text-sm font-semibold text-foreground">
+        <h3 className="text-sm font-semibold text-foreground">
           {t('uxs07.ownershipTitle', 'Information updated automatically')}
-        </h4>
+        </h3>
         {ownershipQuery?.isPending ? (
           <p className="mt-1 text-sm text-muted-foreground" role="status">
             {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
@@ -518,7 +518,7 @@ export const IntegrationsView: React.FC = () => {
                   tier name instead of overflowing the card at 390px. */}
               <div className="flex flex-wrap items-center gap-2">
                 <Icon name="plug" />
-                <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
+                <h2 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h2>
                 {setupIncomplete
                   ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet — {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
@@ -540,7 +540,7 @@ export const IntegrationsView: React.FC = () => {
                   </CanWrite>
                 </div>
               )}
-              <details className="mt-3 rounded-md border border-border px-3" data-testid={`service-details-${tier}`}>
+              <details className="mt-3 border-t border-border px-0" data-testid={`service-details-${tier}`}>
                 <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
                   {t('integrations:uxs07.connectionDetails', 'Connection details')}
                 </summary>
@@ -638,7 +638,7 @@ export const IntegrationsView: React.FC = () => {
               {/* Tier-specific info notes */}
               {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
                 <CanWrite entity="integration" action="manage">
-                  <details className="mt-3 rounded-md border border-border px-3" open={setupIncomplete || erpSetupQuery.isError}>
+                  <details className="mt-3 border-t border-border px-0" open={setupIncomplete || erpSetupQuery.isError}>
                     <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
                       {setupIncomplete
                         ? t('uxs07.finishSetup', 'Finish setup')
@@ -672,9 +672,9 @@ export const IntegrationsView: React.FC = () => {
         <section className="mt-6" aria-labelledby="clickup-binding-map-title" data-testid="clickup-binding-map">
           <div className="mb-3 flex items-center gap-2">
             <Icon name="plug" aria-hidden="true" />
-            <h4 id="clickup-binding-map-title" className="text-sm font-semibold text-foreground">
+            <h2 id="clickup-binding-map-title" className="text-sm font-semibold text-foreground">
               {t('integrations.organization.readiness.map.title', 'ClickUp binding map')}
-            </h4>
+            </h2>
           </div>
 
           {canManageIntegrations && clearTaskListProposals.length > 0 && !bindingMapDataUnavailable && (
@@ -773,7 +773,7 @@ export const IntegrationsView: React.FC = () => {
                     {t('integrations:uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
                   </summary>
                   <div className="pb-3">
-                    <h5 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>
+                    <h3 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h3>
                     <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
                       {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
                         <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">

@@ -244,7 +244,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
               <span className="truncate font-semibold" title={u.full_name}>
                 {u.full_name}
               </span>
-              <span className="truncate text-[11.5px] text-muted-foreground" title={u.email}>
+              <span className="truncate text-sm text-muted-foreground" title={u.email}>
                 {u.email}
               </span>
             </div>
