@@ -545,9 +545,10 @@
     "credits": {
       "grant": "Grant credits",
       "orgBalance": "Org balance",
+      "balanceLabel": "Available balance",
       "unit": "credits",
       "error": {
-        "title": "Couldn't load balance"
+        "title": "Balance unavailable"
       },
       "toast": {
         "granted": "Credits granted",

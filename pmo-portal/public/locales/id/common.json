@@ -545,9 +545,10 @@
     "credits": {
       "grant": "Berikan kredit",
       "orgBalance": "Saldo organisasi",
+      "balanceLabel": "Saldo tersedia",
       "unit": "kredit",
       "error": {
-        "title": "Gagal memuat saldo"
+        "title": "Saldo tidak tersedia"
       },
       "toast": {
         "granted": "Kredit diberikan",
