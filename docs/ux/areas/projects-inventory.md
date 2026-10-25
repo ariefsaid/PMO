@@ -14,6 +14,26 @@ Read audience A = Admin, Executive, Project Manager, Finance, Engineer. W = Admi
 
 `/projects` reads on-hand ∪ internal projects. Engineer defaults to My Projects derived from own task project IDs; other roles default All; non-Engineer's My Projects matches manager ID. Status scopes are All, My Projects, Ongoing (ongoing/won-pending/on-hold), Completed (close-out/loss), At risk. Classification/customer/end-customer/PM/search intersect. Search covers name, alias, PMO number, client code, customer/end-customer names and aliases. Current ordering is stable confirmed-risk-first with remaining order inherited from the fetched array; there is no explicit page sort control. Board then groups by lifecycle; Calendar orders dates.
 
+## Route and block decisions
+
+PA-00 / OD-ROUTE-JTBD: the [two route tables](projects.md#route-expectations-and-finished-jobs--pa-0001) use the persona's point of view. Decision: retain `/projects` for finding the project to act on and `/projects/new` for recording a project once; retain the Projects nav doorway for those jobs. Their purpose comes from the persona tables, not their existing composition. Finance/Engineer reaching `/projects/new` finish recovery to their existing work, without gaining creation permission. The first screen shows their explanation and named return; permitted personas see project/customer identity, required fields and stage consequence.
+
+| Blocks | Persona expectation → finished job | Decision for the build |
+|---|---|---|
+| Collection frame, scope, search/filters/sort/view, applied selections | All: I see my current scope → I find the correct project. | Keep; consolidate repeated summaries without losing classification-only reset. |
+| Table/Card evidence, project references, customer links | PM/Admin/Executive/Finance: I recognize the project and its position → I open the record I need; Engineer: I recognize my assignment context → I open my project. | Keep; show evidence once within each selected view. |
+| Board stage headers/counts/jump controls; Calendar month/events | All: I see projects by stage or date → I open the project in that stage or date. | Keep all four views and their navigation. |
+| Transfer tools | Admin/Executive/PM: I see ways to load or take away project data → I import/export the scoped work; Finance: I see budget import and export → I transfer the permitted data. | Keep behind More actions with current gates. |
+| Edit, archive confirmation and mutation outcomes | Admin/Executive/PM: I see editable project details → I correct the project; Admin/Executive: I see the archive consequence → I archive the intended project. | Keep with existing permissions and confirmations. |
+| Loading, error, unavailable, no-match, empty and no-events states | All: I see whether my work is absent or temporarily unavailable → I take the permitted create, retry, clear, change-month or return step. | Keep distinct recovery paths; never imply unknown means zero. |
+| Capture identity/customer/ownership/schedule, estimate/tax, classification, validation, actions and leave guard | Admin/Executive/PM: I see what I am creating and what is missing → I save the correct project once or leave without an unintended write. | Keep; disclose optional classification and preserve entered context. |
+| Repeated project-initial tile beside an already visible name | No separate job beyond the adjacent identity. | **Retire** the decorative tile; keep the name and accessible identity. |
+| Lifecycle pill repeated inside its matching Board column | No separate job beyond the column's named stage. | **Merge into `/projects?view=kanban`** column heading; retain accessible stage context. |
+| Empty-state creation button beside the page's creation button | No separate job beyond creating the same project. | **Merge into `/projects`** toolbar primary; retain first-use guidance beside the empty result. |
+| “Create a project” meta below “New project” | No separate job beyond the heading. | **Retire** the repeated subtitle; replace its slot with origin/stage scope. |
+
+These are binding retire/merge decisions for the build, not a backlog for approval. Remove the retired rendering branches and dead code/tests in the same area PR; adapt mixed tests to keep the surviving user outcome, a11y and money oracles. List every retirement/merge above and its reason in that PR body. Both routes and the Projects nav doorway survive this decision, so no route redirect is needed here; if a further route/nav merge is justified by PA-00, decide it in the spec and add a redirect to its new home in the same build. Never delete data/schema; existing records and deep links must stay reachable. Screenshots include each route × all five personas at first arrival, with the expected evidence or denied-route recovery visible.
+
 ## Current `/projects` render order
 
 Shared shell supplies navigation/top bar outside this page. `ListPage` itself renders h1/optional description and New project in the header, then toolbar, then body. This page passes no count. All rows below are A unless noted.
@@ -117,7 +137,7 @@ No insert occurs on entry. Number proposal is disabled until ready; duplicate nu
 
 Applied [impeccable-map](../impeccable-map.md) in order: **shape** discovery from PRODUCT/routes → **critique** hierarchy/IA and cognitive load → **layout** reading path/phone adaptation → **distill** one fact/one action → **onboard** first value and empty-state recovery.
 
-Shape discovery round, grounded in PRODUCT and the route bodies: people = owner-operator initially, later PM/Finance/staff; context = finding a project during delivery or recording its business identity; success = opening the correct project with list context intact, or creating it exactly once and landing on its canonical record. Assumption: mixed product familiarity, desktop work with phone lookup. First value is a recognizable project and a reachable next action, not completing a tour. Boundary = whole-page IA/IxD, existing identity/tokens/roles/money semantics and every feature retained.
+Shape discovery round, grounded in PRODUCT and the route bodies: people = owner-operator initially, later PM/Finance/staff; context = finding a project during delivery or recording its business identity; success = opening the correct project with list context intact, or creating it exactly once and landing on its canonical record. Assumption: mixed product familiarity, desktop work with phone lookup. First value is a recognizable project and a reachable next action, not completing a tour. Boundary = whole-page IA/IxD, existing identity/tokens/roles/money semantics and only persona-justified routes/blocks retained.
 
 Distill ledger: merge classification/customer summaries into one removable scope summary, retaining classification-only reset inside Filters; move transfer tools and references behind named disclosures; remove duplicate first-run creation action, repeated board status, initial decoration and duplicate create subtitle. Keep every underlying field/action reachable. Onboard: empty portfolio explains create-or-win; a permitted toolbar action starts real capture; readers get guidance to their PM/Admin; no-match offers clear, no-event month retains navigation, unknown money offers review/retry. No welcome tour, fabricated records or extra setup steps.
 
@@ -136,7 +156,7 @@ Source consequences driving the proposal: the current toolbar leads with scopes 
 
 ## Screenshot manifest
 
-For each row, capture at 1440×900 and 390×844, EN/ID, light/dark; combine related states in the same synthetic dataset to avoid a record-by-record capture explosion. Record URL, role, state and viewport. Every toggle value and abnormal state below needs evidence; captions must distinguish loaded, loading and unavailable.
+Include each route × all five personas on first arrival to prove the PA-00 tables (reuse matching captures below). For each row, capture at 1440×900 and 390×844, EN/ID, light/dark; combine related states in the same synthetic dataset to avoid a record-by-record capture explosion. Record URL, role, state and viewport. Every toggle value and abnormal state below needs evidence; captions must distinguish loaded, loading and unavailable.
 
 | Route / role | Decision-relevant states and interaction pairs |
 |---|---|
@@ -180,7 +200,7 @@ Retain these suites (adapt queries/steps only where composition deliberately cha
 - `src/hooks/useProjectView.test.ts`, `src/hooks/useProjects.test.tsx`, `src/hooks/useProjectsMoneyCollection.test.tsx`, `src/hooks/useProjectsDelivery.test.tsx`; shared working-set/return and import behavior suites remain in scope through their consumers.
 - `e2e/AC-401-projects-smoke.spec.ts`, `e2e/AC-PRJ-001-projects-crud.spec.ts`, `e2e/AC-PK-005-projects-kanban.spec.ts`, `e2e/AC-LRC-003-projects-return.spec.ts`, `e2e/AC-CODE-003-project-identifiers.spec.ts`, `e2e/AC-002-project-short-name.spec.ts`, `e2e/AC-RAM-001-ris-admin-first-project.spec.ts`, `e2e/serial/AC-CODE-002-project-number-proposal.spec.ts`, `e2e/serial/AC-TAG-002-project-classification.spec.ts`.
 
-Add lowest-sufficient-layer behavior proofs for visible/default URL sort, shared no-match handling across all views and consolidated clear behavior. Do not delete shared Sales uses of ProjectCardShell or shared table resize/keyboard/a11y tests merely because these pages change. Existing visual snapshots are evidence to regenerate after owner-approved recomposition, never an old-layout veto.
+Add lowest-sufficient-layer behavior proofs for visible/default URL sort, shared no-match handling across all views and consolidated clear behavior. Do not delete shared Sales uses of ProjectCardShell or shared table resize/keyboard/a11y tests merely because these pages change. Existing visual snapshots are before references to regenerate after owner-approved recomposition, never evidence that a route/block is needed or an old-layout veto.
 
 ## EN/ID label lookup
 
