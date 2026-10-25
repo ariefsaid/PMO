@@ -135,7 +135,7 @@ const AdministrationNavigation: React.FC<{
   return (
     <>
       {phone ? (
-        <details className="min-w-0 border-b border-border">
+        <details key={section} className="min-w-0 border-b border-border">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
             <span>{t('admin.nav.ariaLabel', 'Administration sections')}</span>
             <span aria-hidden="true" className="text-muted-foreground">⌄</span>

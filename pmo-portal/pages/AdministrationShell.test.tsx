@@ -261,6 +261,12 @@ describe('Administration route-backed shell', () => {
     await user.click(summaryText);
     expect(disclosure).toHaveAttribute('open');
     expect(screen.getByRole('link', { name: 'Organization integrations' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('link', { name: 'Organization integrations' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/integrations'));
+    const arrivedDisclosure = screen.getByText('Administration sections').closest('details');
+    expect(arrivedDisclosure).not.toBeNull();
+    expect(arrivedDisclosure).not.toHaveAttribute('open');
   });
 
   it('AC-ADMIA-001/002: an org Admin starts on Users with only the Users panel mounted', async () => {
