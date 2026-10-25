@@ -27,7 +27,6 @@ import {
   Kanban,
   KanbanColumn,
   KanbanStageIndicator,
-  StatusPill,
   type KanbanStageItem,
   TaxBasisLabel,
 } from '@/src/components/ui';
@@ -36,7 +35,6 @@ import { formatCurrency } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import { pillVariantForProjectStatus } from './projects';
 import ProjectCardShell from './ProjectCardShell';
 
 // ---------------------------------------------------------------------------
@@ -98,7 +96,7 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
 // ProjectKanbanCard — a single project card in the kanban view.
 // Renders the canonical ProjectCardShell (CW-3b, `kanban` variant) — the SAME
 // visual vocabulary as the cards-view and Sales board. Delivery-lens content:
-// contract value + status pill + PM, with the column status as the head slot.
+// contract value + PM; the column heading carries lifecycle status.
 // ---------------------------------------------------------------------------
 
 interface ProjectKanbanCardProps {
@@ -109,7 +107,6 @@ interface ProjectKanbanCardProps {
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
-  const initial = (displayName.trim().charAt(0) || '•').toUpperCase();
   // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
   // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — the two
   // "no name" states stay distinct across every visible Projects view (incl. Kanban).
@@ -122,17 +119,11 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
   return (
     <ProjectCardShell
       variant="kanban"
-      initial={initial}
       name={displayName}
       contractualName={project.name}
       client={project.client ? companyDisplayName(project.client) : null}
       pmoProjectNumber={project.pmo_project_number}
       code={project.code}
-      status={
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
-        </StatusPill>
-      }
       body={
         <div className="text-[12px] font-bold tabular">
           {formatCurrency(project.contract_value, project.currency)}{' '}

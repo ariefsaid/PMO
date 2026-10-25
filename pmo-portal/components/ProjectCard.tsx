@@ -185,7 +185,6 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     // UX-019: secondary identifiers are rendered only in the disclosure above.
     <ProjectCardShell
       variant="grid"
-      initial={(projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
       name={projectDisplayName(project)}
       contractualName={project.name}
       client={project.client ? companyDisplayName(project.client) : null}

@@ -339,13 +339,13 @@ describe('Projects index states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('C3: shows the teaching empty state with a live New project CTA when zero rows (AC-406)', () => {
+  it('AC-406: keeps one live New project action beside the zero-project guidance', () => {
     projectsState.data = [];
     renderPage(); // renders as PM (canCreate=true)
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
-    // The live "New project" CTA is shown (not disabled) — page is always actionable for PM.
     const ctaButtons = screen.getAllByRole('button', { name: /New project/i });
-    ctaButtons.forEach((btn) => expect(btn).not.toBeDisabled());
+    expect(ctaButtons).toHaveLength(1);
+    expect(ctaButtons[0]).not.toBeDisabled();
   });
 
   it('C3: the page header shows a live New project CTA for PM (not a dead/disabled button)', () => {

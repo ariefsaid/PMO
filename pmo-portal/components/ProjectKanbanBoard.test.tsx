@@ -256,12 +256,12 @@ describe('ProjectKanbanBoard', () => {
     Element.prototype.scrollTo = origScrollTo;
   });
 
-  it('each card renders a StatusPill with the project status text', () => {
+  it('keeps each project status in its named column heading instead of repeating it on the card', () => {
     renderBoard();
-    const wonCol = screen.getByTestId('kanban-col-won');
-    expect(within(wonCol).getAllByText('Won, Pending KoM').length).toBeGreaterThanOrEqual(1);
-    const holdCol = screen.getByTestId('kanban-col-onhold');
-    expect(within(holdCol).getAllByText('On Hold').length).toBeGreaterThanOrEqual(2);
+    const ongoingCol = screen.getByTestId('kanban-col-ongoing');
+    expect(within(ongoingCol).getByRole('heading', { name: 'Ongoing' })).toBeInTheDocument();
+    const projectCard = within(ongoingCol).getByRole('button', { name: /Beta Deploy/ });
+    expect(within(projectCard).queryByText('Ongoing Project')).not.toBeInTheDocument();
   });
 
   it('contract value appears on each card', () => {

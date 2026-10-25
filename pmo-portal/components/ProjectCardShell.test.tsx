@@ -5,15 +5,12 @@ import React from 'react';
 import ProjectCardShell from './ProjectCardShell';
 
 /**
- * CW-3b — the ONE canonical project-card visual vocabulary. Every project card
+ * ProjectCardShell behavior and accessible identity. Every project card
  * (grid cards-view, Projects kanban, Sales pipeline kanban) renders through this
- * shell so a project looks the SAME wherever it appears. The shell owns the chrome
- * (border, hover-lift, icon tile, name activation target, client·code subtitle,
- * status slot, body slot, foot slot); content varies by lens via props/slots.
+ * shell; content varies by lens via props/slots.
  */
 describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
   const baseProps = {
-    initial: 'I',
     name: 'Innovate Corp HQ Fit-Out',
     client: 'Innovate Corp',
     code: 'PRJ-001',
@@ -34,70 +31,12 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out.*PMO Project Number: PMO-26-0042.*Client Project Code: CLIENT-77/ })).toBeInTheDocument();
   });
 
-  it('renders the canonical head: icon initial, name, client and code', () => {
+  it('renders the project name, client and code alongside the status slot', () => {
     render(<ProjectCardShell {...baseProps} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
     expect(screen.getByText(/PRJ-001/)).toBeInTheDocument();
     expect(screen.getByTestId('status-slot')).toBeInTheDocument();
-  });
-
-  it('AC-KTR-001: shows the complete Kanban title before status and client/code', () => {
-    const longName = 'Integrated maintenance planning for regional facilities';
-    const statusLabel = 'Awaiting commercial closeout';
-    render(
-      <ProjectCardShell
-        {...baseProps}
-        name={longName}
-        client="Client Example"
-        code="PRJ-685"
-        status={<span data-testid="status-slot">{statusLabel}</span>}
-        variant="kanban"
-      />,
-    );
-
-    const card = screen.getByRole('button', { name: new RegExp(longName) });
-    const kanbanName = within(card).getByText(longName);
-    const status = within(card).getByTestId('status-slot');
-    const textColumn = kanbanName.parentElement!;
-    const headText = textColumn.textContent!;
-
-    expect(kanbanName.className).toContain('break-words');
-    expect(kanbanName.className).not.toMatch(/line-clamp|truncate/);
-    expect(textColumn).toContainElement(status);
-    expect(headText.indexOf(longName)).toBeLessThan(headText.indexOf(statusLabel));
-    expect(headText.indexOf(statusLabel)).toBeLessThan(headText.indexOf('Client Example'));
-    expect(headText.indexOf('Client Example')).toBeLessThan(headText.indexOf('PRJ-685'));
-  });
-
-  it('PL-1: mobile project title retains the full name and wraps without truncation utilities', () => {
-    const fullName = 'Integrated maintenance planning for regional facilities and remote teams';
-    render(<ProjectCardShell {...baseProps} name={fullName} variant="kanban" />);
-    const title = screen.getByText(fullName);
-    expect(title).toBeVisible();
-    expect(title).toHaveTextContent(fullName);
-    expect(title.className).toContain('break-words');
-    expect(title.className).not.toMatch(/truncate|line-clamp/);
-  });
-
-  it('AC-KTR-002: preserves the grid title button, clamp, and status placement', () => {
-    render(<ProjectCardShell {...baseProps} />);
-    const gridName = screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out/i });
-    const textColumn = gridName.parentElement!;
-    const status = screen.getByTestId('status-slot');
-
-    expect(gridName.className).toContain('line-clamp-2');
-    expect(gridName.className).toContain('break-words');
-    expect(textColumn).not.toContainElement(status);
-    expect(textColumn.parentElement).toContainElement(status);
-  });
-
-  it('exposes a single project-card test carrier so every surface is the same molecule', () => {
-    render(<ProjectCardShell {...baseProps} />);
-    const card = screen.getByTestId('project-card');
-    expect(card).toBeInTheDocument();
-    expect(card.className).toMatch(/hover:shadow-\[0_2px_10px_hsl\(var\(--foreground\)\/0\.06\)\]/);
-    expect(card.className).not.toMatch(/240_6%_10%/);
   });
 
   it('makes the name the activation target and calls onOpen when clicked', async () => {

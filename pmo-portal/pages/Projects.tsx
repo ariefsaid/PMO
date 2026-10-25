@@ -743,14 +743,6 @@ const Projects: React.FC = () => {
           stateId="projects-empty"
           role={realRole ?? undefined}
           module="projects"
-          action={
-            canCreate
-              ? {
-                  label: t('projects.actions.new', 'New project'),
-                  onClick: () => openRecord('/projects/new'),
-                }
-              : undefined
-          }
         />
       </ListPage>
     );

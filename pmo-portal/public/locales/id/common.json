@@ -3025,8 +3025,10 @@
       "edit": "Edit proyek"
     },
     "subtitle": {
-      "create": "Buat proyek",
       "edit": "Perbarui detail header proyek"
+    },
+    "scope": {
+      "create": "Proyek baru dimulai di tahap {{stage}}; proyek on-hand masuk setelah menang di pipeline."
     },
     "submit": {
       "create": "Buat proyek",
