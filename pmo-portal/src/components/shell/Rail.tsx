@@ -109,7 +109,7 @@ const MAX_NAV_VIEWS = 8;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+  'touch-target flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
 
 export interface RailProps {
   onNavigate?: () => void;
