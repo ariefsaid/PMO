@@ -6,15 +6,15 @@ const h = vi.hoisted(() => {
   const rpcResult = { value: { data: null as unknown, error: null as unknown } };
   const calls = {
     from: [] as string[], rpc: [] as Array<[string, unknown]>, insert: [] as unknown[], update: [] as unknown[],
-    eq: [] as unknown[], order: [] as unknown[], range: [] as unknown[], select: [] as unknown[],
+    eq: [] as unknown[], ilike: [] as unknown[], order: [] as unknown[], range: [] as unknown[], select: [] as unknown[],
     delete: 0, single: 0, maybeSingle: 0,
   };
   const builder: Record<string, unknown> = {};
-  const rec = (name: 'insert' | 'update' | 'eq' | 'order' | 'range' | 'select') => (...args: unknown[]) => {
+  const rec = (name: 'insert' | 'update' | 'eq' | 'ilike' | 'order' | 'range' | 'select') => (...args: unknown[]) => {
     calls[name].push(args.length === 1 ? args[0] : args);
     return builder;
   };
-  builder.select = rec('select'); builder.eq = rec('eq'); builder.order = rec('order'); builder.range = rec('range');
+  builder.select = rec('select'); builder.eq = rec('eq'); builder.ilike = rec('ilike'); builder.order = rec('order'); builder.range = rec('range');
   builder.insert = rec('insert'); builder.update = rec('update');
   builder.delete = () => { calls.delete++; return builder; };
   builder.single = () => { calls.single++; return builder; };
@@ -66,13 +66,19 @@ describe('AC-EXP-050 create', () => {
 });
 
 describe('AC-EXP-050 list', () => {
-  it('AC-EXP-050 applies filters, orders newest first and reads one sentinel row past the limit', async () => {
+  it('AC-EXP-050 applies server filters and search before ordering and reads one sentinel row past the limit', async () => {
     h.result.value = { data: [{ id: 'a' }, { id: 'b' }], error: null };
-    const out = await listExpenseClaims({ status: 'Submitted', kind: 'claim', budgetCategory: 'Special expenses' });
-    expect(h.calls.eq).toEqual([['status', 'Submitted'], ['kind', 'claim'], ['budget_category', 'Special expenses']]);
-    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
+    const out = await listExpenseClaims({ status: 'Submitted', kind: 'claim', budgetCategory: 'Special expenses', projectId: 'p1', search: 'site_50%', sort: 'oldest' });
+    expect(h.calls.eq).toEqual([['status', 'Submitted'], ['kind', 'claim'], ['budget_category', 'Special expenses'], ['project_id', 'p1']]);
+    expect(h.calls.ilike).toEqual([['title', '%site\\_50\\%%']]);
+    expect(h.calls.order).toEqual([['created_at', { ascending: true }], ['id', { ascending: true }]]);
     expect(h.calls.range).toEqual([[0, EXPENSE_LIST_LIMIT]]);
     expect(out).toEqual({ rows: [{ id: 'a' }, { id: 'b' }], truncated: false });
+  });
+  it('AC-EXP-050 defaults to newest and ignores whitespace-only search', async () => {
+    await listExpenseClaims({ search: '   ' });
+    expect(h.calls.ilike).toEqual([]);
+    expect(h.calls.order).toEqual([['created_at', { ascending: false }], ['id', { ascending: false }]]);
   });
   it('AC-EXP-050 reports truncation instead of silently dropping rows', async () => {
     h.result.value = { data: Array.from({ length: EXPENSE_LIST_LIMIT + 1 }, (_, i) => ({ id: String(i) })), error: null };

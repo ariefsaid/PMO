@@ -33,6 +33,10 @@ export interface ExpenseClaimFilters {
   kind?: ExpenseKind;
   budgetCategory?: BudgetCategory;
   projectId?: string;
+  /** Searches claim titles on the server before the bounded result is applied. */
+  search?: string;
+  /** Newest by default; oldest reverses creation date while keeping identity ties stable. */
+  sort?: 'newest' | 'oldest';
 }
 
 export interface ExpenseClaimInput {
@@ -93,10 +97,13 @@ export async function listExpenseClaims(
   if (filters.kind) q = q.eq('kind', filters.kind);
   if (filters.budgetCategory) q = q.eq('budget_category', filters.budgetCategory);
   if (filters.projectId) q = q.eq('project_id', filters.projectId);
+  const search = filters.search?.trim();
+  if (search) q = q.ilike('title', `%${search.replace(/[\\%_]/gu, '\\$&')}%`);
+  const ascending = filters.sort === 'oldest';
   // range is inclusive: 0..LIMIT reads LIMIT + 1 rows, the extra one only to detect truncation.
   const { data, error } = await q
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
+    .order('created_at', { ascending })
+    .order('id', { ascending })
     .range(0, EXPENSE_LIST_LIMIT);
   if (error) throwWrite(error);
   const rows = (data ?? []) as unknown as ExpenseClaimWithRefs[];

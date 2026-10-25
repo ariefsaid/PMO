@@ -1378,10 +1378,13 @@
         "outstanding": "Belum diselesaikan",
         "project": "Proyek"
       },
-      "errorSub": "Daftar di bawah tidak terpengaruh. Coba lagi.",
+      "errorSub": "Bagian lain dari daftar biaya tidak terpengaruh. Coba lagi.",
       "errorTitle": "Gagal memuat uang muka yang belum diselesaikan",
-      "title": "Uang muka belum diselesaikan",
-      "truncated": "Menampilkan {{count}} uang muka tertua."
+      "emptyTitle": "Tidak ada uang muka yang belum diselesaikan",
+      "emptySub": "Uang muka yang sudah dibayar dengan saldo tersisa akan muncul di sini.",
+      "noMatch": "Tidak ada uang muka yang cocok dengan filter ini",
+      "title": "Uang muka yang belum diselesaikan",
+      "truncated": "Menampilkan hingga {{count}} uang muka dari daftar terbatas. Pencarian dan filter berlaku pada kumpulan ini."
     },
     "approvals": {
       "errorSub": "Permintaan pembelian dan timesheet di bawah tidak terpengaruh.",
@@ -1422,6 +1425,21 @@
       "returnTitle": "Catat pengembalian kas"
     },
     "description": "Klaim biaya dan uang muka. Anda melihat milik Anda; penyetuju melihat seluruh tim.",
+    "searchLabel": "Cari biaya",
+    "searchPlaceholder": "Cari judul klaim",
+    "searchOutstandingLabel": "Cari uang muka yang belum diselesaikan",
+    "searchOutstandingPlaceholder": "Cari uang muka yang belum diselesaikan",
+    "sort": {
+      "newestClaims": "Klaim terbaru",
+      "oldestClaims": "Klaim terlama",
+      "oldestPayouts": "Tanggal pencairan terlama",
+      "newestPayouts": "Tanggal pencairan terbaru"
+    },
+    "view": {
+      "label": "Tampilan daftar biaya",
+      "claims": "Klaim dan uang muka",
+      "outstanding": "Uang muka belum diselesaikan"
+    },
     "detail": {
       "advanceApplied": "Uang muka dipakai",
       "amount": "Jumlah",
@@ -1441,10 +1459,16 @@
     "draftNumber": "Draf",
     "filters": {
       "allCategories": "Semua kategori",
+      "allProjects": "Semua proyek",
+      "allAges": "Semua umur",
       "allKinds": "Klaim dan uang muka",
       "allStatuses": "Semua status",
+      "age": "Umur pencairan",
       "category": "Kategori anggaran",
+      "clear": "Hapus filter",
       "kind": "Jenis",
+      "project": "Proyek",
+      "unknownAge": "Tanggal pencairan tidak diketahui",
       "status": "Status"
     },
     "form": {
@@ -1561,6 +1585,7 @@
     "table": {
       "emptySub": "Ajukan klaim setelah pekerjaan, atau uang muka sebelumnya.",
       "emptyTitle": "Belum ada biaya",
+      "noMatch": "Tidak ada biaya yang cocok dengan filter ini",
       "rowLabel": "Buka {{title}}"
     },
     "title": "Biaya",

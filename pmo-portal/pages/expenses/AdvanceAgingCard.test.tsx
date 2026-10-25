@@ -2,9 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
-import { formatCurrencyAuto, formatCurrencyCents } from '@/src/lib/format';
-// The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+import { formatCurrencyAuto } from '@/src/lib/format';
 
 const h = vi.hoisted(() => ({
   aging: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -17,20 +15,25 @@ const row = (o: Record<string, unknown>) => ({
   advanceId: 'a1', claimNumber: 'ADV-1', claimantId: 'u1', claimantName: 'Budi Field', projectId: null, projectName: null,
   currency: 'IDR', amount: 500, settled: 0, returned: 0, outstanding: 100, paidOn: '2026-09-01', ageDays: 10, bucket: '0-30', ...o,
 });
-const renderCard = () => render(<MemoryRouter><AdvanceAgingCard /></MemoryRouter>);
+const renderCard = (props: React.ComponentProps<typeof AdvanceAgingCard> = { active: true }) => render(<MemoryRouter><AdvanceAgingCard {...props} /></MemoryRouter>);
 
 beforeEach(() => { h.aging.isError = false; h.aging.isPending = false; });
 
 describe('AdvanceAgingCard', () => {
-  it('AC-EXP-063 shows bucket totals per currency and the rows', () => {
-    h.aging.data = { rows: [row({}), row({ advanceId: 'a2', claimNumber: 'ADV-2', outstanding: 200.5, ageDays: 45, bucket: '31-60' })], truncated: false };
+  it('AC-806 shows outstanding advances oldest paid date first, leaves unknown dates last, and keeps exact amounts without bucket totals', () => {
+    h.aging.data = { rows: [
+      row({ advanceId: 'a3', claimNumber: 'ADV-3', paidOn: null, ageDays: null, bucket: '90+' }),
+      row({ advanceId: 'a2', claimNumber: 'ADV-2', paidOn: '2026-08-01', outstanding: 200.5, ageDays: 45, bucket: '31-60' }),
+      row({ advanceId: 'a1', paidOn: '2026-07-01' }),
+    ], truncated: false };
     renderCard();
-    expect(screen.getByTestId('aging-IDR-0-30')).toHaveTextContent(money(100, 'IDR'));
-    expect(screen.getByTestId('aging-IDR-31-60')).toHaveTextContent(money(200.5, 'IDR'));
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Outstanding' })).toBeInTheDocument();
     expect(within(table).getByText(formatCurrencyAuto(200.5, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ADV-2' })).toHaveAttribute('href', '/expenses/a2');
+    const links = within(table).getAllByRole('link');
+    expect(links.map((link) => link.textContent)).toEqual(['ADV-1', 'ADV-2', 'ADV-3']);
+    expect(screen.queryByTestId(/aging-IDR-/)).not.toBeInTheDocument();
   });
   it('AC-EXP-063 keeps advance details in cards on phones', () => {
     h.aging.data = { rows: [row({})], truncated: false };
@@ -44,12 +47,38 @@ describe('AdvanceAgingCard', () => {
   it('AC-EXP-063 renders nothing when no advance is outstanding', () => {
     h.aging.data = { rows: [], truncated: false };
     const { container } = renderCard();
-    expect(container).toBeEmptyDOMElement();
+    expect(screen.getByText('No outstanding advances')).toBeInTheDocument();
+    expect(container.querySelector('table')).not.toBeInTheDocument();
   });
   it('AC-EXP-063 a failed read shows an error, never an empty state', () => {
     h.aging.data = undefined;
     h.aging.isError = true;
     renderCard();
     expect(screen.getByText("Couldn't load outstanding advances")).toBeInTheDocument();
+  });
+
+  it('AC-806 keeps outstanding advances inside the selected view only', () => {
+    h.aging.data = { rows: [row({})], truncated: false };
+    const { container } = renderCard({ active: false });
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('AC-806 narrows the bounded outstanding set by project, age and advance identity search', () => {
+    h.aging.data = { rows: [
+      row({ advanceId: 'a1', projectId: 'p1', projectName: 'Harbour', claimNumber: 'ADV-1', paidOn: '2026-07-01', bucket: '0-30' }),
+      row({ advanceId: 'a2', projectId: 'p1', projectName: 'Harbour', claimNumber: 'ADV-2', paidOn: '2026-08-01', bucket: '31-60' }),
+      row({ advanceId: 'a3', projectId: 'p2', projectName: 'Terminal', claimNumber: 'ADV-3', paidOn: '2026-07-02', bucket: '0-30' }),
+    ], truncated: true };
+    renderCard({ active: true, projectId: 'p1', age: '0-30', query: 'ADV-1' });
+    expect(screen.getByRole('link', { name: 'ADV-1' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ADV-2' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'ADV-3' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Search and filters apply within this set/)).toBeInTheDocument();
+  });
+
+  it('AC-806 shows an explicit bounded-result notice', () => {
+    h.aging.data = { rows: [row({})], truncated: true };
+    renderCard();
+    expect(screen.getByText(/Showing up to 500 advances from the bounded outstanding list/)).toBeInTheDocument();
   });
 });

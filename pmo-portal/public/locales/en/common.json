@@ -1378,10 +1378,13 @@
         "outstanding": "Outstanding",
         "project": "Project"
       },
-      "errorSub": "The list below is unaffected. Try again.",
+      "errorSub": "The rest of the expense register is unaffected. Try again.",
       "errorTitle": "Couldn't load outstanding advances",
-      "title": "Advances outstanding",
-      "truncated": "Showing the oldest {{count}} advances."
+      "emptyTitle": "No outstanding advances",
+      "emptySub": "Paid advances with an unsettled balance will appear here.",
+      "noMatch": "No advances match these filters",
+      "title": "Outstanding advances",
+      "truncated": "Showing up to {{count}} advances from the bounded outstanding list. Search and filters apply within this set."
     },
     "approvals": {
       "errorSub": "Purchase requests and timesheets below are unaffected.",
@@ -1422,6 +1425,21 @@
       "returnTitle": "Record cash returned"
     },
     "description": "Expense claims and cash advances. You see your own; approvers see the whole team.",
+    "searchLabel": "Search expenses",
+    "searchPlaceholder": "Search claim titles",
+    "searchOutstandingLabel": "Search outstanding advances",
+    "searchOutstandingPlaceholder": "Search outstanding advances",
+    "sort": {
+      "newestClaims": "Newest claims",
+      "oldestClaims": "Oldest claims",
+      "oldestPayouts": "Oldest payout date",
+      "newestPayouts": "Newest payout date"
+    },
+    "view": {
+      "label": "Expense register view",
+      "claims": "Claims and advances",
+      "outstanding": "Outstanding advances"
+    },
     "detail": {
       "advanceApplied": "Advance applied",
       "amount": "Amount",
@@ -1441,10 +1459,16 @@
     "draftNumber": "Draft",
     "filters": {
       "allCategories": "All categories",
+      "allProjects": "All projects",
+      "allAges": "All ages",
       "allKinds": "Claims and advances",
       "allStatuses": "All statuses",
+      "age": "Payout age",
       "category": "Budget category",
+      "clear": "Clear filters",
       "kind": "Type",
+      "project": "Project",
+      "unknownAge": "Unknown payout date",
       "status": "Status"
     },
     "form": {
@@ -1561,6 +1585,7 @@
     "table": {
       "emptySub": "File a claim after the work, or request an advance before it.",
       "emptyTitle": "No expenses here yet",
+      "noMatch": "No expenses match these filters",
       "rowLabel": "Open {{title}}"
     },
     "title": "Expenses",

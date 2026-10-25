@@ -50,7 +50,7 @@ const ROW = {
   id: 'c1', claim_number: 'EXP-2610060001', kind: 'claim', title: 'Site visit', claimant: { full_name: 'Budi Field' },
   project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000, currency: 'IDR', status: 'Submitted',
 };
-const renderPage = () => render(<MemoryRouter><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
+const renderPage = (entry = '/expenses') => render(<MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
 
 beforeEach(() => {
   mockNavigate.mockClear();
@@ -83,13 +83,34 @@ describe('ExpenseClaims page', () => {
   it('AC-002 #1325: advance request project options show the short name only', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /request advance/i }));
-    expect(screen.getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+    expect(within(screen.getByRole('dialog')).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
   });
 
-  it('AC-EXP-060 the Special expenses filter queries by that category', async () => {
-    renderPage();
+  it('AC-806 replays search, filters and sort from the URL into the server query', () => {
+    renderPage('/expenses?q=field%20visit&status=Submitted&kind=claim&category=Special%20expenses&project=p1&sort=oldest');
+    expect(h.listSpy).toHaveBeenLastCalledWith({
+      search: 'field visit', status: 'Submitted', kind: 'claim', budgetCategory: 'Special expenses', projectId: 'p1', sort: 'oldest',
+    });
+  });
+
+  it('AC-806 category filters own their URL key while retaining the rest of the collection state', async () => {
+    renderPage('/expenses?q=hotel&project=p1&sort=oldest');
     await userEvent.selectOptions(screen.getByLabelText('Budget category', { selector: 'input, select, textarea' }), 'Special expenses');
-    expect(h.listSpy).toHaveBeenLastCalledWith({ budgetCategory: 'Special expenses' });
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses?q=hotel&project=p1&sort=oldest&category=Special+expenses', { replace: true, state: null });
+  });
+
+  it('AC-806 switches to one outstanding-advances view and labels its date sort', async () => {
+    renderPage('/expenses?status=Submitted&project=p1');
+    expect(screen.getByRole('button', { name: 'Newest claims' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Outstanding advances' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses?status=Submitted&project=p1&view=outstanding', { replace: true, state: null });
+  });
+
+  it('AC-806 clears collection filters without dropping unrelated query state', async () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage('/expenses?q=missing&project=p1&status=Rejected&tab=mine');
+    await userEvent.click(within(screen.getByTestId('money-out-toolbar')).getByRole('button', { name: 'Clear filters' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses?tab=mine', { replace: true, state: null });
   });
 
   it('AC-EXP-060 New claim opens the full-page create route', async () => {
