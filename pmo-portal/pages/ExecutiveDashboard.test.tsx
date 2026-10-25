@@ -155,6 +155,24 @@ describe('ExecutiveDashboard (real data)', () => {
     }
   });
 
+  it('AC-806-EXEC-CURRENCY-001 labels unavailable mixed-currency figures with their currency', () => {
+    dashState.data = {
+      ...populated,
+      on_hand_value_by_currency: [
+        { currency: 'IDR', contract_value: null as unknown as number, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 0, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+        { currency: 'USD', contract_value: 3_400_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 0, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        { currency: 'IDR', known_amount: null as unknown as number, unknown_projects: 1 },
+        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+    const delivery = screen.getByRole('region', { name: 'Delivery book' });
+    expect(delivery).toHaveTextContent('— IDR');
+    expect(delivery).toHaveTextContent('— USD');
+  });
+
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
     dashState.data = {
       ...populated,
@@ -324,6 +342,8 @@ describe('ExecutiveDashboard states', () => {
     };
     renderPage();
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('table', { name: 'Spending comparison' })).not.toBeInTheDocument();
   });
 });
 
@@ -408,6 +428,8 @@ describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (
     const measurement = screen.getByText('How figures are measured').closest('details');
     fireEvent.click(screen.getByText('How figures are measured'));
     expect(measurement).toHaveTextContent('Contract value for won, on-hold, delivery, and closed-out work');
+    expect(measurement).toHaveTextContent('Wins divided by won plus lost closed project outcomes.');
+    expect(document.body.textContent).not.toContain('Recorded outcomes only; unrecorded decisions are not counted.');
     // Regression: old "opportunity value" text must not appear anywhere in the rendered page
     expect(document.body.textContent).not.toContain('opportunity value');
   });
@@ -416,6 +438,8 @@ describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (
 describe('ExecutiveDashboard scope', () => {
   it('keeps the dashboard inside the portfolio scope and uses one primary action', () => {
     renderPage();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Home');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dashboard');
     expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
     expect(screen.getByText('Portfolio · delivery and sales evidence')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Review (requests|at-risk projects)/ })).toHaveLength(1);

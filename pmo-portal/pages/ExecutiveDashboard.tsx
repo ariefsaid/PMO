@@ -30,7 +30,7 @@ type CurrencyValue = { currency: string; value: number | null };
 
 function currencyValue(value: number | null, currency: string, unavailableLabel: string): React.ReactNode {
   if (value === null || !Number.isFinite(value)) {
-    return <a className="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap" href="#executive-data-note" aria-label={unavailableLabel}>—</a>;
+    return <a className="inline-flex min-h-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href="#executive-data-note" aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
   }
   const formatted = formatCurrency(value, currency);
   return <span className="inline-block whitespace-nowrap">{formatted.includes(currency) ? formatted : `${currency} ${formatted}`}</span>;
@@ -268,7 +268,7 @@ const DeliveryBook: React.FC<{
             </p>
           )}
 
-          <div className="space-y-2">
+          {!hasNoProjects && <div className="space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h3 className="text-base font-semibold">{t('dashboard:exec.spendingComparison', 'Spending comparison')}</h3>
               <p className="text-xs text-muted-foreground">{t('dashboard:exec.sortAtRiskFirst', 'At-risk projects first, then project name')}</p>
@@ -280,7 +280,7 @@ const DeliveryBook: React.FC<{
               isError={isError && !data}
               onRetry={onRetry}
             />
-          </div>
+          </div>}
 
           <details className="group border-t border-border pt-2">
             <summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
@@ -292,6 +292,7 @@ const DeliveryBook: React.FC<{
               <div><dt className="font-medium">{t('dashboard:exec.knownActual', 'Known Actual')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.actualDefinition', 'Recorded ERP-ledger Actual with its project and mapped-category coverage.')}</dd></div>
               <div><dt className="font-medium">{t('uxs03.contractRemaining', 'Contract remaining after known Actual')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.remainingDefinition', 'Contract value less complete, same-currency Actual.')}</dd></div>
               <div><dt className="font-medium">{t('uxs03.realizedMargin', 'Margin on billed work')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.marginDefinition', 'Billed-work revenue less recorded Actual; it is not cash received.')}</dd></div>
+              <div><dt className="font-medium">{t('dashboard:winRate.title', 'Win rate')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.winRateDefinition', 'Wins divided by won plus lost closed project outcomes.')}</dd></div>
             </dl>
           </details>
           {abnormalReasons.length > 0 && (
@@ -433,6 +434,7 @@ const ExecutiveDashboard: React.FC = () => {
       <DashPageHead
         title={t('dashboard.title', 'Executive Dashboard')}
         sub={t('exec.scope', 'Portfolio · delivery and sales evidence')}
+        showBreadcrumb
         actions={<span className="[&>button]:min-h-11 [&>span>button]:min-h-11"><BoardPackAction /></span>}
       />
       <ExecutiveAttention

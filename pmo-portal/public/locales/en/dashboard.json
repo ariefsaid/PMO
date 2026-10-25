@@ -1,5 +1,6 @@
 {
   "exec": {
+    "winRateDefinition": "Wins divided by won plus lost closed project outcomes.",
     "activeDefinition": "Contract value for active delivery projects only.",
     "actualDefinition": "Recorded ERP-ledger Actual with its project and mapped-category coverage.",
     "actualOfContract": "{{project}}: {{percent}}% of contract",
@@ -222,6 +223,8 @@
     }
   },
   "winRate": {
+    "valueRateBasisMissing": "Value win rate needs recorded won and lost amounts in the same currency.",
+    "reviewClosedValues": "Review closed project values",
     "title": "Win rate",
     "basisCount": "By count",
     "basisValue": "By value",
@@ -255,5 +258,10 @@
     "group": "Pipeline projected margin",
     "barLabel": "{{stage}}: {{value}} weighted",
     "emptyStages": "No open pipeline stages"
+  },
+  "breadcrumb": {
+    "label": "Breadcrumb",
+    "home": "Home",
+    "dashboard": "Dashboard"
   }
 }

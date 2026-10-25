@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
@@ -165,7 +165,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const visibleRows = isPending || isError ? [] : activeRows;
   const hasDataRows = visibleRows.length > 0;
 
-  const renderRow = (row: RateRow) => {
+  const renderRow = (row: RateRow, index: number) => {
     const measured = row.sampleCount > 0 && row.rate !== null;
     const percent = measured ? Math.max(0, Math.min(100, row.rate! * 100)) : null;
     const spokenPercent = percent === null ? unavailableLabel : `${percent.toFixed(1)}%`;
@@ -184,7 +184,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
             {measured ? spokenPercent : <><span aria-hidden="true">—</span><span className="sr-only">{unavailableLabel}</span></>}
           </span>
           <span data-testid={sampleTestId} className="block text-xs text-muted-foreground">
-            {row.sampleLabel}
+            {basis === 'count' || index === 0 ? row.sampleLabel : null}
           </span>
         </span>
         <div
@@ -391,9 +391,10 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           {t('dashboard:winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
         </p>
       )}
-      {!isPending && !isError && hasOutcomes && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          {t('uxs03.recordedOutcomesOnly', 'Recorded outcomes only; unrecorded decisions are not counted.')}
+      {!isPending && !isError && basis === 'value' && hasOutcomes && valueRows.some((row) => row.rate === null) && (
+        <p data-testid="win-rate-unavailable-note" className="mt-2 text-xs text-muted-foreground">
+          {t('winRate.valueRateBasisMissing', 'Value win rate needs recorded won and lost amounts in the same currency.')}{' '}
+          <Link to="/projects" className="font-medium text-foreground underline underline-offset-2">{t('winRate.reviewClosedValues', 'Review closed project values')}</Link>
         </p>
       )}
     </section>

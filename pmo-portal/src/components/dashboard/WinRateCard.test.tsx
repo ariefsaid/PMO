@@ -112,6 +112,9 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, recompose the figure
     expect(screen.getByTestId('win-rate-rate-USD')).toHaveTextContent('—');
     expect(screen.getByTestId('win-rate-track-USD')).toHaveAttribute('aria-valuetext', 'Rate unavailable');
     expect(screen.getByTestId('win-rate-values-USD')).toHaveTextContent(/1,000.*0.*1,000/);
+    expect(screen.getAllByText('3 recorded outcomes across currencies')).toHaveLength(1);
+    expect(screen.getByTestId('win-rate-unavailable-note')).toHaveTextContent('Value win rate needs recorded won and lost amounts in the same currency.');
+    expect(screen.getByRole('link', { name: 'Review closed project values' })).toHaveAttribute('href', '/projects');
     expect(screen.queryByTestId('win-rate-rate-count')).not.toBeInTheDocument();
   });
 
@@ -181,14 +184,14 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, recompose the figure
     expect(screen.getByRole('group', { name: /Time frame/i })).toBeInTheDocument();
   });
 
-  it('AC-RF-004: reports exact recorded outcomes and keeps the shared legend', () => {
+  it('AC-RF-004: reports exact recorded outcomes and keeps the shared legend without a permanent caveat', () => {
     renderCard();
     expect(screen.getByTestId('win-rate-values-count')).toHaveTextContent('2 won');
     expect(screen.getByTestId('win-rate-values-count')).toHaveTextContent('1 lost');
     expect(screen.getByTestId('win-rate-sample-count')).toHaveTextContent('3 closed outcomes');
     expect(screen.getByText('Won')).toBeInTheDocument();
     expect(screen.getByText('Lost')).toBeInTheDocument();
-    expect(screen.getByText('Recorded outcomes only; unrecorded decisions are not counted.')).toBeInTheDocument();
+    expect(screen.queryByText('Recorded outcomes only; unrecorded decisions are not counted.')).not.toBeInTheDocument();
   });
 
   it('AC-DEC-002: shows the declined count beside the rate without changing it', () => {

@@ -1,5 +1,6 @@
 {
   "exec": {
+    "winRateDefinition": "Tingkat kemenangan adalah jumlah proyek menang dibagi seluruh hasil proyek menang dan kalah yang ditutup.",
     "activeDefinition": "Nilai kontrak hanya untuk proyek yang sedang dilaksanakan.",
     "actualDefinition": "Aktual buku besar ERP yang tercatat beserta cakupan proyek dan kategori terpetakan.",
     "actualOfContract": "{{project}}: {{percent}}% dari kontrak",
@@ -222,6 +223,8 @@
     }
   },
   "winRate": {
+    "valueRateBasisMissing": "Tingkat kemenangan berdasarkan nilai memerlukan nilai menang dan kalah tercatat dalam mata uang yang sama.",
+    "reviewClosedValues": "Tinjau nilai proyek yang ditutup",
     "title": "Tingkat kemenangan",
     "basisCount": "Menurut jumlah",
     "basisValue": "Menurut nilai",
@@ -255,5 +258,10 @@
     "group": "Margin proyeksi pipeline",
     "barLabel": "{{stage}}: {{value}} tertimbang",
     "emptyStages": "Tidak ada tahap pipeline aktif"
+  },
+  "breadcrumb": {
+    "label": "Breadcrumb",
+    "home": "Beranda",
+    "dashboard": "Dasbor"
   }
 }
