@@ -16,5 +16,8 @@ for (const width of [1440, 1024, 390]) {
     const widths = await names.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
     expect(widths.length).toBeGreaterThan(0);
     for (const w of widths) expect(w, 'project name element has real width').toBeGreaterThan(40);
+    if (width === 390) {
+      for (const w of widths) expect(w, 'phone project identity has room to wrap by words').toBeGreaterThan(240);
+    }
   });
 }

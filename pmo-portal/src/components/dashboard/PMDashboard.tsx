@@ -234,7 +234,7 @@ export const PMDashboard: React.FC = () => {
                         <Link
                           to={`/projects/${project.id}`}
                           title={name !== project.name ? project.name : undefined}
-                          className="flex min-h-11 min-w-0 flex-1 items-center whitespace-normal text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          className="flex min-h-11 min-w-0 basis-72 grow items-center whitespace-normal text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           <span className="min-w-0 break-words">{name}</span>
                         </Link>
