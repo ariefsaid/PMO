@@ -21,11 +21,23 @@ const StillToInvoiceBody: React.FC = () => {
   const { data, isPending, isError, refetch } = useUnbilledWorkOrders();
   const isClear = !isPending && !isError && data !== undefined
     && data.totals.length === 0 && data.incompleteCount === 0;
+  const title = t('dashboard.stillToInvoice.title', 'Still to invoice on work orders');
+
+  if (isClear) {
+    return (
+      <section aria-labelledby="still-to-invoice-title" data-testid="dashboard-still-to-invoice" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 id="still-to-invoice-title" className="text-sm font-semibold">{title}</h2>
+        <p role="status" data-testid="still-to-invoice-clear" className="text-sm text-muted-foreground">
+          {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <Card data-testid="dashboard-still-to-invoice">
-      <CardHead>{t('dashboard.stillToInvoice.title', 'Still to invoice on work orders')}</CardHead>
-      <div className={isClear ? 'px-4 py-2' : 'p-4'}>
+      <CardHead>{title}</CardHead>
+      <div className="p-4">
         {isPending ? (
           <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
@@ -34,14 +46,6 @@ const StillToInvoiceBody: React.FC = () => {
             title={t('dashboard.stillToInvoice.error', "Couldn't load what is still to invoice")}
             onRetry={() => refetch()}
           />
-        ) : data.totals.length === 0 && data.incompleteCount === 0 ? (
-          <div
-            role="status"
-            data-testid="still-to-invoice-clear"
-            className="text-[13px] text-muted-foreground"
-          >
-            {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
-          </div>
         ) : (
           <div className="flex flex-col gap-3">
             <ul className="flex flex-col gap-1" data-testid="still-to-invoice-totals">

@@ -28,9 +28,9 @@ import { isActualComplete } from '@/src/lib/projectFinances';
 
 type CurrencyValue = { currency: string; value: number | null };
 
-function currencyValue(value: number | null, currency: string, unavailableLabel: string): React.ReactNode {
+function currencyValue(value: number | null, currency: string, unavailableLabel: string, noteHref = '#executive-data-note'): React.ReactNode {
   if (value === null || !Number.isFinite(value)) {
-    return <a className="inline-flex min-h-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href="#executive-data-note" aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
+    return <a className="inline-flex min-h-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href={noteHref} aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
   }
   const formatted = formatCurrency(value, currency);
   return <span className="inline-block whitespace-nowrap">{formatted.includes(currency) ? formatted : `${currency} ${formatted}`}</span>;
@@ -133,7 +133,7 @@ const ExecutiveAttention: React.FC<{
       <h2 id="executive-attention-title" className="mb-2 text-lg font-semibold">
         {t('uxs03.attentionAndApprovals', 'Attention and approvals')}
       </h2>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-6">
         <div className="min-w-0 space-y-1 text-sm">
           <p>{riskText}</p>
           <p className={approvalError ? 'text-muted-foreground' : ''}>{approvalText}</p>
@@ -193,9 +193,6 @@ const DeliveryBook: React.FC<{
     ? <Link to="/administration/accounting#budget-account-map" className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
     : <span>{t('exec.askAdministrator', 'Ask an administrator to complete missing budget or accounting data.')}</span>;
   const abnormalReasons: string[] = data ? [
-      actualIncomplete
-      ? t('exec.incompleteActualNote', 'Some delivery Actual values are incomplete.')
-      : null,
     contractUnavailable
       ? t('exec.contractUnavailableNote', 'Contract value is unavailable for one or more currencies.')
       : null,
@@ -243,13 +240,16 @@ const DeliveryBook: React.FC<{
               <dt className="text-sm font-medium">{t('dashboard:exec.knownActual', 'Known Actual')}</dt>
               <dd data-testid="dashboard-known-actual" className="min-w-0 text-sm tabular">
                 <div className="flex flex-wrap gap-x-5 gap-y-1">
-                  {actual.map((row) => <span key={row.currency} className="inline-block whitespace-nowrap">{currencyValue(row.value, row.currency, t('exec.actualUnavailable', 'Actual unavailable; see data note'))}</span>)}
+                  {actual.map((row) => <span key={row.currency} className="inline-block whitespace-nowrap">{currencyValue(row.value, row.currency, t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}</span>)}
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
-                  {' · '}
-                  {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
-                </p>
+                {actualIncomplete && (
+                  <p id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="mt-1 text-xs text-muted-foreground">
+                    {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
+                    {' · '}
+                    {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
+                    {' · '}{mapNote}
+                  </p>
+                )}
               </dd>
             </div>
             {metricRows(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), remaining, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}

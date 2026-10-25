@@ -1301,14 +1301,7 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Menunggu persetujuan Anda",
-        "unavailable": "tidak tersedia — periksa koneksi",
-        "one": "{{count}} item menunggu",
-        "many": "{{count}} item menunggu",
-        "linkUnavailable": "{{label}}: tidak tersedia",
-        "linkOne": "{{label}}: {{count}} item menunggu",
-        "linkMany": "{{label}}: {{count}} item menunggu",
-        "review": "Tinjau"
+        "label": "Menunggu persetujuan Anda"
       },
       "helpLabel": "Bantuan: {{label}}"
     },
@@ -3435,8 +3428,6 @@
     },
     "emptyEdit": {
       "sub": "Gunakan “Tambahkan proyek” di atas untuk mulai mencatat jam.",
-      "assignmentPrerequisite": "Anda memerlukan proyek pelaksanaan yang ditugaskan sebelum dapat mencatat jam. Minta manajer proyek untuk menugaskan proyek kepada Anda.",
-      "viewAssignedProjects": "Lihat proyek yang ditugaskan",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
@@ -4594,7 +4585,6 @@
     "coverage": "Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan",
     "coverageCategories": "Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan",
     "openAccountingMap": "Tinjau pemetaan akuntansi",
-    "recordedOutcomesOnly": "Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.",
     "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget": "Anggaran aktif",
     "actual": "Aktual",

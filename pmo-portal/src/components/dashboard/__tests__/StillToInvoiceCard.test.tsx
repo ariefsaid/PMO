@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -72,6 +72,9 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
     h.state = { data: { totals: [], incompleteCount: 0, rows: [], incomplete: [] }, isPending: false, isError: false, refetch: vi.fn() };
     const view = renderCard();
     expect(screen.getByText('Nothing left to invoice on issued work orders')).toBeInTheDocument();
+    const clearRegion = screen.getByRole('region', { name: 'Still to invoice on work orders' });
+    expect(within(clearRegion).getByRole('status')).toHaveTextContent('Nothing left to invoice on issued work orders');
+    expect(screen.getAllByText('Nothing left to invoice on issued work orders')).toHaveLength(1);
     view.unmount();
     h.state = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     const loading = renderCard();

@@ -70,6 +70,7 @@ const PICKER_NAME_MAX = 36;
 
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { t: tTimesheets } = useTranslation('timesheets');
   const isDesktop = useIsDesktop();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
@@ -811,10 +812,10 @@ const TimesheetsPage: React.FC = () => {
               {pickerOptions.length === 0 ? (
                 <>
                   <p className="mt-1 text-[13px] text-muted-foreground">
-                    {t('timesheets.emptyEdit.assignmentPrerequisite', 'You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')}
+                    {tTimesheets('emptyEdit.assignmentPrerequisite', 'You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')}
                   </p>
                   <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline underline-offset-2">
-                    {t('timesheets.emptyEdit.viewAssignedProjects', 'View assigned projects')}
+                    {tTimesheets('emptyEdit.viewAssignedProjects', 'View assigned projects')}
                   </Link>
                 </>
               ) : (

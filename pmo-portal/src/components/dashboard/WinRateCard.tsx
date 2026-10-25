@@ -393,8 +393,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       )}
       {!isPending && !isError && basis === 'value' && hasOutcomes && valueRows.some((row) => row.rate === null) && (
         <p data-testid="win-rate-unavailable-note" className="mt-2 text-xs text-muted-foreground">
-          {t('winRate.valueRateBasisMissing', 'Value win rate needs recorded won and lost amounts in the same currency.')}{' '}
-          <Link to="/projects" className="font-medium text-foreground underline underline-offset-2">{t('winRate.reviewClosedValues', 'Review closed project values')}</Link>
+          {t('dashboard:winRate.valueRateBasisMissing', 'Value win rate needs recorded won and lost amounts in the same currency.')}{' '}
+          <Link to="/projects" className="font-medium text-foreground underline underline-offset-2">{t('dashboard:winRate.reviewClosedValues', 'Review closed project values')}</Link>
         </p>
       )}
     </section>

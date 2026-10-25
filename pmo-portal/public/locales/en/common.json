@@ -1301,14 +1301,7 @@
     },
     "kpi": {
       "awaitingApproval": {
-        "label": "Awaiting your approval",
-        "unavailable": "unavailable — check connection",
-        "one": "{{count}} item waiting",
-        "many": "{{count}} items waiting",
-        "linkUnavailable": "{{label}}: unavailable",
-        "linkOne": "{{label}}: {{count}} item awaiting",
-        "linkMany": "{{label}}: {{count}} items awaiting",
-        "review": "Review"
+        "label": "Awaiting your approval"
       },
       "helpLabel": "Help: {{label}}"
     },
@@ -3435,8 +3428,6 @@
     },
     "emptyEdit": {
       "sub": "Use “Add a project” above to start logging hours.",
-      "assignmentPrerequisite": "You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.",
-      "viewAssignedProjects": "View assigned projects",
       "title": "No hours logged this week"
     },
     "enterHoursToSubmit": "Enter hours to submit",
@@ -4594,7 +4585,6 @@
     "coverage": "Actual available for {{known}} of {{total}} delivery projects",
     "coverageCategories": "Actual coverage: {{known}} of {{total}} mapped cost categories",
     "openAccountingMap": "Review accounting mappings",
-    "recordedOutcomesOnly": "Recorded outcomes only; unrecorded decisions are not counted.",
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
     "activeBudget": "Active budget",
     "actual": "Actual",

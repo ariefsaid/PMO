@@ -98,8 +98,18 @@ describe('Executive dashboard localized figures', () => {
     const unknownDelivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
     const unknownRow = screen.getByTestId('dashboard-known-actual');
     expect(unknownRow).toHaveTextContent('—');
-    expect(within(unknownRow as HTMLElement).getByRole('link')).toHaveAttribute('href', '#executive-data-note');
+    expect(within(unknownRow as HTMLElement).getByRole('link')).toHaveAttribute('href', '#executive-actual-note');
     expect(unknownDelivery).toHaveTextContent('Beberapa nilai portofolio tidak tersedia');
+  });
+
+  it('AC-806-EXEC-ACTUAL-001: scopes incomplete Actual coverage and its next step beside the figure', () => {
+    state.actual = null;
+    renderDashboard();
+    const note = screen.getByTestId('dashboard-actual-coverage-note');
+    expect(note).toHaveTextContent('Aktual tersedia untuk 0 dari 1 proyek pelaksanaan');
+    expect(note).toHaveTextContent('Cakupan aktual: 0 dari 1 kategori biaya terpetakan');
+    expect(note.textContent).toMatch(/Tinjau pemetaan akuntansi|Minta administrator/);
+    expect(screen.queryByText('Aktual beberapa proyek pelaksanaan belum lengkap.')).not.toBeInTheDocument();
   });
 
   it('keeps Indonesian risk action and project identity destinations', () => {
