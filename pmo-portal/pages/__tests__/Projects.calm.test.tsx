@@ -108,17 +108,18 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getByLabelText('Filter by customer')).toBeInTheDocument();
   });
 
-  it('Actual cells are amount only; one table note carries partial coverage and the date', () => {
+  it('Actual cells name unavailable coverage while one table note carries shared details', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).queryByText(/ERP actual|Committed POs|Updated|Incomplete source coverage/)).not.toBeInTheDocument();
-    expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    expect(within(body).queryByText(/ERP actual|Committed POs|Updated/)).not.toBeInTheDocument();
+    expect(within(body).getAllByText('Incomplete source coverage')).toHaveLength(4);
     const notes = screen.getAllByText(/Actual is partial on/);
     expect(notes).toHaveLength(1);
     expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
     // null Actual stays unavailable, never 0
     const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
-    expect(within(partialRow).getAllByText('Unavailable').length).toBeGreaterThan(0);
+    expect(within(partialRow).getAllByText('Incomplete source coverage')).toHaveLength(2);
+    expect(within(partialRow).getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -131,8 +132,8 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
   it('only a restricted row carries a per-row tag', () => {
     renderPage();
     const restricted = screen.getByText('Synthetic project 3').closest('tr')!;
-    expect(within(restricted).getByText('Restricted excluded')).toBeInTheDocument();
-    expect(screen.getAllByText('Restricted excluded')).toHaveLength(1);
+    expect(within(restricted).getAllByText('Restricted rows excluded')).toHaveLength(2);
+    expect(screen.getAllByText('Restricted rows excluded')).toHaveLength(2);
   });
 
   it('Budget used reports the percentage against its Active-budget basis', () => {
@@ -145,6 +146,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     renderPage();
     const noPhases = screen.getByText('Synthetic project 0').closest('tr')!;
     expect(within(noPhases).getByText('No phases yet')).toBeInTheDocument();
+    expect(within(noPhases).getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p0/overview');
   });
 
   it('phone Filters panel drops the "Loading options…" and "No options available" lines', async () => {

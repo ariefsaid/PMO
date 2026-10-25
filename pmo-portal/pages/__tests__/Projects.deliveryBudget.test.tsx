@@ -132,7 +132,8 @@ describe('Projects delivery progress + budget used', () => {
 
     expect(screen.getAllByText(/Actual is partial on/)).toHaveLength(1);
     expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
-    expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    expect(screen.getAllByText('Incomplete source coverage')).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
     expect(screen.getByText('$1,234,568.00')).toBeInTheDocument();
     expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="$7,654,321.00"]')).not.toBeNull();
     expect(screen.queryByText(/\$1\.2M of \$7\.7M/)).not.toBeInTheDocument();
@@ -145,8 +146,9 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getByText('Budget used')).toBeInTheDocument();
     expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000.00 of $3,800,000.00 Active budget');
     expect(screen.getByText('53%')).toBeInTheDocument();
-    // PL-A: a project without phases shows a dash (its reason is the title), not prose.
+    // A project without phases names that state and links to the delivery plan.
     expect(screen.getByText('No phases yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p2/overview');
 
     // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
     // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and
@@ -159,6 +161,27 @@ describe('Projects delivery progress + budget used', () => {
 
     const deliveryCell = screen.getByLabelText('Delivery 50%').closest('td')!;
     expect(within(deliveryCell).getByText('50%')).toBeInTheDocument();
+  });
+
+  it('R-010: the full project identity context wraps instead of truncating references', () => {
+    projectsState.data = [{
+      ...fixtures[0],
+      pmo_project_number: 'PMO-2026-000041-LONG-REFERENCE',
+      code: 'CUSTOMER-CODE-ALPHA-0042',
+      customer_contract_ref: 'CONTRACT-REFERENCE-2026-0007',
+      end_client: { name: 'End Customer Group' },
+    } as ProjectWithRefs];
+
+    renderPage();
+
+    const secondary = screen.getByTestId('projects-identity-secondary');
+    expect(secondary).toHaveTextContent('Acme');
+    expect(secondary).toHaveTextContent('End Customer Group');
+    expect(secondary).toHaveTextContent('PMO-2026-000041-LONG-REFERENCE');
+    expect(secondary).toHaveTextContent('CUSTOMER-CODE-ALPHA-0042');
+    expect(secondary).toHaveTextContent('CONTRACT-REFERENCE-2026-0007');
+    expect(secondary.parentElement).toHaveClass('whitespace-normal', 'break-words');
+    expect(secondary.closest('.truncate')).toBeNull();
   });
 
   it('I7: while delivery summary is loading, shows placeholder — no flash of false empty state', () => {
@@ -182,7 +205,8 @@ describe('Projects delivery progress + budget used', () => {
     const noMilestonesRow = screen.getByText('No Milestones Yet').closest('tr')!;
     const budgetColumn = screen.getAllByRole('columnheader').findIndex((header) => header.textContent === 'Budget used');
     const budgetCell = within(noMilestonesRow).getAllByRole('cell')[budgetColumn];
-    expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(budgetCell).getByText('Incomplete source coverage')).toBeInTheDocument();
+    expect(within(budgetCell).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p2/overview');
     expect(within(budgetCell).queryByText(/\$0 of \$0/i)).not.toBeInTheDocument();
   });
 });

@@ -62,6 +62,8 @@ import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/proje
 import { sortProjectRows } from '@/src/lib/projects/projectSorting';
 import type { ProjectSort } from '@/src/lib/projects/projectSorting';
 import { ProjectPageFrame } from '@/src/components/projects/ProjectPageFrame';
+import { ProjectDataState } from '@/src/components/projects/ProjectDataState';
+import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { Link } from 'react-router';
 
 /**
@@ -401,7 +403,8 @@ const Projects: React.FC = () => {
   // amount-less category, and the newest ERP update among the visible rows.
   const partialRows = filtered.filter((project) => {
     const money = projectMoney?.[project.id];
-    return money?.ledgerBasis === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null);
+    const basis = money?.ledgerBasis ?? 'erp';
+    return basis === 'erp' && Boolean(money && money.actuals.categories.some((category) => !category.mapped || category.amount == null));
   });
   const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
@@ -410,27 +413,50 @@ const Projects: React.FC = () => {
   const coverageReason = partialRows.length === 0 ? undefined : coverageAsOf
     ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
     : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length });
+  const actualStateLabel = (money?: ProjectMoneyRead) => {
+    if (moneyError || !money || money.ledgerBasis === 'unavailable') return t('uxs02.unavailable', 'Unavailable');
+    if (money.actuals.excludesRestrictedRows) return t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded');
+    if ((money.ledgerBasis ?? 'erp') === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null)) {
+      return t('uxs02.incompleteCoverage', 'Incomplete source coverage');
+    }
+    return t('uxs02.unavailable', 'Unavailable');
+  };
+  const linkedDataState = (project: ProjectWithRefs, label: string, destination: 'overview' | 'budget' | 'delivery' = 'overview') => (
+    <ProjectDataState
+      label={label}
+      to={`/projects/${project.id}/${destination === 'budget' ? 'budget' : 'overview'}`}
+      actionLabel={destination === 'budget'
+        ? t('projects.actions.reviewBudget', 'Review budget')
+        : destination === 'delivery'
+          ? t('projects.actions.reviewDelivery', 'Review delivery plan')
+          : t('projects.actions.reviewFinances', 'Review project finances')}
+      align="end"
+    />
+  );
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 240,
-      minSize: 240,
-      maxSize: 640,
+      size: 320,
+      minSize: 300,
+      maxSize: 520,
+      secondaryWrap: true,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
         const references = [
-          p.pmo_project_number && t('projects.identifiers.pmo', 'PMO Project Number') + ': ' + p.pmo_project_number,
-          p.code && t('projects.identifiers.client', 'Client Project Code') + ': ' + p.code,
-          p.customer_contract_ref && t('uxs14.contractReference', 'Customer contract reference') + ': ' + p.customer_contract_ref,
-        ].filter((value): value is string => Boolean(value));
+          p.pmo_project_number && [t('projects.identifiers.pmo', 'PMO Project Number'), p.pmo_project_number],
+          p.code && [t('projects.identifiers.client', 'Client Project Code'), p.code],
+          p.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), p.customer_contract_ref],
+        ].filter((value): value is [string, string] => Boolean(value));
         return (
-          <span className="block min-w-0 space-y-0.5" onClick={(event) => event.stopPropagation()}>
-            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="touch-target block max-w-full break-words text-[12px]" />}
-            {p.end_client && <span className="block break-words text-[11px] text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
-            {references.length > 0 && <span className="block break-all font-mono text-[10px] text-muted-foreground">{references.join(' · ')}</span>}
+          <span data-testid="projects-identity-secondary" className="block min-w-0 space-y-1" onClick={(event) => event.stopPropagation()}>
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="touch-target block max-w-full break-words text-xs" />}
+            {p.end_client && <span className="block break-words text-xs text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
+            {references.length > 0 && <span className="block min-w-0 space-y-0.5 text-xs text-muted-foreground">
+              {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words">{label}: <span className="break-all font-mono text-foreground">{value}</span></span>)}
+            </span>}
           </span>
         );
       },
@@ -466,9 +492,9 @@ const Projects: React.FC = () => {
       key: 'pm',
       header: t('projects.columns.pm', 'PM'),
       kind: 'meta',
-      size: 112,
-      minSize: 112,
-      maxSize: 320,
+      size: 176,
+      minSize: 160,
+      maxSize: 280,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -485,7 +511,7 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
-        return <span className="text-[12px] text-foreground">{label}</span>;
+        return <span className="block whitespace-normal break-words text-sm leading-snug text-foreground">{label}</span>;
       },
     },
     {
@@ -558,11 +584,9 @@ const Projects: React.FC = () => {
       colClassName: 'xl:pr-4',
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
-        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
-        if (moneyError || !money) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
-        }
+        if (moneyError || !money) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'));
         const actualPosition = deriveActualPosition({
           ledgerBasis: money.ledgerBasis,
           committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
@@ -581,16 +605,10 @@ const Projects: React.FC = () => {
         if (actual == null) {
           // Unknown is never 0. Partial coverage is explained once, by the table note; only a row that
           // excludes restricted rows is marked on its own (its cause is not a coverage gap).
-          const restricted = money.actuals.excludesRestrictedRows;
-          const reason = restricted ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
-          return (
-            <span className="text-muted-foreground" title={reason}>
-              —<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span>
-              {restricted && <span className="ml-1 text-[11px]">{t('projects:actual.restrictedTag', 'Restricted excluded')}</span>}
-            </span>
-          );
+          return linkedDataState(p, actualStateLabel(money));
         }
-        return <span className="text-muted-foreground">{formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale()) ?? '—'}</span>;
+        const formattedActual = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale());
+        return formattedActual == null ? linkedDataState(p, t('uxs02.unavailable', 'Unavailable')) : <span className="text-muted-foreground">{formattedActual}</span>;
       },
     },
     {
@@ -603,14 +621,14 @@ const Projects: React.FC = () => {
       colClassName: 'xl:pl-4',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
-        if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
+        if (deliveryError) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'), 'delivery');
         if (deliveryPending) {
-          return <span className="text-[12px] text-muted-foreground">…</span>;
+          return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
           const noPhases = t('projects.noPhasesYet', 'No phases yet');
-          return <span className="break-words text-[12px] text-muted-foreground">{noPhases}</span>;
+          return linkedDataState(p, noPhases, 'delivery');
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -628,31 +646,30 @@ const Projects: React.FC = () => {
       minSize: 152,
       maxSize: 320,
       cell: (p) => {
-        if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
+        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
         const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
         const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-        if (moneyError || !money) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
+        if (moneyError || !money) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'));
+        if (!money.hasActiveBudget) {
+          return linkedDataState(p, t('uxs02.noActiveBudget', 'No active budget'), 'budget');
         }
-        if (!money.hasActiveBudget || activeBudget == null) {
-          return <span className="text-muted-foreground" title={t('uxs02.noActiveBudget', 'No active budget')}>—<span className="sr-only"> {t('uxs02.noActiveBudget', 'No active budget')}</span></span>;
-        }
+        if (activeBudget == null) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'), 'budget');
         if (activeBudget === 0) {
           const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
-          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {reason}</span></span>;
+          return linkedDataState(p, reason, 'budget');
         }
         if (actual == null) {
-          return <span className="text-muted-foreground" title={t('uxs02.unavailable', 'Unavailable')}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}</span></span>;
+          return linkedDataState(p, actualStateLabel(money));
         }
         if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
-          return <span className="text-muted-foreground" title={t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}>—<span className="sr-only"> {t('uxs02.currencyMismatch', 'Budget currency differs from Actual')}</span></span>;
+          return linkedDataState(p, t('uxs02.currencyMismatch', 'Budget currency differs from Actual'), 'budget');
         }
         const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
           categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
         if (!completeCoverage) {
           const reason = money.actuals.excludesRestrictedRows ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
-          return <span className="text-muted-foreground" title={reason}>—<span className="sr-only"> {t('uxs02.unavailable', 'Unavailable')}: {reason}</span></span>;
+          return linkedDataState(p, reason);
         }
         const percent = Math.round((actual / activeBudget) * 100);
         const atRisk = isAtRiskActual(p);
@@ -834,7 +851,8 @@ const Projects: React.FC = () => {
   else content = (
     <div className="grid min-w-0 grid-cols-1 gap-3.5 md:grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))]">
       {filtered.map((project) => <ProjectCard key={project.id} project={project} onOpen={(row) => onOpen(row, 'card')}
-        deliverySummary={deliverySummary?.[project.id]} projectMoney={projectMoney?.[project.id]}
+        deliverySummary={deliverySummary?.[project.id]} deliveryPending={deliveryPending} deliveryError={deliveryError}
+        projectMoney={projectMoney?.[project.id]} projectMoneyPending={moneyPending} projectMoneyError={moneyError}
         onEdit={canEdit ? (row) => setEditTarget(row) : undefined} />)}
     </div>
   );

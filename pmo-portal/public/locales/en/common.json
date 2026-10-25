@@ -3003,7 +3003,10 @@
     "actions": {
       "archive": "Archive",
       "edit": "Edit",
-      "new": "New project"
+      "new": "New project",
+      "reviewBudget": "Review budget",
+      "reviewFinances": "Review project finances",
+      "reviewDelivery": "Review delivery plan"
     },
     "atRiskPill": "At risk",
     "columns": {
@@ -3021,6 +3024,9 @@
       "archiveTitle": "Archive project?"
     },
     "description": "Pre-win projects live in the Pipeline.",
+    "data": {
+      "loading": "Loading…"
+    },
     "empty": {
       "clearFilters": "Clear filters",
       "noMatchSub": "Try a different status, customer, PM, or search term.",

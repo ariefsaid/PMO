@@ -133,11 +133,11 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
           ? t('projects.card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
           : t('projects.dates.noExpectedEnd', 'No expected end')}
       </span>
-      {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words text-[11px] text-muted-foreground"><span className="font-medium">{label}:</span> {value}</span>)}
+      {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words text-xs text-muted-foreground"><span className="font-medium">{label}:</span> <span className="break-all font-mono text-foreground">{value}</span></span>)}
       <span className="block break-words text-[12px] font-semibold tabular">
         {formatCurrency(project.contract_value, project.currency)} <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
       </span>
-      <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.columns.pm', 'PM')}: {pmLabel}</span>
+      <span className="block min-w-0 break-words text-sm text-foreground">{t('projects.columns.pm', 'PM')}: {pmLabel}</span>
     </button>
   );
 };

@@ -166,6 +166,26 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     // header primary action preserved
     expect(within(toolbar).getByRole('button', { name: /new project/i })).toBeInTheDocument();
   });
+
+  it('R-009/R-013: the complete scope selector follows search and precedes the ordered narrowing tools', () => {
+    renderPage();
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const search = within(toolbar).getByRole('searchbox', { name: /search projects/i });
+    const scope = within(toolbar).getByRole('combobox', { name: 'Scope' }) as HTMLSelectElement;
+    const filters = within(toolbar).getByRole('button', { name: /^Filters/i });
+    const sort = within(toolbar).getByRole('combobox', { name: 'Sort projects' });
+    const view = within(toolbar).getByRole('combobox', { name: 'View' });
+    const more = within(toolbar).getByRole('button', { name: /^More actions/i });
+    const create = within(toolbar).getByRole('button', { name: /new project/i });
+    const scopeOptions = Array.from(scope.options).map((option) => option.textContent);
+
+    expect(scopeOptions).toEqual(['All', 'My Projects', 'Ongoing', 'Completed', 'At risk']);
+    const orderedControls = [search, scope, filters, sort, view, more, create];
+    orderedControls.slice(0, -1).forEach((earlier, index) => {
+      const later = orderedControls[index + 1];
+      expect(later && Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
+  });
 });
 
 describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {

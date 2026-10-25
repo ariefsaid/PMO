@@ -58,6 +58,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.getByText('No phases yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p1/overview');
   });
 
   it('has no status-change control; the status pill remains', () => {
@@ -76,15 +77,15 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).getAllByLabelText('25% of Active budget')).toHaveLength(1);
   });
 
-  it('a partial Actual shows Unavailable (never a partial total), with no per-card coverage prose', () => {
+  it('a partial Actual names incomplete coverage, offers a next step, and never shows a partial total', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money({
       actuals: { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
     } as Partial<ProjectMoneyRead>)} />);
     const card = screen.getByRole('article');
     expect(within(card).queryByText('$450.00')).not.toBeInTheDocument();
-    expect(within(card).getAllByText('Unavailable')).toHaveLength(2);
-    expect(within(card).queryByText(/Incomplete source coverage/)).not.toBeInTheDocument();
+    expect(within(card).getAllByText('Incomplete source coverage')).toHaveLength(2);
+    expect(within(card).getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
   });
 
   it('the contract states its tax basis', () => {

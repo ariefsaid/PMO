@@ -603,7 +603,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     expect(actualCell.textContent).toBe('$125,000.00');
   });
 
-  it('AC-S02-009: unknown Actual and missing Active budget stay unavailable, never zero or at risk', async () => {
+  it('AC-S02-009: unknown Actual and missing Active budget name their states and next steps', async () => {
     projectMoneyState.data = {
       p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: null, asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: false, amount: null }] }, activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false },
@@ -617,14 +617,31 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
-    expect(row.cells[actualHeaderIndex].textContent).toContain('—');
-    expect(row.cells[actualHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'Incomplete source coverage');
-    expect(row.cells[budgetHeaderIndex].textContent).toContain('—');
-    expect(row.cells[budgetHeaderIndex].querySelector('[title]')).toHaveAttribute('title', 'No active budget');
+    expect(within(row.cells[actualHeaderIndex]).getByText('Incomplete source coverage')).toBeInTheDocument();
+    expect(within(row.cells[actualHeaderIndex]).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p1/overview');
+    expect(within(row.cells[budgetHeaderIndex]).getByText('No active budget')).toBeInTheDocument();
+    expect(within(row.cells[budgetHeaderIndex]).getByRole('link', { name: 'Review budget' })).toHaveAttribute('href', '/projects/p1/budget');
     // The coverage explanation is the one table note, not a per-row string.
     expect(screen.getAllByText(/Actual is partial on 1 of 2 projects/)).toHaveLength(1);
     expect(within(body).queryByText('At risk')).not.toBeInTheDocument();
     expect(within(body).queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('AC-S02/R-012: an Active budget with an unreadable amount is not labelled as absent', () => {
+    projectMoneyState.data = {
+      p1: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '100.00', asOf: null, excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '100.00' }] }, activeBudgetAmount: null, activeBudgetCurrency: 'USD', hasActiveBudget: true },
+      p2: { ledgerBasis: 'erp', actuals: { currency: 'USD', total: '100.00', asOf: null, excludesRestrictedRows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '100.00' }] }, activeBudgetAmount: '1000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true },
+    };
+    projectsState.data = [{ ...seed[0], spent: 0 }, { ...seed[1], spent: 0 }] as unknown as ProjectWithRefs[];
+    renderPage();
+    const body = document.querySelector('tbody')!;
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    const budgetCell = body.querySelector('tr')!.cells[budgetHeaderIndex];
+    expect(within(budgetCell).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(budgetCell).getByRole('link', { name: 'Review budget' })).toHaveAttribute('href', '/projects/p1/budget');
+    expect(within(budgetCell).queryByText('No active budget')).not.toBeInTheDocument();
   });
 
   it('AC-S02-012: known zero Actual is distinct from unavailable and uses the Active-budget denominator', () => {
@@ -671,8 +688,9 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       const body = document.querySelector('tbody')!;
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
       const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
-      const actualTitle = body.querySelector('tr')!.cells[actualHeaderIndex].querySelector('[title]');
-      expect(actualTitle).toHaveAttribute('title', actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage');
+      const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
+      expect(within(actualCell).getByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage')).toBeInTheDocument();
+      expect(within(actualCell).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p1/overview');
       expect(body.querySelector('tr')!.cells[actualHeaderIndex].textContent).not.toContain('$450,000');
       unmountAll();
     }

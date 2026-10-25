@@ -3003,7 +3003,10 @@
     "actions": {
       "archive": "Arsipkan",
       "edit": "Edit",
-      "new": "Proyek baru"
+      "new": "Proyek baru",
+      "reviewBudget": "Tinjau anggaran",
+      "reviewFinances": "Tinjau keuangan proyek",
+      "reviewDelivery": "Tinjau rencana pelaksanaan"
     },
     "atRiskPill": "Berisiko",
     "columns": {
@@ -3021,6 +3024,9 @@
       "archiveTitle": "Arsipkan proyek ini?"
     },
     "description": "Proyek pra-menang ada di Pipeline.",
+    "data": {
+      "loading": "Memuat…"
+    },
     "empty": {
       "clearFilters": "Hapus filter",
       "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",

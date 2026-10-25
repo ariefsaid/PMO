@@ -166,7 +166,8 @@ describe('ProjectCard', () => {
     expect(screen.getByText('$125,000.00')).toBeInTheDocument();
     // Not comparable: no Budget used bar (and no repeated explanation on the card).
     expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
-    expect(screen.queryByText('Budget currency differs from Actual')).not.toBeInTheDocument();
+    expect(screen.getByText('Budget currency differs from Actual')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review budget' })).toHaveAttribute('href', '/projects/p1/budget');
   });
 
   it('formats the exact Actual with the selected number locale, independently of UI language', () => {
@@ -189,18 +190,24 @@ describe('ProjectCard', () => {
     expect(screen.queryByText('At risk')).not.toBeInTheDocument();
   });
 
-  it('AC-S02: partial or restricted Actual shows Unavailable and never drives budget usage', () => {
-    for (const actuals of [
-      { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
-      { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }] },
-    ]) {
+  it('AC-S02/R-012: partial and restricted Actual names its state and offers finance review without driving budget usage', () => {
+    for (const [actuals, expectedState] of [
+      [{ currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] }, 'Incomplete source coverage'],
+      [{ currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }] }, 'Restricted rows excluded'],
+    ] as const) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
       expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
-      expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+      expect(screen.getAllByText(expectedState)).toHaveLength(2);
+      expect(screen.getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
       expect(screen.queryByRole('progressbar', { name: /Active budget/i })).not.toBeInTheDocument();
-      expect(screen.queryByText(/Restricted rows excluded|Incomplete source coverage/)).not.toBeInTheDocument();
       unmount();
     }
+  });
+
+  it('R-012: missing delivery phases have a named next step', () => {
+    render(<ProjectCard project={base} onOpen={vi.fn()} />);
+    expect(screen.getByText('No phases yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p1/overview');
   });
 
   it('PL-B: a known Actual carries no per-card freshness prose', () => {
@@ -252,6 +259,18 @@ describe('ProjectCard', () => {
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();
+  });
+
+  it('AC-S02/R-012: a present Active budget without a readable amount is unavailable, not absent', () => {
+    const projectMoney: ProjectMoneyRead = {
+      ledgerBasis: 'erp',
+      actuals: { currency: 'USD', total: '125.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125.00' }] },
+      activeBudgetAmount: null, activeBudgetCurrency: 'USD', hasActiveBudget: true,
+    };
+    render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Review budget' })).toHaveLength(2);
   });
 });
 
