@@ -1320,7 +1320,7 @@
   "expenses": {
     "postings": {
       "errorSub": "Klaim itu sendiri tidak terpengaruh. Coba lagi.",
-      "errorTitle": "Tidak dapat memuat posting buku besar",
+      "errorTitle": "Gagal memuat aktivitas akuntansi",
       "kind": {
         "advancePayment": "Pembayaran uang muka",
         "advanceReturn": "Pengembalian tunai",
@@ -1328,6 +1328,15 @@
         "approvalCancel": "Persetujuan dibatalkan",
         "claimPayment": "Pembayaran tunai",
         "settlement": "Penyelesaian uang muka"
+      },
+      "accountingActivity": "Aktivitas akuntansi",
+      "summary": {
+        "cancelledInErp": "Dibatalkan di ERPNext: {{count}}",
+        "count": "Entri: {{count}}",
+        "failed": "Gagal: {{count}}",
+        "held": "Perlu ditinjau operator: {{count}}",
+        "pending": "Dalam antrean: {{count}}",
+        "pushed": "Terposting: {{count}}"
       },
       "state": {
         "cancelledInErp": "Dibatalkan di ERPNext",
@@ -1444,6 +1453,7 @@
       "advanceApplied": "Uang muka dipakai",
       "amount": "Jumlah",
       "back": "Biaya",
+      "backToRegister": "Kembali ke pengeluaran",
       "cashPaid": "Kas dibayar",
       "editDetails": "Ubah detail",
       "errorSub": "Terjadi kesalahan saat memuat. Coba lagi.",
@@ -1452,6 +1462,7 @@
       "notFoundSub": "Tidak ada, atau bukan milik Anda dan Anda tidak menyetujui pengeluaran.",
       "notFoundTitle": "Tidak ditemukan",
       "outstanding": "Belum diselesaikan",
+      "purposeAndAmount": "Tujuan dan jumlah",
       "reference": "Referensi pembayaran",
       "rejectionNote": "Ditolak: {{note}}",
       "summary": "Ringkasan"

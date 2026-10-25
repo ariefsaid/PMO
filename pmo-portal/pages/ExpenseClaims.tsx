@@ -18,6 +18,7 @@ import {
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { AdvanceAgingCard } from './expenses/AdvanceAgingCard';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { expenseKindLabel, expenseStatusLabel, agingBucketLabel } from './expenses/expenseLabels';
 import { MoneyOutListPage } from './procurement/MoneyOutHeader';
 
@@ -29,6 +30,7 @@ const ExpenseClaims: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
+  const { openRecord } = useRecordContext('/expenses');
   const may = usePermission();
   const { toast } = useToast();
   const latestSearch = useRef(location.search);
@@ -70,6 +72,7 @@ const ExpenseClaims: React.FC = () => {
   const advanceOptions = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
+  const goToNewClaim = () => navigate(`/expenses/new${project !== 'All' ? `?project=${encodeURIComponent(project)}` : ''}`);
   const rows = data?.rows ?? [];
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
 
@@ -138,7 +141,7 @@ const ExpenseClaims: React.FC = () => {
       primaryAction={canCreate && (
         <span className="flex flex-wrap gap-2 max-sm:w-full">
           <Button variant="outline" className="min-h-11" onClick={() => setFormKind('advance')}>{t('expenses.actions.requestAdvance', 'Request advance')}</Button>
-          <Button variant="primary" className="min-h-11 max-sm:flex-1" onClick={() => navigate('/expenses/new')}>
+          <Button variant="primary" className="min-h-11 max-sm:flex-1" onClick={goToNewClaim}>
             <Icon name="plus" />{t('expenses.actions.newClaim', 'New claim')}
           </Button>
         </span>
@@ -193,7 +196,7 @@ const ExpenseClaims: React.FC = () => {
           variant="empty"
           title={hasFilters ? t('expenses.table.noMatch', 'No expenses match these filters') : t('expenses.table.emptyTitle', 'No expenses here yet')}
           sub={hasFilters ? undefined : t('expenses.table.emptySub', 'File a claim after the work, or request an advance before it.')}
-          action={!hasFilters && canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: () => navigate('/expenses/new') } : undefined}
+          action={!hasFilters && canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: goToNewClaim } : undefined}
         />
       ) : (
         <>
@@ -204,7 +207,7 @@ const ExpenseClaims: React.FC = () => {
             rows={rows}
             columns={columns}
             rowKey={(r) => r.id}
-            onActivate={(r) => navigate(`/expenses/${r.id}`)}
+            onActivate={(r) => openRecord(r.id)}
             rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
             tableId="expenseclaims-table"
           />
@@ -220,7 +223,7 @@ const ExpenseClaims: React.FC = () => {
             const claimId = (await create.mutateAsync(input)).id;
             toast(t('expenses.toast.created', 'Created'), input.title, 'success');
             setFormKind(null);
-            navigate(`/expenses/${claimId}`);
+            openRecord(claimId);
           }}
         />
       )}

@@ -121,6 +121,21 @@ describe('ExpenseClaims page', () => {
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
 
+  it('AC-806 carries the selected project into new-claim capture', async () => {
+    renderPage('/expenses?project=p1&sort=oldest');
+    await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new?project=p1');
+  });
+
+  it('AC-806 opens a record with the exact expense working set as its return context', async () => {
+    renderPage('/expenses?q=client&project=p1&status=Submitted&sort=oldest');
+    await userEvent.click(screen.getByRole('row', { name: /Site visit/ }));
+    expect(mockNavigate).toHaveBeenCalledWith(
+      '/expenses/c1?q=client&project=p1&status=Submitted&sort=oldest',
+      { state: { recordContext: { listPath: '/expenses?q=client&project=p1&status=Submitted&sort=oldest' } } },
+    );
+  });
+
 
   it('AC-EXP-060 an advance cannot be created without an amount', async () => {
     renderPage();

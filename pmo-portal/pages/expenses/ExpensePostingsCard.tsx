@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
-import { Card, CardHead, CardPad, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
+import { Card, CardPad, ListState, StatusPill, type StatusVariant } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import type { ExpensePostingKind, ExpensePostingRow, ExpensePushState } from '@/src/lib/repositories/expensePostings';
 
@@ -78,13 +78,25 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     held: t('expenses.postings.state.held', 'Needs an operator'),
     pushed: t('expenses.postings.state.pushed', 'Posted'),
   };
+  const summaryCounts = data?.reduce((counts, row) => {
+    const state = row.erpCancelledAt ? 'cancelledInErp' : row.pushState;
+    counts[state] = (counts[state] ?? 0) + 1;
+    return counts;
+  }, {} as Partial<Record<ExpensePushState | 'cancelledInErp', number>>);
+  const summaryStateLabels = [
+    ['pushed', 'Posted: {{count}}'],
+    ['pending', 'Queued: {{count}}'],
+    ['failed', 'Failed: {{count}}'],
+    ['held', 'Operator review: {{count}}'],
+    ['cancelledInErp', 'Cancelled in ERPNext: {{count}}'],
+  ] as const;
 
   if (isPending) return null;
   if (isError) {
     return (
       <ListState
         variant="error"
-        title={t('expenses.postings.errorTitle', "Couldn't load ledger postings")}
+        title={t('expenses.postings.errorTitle', "Couldn't load accounting activity")}
         sub={t('expenses.postings.errorSub', 'The claim itself is unaffected. Try again.')}
         retryLabel={t('admin.retry', 'Retry')}
         onRetry={() => refetch()}
@@ -104,24 +116,38 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     );
   }
   return (
-    // The same shell as the Receipts card beside it; the title is a real heading for screen-reader navigation.
-    <Card variant="bare" className="mb-4" aria-labelledby="expense-postings-heading" role="region">
-      <CardHead level={2} id="expense-postings-heading">{t('expenses.postings.title', 'Ledger postings')}</CardHead>
-      <CardPad>
-        <ul className="flex flex-col gap-2">
-          {data.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
-              <span className="font-medium">{postingLabel[row.posting]}</span>
-              {row.erpCancelledAt
-                ? <StatusPill variant="superseded">{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>
-                : <StatusPill variant={STATE_VARIANT[row.pushState]}>{stateLabel[row.pushState]}</StatusPill>}
-              {row.erpName && <span className="break-all text-muted-foreground">{row.erpName}</span>}
-              {row.pushError && row.pushState !== 'pushed'
-                && <span className="break-words text-muted-foreground">{postingReason(t, row.pushError)}</span>}
-            </li>
-          ))}
-        </ul>
-      </CardPad>
+    <Card variant="bare" className="mb-4">
+      <details>
+        <summary className="group flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 border-b border-transparent px-4 py-2 font-semibold open:border-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring">
+          <span id="expense-postings-heading" role="heading" aria-level={2}>{t('expenses.postings.accountingActivity', 'Accounting activity')}</span>
+          <span className="font-normal text-muted-foreground">
+            {t('expenses.postings.summary.count', 'Entries: {{count}}', { count: data.length })}
+          </span>
+          {summaryStateLabels.map(([key, label]) => {
+            const count = summaryCounts?.[key] ?? 0;
+            return count > 0 ? (
+              <span key={key} className="font-normal text-muted-foreground">
+                {t(`expenses.postings.summary.${key}`, label, { count })}
+              </span>
+            ) : null;
+          })}
+        </summary>
+        <CardPad>
+          <ul className="flex flex-col gap-2">
+            {data.map((row) => (
+              <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
+                <span className="font-medium">{postingLabel[row.posting]}</span>
+                {row.erpCancelledAt
+                  ? <StatusPill variant="superseded">{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>
+                  : <StatusPill variant={STATE_VARIANT[row.pushState]}>{stateLabel[row.pushState]}</StatusPill>}
+                {row.erpName && <span className="break-all text-muted-foreground">{row.erpName}</span>}
+                {row.pushError && row.pushState !== 'pushed'
+                  && <span className="break-words text-muted-foreground">{postingReason(t, row.pushError)}</span>}
+              </li>
+            ))}
+          </ul>
+        </CardPad>
+      </details>
     </Card>
   );
 };

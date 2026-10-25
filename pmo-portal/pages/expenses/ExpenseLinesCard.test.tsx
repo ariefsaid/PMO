@@ -44,25 +44,13 @@ describe('ExpenseLinesCard', () => {
     expect(await within(dialog).findAllByText('Enter an amount greater than zero.')).not.toHaveLength(0);
     expect(h.addLine.mutateAsync).not.toHaveBeenCalled();
   });
-  it('AC-EXP-062 renders the lines and full total in the shared table', () => {
+  it('AC-EXP-062 shows each line amount without repeating the claim total', () => {
     renderCard(false, [LINE]);
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Description' })).toBeInTheDocument();
-    expect(screen.getByTestId('lines-total')).toHaveTextContent(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '));
-    expect(within(table).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
+    expect(within(table).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(1);
+    expect(screen.queryByTestId('lines-total')).not.toBeInTheDocument();
     expect(within(table).getByText('Taxi')).toBeInTheDocument();
-  });
-  it('AC-EXP-062 keeps the expense line card layout on phones', () => {
-    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
-    renderCard(false, [LINE]);
-    const cards = screen.getByTestId('dt-card-branch');
-    expect(within(cards).getByText('Taxi')).toBeInTheDocument();
-    expect(within(cards).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(2);
-    expect(within(cards).getByTestId('lines-total')).toHaveTextContent(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '));
-    const total = within(cards).getByTestId('lines-total');
-    expect(total.closest('dl')).toHaveTextContent('Amount');
-    expect(total.closest('dl')).not.toHaveTextContent('Date');
-    vi.unstubAllGlobals();
   });
   it('a fixed-width actions column has no resize handle (min = max is inert, #1239)', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('min-width: 768px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));

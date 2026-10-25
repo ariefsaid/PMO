@@ -11,6 +11,7 @@ const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a
 
 const h = vi.hoisted(() => ({
   claim: null as unknown,
+  lines: [] as unknown[],
   route: null as unknown,
   outstanding: null as number | null,
   projects: [] as Array<{ id: string; name: string; short_name?: string | null }>,
@@ -25,7 +26,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
   useExpenseClaim: () => ({ data: h.claim, isPending: false, isError: false, refetch: vi.fn() }),
-  useExpenseClaimLines: () => ({ data: [], isPending: false, isError: false }),
+  useExpenseClaimLines: () => ({ data: h.lines, isPending: false, isError: false }),
   useExpenseClaimRoute: () => ({ data: h.route }),
   useExpenseAdvanceOutstanding: () => ({ data: h.outstanding }),
   useExpenseAdvanceAging: () => ({ data: { rows: h.agingRows, truncated: false } }),
@@ -66,6 +67,7 @@ const as = (userId: string, role: string) => { h.userId = userId; h.realRole = r
 
 beforeEach(() => {
   h.route = null;
+  h.lines = [];
   h.outstanding = null;
   h.projects = [];
   h.agingRows = [];
@@ -87,6 +89,55 @@ const renderAtWithI18n = () =>
   );
 
 describe('ExpenseClaimDetail', () => {
+  it('AC-EXP-061 leads with identity and one amount, then puts evidence before the decision', () => {
+    h.claim = { ...base, purpose: 'Taxi to the client meeting' };
+    h.lines = [{ id: 'line-1', claim_id: 'c1', org_id: 'org-1', expense_date: '2026-10-01', expense_type: 'Travel', description: 'Taxi', amount: 150000, created_at: '' }];
+    as('eng', 'Engineer');
+    renderAt();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Site visit' })).toBeInTheDocument();
+    expect(screen.getByTestId('expense-status')).toHaveTextContent('Draft');
+    expect(screen.getByText('Taxi to the client meeting')).toBeInTheDocument();
+    expect(screen.getAllByTestId('expense-amount')).toHaveLength(1);
+    expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
+
+    const lines = screen.getByRole('heading', { name: 'Lines' });
+    const receipts = screen.getByRole('heading', { name: 'Receipts' });
+    const decision = screen.getByRole('button', { name: 'Submit for approval' });
+    expect(lines.compareDocumentPosition(receipts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(receipts.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-EXP-061 returns to the exact list URL that opened the record', async () => {
+    h.claim = { ...base };
+    as('eng', 'Engineer');
+    render(
+      <MemoryRouter initialEntries={[
+        '/expenses?status=Submitted&project=p1&view=outstanding',
+        { pathname: '/expenses/c1', state: { recordContext: { listPath: '/expenses?status=Submitted&project=p1&view=outstanding' } } },
+      ]} initialIndex={1}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/expenses" element={<p>Returned to the expense register</p>} />
+            <Route path="/expenses/:claimId" element={<ExpenseClaimDetail />} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Back to expenses' }));
+    expect(await screen.findByText('Returned to the expense register')).toBeInTheDocument();
+  });
+
+  it('AC-EXP-061 places approval routing after receipt evidence', () => {
+    h.claim = { ...base, status: 'Submitted' };
+    h.route = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pma', fullName: 'Ayu Approver' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };
+    as('pm', 'Project Manager');
+    renderAt();
+    const receipts = screen.getByRole('heading', { name: 'Receipts' });
+    const routeNote = screen.getByTestId('approval-route-note');
+    expect(receipts.compareDocumentPosition(routeNote) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
     h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
     as('eng', 'Engineer');

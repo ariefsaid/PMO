@@ -36,8 +36,17 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
       { id: 'm4', posting: 'advance-return', pushState: 'held', pushError: 'command-held', erpName: null, erpCancelledAt: null, createdAt: 't4' },
     ]);
     renderCard();
-    expect(await screen.findByRole('heading', { name: 'Ledger postings' })).toBeInTheDocument();
+    const summaryLabel = await screen.findByText('Accounting activity');
+    const summary = summaryLabel.closest('summary');
+    expect(summary).not.toBeNull();
+    expect(summary).toHaveTextContent('Entries: 4');
+    expect(summary).toHaveTextContent('Posted: 1');
+    expect(summary).toHaveTextContent('Failed: 1');
+    expect(summary).toHaveTextContent('Queued: 1');
+    expect(summary).toHaveTextContent('Operator review: 1');
+    expect(summary.closest('details')).not.toHaveAttribute('open');
     expect(listMock).toHaveBeenCalledWith('claim-1');
+    await userEvent.click(summaryLabel);
     expect(screen.getAllByRole('listitem')).toHaveLength(4);
     expect(screen.getByText('Approval journal')).toBeInTheDocument();
     expect(screen.getByText('Posted')).toBeInTheDocument();
@@ -71,6 +80,7 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
   ])('AC-EXP-131 reason %s is shown as a translated sentence', async (pushError, sentence) => {
     listMock.mockResolvedValue([{ id: 'm1', posting: 'claim-payment', pushState: 'failed', pushError, erpName: null, erpCancelledAt: null, createdAt: 't1' }]);
     renderCard();
+    await userEvent.click(await screen.findByText('Accounting activity'));
     expect(await screen.findByText(sentence)).toBeInTheDocument();
     expect(screen.queryByText(pushError)).toBeNull();
   });
@@ -79,6 +89,9 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
     listMock.mockResolvedValue([{ id: 'm1', posting: 'approval', pushState: 'pushed', pushError: null, erpName: 'ACC-JV-2026-00002',
       erpCancelledAt: '2026-10-08T00:00:00Z', createdAt: 't1' }]);
     renderCard();
+    expect(await screen.findByText('Accounting activity')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled in ERPNext: 1')).toBeInTheDocument();
+    await userEvent.click(await screen.findByText('Accounting activity'));
     expect(await screen.findByText('Cancelled in ERPNext')).toBeInTheDocument();
     expect(screen.queryByText('Posted')).toBeNull();
   });
@@ -94,7 +107,7 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
   it('AC-EXP-131 a failed read shows the error state and retries', async () => {
     listMock.mockRejectedValue(new Error('boom'));
     renderCard();
-    expect(await screen.findByText("Couldn't load ledger postings")).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load accounting activity")).toBeInTheDocument();
     listMock.mockResolvedValue([]);
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     await vi.waitFor(() => expect(listMock).toHaveBeenCalledTimes(2));
@@ -124,6 +137,7 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
       readinessMock.state = 'inactive';
       listMock.mockResolvedValue([{ id: 'm1', posting: 'approval', pushState: 'pushed', pushError: null, erpName: 'JV-1', erpCancelledAt: null, createdAt: 't' }]);
       renderCard();
+      await userEvent.click(await screen.findByText('Accounting activity'));
       expect(await screen.findByText('JV-1')).toBeInTheDocument();
       expect(screen.queryByText(/Not posted to accounting/)).toBeNull();
     });

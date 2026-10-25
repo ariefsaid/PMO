@@ -1320,7 +1320,7 @@
   "expenses": {
     "postings": {
       "errorSub": "The claim itself is unaffected. Try again.",
-      "errorTitle": "Couldn't load ledger postings",
+      "errorTitle": "Couldn't load accounting activity",
       "kind": {
         "advancePayment": "Advance payout",
         "advanceReturn": "Cash returned",
@@ -1328,6 +1328,15 @@
         "approvalCancel": "Approval cancelled",
         "claimPayment": "Cash payment",
         "settlement": "Advance settlement"
+      },
+      "accountingActivity": "Accounting activity",
+      "summary": {
+        "cancelledInErp": "Cancelled in ERPNext: {{count}}",
+        "count": "Entries: {{count}}",
+        "failed": "Failed: {{count}}",
+        "held": "Operator review: {{count}}",
+        "pending": "Queued: {{count}}",
+        "pushed": "Posted: {{count}}"
       },
       "state": {
         "cancelledInErp": "Cancelled in ERPNext",
@@ -1444,6 +1453,7 @@
       "advanceApplied": "Advance applied",
       "amount": "Amount",
       "back": "Expenses",
+      "backToRegister": "Back to expenses",
       "cashPaid": "Cash paid",
       "editDetails": "Edit details",
       "errorSub": "Something went wrong fetching it. Try again.",
@@ -1452,6 +1462,7 @@
       "notFoundSub": "It doesn't exist, or it isn't yours and you don't approve spend.",
       "notFoundTitle": "Not found",
       "outstanding": "Outstanding",
+      "purposeAndAmount": "Purpose and amount",
       "reference": "Payment reference",
       "rejectionNote": "Rejected: {{note}}",
       "summary": "Summary"

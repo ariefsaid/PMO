@@ -11,8 +11,7 @@ import { formatCurrencyAuto, formatDateOnly, formatMoneyInputValue, parseMoneyIn
 import type { ExpenseClaimLineRow, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { expenseTypeLabel } from './expenseLabels';
 
-/** A claim's lines (FR-EXP-003/063). Editable only by the claimant while Draft/Rejected (RLS is the authority);
- *  the claim total is the server's Σ lines — the footer sum here is display, in integer cents. */
+/** A claim's line evidence (FR-EXP-003/063). Editable only by the claimant while Draft/Rejected (RLS is the authority). */
 export interface ExpenseLinesCardProps {
   claimId: string;
   lines: ExpenseClaimLineRow[];
@@ -28,7 +27,6 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   const { addLine, updateLine, removeLine } = useExpenseClaimMutations();
   const [editing, setEditing] = useState<ExpenseClaimLineRow | 'new' | null>(null);
   const [removeTarget, setRemoveTarget] = useState<ExpenseClaimLineRow | null>(null);
-  const totalCents = lines.reduce((sum, l) => sum + Math.round(Number(l.amount) * 100), 0);
   const columns = useMemo<Column<ExpenseClaimLineRow>[]>(() => [
     { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
     { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
@@ -85,14 +83,6 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
             rowKey={(line) => line.id}
             tableId="expense-lines"
             accessibleName={t('expenses.lines.title', 'Lines')}
-            totals={[{
-              key: currency,
-              label: t('expenses.lines.total', 'Total'),
-              values: {
-                date: null,
-                amount: <span>{t('expenses.lines.total', 'Total')}: <span data-testid="lines-total">{formatCurrencyAuto(totalCents / 100, currency)}</span></span>,
-              },
-            }]}
           />
         )}
       </CardPad>

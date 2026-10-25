@@ -1,13 +1,13 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Card, CardHead, CardPad, ListState, RecordHeader, StatusPill } from '@/src/components/ui';
-import { BackBar } from '@/src/components/shell';
+import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjects } from '@/src/hooks/useProjects';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import {
   useExpenseAdvanceOutstanding, useExpenseClaim, useExpenseClaimLines, useExpenseClaimMutations, useExpenseClaimRoute,
 } from '@/src/hooks/useExpenseClaims';
@@ -23,12 +23,13 @@ import { ExpensePostingsCard } from './expenses/ExpensePostingsCard';
 import { ExpenseClaimFormModal } from './expenses/ExpenseClaimFormModal';
 import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { expenseKindLabel, expenseStatusLabel } from './expenses/expenseLabels';
+import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 
 /** `/expenses/:claimId` (FR-EXP-063..065). Shows only the actions the server would allow; the RPCs decide. */
 const ExpenseClaimDetail: React.FC = () => {
   const { t } = useTranslation();
   const { claimId } = useParams<{ claimId: string }>();
-  const navigate = useNavigate();
+  const { closeRecord } = useRecordContext('/expenses', claimId);
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
   const may = usePermission();
@@ -42,16 +43,15 @@ const ExpenseClaimDetail: React.FC = () => {
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
-  const backLabel = t('expenses.detail.back', 'Expenses');
-  const goBack = () => navigate('/expenses');
+  const returnAction = { label: t('expenses.detail.backToRegister', 'Back to expenses'), onReturn: closeRecord };
 
   if (query.isPending) {
-    return (<><BackBar label={backLabel} phoneOnly onBack={goBack} /><ListState variant="loading" rows={5} /></>);
+    return <><MoneyOutPageHeader title={t('expenses.title', 'Expenses')} returnAction={returnAction} /><ListState variant="loading" rows={5} /></>;
   }
   if (query.isError) {
     return (
       <>
-        <BackBar label={backLabel} phoneOnly onBack={goBack} />
+        <MoneyOutPageHeader title={t('expenses.title', 'Expenses')} returnAction={returnAction} />
         <ListState variant="error" title={t('expenses.detail.errorTitle', "Couldn't load this record")}
           sub={t('expenses.detail.errorSub', 'Something went wrong fetching it. Try again.')} onRetry={() => void query.refetch()} />
       </>
@@ -60,7 +60,7 @@ const ExpenseClaimDetail: React.FC = () => {
   if (!claim) {
     return (
       <>
-        <BackBar label={backLabel} phoneOnly onBack={goBack} />
+        <MoneyOutPageHeader title={t('expenses.title', 'Expenses')} returnAction={returnAction} />
         <ListState variant="empty" icon="doc" title={t('expenses.detail.notFoundTitle', 'Not found')}
           sub={t('expenses.detail.notFoundSub', "It doesn't exist, or it isn't yours and you don't approve spend.")} />
       </>
@@ -80,16 +80,15 @@ const ExpenseClaimDetail: React.FC = () => {
 
   return (
     <div>
-      <div className="hidden max-[920px]:block"><BackBar label={backLabel} onBack={goBack} /></div>
-      <RecordHeader
-        name={claim.title}
-        icon={claim.kind === 'advance' ? 'A' : 'E'}
+      <MoneyOutPageHeader
+        title={claim.title}
+        returnAction={returnAction}
         status={
           <span data-testid="expense-status" data-status={claim.status}>
             <StatusPill variant={workflowVariant(claim.status)}>{expenseStatusLabel(claim.status, t)}</StatusPill>
           </span>
         }
-        meta={
+        scope={
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{claim.claim_number ?? t('expenses.draftNumber', 'Draft')}</span>
             <span>{expenseKindLabel(claim.kind, t)}</span>
@@ -102,69 +101,65 @@ const ExpenseClaimDetail: React.FC = () => {
             {claim.budget_category && <span>{budgetCategoryLabel(claim.budget_category, t)}</span>}
           </span>
         }
-        actions={canEdit ? <Button variant="outline" size="sm" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
+        primaryAction={canEdit ? <Button variant="outline" size="sm" className="min-h-11" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
       />
 
-      <Card variant="bare" className="mb-4">
-        <CardHead>{t('expenses.detail.summary', 'Summary')}</CardHead>
-        <CardPad>
-          <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <section aria-labelledby="expense-evidence-heading" className="mb-4 border-b border-border pb-4">
+        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenses.detail.purposeAndAmount', 'Purpose and amount')}</h2>
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+          <div>
+            <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
+            <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyCents(amount, claim.currency)}</dd>
+          </div>
+          {claim.kind === 'claim' && claim.status === 'Paid' && (
+            <>
+              <div>
+                <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
+                <dd className="tabular-nums">{formatCurrencyCents(paidSplit.applied, claim.currency)}</dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
+                <dd className="tabular-nums">{formatCurrencyCents(paidSplit.cash, claim.currency)}</dd>
+              </div>
+            </>
+          )}
+          {claim.kind === 'advance' && claim.status === 'Paid' && (
             <div>
-              <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-              <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyCents(amount, claim.currency)}</dd>
+              <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
+              <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyCents(outstanding, claim.currency)}</dd>
             </div>
-            {claim.kind === 'claim' && claim.status === 'Paid' && (
-              <>
-                <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.applied, claim.currency)}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                  <dd className="tabular-nums">{formatCurrencyCents(paidSplit.cash, claim.currency)}</dd>
-                </div>
-              </>
-            )}
-            {claim.kind === 'advance' && claim.status === 'Paid' && (
-              <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-                <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyCents(outstanding, claim.currency)}</dd>
-              </div>
-            )}
-            {claim.payment_reference && (
-              <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
-                <dd>{claim.payment_reference}</dd>
-              </div>
-            )}
-          </dl>
-          {claim.advance_id && (
-            <p className="mt-3 text-sm">
-              <Link to={`/expenses/${claim.advance_id}`} className="text-primary-text hover:underline">
-                {t('expenses.detail.linkedAdvance', 'Settles a cash advance')}
-              </Link>
-            </p>
           )}
-          {claim.purpose && <p className="mt-3 text-sm">{claim.purpose}</p>}
-          {claim.rejection_notes && (claim.status === 'Rejected' || claim.status === 'Draft') && (
-            <p role="note" className="mt-3 text-sm">
-              {t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes })}
-            </p>
+          {claim.payment_reference && (
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
+              <dd className="break-words">{claim.payment_reference}</dd>
+            </div>
           )}
-        </CardPad>
-      </Card>
-
-      {showRouteNote && route && (
-        <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
-      )}
-
-      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
+        </dl>
+        {claim.purpose && <p className="mt-3 whitespace-pre-wrap text-sm">{claim.purpose}</p>}
+        {claim.advance_id && (
+          <p className="mt-3 text-sm">
+            <Link to={`/expenses/${claim.advance_id}`} className="text-primary-text hover:underline">
+              {t('expenses.detail.linkedAdvance', 'Settles a cash advance')}
+            </Link>
+          </p>
+        )}
+        {claim.rejection_notes && (claim.status === 'Rejected' || claim.status === 'Draft') && (
+          <p role="note" className="mt-3 break-words text-sm">
+            {t('expenses.detail.rejectionNote', 'Rejected: {{note}}', { note: claim.rejection_notes })}
+          </p>
+        )}
+      </section>
 
       {claim.kind === 'claim' && (
         <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}
           isError={linesQuery.isError} currency={claim.currency} editable={canEdit} />
       )}
       <ExpenseReceiptsCard claimId={claim.id} canWrite={canEdit} />
+      {showRouteNote && route && (
+        <p data-testid="approval-route-note" className="mb-4 text-sm">{approvalRouteNote(route, claim.budget_category, t, realRole)}</p>
+      )}
+      <ExpenseDecisionBar claim={claim} actions={actions} advanceOutstanding={outstanding} />
       <ExpensePostingsCard claimId={claim.id} />
 
       {editOpen && (
