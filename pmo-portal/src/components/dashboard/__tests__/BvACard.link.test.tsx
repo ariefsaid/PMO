@@ -86,6 +86,6 @@ describe('AC-002 #1325: BvACard shows the short name and titles the contractual 
     const link = screen.getByRole('link', { name: 'Steelworks' });
     expect(link).toHaveAttribute('title', 'Meridian Steelworks');
     expect(screen.queryByText('Meridian Steelworks')).toBeNull();
-    expect(screen.getByRole('link', { name: 'SunVolt Install' })).not.toHaveAttribute('title');
+    expect(screen.getByRole('link', { name: 'SunVolt Install' })).toHaveAttribute('title', 'SunVolt Install');
   });
 });

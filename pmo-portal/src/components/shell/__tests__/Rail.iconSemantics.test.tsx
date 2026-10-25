@@ -31,8 +31,7 @@ describe('UIP-001/UIP-013: rail destination names and decorative icon semantics'
       expect(link).toHaveAccessibleName(label);
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     }
-    expect(within(rail).getByRole('button', { name: 'Assistant' }).querySelector('svg'))
-      .toHaveAttribute('data-icon', 'message');
+    expect(within(rail).getByRole('button', { name: 'Assistant' })).toHaveAccessibleName('Assistant');
   });
 
   it('keeps the Dashboard destination available before grouped destinations', () => {

@@ -17,6 +17,7 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
 import { Rail } from '../Rail';
 
 let effectiveRole = 'Executive';
+let realRole = 'Admin';
 
 // S6 entitlement rewire: m365_integration defaults OFF (FEATURE_ENV_DEFAULT false), so the personal
 // "My integrations" rail item is hidden for every role here. The per-test override below lets a
@@ -26,7 +27,7 @@ let featureOverrides: Record<string, boolean> = {};
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({
     effectiveRole,
-    realRole: 'Admin',
+    realRole,
     canImpersonate: effectiveRole === 'Admin',
     viewAs: vi.fn(),
   }),
@@ -160,6 +161,7 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     ['Engineer', ['My work', 'Deliver projects']],
   ])('orders visible job groups for %s', (role, expectedGroups) => {
     effectiveRole = role;
+    realRole = role;
     renderRail();
     const rail = screen.getByRole('complementary');
     const headings = Array.from(rail.querySelectorAll<HTMLElement>('[data-nav-group-heading]'))
@@ -298,8 +300,8 @@ describe('Rail — routes that live under a module without sharing its URL', () 
         <Rail />
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: 'Procurement' }).className).toMatch(/bg-primary\/10/);
-    expect(screen.getByRole('link', { name: 'Dashboard' }).className).not.toMatch(/bg-primary\/10/);
+    expect(screen.getByRole('link', { name: 'Procurement' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current', 'page');
   });
 });
 

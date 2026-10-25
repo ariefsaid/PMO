@@ -296,6 +296,25 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
       );
     }
 
+    // NavLink only marks URL-prefix matches as current. Some evidence routes are
+    // owned by a module without sharing its URL, so expose that canonical owner
+    // as the one current destination as well as styling it active.
+    if (RAIL_PARENT_FOR_PATH[location.pathname] === item.to) {
+      return (
+        <Link
+          key={item.to}
+          to={item.to}
+          onClick={onNavigate}
+          title={collapsed ? label : undefined}
+          aria-current="page"
+          className={cn(navItemBase, 'bg-primary/10 font-semibold text-nav-active-text')}
+        >
+          <Icon name={item.icon} />
+          {renderLabel(item)}
+        </Link>
+      );
+    }
+
     return (
       <NavLink
         key={item.to}
@@ -304,11 +323,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
         onClick={onNavigate}
         title={collapsed ? label : undefined}
         className={({ isActive }: { isActive: boolean }) => {
-          // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
-          const active = isActive || RAIL_PARENT_FOR_PATH[location.pathname] === item.to;
           return cn(
             navItemBase,
-            active
+            isActive
               ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
           );

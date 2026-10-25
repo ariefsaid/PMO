@@ -39,7 +39,7 @@ export const PageHeading: React.FC<PageHeadingProps> = ({
         </h1>
         {status}
       </div>
-      {scope && <p data-page-scope className="mt-0.5 max-w-[72ch] text-[13.5px] text-muted-foreground">{scope}</p>}
+      {scope && <div data-page-scope className="mt-0.5 max-w-[72ch] text-[13.5px] text-muted-foreground">{scope}</div>}
     </div>
     {actions && (
       <div

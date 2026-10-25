@@ -556,6 +556,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         meta={meta}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
+        sharedPageHeading
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
       />
 

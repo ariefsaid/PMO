@@ -23,6 +23,8 @@ export interface RecordHeaderProps {
    * (the drawer header anatomy still reads icon + name + status + top-right actions).
    */
   variant?: 'page' | 'drawer';
+  /** Opt into the shared content-track heading for routes using the new page frame. */
+  sharedPageHeading?: boolean;
   className?: string;
 }
 
@@ -44,6 +46,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
   stats,
   actions,
   variant = 'page',
+  sharedPageHeading = false,
   className,
 }) => (
   <PageHeader
@@ -51,6 +54,7 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     // The drawer host already supplies a border-bottom seam + popover surface, so the
     // drawer variant drops the standalone card chrome (no double border / nested radius).
     surface={variant === 'drawer' ? 'bare' : 'card'}
+    sharedPageHeading={sharedPageHeading}
     icon={icon}
     iconColor={iconColor}
     name={name}
