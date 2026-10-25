@@ -35,9 +35,22 @@ export const MoneyOutPageHeader: React.FC<MoneyOutPageHeaderProps> = ({
   </>
 );
 
-export type MoneyOutListPageProps = Omit<ListPageProps, 'description'> & { scope?: React.ReactNode };
+export type MoneyOutListPageProps = Omit<ListPageProps, 'description'> & {
+  scope?: React.ReactNode;
+  returnAction?: { label: string; onReturn: () => void };
+};
 
 /** Collection counterpart to MoneyOutPageHeader, kept as the list shell adapter. */
-export const MoneyOutListPage: React.FC<MoneyOutListPageProps> = ({ scope, ...props }) => (
-  <ListPage {...props} description={scope} />
+export const MoneyOutListPage: React.FC<MoneyOutListPageProps> = ({ scope, returnAction, ...props }) => (
+  <>
+    {returnAction && (
+      <div className="mb-3">
+        <Button variant="outline" className="min-h-11 px-3" onClick={returnAction.onReturn}>
+          <Icon name="back" />
+          {returnAction.label}
+        </Button>
+      </div>
+    )}
+    <ListPage {...props} description={scope} />
+  </>
 );
