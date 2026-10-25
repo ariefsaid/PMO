@@ -228,6 +228,8 @@ const ProjectDetail: React.FC = () => {
   const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing')
     ? 'overview'
     : requestedTab === 'billing' && !canSeeBilling ? 'tasks' : requestedTab;
+  const showPipelinePrimaryAction = pipelineGroup === 'pipeline' && tab === 'overview' && may('edit', 'project');
+  const [pipelinePrimaryActionTarget, setPipelinePrimaryActionTarget] = useState<HTMLDivElement | null>(null);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
     // Preserve collection return context, section-level query state and task/WO anchors.
@@ -309,12 +311,10 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
-  // ADR-0021 (supersedes ADR-0020 §1): ONE unified detail page at every stage. The full delivery
-  // layout (header + the five tabs) always renders, so a PM can plan budget/tasks/procurement while
-  // a deal is still in the pipeline (the backend gates those writes on org/role, not project
-  // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
-  // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
-  // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
+  // ADR-0021 (supersedes ADR-0020 §1): one unified detail page at every stage. Pipeline journey
+  // evidence is the first Overview content after named section navigation; the same canonical
+  // sections remain reachable while a deal is open or lost.
+  const isPipeline = isPipelineRecord;
   const tabPanel = (
     <div id="project-section-content" className="min-w-0">
       <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
@@ -322,6 +322,16 @@ const ProjectDetail: React.FC = () => {
           // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
           // nothing, so it leaves no empty slot or stray margin behind.
           <div className="flex min-w-0 flex-col gap-8">
+            {isPipelineRecord && (
+              <PipelineLens
+                project={project}
+                primaryActionInHeader={showPipelinePrimaryAction}
+                primaryActionTarget={pipelinePrimaryActionTarget}
+                phasePlanner={pipelineGroup === 'pipeline'
+                  ? <MilestoneStrip projectId={project.id} compactWhenEmpty />
+                  : undefined}
+              />
+            )}
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -332,7 +342,7 @@ const ProjectDetail: React.FC = () => {
               commitmentError={commitmentError}
               setTab={setTab}
               phaseSummary={<MilestoneStrip projectId={project.id} summary />}
-              phasePlanner={<MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />}
+              phasePlanner={!isPipelineRecord ? <MilestoneStrip projectId={project.id} /> : undefined}
               showMoneyPosition={!isPipeline}
             />
             <React.Suspense fallback={null}>
@@ -378,26 +388,13 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div className="min-w-0">
-      {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
-          loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
-          rule as every other record page and this page's loading / not-found states). */}
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-      {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
-          breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
-          The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
-          at every stage so a record's wayfinding is identical regardless of stage. */}
-
       <ProjectDetailHeader
         project={project}
         onEditProject={openEditProject}
         isOverview={tab === 'overview'}
+        showPipelinePrimaryAction={showPipelinePrimaryAction}
+        onPipelinePrimaryActionTargetChange={setPipelinePrimaryActionTarget}
       />
-
-      {isPipeline && tab === 'overview' && (
-        <div className="mb-6">
-          <PipelineLens project={project} locationState={location.state} />
-        </div>
-      )}
 
       <div className="grid min-w-0 grid-cols-1 gap-5 min-[921px]:grid-cols-[13rem_minmax(0,1fr)] min-[921px]:gap-8">
         <ProjectSectionNavigation

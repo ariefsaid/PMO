@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -122,6 +122,69 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
     expect(await findToastAnnouncement('status', /Moved to Negotiation/i)).toBeInTheDocument();
+  });
+
+  it('R-003: Negotiation has no backward Advance action and makes the available win decision primary', () => {
+    renderLens({ ...dealRow, status: 'Negotiation' } as ProjectWithRefs);
+    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('listitem', { name: 'Negotiation: current' })).toHaveAttribute('aria-current', 'step');
+    expect(screen.getByRole('button', { name: 'Mark won' })).toBeInTheDocument();
+  });
+
+  it('R-004: centers the current journey stage and provides explicit scroll controls for the remaining stages', async () => {
+    renderLens();
+    const viewport = screen.getByTestId('stepper-scroll-container');
+    const scrollBy = vi.fn();
+    const currentStage = screen.getByRole('listitem', { name: 'Tender: current' });
+    const rect = (left: number, width: number) => ({
+      x: left,
+      y: 0,
+      left,
+      right: left + width,
+      top: 0,
+      bottom: 48,
+      width,
+      height: 48,
+      toJSON: () => ({}),
+    }) as DOMRect;
+    Object.defineProperties(viewport, {
+      clientWidth: { configurable: true, value: 220 },
+      scrollWidth: { configurable: true, value: 640 },
+      scrollBy: { configurable: true, value: scrollBy },
+      getBoundingClientRect: { configurable: true, value: () => rect(100, 220) },
+    });
+    Object.defineProperty(currentStage, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => rect(450, 88),
+    });
+    fireEvent(window, new Event('resize'));
+    fireEvent.scroll(viewport);
+
+    expect(currentStage).toHaveAttribute('aria-current', 'step');
+    expect(viewport.scrollLeft).toBe(284);
+    const laterStages = screen.getByRole('button', { name: 'Later stages' });
+    expect(laterStages).toBeEnabled();
+    await userEvent.click(laterStages);
+    expect(scrollBy).toHaveBeenCalledWith({ left: 176, behavior: 'smooth' });
+  });
+
+  it('keeps the named journey stages and open-deal figures available after the layout change', () => {
+    renderLens();
+    expect(screen.getByRole('list', { name: 'Project stage journey' })).toHaveTextContent('Pre-Qualification');
+    expect(screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent)).toEqual([
+      'Value', 'Win probability', 'Weighted', 'Owner',
+    ]);
+    expect(screen.queryByText('Decision')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
+  });
+
+  it('keeps lost-deal decision evidence and terminal context without inventing a zero win rate', () => {
+    renderLens({ ...dealRow, status: 'Loss Tender' } as ProjectWithRefs);
+    expect(screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent)).toEqual([
+      'Value', 'Owner', 'Decision',
+    ]);
+    expect(screen.queryByText('0%')).not.toBeInTheDocument();
+    expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-WP-004: "Mark lost" STILL opens a destructive confirm before writing', async () => {

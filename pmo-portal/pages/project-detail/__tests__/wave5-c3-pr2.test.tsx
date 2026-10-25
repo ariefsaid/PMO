@@ -1,15 +1,11 @@
 /**
  * AC-IXD-PROJ-W5-C3 — Wave-5 Cluster-3 PR-2:
  *   project identity and finance-authority behavior
- *   N10 post-transition wayfinding (Back to Sales Pipeline + focus)
- *   D9-pipeline PQ → Pre-Qualification label
  *
- * Owning layer: Vitest/RTL render-by-role for record actions and route behavior.
+ * Owning layer: Vitest/RTL render-by-role for record actions.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import React from 'react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -25,37 +21,9 @@ vi.mock('@/src/hooks/useFxRates', () => ({ useFxRate: () => ({ data: null, isPen
 
 // ── Shared mocks ────────────────────────────────────────────────────────────
 
-const { transitionProject } = vi.hoisted(() => ({
-  transitionProject: vi.fn().mockResolvedValue(undefined),
-}));
-vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, transitionProject };
-});
-
-vi.mock('@/src/hooks/useDashboard', () => ({
-  useSalesPipeline: () => ({
-    data: {
-      stages: [],
-      projects: [
-        {
-          id: 'd1',
-          name: 'Acme Tender Bid',
-          status: 'Tender Submitted',
-          contract_value: 1_200_000,
-          win_probability: 0.5,
-        },
-      ],
-    },
-  }),
-}));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-vi.mock('@tanstack/react-query', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
-});
 
 // Header mutations
 vi.mock('@/src/hooks/useProjects', () => ({
@@ -145,30 +113,9 @@ const onHandRow: ProjectWithRefs = {
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
 
-const pipelineRow: ProjectWithRefs = {
-  id: 'd1',
-  name: 'Acme Tender Bid',
-  code: 'OPP-0042',
-  status: 'Tender Submitted',
-  client_id: 'c1',
-  project_manager_id: 'u-alice',
-  contract_value: 1_200_000,
-  currency: 'USD',
-  budget: 0,
-  spent: 0,
-  start_date: null,
-  end_date: null,
-  contract_date: null,
-  decided_at: null,
-  customer_contract_ref: null,
-  client: { name: 'Acme' },
-  pm: { full_name: 'Alice Manager' },
-} as unknown as ProjectWithRefs;
-
 // ── Render helpers ────────────────────────────────────────────────────────────
 
 import ProjectDetailHeader from '../ProjectDetailHeader';
-import PipelineLens from '../PipelineLens';
 
 const renderHeader = (realRole: Role, project: ProjectWithRefs = onHandRow) =>
   render(
@@ -181,18 +128,7 @@ const renderHeader = (realRole: Role, project: ProjectWithRefs = onHandRow) =>
     </ImpersonationProvider>,
   );
 
-const renderLens = (project: ProjectWithRefs = pipelineRow, locationState?: unknown) =>
-  render(
-    <ImpersonationProvider realRole="Project Manager">
-      <ToastProvider>
-        <PipelineLens project={project} locationState={locationState} />
-      </ToastProvider>
-    </ImpersonationProvider>,
-  );
-
 beforeEach(() => {
-  transitionProject.mockClear();
-  transitionProject.mockResolvedValue(undefined);
   navigate.mockClear();
 });
 

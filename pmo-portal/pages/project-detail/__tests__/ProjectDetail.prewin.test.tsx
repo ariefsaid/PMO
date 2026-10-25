@@ -207,7 +207,7 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
     expect(screen.queryByText('Classification')).not.toBeInTheDocument();
     const rail = screen.getByTestId('project-detail-rail');
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    expect(within(rail).getByText('Project details')).toBeInTheDocument();
+    expect(rail.querySelector('summary')).toHaveTextContent('Details');
     expect(within(rail).getByText('Engineering')).toBeInTheDocument();
     // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
     expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
@@ -232,21 +232,17 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
     expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
   });
 
-  it('SUB-A: a pre-win record has no Work orders or Billing section links', async () => {
+  it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
     await renderAt('/projects/opp1');
-    const navigation = screen.getByRole('navigation', { name: /Project sections/i });
-    expect(within(navigation).queryByRole('link', { name: 'Work orders' })).not.toBeInTheDocument();
-    expect(within(navigation).queryByRole('link', { name: 'Billing' })).not.toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Overview' })).toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Budget' })).toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Procurement' })).toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Tasks' })).toBeInTheDocument();
-    expect(within(navigation).getByRole('link', { name: 'Documents' })).toBeInTheDocument();
+    const tabs = within(screen.getByRole('tablist', { name: /Project sections/i })).getAllByRole('tab').map((tab) => tab.textContent);
+    expect(tabs).not.toContain('Work orders');
+    expect(tabs).not.toContain('Billing');
+    expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents']));
   });
 
   it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
     await renderAt('/projects/opp1/work-orders');
-    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
     expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
     expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
   });

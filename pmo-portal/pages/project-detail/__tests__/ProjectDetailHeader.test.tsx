@@ -151,6 +151,41 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });
 
+  it('R-002 / AC-LRC-004: puts the source-aware return above identity and links the customer parent', () => {
+    roleBox.value = 'Project Manager';
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/projects/p1',
+        state: { pmoListReturn: { list: 'sales', path: '/sales?stage=Tender+Submitted&view=table', scrollTop: 265 } },
+      }] }>
+        <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
+      </MemoryRouter>,
+    );
+    const returnLink = screen.getByRole('link', { name: /Back to Sales Pipeline/i });
+    expect(returnLink).toHaveAttribute('href', '/sales?stage=Tender+Submitted&view=table');
+    const header = screen.getByTestId('record-header');
+    expect(returnLink.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Project scope' })).getByRole('link', { name: 'Innovate Corp' }))
+      .toHaveAttribute('href', '/companies/c2');
+  });
+
+  it('R-002 / AC-LRC-011: honors a Projects source and uses stage-aware direct-entry fallbacks', () => {
+    const projectContext = { pmoListReturn: { list: 'projects', path: '/projects?status=Leads' } };
+    const { rerender } = render(
+      <MemoryRouter initialEntries={[{ pathname: '/projects/p1', state: projectContext }] }>
+        <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('link', { name: /Back to Projects/i })).toHaveAttribute('href', '/projects?status=Leads');
+
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Back to Sales Pipeline/i })).toHaveAttribute('href', '/sales');
+
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} /></ToastProvider></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Back to Projects/i })).toHaveAttribute('href', '/projects');
+  });
+
   it('CW-3a: the Project detail opens with the shared RecordHeader (icon + name + status + action zone)', () => {
     renderHeader();
     const header = screen.getByTestId('record-header');

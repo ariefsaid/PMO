@@ -81,8 +81,41 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
     : formatSignedExactMoney(moneyPosition.contractAfterCost, project.currency, i18n.language);
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
-  const completeCoverage = moneyPosition.coverage.kind === 'complete';
+  const partialCategoryCoverage = hasCoverage && mappedCategories < actuals.categories.length;
   const needsCategorySetup = actualPosition.basis === 'erp' && actuals.categories.some((row) => !row.mapped);
+  const noSpendingReading = !actualPosition.asOf && actualPosition.amount === null;
+  const missingSpendingDate = !actualPosition.asOf && actualPosition.amount !== null;
+  const needsSpendingExplanation = actualPosition.basis === 'erp' &&
+    (noSpendingReading || missingSpendingDate || !hasCoverage || partialCategoryCoverage);
+  const spendingExplanation = (() => {
+    if (noSpendingReading) {
+      if (!hasCoverage) return t(
+        'project:spendingNoUpdateNoCategories',
+        'No ERP spending update is available for this project yet, and no spending categories are mapped.',
+      );
+      if (partialCategoryCoverage) return t(
+        'project:spendingNoUpdatePartial',
+        'No ERP spending update is available for this project yet. Coverage is partial: {{mapped}} of {{total}} categories are mapped.',
+        { mapped: mappedCategories, total: actuals.categories.length },
+      );
+      return t('project:noSpendingReading', 'No ERP spending update is available for this project yet.');
+    }
+    if (missingSpendingDate) {
+      if (partialCategoryCoverage) return t(
+        'project:spendingDateUnavailablePartial',
+        'ERP spending is available, but its update date is not reported. Coverage is partial: {{mapped}} of {{total}} categories are mapped.',
+        { mapped: mappedCategories, total: actuals.categories.length },
+      );
+      return t('project:spendingDateUnavailable', 'ERP spending is available, but its update date is not reported.');
+    }
+    if (!hasCoverage) return t('uxs01.coverageUnavailable', 'No ERP spending categories are mapped for this project.');
+    if (partialCategoryCoverage) return t(
+      'uxs01.partialCoverage',
+      'Partial coverage · {{mapped}} of {{total}} spending categories mapped',
+      { mapped: mappedCategories, total: actuals.categories.length },
+    );
+    return null;
+  })();
   const knownCategories: typeof actuals.categories = [];
   const unavailableCategories: typeof actuals.categories = [];
   for (const row of actuals.categories) {
@@ -201,10 +234,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
           ? <p className="text-xs text-muted-foreground">
             {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
             <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
-          </p>
-          : hasCoverage && !completeCoverage && <p className="text-xs text-muted-foreground">
-            {t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
-          </p>}
+          </p> : null}
         {split && (
           <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
@@ -214,17 +244,29 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
                 attributed: money(split.attributed, actualPosition.currency) })}
           </p>
         )}
-        {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
-        {actualPosition.basis === 'erp' && !actualPosition.asOf &&
-          <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
-        {needsCategorySetup && canInspectAccounting && (
-          <p className="text-xs text-muted-foreground" data-testid="spending-setup-prompt">
-            {canManageAccounting
-              ? <Link className="font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
-                  {t('project:finishSpendingSetup', 'Finish spending setup')}
-                </Link>
-              : t('project:spendingAdminHandoff', 'Ask an administrator to finish spending setup.')}
-          </p>
+        {needsSpendingExplanation && (
+          <div className="space-y-1 text-xs text-muted-foreground" data-testid="spending-data-explanation">
+            <p>
+              {spendingExplanation}
+            </p>
+            {needsCategorySetup ? (
+              <p data-testid="spending-setup-prompt">
+                {canManageAccounting
+                  ? <Link className="touch-target inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+                      {t('project:finishSpendingSetup', 'Finish spending setup')}
+                    </Link>
+                  : t('project:spendingAdminHandoff', 'Ask Finance or an administrator to finish this project’s spending setup.')}
+              </p>
+            ) : (
+              <p data-testid="spending-sync-next-step">
+                {canManageAccounting
+                  ? <Link className="touch-target inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/integrations">
+                      {t('project:reviewErpSync', 'Check ERP project sync')}
+                    </Link>
+                  : t('project:spendingSyncHandoff', 'Ask Finance or an administrator to check this project’s ERP link and latest sync.')}
+              </p>
+            )}
+          </div>
         )}
         {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
@@ -268,7 +310,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
               {unavailableCategories.map((row) => <li key={row.category}>
                 {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
                 {' — '}{row.mapped
-                  ? t('project:noSpendingReading', "Spending hasn't been updated yet.")
+                  ? t('project:noSpendingReading', 'No ERP spending update is available for this project yet.')
                   : t('project:categoryNeedsSetup', 'Spending setup is not complete for this category.')}
               </li>)}
             </ul>

@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   RecordHeader,
@@ -39,6 +39,7 @@ import type { Role } from '@/src/auth/AuthContext';
 import { LEGAL_PROJECT_TRANSITIONS, ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
+import { listReturnNavigation, readListReturnContext } from '@/src/lib/listReturnContext';
 import { SALES_COLUMNS } from '../../components/salesPipeline';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 
@@ -64,6 +65,8 @@ export interface ProjectDetailHeaderProps {
   project: ProjectWithRefs;
   onEditProject?: () => void;
   isOverview?: boolean;
+  showPipelinePrimaryAction?: boolean;
+  onPipelinePrimaryActionTargetChange?: (target: HTMLDivElement | null) => void;
 }
 
 /**
@@ -83,6 +86,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   project,
   onEditProject,
   isOverview = false,
+  showPipelinePrimaryAction = false,
+  onPipelinePrimaryActionTargetChange,
 }) => {
   const { t } = useTranslation();
   const projectStatusLabel = useProjectStatusLabel();
@@ -93,6 +98,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { toast } = useToast();
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -119,6 +125,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const status = project.status as string;
   const isOnHand = ON_HAND_STATUSES.includes(status);
   const group = projectStatusGroup(project.status as never);
+  const isPipelineRecord = group === 'pipeline' || group === 'lost';
   const isDelivery = group === 'onHand' || group === 'internal';
   const isFinanceForward = hasFinanceView(realRole);
 
@@ -126,7 +133,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const canArchive = may('archive', 'project');
   const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
   const canTransition = may('transition', 'project') && (LEGAL_PROJECT_TRANSITIONS[status] ?? []).length > 0;
-  const statusIsPrimary = isOverview && canTransition && (realRole === 'Finance' || realRole === 'Executive');
+  const statusIsPrimary = isOverview && canTransition && (realRole === 'Finance' || realRole === 'Executive') && !showPipelinePrimaryAction;
+  // The PipelineLens owns pipeline transitions for delivery writers. Keep the existing status
+  // control available to roles that can transition but cannot use the pipeline action cluster.
+  const canShowHeaderTransition = canTransition && (!isPipelineRecord || !canEdit);
   const canEditValue = may('editContractValue', 'project', { record: { status } });
   const canSetVat = may('setVatFlag', 'project');
 
@@ -142,7 +152,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         : null;
   const meta = (
     <div role="group" aria-label={t('projectDetail.header.scope.ariaLabel', 'Project scope')} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      {customerName && <span className="font-medium text-foreground">{customerName}</span>}
+      {customerName && (project.client_id
+        ? <Link to={`/companies/${project.client_id}`} className="touch-target inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline">{customerName}</Link>
+        : <span className="font-medium text-foreground">{customerName}</span>)}
       <span>{t('projectDetail.header.scope.projectManager', 'PM: {{name}}', {
         name: project.pm?.full_name ?? t('projectDetail.header.scope.unassigned', 'Unassigned'),
       })}</span>
@@ -252,14 +264,14 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     }
   };
 
-  const hasMoreActions = (canTransition && !statusIsPrimary) || canEdit || canArchive || canDelete || (isDelivery && canEditValue && isFinanceForward);
+  const hasMoreActions = (canShowHeaderTransition && !statusIsPrimary) || canEdit || canArchive || canDelete || (isDelivery && canEditValue && isFinanceForward);
   const moreActions = hasMoreActions ? (
     <details className="relative" onToggle={(event) => setMoreActionsOpen(event.currentTarget.open)}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         {t('moreActions', 'More actions')}
       </summary>
       <div hidden={!moreActionsOpen} className={`absolute right-0 z-30 mt-1 min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 shadow-md ${moreActionsOpen ? 'flex' : 'hidden'}`}>
-        {canTransition && !statusIsPrimary && moreActionsOpen && <ProjectStatusControl project={project} />}
+        {canShowHeaderTransition && !statusIsPrimary && moreActionsOpen && <ProjectStatusControl project={project} />}
         {isDelivery && canEditValue && isFinanceForward && !valueEditing && (
           <Button variant="outline" size="sm" className="justify-start" onClick={beginValueEdit}>
             {t('projectDetail.header.editContractValue', 'Edit contract value')}
@@ -288,12 +300,25 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       </div>
     </details>
   ) : null;
-  const actions = statusIsPrimary || moreActions ? (
-    <>
+  const actions = showPipelinePrimaryAction || statusIsPrimary || moreActions ? (
+    <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+      {showPipelinePrimaryAction && <div
+        ref={onPipelinePrimaryActionTargetChange}
+        data-testid="pipeline-primary-action-slot"
+        className="w-full min-w-0 flex-1 [&>button]:min-h-11 [&>button]:w-full sm:w-auto sm:flex-none sm:[&>button]:w-auto"
+      />}
       {statusIsPrimary && <ProjectStatusControl project={project} triggerVariant="primary" />}
       {moreActions}
-    </>
+    </div>
   ) : undefined;
+
+  const salesReturn = readListReturnContext(location.state, 'sales');
+  const projectsReturn = readListReturnContext(location.state, 'projects');
+  const returnList = isPipelineRecord && (salesReturn || !projectsReturn) ? 'sales' : 'projects';
+  const returnNavigation = listReturnNavigation(location.state, returnList);
+  const returnLabel = returnList === 'sales'
+    ? t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')
+    : t('projectDetail.backToProjects', '← Back to Projects');
 
   /** Contract-value editor fields and SoD context appear only during an authorized edit. */
   const sodRow = isDelivery ? (
@@ -412,6 +437,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   return (
     <>
+      <Link
+        to={returnNavigation.path}
+        state={returnNavigation.state}
+        className="touch-target mb-1 inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+      >
+        {returnLabel}
+      </Link>
       <RecordHeader
         icon={(project.name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}

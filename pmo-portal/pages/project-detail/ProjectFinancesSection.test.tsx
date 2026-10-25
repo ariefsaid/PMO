@@ -132,7 +132,7 @@ describe('ProjectFinancesSection reading states', () => {
       'Remaining to invoice', 'Only invoices linked to this project are included.', 'No active budget']) {
       expect(screen.queryByText(gone)).not.toBeInTheDocument();
     }
-    expect(screen.getByText("Spending hasn't been updated yet.")).toBeInTheDocument();
+    expect(screen.getByTestId('spending-data-explanation')).toHaveTextContent('No ERP spending update is available for this project yet');
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -158,7 +158,52 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '50.00' }, { category: 'Materials', mapped: false, amount: null }] } });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('Partial coverage · 1 of 2 categories recorded')).toBeInTheDocument();
+    expect(screen.getByText('Partial coverage · 1 of 2 spending categories mapped')).toBeInTheDocument();
+  });
+
+  it('R-008: states missing ERP spending and partial category coverage once, keeps Unavailable, and names recovery', () => {
+    h.role = 'Project Manager';
+    h.query.data = payload({ actuals: {
+      currency: 'USD', as_of: null, total: null, excludes_restricted_rows: false,
+      categories: [
+        { category: 'Labor', mapped: true, amount: null },
+        { category: 'Materials', mapped: true, amount: null },
+        { category: 'Equipment', mapped: true, amount: null },
+        { category: 'Travel', mapped: true, amount: null },
+        { category: 'Subcontract', mapped: true, amount: null },
+        { category: 'Other', mapped: true, amount: null },
+        { category: 'Logistics', mapped: false, amount: null },
+        { category: 'Permits', mapped: false, amount: null },
+        { category: 'Insurance', mapped: false, amount: null },
+        { category: 'Fees', mapped: false, amount: null },
+      ],
+    } });
+    render(<ProjectFinancesSection project={project} />);
+
+    const spending = screen.getByText('Recorded spending').parentElement!;
+    expect(within(spending).getByText('Unavailable')).toBeInTheDocument();
+    const explanation = screen.getByTestId('spending-data-explanation');
+    expect(explanation).toHaveTextContent('No ERP spending update is available for this project yet. Coverage is partial: 6 of 10 categories are mapped.');
+    expect(explanation).toHaveTextContent('Ask Finance or an administrator to finish this project’s spending setup.');
+    expect(screen.getAllByTestId('spending-data-explanation')).toHaveLength(1);
+    expect(screen.queryByText('Spending coverage unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Spending hasn.t been updated yet/)).not.toBeInTheDocument();
+  });
+
+  it('does not call a known ERP spending amount unavailable when its update date is missing', () => {
+    h.query.data = payload({ actuals: {
+      currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '50.00' }],
+    } });
+    render(<ProjectFinancesSection project={project} />);
+
+    const spending = screen.getByText('Recorded spending').parentElement!;
+    expect(within(spending).getByText('$50.00')).toBeInTheDocument();
+    expect(screen.getByTestId('spending-data-explanation'))
+      .toHaveTextContent('ERP spending is available, but its update date is not reported.');
+    expect(screen.queryByText('No ERP spending update is available for this project yet.')).not.toBeInTheDocument();
+    expect(screen.getByTestId('spending-sync-next-step'))
+      .toHaveTextContent('Ask Finance or an administrator to check this project’s ERP link and latest sync.');
   });
 
   it('0373 a PMO-basis spending figure stays in the project currency and names other-currency commitments beside it', () => {
@@ -259,7 +304,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(usd.queryByText('$100.00')).not.toBeInTheDocument();
   });
 
-  it('AC-1044-001 shows one capability-appropriate setup prompt for each real role', () => {
+  it('AC-1044-001 shows one recovery step for each real role without widening setup capability', () => {
     h.query.data = payload({
       actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false, categories: [
         { category: 'Labor', mapped: true, amount: '50.00' },
@@ -267,7 +312,7 @@ describe('ProjectFinancesSection reading states', () => {
       ] },
     });
     const expected = new Map([
-      ['Admin', 'link'], ['Finance', 'handoff'], ['Project Manager', null], ['Engineer', null], ['Executive', null],
+      ['Admin', 'link'], ['Finance', 'handoff'], ['Project Manager', 'handoff'], ['Engineer', 'handoff'], ['Executive', 'handoff'],
     ]);
     for (const [role, prompt] of expected) {
       h.role = role as typeof h.role;
@@ -279,11 +324,11 @@ describe('ProjectFinancesSection reading states', () => {
         const setupLink = within(promptRegion!).getByRole('link', { name: 'Finish spending setup' });
         expect(setupLink).toHaveAttribute('href', '/administration/accounting#budget-account-map');
         expect(setupLink).toHaveClass('text-primary-text');
-        expect(screen.queryByText('Ask an administrator to finish spending setup.')).not.toBeInTheDocument();
+        expect(screen.queryByText('Ask Finance or an administrator to finish this project’s spending setup.')).not.toBeInTheDocument();
       } else if (prompt === 'handoff') {
-        expect(promptRegion).toHaveTextContent('Ask an administrator to finish spending setup.');
+        expect(promptRegion).toHaveTextContent('Ask Finance or an administrator to finish this project’s spending setup.');
         expect(within(promptRegion!).queryByRole('link')).not.toBeInTheDocument();
-      } else expect(promptRegion).not.toBeInTheDocument();
+      }
       expect(screen.queryAllByTestId('spending-setup-prompt')).toHaveLength(prompt ? 1 : 0);
       view.unmount();
     }
@@ -299,8 +344,8 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '90.00', missing_work: 0 }], actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: null,
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     for (const [language, prompt, scope] of [
-      ['en', 'Ask an administrator to finish spending setup.', 'Only invoices linked to this project are included.'],
-      ['id', 'Minta administrator menyelesaikan penyiapan pengeluaran.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
+      ['en', 'Ask Finance or an administrator to finish this project’s spending setup.', 'Only invoices linked to this project are included.'],
+      ['id', 'Minta Finance atau administrator menyelesaikan penyiapan pengeluaran proyek ini.', 'Hanya faktur yang ditautkan ke proyek ini yang disertakan.'],
     ] as const) {
       await localeI18n.changeLanguage(language);
       const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
@@ -317,7 +362,8 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: null,
       excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] } });
     render(<MemoryRouter><ProjectFinancesSection project={project} /></MemoryRouter>);
-    expect(screen.queryByTestId('spending-setup-prompt')).not.toBeInTheDocument();
+    expect(screen.getByTestId('spending-setup-prompt')).toHaveTextContent('Ask Finance or an administrator');
+    expect(screen.queryByRole('link', { name: 'Finish spending setup' })).not.toBeInTheDocument();
   });
 
   it('AC-1044-002 keeps known zero/positive readings available and limits setup detail to Finance/Admin', () => {
@@ -335,7 +381,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(categoryDisclosure).getByText('$0.00')).toBeInTheDocument();
     expect(within(categoryDisclosure).getByText('$20.00')).toBeInTheDocument();
     expect(screen.queryByText('Spending setup details')).not.toBeInTheDocument();
-    expect(screen.getByText('Partial coverage · 2 of 3 categories recorded')).toBeInTheDocument();
+    expect(screen.getByText('Partial coverage · 2 of 3 spending categories mapped')).toBeInTheDocument();
     view.unmount();
 
     h.role = 'Finance';
@@ -366,11 +412,11 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: null, total: null, excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: null }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText("Spending hasn't been updated yet.")).toBeInTheDocument();
+    expect(screen.getByTestId('spending-data-explanation')).toHaveTextContent('No ERP spending update is available for this project yet');
     expect(screen.queryByTestId('spending-setup-prompt')).not.toBeInTheDocument();
     const readingDetails = screen.getByText('Spending setup details').closest('details')!;
     fireEvent.click(screen.getByText('Spending setup details'));
-    expect(within(readingDetails).getByText('Labor — Spending hasn\'t been updated yet.')).toBeInTheDocument();
+    expect(within(readingDetails).getByText('Labor — No ERP spending update is available for this project yet.')).toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
 
     h.query.isPending = true;
@@ -398,11 +444,11 @@ describe('ProjectFinancesSection reading states', () => {
     render(<ProjectFinancesSection project={project} />);
 
     expect(screen.getByText('Recorded spending')).toBeInTheDocument();
-    expect(screen.getByText('Partial coverage · 1 of 3 categories recorded')).toBeInTheDocument();
+    expect(screen.getByText('Partial coverage · 1 of 3 spending categories mapped')).toBeInTheDocument();
     expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
     // PD-C: no invoices → one line instead of cash/invoiced/remaining.
     expect(screen.getByTestId('project-no-invoices')).toBeInTheDocument();
-    expect(screen.getByText('Ask an administrator to finish spending setup.')).toBeInTheDocument();
+    expect(screen.getByText('Ask Finance or an administrator to finish this project’s spending setup.')).toBeInTheDocument();
     expect(screen.queryByText('GL actuals')).not.toBeInTheDocument();
     expect(screen.getByText('Show category details')).toBeInTheDocument();
   });
@@ -419,7 +465,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.getByRole('link', { name: 'Finish spending setup' })).toHaveAttribute(
       'href', '/administration/accounting#budget-account-map',
     );
-    expect(screen.queryByText('Ask an administrator to finish spending setup.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Ask Finance or an administrator to finish this project’s spending setup.')).not.toBeInTheDocument();
   });
 
   it('UX-032 explains settlement only when at least one settlement is known', () => {
