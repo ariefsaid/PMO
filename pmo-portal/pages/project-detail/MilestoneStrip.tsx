@@ -202,13 +202,11 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
               : t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
           </span>
           {canCreate && (
-            <button
-              type="button"
-              className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
-              onClick={() => setFormTarget({ milestone: null })}
-            >
-              {t('projectDetail.milestones.planPhases', 'Plan delivery phases')}
-            </button>
+            <Button variant="primary" size="sm" onClick={() => setFormTarget({ milestone: null })}>
+              {compactWhenEmpty
+                ? t('projectDetail.milestones.planPhases', 'Plan delivery phases')
+                : t('projectDetail.milestones.addMilestone', 'Add phase')}
+            </Button>
           )}
         </div>
       ) : (

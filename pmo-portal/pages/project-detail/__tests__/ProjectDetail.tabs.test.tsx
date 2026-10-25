@@ -9,19 +9,7 @@ vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinance
 // ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
-/**
- * B-9 (AC-W2-IA-004): /projects/:id/:tab? symmetric deep-link.
- * The Budget tab was the only URL-addressable tab (/projects/:id/budget); the other
- * four had no URL — an asymmetric half-applied deep-link (OUTSTANDING E2).
- *
- * Fix: generalize to /projects/:id/:tab? so all five tabs are deep-linkable
- * symmetrically. An unknown :tab defaults to overview; /budget keeps working
- * (backward-compat).
- *
- * Owning layer: component (RTL) — AC-W2-IA-004.
- */
-
-// Minimal mocks — we only need the tab-selection logic, not the real data.
+// Minimal mocks — this suite proves URL section selection and navigation context.
 const projData = [
   {
     id: 'p1',
@@ -68,7 +56,7 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
     isPending: false,
   }),
 }));
-// Stub the tab content components so we only test tab selection, not data.
+// Stub the section content components so this suite stays focused on route behavior.
 vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
 vi.mock('../ProjectProfitLossSection', () => ({ default: ({ projectId }: { projectId: string }) => <div data-testid="project-profit-loss">Project totals {projectId}</div> }));
 vi.mock('../ProjectSCurve', () => ({ default: () => <div data-testid="project-s-curve">S-curve</div> }));
@@ -115,11 +103,11 @@ import ProjectDetail from '../ProjectDetail';
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div data-testid="project-comments" /> }));
 
 const RouteLocation = () => {
-  const { pathname, search, hash } = useLocation();
-  return <output data-testid="route-location">{`${pathname}${search}${hash}`}</output>;
+  const { pathname, search, hash, state } = useLocation();
+  return <output data-testid="route-location" data-state={JSON.stringify(state)}>{`${pathname}${search}${hash}`}</output>;
 };
 
-const renderAt = async (path: string) => {
+const renderAt = async (path: string | { pathname: string; search?: string; hash?: string; state?: unknown }) => {
   const view = render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter initialEntries={[path]}>
@@ -137,22 +125,18 @@ const renderAt = async (path: string) => {
   return view;
 };
 
-describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
-  it('AC-W2-IA-004: /projects/:id (no tab) defaults to the Overview tab', async () => {
+describe('ProjectDetail — section deep-link behavior (B-9, AC-W2-IA-004)', () => {
+  it('AC-W2-IA-004: /projects/:id (no section) defaults to Overview', async () => {
     await renderAt('/projects/p1');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('AC-009 support: Overview mounts project totals once after OverviewTab and before S-curve/comments', async () => {
+  it('AC-009 support: Overview mounts project totals once', async () => {
     await renderAt('/projects/p1/overview');
-    const overview = screen.getByTestId('tab-overview');
     const totals = screen.getByTestId('project-profit-loss');
-    const curve = screen.getByTestId('project-s-curve');
-    const comments = screen.getByTestId('project-comments');
     expect(totals).toHaveTextContent('Project totals p1');
-    expect(overview.compareDocumentPosition(totals) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(totals.compareDocumentPosition(curve) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(curve.compareDocumentPosition(comments) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByTestId('project-profit-loss')).toHaveLength(1);
   });
 
   it('AC-009 support: other tabs and an unavailable project do not mount project totals', async () => {
@@ -163,17 +147,18 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
     expect(screen.queryByTestId('project-profit-loss')).not.toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/budget pre-selects the Budget tab (backward-compat)', async () => {
+  it('AC-W2-IA-004: /projects/:id/budget selects Budget (backward-compatible URL)', async () => {
     await renderAt('/projects/p1/budget');
     expect(screen.getByTestId('tab-budget')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('AC-W2-IA-004: /projects/:id/procurement pre-selects the Procurement tab', async () => {
+  it('AC-W2-IA-004: /projects/:id/procurement selects Procurement', async () => {
     await renderAt('/projects/p1/procurement');
     expect(screen.getByTestId('tab-procurement')).toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: /projects/:id/tasks pre-selects the Tasks tab', async () => {
+  it('AC-W2-IA-004: /projects/:id/tasks selects Tasks', async () => {
     await renderAt('/projects/p1/tasks');
     expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
   });
@@ -214,17 +199,17 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
     expect(trigger).toHaveFocus();
   });
 
-  it('AC-W2-IA-004: /projects/:id/documents pre-selects the Documents tab', async () => {
+  it('AC-W2-IA-004: /projects/:id/documents selects Documents', async () => {
     await renderAt('/projects/p1/documents');
     expect(screen.getByTestId('tab-documents')).toBeInTheDocument();
   });
 
-  it('AC-PB-008: /projects/:id/billing pre-selects the Billing tab', async () => {
+  it('AC-PB-008: /projects/:id/billing selects Billing for an eligible reader', async () => {
     await renderAt('/projects/p1/billing');
     expect(screen.getByTestId('tab-billing')).toBeInTheDocument();
   });
 
-  it('AC-PB-008: an Engineer has no Billing tab, even by deep link', async () => {
+  it('AC-PB-008: an Engineer deep link returns to Tasks and exposes no Billing link', async () => {
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter initialEntries={['/projects/p1/billing']}>
@@ -236,10 +221,12 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
         </MemoryRouter>
       </ImpersonationProvider>,
     );
-    expect(screen.queryByTestId('tab-billing')).toBeNull();
+    expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('link', { name: 'Billing' })).not.toBeInTheDocument();
   });
 
-  it('AC-W2-IA-004: an unknown tab falls back to Overview (no crash)', async () => {
+  it('AC-W2-IA-004: an unknown section falls back to Overview (no crash)', async () => {
     await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
   });
@@ -252,5 +239,21 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
   it('AC-UNB-005: without ?wo= the Work orders tab focuses nothing', async () => {
     await renderAt('/projects/p1/work-orders');
     expect(screen.getByTestId('tab-work-orders')).toHaveTextContent('focus:none');
+  });
+
+  it('AC-LRC-003: a section change preserves list-return state, query, and hash', async () => {
+    const capturedState = { pmoListReturn: { list: 'projects' as const, path: '/projects?filter=Ongoing' } };
+    await renderAt({
+      pathname: '/projects/p1/overview',
+      search: '?view=table',
+      hash: '#position',
+      state: capturedState,
+    });
+    fireEvent.click(screen.getByRole('link', { name: 'Procurement' }));
+
+    expect(await screen.findByTestId('tab-procurement')).toBeInTheDocument();
+    expect(screen.getByTestId('route-location')).toHaveTextContent('/projects/p1/procurement?view=table#position');
+    expect(screen.getByTestId('route-location').getAttribute('data-state')).toContain('"pmoListReturn"');
+    expect(screen.getByTestId('route-location').getAttribute('data-state')).toContain('"pmoTabSwitch":true');
   });
 });

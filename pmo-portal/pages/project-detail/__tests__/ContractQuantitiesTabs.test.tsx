@@ -359,7 +359,9 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     await user.click(confirmButton());
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm final BAST' }));
     expect(screen.queryByTestId('wo-closing-wo-1')).toBeNull();
-    expect(screen.queryByText('Closed')).toBeNull();
+    const orderRow = screen.getByRole('row', { name: /WO-001/ });
+    expect(within(orderRow).queryByText('Closed')).not.toBeInTheDocument();
+    expect(within(orderRow).getAllByText('Issued').length).toBeGreaterThan(0);
   });
 
   it('AC-CQ-015 a server refusal stays in the dialog with its figures and nothing is closed', async () => {

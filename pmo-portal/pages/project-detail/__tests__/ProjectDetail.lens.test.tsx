@@ -188,17 +188,16 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
 
     // header is shared across lenses
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    // delivery lens: the 5 section tabs are present
-    expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
-    // the contract-value SoD editor row is mounted on a won/on-hand project
-    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+    // Delivery sections are directly addressable, and the read-only value reason lives in Overview.
+    expect(screen.getByRole('navigation', { name: /project sections/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Read-only/i })).toBeInTheDocument();
     // the pipeline lens is NOT mounted
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders its journey and keeps planning sections reachable', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -214,10 +213,10 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // ADR-0021: the delivery tabs ARE now mounted pre-win (the budget/tasks/procurement planning
+    // ADR-0021: delivery sections ARE mounted pre-win (the budget/tasks/procurement planning
     // surface a PM needs while pursuing the deal) — this is the override of ADR-0020 §1.
-    expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /project sections/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument();
     // the contract-value SoD editor stays delivery-only (the deal's value lives in the banner).
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });

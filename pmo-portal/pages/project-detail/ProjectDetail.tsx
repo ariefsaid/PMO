@@ -223,8 +223,11 @@ const ProjectDetail: React.FC = () => {
   // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
   // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
   const requestedTab = tabFromParam(tabParam);
-  // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
-  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
+  // SUB-A: pre-win records land on Overview for Work orders/Billing; ineligible billing readers
+  // return to the delivery work they can act on.
+  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing')
+    ? 'overview'
+    : requestedTab === 'billing' && !canSeeBilling ? 'tasks' : requestedTab;
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
     // Preserve collection return context, section-level query state and task/WO anchors.
@@ -369,7 +372,7 @@ const ProjectDetail: React.FC = () => {
           <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
         )}
       </React.Suspense>
-      <ProjectDetailRail project={project} showActionSection={false} />
+      <ProjectDetailRail project={project} />
     </div>
   );
 
@@ -386,14 +389,8 @@ const ProjectDetail: React.FC = () => {
 
       <ProjectDetailHeader
         project={project}
-        committedSpend={committedSpend}
-        committedOtherCurrencies={committedOtherCurrencies}
-        commitmentSource={commitmentSource}
-        ledgerBasis={ledgerBasis}
-        commitmentPending={commitmentPending}
-        commitmentError={commitmentError}
         onEditProject={openEditProject}
-        showMoneySummary={false}
+        isOverview={tab === 'overview'}
       />
 
       {isPipeline && tab === 'overview' && (

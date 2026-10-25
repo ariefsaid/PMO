@@ -150,14 +150,9 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
     expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
   });
 
-  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview tab item is aria-selected=true for Engineer (no tab param)', async () => {
+  it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview section link is current for Engineer (no section param)', async () => {
     await renderAs('Engineer', '/projects/p1');
-    const tablist = screen.getByRole('tablist', { name: /project sections/i });
-    const overviewTab = Array.from(tablist.querySelectorAll('[role="tab"]')).find(
-      (t) => t.textContent === 'Overview',
-    );
-    expect(overviewTab).not.toBeUndefined();
-    expect(overviewTab!.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
   });
 
   // ── All other roles ALSO default to Overview (unchanged) ───────────────────

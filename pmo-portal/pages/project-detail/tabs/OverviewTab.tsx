@@ -1,7 +1,7 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, TaxBasisLabel } from '@/src/components/ui';
+import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, TaxBasisLabel, Icon } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -13,7 +13,7 @@ import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { buildProjectMoneyPosition } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
-import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
@@ -35,15 +35,6 @@ export interface OverviewTabProps {
   phasePlanner?: React.ReactNode;
   /** Pre-win/lost replaces the delivery money band with the PipelineLens. */
   showMoneyPosition?: boolean;
-  /**
-   * D15 (OD-W5-C3-A): when true the Overview tab renders the "Financial summary" aside
-   * — the finance StatTiles + contract-value SoD row relocated from the page header for
-   * delivery-forward roles (Engineer). Finance-forward roles (Admin·Exec·Finance·PM) keep
-   * the finance block in the header; showFinanceSummary is false/omitted for them.
-   * Always read-only (lock pill, no edit affordance) — mutations stay in the header for
-   * finance-forward roles; the Engineer never gets a contract-value edit control.
-   */
-  showFinanceSummary?: boolean;
 }
 
 /**
@@ -55,23 +46,25 @@ export interface OverviewTabProps {
  *
  * L3-RECORD: the record-identifying fields (customer / PM / dates / code / PO ref)
  * now live in the persistent page rail, so Overview no longer duplicates them.
- *
- * D15 (OD-W5-C3-A): when showFinanceSummary is true (delivery-forward / Engineer role),
- * a read-only "Financial summary" aside renders near the top of the Overview tab.
- * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
- * is not rendered for them (showFinanceSummary is false/omitted).
  */
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, phaseSummary, phasePlanner, showMoneyPosition = true }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
+  const [lockReasonOpen, setLockReasonOpen] = useState(false);
+  // The delivery money position has no job on pipeline/lost records, whose figures belong to
+  // PipelineLens. Keep the project-wide finance read scoped to the delivery surface as well.
+  const group = projectStatusGroup(project.status as never);
+  const isDelivery = showMoneyPosition && (group === 'onHand' || group === 'internal');
+  const contractValueLocked = ON_HAND_STATUSES.includes(project.status as string) &&
+    !may('editContractValue', 'project', { record: { status: project.status } });
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
   // B-0.4: budget state remains distinct from a missing or unavailable Actual reading.
   const { data: derivedBudget } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const { data: projectFinances } = useProjectFinances(project.id);
+  const { data: projectFinances } = useProjectFinances(project.id, { enabled: isDelivery });
   const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals,
@@ -86,10 +79,6 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
     spent: actualSpend, actualCurrency: actualPosition.currency,
     actualComplete: actualPosition.complete,
   }) ? budgetUtilPctValue : null;
-
-  // The delivery money band is replaced by PipelineLens for pipeline/lost records.
-  const group = projectStatusGroup(project.status as never);
-  const isDelivery = showMoneyPosition && (group === 'onHand' || group === 'internal');
 
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
@@ -174,6 +163,22 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                 <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
                 <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails testId="overview-contract-tax-basis" />
               </div>
+              {contractValueLocked && <div className="space-y-1">
+                <button
+                  type="button"
+                  aria-expanded={lockReasonOpen}
+                  aria-controls="overview-contract-value-lock-reason"
+                  onClick={() => setLockReasonOpen((open) => !open)}
+                  className="inline-flex min-h-11 items-center gap-1 rounded-full bg-secondary px-3 text-xs font-semibold text-muted-foreground"
+                >
+                  <Icon name="lock" className="size-3" />
+                  {t('projectDetail.header.readOnly', 'Read-only')}
+                  <Icon name="chev" className="size-3 rotate-90" />
+                </button>
+                {lockReasonOpen && <p id="overview-contract-value-lock-reason" className="text-xs text-muted-foreground">
+                  {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
+                </p>}
+              </div>}
               <ProjectDrawdown projectId={project.id} />
             </div>
             {may('view', 'salesInvoice')

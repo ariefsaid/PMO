@@ -37,6 +37,7 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => pro
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => projectBudgetState,

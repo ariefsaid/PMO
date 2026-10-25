@@ -4,14 +4,11 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useTranslation } from 'react-i18next';
 import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { classificationValueLabel } from '@/src/lib/projectClassification';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
-  onEditProject?: () => void;
-  showActionSection?: boolean;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -40,7 +37,7 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
   );
 };
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
   const { t } = useTranslation();
   const notSet = t('projectDetail.rail.notSet', 'Not set');
   return (
@@ -51,32 +48,18 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
     >
       <details>
         <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
-          {showActionSection ? t('uxs13.projectDetailsAndActions', 'Project details and actions') : t('projectDetail.rail.detailsHeading', 'Details')}
+          {t('uxs13.projectDetailsAndActions', 'Project details')}
         </summary>
-        <div className="space-y-8 pt-2 md:space-y-12">
-        {showActionSection && (
-          <section aria-label={t('projectDetail.rail.actionsAriaLabel', 'Project rail actions')}>
-            <RailSectionLabel>{t('projectDetail.rail.recordHeading', 'Record')}</RailSectionLabel>
-            <div className="space-y-3">
-              <ProjectStatusControl
-                project={project}
-                triggerVariant="primary"
-                triggerSize="sm"
-              />
-            </div>
-          </section>
-        )}
-
+        <div className="space-y-8 pt-3">
         <section aria-labelledby="project-details-heading">
-          <div className={showActionSection ? undefined : 'sr-only'}><RailSectionLabel>
+          <RailSectionLabel>
             <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
-          </RailSectionLabel></div>
+          </RailSectionLabel>
           <dl className="divide-y divide-border/70">
             {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
             {projectDisplayName(project) !== project.name && (
               <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
             )}
-            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
             {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
                 is omitted rather than rendered as "Not set". */}
             {project.end_client && (
@@ -85,13 +68,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
                 value={companyDisplayName(project.end_client)}
               />
             )}
-            <DetailRow
-              label={t('projectDetail.rail.projectManager', 'Project manager')}
-              value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
-            />
             <ProjectClassificationRows project={project} />
-            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
-            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
               label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
               value={<span className="text-sm tabular">{project.pmo_project_number}</span>}
@@ -110,6 +87,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
                 )
               }
             />
+            {project.contract_date && <DetailRow label={t('projectDetail.rail.customerPoDate', 'Customer PO date')} value={formatDateOnly(project.contract_date)} />}
           </dl>
         </section>
         <ProjectErpLink projectId={project.id} />

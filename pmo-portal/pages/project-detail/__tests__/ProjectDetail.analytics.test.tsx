@@ -124,20 +124,20 @@ beforeEach(() => {
   analytics.trackProjectTabViewed.mockClear();
 });
 
-describe('ProjectDetail: project_tab_viewed fires when a tab is switched (2026-07-13 wiring plan)', () => {
-  it('AC: clicking the Budget tab fires trackProjectTabViewed("budget") via the facade', async () => {
+describe('ProjectDetail: project_tab_viewed fires when a section is switched (2026-07-13 wiring plan)', () => {
+  it('AC: clicking the Budget section fires trackProjectTabViewed("budget") via the facade', async () => {
     await renderAt('/projects/p1');
-    fireEvent.click(screen.getByRole('tab', { name: 'Budget' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Budget' }));
     expect(analytics.trackProjectTabViewed).toHaveBeenCalledWith('budget');
   });
 
-  it('AC: clicking the Documents tab fires trackProjectTabViewed("documents")', async () => {
+  it('AC: clicking the Documents section fires trackProjectTabViewed("documents")', async () => {
     await renderAt('/projects/p1');
-    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+    fireEvent.click(screen.getByRole('link', { name: 'Documents' }));
     expect(analytics.trackProjectTabViewed).toHaveBeenCalledWith('documents');
   });
 
-  it('does not fire on initial mount — only on an actual tab switch', async () => {
+  it('does not fire on initial mount — only on an actual section switch', async () => {
     await renderAt('/projects/p1/budget');
     expect(analytics.trackProjectTabViewed).not.toHaveBeenCalled();
   });

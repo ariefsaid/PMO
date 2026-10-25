@@ -2424,8 +2424,14 @@
         "title": "Delete {{name}}?"
       },
       "editContractValue": "Edit contract value",
-      "po": "PO {{ref}}",
-      "poWithDate": "PO {{ref}} ({{date}})",
+      "scope": {
+        "ariaLabel": "Project scope",
+        "dateRange": "{{start}} – {{end}}",
+        "projectManager": "PM: {{name}}",
+        "startDate": "Starts {{date}}",
+        "unassigned": "Unassigned",
+        "targetEnd": "Target end {{date}}"
+      },
       "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
       "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
@@ -2629,17 +2635,11 @@
       "title": "Purchase Requests"
     },
     "rail": {
-      "actionsAriaLabel": "Project rail actions",
       "ariaLabel": "Project details rail",
-      "customer": "Customer",
       "customerPoRef": "Customer PO ref",
+      "customerPoDate": "Customer PO date",
       "detailsHeading": "Details",
       "notSet": "Not set",
-      "projectManager": "Project manager",
-      "recordHeading": "Record",
-      "start": "Start",
-      "targetEnd": "Target end",
-      "unassigned": "Unassigned",
       "endCustomer": "End customer",
       "pmoNumber": "PMO Project Number",
       "clientCode": "Client Project Code"
@@ -4537,7 +4537,7 @@
     }
   },
   "uxs13": {
-    "projectDetailsAndActions": "Project details and actions",
+    "projectDetailsAndActions": "Project details",
     "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
   },
   "uxs18": {

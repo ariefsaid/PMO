@@ -486,27 +486,39 @@ describe('Overview money position respects the project-wide spend boundary (DD-M
   });
 });
 
-// ⚑ Bound at the spec review's insistence: removing the labels from BOTH OverviewTab sites (the
-// finance tile and the contract-value SoD row) left the entire 7,363-test suite green. Two
-// distinct render sites, so two assertions — one would let the other rot.
 describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
-  it('labels the finance tile (the one place the Overview states the contract basis) from the row itself', () => {
-    // ⚑ The finance tile renders ONLY under the delivery-forward lens (D15 / OD-W5-C3-A), so it
-    // needs its own render with that flag on — asserting both from the default render is how this
-    // oracle would have gone quietly dead a second time.
-    const { unmount } = render(
-      <ImpersonationProvider realRole="Engineer">
-        <MemoryRouter>
-          <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
-        </MemoryRouter>
-      </ImpersonationProvider>,
-    );
-    // Both sites live inside the delivery-forward financial summary, so one render covers them —
-    // but they are asserted BY NAME, because they can rot independently and a count would not tell.
-    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  it.each([
+    ['inclusive', 'incl. PPN'],
+    ['exclusive', 'excl. PPN'],
+  ] as const)('labels the Overview contract value from this record’s %s basis', (treatment, expected) => {
+    renderTab({ ...project, tax_treatment: treatment } as ProjectWithRefs);
+    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', treatment);
+    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveTextContent(expected);
     expect(screen.queryByTestId('overview-contract-value-tax-basis')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    unmount();
+  });
+
+  it('does not invent a basis for a record without a stated tax treatment', () => {
+    renderTab({ ...project, tax_treatment: null } as unknown as ProjectWithRefs);
+    expect(screen.queryByTestId('overview-contract-tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('keeps an unknown stored rate informational and states the record’s DPP basis', () => {
+    renderTab({ ...project, tax_rate: null, tax_base_numerator: 11, tax_base_denominator: 12 } as ProjectWithRefs);
+    const basis = screen.getByTestId('overview-contract-tax-basis');
+    expect(basis).toHaveTextContent('excl. PPN · rate not recorded · DPP 11/12');
+  });
+});
+
+describe('Overview contract value authority', () => {
+  it('gives a delivery reader a 44px Read-only explanation and keeps editing unavailable', async () => {
+    renderTab(project, vi.fn(), 150_000, 'Engineer');
+    const lock = screen.getByRole('button', { name: /Read-only/i });
+    expect(lock).toHaveClass('min-h-11');
+    expect(lock).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(lock);
+    expect(lock).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/Once a project is won, the contract value is locked for your role/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 });
 

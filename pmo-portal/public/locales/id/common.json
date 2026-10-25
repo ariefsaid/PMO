@@ -2424,8 +2424,14 @@
         "title": "Hapus {{name}}?"
       },
       "editContractValue": "Edit nilai kontrak",
-      "po": "PO {{ref}}",
-      "poWithDate": "PO {{ref}} ({{date}})",
+      "scope": {
+        "ariaLabel": "Cakupan proyek",
+        "dateRange": "{{start}} – {{end}}",
+        "projectManager": "PM: {{name}}",
+        "startDate": "Mulai {{date}}",
+        "unassigned": "Belum ditugaskan",
+        "targetEnd": "Target selesai {{date}}"
+      },
       "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
       "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
@@ -2629,17 +2635,11 @@
       "title": "Permintaan pembelian"
     },
     "rail": {
-      "actionsAriaLabel": "Tindakan panel proyek",
       "ariaLabel": "Panel detail proyek",
-      "customer": "Klien",
       "customerPoRef": "Ref PO klien",
+      "customerPoDate": "Tanggal PO klien",
       "detailsHeading": "Detail",
       "notSet": "Belum diisi",
-      "projectManager": "Manajer proyek",
-      "recordHeading": "Data",
-      "start": "Mulai",
-      "targetEnd": "Target selesai",
-      "unassigned": "Belum ditugaskan",
       "endCustomer": "Pelanggan akhir",
       "pmoNumber": "Nomor Proyek PMO",
       "clientCode": "Kode Proyek Klien"
@@ -4537,7 +4537,7 @@
     }
   },
   "uxs13": {
-    "projectDetailsAndActions": "Detail dan tindakan proyek",
+    "projectDetailsAndActions": "Detail proyek",
     "overdueTargetDateWithYear": "Target tanggal {{date}} {{year}}"
   },
   "uxs18": {
