@@ -63,6 +63,7 @@ try {
     let detectorCount = 0;
     let advisoryCount = 0;
     let seriousAxe = 0;
+    let advisoryAxe = 0;
     for (const width of [390, 1440]) {
       const height = width === 390 ? 844 : 900;
       for (const theme of ['light', 'dark']) {
@@ -113,12 +114,14 @@ try {
         const axeJson = await new AxeBuilder({ page }).analyze();
         fs.writeFileSync(path.join(output, `${stem}.axe.json`), `${JSON.stringify({ reviewedHead, result: axeJson }, null, 2)}\n`);
         const serious = axeJson.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact));
+        const advisory = axeJson.violations.filter((violation) => ['moderate', 'minor'].includes(violation.impact));
         seriousAxe += serious.length;
+        advisoryAxe += advisory.length;
         if (serious.length) failed = true;
         await context.close();
       }
     }
-    console.log(`${route}: impeccable findings=${detectorCount}; advisory=${advisoryCount}; axe serious/critical=${seriousAxe}`);
+    console.log(`${route}: impeccable findings=${detectorCount}; detector advisory=${advisoryCount}; axe serious/critical=${seriousAxe}; axe advisory=${advisoryAxe}`);
   }
 } finally {
   await browser.close();
