@@ -145,7 +145,7 @@ export function ErpSetupChecklist(
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
-    'text-sm font-medium text-foreground underline underline-offset-4 break-words';
+    'touch-target text-sm font-medium text-foreground underline underline-offset-4 break-words';
   return (
     <section
       aria-labelledby='erp-setup-heading'

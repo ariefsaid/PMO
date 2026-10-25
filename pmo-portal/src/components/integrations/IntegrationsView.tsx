@@ -448,7 +448,7 @@ export const IntegrationsView: React.FC = () => {
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
         {t('uxs07.organizationScope', 'Organization connections are shared; your personal connection is separate. Manage it in ')}
-        <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
+        <a className="touch-target font-medium text-foreground underline underline-offset-4" href="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
         </a>
       </p>
@@ -1042,7 +1042,7 @@ const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, setupUnavaila
       ))}
       <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
         <span>{t('uxs07.liveRecordCheck', 'Not yet verified — review a connected record to confirm the data is usable.')}</span>
-        <a className="font-medium text-foreground underline underline-offset-4" href={recordsHref}>
+        <a className="touch-target font-medium text-foreground underline underline-offset-4" href={recordsHref}>
           {t('uxs07.reviewRecords', 'Review connected records')}
         </a>
       </p>

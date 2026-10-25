@@ -263,7 +263,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
             {accounts.length === 0 && <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
             {accounts.some((account) => !account.isPushTarget) && (
               <details className="text-[13px]">
-                <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+                <summary className="min-h-11 w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
                   {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
                 </summary>
                 <ul className="mt-2 flex flex-col gap-1.5">

@@ -1157,7 +1157,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          'w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+          '[@media(pointer:coarse)]:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
           className
         )}
         {...rest}
