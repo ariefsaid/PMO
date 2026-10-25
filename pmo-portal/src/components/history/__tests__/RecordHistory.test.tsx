@@ -75,6 +75,25 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('AC-PD-HIST-01 labels newest-first order and returns from an empty kind filter to all history', async () => {
+    const allEvents = [
+      ev(2, { entityType: 'project', op: 'insert', changes: {} }),
+      ev(1, { entityType: 'task', op: 'insert', entityId: 't1', changes: {} }),
+    ];
+    repo.recordHistory.list.mockImplementation(async (args: { entityTypes?: string[] | null }) => ({
+      events: args.entityTypes?.includes('task') ? [] : allEvents,
+      nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true });
+
+    expect(await screen.findByText('Newest first')).toBeVisible();
+    await userEvent.click(await screen.findByRole('button', { name: 'Tasks' }));
+    expect(await screen.findByText('No task changes')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'All kinds' }));
+    expect(await screen.findByText('Project created')).toBeVisible();
+    expect(screen.getAllByTestId('history-event')).toHaveLength(2);
+  });
+
   it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),

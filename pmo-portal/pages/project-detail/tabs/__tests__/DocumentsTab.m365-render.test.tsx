@@ -67,6 +67,35 @@ beforeEach(() => {
 });
 
 describe('DocumentsTab — Microsoft reference rendering', () => {
+  it('AC-PD-DOC-01 shows current evidence newest by document date, then title and code, with undated last', () => {
+    h.docs.data = [
+      makeDoc({ id: 'undated', title: 'Undated', code: 'DOC-0', doc_date: null }),
+      makeDoc({ id: 'older', title: 'Older', code: 'DOC-9', doc_date: '2026-07-31' }),
+      makeDoc({ id: 'tie-delta', title: 'Delta', code: 'DOC-2', doc_date: '2026-08-01' }),
+      makeDoc({ id: 'tie-alpha-z', title: 'Alpha', code: 'DOC-8', doc_date: '2026-08-01' }),
+      makeDoc({ id: 'tie-alpha-a', title: 'Alpha', code: 'DOC-1', doc_date: '2026-08-01' }),
+    ];
+    renderTab();
+
+    expect(screen.getAllByRole('button', { name: /^View / }).map((button) => button.getAttribute('aria-label')))
+      .toEqual(['View Alpha', 'View Alpha', 'View Delta', 'View Older', 'View Undated']);
+    const codeOne = screen.getByText('DOC-1');
+    const codeEight = screen.getByText('DOC-8');
+    expect(codeOne.compareDocumentPosition(codeEight) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add document' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Link from Microsoft 365' })).toBeInTheDocument();
+  });
+
+  it('AC-PD-DOC-02 clears a no-match search from the current register', async () => {
+    h.docs.data = [makeDoc()];
+    renderTab();
+    await userEvent.type(screen.getByRole('searchbox', { name: 'Search documents' }), 'missing');
+
+    expect(await screen.findByText('No documents match your search')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByRole('button', { name: 'View Foundation GA' })).toBeInTheDocument();
+  });
+
   it('AC-M365DOC-020: a linked document shows its PMO title, status and the Microsoft file cell, with no upload controls', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();

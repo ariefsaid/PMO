@@ -1,5 +1,5 @@
 {
-  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
+  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" }, "search": { "clearSearch": "Clear search" } },
   "uxs07": {
     "organizationScope": "Organization connections are shared; your personal connection is separate. Manage it in ",
     "personalConnections": "My integrations",
@@ -2248,9 +2248,10 @@
       "column": {
         "category": "Category",
         "code": "Code",
-        "date": "Date",
+        "date": "Document date",
         "document": "Document",
         "file": "File",
+        "revision": "Revision",
         "status": "Status"
       },
       "deleteConfirm": {
@@ -4292,6 +4293,8 @@
     "retry": "Retry",
     "error": "Couldn't load history",
     "filterLabel": "Filter by record kind",
+    "newestFirst": "Newest first",
+    "filter": { "allKinds": "All kinds" },
     "empty": {
       "title": "No changes recorded yet",
       "sub": "History begins {{date}}. Edits made before then and deletions are not shown."

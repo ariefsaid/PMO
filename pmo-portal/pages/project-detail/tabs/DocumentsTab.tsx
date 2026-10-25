@@ -211,13 +211,24 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (d) =>
-        d.title.toLowerCase().includes(q) ||
-        (d.code ?? '').toLowerCase().includes(q) ||
-        d.category.toLowerCase().includes(q),
-    );
+    const matches = q
+      ? all.filter(
+          (d) =>
+            d.title.toLowerCase().includes(q) ||
+            (d.code ?? '').toLowerCase().includes(q) ||
+            d.category.toLowerCase().includes(q),
+        )
+      : all;
+    return [...matches].sort((a, b) => {
+      if (a.doc_date !== b.doc_date) {
+        if (!a.doc_date) return 1;
+        if (!b.doc_date) return -1;
+        return b.doc_date.localeCompare(a.doc_date);
+      }
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) ||
+        (a.code ?? '').localeCompare(b.code ?? '', undefined, { sensitivity: 'base' }) ||
+        a.id.localeCompare(b.id);
+    });
   }, [all, search]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -241,10 +252,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   const columns: Column<ProjectDocumentRow>[] = [
     {
-      // D12: Document (title) leads the row so the DataTable's first-cell
-      // activation <button> (rowLabel) wraps the row's natural identity — the
-      // keyboard/SR doorway into the quick-view drawer. (Was Code-first; Code
-      // can be null and is hidden below `sm`, so it's the wrong activation cell.)
+      // Document title leads the row so the first-cell activation is the natural
+      // identity and keyboard/screen-reader doorway into the quick-view drawer.
       key: 'title',
       header: t('projectDetail.documents.column.document', 'Document'),
       cell: (d) => (
@@ -271,6 +280,46 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         ),
     },
     {
+      key: 'category',
+      header: t('projectDetail.documents.column.category', 'Category'),
+      size: 112, minSize: 112, maxSize: 112,
+      colClassName: 'hidden md:table-cell w-[112px]',
+      cell: (d) => isMicrosoftFolder(d)
+        ? <span className="text-muted-foreground">{'—'}</span>
+        : <span className="text-[13px] text-muted-foreground">{d.category}</span>,
+    },
+    {
+      key: 'revision',
+      header: t('projectDetail.documents.column.revision', 'Revision'),
+      size: 88, minSize: 88, maxSize: 88,
+      colClassName: 'hidden md:table-cell w-[88px]',
+      cell: (d) => isMicrosoftFolder(d) || !d.revision
+        ? <span className="text-muted-foreground">{'—'}</span>
+        : <span className="text-[13px] text-muted-foreground">{`${t('projectDetail.documents.revLabel', 'Rev')} ${d.revision}`}</span>,
+    },
+    {
+      key: 'status',
+      header: t('projectDetail.documents.column.status', 'Status'),
+      size: 112, minSize: 112, maxSize: 112,
+      colClassName: 'w-[112px] min-w-[112px]',
+      // A folder is never issued or approved, so it carries no issue status.
+      cell: (d) => isMicrosoftFolder(d)
+        ? <span className="text-muted-foreground">{'—'}</span>
+        : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
+    },
+    {
+      key: 'doc_date',
+      header: t('projectDetail.documents.column.date', 'Document date'),
+      size: 108, minSize: 108, maxSize: 108,
+      colClassName: 'hidden lg:table-cell w-[108px]',
+      cell: (d) =>
+        d.doc_date ? (
+          <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">{d.doc_date}</span>
+        ) : (
+          <span className="text-muted-foreground">{'—'}</span>
+        ),
+    },
+    {
       key: 'file_path',
       header: t('projectDetail.documents.column.file', 'File'),
       size: 176, minSize: 176, maxSize: 176,
@@ -290,37 +339,6 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           onPreview={d.file_path ? () => void handlePreview(d) : undefined}
         />
       ),
-    },
-    {
-      key: 'category',
-      header: t('projectDetail.documents.column.category', 'Category'),
-      size: 112, minSize: 112, maxSize: 112,
-      colClassName: 'hidden md:table-cell w-[112px]',
-      cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
-        : <span className="text-[13px] text-muted-foreground">{d.category}</span>,
-    },
-    {
-      key: 'doc_date',
-      header: t('projectDetail.documents.column.date', 'Date'),
-      size: 108, minSize: 108, maxSize: 108,
-      colClassName: 'hidden lg:table-cell w-[108px]',
-      cell: (d) =>
-        d.doc_date ? (
-          <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">{d.doc_date}</span>
-        ) : (
-          <span className="text-muted-foreground">{'—'}</span>
-        ),
-    },
-    {
-      key: 'status',
-      header: t('projectDetail.documents.column.status', 'Status'),
-      size: 112, minSize: 112, maxSize: 112,
-      colClassName: 'w-[112px] min-w-[112px]',
-      // A folder is never issued or approved, so it carries no issue status.
-      cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
-        : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
   ];
 
@@ -561,91 +579,39 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.documents.heading', 'Document register')}
-          </h2>
-        </div>
+      <Toolbar standalone className="items-stretch sm:items-center">
+        <div className="order-1 flex w-full min-w-0 flex-col gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-row">
         {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
             button was removed — file upload is signposted by the register subtitle copy
             ("file attachments arrive with Storage"), not a fake disabled control. */}
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
           {canCreate && (
-            <Button variant="outline" size="sm" onClick={() => setFormTarget({ doc: null })}>
+            <Button className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormTarget({ doc: null })}>
               <Icon name="plus" />
               {t('projectDetail.documents.addDocument', 'Add document')}
             </Button>
           )}
           {canCreateMicrosoftReference && (
-            <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
+            <Button variant="outline" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
               <Icon name="doc" />
               {t('m365Documents:link', 'Link from Microsoft 365')}
             </Button>
           )}
         </div>
-      </div>
+        {state !== 'loading' && all.length > 0 && (
 
-      {/* Below the header, so a folder notice never pushes the primary actions down or off-screen (empty for non-writers). */}
-      <div className="mb-3.5 empty:hidden">
-        <RecordFolderAction
-          target={{ kind: 'project', id: projectId }}
-          hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
-          onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
-        />
-      </div>
-
-      {microsoftEntry && (
-        <MicrosoftEntry
-          code={projectCode}
-          onClose={() => setMicrosoftEntry(null)}
-          onSelect={async (reference) => {
-            if (microsoftEntry.kind === 'link') {
-              if (!documentLinkPermissions.projectEdit(microsoftEntry.doc.author_id, microsoftEntry.doc.status)) return;
-              // A failure propagates: the picker keeps the selection and shows its own persistent alert.
-              await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
-              toast(t('m365Documents:linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
-              setMicrosoftEntry(null);
-            } else {
-              if (!documentLinkPermissions.projectCreate()) return;
-              // Close the picker FIRST, then open the ordinary form seeded with the reference.
-              setMicrosoftEntry(null);
-              setFormTarget({ doc: null, reference });
-            }
-          }}
-        />
-      )}
-
-      {/* SoD block (approver = author): persistent inline reason for a hidden Approve/Reject. */}
-      {sodBlocked && (
-        <GateNotice variant="blocked" className="mb-3.5" data-testid="document-sod-gate">
-          <div>
-            {t('projectDetail.documents.sod.ownDocument', "You can't approve your own document")}{' '}
-            (<b className="font-semibold">{sodBlocked.title}</b>).{' '}
-            {t(
-              'projectDetail.documents.sod.explanation',
-              'Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.',
-            )}
-            <div className="mt-2.5">
-              <Button variant="ghost" size="sm" onClick={() => setSodBlocked(null)}>
-                {t('projectDetail.documents.dismiss', 'Dismiss')}
-              </Button>
-            </div>
-          </div>
-        </GateNotice>
-      )}
-
-      {state !== 'loading' && all.length > 0 && (
-        <Toolbar standalone>
           <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
             aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            containerClassName="order-2 w-full min-w-0 max-sm:min-h-11 sm:order-1 sm:w-auto sm:min-w-[15rem]"
           />
-        </Toolbar>
-      )}
+        )}
+      </Toolbar>
+
+      <h2 className="mb-3.5 text-[16px] font-bold tracking-[-0.01em]">
+        {t('projectDetail.documents.heading', 'Document register')}
+      </h2>
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -691,7 +657,62 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             'projectDetail.documents.noSearchMatchSub',
             'Try a different title, code, or category.',
           )}
-        tableId="project-detail-tabs-documentstab-table" />
+          emptyAction={{
+            label: t('ui.search.clearSearch', 'Clear search'),
+            onClick: () => setSearch(''),
+          }}
+          cardBelow={576}
+          tableId="project-detail-tabs-documentstab-table"
+        />
+      )}
+
+      {/* Folder and connection setup follows the current register so it stays contextual. */}
+      <div className="mt-4 empty:hidden">
+        <RecordFolderAction
+          target={{ kind: 'project', id: projectId }}
+          hasFolder={all.some((d) => d.source === 'onedrive' && d.ms_item_kind === 'folder')}
+          onChooseExisting={() => { if (canCreateMicrosoftReference) setMicrosoftEntry({ kind: 'create' }); }}
+        />
+      </div>
+
+      {microsoftEntry && (
+        <MicrosoftEntry
+          code={projectCode}
+          onClose={() => setMicrosoftEntry(null)}
+          onSelect={async (reference) => {
+            if (microsoftEntry.kind === 'link') {
+              if (!documentLinkPermissions.projectEdit(microsoftEntry.doc.author_id, microsoftEntry.doc.status)) return;
+              // A failure propagates: the picker keeps the selection and shows its own persistent alert.
+              await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
+              toast(t('m365Documents:linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
+              setMicrosoftEntry(null);
+            } else {
+              if (!documentLinkPermissions.projectCreate()) return;
+              // Close the picker FIRST, then open the ordinary form seeded with the reference.
+              setMicrosoftEntry(null);
+              setFormTarget({ doc: null, reference });
+            }
+          }}
+        />
+      )}
+
+      {/* SoD block (approver = author): persistent reason shown after the record list. */}
+      {sodBlocked && (
+        <GateNotice variant="blocked" className="mt-3.5" data-testid="document-sod-gate">
+          <div>
+            {t('projectDetail.documents.sod.ownDocument', "You can't approve your own document")}{' '}
+            (<b className="font-semibold">{sodBlocked.title}</b>).{' '}
+            {t(
+              'projectDetail.documents.sod.explanation',
+              'Approving a document is a segregation-of-duties step, so a different reviewer must approve or reject it.',
+            )}
+            <div className="mt-2.5">
+              <Button variant="ghost" size="sm" onClick={() => setSodBlocked(null)}>
+                {t('projectDetail.documents.dismiss', 'Dismiss')}
+              </Button>
+            </div>
+          </div>
+        </GateNotice>
       )}
 
       {/* D12: read-first quick-view drawer with the status workflow promoted out
@@ -902,11 +923,6 @@ const DocumentTitleCell: React.FC<{
         <span className="block truncate font-semibold" title={doc.title}>
           {doc.title}
         </span>
-        {doc.revision && (
-          <span className="text-[12px] text-muted-foreground">
-            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
-          </span>
-        )}
       </button>
       {parentDoc?.revision && (
         <div className="mt-1">

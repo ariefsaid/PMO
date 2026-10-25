@@ -1,5 +1,5 @@
 {
-  "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" } },
+  "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" }, "search": { "clearSearch": "Hapus pencarian" } },
   "uxs07": {
     "organizationScope": "Koneksi organisasi digunakan bersama; koneksi pribadi Anda terpisah. Kelola di ",
     "personalConnections": "Integrasi saya",
@@ -2248,9 +2248,10 @@
       "column": {
         "category": "Kategori",
         "code": "Kode",
-        "date": "Tanggal",
+        "date": "Tanggal dokumen",
         "document": "Dokumen",
         "file": "File",
+        "revision": "Revisi",
         "status": "Status"
       },
       "deleteConfirm": {
@@ -4292,6 +4293,8 @@
     "retry": "Coba lagi",
     "error": "Tidak dapat memuat riwayat",
     "filterLabel": "Saring menurut jenis catatan",
+    "newestFirst": "Terbaru terlebih dahulu",
+    "filter": { "allKinds": "Semua jenis" },
     "empty": {
       "title": "Belum ada perubahan tercatat",
       "sub": "Riwayat dimulai {{date}}. Perubahan sebelum tanggal itu dan penghapusan tidak ditampilkan."

@@ -265,8 +265,13 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
 
   return (
     <div className="min-w-0" data-testid="record-history">
+      {kindFilters && (
+        <p className="mb-2 text-xs text-muted-foreground">
+          {t('history.newestFirst', 'Newest first')}
+        </p>
+      )}
       {showKindChips && (
-        <div role="group" aria-label={t('history.filterLabel', 'Filter by record kind')} className="mb-3 flex flex-wrap gap-1.5">
+        <div role="group" aria-label={t('history.filterLabel', 'Filter by record kind')} className="mb-3 flex flex-wrap gap-2">
           {KIND_FILTERS.map((k) => (
             <button
               key={k.key}
@@ -274,7 +279,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
               aria-pressed={kind === k.key}
               onClick={() => setKind(k.key)}
               className={
-                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors ' +
+                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:min-h-11 max-sm:px-4 ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
                 (kind === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'
@@ -296,7 +301,14 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
           retryLabel={t('history.retry', 'Retry')}
         />
       ) : events.length === 0 && kind !== 'all' ? (
-        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
+        <div>
+          <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
+          <div className="flex justify-center">
+            <Button variant="outline" className="max-sm:min-h-11" onClick={() => setKind('all')}>
+              {t('history.filter.allKinds', 'All kinds')}
+            </Button>
+          </div>
+        </div>
       ) : events.length === 0 ? (
         <ListState
           variant="empty"
