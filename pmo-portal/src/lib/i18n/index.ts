@@ -12,7 +12,7 @@ import { FALLBACK_LOCALE } from '@/src/lib/locale/resolveLocale';
  */
 
 /** Feature namespaces. Each maps to `public/locales/<lng>/<ns>.json`. */
-export const NAMESPACES = ['common', 'import', 'sales', 'projectTabs', 'projects', 'finance', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'costAttribution', 'shell'] as const;
+export const NAMESPACES = ['common', 'import', 'sales', 'projectTabs', 'projects', 'finance', 'dashboard', 'project', 'procurement', 'expenseClaims', 'meetingCreate', 'recordFolders', 'costAttribution', 'shell', 'administration', 'integrations', 'm365Documents'] as const;
 export const DEFAULT_NS = 'common';
 
 /**

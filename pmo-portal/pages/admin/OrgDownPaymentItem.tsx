@@ -147,12 +147,12 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
             {error && <FieldError>{error}</FieldError>}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
-              {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('uxs11.doneEditing', 'Done editing')}</Button>}
+              {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('integrations:uxs11.doneEditing', 'Done editing')}</Button>}
             </div>
           </form> : canManage ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] font-medium">{savedValue}</p>
-              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('uxs11.editSetting', 'Edit setting')}</Button>
+              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editSetting', 'Edit setting')}</Button>
             </div>
           ) : <p className="text-[13px]">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
       </div>

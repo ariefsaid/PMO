@@ -251,16 +251,16 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           </div>
           <details className="mt-1 md:hidden">
             <summary
-              aria-label={t('admin.users.detailsFor', { defaultValue: 'Details for {{name}}', name: u.full_name })}
+              aria-label={t('administration:admin.users.detailsFor', { defaultValue: 'Details for {{name}}', name: u.full_name })}
               className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
-              {t('admin.users.details', 'Details')}
+              {t('administration:admin.users.details', 'Details')}
             </summary>
             <div className="grid min-w-0 gap-1 py-1 text-xs">
               <span className="break-all">{u.full_name}</span>
               <span className="break-all text-muted-foreground">{u.email}</span>
               <span className="text-muted-foreground">
-                {t('admin.users.columns.manager', 'Manager')}: {u.manager_id ? byId.get(u.manager_id)?.full_name ?? t('admin.users.unavailable', 'Unavailable') : t('admin.users.noManager', 'No manager')}
+                {t('admin.users.columns.manager', 'Manager')}: {u.manager_id ? byId.get(u.manager_id)?.full_name ?? t('administration:admin.users.unavailable', 'Unavailable') : t('admin.users.noManager', 'No manager')}
               </span>
             </div>
           </details>
@@ -461,16 +461,16 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             containerClassName="min-h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
           />
           <label className="sr-only" htmlFor="admin-users-status-filter">
-            {t('admin.users.statusFilter.label', 'Filter users by status')}
+            {t('administration:admin.users.statusFilter.label', 'Filter users by status')}
           </label>
           <select
             id="admin-users-status-filter"
-            aria-label={t('admin.users.statusFilter.label', 'Filter users by status')}
+            aria-label={t('administration:admin.users.statusFilter.label', 'Filter users by status')}
             className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
           >
-            <option value="all">{t('admin.users.statusFilter.all', 'All statuses')}</option>
+            <option value="all">{t('administration:admin.users.statusFilter.all', 'All statuses')}</option>
             <option value="active">{t('admin.users.status.active', 'Active')}</option>
             <option value="disabled">{t('admin.users.status.disabled', 'Disabled')}</option>
           </select>
@@ -480,7 +480,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             className="min-h-11"
             onClick={() => setSortDescending((descending) => !descending)}
           >
-            {sortDescending ? t('admin.users.sort.nameDesc', 'Name Z–A') : t('admin.users.sort.nameAsc', 'Name A–Z')}
+            {sortDescending ? t('administration:admin.users.sort.nameDesc', 'Name Z–A') : t('administration:admin.users.sort.nameAsc', 'Name A–Z')}
           </Button>
           {embedded && canInvite && (
             <Button variant="primary" className="min-h-11 shrink-0" onClick={() => setInviteOpen(true)}>
@@ -537,7 +537,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             state={filtered.length === 0 ? 'empty' : undefined}
             emptyTitle={t('admin.users.noMatch.title', 'No matching users')}
             emptySub={t('admin.users.noMatch.sub', 'Adjust the search or status filter to see users again.')}
-            emptyAction={{ label: t('admin.users.clearFilters', 'Clear filters'), onClick: clearFilters }}
+            emptyAction={{ label: t('administration:admin.users.clearFilters', 'Clear filters'), onClick: clearFilters }}
           tableId="adminusers-table" />
         </div>
       )}

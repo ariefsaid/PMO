@@ -63,7 +63,7 @@ export default function OrgProjectClassificationOptions({ editing: controlledEdi
         <div><dt className="text-muted-foreground">{t('projectClassification.serviceLines', 'Service lines')}</dt><dd className="break-words">{query.data.serviceLines.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>
         <div><dt className="text-muted-foreground">{t('projectClassification.sectors', 'Sectors')}</dt><dd className="break-words">{query.data.sectors.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>
       </dl>
-      <Button variant="outline" className="min-h-11" onClick={openEditor}>{t('projectClassification.edit', 'Edit classifications')}</Button>
+      <Button variant="outline" className="min-h-11" onClick={openEditor}>{t('administration:projectClassification.edit', 'Edit classifications')}</Button>
     </> : may('manage', 'orgProjectClassification') ? <>
       <FormGrid>
         <TextArea id="org-service-lines" label={t('projectClassification.serviceLines', 'Service lines')} value={values.serviceLines}

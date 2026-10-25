@@ -118,14 +118,14 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
         ) : canManage && !editing ? (
           <div className="space-y-3">
             <dl className="space-y-1 text-sm">
-              <div><dt className="text-muted-foreground">{t('admin.projectNumberPattern.saved', 'Saved pattern')}</dt><dd className="font-mono font-semibold">{current}</dd></div>
+              <div><dt className="text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</dt><dd className="font-mono font-semibold">{current}</dd></div>
             </dl>
             {preview(current)}
-            <Button type="button" variant="outline" className="min-h-11" onClick={openEditor}>{t('admin.projectNumberPattern.edit', 'Edit numbering')}</Button>
+            <Button type="button" variant="outline" className="min-h-11" onClick={openEditor}>{t('administration:admin.projectNumberPattern.edit', 'Edit numbering')}</Button>
           </div>
         ) : canManage ? (
           <div className="space-y-3">
-            <p className="text-[13px] text-muted-foreground">{t('admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
+            <p className="text-[13px] text-muted-foreground">{t('administration:admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
             <TextField
               id="org-project-number-pattern-input"
               label={t('admin.projectNumberPattern.label', 'Project number pattern')}
@@ -154,7 +154,7 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
           </div>
         ) : (
           <div data-testid="org-project-number-pattern-readonly" className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">{t('admin.projectNumberPattern.saved', 'Saved pattern')}:</span> <span className="font-mono font-semibold">{current}</span></p>
+            <p><span className="text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}:</span> <span className="font-mono font-semibold">{current}</span></p>
             {preview(current)}
             <p className="text-muted-foreground">{t('admin.projectNumberPattern.adminOnly', 'Only an Admin can change this.')}</p>
           </div>

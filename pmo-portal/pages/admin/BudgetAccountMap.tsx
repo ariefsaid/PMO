@@ -239,7 +239,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
   const columns: Column<CategoryRow>[] = [
     {
       key: 'category',
-      header: t('admin.postingAccounts.category', 'Purpose / category'),
+      header: t('administration:admin.postingAccounts.category', 'Purpose / category'),
       kind: 'text',
       size: 180,
       cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
@@ -259,7 +259,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
                 <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
               </div>
             ))}
-            {accounts.length === 0 && <span className="text-muted-foreground">{t('admin.postingAccounts.unmapped', 'Not mapped')}</span>}
+            {accounts.length === 0 && <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
             {accounts.some((account) => !account.isPushTarget) && (
               <details className="text-[13px]">
                 <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
@@ -276,17 +276,17 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
     },
     {
       key: 'coverage',
-      header: t('admin.postingAccounts.coverage.header', 'Coverage'),
+      header: t('administration:admin.postingAccounts.coverage.header', 'Coverage'),
       kind: 'text',
       size: 180,
       cell: (category) => {
         const accounts = accountsByCategory.get(category) ?? [];
         if (accounts.some((account) => account.isPushTarget)) {
-          return <StatusPill variant="won">{t('admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>;
+          return <StatusPill variant="won">{t('administration:admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>;
         }
         return <StatusPill variant="warn">{accounts.length
           ? t('admin.budgetMap.noPush', 'No push account — blocks every push')
-          : t('admin.postingAccounts.needsSetupBlocking', 'Needs setup — blocks every push')}</StatusPill>;
+          : t('administration:admin.postingAccounts.needsSetupBlocking', 'Needs setup — blocks every push')}</StatusPill>;
       },
     },
     ...(canManage ? [{
@@ -385,9 +385,9 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
           state={filterActive && visibleCategories.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('admin.postingAccounts.noMatches', 'No posting accounts match these filters')}
-          emptySub={t('admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}
-          emptyAction={{ label: t('admin.postingAccounts.clear', 'Clear filters'), onClick: activeFilters.onClear }}
+          emptyTitle={t('administration:admin.postingAccounts.noMatches', 'No posting accounts match these filters')}
+          emptySub={t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}
+          emptyAction={{ label: t('administration:admin.postingAccounts.clear', 'Clear filters'), onClick: activeFilters.onClear }}
         />
       </div>
 

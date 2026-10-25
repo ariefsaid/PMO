@@ -188,13 +188,13 @@ const OperatorMembershipPending: React.FC = () => {
 const AccountingSectionNavigation: React.FC<{ selected: AccountingTask }> = ({ selected }) => {
   const { t } = useTranslation();
   const tasks: { id: AccountingTask; label: string }[] = [
-    { id: 'posting-accounts', label: t('admin.accounting.postingAccounts', 'Posting accounts') },
-    { id: 'tax-advances', label: t('admin.accounting.taxAdvances', 'Tax and advances') },
-    { id: 'purchase-rules', label: t('admin.accounting.purchaseRules', 'Purchase rules') },
-    { id: 'spend-approvers', label: t('admin.accounting.spendApprovers', 'Spend approvers') },
+    { id: 'posting-accounts', label: t('administration:admin.accounting.postingAccounts', 'Posting accounts') },
+    { id: 'tax-advances', label: t('administration:admin.accounting.taxAdvances', 'Tax and advances') },
+    { id: 'purchase-rules', label: t('administration:admin.accounting.purchaseRules', 'Purchase rules') },
+    { id: 'spend-approvers', label: t('administration:admin.accounting.spendApprovers', 'Spend approvers') },
   ];
   return (
-    <nav aria-label={t('admin.accounting.sectionsLabel', 'Accounting tasks')} className="mb-4 min-w-0">
+    <nav aria-label={t('administration:admin.accounting.sectionsLabel', 'Accounting tasks')} className="mb-4 min-w-0">
       <ul className="grid min-w-0 gap-1 sm:flex sm:flex-wrap">
         {tasks.map(({ id, label }) => (
           <li key={id}>
@@ -333,22 +333,22 @@ const Administration: React.FC = () => {
   const isPhone = usePhoneLayout();
   const accountingTask = accountingTaskForHash(hash);
   const scope = section === 'users'
-    ? t('admin.scope.users', 'Workspace members')
+    ? t('administration:admin.scope.users', 'Workspace members')
     : section === 'integrations'
-      ? t('admin.scope.integrations', 'Shared workspace setup')
+      ? t('administration:admin.scope.integrations', 'Shared workspace setup')
       : section === 'accounting'
-        ? t('admin.scope.accounting', 'Workspace accounting')
+        ? t('administration:admin.scope.accounting', 'Workspace accounting')
         : section === 'projects'
-          ? t('admin.scope.projects', 'Future projects')
+          ? t('administration:admin.scope.projects', 'Future projects')
           : section === 'credits'
-            ? t('admin.scope.credits', 'Shared Assistant balance')
+            ? t('administration:admin.scope.credits', 'Shared Assistant balance')
             : section === 'exchange-rates'
-              ? t('admin.scope.exchangeRates', 'USD to IDR · display reference rates')
+              ? t('administration:admin.scope.exchangeRates', 'USD → IDR · JISDOR · display equivalents only')
               : section === 'cost-attribution'
-                ? t('admin.scope.costAttribution', 'Assign untagged ledger cost to projects without changing ERP records')
+                ? t('administration:admin.scope.costAttribution', 'Assign untagged ledger cost to projects without changing ERP records')
                 : section === 'usage'
-                  ? t('admin.scope.usage', 'Operator · aggregate consumption')
-                  : t('admin.scope.features', 'Operator · workspace capabilities');
+                  ? t('administration:admin.scope.usage', 'Operator · aggregate consumption')
+                  : t('administration:admin.scope.features', 'Operator · workspace capabilities');
 
   useEffect(() => {
     if (!hash) return;

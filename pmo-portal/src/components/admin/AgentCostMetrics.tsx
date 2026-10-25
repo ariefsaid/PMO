@@ -152,7 +152,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   const kpis = useMemo(() => deriveKpis(summaryRows, runStatsRows), [summaryRows, runStatsRows]);
   const monthlyCacheHit = useMemo(() => deriveMonthlyCacheHit(summaryRows), [summaryRows]);
   const prefersReducedMotion = usePrefersReducedMotion();
-  const scopeText = scopeDescription ?? t('admin.usage.allScope', 'Across all actions and months.');
+  const scopeText = scopeDescription ?? t('administration:admin.usage.allScope', 'Across all actions and months.');
 
   if (isPending) {
     return (
@@ -166,8 +166,8 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     return (
       <ListState
         variant="error"
-        title={t('admin.usage.metricsLoadError', "Couldn't load agent cost metrics")}
-        sub={t('admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
+        title={t('administration:admin.usage.metricsLoadError', "Couldn't load agent cost metrics")}
+        sub={t('administration:admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
         retryLabel={t('admin.retry', 'Retry')}
         onRetry={onRetry}
       />
@@ -179,22 +179,22 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
       <ListState
         variant="empty"
         icon="admin"
-        title={t('admin.usage.metricsEmptyTitle', 'No agent cost data yet')}
-        sub={t('admin.usage.metricsEmptyHelp', 'Agent cost telemetry appears here once your workspace starts using the assistant.')}
+        title={t('administration:admin.usage.metricsEmptyTitle', 'No agent cost data yet')}
+        sub={t('administration:admin.usage.metricsEmptyHelp', 'Agent cost telemetry appears here once your workspace starts using the assistant.')}
       />
     );
   }
 
   const tiles: StatTile[] = [
-    { label: t('admin.usage.cacheHitRate', 'Cache hit-rate'), value: kpis.cacheHitRate },
-    { label: t('admin.usage.reasoningShare', 'Reasoning share'), value: kpis.reasoningShare },
-    { label: t('admin.usage.weightedP50', 'Cost / run (p50, weighted by runs)'), value: kpis.costP50 },
-    { label: t('admin.usage.maxP95', 'Cost / run (p95, max)'), value: kpis.costP95 },
-    { label: t('admin.usage.maxLatency', 'Latency (p95, max)'), value: kpis.latencyP95 },
+    { label: t('administration:admin.usage.cacheHitRate', 'Cache hit-rate'), value: kpis.cacheHitRate },
+    { label: t('administration:admin.usage.reasoningShare', 'Reasoning share'), value: kpis.reasoningShare },
+    { label: t('administration:admin.usage.weightedP50', 'Cost / run (p50, weighted by runs)'), value: kpis.costP50 },
+    { label: t('administration:admin.usage.maxP95', 'Cost / run (p95, max)'), value: kpis.costP95 },
+    { label: t('administration:admin.usage.maxLatency', 'Latency (p95, max)'), value: kpis.latencyP95 },
   ];
 
   const chartState: ChartState = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
-  const chartSummary = t('admin.usage.chartSummary', {
+  const chartSummary = t('administration:admin.usage.chartSummary', {
     count: monthlyCacheHit.length,
     defaultValue: 'Cache hit-rate by month, {{count}} months.',
   });
@@ -203,7 +203,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     <div className="flex flex-col gap-5">
       <div>
         <h2 className="mb-1 text-[14px] font-bold tracking-[-0.01em]">
-          {t('admin.usage.metricsOverview', 'Agent cost overview')}
+          {t('administration:admin.usage.metricsOverview', 'Agent cost overview')}
         </h2>
         {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
@@ -214,12 +214,12 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
 
       <div>
         <h3 className="mb-3 text-[13.5px] font-semibold text-muted-foreground">
-          {t('admin.usage.cacheHitByMonth', 'Cache hit-rate by month')}
+          {t('administration:admin.usage.cacheHitByMonth', 'Cache hit-rate by month')}
         </h3>
         <ChartFrame
           state={chartState}
-          emptyTitle={t('admin.usage.chartEmptyTitle', 'Not enough data yet')}
-          emptySub={t('admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}
+          emptyTitle={t('administration:admin.usage.chartEmptyTitle', 'Not enough data yet')}
+          emptySub={t('administration:admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}
         >
           <figure role="img" aria-label={chartSummary} className="m-0">
             <ResponsiveContainer width="100%" height={200}>
@@ -250,13 +250,13 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   labelFormatter={(label) => formatMonthTick(Number(label))}
                   formatter={(value) => [
                     `${Number(value).toFixed(1)}%`,
-                    t('admin.usage.cacheHitRate', 'Cache hit-rate'),
+                    t('administration:admin.usage.cacheHitRate', 'Cache hit-rate'),
                   ]}
                 />
                 <Line
                   type="monotone"
                   dataKey="pct"
-                  name={t('admin.usage.cacheHitRate', 'Cache hit-rate')}
+                  name={t('administration:admin.usage.cacheHitRate', 'Cache hit-rate')}
                   stroke={chartTheme.series.primary}
                   strokeWidth={2}
                   dot={{ r: 3 }}

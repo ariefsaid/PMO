@@ -20,6 +20,12 @@ const EN_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/e
 const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8'));
 const EN_SHELL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/shell.json'), 'utf8'));
 const ID_SHELL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/shell.json'), 'utf8'));
+const EN_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/administration.json'), 'utf8'));
+const ID_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/administration.json'), 'utf8'));
+const EN_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/integrations.json'), 'utf8'));
+const ID_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/integrations.json'), 'utf8'));
+const EN_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/m365Documents.json'), 'utf8'));
+const ID_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/m365Documents.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -29,8 +35,26 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE, project: ID_PROJECT, shell: ID_SHELL },
-      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE, project: EN_PROJECT, shell: EN_SHELL },
+      id: {
+        common: ID,
+        dashboard: ID_DASHBOARD,
+        finance: ID_FINANCE,
+        project: ID_PROJECT,
+        shell: ID_SHELL,
+        administration: ID_ADMINISTRATION,
+        integrations: ID_INTEGRATIONS,
+        m365Documents: ID_M365_DOCUMENTS,
+      },
+      en: {
+        common: EN,
+        dashboard: EN_DASHBOARD,
+        finance: EN_FINANCE,
+        project: EN_PROJECT,
+        shell: EN_SHELL,
+        administration: EN_ADMINISTRATION,
+        integrations: EN_INTEGRATIONS,
+        m365Documents: EN_M365_DOCUMENTS,
+      },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

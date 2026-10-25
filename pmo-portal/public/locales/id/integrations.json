@@ -1,0 +1,31 @@
+{
+  "uxs07": {
+    "viewConfiguredConnections": "Lihat koneksi yang dikonfigurasi dan daftar yang tidak digunakan",
+    "connectionDetails": "Detail koneksi",
+    "viewConfiguredSetup": "Lihat penyiapan yang sudah dikonfigurasi",
+    "reviewSetupStatus": "Tinjau status penyiapan",
+    "organizationApproval": "Persetujuan organisasi"
+  },
+  "uxs11": {
+    "doneEditing": "Selesai mengedit",
+    "editSetting": "Edit pengaturan"
+  },
+  "uxs21": {
+    "batchAcceptAllAction": "Terima semua kecocokan yang jelas",
+    "batchAcceptSelectedAction": "Terima kecocokan terpilih yang jelas",
+    "batchRetryAction": "Coba lagi kecocokan yang gagal",
+    "batchReviewAction": "Tinjau koneksi proyek",
+    "batchTitle": "Tinjau kecocokan ClickUp yang jelas",
+    "batchSubtitle": "Kecocokan nama yang jelas sudah dipilih. Konfirmasikan setiap proyek dan sumber tugas awalnya.",
+    "batchConfirmTitle": "Konfirmasi koneksi proyek",
+    "batchConfirmSubtitle": "Tautan ini menggunakan daftar ClickUp yang sudah ada. Pilihan hanya mengatur transfer tugas awal.",
+    "batchSourceLegend": "Sumber tugas awal untuk proyek terpilih",
+    "batchSourceFor": "Sumber tugas awal untuk {{name}}",
+    "batchUseCommonSource": "Gunakan pilihan batch",
+    "batchInclude": "Sertakan {{name}}",
+    "batchConsequence": "Ini menghubungkan setiap proyek PMO terpilih ke daftar ClickUp yang ditampilkan. Pilihan sumber awal tidak memulai sinkronisasi berkelanjutan.",
+    "batchSaved": "Tersimpan",
+    "batchSaveFailed": "Tautan ini belum tersimpan. Pilihan Anda tetap tersimpan untuk dicoba lagi.",
+    "batchPartialOutcome": "{{saved}} tersimpan; {{failed}} perlu ditangani. Tautan tersimpan tidak diulang."
+  }
+}

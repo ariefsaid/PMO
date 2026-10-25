@@ -367,17 +367,17 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     // Link / unlink a Microsoft reference: Draft rows only, same author-or-Admin gate as Edit.
     const canLink = documentLinkPermissions.projectEdit(d.author_id, d.status);
     if (canLink && !d.file_path && d.source !== 'onedrive') {
-      items.push({ label: t('m365Documents.link', 'Link from Microsoft 365'), onClick: () => setMicrosoftEntry({ kind: 'link', doc: d }) });
+      items.push({ label: t('m365Documents:link', 'Link from Microsoft 365'), onClick: () => setMicrosoftEntry({ kind: 'link', doc: d }) });
     }
     if (canLink && d.source === 'onedrive') {
-      items.push({ label: t('m365Documents.unlink', 'Unlink Microsoft item'), onClick: () => setUnlinkTarget(d) });
+      items.push({ label: t('m365Documents:unlink', 'Unlink Microsoft item'), onClick: () => setUnlinkTarget(d) });
     }
     // SUB-E: "New revision" is a row-menu item, not a column of its own on every row. A folder is
     // reference-only and has no revision; a changed Microsoft file offers the latest-update variant.
     if ((d.status === 'Issued' || d.status === 'Approved') && canWriteDocs && !isMicrosoftFolder(d)) {
       items.push({ label: t('projectDetail.documents.newRevision', 'New revision'), onClick: () => setRevisionParent(d) });
       if (d.source === 'onedrive' && d.ms_drift_state === 'drifted' && canCreateMicrosoftReference) {
-        items.push({ label: t('m365Documents.newRevisionFromLatest', 'Make new revision from latest file update'), onClick: () => void startLatestRevision(d) });
+        items.push({ label: t('m365Documents:newRevisionFromLatest', 'Make new revision from latest file update'), onClick: () => void startLatestRevision(d) });
       }
     }
     items.push(...statusActions(d));
@@ -514,8 +514,8 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       });
     } catch {
       toast(
-        t('m365Documents.latestFailedTitle', 'Could not read the latest file'),
-        t('m365Documents.latestFailed', 'Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.'),
+        t('m365Documents:latestFailedTitle', 'Could not read the latest file'),
+        t('m365Documents:latestFailed', 'Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.'),
         'warning',
       );
     } finally {
@@ -528,7 +528,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     const target = unlinkTarget;
     try {
       await unlink.mutateAsync(target.id);
-      toast(t('m365Documents.unlinked', 'Reference removed'), target.title, 'success');
+      toast(t('m365Documents:unlinked', 'Reference removed'), target.title, 'success');
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -580,7 +580,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           {canCreateMicrosoftReference && (
             <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
               <Icon name="doc" />
-              {t('m365Documents.link', 'Link from Microsoft 365')}
+              {t('m365Documents:link', 'Link from Microsoft 365')}
             </Button>
           )}
         </div>
@@ -604,7 +604,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
               if (!documentLinkPermissions.projectEdit(microsoftEntry.doc.author_id, microsoftEntry.doc.status)) return;
               // A failure propagates: the picker keeps the selection and shows its own persistent alert.
               await link.mutateAsync({ id: microsoftEntry.doc.id, reference });
-              toast(t('m365Documents.linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
+              toast(t('m365Documents:linked', 'Microsoft item linked'), microsoftEntry.doc.title, 'success');
               setMicrosoftEntry(null);
             } else {
               if (!documentLinkPermissions.projectCreate()) return;
@@ -785,9 +785,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <ConfirmDialog
           open
           tone="default"
-          title={t('m365Documents.unlinkTitle', 'Unlink {{title}}?', { title: unlinkTarget.title })}
-          description={t('m365Documents.unlinkBody', 'Only the PMO reference is removed. The Microsoft item is unchanged.')}
-          confirmLabel={t('m365Documents.unlinkConfirm', 'Unlink')}
+          title={t('m365Documents:unlinkTitle', 'Unlink {{title}}?', { title: unlinkTarget.title })}
+          description={t('m365Documents:unlinkBody', 'Only the PMO reference is removed. The Microsoft item is unchanged.')}
+          confirmLabel={t('m365Documents:unlinkConfirm', 'Unlink')}
           loading={unlink.isPending}
           onConfirm={onUnlinkConfirm}
           onCancel={() => setUnlinkTarget(null)}
@@ -1237,7 +1237,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           : reference
             ? isFolder
               ? tf('folderFiles.linkedFolderSubtitle', 'Link this folder to the project. Its files stay in Microsoft 365.')
-              : t('m365Documents.docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
+              : t('m365Documents:docsTab.linkedSubtitle', 'Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.')
             : t(
                 'projectDetail.documents.form.newSubtitle',
                 'Record a drawing, specification, or transmittal. Upload a file once the Draft row is created.',
@@ -1262,7 +1262,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
           <span className="min-w-0 flex-1 break-words font-medium text-foreground" title={reference.name}>{reference.name}</span>
           {onChangeReference && (
             <Button type="button" variant="ghost" size="sm" onClick={onChangeReference}>
-              {t('m365Documents.docsTab.change', 'Change')}
+              {t('m365Documents:docsTab.change', 'Change')}
             </Button>
           )}
         </div>
@@ -1356,7 +1356,7 @@ const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect
   if (!connection && isPending) {
     notice = (
       <p role="status" className="text-[13px] text-muted-foreground">
-        {t('m365Documents.checkingConnection', 'Checking your Microsoft 365 connection…')}
+        {t('m365Documents:checkingConnection', 'Checking your Microsoft 365 connection…')}
       </p>
     );
   } else if (!connection) {
@@ -1367,13 +1367,13 @@ const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect
     notice = (
       <div className="min-w-0 space-y-2">
         <GateNotice variant="blocked">
-          {t('m365Documents.docsTab.notConnected', 'Connect Microsoft 365 first to browse documents.')}
+          {t('m365Documents:docsTab.notConnected', 'Connect Microsoft 365 first to browse documents.')}
         </GateNotice>
         <Link
           to="/integrations"
           className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"
         >
-          {t('m365Documents.docsTab.myIntegrations', 'My integrations')}
+          {t('m365Documents:docsTab.myIntegrations', 'My integrations')}
         </Link>
       </div>
     );

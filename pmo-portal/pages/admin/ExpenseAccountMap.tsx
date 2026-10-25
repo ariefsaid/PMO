@@ -180,9 +180,9 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
           past 390px. */}
       {filterActive && visibleKeys.length === 0 ? (
         <div className="mt-3.5 rounded-md border border-border p-4" role="status">
-          <p className="text-sm font-medium">{t('admin.postingAccounts.noMatches', 'No posting accounts match these filters')}</p>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t('admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}</p>
-          <Button variant="outline" className="mt-3 min-h-11" onClick={activeFilters.onClear}>{t('admin.postingAccounts.clear', 'Clear filters')}</Button>
+          <p className="text-sm font-medium">{t('administration:admin.postingAccounts.noMatches', 'No posting accounts match these filters')}</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">{t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}</p>
+          <Button variant="outline" className="mt-3 min-h-11" onClick={activeFilters.onClear}>{t('administration:admin.postingAccounts.clear', 'Clear filters')}</Button>
         </div>
       ) : <ul className="mt-3.5 flex flex-col">
         {visibleKeys.map((key) => {
@@ -194,17 +194,17 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
               className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
             >
               <span className="font-medium">{label(key)}</span>
-              <span className="min-w-0 flex-1 break-words" aria-label={t('admin.postingAccounts.account', 'Account')}>
-                {account ?? <span className="text-muted-foreground">{t('admin.postingAccounts.unmapped', 'Not mapped')}</span>}
+              <span className="min-w-0 flex-1 break-words" aria-label={t('administration:admin.postingAccounts.account', 'Account')}>
+                {account ?? <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
               </span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">
                 {account
-                  ? <StatusPill variant="won">{t('admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>
+                  ? <StatusPill variant="won">{t('administration:admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
                     ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>
-                    : <span className="text-muted-foreground">{t('admin.postingAccounts.coverage.needsSetup', 'Needs setup')}</span>}
+                    : <span className="text-muted-foreground">{t('administration:admin.postingAccounts.coverage.needsSetup', 'Needs setup')}</span>}
                 {canManage && (
                   <>
                     {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>

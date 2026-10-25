@@ -21,39 +21,39 @@ export function DocumentDriftBadge({ status, driftState, lastVerifiedAt, compact
   const { t } = useTranslation();
   const approval = APPROVED_STATUSES.has(status);
   const verifiedOn = lastVerifiedAt ? formatInstantDate(lastVerifiedAt) : null;
-  const since = approval ? t('m365Documents.drift.sinceApproval', 'since approval') : t('m365Documents.drift.sinceIssue', 'since issue');
+  const since = approval ? t('m365Documents:drift.sinceApproval', 'since approval') : t('m365Documents:drift.sinceIssue', 'since issue');
 
   if (driftState === 'drifted') {
     // Compact keeps the as-of date: it only shows on the rare changed file, so rows stay short.
     return (
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
         <StatusPill variant="warn">
-          {compact ? <>{t('m365Documents.drift.changed', 'Changed')}<span className="sr-only">{since}</span></> : approval ? t('m365Documents.drift.changedSinceApproval', 'Changed since approval') : t('m365Documents.drift.changedSinceIssue', 'Changed since issue')}
+          {compact ? <>{t('m365Documents:drift.changed', 'Changed')}<span className="sr-only">{since}</span></> : approval ? t('m365Documents:drift.changedSinceApproval', 'Changed since approval') : t('m365Documents:drift.changedSinceIssue', 'Changed since issue')}
         </StatusPill>
-        {verifiedOn && <span className="text-[12px] text-muted-foreground">{t('m365Documents.drift.checked', 'Checked {{date}}', { date: verifiedOn })}</span>}
+        {verifiedOn && <span className="text-[12px] text-muted-foreground">{t('m365Documents:drift.checked', 'Checked {{date}}', { date: verifiedOn })}</span>}
       </div>
     );
   }
   if (driftState === 'clean' && verifiedOn) {
     const full = approval
-      ? t('m365Documents.drift.unchangedSinceApproval', 'Unchanged since approval. Verified {{date}}.', { date: verifiedOn })
-      : t('m365Documents.drift.unchangedSinceIssue', 'Unchanged since issue. Verified {{date}}.', { date: verifiedOn });
+      ? t('m365Documents:drift.unchangedSinceApproval', 'Unchanged since approval. Verified {{date}}.', { date: verifiedOn })
+      : t('m365Documents:drift.unchangedSinceIssue', 'Unchanged since issue. Verified {{date}}.', { date: verifiedOn });
     return (
       <span className="inline-flex min-w-0 items-start gap-1 break-words text-[12px] text-muted-foreground" title={compact ? full : undefined}>
         <Icon name="check" className="mt-0.5 shrink-0" />
-        {compact ? <>{t('m365Documents.drift.unchanged', 'Unchanged')}<span className="sr-only">{since}</span></> : full}
+        {compact ? <>{t('m365Documents:drift.unchanged', 'Unchanged')}<span className="sr-only">{since}</span></> : full}
       </span>
     );
   }
   const failed = driftState === 'not_verified';
   const detail = verifiedOn && failed
-    ? t('m365Documents.drift.notVerifiedSince', 'Not verified since {{date}}. Microsoft could not be checked.', { date: verifiedOn })
+    ? t('m365Documents:drift.notVerifiedSince', 'Not verified since {{date}}. Microsoft could not be checked.', { date: verifiedOn })
     : failed
-      ? t('m365Documents.drift.notVerifiedYetFailed', 'Not verified yet. Microsoft could not be checked.')
-      : t('m365Documents.drift.notVerifiedYet', 'Not verified yet.');
+      ? t('m365Documents:drift.notVerifiedYetFailed', 'Not verified yet. Microsoft could not be checked.')
+      : t('m365Documents:drift.notVerifiedYet', 'Not verified yet.');
   return (
     <div className="flex min-w-0 flex-col gap-0.5" title={compact ? detail : undefined}>
-      <StatusPill variant="neutral">{t('m365Documents.drift.notVerified', 'Not verified')}</StatusPill>
+      <StatusPill variant="neutral">{t('m365Documents:drift.notVerified', 'Not verified')}</StatusPill>
       {!compact && <span className="break-words text-[12px] text-muted-foreground">{detail}</span>}
     </div>
   );

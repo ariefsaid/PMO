@@ -165,8 +165,8 @@ const AdministrationExchangeRates: React.FC = () => {
   return (
     <section aria-label={t('admin.nav.exchangeRates', 'Exchange rates')} className="min-w-0">
       <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground" aria-label={t('fx.sortAriaLabel', 'Sorted by publication date, newest first')}>
-          {t('fx.sortLabel', 'Publication date · newest first')}
+        <p className="text-sm text-muted-foreground" aria-label={t('administration:fx.sortAriaLabel', 'Sorted by publication date, newest first')}>
+          {t('administration:fx.sortLabel', 'Publication date · newest first')}
         </p>
         {!listEmpty && <div className="flex flex-wrap items-center gap-2">
           {canCreate && <Button

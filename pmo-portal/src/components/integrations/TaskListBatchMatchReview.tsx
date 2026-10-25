@@ -86,22 +86,22 @@ export function TaskListBatchMatchReview({
 
   const selectedCount = selected.length;
   const submitLabel = stage === 'selection'
-    ? t('uxs21.batchReviewAction', 'Review project connections')
+    ? t('integrations:uxs21.batchReviewAction', 'Review project connections')
     : pendingRetries.length > 0
-      ? t('uxs21.batchRetryAction', 'Retry failed match')
+      ? t('integrations:uxs21.batchRetryAction', 'Retry failed match')
       : selectedCount === rows.length
-        ? t('uxs21.batchAcceptAllAction', 'Accept all clear matches')
-        : t('uxs21.batchAcceptSelectedAction', 'Accept selected clear matches');
+        ? t('integrations:uxs21.batchAcceptAllAction', 'Accept all clear matches')
+        : t('integrations:uxs21.batchAcceptSelectedAction', 'Accept selected clear matches');
 
   return (
     <EntityFormModal
       open
       title={stage === 'selection'
-        ? t('uxs21.batchTitle', 'Review clear ClickUp matches')
-        : t('uxs21.batchConfirmTitle', 'Confirm project connections')}
+        ? t('integrations:uxs21.batchTitle', 'Review clear ClickUp matches')
+        : t('integrations:uxs21.batchConfirmTitle', 'Confirm project connections')}
       subtitle={stage === 'selection'
-        ? t('uxs21.batchSubtitle', 'Clear name matches are selected. Confirm each project and its initial task source.')
-        : t('uxs21.batchConfirmSubtitle', 'These links use existing ClickUp lists. The choice controls the initial task transfer only.')}
+        ? t('integrations:uxs21.batchSubtitle', 'Clear name matches are selected. Confirm each project and its initial task source.')
+        : t('integrations:uxs21.batchConfirmSubtitle', 'These links use existing ClickUp lists. The choice controls the initial task transfer only.')}
       submitLabel={submitLabel}
       onSubmit={handleSubmit}
       onClose={onClose}
@@ -121,7 +121,7 @@ export function TaskListBatchMatchReview({
                 <li key={proposal.projectId} className="grid gap-2 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_minmax(12rem,0.75fr)] sm:items-center">
                   <label className="flex min-h-11 min-w-0 cursor-pointer items-center gap-3 text-sm text-foreground">
                     <input
-                      aria-label={t('uxs21.batchInclude', 'Include {{name}}', { name: proposal.projectName })}
+                      aria-label={t('integrations:uxs21.batchInclude', 'Include {{name}}', { name: proposal.projectName })}
                       type="checkbox"
                       checked={checked}
                       disabled={saving || saved}
@@ -139,9 +139,9 @@ export function TaskListBatchMatchReview({
                     </span>
                   </label>
                   <label className="grid min-h-11 min-w-0 gap-1 text-xs text-muted-foreground">
-                    <span>{t('uxs21.batchSourceFor', 'Initial task source for {{name}}', { name: proposal.projectName })}</span>
+                    <span>{t('integrations:uxs21.batchSourceFor', 'Initial task source for {{name}}', { name: proposal.projectName })}</span>
                     <select
-                      aria-label={t('uxs21.batchSourceFor', 'Initial task source for {{name}}', { name: proposal.projectName })}
+                      aria-label={t('integrations:uxs21.batchSourceFor', 'Initial task source for {{name}}', { name: proposal.projectName })}
                       className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
                       value={overrides[proposal.projectId] ?? ''}
                       disabled={saving || saved}
@@ -150,7 +150,7 @@ export function TaskListBatchMatchReview({
                         [proposal.projectId]: event.target.value as LinkDirection | '',
                       }))}
                     >
-                      <option value="">{t('uxs21.batchUseCommonSource', 'Use batch choice')}</option>
+                      <option value="">{t('integrations:uxs21.batchUseCommonSource', 'Use batch choice')}</option>
                       <option value="push-seed">{t('uxs21.sourcePmo', 'Start with PMO tasks')}</option>
                       <option value="pull-adopt">{t('uxs21.sourceClickUp', 'Start with existing list tasks')}</option>
                     </select>
@@ -161,7 +161,7 @@ export function TaskListBatchMatchReview({
           </ul>
           <fieldset className="space-y-1.5">
             <legend className="mb-1 text-sm font-medium text-foreground">
-              {t('uxs21.batchSourceLegend', 'Initial task source for selected projects')}
+              {t('integrations:uxs21.batchSourceLegend', 'Initial task source for selected projects')}
             </legend>
             <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-input px-3 py-2.5 text-sm text-foreground focus-within:outline focus-within:outline-2 focus-within:outline-ring">
               <input type="radio" name="task-list-batch-source" value="push-seed" checked={batchDirection === 'push-seed'} onChange={() => setBatchDirection('push-seed')} disabled={saving} className="mt-0.5 size-4 accent-primary" />
@@ -176,7 +176,7 @@ export function TaskListBatchMatchReview({
             const proposal = rows.find((row) => row.projectId === projectId);
             return proposal ? (
               <p key={projectId} className="text-sm text-destructive-text" role="alert">
-                {proposal.projectName}: {t('uxs21.batchSaveFailed', 'This link was not saved. Your choice is kept so you can retry.')}
+                {proposal.projectName}: {t('integrations:uxs21.batchSaveFailed', 'This link was not saved. Your choice is kept so you can retry.')}
               </p>
             ) : null;
           })}
@@ -184,7 +184,7 @@ export function TaskListBatchMatchReview({
       ) : (
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            {t('uxs21.batchConsequence', 'This connects each selected PMO project to the shown ClickUp list. The initial source choice does not start ongoing syncing.')}
+            {t('integrations:uxs21.batchConsequence', 'This connects each selected PMO project to the shown ClickUp list. The initial source choice does not start ongoing syncing.')}
           </p>
           <ul className="divide-y divide-border rounded-md border border-border">
             {selected.map((proposal) => {
@@ -194,10 +194,10 @@ export function TaskListBatchMatchReview({
                 <li key={proposal.projectId} className="px-3 py-2.5 text-sm">
                   <span className="block break-words font-medium text-foreground">{proposal.projectName} → {proposal.list.name}</span>
                   <span className="text-muted-foreground">{direction ? sourceLabel(direction, t) : ''}</span>
-                  {outcome === 'saved' && <span className="ml-2 text-success-text">{t('uxs21.batchSaved', 'Saved')}</span>}
+                  {outcome === 'saved' && <span className="ml-2 text-success-text">{t('integrations:uxs21.batchSaved', 'Saved')}</span>}
                   {outcome === 'failed' && (
                     <span className="mt-1 block text-destructive-text" role="alert">
-                      {t('uxs21.batchSaveFailed', 'This link was not saved. Your choice is kept so you can retry.')}
+                      {t('integrations:uxs21.batchSaveFailed', 'This link was not saved. Your choice is kept so you can retry.')}
                     </span>
                   )}
                 </li>
@@ -209,7 +209,7 @@ export function TaskListBatchMatchReview({
           </p>
           {Object.values(outcomes).some((outcome) => outcome === 'failed') ? (
             <p className="text-sm text-muted-foreground" role="status">
-              {t('uxs21.batchPartialOutcome', '{{saved}} saved; {{failed}} need attention. Saved links are not repeated.', {
+              {t('integrations:uxs21.batchPartialOutcome', '{{saved}} saved; {{failed}} need attention. Saved links are not repeated.', {
                 saved: Object.values(outcomes).filter((outcome) => outcome === 'saved').length,
                 failed: Object.values(outcomes).filter((outcome) => outcome === 'failed').length,
               })}

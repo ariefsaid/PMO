@@ -39,15 +39,6 @@ export interface AdministrationFeaturesProps {
   orgId: string;
 }
 
-const FEATURE_CONSEQUENCES: Partial<Record<OrgFeatureKey, string>> = {
-  incidents: 'Track and coordinate operational incidents.',
-  crm: 'Manage sales pipelines, companies and contacts.',
-  procurement: 'Manage purchase requests and orders.',
-  timesheets: 'Record and review project hours.',
-  import_export: 'Import and export workspace records.',
-  m365_integration: 'Connect Microsoft 365 for workspace integrations.',
-};
-
 export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
   isOperator,
   orgId,
@@ -58,6 +49,31 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
   const featuresQuery = useOrgFeatures();
   const { data: orgFeatures } = featuresQuery;
   const [outcomes, setOutcomes] = React.useState<Record<string, 'saving' | 'saved' | 'error'>>({});
+
+  // Keep these catalogue keys static so the i18n completeness guard can verify the feature copy.
+  const featureNames: Record<EntitleableKey, string> = {
+    incidents: t('administration:admin.features.name.incidents', FEATURE_LABELS.incidents),
+    crm: t('administration:admin.features.name.crm', FEATURE_LABELS.crm),
+    procurement: t('administration:admin.features.name.procurement', FEATURE_LABELS.procurement),
+    timesheets: t('administration:admin.features.name.timesheets', FEATURE_LABELS.timesheets),
+    import_export: t('administration:admin.features.name.import_export', FEATURE_LABELS.import_export),
+    agent_assistant: t('administration:admin.features.name.agent_assistant', FEATURE_LABELS.agent_assistant),
+    user_views: t('administration:admin.features.name.user_views', FEATURE_LABELS.user_views),
+    m365_integration: t('administration:admin.features.name.m365_integration', FEATURE_LABELS.m365_integration),
+    projects: t('administration:admin.features.name.projects', FEATURE_LABELS.projects),
+    dashboard: t('administration:admin.features.name.dashboard', FEATURE_LABELS.dashboard),
+    approvals: t('administration:admin.features.name.approvals', FEATURE_LABELS.approvals),
+    administration: t('administration:admin.features.name.administration', FEATURE_LABELS.administration),
+    revenue: t('administration:admin.features.name.revenue', FEATURE_LABELS.revenue),
+  };
+  const featureConsequences: Partial<Record<OrgFeatureKey, string>> = {
+    incidents: t('administration:admin.features.consequence.incidents', { defaultValue: 'Track and coordinate operational incidents.' }),
+    crm: t('administration:admin.features.consequence.crm', { defaultValue: 'Manage sales pipelines, companies and contacts.' }),
+    procurement: t('administration:admin.features.consequence.procurement', { defaultValue: 'Manage purchase requests and orders.' }),
+    timesheets: t('administration:admin.features.consequence.timesheets', { defaultValue: 'Record and review project hours.' }),
+    import_export: t('administration:admin.features.consequence.import_export', { defaultValue: 'Import and export workspace records.' }),
+    m365_integration: t('administration:admin.features.consequence.m365_integration', { defaultValue: 'Connect Microsoft 365 for workspace integrations.' }),
+  };
 
   const toggleMutation = useMutation({
     mutationFn: (args: { orgId: string; key: OrgFeatureKey; enabled: boolean }) =>
@@ -76,8 +92,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
 
   /** Resolve a gatable key: a stored row overrides the env default (FR-ENT-004). */
   const resolve = (key: OrgFeatureKey): boolean => orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
-  const featureLabel = (key: EntitleableKey) =>
-    t(`admin.features.name.${key}`, { defaultValue: FEATURE_LABELS[key] });
+  const featureLabel = (key: EntitleableKey) => featureNames[key];
 
   const handleToggle = async (key: OrgFeatureKey, current: boolean) => {
     setOutcomes((previous) => ({ ...previous, [key]: 'saving' }));
@@ -108,8 +123,8 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
     return (
       <ListState
         variant="error"
-        title={t('admin.features.loadError', "Couldn't load workspace capabilities")}
-        sub={t('admin.features.loadErrorHelp', 'The request failed. Check your connection and try again.')}
+        title={t('administration:admin.features.loadError', "Couldn't load workspace capabilities")}
+        sub={t('administration:admin.features.loadErrorHelp', 'The request failed. Check your connection and try again.')}
         retryLabel={t('admin.retry', 'Retry')}
         onRetry={() => void featuresQuery.refetch()}
       />
@@ -121,18 +136,18 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
       {featuresQuery.isError && orgFeatures && (
         <ListState
           variant="error"
-          title={t('admin.features.refreshError', "Couldn't refresh workspace capabilities")}
-          sub={t('admin.features.lastConfirmed', 'The last confirmed settings are still shown. Check your connection and retry.')}
+          title={t('administration:admin.features.refreshError', "Couldn't refresh workspace capabilities")}
+          sub={t('administration:admin.features.lastConfirmed', 'The last confirmed settings are still shown. Check your connection and retry.')}
           retryLabel={t('admin.retry', 'Retry')}
           onRetry={() => void featuresQuery.refetch()}
         />
       )}
       {featuresQuery.isFetching && orgFeatures && !featuresQuery.isError && (
         <p role="status" className="text-[13px] text-muted-foreground">
-          {t('admin.features.refreshing', 'Refreshing capabilities…')}
+          {t('administration:admin.features.refreshing', 'Refreshing capabilities…')}
         </p>
       )}
-      <section aria-label={t('admin.features.editable', 'Editable capabilities')}>
+      <section aria-label={t('administration:admin.features.editable', 'Editable capabilities')}>
         <ul className="divide-y divide-border rounded-lg border border-border bg-card">
           {toggleable.map((key) => {
             const enabled = resolve(key);
@@ -144,24 +159,22 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
                 <div className="min-w-0">
                   <p className="text-[13.5px] font-medium">{label}</p>
                   <p id={consequenceId} className="mt-0.5 text-[13px] text-muted-foreground">
-                    {t(`admin.features.consequence.${key}`, {
-                      defaultValue: FEATURE_CONSEQUENCES[key] ?? FEATURE_LABELS[key],
-                    })}
+                    {featureConsequences[key] ?? FEATURE_LABELS[key]}
                   </p>
                   {outcome && (
                     <p role="status" className={outcome === 'error' ? 'mt-1 text-[13px] text-destructive' : 'mt-1 text-[13px] text-muted-foreground'}>
                       {outcome === 'saving'
-                        ? t('admin.features.saving', 'Saving…')
+                        ? t('administration:admin.features.saving', 'Saving…')
                         : outcome === 'saved'
-                          ? t('admin.features.saved', 'Saved')
-                          : t('admin.features.saveError', "Couldn't save this capability. Your last confirmed setting is still shown.")}
+                          ? t('administration:admin.features.saved', 'Saved')
+                          : t('administration:admin.features.saveError', "Couldn't save this capability. Your last confirmed setting is still shown.")}
                     </p>
                   )}
                 </div>
                 {isOperator ? (
                   <div className="flex shrink-0 items-center gap-2">
                     <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                      {enabled ? t('admin.features.on', 'On') : t('admin.features.off', 'Off')}
+                      {enabled ? t('administration:admin.features.on', 'On') : t('administration:admin.features.off', 'Off')}
                     </StatusPill>
                     <Switch
                       checked={enabled}
@@ -176,8 +189,8 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
                 ) : (
                   <StatusPill variant={enabled ? 'won' : 'neutral'}>
                       {enabled
-                        ? t('admin.features.includedInPlan', 'Included in your plan')
-                        : t('admin.features.hidden', 'Hidden')}
+                        ? t('administration:admin.features.includedInPlan', 'Included in your plan')
+                        : t('administration:admin.features.hidden', 'Hidden')}
                   </StatusPill>
                 )}
               </li>
@@ -188,7 +201,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
 
       <details className="rounded-lg border border-border bg-card">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('admin.features.preview', 'Preview')}
+          {t('administration:admin.features.preview', 'Preview')}
         </summary>
         <ul className="divide-y divide-border border-t border-border">
           {envGated.map((key) => {
@@ -198,8 +211,8 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
                 <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
                 <StatusPill variant={enabled ? 'won' : 'neutral'}>
                   {enabled
-                    ? t('admin.features.previewOn', 'Preview — on')
-                    : t('admin.features.previewOff', 'Preview — off')}
+                    ? t('administration:admin.features.previewOn', 'Preview — on')
+                    : t('administration:admin.features.previewOff', 'Preview — off')}
                 </StatusPill>
               </li>
             );
@@ -209,13 +222,13 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
 
       <details className="rounded-lg border border-border bg-card">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('admin.features.alwaysIncluded', 'Always included')}
+          {t('administration:admin.features.alwaysIncluded', 'Always included')}
         </summary>
         <ul className="divide-y divide-border border-t border-border">
           {core.map((key) => (
             <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
               <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
-              <StatusPill variant="neutral">{t('admin.features.alwaysOn', 'Always on')}</StatusPill>
+              <StatusPill variant="neutral">{t('administration:admin.features.alwaysOn', 'Always on')}</StatusPill>
             </li>
           ))}
         </ul>

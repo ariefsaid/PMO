@@ -121,7 +121,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
       {balanceQuery.data !== undefined && (
         <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
           <p className="min-w-0 text-sm">
-            <span className="text-muted-foreground">{t('admin.credits.balanceLabel', 'Available balance')}</span>
+            <span className="text-muted-foreground">{t('administration:admin.credits.balanceLabel', 'Available balance')}</span>
             <span className="ml-3 text-xl font-bold tabular" data-testid="org-credit-balance">
               {formatNumberExact(balanceQuery.data)}{' '}
               <span className="text-sm font-semibold text-muted-foreground">

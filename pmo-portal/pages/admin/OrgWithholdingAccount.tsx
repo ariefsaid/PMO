@@ -158,7 +158,7 @@ export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgW
           {error && <FieldError>{error}</FieldError>}
           <div className="flex flex-wrap gap-2">
             <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
-            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('uxs11.doneEditing', 'Done editing')}</Button>}
+            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('integrations:uxs11.doneEditing', 'Done editing')}</Button>}
           </div>
         </form> : canManage ? (
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -166,7 +166,7 @@ export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgW
               <p className="text-[13px] font-medium">{readOnlyValue}</p>
               <p className="mt-0.5 text-[13px] text-muted-foreground">{savedContext}</p>
             </div>
-            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('uxs11.editSetting', 'Edit setting')}</Button>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editSetting', 'Edit setting')}</Button>
           </div>
         ) : <p className="text-[13px]">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
     </div>

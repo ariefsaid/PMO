@@ -106,8 +106,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     return (
       <ListState
         variant="error"
-        title={t('admin.usage.loadError', "Couldn't load usage")}
-        sub={t('admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
+        title={t('administration:admin.usage.loadError', "Couldn't load usage")}
+        sub={t('administration:admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
         retryLabel={t('admin.retry', 'Retry')}
         onRetry={onRetry}
       />
@@ -119,8 +119,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       <ListState
         variant="empty"
         icon="admin"
-        title={t('admin.usage.emptyTitle', 'No usage yet')}
-        sub={t('admin.usage.emptyHelp', 'Agent usage appears here once your workspace starts using the assistant.')}
+        title={t('administration:admin.usage.emptyTitle', 'No usage yet')}
+        sub={t('administration:admin.usage.emptyHelp', 'Agent usage appears here once your workspace starts using the assistant.')}
       />
     );
   }
@@ -138,19 +138,19 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   );
 
   const columns: Column<UsageRow>[] = [
-    { key: 'action', header: t('admin.usage.actionColumn', 'Action'), cell: (r) => r.action },
-    { key: 'month', header: t('admin.usage.monthColumn', 'Month'), cell: (r) => r.month },
-    { key: 'runs', header: t('admin.usage.runsColumn', 'Runs'), cell: (r) => formatNumber(r.run_count) },
+    { key: 'action', header: t('administration:admin.usage.actionColumn', 'Action'), cell: (r) => r.action },
+    { key: 'month', header: t('administration:admin.usage.monthColumn', 'Month'), cell: (r) => r.month },
+    { key: 'runs', header: t('administration:admin.usage.runsColumn', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
       key: 'tokens',
-      header: t('admin.usage.inputOutputTokens', 'Input / output tokens'),
+      header: t('administration:admin.usage.inputOutputTokens', 'Input / output tokens'),
       cell: (r) => `${formatNumber(r.prompt_tokens)} / ${formatNumber(r.completion_tokens)}`,
     },
     ...(hasProviderCost
       ? [
           {
             key: 'providerCost',
-            header: t('admin.usage.providerCostColumn', 'Provider cost'),
+            header: t('administration:admin.usage.providerCostColumn', 'Provider cost'),
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
             // The RPC returns null when provider pricing is unconfigured, and formatting null
             // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
@@ -161,27 +161,27 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: t('admin.usage.creditsChargedColumn', 'Credits charged'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: t('administration:admin.usage.creditsChargedColumn', 'Credits charged'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: t('admin.usage.marginColumn', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: t('administration:admin.usage.marginColumn', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 
   const periodOptions = [
-    { value: '', label: t('admin.usage.allPeriods', 'All periods') },
+    { value: '', label: t('administration:admin.usage.allPeriods', 'All periods') },
     ...periods.map((value) => ({ value, label: value })),
   ];
   const actionOptions = [
-    { value: '', label: t('admin.usage.allActions', 'All actions') },
+    { value: '', label: t('administration:admin.usage.allActions', 'All actions') },
     ...actions.map((value) => ({ value, label: value })),
   ];
   const sortOptions = [
-    { value: 'newest', label: t('admin.usage.monthNewest', 'Month newest') },
-    { value: 'oldest', label: t('admin.usage.monthOldest', 'Month oldest') },
+    { value: 'newest', label: t('administration:admin.usage.monthNewest', 'Month newest') },
+    { value: 'oldest', label: t('administration:admin.usage.monthOldest', 'Month oldest') },
   ];
-  const periodLabel = period || t('admin.usage.allPeriodsShort', 'all periods');
-  const actionLabel = action || t('admin.usage.allActionsShort', 'all actions');
-  const scopeDescription = t('admin.usage.selectedScope', {
+  const periodLabel = period || t('administration:admin.usage.allPeriodsShort', 'all periods');
+  const actionLabel = action || t('administration:admin.usage.allActionsShort', 'all actions');
+  const scopeDescription = t('administration:admin.usage.selectedScope', {
     period: periodLabel,
     action: actionLabel,
     defaultValue: 'Showing {{period}} · {{action}}.',
@@ -190,36 +190,36 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   return (
     <div className="min-w-0 space-y-4">
       <div className="grid min-w-0 grid-cols-2 gap-3 sm:grid-cols-3">
-        <SelectField label={t('admin.usage.period', 'Period')} value={period} onChange={(value) => updateFilter('period', value)} options={periodOptions} />
-        <SelectField label={t('admin.usage.action', 'Action')} value={action} onChange={(value) => updateFilter('action', value)} options={actionOptions} />
-        <SelectField label={t('admin.usage.sort', 'Sort')} value={sort} onChange={(value) => updateFilter('sort', value === 'oldest' ? 'oldest' : 'newest')} options={sortOptions} />
+        <SelectField label={t('administration:admin.usage.period', 'Period')} value={period} onChange={(value) => updateFilter('period', value)} options={periodOptions} />
+        <SelectField label={t('administration:admin.usage.action', 'Action')} value={action} onChange={(value) => updateFilter('action', value)} options={actionOptions} />
+        <SelectField label={t('administration:admin.usage.sort', 'Sort')} value={sort} onChange={(value) => updateFilter('sort', value === 'oldest' ? 'oldest' : 'newest')} options={sortOptions} />
       </div>
 
       {noMatches ? (
         <div role="status" className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[13.5px] font-medium">{t('admin.usage.noMatches', 'No usage matches the selected filters.')}</p>
+          <p className="text-[13.5px] font-medium">{t('administration:admin.usage.noMatches', 'No usage matches the selected filters.')}</p>
           <button
             type="button"
             className="mt-2 inline-flex min-h-11 items-center rounded-md px-2 text-[13px] font-medium text-nav-active-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             onClick={clearFilters}
           >
-            {t('admin.usage.clearFilters', 'Clear filters')}
+            {t('administration:admin.usage.clearFilters', 'Clear filters')}
           </button>
         </div>
       ) : (
         <div>
           <p className="mb-2 text-[12.5px] text-muted-foreground">
-            {t('admin.usage.creditsBasis', 'Credits charged use the platform USD billing unit; provider cost is separate.')}
+            {t('administration:admin.usage.creditsBasis', 'Credits charged use the platform USD billing unit; provider cost is separate.')}
           </p>
           <DataTable<UsageRow> rows={filteredRows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
           {!hasMargin && (
             <p className="mt-2 text-[12.5px] text-muted-foreground">
-              {t('admin.usage.pricingUnavailable', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}
+              {t('administration:admin.usage.pricingUnavailable', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}
             </p>
           )}
           {hasUnavailableProviderCost && (
             <p className="mt-2 text-[12.5px] text-muted-foreground">
-              {t('admin.usage.providerCostUnavailable', 'Provider cost is unavailable for this scope. Check provider pricing before comparing it with credits charged.')}
+              {t('administration:admin.usage.providerCostUnavailable', 'Provider cost is unavailable for this scope. Check provider pricing before comparing it with credits charged.')}
             </p>
           )}
         </div>
@@ -227,7 +227,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
 
       <details className="rounded-lg border border-border bg-card">
         <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('admin.usage.diagnostics', 'Diagnostics')}
+          {t('administration:admin.usage.diagnostics', 'Diagnostics')}
         </summary>
         <div className="border-t border-border p-4">
           <AgentCostMetrics

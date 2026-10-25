@@ -542,7 +542,7 @@ export const IntegrationsView: React.FC = () => {
               )}
               <details className="mt-3 rounded-md border border-border px-3" data-testid={`service-details-${tier}`}>
                 <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                  {t('uxs07.connectionDetails', 'Connection details')}
+                  {t('integrations:uxs07.connectionDetails', 'Connection details')}
                 </summary>
                 <div className="space-y-3 pb-3">
                   {!isError && (isConnected || isDisconnected) && binding && (
@@ -643,8 +643,8 @@ export const IntegrationsView: React.FC = () => {
                       {setupIncomplete
                         ? t('uxs07.finishSetup', 'Finish setup')
                         : erpSetupQuery.isError
-                          ? t('uxs07.reviewSetupStatus', 'Review setup status')
-                          : t('uxs07.viewConfiguredSetup', 'View configured setup')}
+                          ? t('integrations:uxs07.reviewSetupStatus', 'Review setup status')
+                          : t('integrations:uxs07.viewConfiguredSetup', 'View configured setup')}
                     </summary>
                     <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
                   </details>
@@ -660,7 +660,7 @@ export const IntegrationsView: React.FC = () => {
           {canManageIntegrations && (
             <details className="rounded-md border border-border bg-card px-3" data-testid="m365-organization-approval-details">
               <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                {t('uxs07.organizationApproval', 'Organization approval')}
+                {t('integrations:uxs07.organizationApproval', 'Organization approval')}
               </summary>
               <M365OrgApprovalCard />
             </details>
@@ -680,7 +680,7 @@ export const IntegrationsView: React.FC = () => {
           {canManageIntegrations && clearTaskListProposals.length > 0 && !bindingMapDataUnavailable && (
             <div className="mb-3">
               <Button variant="primary" className="min-h-11" onClick={() => setTaskListBatchOpen(true)}>
-                {t('uxs21.batchAcceptAllAction', 'Accept all clear matches')}
+                {t('integrations:uxs21.batchAcceptAllAction', 'Accept all clear matches')}
                 <span className="ml-1 tabular-nums">({clearTaskListProposals.length})</span>
               </Button>
             </div>
@@ -770,7 +770,7 @@ export const IntegrationsView: React.FC = () => {
               {clickupLists.some((list) => !boundListIds.has(list.id)) && (
                 <details className="mt-4 rounded-md border border-border px-3">
                   <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                    {t('uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
+                    {t('integrations:uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
                   </summary>
                   <div className="pb-3">
                     <h5 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h5>

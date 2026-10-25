@@ -1,0 +1,167 @@
+{
+  "fx": {
+    "sortLabel": "Publication date · newest first",
+    "sortAriaLabel": "Sorted by publication date, newest first"
+  },
+  "admin": {
+    "scope": {
+      "users": "Workspace members",
+      "integrations": "Shared workspace setup",
+      "accounting": "Workspace accounting",
+      "projects": "Future projects",
+      "credits": "Shared Assistant balance",
+      "exchangeRates": "USD → IDR · JISDOR · display equivalents only",
+      "costAttribution": "Assign untagged ledger cost to projects without changing ERP records",
+      "usage": "Operator · aggregate consumption",
+      "features": "Operator · workspace capabilities"
+    },
+    "accounting": {
+      "sectionsLabel": "Accounting tasks",
+      "postingAccounts": "Posting accounts",
+      "taxAdvances": "Tax and advances",
+      "purchaseRules": "Purchase rules",
+      "spendApprovers": "Spend approvers"
+    },
+    "features": {
+      "name": {
+        "incidents": "Incidents",
+        "crm": "CRM (Sales Pipeline, Companies, Contacts)",
+        "procurement": "Procurement",
+        "timesheets": "Timesheets",
+        "import_export": "Import / Export",
+        "agent_assistant": "Agent Assistant",
+        "user_views": "User Views",
+        "m365_integration": "Microsoft 365 integration",
+        "projects": "Projects",
+        "dashboard": "Dashboard",
+        "approvals": "Approvals",
+        "administration": "Administration",
+        "revenue": "Revenue (Sales Invoices, Incoming Payments, Revenue by Project)"
+      },
+      "editable": "Editable capabilities",
+      "preview": "Preview",
+      "alwaysIncluded": "Always included",
+      "on": "On",
+      "off": "Off",
+      "loadError": "Couldn't load workspace capabilities",
+      "loadErrorHelp": "The request failed. Check your connection and try again.",
+      "refreshError": "Couldn't refresh workspace capabilities",
+      "lastConfirmed": "The last confirmed settings are still shown. Check your connection and retry.",
+      "refreshing": "Refreshing capabilities…",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "saveError": "Couldn't save this capability. Your last confirmed setting is still shown.",
+      "includedInPlan": "Included in your plan",
+      "hidden": "Hidden",
+      "previewOn": "Preview — on",
+      "previewOff": "Preview — off",
+      "alwaysOn": "Always on",
+      "consequence": {
+        "incidents": "Track and coordinate operational incidents.",
+        "crm": "Manage sales pipelines, companies and contacts.",
+        "procurement": "Manage purchase requests and orders.",
+        "timesheets": "Record and review project hours.",
+        "import_export": "Import and export workspace records.",
+        "m365_integration": "Connect Microsoft 365 for workspace integrations."
+      }
+    },
+    "usage": {
+      "period": "Period",
+      "action": "Action",
+      "sort": "Sort",
+      "allPeriods": "All periods",
+      "allActions": "All actions",
+      "allPeriodsShort": "all periods",
+      "allActionsShort": "all actions",
+      "monthNewest": "Month newest",
+      "monthOldest": "Month oldest",
+      "inputOutputTokens": "Input / output tokens",
+      "actionColumn": "Action",
+      "monthColumn": "Month",
+      "runsColumn": "Runs",
+      "providerCostColumn": "Provider cost",
+      "creditsChargedColumn": "Credits charged",
+      "marginColumn": "Margin",
+      "noMatches": "No usage matches the selected filters.",
+      "clearFilters": "Clear filters",
+      "loadError": "Couldn't load usage",
+      "loadErrorHelp": "The request failed. Check your connection and try again.",
+      "emptyTitle": "No usage yet",
+      "emptyHelp": "Agent usage appears here once your workspace starts using the assistant.",
+      "diagnostics": "Diagnostics",
+      "creditsBasis": "Credits charged use the platform USD billing unit; provider cost is separate.",
+      "providerCostUnavailable": "Provider cost is unavailable for this scope. Check provider pricing before comparing it with credits charged.",
+      "pricingUnavailable": "Pricing not yet configured — margin will appear here once a per-credit USD rate is set.",
+      "selectedScope": "Showing {{period}} · {{action}}.",
+      "allScope": "Across all actions and months.",
+      "metricsLoadError": "Couldn't load agent cost metrics",
+      "metricsEmptyTitle": "No agent cost data yet",
+      "metricsEmptyHelp": "Agent cost telemetry appears here once your workspace starts using the assistant.",
+      "cacheHitRate": "Cache hit-rate",
+      "reasoningShare": "Reasoning share",
+      "weightedP50": "Cost / run (p50, weighted by runs)",
+      "maxP95": "Cost / run (p95, max)",
+      "maxLatency": "Latency (p95, max)",
+      "metricsOverview": "Agent cost overview",
+      "cacheHitByMonth": "Cache hit-rate by month",
+      "chartSummary": "Cache hit-rate by month, {{count}} months.",
+      "chartEmptyTitle": "Not enough data yet",
+      "chartEmptyHelp": "Cache hit-rate trends appear once usage spans two or more months."
+    },
+    "users": {
+      "statusFilter": {
+        "label": "Filter users by status",
+        "all": "All statuses"
+      },
+      "sort": {
+        "nameAsc": "Name A–Z",
+        "nameDesc": "Name Z–A"
+      },
+      "details": "Details",
+      "detailsFor": "Details for {{name}}",
+      "unavailable": "Unavailable",
+      "clearFilters": "Clear filters"
+    },
+    "credits": {
+      "balanceLabel": "Available balance"
+    },
+    "postingAccounts": {
+      "category": "Purpose / category",
+      "account": "Account",
+      "search": {
+        "placeholder": "Search categories and accounts…",
+        "label": "Search posting accounts"
+      },
+      "purpose": {
+        "label": "Filter posting account purpose",
+        "all": "All purposes",
+        "budget": "Budget accounts",
+        "expense": "Expense accounts"
+      },
+      "coverage": {
+        "label": "Filter posting account coverage",
+        "all": "All coverage",
+        "configured": "Configured",
+        "needsSetup": "Needs setup",
+        "header": "Coverage"
+      },
+      "sort": {
+        "asc": "Name A–Z",
+        "desc": "Name Z–A"
+      },
+      "unmapped": "Not mapped",
+      "needsSetupBlocking": "Needs setup — blocks every push",
+      "noMatches": "No posting accounts match these filters",
+      "clearHelp": "Clear the filters to see all budget categories and expense accounts.",
+      "clear": "Clear filters"
+    },
+    "projectNumberPattern": {
+      "saved": "Saved pattern",
+      "current": "Current pattern:",
+      "edit": "Edit numbering"
+    }
+  },
+  "projectClassification": {
+    "edit": "Edit classifications"
+  }
+}
