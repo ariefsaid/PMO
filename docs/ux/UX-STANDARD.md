@@ -7,6 +7,7 @@ Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period
 **PA-01** Give each page one type: collection (find projects), record (understand a contract), capture (enter time), review queue (decide requests), dashboard (prioritize portfolio), settings (configure tools), sign-in (enter workspace) — *title and main content identify one job/type.*
 **PA-02** Use title → scope → toolbar → content → action bar, where applicable, on one left edge so PM/Finance can scan consistently — *section starts align; project/customer/period precede their results.*
 **PA-03** Put decision evidence together: PM sees phase/task context; Finance sees amount and invoice; approver sees request and evidence — *no intervening unrelated tiles or repeated summary boxes.*
+**PA-04** Each fact appears once per page and content fills the content track: no block repeats a figure or caveat, no card or band only holds whitespace or a single caption, and no empty band wider than 25% sits beside content at 1440px; the Executive dashboard and project Overview must avoid scattered facts and whitespace without deliberate intent — *reviewer counts each figure once and finds no near-empty container.*
 
 ## Navigation
 **N-01** Show where the user is with a named current area and record/project identity — *active navigation, heading and breadcrumb agree in the PM's project capture.*
