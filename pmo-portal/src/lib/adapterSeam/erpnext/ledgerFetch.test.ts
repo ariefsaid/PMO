@@ -187,6 +187,30 @@ describe('erpnext/ledgerFetch — fetchGlEntries', () => {
   });
 });
 
+describe('erpnext/ledgerFetch — one voucher\'s current row set', () => {
+  for (const [label, fetcher, doctype] of [
+    ['GL Entry', fetchGlEntries, 'GL%20Entry'],
+    ['Payment Ledger Entry', fetchPaymentLedgerEntries, 'Payment%20Ledger%20Entry'],
+  ] as const) {
+    it(`${label}: a voucher read filters company + voucher_type + voucher_no and never the modified cursor`, async () => {
+      const urls: string[] = [];
+      const c = client(async (url) => { urls.push(url); return jsonResponse({ data: [] }); });
+      const r = await fetcher(c, { company: 'Synthetic Co', voucher: { type: 'Journal Entry', no: 'ACC-JV-2026-00070' } });
+      expect(r.caughtUp).toBe(true);
+      expect(urls[0]).toContain(`/api/resource/${doctype}?`);
+      expect(JSON.parse(new URL(urls[0]).searchParams.get('filters')!)).toEqual([
+        ['company', '=', 'Synthetic Co'], ['voucher_type', '=', 'Journal Entry'], ['voucher_no', '=', 'ACC-JV-2026-00070'],
+      ]);
+    });
+  }
+
+  it('Payment Ledger Entry rows carry their own voucher_type/voucher_no', async () => {
+    const c = client(async () => jsonResponse({ data: [{ name: 'p1', account: 'Creditors - SYN', voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006', modified: '2026-10-25 11:52:16.308551' }] }));
+    const { rows } = await fetchPaymentLedgerEntries(c, { company: 'Synthetic Co' });
+    expect(rows[0]).toMatchObject({ voucher_type: 'Purchase Invoice', voucher_no: 'ACC-PINV-2026-00006' });
+  });
+});
+
 describe('erpnext/ledgerFetch — fetchPaymentLedgerEntries', () => {
   it('AC-ENA-162 #901 fetches Payment Ledger Entry with ONLY company + modified>=since (no cancellation filter) and returns decimal-string amounts', async () => {
     const urls: string[] = [];

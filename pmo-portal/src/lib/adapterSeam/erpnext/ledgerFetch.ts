@@ -11,7 +11,7 @@
  * as decimal-strings (R4) — a Frappe number is coerced, `null`/absent stays `null`.
  *
  * Filters: ONLY the scope — `company` and `modified >= since` (the sweep's per-org watermark cursor; omit
- * for a full backfill). Never a cancellation filter (#901): on cancel ERPNext keeps the original ledger rows
+ * for a full backfill), or `company` + one voucher (the repost reconcile reads a voucher's full current set). Never a cancellation filter (#901): on cancel ERPNext keeps the original ledger rows
  * at docstatus 1, flips their state (`GL Entry.is_cancelled`, `Payment Ledger Entry.delinked`) and bumps
  * `modified`, then adds reversal rows carrying the same flag. A fetch that filters on that state can never
  * re-read the flipped originals, so their mirror copies stay live. The state crosses as a flag instead
@@ -56,6 +56,9 @@ export interface PaymentLedgerEntryRow {
   amount: string | null;
   posting_date: string | null;
   due_date: string | null;
+  /** The voucher that wrote this row — the key a repost replaces rows under. */
+  voucher_type: string | null;
+  voucher_no: string | null;
   docstatus: number | null;
   /** ERPNext `delinked` (cancel / unreconcile) OR docstatus 2 — never counted (ERPNext's own `delinked=0` rule). */
   delinked: boolean;
@@ -67,6 +70,8 @@ export interface LedgerFetchOpts {
   company: string;
   /** Frappe `modified >= since` (ISO-ish datetime string). Omit for a full backfill. */
   since?: string;
+  /** Read ONE voucher's current full row set (no modified cursor) — the repost reconcile's source. */
+  voucher?: { type: string; no: string };
   /** Page size for the list endpoint. Default 500 (a safe, commonly-allowed Frappe page length). */
   pageSize?: number;
   /** Maximum pages fetched in one tick. The small bounded default prevents a first backfill from
@@ -92,7 +97,7 @@ const GL_FIELDS = [
 
 const PLE_FIELDS = [
   'name', 'account', 'party_type', 'party', 'against_voucher_type', 'against_voucher_no',
-  'amount', 'posting_date', 'due_date', 'docstatus', 'delinked', 'modified',
+  'amount', 'posting_date', 'due_date', 'voucher_type', 'voucher_no', 'docstatus', 'delinked', 'modified',
 ] as const;
 
 /** Coerces a Frappe money value to a decimal-string (R4). A Frappe `null`/absent → `null`. */
@@ -109,6 +114,7 @@ function docstatusOf(v: unknown): number | null {
 /** The two ERP-side "scope only" filters every ledger fetch sends (#901: never a cancellation filter). */
 function scopeFilters(opts: LedgerFetchOpts): unknown[] {
   const filters: unknown[] = [['company', '=', opts.company]];
+  if (opts.voucher) filters.push(['voucher_type', '=', opts.voucher.type], ['voucher_no', '=', opts.voucher.no]);
   if (opts.since !== undefined) filters.push(['modified', '>=', opts.since]);
   return filters;
 }
@@ -269,6 +275,8 @@ export async function fetchPaymentLedgerEntries(client: ErpClientDeps, opts: Led
         amount: money(r.amount),
         posting_date: str(r.posting_date),
         due_date: str(r.due_date),
+        voucher_type: str(r.voucher_type),
+        voucher_no: str(r.voucher_no),
         docstatus,
         delinked: Boolean(r.delinked) || docstatus === 2,
         modified: String(r.modified),
