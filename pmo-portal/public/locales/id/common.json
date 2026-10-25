@@ -4538,6 +4538,17 @@
     }
   },
   "uxs06": {
+    "receiptFilters": "Filter penerimaan",
+    "allCustomers": "Semua klien",
+    "sortReceipts": "Urutkan penerimaan",
+    "latestPaymentDate": "Tanggal pembayaran terbaru",
+    "oldestPaymentDate": "Tanggal pembayaran terlama",
+    "receipts": "Penerimaan",
+    "customerUnavailable": "Pelanggan tidak tersedia",
+    "dateNotReported": "Tanggal belum dilaporkan",
+    "noInvoiceLinked": "Tidak ada faktur terkait",
+    "statusAndPaymentDate": "Status / tanggal pembayaran",
+    "referenceDetails": "Detail referensi",
     "statusReceived": "Diterima",
     "statusExpected": "Diharapkan",
     "none": "Tidak ada",

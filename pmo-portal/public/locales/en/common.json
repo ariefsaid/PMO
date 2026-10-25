@@ -4541,6 +4541,17 @@
     }
   },
   "uxs06": {
+    "receiptFilters": "Receipt filters",
+    "allCustomers": "All customers",
+    "sortReceipts": "Sort receipts",
+    "latestPaymentDate": "Latest payment date",
+    "oldestPaymentDate": "Oldest payment date",
+    "receipts": "Receipts",
+    "customerUnavailable": "Customer unavailable",
+    "dateNotReported": "Date not reported",
+    "noInvoiceLinked": "No invoice linked",
+    "statusAndPaymentDate": "Status / payment date",
+    "referenceDetails": "Reference details",
     "statusReceived": "Received",
     "statusExpected": "Expected",
     "none": "None",

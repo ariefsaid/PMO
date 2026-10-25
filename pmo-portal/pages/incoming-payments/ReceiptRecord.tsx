@@ -7,16 +7,18 @@ import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
+import { MoneyInPageHeader } from '../money-in/MoneyInPageHeader';
 
 interface Props {
   receipt: IncomingPaymentRow;
   /** Allocations to show (`null` = the source has not reported them). */
   allocations: ReceiptAllocation[] | null;
   onBack: () => void;
+  onCancel?: () => void;
 }
 
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
-export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack }) => {
+export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, onCancel }) => {
   const { t } = useTranslation();
   const money = (n: number) => formatCurrencyCents(n, receipt.currency);
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
@@ -49,27 +51,29 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
     { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyAuto(Number(allocation.amount), allocation.currency) : notReported },
   ], [notReported, t]);
 
+  const status = cancelled
+    ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+    : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>
+        {receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}
+      </StatusPill>;
+  const abnormalNotes = [
+    someUnreported ? t('finance:receipts.someUnreported', "Some figures weren't reported.") : null,
+    allocations === null ? t('uxs06.coverageUnknown', 'The accounting system has not reported which invoices this receipt settled.') : null,
+  ].filter(Boolean);
+
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-      <Button variant="ghost" onClick={onBack} className="mb-4 -ml-3">
-        <Icon name="back" className="size-4" />
-        {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
-      </Button>
-      <header className="mb-5 border-b border-border pb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
-          </h1>
-          {cancelled
-            ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
-            : <StatusPill variant={incomingPaymentStatusVariant(receipt.status)}>
-                {receipt.status === 'Paid' ? t('uxs06.statusReceived', 'Received') : t('uxs06.statusExpected', 'Expected')}
-              </StatusPill>}
-        </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {[receipt.customer_name, receipt.date ? formatDateOnly(receipt.date) : null].filter(Boolean).join(' · ') || '—'}
-        </p>
-      </header>
+    <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+      <MoneyInPageHeader
+        title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
+        scope={[receipt.customer_name ?? t('uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('uxs06.dateNotReported', 'Date not reported')].join(' · ')}
+        status={status}
+        returnAction={(
+          <Button variant="ghost" onClick={onBack} className="min-h-11 -ml-3">
+            <Icon name="back" className="size-4" />
+            {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
+          </Button>
+        )}
+      />
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
@@ -79,16 +83,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
           </div>
         ))}
       </dl>
-      {someUnreported && (
-        <p className="-mt-3 mb-6 text-sm text-muted-foreground">{t('finance:receipts.someUnreported', "Some figures weren't reported.")}</p>
+      {abnormalNotes.length > 0 && (
+        <p role="note" className="-mt-3 mb-6 max-w-[80ch] text-sm text-muted-foreground">{abnormalNotes.join(' ')}</p>
       )}
 
       <h2 className="mb-2 text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
-      {allocations === null ? (
-        <p className="text-sm text-muted-foreground">
-          {t('uxs06.coverageUnknown', 'The accounting system has not reported which invoices this receipt settled.')}
-        </p>
-      ) : allocations.length === 0 ? (
+      {allocations === null ? null : allocations.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
         </p>
@@ -100,6 +100,19 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack })
           tableId="receipt-settled-invoices"
           accessibleName={t('uxs06.settledTitle', 'Invoices this receipt settled')}
         />
+      )}
+      {receipt.reference_number && (
+        <details className="mt-5 max-w-2xl rounded-md border border-border px-3 py-2">
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{t('uxs06.referenceDetails', 'Reference details')}</summary>
+          <p className="break-words pb-2 text-sm text-muted-foreground">{receipt.reference_number}</p>
+        </details>
+      )}
+      {onCancel && (
+        <div className="mt-6">
+          <Button variant="ghost" onClick={onCancel} className="min-h-11 text-destructive hover:text-destructive">
+            {t('financeCopy.cancel', 'Cancel')}
+          </Button>
+        </div>
       )}
     </main>
   );

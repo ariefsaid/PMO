@@ -1,7 +1,6 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -22,7 +21,7 @@ import {
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
@@ -50,6 +49,7 @@ import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandInt
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
+import { MoneyInPageHeader } from './money-in/MoneyInPageHeader';
 
 /** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
  *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
@@ -74,6 +74,26 @@ function matchesStatus(p: IncomingPaymentRow, filter: StatusFilter): boolean {
   if (filter === 'Cancelled') return Boolean(p.cancelled_at);
   if (filter === 'Received') return p.status === 'Paid' && !p.cancelled_at;
   return p.status === filter;
+}
+
+type ReceiptSort = 'payment-date-desc' | 'payment-date-asc';
+
+function sortReceipts(rows: IncomingPaymentRow[], sort: ReceiptSort): IncomingPaymentRow[] {
+  const direction = sort === 'payment-date-desc' ? -1 : 1;
+  return [...rows].sort((a, b) => {
+    if (a.date == null && b.date != null) return 1;
+    if (a.date != null && b.date == null) return -1;
+    if (a.date && b.date) {
+      const byPaymentDate = a.date.localeCompare(b.date) * direction;
+      if (byPaymentDate) return byPaymentDate;
+    }
+    const byCreated = b.created_at.localeCompare(a.created_at);
+    return byCreated || a.id.localeCompare(b.id);
+  });
+}
+
+function isReceiptSort(value: string | null): value is ReceiptSort {
+  return value === 'payment-date-desc' || value === 'payment-date-asc';
 }
 
 /** Form values for the payment modal. */
@@ -184,6 +204,8 @@ const IncomingPayments: React.FC = () => {
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { receiptId } = useParams<{ receiptId: string }>();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
@@ -192,6 +214,7 @@ const IncomingPayments: React.FC = () => {
   const mode = useRevenueMode();
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
+  const { data: customerOptions = [] } = useClientCompanyOptions();
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
   const { data: invoiceList } = useSalesInvoices();
   const invoiceNumberById = useMemo(
@@ -206,8 +229,35 @@ const IncomingPayments: React.FC = () => {
 
   const all = useMemo(() => data ?? [], [data]);
 
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
+  const search = searchParams.get('q') ?? '';
+  const requestedStatus = searchParams.get('status');
+  const statusFilter = statusFilters.includes(requestedStatus as StatusFilter)
+    ? requestedStatus as StatusFilter
+    : 'All';
+  const customerFilter = searchParams.get('customer') ?? '';
+  const receiptSort = isReceiptSort(searchParams.get('sort')) ? searchParams.get('sort')! : 'payment-date-desc';
+
+  const updateListParam = (key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    const requestedSort = searchParams.get('sort');
+    const requested = searchParams.get('status');
+    const invalidStatus = requested !== null
+      && (requested === 'All' || !statusFilters.includes(requested as StatusFilter));
+    const invalidSort = requestedSort !== null && !isReceiptSort(requestedSort);
+    if (!invalidStatus && !invalidSort) return;
+    const next = new URLSearchParams(searchParams);
+    if (invalidStatus) next.delete('status');
+    if (invalidSort) next.set('sort', 'payment-date-desc');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams, statusFilters]);
 
   const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
@@ -219,13 +269,15 @@ const IncomingPayments: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return all
+    const matching = all
       .filter((p) => matchesStatus(p, statusFilter))
+      .filter((p) => !customerFilter || p.customer_id === customerFilter)
       .filter((p) => !q
         || receiptNumber(p)?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || p.customer_name?.toLowerCase().includes(q));
-  }, [all, search, statusFilter]);
+    return sortReceipts(matching, receiptSort);
+  }, [all, customerFilter, receiptSort, search, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -251,44 +303,6 @@ const IncomingPayments: React.FC = () => {
   }
 
   const invoiceNumberOf = (invoiceId: string) => invoiceNumberById.get(invoiceId) ?? null;
-
-  if (receiptId) {
-    const record = all.find((p) => p.id === receiptId);
-    if (state === 'loading') return <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6"><ListState variant="loading" rows={3} /></main>;
-    if (state === 'error') {
-      return (
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
-            <Icon name="back" className="size-4" />
-            {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
-          </Button>
-          <ListState
-            variant="error"
-            title={t('financeCopy.incomingPaymentsLoadFailed', "Couldn't load incoming payments")}
-            onRetry={() => void refetch()}
-            retryLabel={t('ui.listState.retry', 'Retry')}
-          />
-        </main>
-      );
-    }
-    if (!record) {
-      return (
-        <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
-            <Icon name="back" className="size-4" />
-            {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
-          </Button>
-          <ListState
-            variant="empty"
-            icon="doc"
-            title={t('uxs06.receiptNotFound', "We couldn't find this receipt")}
-            sub={t('uxs06.receiptNotFoundBody', 'It may have been removed, or you may not have access to it.')}
-          />
-        </main>
-      );
-    }
-    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={() => navigate('/incoming-payments')} />;
-  }
 
   const notReported = t('uxs06.notReported', 'Not reported');
   const allColumns: Column<IncomingPaymentRow>[] = [
@@ -397,12 +411,66 @@ const IncomingPayments: React.FC = () => {
     },
   ];
 
-  // FIN-S5: cash received, tax withheld, not-yet-applied and the slip live on the receipt record; the list keeps
-  // seven columns and the download keeps all eleven.
-  const EXPORT_ONLY = new Set(['received_amount', 'withheld_amount', 'unapplied', 'withholding_slip_number']);
-  const columns = allColumns.filter((column) => !EXPORT_ONLY.has(column.key));
-  // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only).
+  // The XLSX retains reconciliation fields hidden from the collection, with each row's ISO currency.
   const exportColumns = withCurrencyColumn(allColumns, 'amount', (r) => r.currency);
+  const columns: Column<IncomingPaymentRow>[] = [
+    {
+      key: 'receipt',
+      header: t('financeCopy.payment', 'Payment #'),
+      kind: 'primary',
+      primaryTitle: (p) => receiptNumber(p) ?? p.id,
+      cell: (p) => {
+        const url = `/incoming-payments/${encodeURIComponent(p.id)}`;
+        const sourceUrl = `${location.pathname}${location.search}`;
+        return (
+          <Link
+            to={url}
+            onClick={(event) => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              event.preventDefault();
+              navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
+            }}
+            className="truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
+            title={receiptNumber(p) ?? ''}
+          >
+            {receiptNumber(p) ?? '—'}
+          </Link>
+        );
+      },
+      secondaryCell: (p) => {
+        const settled = displayAllocations(p, invoiceNumberOf);
+        const invoice = settled?.[0]?.invoice_number
+          ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
+        const more = settled && settled.length > 1 ? settled.length - 1 : 0;
+        const invoiceLabel = invoice && more > 0
+          ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first: invoice, count: more })
+          : invoice ?? t('uxs06.noInvoiceLinked', 'No invoice linked');
+        return <span className="block truncate text-xs text-muted-foreground">{p.customer_name ?? t('uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
+      },
+      exportValue: (p) => receiptNumber(p) ?? '',
+    },
+    {
+      key: 'status-date',
+      header: t('uxs06.statusAndPaymentDate', 'Status / payment date'),
+      kind: 'status',
+      cell: (p) => (
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          {p.cancelled_at || p.erp_cancelled_at
+            ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
+            : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.pmo_native && p.status === 'Paid' ? 'Received' : p.status, t)}</StatusPill>}
+          <span className="text-xs text-muted-foreground">{p.date ? formatDateOnly(p.date) : t('uxs06.dateNotReported', 'Date not reported')}</span>
+        </div>
+      ),
+    },
+    {
+      key: 'receipt-total',
+      header: t('uxs06.receiptTotal', 'Receipt total'),
+      kind: 'money',
+      align: 'num',
+      cell: (p) => <span className="tabular text-right text-[13px]">{p.amount != null ? formatCurrencyCents(p.amount, p.currency) : t('uxs06.notReported', 'Not reported')}</span>,
+      exportValue: (p) => p.amount ?? '',
+    },
+  ];
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -432,52 +500,134 @@ const IncomingPayments: React.FC = () => {
     }
   };
 
+  const record = receiptId ? all.find((p) => p.id === receiptId) : undefined;
+  const moneyInSource = (location.state as { moneyInSource?: { url?: string; scrollY?: number } } | null)?.moneyInSource;
+  const returnUrl = moneyInSource?.url ?? `/incoming-payments${location.search}`;
+  const returnFromRecord = () => {
+    navigate(returnUrl);
+    if (moneyInSource?.scrollY) {
+      window.requestAnimationFrame(() => window.scrollTo({ top: moneyInSource.scrollY, behavior: 'instant' }));
+    }
+  };
+  const cancelDialog = (
+    <ConfirmDialog
+      open={!!cancelTarget}
+      tone="destructive"
+      title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: receiptNumber(cancelTarget) ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
+      description={cancelTarget?.pmo_native
+        ? t('financeCopy.nativeCancelReceiptBody', "This cancels the receipt in PMO and puts its amount back on the invoice's balance.")
+        : t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
+      confirmLabel={t('financeCopy.cancelPayment', 'Cancel payment')}
+      loading={cancelPayment.isPending}
+      onConfirm={onCancelConfirm}
+      onCancel={() => setCancelTarget(null)}
+    />
+  );
+
+  if (receiptId) {
+    const returnAction = (
+      <Button variant="ghost" onClick={returnFromRecord} className="min-h-11 -ml-3">
+        <Icon name="back" className="size-4" />
+        {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
+      </Button>
+    );
+    if (state === 'loading') {
+      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+        <ListState variant="loading" rows={3} />
+      </main>;
+    }
+    if (state === 'error') {
+      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+        <ListState variant="error" title={t('financeCopy.incomingPaymentsLoadFailed', "Couldn't load incoming payments")} onRetry={() => void refetch()} retryLabel={t('ui.listState.retry', 'Retry')} />
+      </main>;
+    }
+    if (!record) {
+      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+        <ListState variant="empty" icon="doc" title={t('uxs06.receiptNotFound', "We couldn't find this receipt")} sub={t('uxs06.receiptNotFoundBody', 'It may have been removed, or you may not have access to it.')} />
+      </main>;
+    }
+    const recordCanCancel = canCancel && ((record.pmo_native && !record.cancelled_at && native) || (!record.pmo_native && record.status !== 'Paid'));
+    return <>
+      <ReceiptRecord
+        receipt={record}
+        allocations={displayAllocations(record, invoiceNumberOf)}
+        onBack={returnFromRecord}
+        onCancel={recordCanCancel ? () => setCancelTarget(record) : undefined}
+      />
+      {cancelDialog}
+    </>;
+  }
+
   return (
-    <ListPage
-      title={t('financeCopy.incomingPayments', "Incoming Payments")}
-      description={mode === undefined
-        ? undefined
-        : native
+    <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+      <MoneyInPageHeader
+        title={t('financeCopy.incomingPayments', 'Incoming Payments')}
+        scope={native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
-          : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={mode !== undefined && canCreate ? (
-        <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
-          <Icon name="plus" />
-          {t('financeCopy.receivePayment', "Receive Payment")}</Button>
-      ) : undefined}
-      filters={
-        state !== 'loading' && (
-          <ViewToggle<StatusFilter>
-            options={statusFilters.map((f) => ({ value: f, label: incomingPaymentStatusLabel(f, t) }))}
-            value={statusFilter}
-            onChange={(v) => {
-              setStatusFilter(v);
-              trackFilterApplied('status', statusFilters.length, 'incomingPayments');
-            }}
-            ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
-          />
-        )
-      }
-      search={
-        state !== 'loading' && (
+          : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', 'Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.')}
+        primaryAction={mode !== undefined && canCreate ? (
+          <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
+            <Icon name="plus" />
+            {t('financeCopy.receivePayment', 'Receive Payment')}
+          </Button>
+        ) : undefined}
+      />
+
+      {state === undefined && (
+        <div className="mb-4 min-w-0 space-y-3" role="group" aria-label={t('uxs06.receiptFilters', 'Receipt filters')}>
           <SearchMini
-            placeholder={t('financeCopy.searchPayments', "Search payments…")}
-            aria-label={t('financeCopy.searchIncomingPayments', "Search incoming payments")}
+            placeholder={t('financeCopy.searchPayments', 'Search payments…')}
+            aria-label={t('financeCopy.searchIncomingPayments', 'Search incoming payments')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => updateListParam('q', event.target.value)}
             searchSurface="incoming-payments-list"
             module="incomingPayments"
             resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            containerClassName="w-full min-w-0"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
-        )
-      }
-    >
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="sr-only" htmlFor="receipt-customer-filter">{t('financeCopy.filterByCustomer', 'Filter by customer')}</label>
+            <select
+              id="receipt-customer-filter"
+              aria-label={t('financeCopy.filterByCustomer', 'Filter by customer')}
+              value={customerFilter}
+              onChange={(event) => updateListParam('customer', event.target.value)}
+              className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
+            >
+              <option value="">{t('uxs06.allCustomers', 'All customers')}</option>
+              {customerFilter && !customerOptions.some((option) => option.value === customerFilter) && (
+                <option value={customerFilter}>{t('uxs06.customerUnavailable', 'Customer unavailable')}</option>
+              )}
+              {customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <ViewToggle<StatusFilter>
+              options={statusFilters.map((filter) => ({ value: filter, label: incomingPaymentStatusLabel(filter, t) }))}
+              value={statusFilter}
+              onChange={(value) => {
+                updateListParam('status', value === 'All' ? '' : value);
+                trackFilterApplied('status', statusFilters.length, 'incomingPayments');
+              }}
+              ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
+            />
+            <label className="sr-only" htmlFor="receipt-sort">{t('uxs06.sortReceipts', 'Sort receipts')}</label>
+            <select
+              id="receipt-sort"
+              aria-label={t('uxs06.sortReceipts', 'Sort receipts')}
+              value={receiptSort}
+              onChange={(event) => updateListParam('sort', event.target.value)}
+              className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
+            >
+              <option value="payment-date-desc">{t('uxs06.latestPaymentDate', 'Latest payment date')}</option>
+              <option value="payment-date-asc">{t('uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
+            </select>
+            <ExportButton rows={filtered} columns={exportColumns} entity={t('uxs06.receipts', 'Receipts')} />
+          </div>
+        </div>
+      )}
+
       {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -517,6 +667,16 @@ const IncomingPayments: React.FC = () => {
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
+          emptyAction={{
+            label: t('financeCopy.clearFilters', 'Clear filters'),
+            onClick: () => {
+              setSearchParams((current) => {
+                const next = new URLSearchParams(current);
+                for (const key of ['q', 'status', 'customer', 'sort']) next.delete(key);
+                return next;
+              }, { replace: true });
+            },
+          }}
         tableId="incomingpayments-table" />
       )}
 
@@ -535,20 +695,8 @@ const IncomingPayments: React.FC = () => {
         />
       )}
 
-      {/* Cancel confirm (destructive tone) */}
-      <ConfirmDialog
-        open={!!cancelTarget}
-        tone="destructive"
-        title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: receiptNumber(cancelTarget) ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
-        description={cancelTarget?.pmo_native
-          ? t('financeCopy.nativeCancelReceiptBody', "This cancels the receipt in PMO and puts its amount back on the invoice's balance.")
-          : t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
-        confirmLabel={t('financeCopy.cancelPayment', "Cancel payment")}
-        loading={cancelPayment.isPending}
-        onConfirm={onCancelConfirm}
-        onCancel={() => setCancelTarget(null)}
-      />
-    </ListPage>
+      {cancelDialog}
+    </main>
   );
 };
 
