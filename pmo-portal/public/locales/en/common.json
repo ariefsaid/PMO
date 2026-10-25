@@ -223,7 +223,8 @@
     "date": "Publication date",
     "rate": "IDR per USD",
     "source": "Source",
-    "description": "USD → IDR · JISDOR · display equivalents only",
+    "sortLabel": "Publication date · newest first",
+    "sortAriaLabel": "Sorted by publication date, newest first",
     "denied": "Exchange rates are available to Finance and Admin.",
     "saved": "Rates saved: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "orgCurrencyError": "Could not resolve the organization currency.",
@@ -393,7 +394,7 @@
       "accounting": "Workspace accounting",
       "projects": "Future projects",
       "credits": "Shared Assistant balance",
-      "exchangeRates": "USD to IDR · display reference rates",
+      "exchangeRates": "USD → IDR · JISDOR · display equivalents only",
       "costAttribution": "Untagged ledger costs",
       "usage": "Operator · aggregate consumption",
       "features": "Operator · workspace capabilities"

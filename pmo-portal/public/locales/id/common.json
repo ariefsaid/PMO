@@ -223,7 +223,8 @@
     "date": "Tanggal publikasi",
     "rate": "IDR per USD",
     "source": "Sumber",
-    "description": "USD → IDR · JISDOR · hanya untuk nilai ekuivalen tampilan",
+    "sortLabel": "Tanggal publikasi · terbaru dahulu",
+    "sortAriaLabel": "Diurutkan menurut tanggal publikasi, terbaru dahulu",
     "denied": "Kurs tersedia bagi Finance dan Admin.",
     "saved": "Kurs disimpan: {{new}} baru, {{changed}} diubah, {{unchanged}} tidak berubah.",
     "orgCurrencyError": "Mata uang organisasi tidak dapat ditentukan.",
@@ -393,7 +394,7 @@
       "accounting": "Akuntansi ruang kerja",
       "projects": "Proyek mendatang",
       "credits": "Saldo Assistant bersama",
-      "exchangeRates": "USD ke IDR · kurs referensi tampilan",
+      "exchangeRates": "USD → IDR · JISDOR · hanya untuk nilai tampilan",
       "costAttribution": "Biaya buku besar yang belum terkait",
       "usage": "Operator · konsumsi agregat",
       "features": "Operator · kapabilitas ruang kerja"
