@@ -553,7 +553,7 @@ export const FinanceDashboard: React.FC = () => {
     || (!apAgingPending && !apAgingError && (apAging ?? []).length === 0)
     || (!arAgingPending && !arAgingError && (arAging ?? []).length === 0);
   const snapshotRemedy = may('manage', 'integration')
-    ? <Link to="/administration/accounting" className="font-medium text-primary-text underline-offset-2 hover:underline">{t('dashboard:finance.openAccountingSetup', 'Open accounting setup')}</Link>
+    ? <Link to="/administration/accounting" className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline">{t('dashboard:finance.openAccountingSetup', 'Open accounting setup')}</Link>
     : t('dashboard:finance.askAdminToSync', 'Ask your administrator to sync accounting data.');
 
   return (

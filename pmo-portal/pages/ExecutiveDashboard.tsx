@@ -30,7 +30,7 @@ type CurrencyValue = { currency: string; value: number | null };
 
 function currencyValue(value: number | null, currency: string, unavailableLabel: string, noteHref = '#executive-data-note'): React.ReactNode {
   if (value === null || !Number.isFinite(value)) {
-    return <a className="inline-flex min-h-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href={noteHref} aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
+    return <a className="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href={noteHref} aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
   }
   const formatted = formatCurrency(value, currency);
   return <span className="inline-block whitespace-nowrap">{formatted.includes(currency) ? formatted : `${currency} ${formatted}`}</span>;
