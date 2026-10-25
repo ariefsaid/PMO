@@ -643,6 +643,9 @@
         "title": "Pola nomor proyek tidak dapat dimuat"
       },
       "label": "Pola nomor proyek",
+      "saved": "Pola tersimpan",
+      "current": "Pola saat ini:",
+      "edit": "Edit penomoran",
       "example": "Contoh: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Pola nomor proyek diperbarui",
@@ -4239,6 +4242,7 @@
     "saved": "Pilihan klasifikasi disimpan",
     "retained": "Klasifikasi proyek yang ada tetap tersimpan.",
     "setupHelp": "Tentukan lini layanan dan sektor pada formulir proyek. Menghapus pilihan tidak mengubah proyek yang sudah menggunakannya.",
+    "edit": "Edit klasifikasi",
     "serviceLines": "Lini layanan",
     "sectors": "Sektor",
     "onePerLine": "Satu pilihan per baris. Kosongkan jika tidak ada pilihan.",

@@ -1,4 +1,4 @@
-import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
+import ProjectSetupTask from './admin/ProjectSetupTask';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -22,7 +22,6 @@ import OrgWithholdingAccount from './admin/OrgWithholdingAccount';
 import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
-import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import CostAttribution from './admin/CostAttribution';
 import PostingAccountsTask from './admin/PostingAccountsTask';
 import AdministrationPageHeader from './admin/AdministrationPageHeader';
@@ -292,10 +291,7 @@ const SelectedAdministrationPanel: React.FC<{
     case 'projects':
       return (
         <div data-testid="administration-panel-projects" className="min-w-0">
-          <div className="space-y-6">
-            <OrgProjectNumberPattern />
-            <OrgProjectClassificationOptions />
-          </div>
+          <ProjectSetupTask />
         </div>
       );
     case 'credits':

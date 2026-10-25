@@ -643,6 +643,9 @@
         "title": "Couldn't load the project number pattern"
       },
       "label": "Project number pattern",
+      "saved": "Saved pattern",
+      "current": "Current pattern:",
+      "edit": "Edit numbering",
       "example": "Example: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Project number pattern updated",
@@ -4239,6 +4242,7 @@
     "saved": "Classification options saved",
     "retained": "Existing project classifications stay recorded.",
     "setupHelp": "Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.",
+    "edit": "Edit classifications",
     "serviceLines": "Service lines",
     "sectors": "Sectors",
     "onePerLine": "One option per line. Leave empty to offer no options.",
