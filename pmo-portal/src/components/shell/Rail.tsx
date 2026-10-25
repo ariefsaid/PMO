@@ -58,7 +58,7 @@ const ALL_ITEMS: NavItem[] = [
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Deliver projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Manage money', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
   { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
@@ -75,16 +75,12 @@ const ALL_ITEMS: NavItem[] = [
   // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
   { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Work with partners', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
-  // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
-  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Deliver projects', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
   { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Deliver projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
-  // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
-  // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
+  // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
+  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Deliver projects', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
@@ -92,8 +88,9 @@ const ALL_ITEMS: NavItem[] = [
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, PM, Exec and Admin.
   { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Manage money', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
+  { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Manage money', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Manage money', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
   // #765: the Reports module's first report — the monthly management pack. Same read set and the same
   // `revenue` entitlement as the other Finance items (it is built from sales invoices).
   { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },

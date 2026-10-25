@@ -169,6 +169,24 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(headings).toEqual(expectedGroups);
   });
 
+  it.each([
+    ['Admin', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views']],
+    ['Executive', ['/', '/approvals', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views']],
+    ['Finance', ['/', '/approvals', '/my-tasks', '/expenses', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/projects', '/meetings', '/incidents', '/sales', '/companies', '/contacts', '/views']],
+    ['Project Manager', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales', '/companies', '/contacts', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/reports', '/views']],
+    ['Engineer', ['/', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/views']],
+  ])('keeps destination order by job and role for %s', (role, expectedHrefs) => {
+    effectiveRole = role;
+    realRole = role;
+    featureOverrides = { crm: true, incidents: true, procurement: true, timesheets: true, revenue: true };
+    renderRail();
+    const navigation = screen.getByRole('navigation', { name: 'Primary navigation' });
+    const actualHrefs = within(navigation).getAllByRole('link')
+      .map((link) => link.getAttribute('href'));
+    expect(actualHrefs).toEqual(expectedHrefs);
+    featureOverrides = {};
+  });
+
   it('keeps Approvals as the first destination in My work', () => {
     effectiveRole = 'Executive';
     renderRail();
