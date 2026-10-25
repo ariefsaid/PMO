@@ -2633,6 +2633,14 @@
       "summary": "Kurva S proyek: realisasi hingga kini {{actual}}.",
       "summaryWithPlan": "Kurva S proyek: realisasi hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
     },
+    "sectionNav": {
+      "current": "Bagian saat ini",
+      "delivery": "Pelaksanaan",
+      "evidence": "Bukti",
+      "money": "Keuangan",
+      "open": "Bagian proyek",
+      "overview": "Ringkasan"
+    },
     "tabs": {
       "ariaLabel": "Bagian proyek",
       "billing": "Penagihan",

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -113,6 +114,11 @@ import ProjectDetail from '../ProjectDetail';
 
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => <div data-testid="project-comments" /> }));
 
+const RouteLocation = () => {
+  const { pathname, search, hash } = useLocation();
+  return <output data-testid="route-location">{`${pathname}${search}${hash}`}</output>;
+};
+
 const renderAt = async (path: string) => {
   const view = render(
     <ImpersonationProvider realRole="Project Manager">
@@ -122,6 +128,7 @@ const renderAt = async (path: string) => {
             <Route path="/projects/:projectId/:tab?" element={<ProjectDetail />} />
             <Route path="/projects/:projectId" element={<ProjectDetail />} />
           </Routes>
+          <RouteLocation />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>,
@@ -169,6 +176,42 @@ describe('ProjectDetail — tab deep-link symmetry (B-9, AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: /projects/:id/tasks pre-selects the Tasks tab', async () => {
     await renderAt('/projects/p1/tasks');
     expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
+  });
+
+  it('AC-PD-NAV-01: named project sections expose the target groups and navigate without dropping URL state', async () => {
+    await renderAt('/projects/p1/tasks?view=timeline&sort=due#task-7');
+
+    const navigation = screen.getByRole('navigation', { name: 'Project sections' });
+    const groups = within(navigation).getAllByRole('group');
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
+      'Overview',
+      'Delivery',
+      'Money',
+      'Evidence',
+    ]);
+    expect(within(groups[1]).getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
+
+    fireEvent.click(within(groups[2]).getByRole('link', { name: 'Budget' }));
+
+    expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
+    expect(screen.getByTestId('route-location')).toHaveTextContent(
+      '/projects/p1/budget?view=timeline&sort=due#task-7',
+    );
+  });
+
+  it('AC-PD-NAV-02: the phone section sheet closes on Escape and restores focus to its trigger', async () => {
+    await renderAt('/projects/p1/overview');
+    const user = userEvent.setup();
+    const trigger = screen.getByRole('button', { name: 'Project sections' });
+
+    await user.click(trigger);
+    const sheet = screen.getByRole('dialog', { name: 'Project sections' });
+    expect(sheet).toBeVisible();
+
+    await user.keyboard('{Escape}');
+
+    expect(screen.queryByRole('dialog', { name: 'Project sections' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
   });
 
   it('AC-W2-IA-004: /projects/:id/documents pre-selects the Documents tab', async () => {

@@ -13,7 +13,8 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -143,60 +144,22 @@ const renderAs = async (realRole: Role, path: string) => {
   return view;
 };
 
-const tablist = () => screen.getByRole('tablist', { name: /project sections/i });
 const main = () => screen.getByRole('main');
-// toHaveFocus/toContainElement matchers are typed for HTMLElement — narrow activeElement.
-const activeEl = () => document.activeElement as HTMLElement | null;
-
-describe('#879: project section index keeps focus on arrow keys (WCAG 2.4.3)', () => {
-  it('AC #879: ArrowDown moves focus to the next project section and it stays in the index', async () => {
+describe('Project section links keep focus on route changes (WCAG 2.4.3)', () => {
+  it('AC-PD-NAV-03: activating a named section by keyboard changes the section and keeps focus on its link', async () => {
+    const user = userEvent.setup();
     await renderAs('Admin', '/projects/p1');
-    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
-    overviewTab.focus();
-    expect(overviewTab).toHaveFocus();
+    const taskLink = screen.getByRole('link', { name: 'Tasks' });
+    taskLink.focus();
 
-    fireEvent.keyDown(overviewTab, { key: 'ArrowDown' });
+    await user.keyboard('{Enter}');
 
-    // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
-    expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
-    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
-    expect(budgetTab).toHaveFocus();
-    expect(budgetTab).toHaveAttribute('aria-selected', 'true');
-    expect(tablist()).toContainElement(activeEl());
-    expect(main()).not.toHaveFocus();
-    // The URL followed the tab switch (tab lives in the route param).
-  });
-
-  it('AC #879: ArrowUp returns to the previous section in the index', async () => {
-    await renderAs('Admin', '/projects/p1/budget');
-    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
-    budgetTab.focus();
-
-    fireEvent.keyDown(budgetTab, { key: 'ArrowUp' });
-
-    expect(await screen.findByTestId('tab-overview')).toBeInTheDocument();
-    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
-    expect(overviewTab).toHaveFocus();
-    expect(overviewTab).toHaveAttribute('aria-selected', 'true');
-    expect(tablist()).toContainElement(activeEl());
-    expect(main()).not.toHaveFocus();
-  });
-
-  it('AC #879: Home jumps to the first tab and End to the last, focus staying in the tab bar', async () => {
-    await renderAs('Admin', '/projects/p1/tasks');
-    const tasksTab = screen.getByRole('tab', { name: 'Tasks' });
-    tasksTab.focus();
-
-    fireEvent.keyDown(tasksTab, { key: 'Home' });
-    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
-    expect(overviewTab).toHaveFocus();
-    expect(tablist()).toContainElement(activeEl());
-    expect(main()).not.toHaveFocus();
-
-    fireEvent.keyDown(overviewTab, { key: 'End' });
-    const historyTab = screen.getByRole('tab', { name: 'History' });
-    expect(historyTab).toHaveFocus();
-    expect(tablist()).toContainElement(activeEl());
+    expect(await screen.findByTestId('tab-tasks')).toBeInTheDocument();
+    expect(taskLink).toHaveAttribute('aria-current', 'page');
+    expect(taskLink).toHaveFocus();
+    expect(screen.getByRole('navigation', { name: 'Project sections' })).toContainElement(
+      document.activeElement as HTMLElement,
+    );
     expect(main()).not.toHaveFocus();
   });
 });

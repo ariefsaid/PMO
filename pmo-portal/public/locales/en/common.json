@@ -2633,6 +2633,14 @@
       "summary": "Project S-curve: actual to date {{actual}}.",
       "summaryWithPlan": "Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today."
     },
+    "sectionNav": {
+      "current": "Current section",
+      "delivery": "Delivery",
+      "evidence": "Evidence",
+      "money": "Money",
+      "open": "Project sections",
+      "overview": "Overview"
+    },
     "tabs": {
       "ariaLabel": "Project sections",
       "billing": "Billing",
