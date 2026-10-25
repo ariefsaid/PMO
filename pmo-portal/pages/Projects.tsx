@@ -495,9 +495,9 @@ const Projects: React.FC = () => {
       // this pass. Only the column header moves.
       header: t('projects.columns.statusAndEnd', 'Status / expected end'),
       kind: 'status',
-      size: 140,
-      minSize: 112,
-      maxSize: 220,
+      size: 180,
+      minSize: 176,
+      maxSize: 260,
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
@@ -685,7 +685,8 @@ const Projects: React.FC = () => {
       <SearchMini id="projects-search" placeholder={t('projects.search.placeholder', 'Search projects…')}
         aria-label={t('projects.search.ariaLabel', 'Search projects')} value={search}
         onChange={(event) => setSearch(event.target.value)} searchSurface="projects-list" module="projects"
-        resultCount={filtered.length} containerClassName="h-11 min-w-0 w-full md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
+        resultCount={filtered.length} className="h-full touch-target"
+        containerClassName="h-11 min-w-0 w-full md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
       <div className="flex min-w-0 w-full flex-wrap items-end gap-2 md:w-auto">
         <div className="min-w-[144px] flex-1 md:flex-none">
           <SelectField label={t('projects.filters.scopeLabel', 'Scope')} value={filter}
