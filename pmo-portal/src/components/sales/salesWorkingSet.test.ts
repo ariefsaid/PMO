@@ -1,5 +1,23 @@
-import { describe, expect, it } from 'vitest';
-import { sortSalesProjects } from './salesWorkingSet';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { PipelineProject } from '@/src/lib/db/dashboard';
+import { selectSalesProjects, sortSalesProjects } from './salesWorkingSet';
+
+function project(
+  overrides: Partial<PipelineProject> & Pick<PipelineProject, 'id' | 'name' | 'status'>,
+): PipelineProject {
+  return {
+    id: overrides.id,
+    name: overrides.name,
+    short_name: null,
+    client_name: null,
+    status: overrides.status,
+    contract_value: 100,
+    currency: 'USD',
+    tax_treatment: null,
+    win_probability: 0.5,
+    ...overrides,
+  };
+}
 
 describe('Sales activity ordering', () => {
   const projects = [
@@ -35,5 +53,56 @@ describe('Sales activity ordering', () => {
       'invalid',
       'early-a',
     ]);
+  });
+});
+
+describe('Sales visible working set', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('AC-SALES-C01: scope, stage, search, classifications, and activity sort select one shared set', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-25T12:00:00.000Z'));
+    const matching = project({
+      id: 'a-stale-lead',
+      name: 'Central Renewal',
+      status: 'Leads',
+      client_name: 'North Customer',
+      service_line: 'Advisory',
+      last_update: '2026-09-01T12:00:00.000Z',
+    });
+    const recent = project({
+      id: 'b-recent-lead',
+      name: 'Central Renewal',
+      status: 'Leads',
+      client_name: 'North Customer',
+      service_line: 'Advisory',
+      last_update: '2026-10-24T12:00:00.000Z',
+    });
+    const otherStage = project({
+      id: 'c-stale-quotation',
+      name: 'Central Renewal',
+      status: 'Quotation Submitted',
+      client_name: 'North Customer',
+      service_line: 'Advisory',
+      last_update: '2026-09-01T12:00:00.000Z',
+    });
+    const lost = project({
+      id: 'd-declined',
+      name: 'Central Renewal',
+      status: 'Declined',
+      client_name: 'North Customer',
+      service_line: 'Advisory',
+      last_update: '2026-09-01T12:00:00.000Z',
+    });
+
+    const visible = selectSalesProjects([matching, recent, otherStage], [lost], {
+      scope: 'Needs attention',
+      status: 'Leads',
+      sort: 'activity-oldest',
+      q: 'North',
+      serviceLine: 'Advisory',
+    });
+
+    expect(visible.map(({ id }) => id)).toEqual(['a-stale-lead']);
   });
 });
