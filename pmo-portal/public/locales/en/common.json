@@ -3448,13 +3448,13 @@
     "rail": {
       "assistant": "Assistant",
       "group": {
-        "crm": "CRM",
-        "delivery": "Delivery",
-        "finance": "Finance",
-        "overview": "Overview",
-        "workforce": "Workforce"
+        "deliverProjects": "Deliver projects",
+        "manageMoney": "Manage money",
+        "myWork": "My work",
+        "views": "Views",
+        "workWithPartners": "Work with partners",
+        "workspaceSetup": "Workspace setup"
       },
-      "myViews": "My Views",
       "primaryNavigation": "Primary navigation",
       "approvalsCountSuffix": "{{count}} pending"
     },

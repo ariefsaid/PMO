@@ -144,14 +144,34 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     expect(screen.getByText('Sales Pipeline')).toBeInTheDocument();
   });
 
-  it('renders Overline group labels — FIX-3: Sales group renamed to CRM', () => {
+  it('renders the job group labels in the target IA', () => {
     effectiveRole = 'Executive';
     renderRail();
-    for (const group of ['Overview', 'CRM', 'Delivery', 'Workforce']) {
+    for (const group of ['My work', 'Deliver projects', 'Manage money', 'Work with partners']) {
       expect(screen.getByText(group)).toBeInTheDocument();
     }
-    // The old 'Sales' section header must no longer appear (items 'Sales Pipeline' etc. still exist).
-    expect(screen.queryByText('Sales', { selector: 'div' })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['Admin', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace setup']],
+    ['Executive', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace setup']],
+    ['Finance', ['My work', 'Manage money', 'Deliver projects', 'Work with partners', 'Workspace setup']],
+    ['Project Manager', ['My work', 'Deliver projects', 'Work with partners', 'Manage money']],
+    ['Engineer', ['My work', 'Deliver projects']],
+  ])('orders visible job groups for %s', (role, expectedGroups) => {
+    effectiveRole = role;
+    renderRail();
+    const rail = screen.getByRole('complementary');
+    const headings = Array.from(rail.querySelectorAll<HTMLElement>('[data-nav-group-heading]'))
+      .map((heading) => heading.dataset.navGroupHeading);
+    expect(headings).toEqual(expectedGroups);
+  });
+
+  it('keeps Approvals as the first destination in My work', () => {
+    effectiveRole = 'Executive';
+    renderRail();
+    const work = screen.getByRole('group', { name: 'My work' });
+    expect(within(work).getAllByRole('link')[0]).toHaveAccessibleName(/Approvals/);
   });
 
   // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works

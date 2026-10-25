@@ -69,10 +69,9 @@ describe('Rail — Reports demoted until built (AC-IXD-DASH-004)', () => {
     expect(screen.queryByRole('link', { name: /Reports/i })).toBeNull();
   });
 
-  it('AC-IXD-DASH-004: the surviving Overview group still shows Dashboard', () => {
+  it('AC-IXD-DASH-004: Dashboard remains a top-level destination', () => {
     effectiveRole = 'Executive';
     renderRail();
-    // The module isn't gone wholesale — the real Overview item survives.
     expect(screen.getByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
   });
 });

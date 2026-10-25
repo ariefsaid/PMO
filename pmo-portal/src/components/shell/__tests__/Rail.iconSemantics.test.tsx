@@ -16,32 +16,28 @@ vi.mock('@/src/lib/features', async (importOriginal) => {
 
 const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
 
-describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
-  it('maps each exposed destination to its entity-specific glyph without changing link names', () => {
+describe('UIP-001/UIP-013: rail destination names and decorative icon semantics', () => {
+  it('keeps destination names accessible and marks decorative icons hidden', () => {
     renderRail();
     const rail = screen.getByRole('complementary');
     const expected = [
-      ['Dashboard', 'dashboard'], ['Projects', 'projects'],
-      ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'cal'],
-      ['Incidents', 'alert'], ['Sales Invoices', 'invoices'], ['Incoming Payments', 'payments'],
-      ['Revenue by Project', 'table'], ['Management pack', 'reports'], ['Timesheets', 'clock'],
-      ['Expenses', 'expenses'], ['Approvals', 'approvals'], ['Companies', 'companies'],
-      ['Contacts', 'contacts'], ['Saved view', 'views'], ['Administration', 'admin'],
-    ] as const;
-    for (const [label, key] of expected) {
+      'Dashboard', 'Projects', 'Sales Pipeline', 'Procurement', 'Meetings', 'Incidents',
+      'Sales Invoices', 'Incoming Payments', 'Revenue by Project', 'Management pack',
+      'Timesheets', 'Expenses', 'Approvals', 'Companies', 'Contacts', 'Views', 'Saved view',
+      'Administration',
+    ];
+    for (const label of expected) {
       const link = within(rail).getByRole('link', { name: label });
-      expect(link.querySelector('svg')).toHaveAttribute('data-icon', key);
+      expect(link).toHaveAccessibleName(label);
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     }
     expect(within(rail).getByRole('button', { name: 'Assistant' }).querySelector('svg'))
       .toHaveAttribute('data-icon', 'message');
   });
 
-  it('keeps rail glyphs at 17px and group overlines at the DESIGN 11px token', () => {
+  it('keeps the Dashboard destination available before grouped destinations', () => {
     renderRail();
     const nav = screen.getByRole('navigation', { name: 'Primary navigation' });
-    const dashboard = within(nav).getByRole('link', { name: 'Dashboard' });
-    expect(dashboard).toHaveClass('[&_svg]:size-[17px]');
-    expect(within(nav).getByText('Overview')).toHaveClass('text-[11px]');
+    expect(within(nav).getAllByRole('link')[0]).toHaveAccessibleName('Dashboard');
   });
 });

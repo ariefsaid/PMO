@@ -3448,13 +3448,13 @@
     "rail": {
       "assistant": "Asisten",
       "group": {
-        "crm": "CRM",
-        "delivery": "Pelaksanaan",
-        "finance": "Keuangan",
-        "overview": "Ringkasan",
-        "workforce": "SDM"
+        "deliverProjects": "Pelaksanaan proyek",
+        "manageMoney": "Kelola keuangan",
+        "myWork": "Pekerjaan saya",
+        "views": "Tampilan",
+        "workWithPartners": "Mitra kerja",
+        "workspaceSetup": "Pengaturan organisasi"
       },
-      "myViews": "Tampilan Saya",
       "primaryNavigation": "Navigasi utama",
       "approvalsCountSuffix": "{{count}} persetujuan menunggu"
     },

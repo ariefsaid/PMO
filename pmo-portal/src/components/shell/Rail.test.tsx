@@ -1,5 +1,5 @@
 /**
- * Rail — "My Views" group unit tests.
+ * Rail — Views collection and saved shortcut unit tests.
  * AC-VR-014, AC-VR-015, AC-VR-017 (FR-VR-060, FR-VR-061, FR-VR-062, FR-VR-064, FR-VR-065)
  */
 import { describe, it, expect, vi } from 'vitest';
@@ -60,14 +60,15 @@ function renderRail() {
   );
 }
 
-describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
-  it('AC-VR-014: renders "My Views" group and nav link when feature=true and views exist', () => {
+describe('Rail — Views collection and shortcuts (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
+  it('AC-VR-014: renders the Views doorway and saved shortcut when feature=true and views exist', () => {
     userViewsData.splice(0, userViewsData.length,
       { id: 'v1', name: 'My Dashboard', description: null }
     );
     featureEnabled.userViews = true;
     renderRail();
-    expect(screen.getByRole('group', { name: /my views/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Views' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Views' })).toHaveAttribute('href', '/views');
     expect(screen.getByRole('link', { name: 'My Dashboard' })).toHaveAttribute('href', '/views/v1');
   });
 
@@ -77,17 +78,19 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     );
     featureEnabled.userViews = false;
     renderRail();
-    expect(screen.queryByRole('group', { name: /my views/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Views' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'My Dashboard' })).not.toBeInTheDocument();
     // restore
     featureEnabled.userViews = true;
   });
 
-  it('AC-VR-015: does NOT render "My Views" group when feature=true but views array is empty', () => {
+  it('AC-VR-015: keeps a Views doorway when enabled with zero saved views', () => {
     userViewsData.splice(0, userViewsData.length);
     featureEnabled.userViews = true;
     renderRail();
-    expect(screen.queryByRole('group', { name: /my views/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Views' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Views' })).toHaveAttribute('href', '/views');
+    expect(screen.queryByRole('link', { name: 'My Dashboard' })).not.toBeInTheDocument();
   });
 
   it('AC-VR-017: ALL_ITEMS entries are still present; no existing group is replaced', () => {
@@ -99,8 +102,9 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     // Existing static nav items remain (just check a few)
     expect(screen.getByRole('link', { name: 'Dashboard' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument();
-    // "My Views" group is additional, not replacing "Overview"/"CRM"/"Delivery"/"Workforce"
-    expect(screen.getByRole('group', { name: /my views/i })).toBeInTheDocument();
+    // The collection remains alongside the new job groups and their destinations.
+    expect(screen.getByRole('group', { name: 'Views' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Deliver projects' })).toBeInTheDocument();
   });
 
   it('AC-VR-014: caps rail entries at MAX_NAV_VIEWS (8)', () => {
@@ -108,8 +112,8 @@ describe('Rail — My Views group (AC-VR-014, AC-VR-015, AC-VR-017)', () => {
     userViewsData.splice(0, userViewsData.length, ...views);
     featureEnabled.userViews = true;
     renderRail();
-    const group = screen.getByRole('group', { name: /my views/i });
-    const links = within(group).getAllByRole('link');
-    expect(links).toHaveLength(8);
+    const group = screen.getByRole('group', { name: 'Views' });
+    const savedLinks = within(group).getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/views/'));
+    expect(savedLinks).toHaveLength(8);
   });
 });

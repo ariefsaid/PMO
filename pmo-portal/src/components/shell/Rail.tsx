@@ -37,8 +37,8 @@ interface NavItem {
   text: string;
   icon: IconName;
   roles: UserRole[];
-  /** Owning rail group. */
-  group: 'Overview' | 'CRM' | 'Delivery' | 'Workforce' | 'Finance';
+  /** Owning job group. Dashboard and the Workspace setup utility render separately. */
+  group: 'My work' | 'Deliver projects' | 'Manage money' | 'Work with partners';
   /**
    * Optional per-org entitlement gate (ops-admin-surface S6, FR-ENT-005). When set, the item
    * renders only if the org's `org_features` row (or the env default when absent) resolves the
@@ -54,52 +54,58 @@ interface NavItem {
 
 // Role arrays preserved VERBATIM from Sidebar.tsx getNavItems (AC-AUTH-003/009/010/011).
 const ALL_ITEMS: NavItem[] = [
-  { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'Overview', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/', text: 'Dashboard', icon: 'dashboard', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
-  { to: '/projects', text: 'Projects', icon: 'projects', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Delivery', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'Workforce', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  { to: '/projects', text: 'Projects', icon: 'projects', group: 'Deliver projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Manage money', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
   // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
-  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
   // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
   // "sheets from your reports" which is misleading. Finance is now included: Finance approves
   // *procurement* (policy.ts `transition: allow([...MASTER_DATA])`) and reaches /approvals
   // only via a dashboard tile without the rail. Fix #7: add Finance to this list.
-  { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'Workforce', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
-  { to: '/companies', text: 'Companies', icon: 'companies', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies', text: 'Companies', icon: 'companies', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Contacts (CRM v1): master-data directory of people, mirrors Companies — Exec·PM·Finance·Admin (Engineer = ○).
   // Without CRM there is no Companies item, so PM and Finance keep a direct path to vendors.
-  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Delivery', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'CRM', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/companies?type=Vendor', text: 'Vendors', icon: 'companies', group: 'Work with partners', unlessFeature: 'crm', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/contacts', text: 'Contacts', icon: 'contacts', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // Incidents is visible to EVERY role — any member may file an incident (rbac-visibility.md §A/§G).
   // Gated behind the `incidents` feature flag (UI-hide-first); currently hidden (features.ts).
-  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Delivery', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/incidents', text: 'Incidents', icon: 'alert', group: 'Deliver projects', feature: 'incidents', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // #526: Meetings — EVERY role may minute a meeting (OD-MTG-1, Engineer included); reads are
   // RLS-scoped to attendance ∪ author ∪ grant ∪ Admin, so the nav item is safe for all roles.
-  { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Delivery', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/meetings', text: 'Meetings', icon: 'cal', group: 'Deliver projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // UXS-007: PMs get a discoverable assignee-scoped doorway; project Tasks remain for oversight.
   // Engineer and Admin entries remain available; Executive navigation is intentionally unchanged.
   // Finance works assigned tasks like an Engineer (owner, 2026-10-23), so it gets the same doorway.
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'Workforce', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Finance section — gated by the `revenue` feature flag (an org entitlement). OD-NAR-2 (owner,
   // 2026-10-07, #784; supersedes DD-NAR-14 for navigation): with NO explicit org_features row the
   // entitlement follows revenue ownership — ON when no ERP owns revenue (PMO-native invoicing is
   // the default), OFF once an ERP owns it; an explicit row still wins, so an Operator can turn it
   // off. Resolution lives in useOrgFeatures (one place). Shown to Finance, PM, Exec and Admin.
-  { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Finance', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
-  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Manage money', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
+  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   // #765: the Reports module's first report — the monthly management pack. Same read set and the same
   // `revenue` entitlement as the other Finance items (it is built from sales invoices).
-  { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Finance', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
-const GROUP_ORDER: NavItem['group'][] = ['Overview', 'CRM', 'Delivery', 'Finance', 'Workforce'];
+const GROUP_ORDER: Record<UserRole, NavItem['group'][]> = {
+  [UserRole.Admin]: ['My work', 'Deliver projects', 'Manage money', 'Work with partners'],
+  [UserRole.Executive]: ['My work', 'Deliver projects', 'Manage money', 'Work with partners'],
+  [UserRole.Finance]: ['My work', 'Manage money', 'Deliver projects', 'Work with partners'],
+  [UserRole.ProjectManager]: ['My work', 'Deliver projects', 'Work with partners', 'Manage money'],
+  [UserRole.Engineer]: ['My work', 'Deliver projects'],
+};
 
 /** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
 const MAX_NAV_VIEWS = 8;
@@ -108,23 +114,14 @@ const MAX_NAV_VIEWS = 8;
 const NAV_LINK_BASE =
   'flex h-9 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
 
-/** The two items that get stage-aware active-state overrides on `/projects/:id`. */
-const STAGE_AWARE_PATHS = new Set(['/projects', '/sales']);
-
 export interface RailProps {
   onNavigate?: () => void;
   /** Membership check unavailable for a role that has no ordinary Administration entry. */
   operatorAccessError?: boolean;
   /**
-   * Stage-aware active-item override for `/projects/:id` detail routes (Option A, Task D).
-   *
-   * When non-null, the "Projects" (/projects) and "Sales Pipeline" (/sales) items switch
-   * their active class from NavLink's URL-based `isActive` to this override:
-   *   'salesPipeline' → Sales Pipeline active, Projects inactive
-   *   'projects'      → Projects active, Sales Pipeline inactive
-   *   null            → both items fall back to NavLink URL-based behaviour (unchanged)
+   * Canonical Projects ownership for project record routes, regardless of lifecycle stage.
    */
-  railActiveOverride?: 'salesPipeline' | 'projects' | null;
+  railActiveOverride?: 'projects' | null;
   /**
    * Callback fired when the flag-gated "Assistant" toggle button is clicked (FR-AP-005).
    * Only rendered when isFeatureEnabled('agentAssistant') is true; absent when flag is off.
@@ -169,11 +166,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   );
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
-  const showMyViews =
-    isFeatureEnabled('userViews') &&
-    Array.isArray(userViews) &&
-    userViews.length > 0;
-  const myViewsItems = showMyViews
+  const showViews = isFeatureEnabled('userViews');
+  const viewsItems = showViews && Array.isArray(userViews)
     ? (userViews ?? []).slice(0, MAX_NAV_VIEWS)
     : [];
 
@@ -218,13 +212,13 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     }),
   );
   const groupLabels: Record<NavItem['group'], string> = {
-    Overview: t('shell.rail.group.overview', 'Overview'),
-    CRM: t('shell.rail.group.crm', 'CRM'),
-    Delivery: t('shell.rail.group.delivery', 'Delivery'),
-    Workforce: t('shell.rail.group.workforce', 'Workforce'),
-    Finance: t('shell.rail.group.finance', 'Finance'),
+    'My work': t('shell.rail.group.myWork', 'My work'),
+    'Deliver projects': t('shell.rail.group.deliverProjects', 'Deliver projects'),
+    'Manage money': t('shell.rail.group.manageMoney', 'Manage money'),
+    'Work with partners': t('shell.rail.group.workWithPartners', 'Work with partners'),
   };
-  const myViewsLabel = t('shell.rail.myViews', 'My Views');
+  const workspaceSetupLabel = t('shell.rail.group.workspaceSetup', 'Workspace setup');
+  const viewsLabel = t('shell.rail.group.views', 'Views');
   const renderLabel = (item: NavItem) => {
     const label = navLabels[item.to] ?? item.text;
     if (item.to === '/approvals') {
@@ -241,7 +235,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
-    const isStageAware = railActiveOverride != null && STAGE_AWARE_PATHS.has(item.to);
+    const isStageAware = railActiveOverride === 'projects' && item.to === '/projects';
     const isCompanyDirectoryLink = item.to === '/companies';
 
     if (isCompanyDirectoryLink) {
@@ -264,9 +258,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
     }
 
     if (isStageAware) {
-      const overrideActive =
-        (item.to === '/projects' && railActiveOverride === 'projects') ||
-        (item.to === '/sales' && railActiveOverride === 'salesPipeline');
+      const overrideActive = item.to === '/projects' && railActiveOverride === 'projects';
       return (
         <NavLink
           key={item.to}
@@ -334,30 +326,49 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
         className="flex min-h-0 flex-1 flex-col"
       >
-        {items.some((item) => item.to === '/approvals') && (
-          <div data-rail-pinned-approvals className="shrink-0 border-b border-border p-2.5">
-            {items.filter((item) => item.to === '/approvals').map(renderItem)}
+        <div data-rail-pinned-dashboard className="shrink-0 border-b border-border p-2.5">
+          {items.filter((item) => item.to === '/').map(renderItem)}
+        </div>
+        <section role="group" aria-label={groupLabels['My work']} data-rail-pinned-work className="shrink-0 border-b border-border px-2.5 pb-2.5">
+          <div data-nav-group-heading="My work" className="px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            {groupLabels['My work']}
           </div>
-        )}
+          {items.filter((item) => item.to === '/approvals').map(renderItem)}
+        </section>
         <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
-          {GROUP_ORDER.map((group) => {
-            const groupItems = items.filter((i) => i.to !== '/approvals' && i.group === group);
+          {items.filter((item) => item.group === 'My work' && item.to !== '/' && item.to !== '/approvals').map(renderItem)}
+          {GROUP_ORDER[role].map((group) => {
+            if (group === 'My work') return null;
+            const groupItems = items.filter((item) =>
+              item.group === group && item.to !== '/' && item.to !== '/approvals',
+            );
             if (groupItems.length === 0) return null;
             return (
-              <React.Fragment key={group}>
-                <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <section key={group} role="group" aria-label={groupLabels[group]}>
+                <div data-nav-group-heading={group} className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
-              </React.Fragment>
+              </section>
             );
           })}
-          {showMyViews && (
-            <div role="group" aria-label={myViewsLabel}>
+          {showViews && (
+            <section role="group" aria-label={viewsLabel}>
               <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {myViewsLabel}
+                {viewsLabel}
               </div>
-              {myViewsItems.map((view) => (
+              <NavLink
+                to="/views"
+                onClick={onNavigate}
+                end
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(NAV_LINK_BASE, isActive ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent')
+                }
+              >
+                <Icon name="views" />
+                <span>{viewsLabel}</span>
+              </NavLink>
+              {viewsItems.map((view) => (
                 <NavLink
                   key={view.id}
                   to={`/views/${view.id}`}
@@ -375,7 +386,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                   <span className="truncate">{view.name}</span>
                 </NavLink>
               ))}
-            </div>
+            </section>
           )}
         </div>
       </nav>
@@ -401,7 +412,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       )}
 
       {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
-        <div className="flex-shrink-0 border-t border-border p-2.5">
+        <div aria-label={workspaceSetupLabel} className="flex-shrink-0 border-t border-border p-2.5">
+          <div data-nav-group-heading="Workspace setup" className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+            {workspaceSetupLabel}
+          </div>
           <NavLink
             to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
             onClick={onNavigate}

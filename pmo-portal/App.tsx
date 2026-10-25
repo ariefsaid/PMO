@@ -361,14 +361,9 @@ export const ShellChrome: React.FC = () => {
     opportunities,
   ]);
 
-  // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.
-  // Reuses the same cached lists as the breadcrumb — no new query. The override is
-  // null while caches are pending (NavLink URL-based fallback) and resolves on the
-  // next render once the pipeline/projects lists settle.
-  const railActiveOverride = useMemo<'salesPipeline' | 'projects' | null>(() => {
-    const statusGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
-    return deriveRailActiveOverride(pathname, statusGroup);
-  }, [pathname, projects, opportunities]);
+  // Project records belong to Projects for every stage and cold-load state. The source-list return
+  // context preserves Sales Pipeline as the originating collection lens.
+  const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
