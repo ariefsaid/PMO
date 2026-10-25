@@ -2591,15 +2591,29 @@
     "procurement": {
       "column": {
         "request": "Request",
+        "vendor": "Vendor",
+        "statusDate": "Status / date",
         "status": "Status",
         "value": "Value"
       },
       "empty": {
+        "noMatches": "No requests match these search and filters",
         "title": "No purchase requests for this project yet"
       },
       "error": {
         "sub": "Something went wrong fetching this project's purchase requests.",
         "title": "Couldn't load procurement"
+      },
+      "toolbar": {
+        "label": "Purchase request tools",
+        "searchLabel": "Search purchase requests",
+        "searchPlaceholder": "Search requests by name, code, or vendor…",
+        "statusFilter": "Status filter",
+        "allStatuses": "All statuses",
+        "sortRequests": "Sort requests",
+        "newest": "Newest request date",
+        "oldest": "Oldest request date",
+        "clearSearchAndFilters": "Clear search and filters"
       },
       "newRequest": "New request",
       "openRow": "Open",

@@ -59,10 +59,13 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
           onRetry={() => void refetch()} />
       )}
 
+      {orphans.length > 0 && (
+        <ErpOrphansSection rows={orphans} projectId={projectId} canLink={canLink} tableId="project-erp-orphans-table" />
+      )}
+
       {aging.length > 0 && (
-        // Review 4: the aging counts every unpaid ERPNext invoice of the project, linked or not (FR-PFE-042), so it
-        // carries its own title rather than reading as a total of the list below it.
-        <section aria-labelledby="erp-aging-heading" className="mb-4">
+        // The unpaid position follows the unlinked ERP records and stays separate from their value.
+        <section aria-labelledby="erp-aging-heading" className="mt-4">
           <h3 id="erp-aging-heading" className="mb-2 text-[14px] font-semibold text-foreground">
             {t('erpLinks.agingTitle', 'Unpaid ERPNext invoices (incl. linked)')}
           </h3>
@@ -87,10 +90,6 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
             </p>
           )}
         </section>
-      )}
-
-      {orphans.length > 0 && (
-        <ErpOrphansSection rows={orphans} projectId={projectId} canLink={canLink} tableId="project-erp-orphans-table" />
       )}
     </section>
   );

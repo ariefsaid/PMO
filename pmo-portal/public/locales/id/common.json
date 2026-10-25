@@ -2591,15 +2591,29 @@
     "procurement": {
       "column": {
         "request": "Permintaan",
+        "vendor": "Vendor",
+        "statusDate": "Status / tanggal",
         "status": "Status",
         "value": "Nilai"
       },
       "empty": {
+        "noMatches": "Tidak ada permintaan yang cocok dengan pencarian dan filter ini",
         "title": "Belum ada permintaan pembelian untuk proyek ini"
       },
       "error": {
         "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
         "title": "Gagal memuat pengadaan"
+      },
+      "toolbar": {
+        "label": "Alat permintaan pembelian",
+        "searchLabel": "Cari permintaan pembelian",
+        "searchPlaceholder": "Cari berdasarkan nama, kode, atau vendor…",
+        "statusFilter": "Filter status",
+        "allStatuses": "Semua status",
+        "sortRequests": "Urutkan permintaan",
+        "newest": "Tanggal permintaan terbaru",
+        "oldest": "Tanggal permintaan terlama",
+        "clearSearchAndFilters": "Hapus pencarian dan filter"
       },
       "newRequest": "Permintaan baru",
       "openRow": "Buka",
