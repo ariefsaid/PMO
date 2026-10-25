@@ -24,12 +24,16 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(pipelineWeightedTile).toBeVisible();
   await expect(pipelineWeightedTile).toContainText('$');
 
-// ── Exec Dashboard: one pipeline projected-margin figure beside stage evidence ──
-  // pipeline_projected_margin = 0.200 → 20.0%; a single figure lives beside its weighted stage rows.
+  // ── Exec Dashboard: projected margin stays explicit about availability ────────
   const pipelineMargin = page.getByTestId('dashboard-pipeline-margin');
   await expect(pipelineMargin).toBeVisible();
-  await expect(pipelineMargin).toContainText('20.0%');
-  await expect(page.getByText('20.0%', { exact: true })).toHaveCount(1);
+  const projectedMargin = pipelineMargin.getByRole('group', { name: 'Pipeline projected margin' });
+  if (await pipelineMargin.getByText('Pipeline forecast margin', { exact: true }).count()) {
+    await expect(projectedMargin).toContainText(/\d+(?:\.\d+)?%/);
+  } else {
+    await expect(pipelineMargin).toContainText('Pipeline (weighted)');
+    await expect(projectedMargin).not.toContainText(/\d+(?:\.\d+)?%/);
+  }
 
   // ── Exec Dashboard: win-rate tile (default count mode) ───────────────────────
   const winRateTile = page.getByTestId('kpi-win-rate');

@@ -115,7 +115,7 @@ export const Badge: React.FC<BadgeProps> = ({ active = false, className, childre
   <span
     className={cn(
       'inline-grid min-w-[20px] place-items-center rounded-full px-2 text-[11px] font-semibold tabular',
-      active ? 'bg-primary/15 text-primary' : 'bg-secondary text-muted-foreground',
+      active ? 'bg-primary/10 text-nav-active-text' : 'bg-secondary text-muted-foreground',
       className
     )}
     {...rest}
