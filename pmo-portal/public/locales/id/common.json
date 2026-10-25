@@ -2745,6 +2745,20 @@
       "showArchived": "Tampilkan arsip",
       "statusFor": "Status untuk",
       "subtaskLevel": "Subtugas, level",
+      "toolbar": {
+        "allPhases": "Semua fase",
+        "allStatuses": "Semua status",
+        "clearFilters": "Hapus pencarian dan filter",
+        "dueLatest": "Tenggat paling lama",
+        "dueSoonest": "Tenggat terdekat",
+        "label": "Alat tugas",
+        "noMatches": "Tidak ada tugas yang cocok dengan filter ini",
+        "phaseFilter": "Filter fase",
+        "searchLabel": "Cari tugas",
+        "searchPlaceholder": "Cari tugas, PIC, atau fase…",
+        "sortTasks": "Urutkan tugas",
+        "statusFilter": "Filter status"
+      },
       "toast": {
         "archived": "Tugas diarsipkan",
         "created": "Tugas dibuat",

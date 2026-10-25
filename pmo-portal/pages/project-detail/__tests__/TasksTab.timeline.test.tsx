@@ -124,7 +124,7 @@ beforeEach(() => {
 describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the list', () => {
   it('Timeline toggle is visible when tasks exist', () => {
     renderTab();
-    expect(screen.getByRole('tab', { name: /timeline/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /timeline/i })).toBeInTheDocument();
   });
 
   it('clicking Timeline renders the Gantt figure (role="img") and removes the DataTable', async () => {
@@ -134,7 +134,7 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
     expect(screen.getByText('Survey the site')).toBeInTheDocument();
 
     // Click the Timeline toggle
-    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
 
     await waitFor(() => {
       // Gantt is now rendered
@@ -151,11 +151,11 @@ describe('AC-GANTT-009: selecting Timeline renders the Gantt and unmounts the li
     renderTab();
 
     // Go to Timeline
-    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
 
     // Go back to List
-    await userEvent.click(screen.getByRole('tab', { name: /list/i }));
+    await userEvent.click(screen.getByRole('button', { name: /list/i }));
     await waitFor(() => expect(screen.queryByRole('img')).not.toBeInTheDocument());
 
     // DataTable is back

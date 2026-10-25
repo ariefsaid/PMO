@@ -2745,6 +2745,20 @@
       "showArchived": "Show archived",
       "statusFor": "Status for",
       "subtaskLevel": "Subtask, level",
+      "toolbar": {
+        "allPhases": "All phases",
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "dueLatest": "Due latest",
+        "dueSoonest": "Due soonest",
+        "label": "Task tools",
+        "noMatches": "No tasks match these filters",
+        "phaseFilter": "Phase filter",
+        "searchLabel": "Search tasks",
+        "searchPlaceholder": "Search tasks, assignees, or phases…",
+        "sortTasks": "Sort tasks",
+        "statusFilter": "Status filter"
+      },
       "toast": {
         "archived": "Task archived",
         "created": "Task created",

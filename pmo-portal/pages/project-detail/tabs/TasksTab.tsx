@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Toolbar,
+  SearchMini,
   ViewToggle,
   ListState,
   DataTable,
@@ -76,6 +77,7 @@ const priorityOptions = (t: TFunction) => [
 ];
 
 type ViewMode = 'list' | 'board' | 'timeline';
+type DueSort = 'soonest' | 'latest';
 
 interface FormValues {
   name: string;
@@ -127,6 +129,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   // #790: comments open from a read view any reader of the task can reach (no edit right needed).
   const [commentsTarget, setCommentsTarget] = useState<TaskWithRefs | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [search, setSearch] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
+  const [dueSort, setDueSort] = useState<DueSort>('soonest');
 
   // T25 — hash-anchor scroll & transient highlight.
   // When the URL contains #task-<id>, scroll that row into view and apply a
@@ -196,10 +202,40 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   // name cell renderer (buildColumns below). The milestone-grouped view computes its own
   // per-group order (see MilestoneGroupedList) since a subtask can land in a different
   // milestone group than its parent (AC-SUB-UI-004).
-  const visibleTasks = useMemo(
-    () => (showArchived ? all : all.filter((t) => t.archived_at == null)),
-    [all, showArchived],
-  );
+  const visibleTasks = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    const phaseNames = new Map(milestoneList.map((milestone) => [milestone.id, milestone.name]));
+    const filtered = all.filter((task) => {
+      if (!showArchived && task.archived_at != null) return false;
+      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
+      if (phaseFilter === 'ungrouped' && task.milestone_id != null) return false;
+      if (phaseFilter !== 'all' && phaseFilter !== 'ungrouped' && task.milestone_id !== phaseFilter) return false;
+      if (!query) return true;
+      return [task.name, task.description, task.assignee?.full_name, phaseNames.get(task.milestone_id ?? '')]
+        .some((value) => value?.toLocaleLowerCase().includes(query));
+    });
+
+    const direction = dueSort === 'soonest' ? 1 : -1;
+    return filtered.sort((left, right) => {
+      const completedOrder = Number(left.status === 'Done') - Number(right.status === 'Done');
+      if (completedOrder !== 0) return completedOrder;
+      if (left.end_date == null && right.end_date != null) return 1;
+      if (left.end_date != null && right.end_date == null) return -1;
+      if (left.end_date && right.end_date) {
+        const byDueDate = left.end_date.localeCompare(right.end_date);
+        if (byDueDate !== 0) return direction * byDueDate;
+      }
+      return direction * (left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
+    });
+  }, [all, dueSort, milestoneList, phaseFilter, search, showArchived, statusFilter]);
+
+  const hasActiveFilters = search.trim().length > 0 || phaseFilter !== 'all' || statusFilter !== 'all';
+  const clearFilters = () => {
+    setSearch('');
+    setPhaseFilter('all');
+    setStatusFilter('all');
+  };
+
   const flatOrder = useMemo(() => buildTaskRenderOrder(visibleTasks), [visibleTasks]);
   const flatRows = useMemo(() => flatOrder.map((n) => n.task), [flatOrder]);
   const flatDepths = useMemo(
@@ -220,6 +256,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
       : all.length === 0 && milestoneList.length === 0
         ? 'empty'
         : undefined;
+  const noMatches = state === undefined && hasActiveFilters && visibleTasks.length === 0;
 
   // ── Mutations ───────────────────────────────────────────────────────────
   const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
@@ -391,16 +428,66 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
 
   return (
     <div>
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.tasks.heading', 'Tasks')}
-          </h2>
-        </div>
-        {all.some((t) => t.archived_at != null) && (
+      <div className="mb-3.5">
+        <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+          {t('projectDetail.tasks.heading', 'Tasks')}
+        </h2>
+      </div>
+
+      <Toolbar standalone role="group" aria-label={t('projectDetail.tasks.toolbar.label', 'Task tools')}>
+        <SearchMini
+          placeholder={t('projectDetail.tasks.toolbar.searchPlaceholder', 'Search tasks, assignees, or phases…')}
+          aria-label={t('projectDetail.tasks.toolbar.searchLabel', 'Search tasks')}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
+        />
+        <select
+          aria-label={t('projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
+          value={phaseFilter}
+          onChange={(event) => setPhaseFilter(event.target.value)}
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <option value="all">{t('projectDetail.tasks.toolbar.allPhases', 'All phases')}</option>
+          {[...milestoneList]
+            .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name))
+            .map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
+          <option value="ungrouped">{t('projectDetail.tasks.ungrouped', 'Ungrouped')}</option>
+        </select>
+        <select
+          aria-label={t('projectDetail.tasks.toolbar.statusFilter', 'Status filter')}
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <option value="all">{t('projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
+          {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <select
+          aria-label={t('projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
+          value={dueSort}
+          onChange={(event) => setDueSort(event.target.value as DueSort)}
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <option value="soonest">{t('projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
+          <option value="latest">{t('projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
+        </select>
+        <ViewToggle<ViewMode>
+          options={[
+            { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
+            { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
+            { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
+          ]}
+          value={view}
+          onChange={setView}
+          ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
+          semantics="toggle"
+        />
+        {all.some((task) => task.archived_at != null) && (
           <Button
             variant="outline"
             size="sm"
+            className="max-sm:min-h-11"
             aria-pressed={showArchived}
             onClick={() => setShowArchived((value) => !value)}
           >
@@ -410,27 +497,17 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           </Button>
         )}
         {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="max-sm:min-h-11 max-sm:w-full"
+            onClick={() => setFormTarget({ task: null })}
+          >
             <Icon name="plus" />
             {t('projectDetail.tasks.newTask', 'New task')}
           </Button>
         )}
-      </div>
-
-      {state !== 'loading' && state !== 'empty' && (
-        <Toolbar standalone>
-          <ViewToggle<ViewMode>
-            options={[
-              { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
-              { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
-              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
-            ]}
-            value={view}
-            onChange={setView}
-            ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
-          />
-        </Toolbar>
-      )}
+      </Toolbar>
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -459,7 +536,19 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         />
       )}
 
-      {state === undefined && view === 'list' && (
+      {noMatches && (
+        <ListState
+          variant="empty"
+          icon="search"
+          title={t('projectDetail.tasks.toolbar.noMatches', 'No tasks match these filters')}
+          action={{
+            label: t('projectDetail.tasks.toolbar.clearFilters', 'Clear search and filters'),
+            onClick: clearFilters,
+          }}
+        />
+      )}
+
+      {state === undefined && !noMatches && view === 'list' && (
         milestoneList.length === 0 ? (
           // No milestones: flat list, in depth-ordered (parent-then-descendants) order.
           <DataTable<TaskWithRefs>
@@ -473,7 +562,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
                 : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
-          tableId="project-detail-tabs-taskstab-1-table" />
+            cardBelow={700}
+            tableId="project-detail-tabs-taskstab-1-table"
+          />
         ) : (
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
@@ -492,7 +583,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         )
       )}
 
-      {state === undefined && view === 'board' && (
+      {state === undefined && !noMatches && view === 'board' && (
         <TaskBoard
           tasks={visibleTasks}
           canSetStatus={canSetStatus}
@@ -503,7 +594,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         />
       )}
 
-      {state === undefined && view === 'timeline' && (
+      {state === undefined && !noMatches && view === 'timeline' && (
         <ProjectGantt
           tasks={visibleTasks}
           milestones={milestoneList}
@@ -1155,7 +1246,9 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}
             rowLabel={rowLabel}
-          tableId="project-detail-tabs-taskstab-2-table" />
+            cardBelow={700}
+            tableId="project-detail-tabs-taskstab-2-table"
+          />
         ) : (
           <p className="py-2 text-center text-[12px] text-muted-foreground">
             {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}
