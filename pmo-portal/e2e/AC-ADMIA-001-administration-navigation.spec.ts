@@ -103,7 +103,8 @@ test('AC-ADMIA-001: /administration resolves to the Users job and leaves Operato
   await expectOnlySelectedPanel(page, ORGANIZATION_SECTIONS[0]);
   // The user directory itself is visible (FR-ADMIA-005's reachable surface — read-only observe).
   await expect(page.getByRole('searchbox', { name: 'Search users' })).toBeVisible();
-  await expect(page.getByText('All users')).toBeVisible();
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0);
+  await expect(page.getByRole('table')).toBeVisible();
 
   // A non-Operator org Admin can reach every organization destination, never Usage/Features.
   for (const section of ORGANIZATION_SECTIONS) {

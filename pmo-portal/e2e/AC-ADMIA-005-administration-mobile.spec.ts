@@ -54,10 +54,19 @@ const OPERATOR_SECTIONS = [
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
 
 async function openSectionNavigation(page: Page) {
-  const summary = page.locator('summary').filter({ hasText: 'Administration sections' });
-  if (await summary.count() === 0) return;
-  const disclosure = summary.locator('..');
-  if (await disclosure.getAttribute('open') === null) await summary.click();
+  const disclosure = page.locator('details').filter({ hasText: 'Administration sections' });
+  if (await disclosure.count() === 0) return;
+  const isOpen = await disclosure.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (!isOpen) await disclosure.locator('summary').click();
+  await expect(sectionNav(page)).toBeVisible();
+}
+
+async function closeSectionNavigation(page: Page) {
+  const disclosure = page.locator('details').filter({ hasText: 'Administration sections' });
+  if (await disclosure.count() === 0) return;
+  const isOpen = await disclosure.evaluate((element) => (element as HTMLDetailsElement).open);
+  if (isOpen) await disclosure.locator('summary').click();
+  await expect(sectionNav(page)).not.toBeVisible();
 }
 
 /** Returns elements whose right edge exceeds the viewport, excluding legitimate horizontal scrollers
@@ -132,8 +141,14 @@ async function driveSections(
       ).toBeGreaterThanOrEqual(44);
       expect(linkBox!.y, `${s.name} link should be reachable within the phone viewport`).toBeLessThan(height);
     }
-    await link.click();
-    await expect(page).toHaveURL(new RegExp(`${s.url}$`));
+    const alreadySelected = await link.getAttribute('aria-current') === 'page';
+    if (vw < 600 && alreadySelected) {
+      await expect(page).toHaveURL(new RegExp(`${s.url}$`));
+      await closeSectionNavigation(page);
+    } else {
+      await link.click();
+      await expect(page).toHaveURL(new RegExp(`${s.url}$`));
+    }
     await expect(page.getByTestId(s.testid)).toBeVisible();
 
     // The route job is the page h1. On phone, the navigation disclosure closes on arrival.
