@@ -25,7 +25,28 @@ const currentTuesday = new Date(currentWeekStartDate);
 currentTuesday.setDate(currentTuesday.getDate() + 1);
 
 // Sheets arrive newest-first; only an exact calendar-week match is current.
-const sheets = [
+type TestSheet = {
+  id: string;
+  status: string;
+  week_start_date: string;
+  user_id: string;
+  org_id: string;
+  submitted_at: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  entries: Array<{
+    id: string;
+    hours: number;
+    entry_date: string;
+    project_id: string;
+    timesheet_id: string;
+    org_id: string;
+    notes: string | null;
+    project: { name: string; code: string | null };
+  }>;
+};
+
+const sheets: TestSheet[] = [
   {
     id: 's1', status: 'Draft', week_start_date: currentWeekStart, user_id: 'eng-1', org_id: 'o1',
     submitted_at: null, approved_at: null, approved_by: null,
@@ -43,7 +64,7 @@ const sheets = [
   },
 ];
 
-const tsState: { data: typeof sheets | [] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = {
+const tsState: { data: TestSheet[] | undefined; isPending: boolean; isError: boolean; refetch: ReturnType<typeof vi.fn> } = {
   data: sheets,
   isPending: false,
   isError: false,
