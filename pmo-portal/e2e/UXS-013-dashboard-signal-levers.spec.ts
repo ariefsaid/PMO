@@ -75,7 +75,7 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     // Acting on the signal lands on the risk-filtered list, where the flagged record is reachable.
     await riskLink.click();
     await expect(page).toHaveURL(/\/projects\?filter=at-risk/);
-    await expect(page.getByText(SP2402_NAME).first()).toBeVisible();
+    await expect(page.locator(`a[href="/projects/${SP2402_ID}"]`).first()).toBeVisible();
   });
 
   test('Finance opens the flagged project Budget tab from the budget exception in one step', async ({
