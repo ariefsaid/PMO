@@ -53,16 +53,17 @@ const OPERATOR_SECTIONS = [
 
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
 
-async function openSectionNavigation(page: Page) {
+async function openSectionNavigation(page: Page, vw: number) {
+  if (vw >= 768) return;
   const navigation = sectionNav(page);
-  if (await navigation.isVisible()) return;
   const summary = page.getByText('Administration sections', { exact: true });
   await expect(summary).toBeVisible();
-  await summary.click();
+  if (!(await navigation.isVisible())) await summary.click();
   await expect(sectionNav(page)).toBeVisible();
 }
 
-async function closeSectionNavigation(page: Page) {
+async function closeSectionNavigation(page: Page, vw: number) {
+  if (vw >= 768) return;
   if (!(await sectionNav(page).isVisible())) return;
   const summary = page.getByText('Administration sections', { exact: true });
   await expect(summary).toBeVisible();
@@ -130,7 +131,7 @@ async function driveSections(
 ) {
   // Every Admin destination link is reachable and navigates to a visible, overflow-free panel.
   for (const s of sections) {
-    await openSectionNavigation(page);
+    await openSectionNavigation(page, vw);
     const link = sectionNav(page).getByRole('link', { name: s.name });
     await expect(link).toBeVisible();
     if (vw < 600) {
@@ -145,7 +146,7 @@ async function driveSections(
     const alreadySelected = await link.getAttribute('aria-current') === 'page';
     if (vw < 600 && alreadySelected) {
       await expect(page).toHaveURL(new RegExp(`${s.url}$`));
-      await closeSectionNavigation(page);
+      await closeSectionNavigation(page, vw);
     } else {
       await link.click();
       await expect(page).toHaveURL(new RegExp(`${s.url}$`));
