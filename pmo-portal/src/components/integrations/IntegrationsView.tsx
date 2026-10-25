@@ -35,6 +35,7 @@ import { ErpSetupChecklist } from './ErpSetupChecklist';
 import { erpActivationRefusalOf, type ErpActivationRefusal } from '@/src/lib/repositories/erpActivationRefusal';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { TaskListMatchReview } from './TaskListMatchReview';
+import { TaskListBatchMatchReview, type TaskListProposal } from './TaskListBatchMatchReview';
 import { proposeTaskListMatches } from '@/src/lib/repositories/taskListMatchReview';
 import type { LinkClickUpProjectInput } from '@/src/lib/repositories/types';
 
@@ -200,6 +201,7 @@ export const IntegrationsView: React.FC = () => {
     proposedListId: string | null;
   } | null>(null);
   const [taskListReviewError, setTaskListReviewError] = useState<string | null>(null);
+  const [taskListBatchOpen, setTaskListBatchOpen] = useState(false);
 
   // Form state (using useEntityForm)
   const connectForm = useEntityForm<ConnectFormValues>({
@@ -333,6 +335,13 @@ export const IntegrationsView: React.FC = () => {
   );
   const matchProposalByProjectId = new Map(matchProposals.map((proposal) => [proposal.projectId, proposal]));
   const clickUpListById = new Map(clickupLists.map((list) => [list.id, list]));
+  const clearTaskListProposals: TaskListProposal[] = activeProjects.flatMap((project) => {
+    const proposal = matchProposalByProjectId.get(project.id);
+    const list = proposal?.state === 'proposed' && proposal.listId
+      ? clickUpListById.get(proposal.listId)
+      : undefined;
+    return list ? [{ projectId: project.id, projectName: project.name, list }] : [];
+  });
   const bindingMapVisible = activeClickUpBinding;
   const clickUpListsUnavailable = isListsError || isListsPending;
   const renderServiceInformation = (tier: ExternalTier) => {
@@ -668,6 +677,15 @@ export const IntegrationsView: React.FC = () => {
             </h4>
           </div>
 
+          {canManageIntegrations && clearTaskListProposals.length > 0 && !bindingMapDataUnavailable && (
+            <div className="mb-3">
+              <Button variant="primary" className="min-h-11" onClick={() => setTaskListBatchOpen(true)}>
+                {t('uxs21.batchAcceptAllAction', 'Accept all clear matches')}
+                <span className="ml-1 tabular-nums">({clearTaskListProposals.length})</span>
+              </Button>
+            </div>
+          )}
+
           {/* AC-IRUX-006: source-specific load and unavailability notices + retries */}
           {isListsPending && !isListsError && (
             <p className="mb-2 text-sm text-muted-foreground" role="status">
@@ -735,6 +753,16 @@ export const IntegrationsView: React.FC = () => {
               error={taskListReviewError}
               onClose={() => setTaskListReview(null)}
               onConfirm={handleTaskListLinkConfirm}
+            />
+          )}
+          {taskListBatchOpen && (
+            <TaskListBatchMatchReview
+              open
+              proposals={clearTaskListProposals}
+              canConfirm={canManageIntegrations}
+              onClose={() => setTaskListBatchOpen(false)}
+              onComplete={() => void refetchBindings()}
+              onConfirm={(input) => linkProject.mutateAsync(input)}
             />
           )}
           {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (

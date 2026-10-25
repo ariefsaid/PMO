@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import type { ErpSetupReadiness, IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -196,6 +197,27 @@ describe('administration integrations composition', () => {
     expect(within(details).getByText(/Connected by/)).toBeInTheDocument();
     expect(within(details).getByTestId('service-information-clickup')).toHaveTextContent('Tasks');
     expect(screen.getAllByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toHaveLength(1);
+  });
+
+  it('AC-ADMIA-016: exposes the batch action only for clear unbound project matches', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      clickupLists: [{ id: 'list-1', name: 'Example Delivery', space_name: 'Delivery', folder_name: null }],
+      isListsPending: false,
+      isListsError: false,
+      projectBindings: [],
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({
+      data: [{ id: 'project-1', name: 'Example Delivery', archived_at: null }],
+      isPending: false,
+      isError: false,
+    } as never);
+    const user = userEvent.setup();
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const acceptAll = await screen.findByRole('button', { name: /Accept all clear matches/i });
+    await user.click(acceptAll);
+    expect(await screen.findByRole('dialog', { name: 'Review clear ClickUp matches' })).toBeInTheDocument();
   });
 });
 

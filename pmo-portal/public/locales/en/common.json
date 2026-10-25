@@ -4842,7 +4842,23 @@
     "ambiguousMatch": "Several lists have this project name",
     "initialTransferPendingShort": "Initial transfer not confirmed",
     "savedListUnavailable": "List unavailable; saved list ID: {{listId}}",
-    "reviewMatch": "Review list match"
+    "reviewMatch": "Review list match",
+    "batchAcceptAllAction": "Accept all clear matches",
+    "batchAcceptSelectedAction": "Accept selected clear matches",
+    "batchRetryAction": "Retry failed match",
+    "batchReviewAction": "Review project connections",
+    "batchTitle": "Review clear ClickUp matches",
+    "batchSubtitle": "Clear name matches are selected. Confirm each project and its initial task source.",
+    "batchConfirmTitle": "Confirm project connections",
+    "batchConfirmSubtitle": "These links use existing ClickUp lists. The choice controls the initial task transfer only.",
+    "batchSourceLegend": "Initial task source for selected projects",
+    "batchSourceFor": "Initial task source for {{name}}",
+    "batchUseCommonSource": "Use batch choice",
+    "batchInclude": "Include {{name}}",
+    "batchConsequence": "This connects each selected PMO project to the shown ClickUp list. The initial source choice does not start ongoing syncing.",
+    "batchSaved": "Saved",
+    "batchSaveFailed": "This link was not saved. Your choice is kept so you can retry.",
+    "batchPartialOutcome": "{{saved}} saved; {{failed}} need attention. Saved links are not repeated."
   },
   "v024Polish": {
     "accountDraftUnavailable": "This unsaved choice is no longer available in the current chart. Choose another account or clear this field."
