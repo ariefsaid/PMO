@@ -78,10 +78,9 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByRole('dialog', { name: 'Petakan Kendaraan' })).toBeInTheDocument();
   });
 
-  it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
+  it('#693: intro, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Peta akun anggaran' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
     expect(
       screen.getByText(

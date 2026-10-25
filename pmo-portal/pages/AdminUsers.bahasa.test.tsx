@@ -53,7 +53,7 @@ const renderPage = (role: Role = 'Admin') => {
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
           <MemoryRouter>
-            <AdminUsers />
+            <AdminUsers embedded />
           </MemoryRouter>
         </ToastProvider>
       </QueryClientProvider>
@@ -75,9 +75,8 @@ beforeEach(() => {
 });
 
 describe('Admin Users in Bahasa (#693 F-1)', () => {
-  it('#693: the directory heading, toolbar, columns, status and role pills are Bahasa', () => {
+  it('#693: the directory toolbar, columns, status and role pills are Bahasa', () => {
     renderPage();
-    expect(screen.getByText('Semua pengguna')).toBeInTheDocument();
     expect(screen.getByLabelText('Cari pengguna')).toHaveAttribute('placeholder', 'Cari berdasarkan nama atau email…');
     expect(screen.getByRole('button', { name: 'Undang pengguna' })).toBeInTheDocument();
     for (const h of ['Pengguna', 'Role', 'Status', 'Manajer']) {
@@ -95,8 +94,9 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the empty-search message is Bahasa', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText('Cari pengguna'), 'zzzz');
-    expect(await screen.findByText('Tidak ada pengguna yang cocok dengan pencarian')).toBeInTheDocument();
-    expect(screen.getByText('Coba nama atau email lain.')).toBeInTheDocument();
+    expect(await screen.findByText('Tidak ada pengguna yang cocok')).toBeInTheDocument();
+    expect(screen.getByText('Ubah pencarian atau filter status untuk melihat pengguna lagi.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hapus filter' })).toBeInTheDocument();
   });
 
   it('#693: the error and empty states are Bahasa, and the error keeps a Retry', async () => {
