@@ -16,7 +16,7 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
@@ -130,9 +130,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
       header: t('dashboard:finance.request', 'Request'),
       cell: (r) => (
         <div className="min-w-0">
-          <div className="truncate font-semibold" title={r.title}>
-            {r.title}
-          </div>
+          <Link to={`/procurement/${r.id}`} aria-label={t('dashboard:finance.requestIdentity', 'Request {{request}}', { request: r.title })} className="inline-flex min-h-11 max-w-full items-center truncate font-semibold underline underline-offset-2">{r.title}</Link>
           {/* Mono identifier per DESIGN.md Mono-For-Identifiers Rule */}
           <div className="font-mono text-[11px] text-muted-foreground">
             {r.code ?? r.id.slice(0, 8)}
@@ -176,28 +174,20 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'open',
-      header: t('dashboard:finance.open', 'Open'),
+      header: t('dashboard:finance.review', 'Review'),
       cell: (r) => (
         <Link
           to={`/procurement/${r.id}`}
-          aria-label={t('dashboard:finance.openRequest', 'Open {{request}}', { request: r.title })}
+          aria-label={t('dashboard:finance.reviewRequestNamed', 'Review request: {{request}}', { request: r.title })}
           className={buttonClasses('outline', 'default', 'min-h-11 px-3')}
         >
-          {t('dashboard:finance.open', 'Open')}
+          {t('dashboard:finance.reviewRequest', 'Review request')}
         </Link>
       ),
     },
   ];
 
   const orderedColumns = [columns[0]!, columns[1]!, columns[3]!, columns[2]!, columns[4]!];
-
-  const tableState: 'loading' | 'empty' | 'error' | undefined = isPending
-    ? 'loading'
-    : isError
-      ? 'error'
-      : viRows.length === 0
-        ? 'empty'
-        : undefined;
 
   return (
     <div>
@@ -213,17 +203,19 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
           ))}
         </dl>
       )}
-      <DataTable<ProcurementWithRefs>
+      {!isPending && !isError && viRows.length === 0 ? (
+        <p role="status" data-testid="ready-to-pay-empty" className="px-4 py-3 text-sm text-muted-foreground">
+          {t('dashboard:finance.nothingAwaitingPayment', 'Nothing awaiting payment')}
+        </p>
+      ) : <DataTable<ProcurementWithRefs>
         rows={viRows}
         columns={orderedColumns}
         rowKey={(r) => r.id}
-        state={tableState}
-        emptyTitle={t('dashboard:finance.nothingAwaitingPayment', 'Nothing awaiting payment')}
-        emptySub={t('dashboard:finance.allInvoicesPaid', 'All vendor invoices have been paid or none are awaiting action.')}
+        state={isPending ? 'loading' : isError ? 'error' : undefined}
         errorTitle={t('dashboard:finance.loadInvoicesError', "Couldn't load invoices")}
         onRetry={onRetry}
         className="rounded-t-none border-t-0"
-      tableId="components-dashboard-financedashboard-ready-to-pay-v2-table" />
+      tableId="components-dashboard-financedashboard-ready-to-pay-v2-table" />}
     </div>
   );
 };
@@ -236,14 +228,15 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
  * Reads the server-computed `variance` (committed basis, OD-BUDGET-2) — single source of truth.
  * Text + sign — NOT color-only (DESIGN.md a11y posture, plan §6).
  */
-function VarianceCell({ project, currency, unavailableLabel }: {
+function VarianceCell({ project, currency, unavailableLabel, fieldLabel }: {
   project: BudgetReviewRow;
   currency: string;
   unavailableLabel: string;
+  fieldLabel: string;
 }) {
   const v = project.variance;
   if (v === null || !Number.isFinite(v)) {
-    return <span className="text-muted-foreground">{unavailableLabel}</span>;
+    return <span aria-label={`${fieldLabel}: ${unavailableLabel}`} className="text-muted-foreground">—</span>;
   }
   if (v > 0) {
     // Over budget: destructive text WITH the word "over" so color is reinforcement only.
@@ -405,13 +398,16 @@ export const FinanceDashboard: React.FC = () => {
     {
       key: 'name',
       header: t('uxs03.financeProjectColumn', 'Project'),
+      kind: 'primary',
+      size: 270,
+      minSize: 230,
       cell: (p) => {
         return (
           <span className="inline-flex items-center gap-2">
             <Link
               to={`/projects/${p.id}/budget`}
               aria-label={t('dashboard.budgetReviewLink', 'Review {{project}} budget', { project: p.name })}
-              className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {p.name}
             </Link>
@@ -422,6 +418,8 @@ export const FinanceDashboard: React.FC = () => {
     {
       key: 'riskStatus',
       header: t('dashboard:finance.riskStatus', 'Risk / status'),
+      size: 155,
+      minSize: 140,
       cell: (p) => {
         const atRisk = isMoneyAtRisk({
           status: p.status,
@@ -445,6 +443,8 @@ export const FinanceDashboard: React.FC = () => {
       key: 'budget',
       header: t('uxs03.activeBudget', 'Active budget'),
       align: 'num',
+      size: 145,
+      minSize: 125,
       sortKey: 'budget',
       // tabular applied automatically by DataTable on align:num <td>s — no redundant inner span
       cell: (p) => <span>{formatCurrency(p.budget, p.budget_currency || p.currency || orgCurrency)}</span>,
@@ -453,26 +453,27 @@ export const FinanceDashboard: React.FC = () => {
       key: 'spent',
       header: t('uxs03.actual', 'Actual'),
       align: 'num',
+      size: 175,
+      minSize: 145,
       sortKey: 'spent',
       cell: (p) => {
         const known = hasKnownActual(p);
         const details = [
           !known && p.actual_currency
-            ? t('uxs03.actualSourceCurrency', 'Source currency: {{currency}}', { currency: p.actual_currency })
+            ? t('dashboard:finance.sourceCurrency', '{{currency}} source', { currency: p.actual_currency })
             : null,
           !p.actual_complete && p.actual_coverage_total > 0
-            ? t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
+            ? t('dashboard:finance.categoryCoverage', '{{known}}/{{total}} categories', {
               known: p.actual_coverage_count, total: p.actual_coverage_total,
             })
-            : null,
-          p.actual_as_of
-            ? t('uxs03.actualAsOf', 'As of {{date}}', { date: formatInstantDate(p.actual_as_of) })
             : null,
         ].filter((detail): detail is string => detail !== null);
         return (
           <span className="inline-flex flex-col items-end gap-0.5">
-            <span>{known ? formatCurrency(p.spent!, p.actual_currency!) : t('uxs03.notAvailableYet', 'Not available yet')}</span>
-            {details.length > 0 && <span className="text-sm text-muted-foreground">{details.join(' · ')}</span>}
+            {known
+              ? <span>{formatCurrency(p.spent!, p.actual_currency!)}</span>
+              : <span aria-label={`${t('uxs03.actual', 'Actual')}: ${notAvailable}`} className="text-muted-foreground">—</span>}
+            {details.length > 0 && <span className="max-w-36 whitespace-normal text-xs text-muted-foreground">{details.join(' · ')}</span>}
           </span>
         );
       },
@@ -481,21 +482,26 @@ export const FinanceDashboard: React.FC = () => {
       key: 'variance',
       header: t('uxs03.variance', 'Variance'),
       align: 'num',
+      size: 150,
+      minSize: 130,
       sortKey: 'variance',
       cell: (p) => <VarianceCell
         project={canCompareActual(p) ? p : { ...p, variance: null }}
         currency={p.currency || orgCurrency}
         unavailableLabel={t('uxs03.notAvailableYet', 'Not available yet')}
+        fieldLabel={t('uxs03.variance', 'Variance')}
       />,
     },
     {
       key: 'util',
       header: t('uxs03.utilization', 'Utilization'),
       align: 'num',
+      size: 130,
+      minSize: 115,
       sortKey: 'util',
       cell: (p) => canCompareActual(p) && p.spent !== null ? (
         <ProgressBar value={Math.round((p.spent / p.budget) * 100)} showValue compact aria-label={`${p.name} budget utilization`} />
-      ) : <span className="text-muted-foreground">{t('uxs03.notAvailableYet', 'Not available yet')}</span>,
+      ) : <span aria-label={`${t('uxs03.utilization', 'Utilization')}: ${notAvailable}`} className="text-muted-foreground">—</span>,
     },
   ];
 
@@ -555,6 +561,7 @@ export const FinanceDashboard: React.FC = () => {
       <DashPageHead
         title={t('uxs03.financeDashboardTitle', 'Finance Dashboard')}
         sub={t('dashboard:finance.scope', 'Invoiceable work, vendor payments and customer collections.')}
+        showBreadcrumb
       />
 
       <section aria-label={t('dashboard:finance.nextCase', 'Next case')} data-testid="finance-next-case">
@@ -568,6 +575,7 @@ export const FinanceDashboard: React.FC = () => {
 
       <Card seam>
         <CardHead className="rounded-t-lg">{t('uxs03.financeReadyToPay', 'Ready to pay')}</CardHead>
+        <p className="px-4 pb-2 text-xs text-muted-foreground">{t('dashboard:finance.payablesSort', 'Oldest vendor-invoiced first; last update date is used when invoice date is missing.')}</p>
         <ReadyToPayTable
           procurements={procurements ?? []}
           isPending={procPending}
@@ -588,10 +596,11 @@ export const FinanceDashboard: React.FC = () => {
         arAgingError={arAgingError}
         onRetryArAging={() => { void refetchArAging(); }}
         customerLinks={customerLinks}
+        compactEmpty
       />
       {hasMissingSnapshot && <p className="text-sm text-muted-foreground">{t('dashboard:finance.snapshotUnavailable', 'An accounting snapshot is not available yet.')} {snapshotRemedy}</p>}
 
-      <Card>
+      <Card data-testid="finance-budget-review">
         <CardHead>{t('dashboard:finance.budgetReview', 'Budget review')}</CardHead>
         <p className="px-4 pb-2 text-sm text-muted-foreground">{t('dashboard:finance.budgetReviewScope', 'Five projects by budget variance')}</p>
         {budgetError ? (
@@ -618,10 +627,16 @@ export const FinanceDashboard: React.FC = () => {
             className="rounded-t-none border-t-0"
           tableId="components-dashboard-financedashboard-budget-review-v2-table" />
         )}
+        {!budgetError && !budgetPending && topByVariance.some((project) => !canCompareActual(project)) && (
+          <p data-testid="budget-comparison-unavailable-note" className="px-4 pb-3 text-sm text-muted-foreground">
+            {t('dashboard:finance.comparisonUnavailable', 'Actual comparisons need complete source coverage in the project budget currency.')}{' '}
+            <a className="font-medium text-primary-text underline underline-offset-2" href="#finance-accounting-evidence">{t('dashboard:finance.reviewAccountingEvidence', 'Review accounting evidence')}</a>
+          </p>
+        )}
       </Card>
 
       <section aria-label={t('dashboard:finance.financialEvidence', 'Financial position and accounting evidence')}>
-        <details className="rounded-lg border border-border bg-card">
+        <details id="finance-accounting-evidence" className="rounded-lg border border-border bg-card">
           <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-4 py-2 font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             <span>{t('dashboard:finance.financialEvidence', 'Financial position and accounting evidence')}</span>
             <span aria-hidden="true" className="text-muted-foreground">⌄</span>
@@ -661,6 +676,7 @@ export const FinanceDashboard: React.FC = () => {
               onRetryApAging={() => { void refetchApAging(); }}
               arAging={[]}
               actualProjectNames={new Map((projects ?? []).map((project) => [project.id, projectDisplayName(project)]))}
+              compactEmpty
             />
           </div>
         </details>

@@ -91,6 +91,14 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
     expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
   });
 
+  it('AC-806-FIN-SNAPSHOT-002 renders concise per-report availability when requested by Finance', () => {
+    render(<AccountingSnapshotsSection {...emptyProps} compactEmpty />);
+    expect(screen.getAllByRole('status')).toHaveLength(3);
+    expect(screen.getByText('No actuals snapshot yet').tagName).toBe('P');
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
+    expect(screen.queryByText(/No actuals snapshot yet.*snapshot/i)).not.toBeInTheDocument();
+  });
+
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot without repeating the page remedy', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
     expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);

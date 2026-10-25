@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
@@ -108,8 +108,8 @@ const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter
 
 beforeEach(() => {
   procurements.splice(0, procurements.length,
-    { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
-    { id: 'pr2', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(3) },
+    { id: 'pr1', title: 'Older vendor invoice', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
+    { id: 'pr2', title: 'Recent vendor invoice', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(3) },
     { id: 'pr3', status: 'Paid', total_value: 999_999, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
   );
   dash.on_hand_actual_project_count = 2;
@@ -133,7 +133,7 @@ describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
   it('AC-SL-A-001: no approvals tile when nothing awaits Finance (fixture has no Requested rows)', () => {
     renderPane();
     expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
-    expect(screen.queryByText('Review')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review requests' })).not.toBeInTheDocument();
   });
 });
 
@@ -200,6 +200,28 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     renderPane();
     expect(screen.getByTestId('ready-to-pay-total')).toHaveTextContent(formatCurrency(400_000, 'USD'));
     expect(screen.queryByTestId('kpi-outstanding')).not.toBeInTheDocument();
+  });
+
+  it('AC-806-FIN-PAYABLES-001 states payable order and links request identity separately from its action', () => {
+    renderPane();
+    expect(screen.getByText('Oldest vendor-invoiced first; last update date is used when invoice date is missing.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Request Older vendor invoice' })).toHaveAttribute('href', '/procurement/pr1');
+    expect(screen.getByRole('link', { name: 'Review request: Older vendor invoice' })).toHaveTextContent('Review request');
+    const requestLinks = Array.from(document.querySelectorAll('a[aria-label^="Request "]'));
+    expect(requestLinks.map((link) => link.textContent)).toEqual(['Older vendor invoice', 'Recent vendor invoice']);
+  });
+
+  it('AC-806-FIN-PAYABLES-002 renders a compact ready-to-pay empty status without a table', () => {
+    const previous = procurements.splice(0);
+    try {
+      renderPane();
+      const empty = screen.getByTestId('ready-to-pay-empty');
+      expect(empty.tagName).toBe('P');
+      expect(empty).toHaveTextContent('Nothing awaiting payment');
+      expect(within(empty.closest('.rounded-lg.border') as HTMLElement).queryByRole('table')).not.toBeInTheDocument();
+    } finally {
+      procurements.push(...previous);
+    }
   });
 });
 
@@ -336,6 +358,7 @@ describe('Finance dashboard composition and next case', () => {
     procurementRead.isError = true;
     renderPane();
     expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Home');
     expect(screen.getByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/approvals');
     expect(screen.getByText('Ready to pay')).toBeInTheDocument();
     expect(screen.getByText('Budget review')).toBeInTheDocument();
@@ -348,6 +371,30 @@ describe('Finance dashboard composition and next case', () => {
     expect(screen.getByText("Couldn't load the finance dashboard")).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
     expect(screen.getByText('Ready to pay')).toBeInTheDocument();
+  });
+
+  it('AC-806-FIN-SNAPSHOT-001 uses compact report rows and one shared snapshot remedy', () => {
+    renderPane();
+    const collections = screen.getByRole('region', { name: 'Customer collections' });
+    expect(within(collections).getByTestId('accounting-snapshot-empty')).toHaveTextContent('No aging data to show yet.');
+    expect(within(collections).queryByTestId('liststate-empty')).not.toBeInTheDocument();
+    expect(screen.getAllByText((_, element) => element?.tagName === 'P'
+      && element.textContent?.startsWith('An accounting snapshot is not available yet.') === true)).toHaveLength(1);
+  });
+
+  it('AC-806-FIN-BUDGET-001 keeps unavailable comparisons concise with one cause and evidence destination', () => {
+    const row = budgetReview[0]!;
+    row.actual_complete = false;
+    row.spent = null as unknown as number;
+    row.actual_coverage_count = 1;
+    row.actual_coverage_total = 2;
+    renderPane();
+    const note = screen.getByTestId('budget-comparison-unavailable-note');
+    const budget = screen.getByTestId('finance-budget-review');
+    expect(note).toHaveTextContent('Actual comparisons need complete source coverage in the project budget currency.');
+    expect(within(note).getByRole('link', { name: 'Review accounting evidence' })).toHaveAttribute('href', '#finance-accounting-evidence');
+    expect(note.textContent?.match(/complete source coverage/g)).toHaveLength(1);
+    expect(within(budget).getByRole('table').textContent).not.toContain('Not available yet');
   });
 });
 

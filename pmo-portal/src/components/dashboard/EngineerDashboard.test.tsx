@@ -96,6 +96,8 @@ describe('EngineerDashboard localization and weekly facts', () => {
   it('AC-UXA-002: localizes the week, status, day summaries and action while retaining values', () => {
     renderPane('id');
     expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Beranda');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dasbor');
     expect(screen.getByTestId('engineer-week-scope')).toHaveAttribute('data-week-start', currentWeekStart);
     expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
     expect(screen.getByText('Jam minggu ini')).toBeInTheDocument();

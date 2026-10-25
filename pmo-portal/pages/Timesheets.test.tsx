@@ -457,6 +457,15 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     expect(saveWeekMutate).not.toHaveBeenCalled();
   });
 
+  it('AC-806-TSE-EMPTY-001: an empty week with no eligible project names the assignment prerequisite', () => {
+    tsState.data = []; tsState.isPending = false; tsState.isError = false;
+    projectsState.data = [];
+    renderPage();
+    expect(screen.getByText('You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View assigned projects' })).toHaveAttribute('href', '/projects?filter=My+Projects');
+    expect(screen.queryByText('Use “Add a project” above to start logging hours.')).not.toBeInTheDocument();
+  });
+
   it('AC-TSE-003: a Submitted sheet renders read-only (no inputs, no Add, no Save)', () => {
     tsState.data = currentDraftSheet('Submitted') as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;

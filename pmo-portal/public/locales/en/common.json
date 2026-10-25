@@ -3430,11 +3430,13 @@
       "title": "Delete this project row?"
     },
     "empty": {
-      "sub": "Add a project to start logging hours, or use the week controls to find another week.",
+      "sub": "No hours are recorded for this week. Use the week controls to browse another week.",
       "title": "No hours logged this week"
     },
     "emptyEdit": {
       "sub": "Use “Add a project” above to start logging hours.",
+      "assignmentPrerequisite": "You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.",
+      "viewAssignedProjects": "View assigned projects",
       "title": "No hours logged this week"
     },
     "enterHoursToSubmit": "Enter hours to submit",
@@ -4601,8 +4603,6 @@
     "atRisk": "At risk",
     "activeBudgetReviewEmpty": "No active budgets ready for review",
     "activeBudgetReviewEmptySub": "Active, positive-value budgets appear here.",
-    "actualSourceCurrency": "Source currency: {{currency}}",
-    "actualAsOf": "As of {{date}}",
     "deliveryChartEmpty": "No delivery projects to compare yet",
     "financeDashboardTitle": "Finance Dashboard",
     "financeProjectColumn": "Project",

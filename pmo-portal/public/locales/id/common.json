@@ -3430,11 +3430,13 @@
       "title": "Hapus baris proyek ini?"
     },
     "empty": {
-      "sub": "Tambahkan proyek untuk mulai mencatat jam, atau gunakan kontrol minggu untuk mencari minggu lain.",
+      "sub": "Tidak ada jam kerja yang dicatat minggu ini. Gunakan kontrol minggu untuk melihat minggu lain.",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "emptyEdit": {
       "sub": "Gunakan “Tambahkan proyek” di atas untuk mulai mencatat jam.",
+      "assignmentPrerequisite": "Anda memerlukan proyek pelaksanaan yang ditugaskan sebelum dapat mencatat jam. Minta manajer proyek untuk menugaskan proyek kepada Anda.",
+      "viewAssignedProjects": "Lihat proyek yang ditugaskan",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
@@ -4601,8 +4603,6 @@
     "atRisk": "Berisiko",
     "activeBudgetReviewEmpty": "Belum ada anggaran aktif yang siap ditinjau",
     "activeBudgetReviewEmptySub": "Anggaran aktif bernilai positif ditampilkan di sini.",
-    "actualSourceCurrency": "Mata uang sumber: {{currency}}",
-    "actualAsOf": "Per {{date}}",
     "deliveryChartEmpty": "Belum ada proyek pelaksanaan untuk dibandingkan",
     "financeDashboardTitle": "Dasbor Keuangan",
     "financeProjectColumn": "Proyek",

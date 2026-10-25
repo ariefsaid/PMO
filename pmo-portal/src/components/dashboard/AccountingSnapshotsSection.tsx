@@ -26,6 +26,7 @@ export interface AccountingSnapshotsSectionProps {
   showActuals?: boolean;
   showApAging?: boolean;
   showArAging?: boolean;
+  compactEmpty?: boolean;
   ariaLabel?: string;
   arTitle?: string;
   actuals: ErpActualsSnapshotRow[];
@@ -180,6 +181,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   tableId,
   errorLabel,
   detail,
+  compactEmpty,
 }: {
   title: string;
   emptyLabel: string;
@@ -196,6 +198,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   errorLabel: string;
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
+  compactEmpty?: boolean;
 }) {
   const first = rows[0];
   return (
@@ -216,7 +219,9 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
         ) : pending ? (
           <ListState variant="loading" rows={3} />
         ) : rows.length === 0 ? (
-          <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
+          compactEmpty
+            ? <p role="status" data-testid="accounting-snapshot-empty" className="text-sm text-muted-foreground">{emptyLabel}</p>
+            : <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
           <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
         )}
@@ -243,6 +248,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   showActuals = true,
   showApAging = true,
   showArAging = true,
+  compactEmpty = false,
   ariaLabel,
   arTitle,
 }) => {
@@ -315,6 +321,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       // key while rendering as indistinguishable money rows (no Project column exists). `\u0000` as the
       // separator so concatenation cannot alias two different tuples into one string.
       rowKey={(r) => [r.snapshotId, r.projectId ?? '', r.costCenter ?? '', r.account ?? '', r.fiscalYear ?? ''].join('\u0000')}
+      compactEmpty={compactEmpty}
     />
     )}
     {showApAging && (
@@ -332,6 +339,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={agingRowKey}
       reportVersion={apAging[0]?.reportVersion}
       detail={agingDetail(apAging)}
+      compactEmpty={compactEmpty}
     />
     )}
     {showArAging && <SnapshotBlock<ErpAgingSnapshotRow>
@@ -348,6 +356,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
+      compactEmpty={compactEmpty}
     />}
   </section>
   );

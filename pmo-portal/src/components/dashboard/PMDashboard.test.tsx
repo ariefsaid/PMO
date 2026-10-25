@@ -108,6 +108,8 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   it('AC-UXA-001: localizes PM copy and project statuses without changing values or destinations', () => {
     renderPane('id');
     expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Beranda');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dasbor');
     expect(screen.getByRole('heading', { name: 'Proyek pelaksanaan saya' })).toBeInTheDocument();
     expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('4 proyek pelaksanaan');
     expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('10.600.000');

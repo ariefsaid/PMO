@@ -360,7 +360,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
             </>
           ) : (
             <>
-              {basis === 'count' && !isPending && !isError && data ? renderRow(activeRows[0]!) : null}
+              {basis === 'count' && !isPending && !isError && data ? renderRow(activeRows[0]!, 0) : null}
               {Array.from({ length: basis === 'count' && data ? 1 : 2 }, (_, index) => (
                 <div key={`empty-${index}`} data-testid={index === 0 ? 'win-rate-unused-slot' : undefined} aria-hidden="true" className="min-h-16 border-t border-border/70" />
               ))}

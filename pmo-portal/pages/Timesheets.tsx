@@ -808,9 +808,20 @@ const TimesheetsPage: React.FC = () => {
               <p className="text-sm font-medium text-foreground">
                 {t('timesheets.emptyEdit.title', 'No hours logged this week')}
               </p>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
-              </p>
+              {pickerOptions.length === 0 ? (
+                <>
+                  <p className="mt-1 text-[13px] text-muted-foreground">
+                    {t('timesheets.emptyEdit.assignmentPrerequisite', 'You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')}
+                  </p>
+                  <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline underline-offset-2">
+                    {t('timesheets.emptyEdit.viewAssignedProjects', 'View assigned projects')}
+                  </Link>
+                </>
+              ) : (
+                <p className="mt-1 text-[13px] text-muted-foreground">
+                  {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
+                </p>
+              )}
             </div>
           ) : (
             <TimesheetGrid
@@ -833,7 +844,7 @@ const TimesheetsPage: React.FC = () => {
               title={t('timesheets.empty.title', 'No hours logged this week')}
               sub={t(
                 'timesheets.empty.sub',
-                'Add a project to start logging hours, or use the week controls to find another week.',
+                'No hours are recorded for this week. Use the week controls to browse another week.',
               )}
             />
           </div>
