@@ -69,10 +69,7 @@ const renderOverview = async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(
-    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
-    { timeout: 10_000 },
-  );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   const panel = screen.getByRole('tabpanel');
   await within(panel).findByRole('heading', { level: 2, name: 'Comments' });
   return panel;
