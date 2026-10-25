@@ -10,8 +10,8 @@
 -- trigger (0321) sees the delete like any other mirror write.
 --
 -- Also: the Payment Ledger mirror gains the voucher it was written by (the replace key), and a one-off
--- repair marker per ledger source makes the next full sweep re-read every voucher touched since
--- 2026-10-24 (the reposts) and backfill the PLE voucher columns.
+-- repair marker per ledger source makes the next full sweep re-read both ledgers from the start, replacing
+-- every reposted voucher and backfilling the PLE voucher columns.
 -- Reversal: supabase/migrations/rollback/0382_ledger_voucher_replace_down.sql.
 
 alter table public.erp_payment_ledger_mirror
@@ -145,15 +145,55 @@ $$;
 revoke execute on function public.replace_erp_ple_voucher_rows(uuid, text, text, text, jsonb, text[]) from public, anon, authenticated;
 grant execute on function public.replace_erp_ple_voucher_rows(uuid, text, text, text, jsonb, text[]) to service_role;
 
+-- The PLE voucher backfill's finish. Every PLE row from before 0382 has NULL voucher columns. Once the
+-- feed's full PLE re-read (the repair marker below) has caught up, every row ERPNext still has carries its
+-- voucher again (Payment Ledger Entry.voucher_no is mandatory), so a row still without one was never
+-- re-delivered: ERPNext no longer has it. Retire those rows and the marker together, under the binding lock.
+create or replace function public.finish_erp_ple_voucher_backfill(p_org_id uuid, p_company text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  bound_company text;
+  deleted_count integer;
+begin
+  if p_org_id is null or p_company is null or btrim(p_company) = '' then
+    raise exception 'invalid Payment Ledger backfill finish' using errcode = '22023';
+  end if;
+  select config ->> 'company' into bound_company
+    from public.external_org_bindings
+   where org_id = p_org_id and external_tier = 'erpnext'
+   for update;
+  if not found or bound_company is distinct from p_company then
+    return jsonb_build_object('deleted', 0, 'stale_binding', true);
+  end if;
+  -- Only while the repair is pending: a second call after the marker is gone retires nothing.
+  if not exists (select 1 from public.external_sync_watermarks
+                  where org_id = p_org_id and external_tier = 'erpnext' and domain = 'ledger::Payment Ledger Entry::repair') then
+    return jsonb_build_object('deleted', 0);
+  end if;
+  delete from public.erp_payment_ledger_mirror
+   where org_id = p_org_id and voucher_type is null;
+  get diagnostics deleted_count = row_count;
+  delete from public.external_sync_watermarks
+   where org_id = p_org_id and external_tier = 'erpnext' and domain = 'ledger::Payment Ledger Entry::repair';
+  return jsonb_build_object('deleted', deleted_count);
+end;
+$$;
+revoke execute on function public.finish_erp_ple_voucher_backfill(uuid, text) from public, anon, authenticated;
+grant execute on function public.finish_erp_ple_voucher_backfill(uuid, text) to service_role;
+
 -- One-off repair through the normal sweep. A repair marker per ledger source makes the next full tick
--- re-read from it (GL: every row modified since the reposts began, so each reposted voucher is replaced;
--- PLE: every row, so each gains its voucher columns), then the feed deletes the marker. Only the new feed
+-- re-read every row from the start (GL: so each reposted voucher, whenever it was reposted, is replaced;
+-- PLE: so each row gains its voucher columns), then the feed deletes the marker. Only the new feed
 -- reads the marker, so an older edge function ticking before its deploy cannot consume the repair. The
 -- ordinary cursors are untouched; re-reading is idempotent (the per-row erp_modified >= guard). The marker
 -- keeps its source row's updated_at so the integration-health "last sync" is not refreshed by a migration.
 insert into public.external_sync_watermarks (org_id, external_tier, domain, watermark_cursor, updated_at)
 select w.org_id, w.external_tier, w.domain || '::repair',
-       case w.domain when 'ledger::GL Entry' then '2026-10-24 00:00:00' else '2000-01-01 00:00:00' end,
+       '2000-01-01 00:00:00',
        w.updated_at
   from public.external_sync_watermarks w
  where w.external_tier = 'erpnext' and w.domain in ('ledger::GL Entry', 'ledger::Payment Ledger Entry')

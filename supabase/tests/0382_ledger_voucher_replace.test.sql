@@ -1,6 +1,6 @@
 -- 0382: a reposted voucher's mirrored ledger rows are replaced with ERPNext's current set, atomically.
 begin;
-select plan(22);
+select plan(31);
 
 insert into public.organizations(id, name) values ('00000000-0000-0000-0000-000000000002','Voucher Other Org') on conflict (id) do nothing;
 insert into public.external_org_bindings(org_id, external_tier, site_url, secret_ref, config)
@@ -79,9 +79,35 @@ select is(
 select is((select array_agg(erp_name order by erp_name) from public.erp_payment_ledger_mirror where org_id='00000000-0000-0000-0000-000000000001'),
   array['ple-legacy','ple-new'], 'only the voucher''s rows are replaced; a legacy row without a voucher is untouched');
 
+-- PLE voucher backfill finish, PROD shape: legacy rows carry NULL voucher columns; the re-read refilled
+-- the ones ERPNext still has (ple-legacy-kept), the hard-deleted one (ple-legacy-gone) stayed NULL.
+insert into public.erp_payment_ledger_mirror(org_id, erp_name, account, voucher_type, voucher_no, amount, delinked, erp_modified) values
+ ('00000000-0000-0000-0000-000000000001','ple-legacy-kept','Creditors','Purchase Invoice','PINV-7',10,false,'2026-10-15 21:55:08'),
+ ('00000000-0000-0000-0000-000000000001','ple-legacy-gone','Creditors',null,null,10,false,'2026-10-15 21:55:08'),
+ ('00000000-0000-0000-0000-000000000002','ple-other-org','Creditors',null,null,10,false,'2026-10-15 21:55:08');
+select is(public.finish_erp_ple_voucher_backfill('00000000-0000-0000-0000-000000000001','Voucher Co'),
+  '{"deleted": 0}'::jsonb, 'without a pending repair marker nothing is retired');
+select is((select count(*)::int from public.erp_payment_ledger_mirror where org_id='00000000-0000-0000-0000-000000000001' and voucher_type is null),
+  2, 'legacy rows survive while no repair is pending');
+insert into public.external_sync_watermarks(org_id, external_tier, domain, watermark_cursor)
+values ('00000000-0000-0000-0000-000000000001','erpnext','ledger::Payment Ledger Entry::repair','2026-10-25 11:52:16');
+select is(public.finish_erp_ple_voucher_backfill('00000000-0000-0000-0000-000000000001','Stale Co') ->> 'stale_binding',
+  'true', 'a company no longer bound retires nothing');
+select is((select count(*)::int from public.erp_payment_ledger_mirror where org_id='00000000-0000-0000-0000-000000000001' and voucher_type is null),
+  2, 'the stale-binding call retired nothing');
+select is(public.finish_erp_ple_voucher_backfill('00000000-0000-0000-0000-000000000001','Voucher Co'),
+  '{"deleted": 2}'::jsonb, 'the finish retires the org''s rows still without a voucher');
+select is((select array_agg(erp_name order by erp_name) from public.erp_payment_ledger_mirror where org_id='00000000-0000-0000-0000-000000000001'),
+  array['ple-legacy-kept','ple-new'], 're-delivered rows (with a voucher) stay; never-re-delivered ones are gone');
+select is((select count(*)::int from public.erp_payment_ledger_mirror where erp_name='ple-other-org'), 1, 'other orgs are untouched');
+select is((select count(*)::int from public.external_sync_watermarks where domain='ledger::Payment Ledger Entry::repair'
+            and org_id='00000000-0000-0000-0000-000000000001'), 0, 'the repair marker is cleared in the same transaction');
+
 select ok(not has_function_privilege('authenticated','public.replace_erp_gl_voucher_rows(uuid,text,text,text,jsonb,text[])','execute'), 'authenticated cannot call the GL replace');
 select ok(not has_function_privilege('anon','public.replace_erp_ple_voucher_rows(uuid,text,text,text,jsonb,text[])','execute'), 'anon cannot call the PLE replace');
 select ok(has_function_privilege('service_role','public.replace_erp_gl_voucher_rows(uuid,text,text,text,jsonb,text[])','execute'), 'the sweep (service role) can call the GL replace');
+
+select ok(not has_function_privilege('authenticated','public.finish_erp_ple_voucher_backfill(uuid,text)','execute'), 'authenticated cannot call the PLE backfill finish');
 
 select * from finish();
 rollback;

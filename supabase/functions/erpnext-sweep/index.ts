@@ -1900,9 +1900,10 @@ export async function feedOrgLedgersLive(serviceClient: SupabaseClient, org: Org
     ple = result.pleFed;
     glCaughtUp = result.glCaughtUp;
     pleCaughtUp = result.pleCaughtUp;
-    if (!glCaughtUp || !pleCaughtUp) {
-      rawError = [!glCaughtUp ? 'GL feed is incomplete' : '', !pleCaughtUp ? 'Payment Ledger feed is incomplete' : ''].filter(Boolean).join('; ');
-    }
+    const problems = [!glCaughtUp ? 'GL feed is incomplete' : '', !pleCaughtUp ? 'Payment Ledger feed is incomplete' : '',
+      // A voucher too big to read in full was not reconciled against ERPNext; the feed moved on (0382).
+      ...result.skippedVouchers.map((v) => `${v} too large to reconcile; its mirrored rows were not checked against ERPNext`)].filter(Boolean);
+    if (problems.length) rawError = problems.join('; ');
   } catch (err) {
     rawError = errorMessage(err);
   }

@@ -164,3 +164,20 @@ Deno.test('a failed voucher read removes nothing and keeps the cursor', async ()
     erp.restore();
   }
 });
+
+Deno.test('a voucher too big to read in full is skipped, surfaced as a ledger error, and does not block the feed', async () => {
+  const db = fakeDb(mirrorAfterFirstRepost());
+  // Every voucher page is full, so the 20-page voucher budget runs out without a short page.
+  const fullPage = Array.from({ length: 500 }, (_, i) => ({ name: `big-${i}`, ...LINE, debit: 1, credit: 0, is_cancelled: 0, docstatus: 1, modified: '2026-10-25 08:32:12.251858' }));
+  const erp = stubErp(() => new Response(JSON.stringify({ data: fullPage }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  try {
+    const r = await feedOrgLedgersLive(db.sc, { ...ORG_BINDING }, cache());
+    assert(r.glCaughtUp === true, 'the feed moves on past the oversized voucher');
+    assert(/Journal Entry ACC-JV-2026-00070 too large to reconcile/.test(r.error ?? ''), `the skip is surfaced: ${r.error}`);
+    assert(db.tables.erp_gl_entry_mirror.some((x) => x.erp_name === '9a24980bf8'), 'nothing was removed on a partial read');
+    assert(!db.rpcs.some((c) => c.name === 'replace_erp_gl_voucher_rows'), 'no replace ran');
+    assert(db.watermarks[0].watermark_cursor === '2026-10-25 08:32:12.251858', 'the cursor advanced');
+  } finally {
+    erp.restore();
+  }
+});

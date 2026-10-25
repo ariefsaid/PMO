@@ -27,8 +27,9 @@
  * fetched batch touches a voucher whose mirror copy holds rows the batch did not re-deliver, the feed
  * reads ERPNext's CURRENT full row set for that voucher and replaces the mirror's copy in ONE RPC
  * (`replace_erp_{gl,ple}_voucher_rows`, 0382): upsert + delete-absent in one transaction. All voucher
- * reads finish before any write, and an incomplete or failed read throws before any write — a partial
- * read can never remove a row. Absent rows are DELETED, not flagged: the mirror mirrors ERPNext, which
+ * reads finish before any write; a failed read throws before any write, and a voucher too big to read in
+ * full is skipped and reported — a partial read can never remove a row. At most VOUCHER_REPLACES_PER_TICK
+ * vouchers are read per tick; the cursor holds at the first one not reached. Absent rows are DELETED, not flagged: the mirror mirrors ERPNext, which
  * no longer has them, and it is the convention the complete statement replay already uses (0312).
  */
 import { AppError } from '../../appError.ts';
@@ -102,6 +103,9 @@ export interface FeedLedgerMirrorsResult {
   pleCursor: string | null;
   glCaughtUp: boolean;
   pleCaughtUp: boolean;
+  /** Vouchers whose current set was too big to read in full this tick: their rows were upserted but
+   *  nothing was removed. `<doctype> <voucher type> <voucher no>`; surfaced as a ledger error. */
+  skippedVouchers: string[];
 }
 
 /**
@@ -128,9 +132,15 @@ export async function feedLedgerMirrors(
   if (fullReplay && !glResult.caughtUp) throw new AppError('Full statement replay page budget exhausted; mirror and watermark were not changed', 'external-unreachable');
   const replayId = fullReplay ? crypto.randomUUID() : null;
   const glRows = glResult.rows.map((row) => ({ ...glRowToMirror(row), ...(replayId ? { replay_seen_id: replayId } : {}) }));
-  const glFed = await upsertMirrorRows(serviceClient, GL_LEDGER, orgId, company, glRows, fullReplay ? null
-    : (voucher) => fetchGlEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES }));
-  const glNext = maxModified(glResult.rows);
+  const gl = await upsertMirrorRows(serviceClient, GL_LEDGER, orgId, company, glRows, fullReplay ? null
+    : async (voucher) => {
+      const r = await fetchGlEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES });
+      return { caughtUp: r.caughtUp, rows: r.rows.map(glRowToMirror) };
+    });
+  const glFed = gl.fed;
+  // Held at the first voucher not yet replaced (the per-tick budget ran out): the next tick re-reads from it.
+  const glNext = gl.holdAt ?? maxModified(glResult.rows);
+  const glCaughtUp = glResult.caughtUp && gl.holdAt === null;
   let glFinalCursor: string | null;
   if (fullReplay) {
     const { data, error } = await serviceClient.rpc('finish_erp_gl_replay', {
@@ -143,7 +153,7 @@ export async function feedLedgerMirrors(
     glFinalCursor = glNext;
   } else {
     glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
-    await settleRepair(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glRepair, glNext, glResult.caughtUp);
+    await settleRepair(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glRepair, glNext, glCaughtUp);
   }
 
   const pleCursor = await readWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN);
@@ -154,19 +164,34 @@ export async function feedLedgerMirrors(
     pageSize,
     maxPages,
   });
-  const pleFed = await upsertMirrorRows(serviceClient, PLE_LEDGER, orgId, company, pleResult.rows.map(pleRowToMirror),
-    (voucher) => fetchPaymentLedgerEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES }));
-  const pleNext = maxModified(pleResult.rows);
+  const ple = await upsertMirrorRows(serviceClient, PLE_LEDGER, orgId, company, pleResult.rows.map(pleRowToMirror),
+    async (voucher) => {
+      const r = await fetchPaymentLedgerEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES });
+      return { caughtUp: r.caughtUp, rows: r.rows.map(pleRowToMirror) };
+    });
+  const pleNext = ple.holdAt ?? maxModified(pleResult.rows);
+  const pleCaughtUp = pleResult.caughtUp && ple.holdAt === null;
   const pleFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleNext, pleCursor);
-  await settleRepair(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleRepair, pleNext, pleResult.caughtUp);
+  if (pleRepair !== null && pleCaughtUp) {
+    // The full PLE re-read is complete: every row ERPNext still has now carries its voucher, so a row
+    // still without one was never re-delivered and no longer exists. Retire those and the marker together.
+    const { data, error } = await serviceClient.rpc('finish_erp_ple_voucher_backfill', { p_org_id: orgId, p_company: company });
+    if (error) throw new AppError(error.message, error.code);
+    if ((data as { stale_binding?: unknown } | null)?.stale_binding === true) {
+      throw new AppError('Payment Ledger backfill finish refused: stale binding changed during the feed', 'config-rejected');
+    }
+  } else {
+    await settleRepair(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleRepair, pleNext, pleCaughtUp);
+  }
 
   return {
     glFed,
-    pleFed,
+    pleFed: ple.fed,
     glCursor: glFinalCursor,
     pleCursor: pleFinalCursor,
-    glCaughtUp: glResult.caughtUp,
-    pleCaughtUp: pleResult.caughtUp,
+    glCaughtUp,
+    pleCaughtUp,
+    skippedVouchers: [...gl.skipped.map((v) => `GL Entry ${v}`), ...ple.skipped.map((v) => `Payment Ledger Entry ${v}`)],
   };
 }
 
@@ -225,7 +250,7 @@ export async function advanceWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId
 
 /** One voucher's identity — the key ERPNext reposts a voucher's ledger rows under. */
 type Voucher = { type: string; no: string };
-type VoucherRead = (voucher: Voucher) => Promise<LedgerFetchResult<{ name: string }>>;
+type VoucherRead = (voucher: Voucher) => Promise<LedgerFetchResult<Record<string, unknown>>>;
 
 interface LedgerTable {
   table: string;
@@ -243,8 +268,11 @@ const PLE_LEDGER: LedgerTable = {
   table: 'erp_payment_ledger_mirror', replaceRpc: 'replace_erp_ple_voucher_rows',
   scanColumns: 'id,erp_name,erp_modified,voucher_type,voucher_no', hasCompany: false,
 };
-/** Page budget for ONE voucher's current row set (20 × 500 rows); a bigger voucher fails closed. */
+/** Page budget for ONE voucher's current row set (20 × 500 rows); a bigger voucher is skipped and reported. */
 export const VOUCHER_MAX_PAGES = 20;
+/** Voucher current-set reads per source per tick. Bounds the tick well inside the edge function's
+ *  150 s wall clock; the cursor holds at the first voucher not reached, so the rest finish next tick. */
+export const VOUCHER_REPLACES_PER_TICK = 25;
 
 const voucherKey = (type: unknown, no: unknown): string | null =>
   typeof type === 'string' && type !== '' && typeof no === 'string' && no !== '' ? JSON.stringify([type, no]) : null;
@@ -270,8 +298,8 @@ async function upsertMirrorRows(
   company: string,
   rows: Array<Record<string, unknown>>,
   readVoucher: VoucherRead | null,
-): Promise<number> {
-  if (rows.length === 0) return 0;
+): Promise<{ fed: number; holdAt: string | null; skipped: string[] }> {
+  if (rows.length === 0) return { fed: 0, holdAt: null, skipped: [] };
   const { table } = ledger;
   // Read existing erp_modified per erp_name for the per-row guard (one batched read).
   const existing = new Map<string, string>();
@@ -294,48 +322,66 @@ async function upsertMirrorRows(
 
   // Vouchers to replace: fetched here AND holding a mirror row (this company's, or a legacy NULL one)
   // that this batch did not re-deliver. Read every current set BEFORE any write.
-  const replacements = new Map<string, { voucher: Voucher; names: string[] }>();
+  const replacements = new Map<string, { voucher: Voucher; rows: Array<Record<string, unknown>> }>();
+  const deferred = new Set<string>();
+  const skipped: string[] = [];
+  let holdAt: string | null = null;
   if (readVoucher) {
     const fetchedNames = new Set(rows.map((r) => String(r.erp_name)));
-    const fetchedVouchers = new Map<string, Voucher>();
+    // Batch order (modified asc), so the vouchers left past the budget are the latest ones.
+    const fetchedVouchers = new Map<string, { voucher: Voucher; firstModified: string }>();
     for (const r of rows) {
       const key = voucherKey(r.voucher_type, r.voucher_no);
-      if (key) fetchedVouchers.set(key, { type: String(r.voucher_type), no: String(r.voucher_no) });
+      if (key && !fetchedVouchers.has(key)) {
+        fetchedVouchers.set(key, { voucher: { type: String(r.voucher_type), no: String(r.voucher_no) }, firstModified: String(r.erp_modified) });
+      }
     }
-    const candidates = new Set<string>();
+    const unseen = new Set<string>();
     for (const m of mirrored) {
       const key = voucherKey(m.voucher_type, m.voucher_no);
       if (!key || !fetchedVouchers.has(key) || fetchedNames.has(String(m.erp_name))) continue;
       if (ledger.hasCompany && m.company != null && m.company !== company) continue;
-      candidates.add(key);
+      unseen.add(key);
     }
-    for (const key of candidates) {
-      const voucher = fetchedVouchers.get(key)!;
+    let reads = 0;
+    for (const [key, { voucher, firstModified }] of fetchedVouchers) {
+      if (!unseen.has(key)) continue;
+      if (reads >= VOUCHER_REPLACES_PER_TICK) {
+        deferred.add(key);
+        if (holdAt === null || firstModified < holdAt) holdAt = firstModified;
+        continue;
+      }
+      reads += 1;
       const current = await readVoucher(voucher);
       if (!current.caughtUp) {
-        throw new AppError(`ERPNext ${voucher.type} ${voucher.no} ledger read incomplete; no mirror row was changed`, 'external-unreachable');
+        // Too big to read in full: remove nothing, land the batch's rows, report it, move on.
+        skipped.push(`${voucher.type} ${voucher.no}`);
+        continue;
       }
       // An empty set means the voucher vanished between the two reads: remove nothing on that evidence.
-      if (current.rows.length > 0) replacements.set(key, { voucher, names: current.rows.map((r) => r.name) });
+      if (current.rows.length > 0) replacements.set(key, { voucher, rows: current.rows });
     }
   }
 
-  const plain = fresh.filter((r) => !replacements.has(voucherKey(r.voucher_type, r.voucher_no) ?? ''));
+  const plain = fresh.filter((r) => {
+    const key = voucherKey(r.voucher_type, r.voucher_no) ?? '';
+    return !replacements.has(key) && !deferred.has(key);
+  });
   if (plain.length > 0) {
     const { error } = await sc.from(table).upsert(plain.map((r) => ({ ...r, org_id: orgId })), { onConflict: MIRROR_UNIQUE_KEY });
     if (error) throw new AppError(error.message, error.code);
   }
-  for (const [key, { voucher, names }] of replacements) {
+  for (const { voucher, rows: currentRows } of replacements.values()) {
     const { data, error } = await sc.rpc(ledger.replaceRpc, {
       p_org_id: orgId, p_company: company, p_voucher_type: voucher.type, p_voucher_no: voucher.no,
-      p_rows: fresh.filter((r) => voucherKey(r.voucher_type, r.voucher_no) === key), p_current_names: names,
+      p_rows: currentRows, p_current_names: currentRows.map((r) => String(r.erp_name)),
     });
     if (error) throw new AppError(error.message, error.code);
     if ((data as { stale_binding?: unknown } | null)?.stale_binding === true) {
       throw new AppError('Ledger voucher replace refused: stale binding changed during the feed', 'config-rejected');
     }
   }
-  return fresh.length;
+  return { fed: fresh.length, holdAt, skipped };
 }
 
 function maxModified(rows: Array<{ modified: string }>): string | null {
