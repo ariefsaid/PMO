@@ -6,16 +6,16 @@ function project(
   overrides: Partial<PipelineProject> & Pick<PipelineProject, 'id' | 'name' | 'status'>,
 ): PipelineProject {
   return {
+    ...overrides,
     id: overrides.id,
     name: overrides.name,
-    short_name: null,
-    client_name: null,
+    short_name: overrides.short_name ?? null,
+    client_name: overrides.client_name ?? null,
     status: overrides.status,
-    contract_value: 100,
-    currency: 'USD',
-    tax_treatment: null,
-    win_probability: 0.5,
-    ...overrides,
+    contract_value: overrides.contract_value ?? 100,
+    currency: overrides.currency ?? 'USD',
+    tax_treatment: overrides.tax_treatment ?? null,
+    win_probability: overrides.win_probability ?? 0.5,
   };
 }
 

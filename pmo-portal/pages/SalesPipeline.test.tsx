@@ -8,6 +8,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
 import { formatCurrency } from '@/src/lib/format';
+import type { PipelineProject } from '@/src/lib/db/dashboard';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
@@ -20,13 +21,13 @@ const seedStages = [
   { status: 'Tender Submitted', count: 1, total_value: 1200000, win_probability: 0.5, weighted_value: 600000 },
   { status: 'Negotiation', count: 0, total_value: 0, win_probability: 0.75, weighted_value: 0 },
 ];
-const seedProjects = [
-  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', win_probability: 0.5 },
-  { id: 'p10', name: 'Regional Services', short_name: null as string | null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', win_probability: 0.25 },
+const seedProjects: PipelineProject[] = [
+  { id: 'p2', name: 'Northwind ERP Rollout', short_name: null as string | null, client_name: 'Northwind', pmo_project_number: 'PMO-26-7712', code: 'CLIENT-82', status: 'Tender Submitted', contract_value: 1200000, currency: 'USD', tax_treatment: null, win_probability: 0.5 },
+  { id: 'p10', name: 'Regional Services', short_name: null as string | null, client_name: null, status: 'PQ Submitted', contract_value: 800000, currency: 'USD', tax_treatment: null, win_probability: 0.25 },
   // #530 / FR-L10N-020: mixed-currency pair for the table regression — each row shows its OWN
   // currency, not the USD org default (a single-currency fixture set could hide a hardcoded literal).
-  { id: 'idr1', name: 'IDR Deal', short_name: null as string | null, client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', win_probability: 0.5 },
-  { id: 'usd1', name: 'USD Deal', short_name: null as string | null, client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', win_probability: 0.5 },
+  { id: 'idr1', name: 'IDR Deal', short_name: null as string | null, client_name: 'Garuda', status: 'Tender Submitted', contract_value: 1234, currency: 'IDR', tax_treatment: null, win_probability: 0.5 },
+  { id: 'usd1', name: 'USD Deal', short_name: null as string | null, client_name: 'Acme Corp', status: 'Tender Submitted', contract_value: 9000, currency: 'USD', tax_treatment: null, win_probability: 0.5 },
 ];
 
 const pipelineState: {
@@ -352,6 +353,63 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
     // block below), so it resets to Open on this same switch rather than surviving untouched.
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
     expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+  });
+});
+
+describe('SalesPipeline recomposed working set — AC-SALES-C01', () => {
+  it('AC-SALES-C01: Stage narrows the visible rows and choosing a stage returns to Open', async () => {
+    const user = userEvent.setup();
+    lostState.data = [
+      { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
+    ];
+    renderPage('/sales?scope=Lost&sort=activity-newest');
+
+    const scope = screen.getByRole('combobox', { name: 'Project scope' });
+    expect(scope).toHaveValue('Lost');
+    const stage = screen.getByRole('combobox', { name: 'Stage' });
+    expect(stage).toBeDisabled();
+    expect(screen.getByText(/Stage applies to open projects/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(scope).toHaveValue('Lost');
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
+
+    await user.selectOptions(scope, 'Needs attention');
+    await user.selectOptions(stage, 'PQ Submitted');
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Open');
+      expect(screen.getByText('Regional Services')).toBeInTheDocument();
+      expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
+      const params = new URLSearchParams(screen.getByTestId('location-probe').dataset.search ?? '');
+      expect(params.get('scope')).toBeNull();
+      expect(params.get('status')).toBe('PQ Submitted');
+      expect(params.get('sort')).toBe('activity-newest');
+    });
+  });
+
+  it('AC-SALES-C03: sorts unavailable activity first and preserves the choice in the URL', async () => {
+    const user = userEvent.setup();
+    pipelineState.data = {
+      stages: seedStages,
+      projects: [
+        { ...seedProjects[0], id: 'newer', name: 'Newest record', last_update: '2026-10-24T12:00:00.000Z' },
+        { ...seedProjects[1], id: 'unknown', name: 'Unknown activity', last_update: undefined },
+        { ...seedProjects[2], id: 'older', name: 'Oldest record', last_update: '2026-10-01T12:00:00.000Z' },
+      ],
+    };
+    renderPage();
+    await user.click(screen.getByRole('tab', { name: /^Table$/i }));
+    const table = screen.getByRole('table', { name: 'Sales projects' });
+    const names = within(table).getAllByRole('link', { name: /record|activity/i }).map((link) => link.textContent?.trim());
+    expect(names).toEqual(['Unknown activity', 'Oldest record', 'Newest record']);
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort' }), 'activity-newest');
+    await waitFor(() => {
+      const sortedNames = within(screen.getByRole('table', { name: 'Sales projects' })).getAllByRole('link', { name: /record|activity/i }).map((link) => link.textContent?.trim());
+      expect(sortedNames).toEqual(['Unknown activity', 'Newest record', 'Oldest record']);
+      expect(new URLSearchParams(screen.getByTestId('location-probe').dataset.search ?? '').get('sort')).toBe('activity-newest');
+    });
   });
 });
 
