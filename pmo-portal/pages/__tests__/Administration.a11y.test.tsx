@@ -166,7 +166,8 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
           expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
           break;
         case 'accounting':
-          expect(screen.getByTestId('org-tax-default-select')).toBeInTheDocument();
+          expect(screen.getByRole('navigation', { name: 'Accounting tasks' })).toBeInTheDocument();
+          expect(screen.getByRole('link', { name: 'Posting accounts' })).toHaveAttribute('aria-current', 'page');
           expect(container.querySelector('#budget-account-map')).not.toBeNull();
           break;
         case 'credits':

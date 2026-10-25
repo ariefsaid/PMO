@@ -89,8 +89,8 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
     // No switch controls for an org-Admin (state is shown as a pill, not a control).
     expect(screen.queryByRole('switch')).toBeNull();
     // The features are listed as text (label present).
-    expect(screen.getByText(/incidents/i)).toBeInTheDocument();
-    expect(screen.getByText(/crm/i)).toBeInTheDocument();
+    expect(screen.getByText('Incidents', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('CRM (Sales Pipeline, Companies, Contacts)', { exact: true })).toBeInTheDocument();
   });
 
   it('AC-ENT-004: the Operator sees real role="switch" toggles', () => {
@@ -177,7 +177,7 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
         key: 'incidents',
         enabled: true,
       });
-      expect(screen.getByRole('status')).toHaveTextContent('Saved');
+      expect(screen.getByText('Saved', { exact: true })).toBeInTheDocument();
     });
   });
 
