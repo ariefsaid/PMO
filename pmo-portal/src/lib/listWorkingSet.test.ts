@@ -42,6 +42,8 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('procurement', '')).toEqual({
       status: 'All',
       statusMode: 'group',
+      project: 'All',
+      sort: 'default',
       q: '',
       view: 'table',
     });
@@ -125,6 +127,18 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('meetings', `?project=${PROJECT_ID}`).project).toBe(PROJECT_ID);
   });
 
+  it('AC-LRC-001: preserves Procurement project and sort controls in the copied URL', () => {
+    const source = `?project=${PROJECT_ID}&sort=reverse&status=Needs+approval&q=invoice&view=table`;
+    const parsed = parseListWorkingSet('procurement', source);
+    expect(parsed).toMatchObject({ project: PROJECT_ID, sort: 'reverse', status: 'Needs approval', q: 'invoice' });
+    expect(serializeListWorkingSet('procurement', source, parsed).toString()).toBe(
+      `project=${PROJECT_ID}&sort=reverse&status=Needs+approval&q=invoice&view=table`,
+    );
+    expect(parseListWorkingSet('procurement', '?project=invalid&sort=bogus')).toMatchObject({
+      project: 'All', sort: 'default',
+    });
+  });
+
   it('AC-LRC-002: every lifecycle status stays a reachable exact drill unless a segment is identical', () => {
     for (const status of Object.values(ProcurementStatus)) {
       const source = new URLSearchParams({ status, campaign: 'fall' });
@@ -149,6 +163,8 @@ describe('list working-set URL codec', () => {
     const grouped: ProcurementWorkingSet = {
       status: 'Ordered',
       statusMode: 'group',
+      project: 'All',
+      sort: 'default',
       q: '',
       view: 'table',
     };
@@ -166,6 +182,8 @@ describe('list working-set URL codec', () => {
       const grouped: ProcurementWorkingSet = {
         status,
         statusMode: 'group',
+        project: 'All',
+        sort: 'default',
         q: 'crane',
         view: 'board',
       };
@@ -483,7 +501,7 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet(
         'procurement',
         '',
-        { status: 'All', statusMode: 'group', q: '', view: 'table' },
+        { status: 'All', statusMode: 'group', project: 'All', sort: 'default', q: '', view: 'table' },
         { sessionView: 'board' },
       ).get('view'),
     ).toBe('table');

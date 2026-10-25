@@ -7,6 +7,8 @@ import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
 import Procurement from './Procurement';
 
+const PROJECT_ONE = '00000000-0000-4000-8000-000000000001';
+const PROJECT_TWO = '00000000-0000-4000-8000-000000000002';
 const seed = [
   {
     id: 'pc1',
@@ -15,7 +17,7 @@ const seed = [
     status: 'Vendor Quoted',
     total_value: 150000,
     currency: 'USD',
-    project_id: 'pr1',
+    project_id: PROJECT_ONE,
     requested_by_id: 'u-alice',
     vendor_id: null,
     created_at: '2026-02-05T00:00:00Z',
@@ -30,7 +32,7 @@ const seed = [
     status: 'Paid',
     total_value: 518000,
     currency: 'USD',
-    project_id: 'pr2',
+    project_id: PROJECT_TWO,
     requested_by_id: 'u-bob',
     vendor_id: null,
     created_at: '2026-01-20T00:00:00Z',
@@ -46,7 +48,10 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState
 // Project/vendor picker options are cached hooks; stub them so the index test
 // needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [] }),
+  useProjectOptions: () => ({ data: [
+    { value: '00000000-0000-4000-8000-000000000001', label: 'Innovate Corp HQ Fit-Out' },
+    { value: '00000000-0000-4000-8000-000000000002', label: 'Skyline Bridge' },
+  ] }),
   useVendorOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
@@ -92,7 +97,7 @@ describe('Procurement index — IA-3 (real data)', () => {
   it('renders seeded requests with joined project name (AC-501)', () => {
     renderPage();
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
-    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });
 
   it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
@@ -112,18 +117,24 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
   });
 
-  it('AC-S19-002: status, search, and create stay ahead of accessible More transfer tools', async () => {
+  it('AC-806: collection order is search, filters, sort, view, More, then Raise request', async () => {
     renderPage();
     const create = screen.getByRole('button', { name: /raise request/i });
     const filter = screen.getByRole('tab', { name: /^All$/ });
     const search = screen.getByLabelText(/filter requests/i);
+    const project = screen.getByLabelText('Project');
+    const sort = screen.getByRole('button', { name: /Sort requests:/i });
+    const view = screen.getByRole('tab', { name: 'Board' });
     const more = screen.getByRole('button', { name: 'More' });
     const follows = (first: HTMLElement, second: HTMLElement) =>
       Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    expect(follows(create, filter)).toBe(true);
-    expect(follows(filter, search)).toBe(true);
-    expect(follows(search, more)).toBe(true);
+    expect(follows(search, filter)).toBe(true);
+    expect(follows(filter, project)).toBe(true);
+    expect(follows(project, sort)).toBe(true);
+    expect(follows(sort, view)).toBe(true);
+    expect(follows(view, more)).toBe(true);
+    expect(follows(more, create)).toBe(true);
     expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
 
     await userEvent.click(more);
@@ -209,6 +220,32 @@ describe('Procurement index — IA-3 (real data)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Paid$/ }));
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
+  });
+
+  it('project and reversed sort are carried in the URL working set', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText('Project'), PROJECT_ONE);
+    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    expect(screen.queryByText('Crane hire — 6 weeks')).not.toBeInTheDocument();
+    expect(screen.getByTestId('route-path')).toHaveTextContent(`project=${PROJECT_ONE}`);
+
+    await userEvent.click(screen.getByRole('button', { name: /Sort requests:/i }));
+    expect(screen.getByTestId('route-path')).toHaveTextContent('sort=reverse');
+    expect(screen.getByRole('button', { name: /Sort requests: Oldest requests/i })).toBeInTheDocument();
+  });
+
+  it('needs-approval defaults to oldest requests and the sort control reverses it', async () => {
+    procState.data = [
+      { ...seed[0], id: 'older', title: 'Older request', status: 'Requested', created_at: '2026-01-01T00:00:00Z' },
+      { ...seed[0], id: 'newer', title: 'Newer request', status: 'Requested', created_at: '2026-02-01T00:00:00Z' },
+    ];
+    renderPage('/procurement?status=Needs+approval');
+    const previews = screen.getAllByRole('button', { name: /Show preview for/i });
+    expect(previews[0]).toHaveAccessibleName('Show preview for Older request');
+    expect(screen.getByRole('button', { name: /Sort requests: Oldest requests/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /Sort requests:/i }));
+    expect(screen.getAllByRole('button', { name: /Show preview for/i })[0]).toHaveAccessibleName('Show preview for Newer request');
   });
 
   it('switching to the Board view groups requests into stage columns', async () => {

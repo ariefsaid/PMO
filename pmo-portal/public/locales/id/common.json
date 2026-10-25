@@ -1851,6 +1851,13 @@
       "paid": "Lunas",
       "vendorInvoiced": "Invoice diterima"
     },
+    "projectFilter": "Proyek",
+    "projectFilterAll": "Semua proyek",
+    "sort": {
+      "toggle": "Urutkan permintaan: {{order}}",
+      "newest": "Permintaan terbaru",
+      "oldest": "Permintaan terlama"
+    },
     "importCycleData": "Impor data siklus",
     "lifecycleLabel": "Siklus",
     "listLabel": "Permintaan pengadaan",

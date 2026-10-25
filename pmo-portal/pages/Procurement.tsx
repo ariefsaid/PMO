@@ -1,9 +1,9 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  ListPage,
   SearchMini,
   ViewToggle,
+  SelectField,
   ListState,
   StatusPill,
   LifecycleStepper,
@@ -37,8 +37,8 @@ import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorking
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useHasErpPurchases } from '@/src/hooks/useErpPurchases';
 import { Link } from 'react-router';
-import { parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
+import { MoneyOutListPage } from './procurement/MoneyOutHeader';
 
 /** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
  *  + the B-2 "Needs approval" segment for Finance/PM).
@@ -218,8 +218,11 @@ const ProcurementPage: React.FC = () => {
   // View-local filters (OD-7 search by title+code+record external refs; status SegFilter). Newest first.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const approvalsDefault = workingSet.statusMode === 'group' && workingSet.status === 'Needs approval';
+    const oldestFirst = approvalsDefault !== (workingSet.sort === 'reverse');
     return all
       .filter((p) => matchesWorkingSetStatus(p.status as string, workingSet))
+      .filter((p) => workingSet.project === 'All' || p.project_id === workingSet.project)
       .filter(
         (p) =>
           !q ||
@@ -228,7 +231,9 @@ const ProcurementPage: React.FC = () => {
           // #769 AC-EXT-001: a record's external reference finds its case.
           externalRefsOf(p).some((ref) => ref.toLowerCase().includes(q)),
       )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => oldestFirst
+        ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [all, search, workingSet]);
 
   // Board view opens a PR from a card-shaped surface; the table view's row click lives
@@ -338,7 +343,7 @@ const ProcurementPage: React.FC = () => {
   // filtered zero-match — clearing status + search is always safe.
   const clearListFilters = () => {
     setSearch('');
-    setWorkingSet(() => parseListWorkingSet('procurement', '', { sessionView: readProcurementView() }));
+    setWorkingSet((ws) => ({ ...ws, status: 'All', statusMode: 'group', project: 'All', q: '' }));
   };
 
   // The SegFilter only ever highlights a GROUP-mode segment; an exact lifecycle-status drill
@@ -348,13 +353,13 @@ const ProcurementPage: React.FC = () => {
     workingSet.statusMode === 'group' ? (workingSet.status as StatusFilter) : ('' as StatusFilter);
 
   return (
-    <ListPage
+    <MoneyOutListPage
       title={
         ownScoped
           ? t('procurement.title.ownScoped', 'Your purchase requests')
           : t('procurement.title.orgWide', 'Procurement')
       }
-      description={
+      scope={
         ownScoped
           ? t('uxs19.pageDescriptionOwnScoped', 'Track the requests you raised from approval through payment.')
           : (
@@ -371,17 +376,19 @@ const ProcurementPage: React.FC = () => {
             </>
           )
       }
-      primaryAction={
-        canCreate && (
-          <Button variant="primary" onClick={() => navigate('/procurement/new')}>
-            <Icon name="plus" />
-            {t('procurement.raiseRequest', 'Raise request')}
-          </Button>
-        )
-      }
       filters={
         state !== 'loading' && (
-          <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+          <div data-testid="money-out-toolbar" className="flex w-full min-w-0 flex-wrap items-center gap-2">
+            <SearchMini
+              placeholder={t('procurement.search.placeholder', 'Filter requests or references…')}
+              aria-label={t('procurement.search.label', 'Filter requests')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              searchSurface="procurement-list"
+              module="procurement"
+              resultCount={filtered.length}
+              containerClassName="min-w-0 flex-[1_1_14rem]"
+            />
             {/* AC-2 / AC-MOBILE-OVERFLOW-001: scrollable AND width-bounded so the tab
                 strip ("Vendor Invoiced" etc.) scrolls WITHIN the viewport instead of
                 bleeding off-screen at 390px. The parent needs `w-full min-w-0` or the
@@ -398,68 +405,71 @@ const ProcurementPage: React.FC = () => {
                 ariaLabel={t('procurement.statusFilterLabel', 'Status filter')}
               />
             </div>
-            {/* CW-6: the "Needs approval" segment is the toolbar's single approvals doorway.
-                The extra "See all approvals" link was removed to avoid three parallel entries
-                to the same workstream on compact widths. */}
-          </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('procurement.search.placeholder', 'Filter requests or references…')}
-            aria-label={t('procurement.search.label', 'Filter requests')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            searchSurface="procurement-list"
-            module="procurement"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
-          />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <MobileToolbarDisclosure
-            label={t('uxs19.more', 'More')}
-            className="relative shrink-0"
-            panelClassName="absolute right-0 top-full z-30 mt-1 flex w-auto min-w-48 flex-col gap-1 bg-popover p-2 text-popover-foreground shadow-md"
-          >
-            <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="w-full justify-start" />
-            {userId && (
-              <>
-                {/* ADR-0027: import remains gated by ImportButton's create permission check. */}
-                <ImportButton
-                  entity="procurement"
-                  descriptor={importDescriptor}
-                  onImported={() => void refetch()}
-                  className="w-full justify-start"
-                />
-                {/* ADR-0035: cycle import retains the page's existing create gate. */}
-                {canCreate && (
-                  <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start">
-                    <Icon name="upload" />
-                    {t('procurement.importCycleData', 'Import cycle data')}
-                  </Button>
+            <SelectField
+              label={t('procurement.projectFilter', 'Project')}
+              hideLabel
+              value={workingSet.project}
+              onChange={(project) => setWorkingSet((ws) => ({ ...ws, project }))}
+              options={[
+                { value: 'All', label: t('procurement.projectFilterAll', 'All projects') },
+                ...projectOptions.map((option) => ({ value: option.value, label: option.label })),
+              ]}
+              className="min-h-11 min-w-40 max-w-full"
+            />
+            <Button
+              variant="outline"
+              className="min-h-11"
+              aria-label={t('procurement.sort.toggle', 'Sort requests: {{order}}', {
+                order: (workingSet.sort === 'reverse') !== (workingSet.statusMode === 'group' && workingSet.status === 'Needs approval')
+                  ? t('procurement.sort.oldest', 'Oldest requests')
+                  : t('procurement.sort.newest', 'Newest requests'),
+              })}
+              onClick={() => setWorkingSet((ws) => ({ ...ws, sort: ws.sort === 'default' ? 'reverse' : 'default' }))}
+            >
+              {(workingSet.sort === 'reverse') !== (workingSet.statusMode === 'group' && workingSet.status === 'Needs approval')
+                ? t('procurement.sort.oldest', 'Oldest requests')
+                : t('procurement.sort.newest', 'Newest requests')}
+            </Button>
+            <ViewToggle<'table' | 'board'>
+              options={[
+                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
+                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
+              ]}
+              value={view}
+              onChange={onViewChange}
+              ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
+            />
+            <MobileToolbarDisclosure
+              label={t('uxs19.more', 'More')}
+              className="shrink-0"
+            >
+              <div className="flex min-w-48 flex-col gap-1">
+                <ExportButton rows={filtered} columns={exportColumns} entity="Procurement" className="min-h-11 w-full justify-start" />
+                {userId && (
+                  <>
+                    <ImportButton
+                      entity="procurement"
+                      descriptor={importDescriptor}
+                      onImported={() => void refetch()}
+                      className="min-h-11 w-full justify-start"
+                    />
+                    {canCreate && (
+                      <Button variant="outline" onClick={() => setShowCycleImport(true)} className="min-h-11 w-full justify-start">
+                        <Icon name="upload" />
+                        {t('procurement.importCycleData', 'Import cycle data')}
+                      </Button>
+                    )}
+                  </>
                 )}
-              </>
+              </div>
+            </MobileToolbarDisclosure>
+            {canCreate && (
+              <Button variant="primary" className="min-h-11 sm:ml-auto" onClick={() => navigate('/procurement/new')}>
+                <Icon name="plus" />
+                {t('procurement.raiseRequest', 'Raise request')}
+              </Button>
             )}
-          </MobileToolbarDisclosure>
-        )
-      }
-      view={
-        state !== 'loading' && (
-          /* #715: the Table/Board switch stays reachable on phones (it drives the URL-owned view),
-             so a phone user is never stuck in the last-used view. Supersedes A-MIN-1. */
-          <ViewToggle<'table' | 'board'>
-            options={[
-              { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
-              { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('procurement.viewToggleLabel', 'Procurement view')}
-          />
+          </div>
         )
       }
     >
@@ -495,11 +505,6 @@ const ProcurementPage: React.FC = () => {
           stateId="procurement-empty"
           role={realRole ?? undefined}
           module="procurement"
-          action={
-            canCreate
-              ? { label: t('procurement.raiseRequest', 'Raise request'), onClick: () => navigate('/procurement/new') }
-              : undefined
-          }
         />
       )}
 
@@ -559,7 +564,7 @@ const ProcurementPage: React.FC = () => {
           }}
         />
       )}
-    </ListPage>
+    </MoneyOutListPage>
   );
 };
 

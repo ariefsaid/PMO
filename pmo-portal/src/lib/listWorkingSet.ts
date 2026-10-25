@@ -55,6 +55,10 @@ export interface ProcurementWorkingSet {
   status: ProcurementFilterStatus | ProcurementRecordStatus;
   /** Exact lifecycle status from a dashboard drill, or a broader existing list segment. */
   statusMode: ProcurementStatusMode;
+  /** Project id or the unfiltered `All` sentinel. */
+  project: string;
+  /** The visible default order, or its reversal. */
+  sort: 'default' | 'reverse';
   q: string;
   view: ProcurementView;
 }
@@ -402,6 +406,8 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       const status = procurementStatusValue(params);
       return {
         ...status,
+        project: referenceValue(params.get('project')),
+        sort: enumValue(params.get('sort'), ['default', 'reverse'] as const, 'default'),
         q: searchValue(params),
         view: viewValue(params, 'procurement', options.sessionView),
       };
@@ -419,6 +425,8 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
           putParam(params, 'status', value.status, 'All');
         }
       }
+      putParam(params, 'project', value.project, 'All');
+      putParam(params, 'sort', value.sort, 'default');
       putParam(params, 'q', value.q);
       putView(params, 'procurement', value.view, options.sessionView);
       return params;

@@ -1851,6 +1851,13 @@
       "paid": "Paid",
       "vendorInvoiced": "Vendor invoiced"
     },
+    "projectFilter": "Project",
+    "projectFilterAll": "All projects",
+    "sort": {
+      "toggle": "Sort requests: {{order}}",
+      "newest": "Newest requests",
+      "oldest": "Oldest requests"
+    },
     "importCycleData": "Import cycle data",
     "lifecycleLabel": "Lifecycle",
     "listLabel": "Procurement requests",
