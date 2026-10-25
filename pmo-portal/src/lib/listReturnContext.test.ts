@@ -112,6 +112,7 @@ describe('validated list return context', () => {
     expect(listIndexPath('companies')).toBe('/companies');
     expect(listIndexPath('contacts')).toBe('/contacts');
     expect(listIndexPath('meetings')).toBe('/meetings');
+    expect(listIndexPath('views')).toBe('/views');
   });
 
   it('AC-LRC-010: absent, tampered, or external state falls back to the owning index', () => {
@@ -266,6 +267,7 @@ describe('validated list return context', () => {
     expect(listReturnOwnerForPathname('/projects/project-1/budget')).toBe('projects');
     expect(listReturnOwnerForPathname('/procurement/request-1/approvals')).toBe('procurement');
     expect(listReturnOwnerForPathname('/companies/company-1')).toBe('companies');
+    expect(listReturnOwnerForPathname('/views/view-1')).toBe('views');
     expect(listReturnOwnerForPathname('/companies-archive/company-1')).toBeUndefined();
     expect(listReturnOwnerForPathname('/projects')).toBeUndefined();
   });
@@ -276,6 +278,8 @@ describe('validated list return context', () => {
     expect(isCanonicalRecordPath('/procurement/request-1', 'procurement')).toBe(true);
     expect(isCanonicalRecordPath('/procurement/request-1/approvals', 'procurement')).toBe(false);
     expect(isCanonicalRecordPath('/companies/company-1', 'contacts')).toBe(false);
+    expect(isCanonicalRecordPath('/views/view-1', 'views')).toBe(true);
+    expect(isCanonicalRecordPath('/views/view-1/edit', 'views')).toBe(false);
     expect(isCanonicalRecordPath('/sales/project-1', 'projects')).toBe(false);
   });
 

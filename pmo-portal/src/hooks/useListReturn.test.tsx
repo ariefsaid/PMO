@@ -94,6 +94,16 @@ function CompanyDetail() {
   );
 }
 
+function ViewsList() {
+  const { openRecord } = useListReturn({ list: 'views', contentReady: true });
+  return <button type="button" onClick={() => openRecord('/views/view-1')}>Open saved view</button>;
+}
+
+function SavedViewDetail() {
+  const { returnToList } = useListReturn({ list: 'views' });
+  return <button type="button" onClick={() => returnToList()}>Return to saved views</button>;
+}
+
 function SalesPipelinePage() {
   const location = useLocation();
   const [ready, setReady] = useState(!location.state?.pmoListScrollRestore);
@@ -132,6 +142,8 @@ function AppRoutes({ shell = true }: { shell?: boolean }) {
     <Routes>
       <Route path="/companies" element={<CompaniesList />} />
       <Route path="/companies/:id" element={<CompanyDetail />} />
+      <Route path="/views" element={<ViewsList />} />
+      <Route path="/views/:id" element={<SavedViewDetail />} />
     </Routes>
   );
   return shell ? (
@@ -185,6 +197,23 @@ describe('useReturnNavigate', () => {
 });
 
 describe('useListReturn', () => {
+  it('AC-WORK-V-05: saved-view return restores the filtered URL and scroll position', async () => {
+    renderAt('/views?sort=name-desc&q=hours');
+    const main = sizeMainScroll();
+    expect(main).not.toBeUndefined();
+    main!.scrollTop = 240;
+    fireEvent.click(screen.getByRole('button', { name: 'Open saved view' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/views/view-1');
+    fireEvent.click(screen.getByRole('button', { name: 'Return to saved views' }));
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/views?sort=name-desc&q=hours');
+    const state = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toEqual({
+      list: 'views',
+      path: '/views?sort=name-desc&q=hours',
+      scrollTop: 240,
+    });
+  });
+
   it('SH-2: restores focus to the originating row activation control after the list is ready', async () => {
     renderAt('/companies');
     const trigger = screen.getByRole('button', { name: 'Open company' });

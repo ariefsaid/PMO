@@ -34,6 +34,7 @@ const RECORD_PATHS: Partial<Record<ListName, RegExp>> = {
   companies: /^\/companies\/[^/]+$/u,
   contacts: /^\/contacts\/[^/]+$/u,
   meetings: /^\/meetings\/[^/]+$/u,
+  views: /^\/views\/[^/]+$/u,
 };
 
 const LIST_PATHS: Record<ListName, string> = {
@@ -43,6 +44,7 @@ const LIST_PATHS: Record<ListName, string> = {
   companies: '/companies',
   contacts: '/contacts',
   meetings: '/meetings',
+  views: '/views',
 };
 
 const MAX_RETURN_PATH_LENGTH = 4096;

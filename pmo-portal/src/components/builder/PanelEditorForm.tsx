@@ -319,7 +319,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
       width="lg"
       errorSummary={error ? [{ fieldId: 'panel-error', message: error }] : undefined}
     >
-      <FormGrid>
+      <FormGrid className="[&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11">
         {/* Primitive selector */}
         <SelectField
           label={t('viewBuilder.primitive', 'Primitive')}
@@ -350,7 +350,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
           <FormSection legend={t('viewBuilder.selectColumnsRequired', 'Select columns *')} className="col-span-full">
             <fieldset aria-label={t('viewBuilder.selectColumns', 'Select columns')} className="flex flex-wrap gap-2 border-0 p-0 m-0">
               {allCols.map((col) => (
-                <label key={col} className="flex cursor-pointer items-center gap-1.5 text-[13px]">
+                <label key={col} className="flex min-h-11 cursor-pointer items-center gap-2 px-2 text-[13px]">
                   <input
                     type="checkbox"
                     checked={form.selectedColumns.includes(col)}
@@ -393,7 +393,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
                   type="button"
                   aria-label={t('viewBuilder.removeFilter', 'Remove filter')}
                   onClick={() => removeFilter(idx)}
-                  className="self-end pb-0.5 text-[12px] text-destructive hover:underline"
+                  className="min-h-11 self-end px-3 text-[12px] text-destructive hover:underline"
                 >
                   {t('viewBuilder.remove', 'Remove')}
                 </button>
@@ -408,7 +408,7 @@ export const PanelEditorForm: React.FC<PanelEditorFormProps> = ({
               type="button"
               aria-label={t('viewBuilder.addFilter', 'Add filter')}
               onClick={addFilter}
-              className="text-[12px] font-medium text-primary-text hover:underline"
+              className="min-h-11 px-3 text-[12px] font-medium text-primary-text hover:underline"
             >
               {t('viewBuilder.addFilter', '+ Add filter')}
             </button>

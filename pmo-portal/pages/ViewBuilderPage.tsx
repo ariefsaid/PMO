@@ -38,6 +38,7 @@ import {
 import { useUserView, useUserViewMutations } from '@/src/hooks/useUserViews';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { ValidationError } from '@/src/lib/viewspec/types';
 import { MAX_PANELS_PER_VIEW } from '@/src/lib/viewspec/types';
@@ -55,6 +56,17 @@ export interface ViewBuilderPageProps {
   __testPanels?: PanelSpec[];
 }
 
+/** Kept local so the shared shell frame can replace this small heading adapter cleanly. */
+const BuilderPageIntro: React.FC<{ title: string; scope?: string; aiDraft?: boolean; aiDraftLabel?: string }> = ({ title, scope, aiDraft, aiDraftLabel }) => (
+  <header className="mb-5 flex flex-col gap-1">
+    <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+    {scope && <p className="text-sm text-muted-foreground">{scope}</p>}
+    <div aria-live="polite" aria-atomic="true" className="min-h-5">
+      {aiDraft && <p className="text-sm font-medium text-warning-foreground">{aiDraftLabel}</p>}
+    </div>
+  </header>
+);
+
 const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,6 +75,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   const viewId = mode === 'edit' ? (params.viewId ?? '') : undefined;
 
   const { currentUser } = useAuth();
+  const realRole = useOptionalRealRole();
   const { toast } = useToast();
   const { create, update } = useUserViewMutations();
 
@@ -209,7 +222,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     setPanels(composedSpec.panels);
     setAIDraft(true);
     setAIComposerOpen(false);
-    toast('View composed', 'Review and save when ready', 'success');
+    toast(t('viewBuilder.composedToast', 'View composed'), t('viewBuilder.composedToastDetail', 'Review and save when ready'), 'success');
   };
 
   // ── Compile-before-save + save (FR-VB-040/041) ───────────────────────────
@@ -247,12 +260,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       if (mode === 'create') {
         const row = await create.mutateAsync(input);
         setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
-        toast('View created', name, 'success');
+        toast(t('viewBuilder.createdToast', 'View created'), name, 'success');
         navigate(`/views/${row.id}`);
       } else if (mode === 'edit' && viewId) {
         await update.mutateAsync({ id: viewId, input });
         setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
-        toast('View updated', name, 'success');
+        toast(t('viewBuilder.updatedToast', 'View updated'), name, 'success');
         navigate(`/views/${viewId}`);
       }
     } catch (err) {
@@ -271,86 +284,74 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   // ── Edit-mode guard states (FR-VB-071/072) ───────────────────────────────
   if (mode === 'edit' && viewLoading) {
     return (
-      <div className="flex flex-col gap-4 p-6" aria-busy="true">
-        <div aria-hidden className="skel h-7 w-2/5 rounded" />
-        <div aria-hidden className="skel h-5 w-3/5 rounded" />
+      <div className="mx-auto max-w-5xl px-4 py-6" aria-busy="true">
+        <BuilderPageIntro title={t('viewBuilder.editView', 'Edit view')} />
+        <div className="flex flex-col gap-4">
+          <div aria-hidden className="skel h-7 w-2/5 rounded" />
+          <div aria-hidden className="skel h-5 w-3/5 rounded" />
+        </div>
       </div>
     );
   }
 
   if (mode === 'edit' && !viewLoading && (!existingView || existingView.archived_at !== null)) {
     return (
-      <ListState
-        variant="empty"
-        title={t('viewBuilder.viewNotFound', 'View not found.')}
-        sub={t('viewBuilder.viewNotFoundDescription', "This view may have been archived or you don't have access.")}
-        action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
-      />
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <BuilderPageIntro title={t('viewBuilder.viewNotFound', 'View not found')} />
+        <ListState
+          variant="empty"
+          title={t('viewBuilder.viewNotFound', 'View not found.')}
+          sub={t('viewBuilder.viewNotFoundDescription', "This view may have been archived or you don't have access.")}
+          action={{ label: t('viewBuilder.goToMyViews', 'Go to saved views'), onClick: () => navigate('/views') }}
+        />
+      </div>
+    );
+  }
+
+  const canManageExisting = Boolean(
+    existingView && (existingView.user_id === currentUser?.id || realRole === 'Admin'),
+  );
+  if (mode === 'edit' && existingView && !canManageExisting) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <BuilderPageIntro title={t('viewBuilder.editUnavailable', 'View is read-only')} />
+        <ListState
+          variant="empty"
+          title={t('viewBuilder.editUnavailable', 'View is read-only')}
+          sub={t('viewBuilder.editUnavailableDescription', 'Only the owner or an administrator can edit this saved view.')}
+          action={{ label: t('viewBuilder.goToMyViews', 'Go to saved views'), onClick: () => navigate('/views') }}
+        />
+      </div>
     );
   }
 
   const pageTitle = mode === 'create'
-    ? t('viewBuilder.newView', 'New View')
-    : t('viewBuilder.editView', 'Edit: {{name}}', { name: existingView?.name ?? '' });
+    ? t('viewBuilder.newView', 'New view')
+    : existingView?.name ?? t('viewBuilder.editView', 'Edit view');
+  const currentScope = scope === 'shared_org'
+    ? t('viewBuilder.sharedScope', 'Shared with your organisation')
+    : t('viewBuilder.privateScope', 'Private — only you');
+  const leaveBuilder = () => {
+    if (isDirty) setShowDiscardDialog(true);
+    else navigate(mode === 'edit' && viewId ? `/views/${viewId}` : '/views');
+  };
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6">
-      {/* Page header */}
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">{pageTitle}</h1>
-          {/* AI-composed draft indicator (AC-AS-015, NFR-AS-A11Y-004) */}
-          <div aria-live="polite" aria-atomic="true" className="min-h-[1.25rem]">
-            {aiDraft && (
-              <span className="text-[12px] font-medium text-warning-foreground">
-                {t('viewBuilder.aiDraftReview', 'AI-composed draft — review before saving')}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {/* Compose with AI button (FR-AS-014, AC-AS-011/012) — hidden when flags off */}
-          {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
-            <Button
-              variant="outline"
-              onClick={() => setAIComposerOpen(true)}
-              aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            >
-              {t('viewBuilder.composeWithAi', 'Compose view with AI')}
-            </Button>
-          )}
-          <Button
-            variant="ghost"
-            onClick={() => {
-              if (isDirty) setShowDiscardDialog(true);
-              else navigate('/views');
-            }}
-          >
-            {t('viewBuilder.cancel', 'Cancel')}
-          </Button>
-          <Button
-            variant="primary"
-            disabled={saveDisabled}
-            aria-disabled={saveDisabled}
-            onClick={handleSave}
-          >
-            {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
-          </Button>
-        </div>
+    <div className="mx-auto max-w-5xl px-4 py-6 [&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11">
+      <div className="mb-3">
+        <Button variant="ghost" className="min-h-11 px-2" onClick={leaveBuilder}>
+          {t('viewBuilder.backToViews', 'Back to saved views')}
+        </Button>
       </div>
-
-      {/* Save error banner */}
-      {saveError && (
-        <div
-          role="alert"
-          className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px] text-destructive-text"
-        >
-          {saveError}
-        </div>
-      )}
+      <BuilderPageIntro
+        title={pageTitle}
+        scope={mode === 'edit' ? currentScope : undefined}
+        aiDraft={aiDraft}
+        aiDraftLabel={t('viewBuilder.aiDraftReview', 'AI-composed draft — review before saving')}
+      />
 
       {/* Metadata section */}
-      <FormSection legend={t('viewBuilder.viewDetails', 'View details')}>
+      <FormSection legend={t('viewBuilder.viewDetails', 'Name and visibility')}>
         <FormGrid>
           <TextField
             label={t('viewBuilder.viewName', 'View name')}
@@ -360,19 +361,33 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             onChange={setName}
             maxLength={120}
           />
-          <TextArea
-            label={t('viewBuilder.description', 'Description')}
-            value={description}
-            onChange={setDescription}
-          />
           <SelectField
             label={t('viewBuilder.scope', 'Scope')}
             value={scope}
             options={scopeOptions}
             onChange={(v) => setScope(v as 'private' | 'shared_org')}
           />
+          <TextArea
+            label={t('viewBuilder.description', 'Description')}
+            value={description}
+            onChange={setDescription}
+          />
         </FormGrid>
       </FormSection>
+
+      {isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer') && (
+        <div className="my-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => setAIComposerOpen(true)}
+            aria-label={t('viewBuilder.composeWithAi', 'Compose view with AI')}
+          >
+            {t('viewBuilder.composeWithAi', 'Compose view with AI')}
+          </Button>
+        </div>
+      )}
 
       {/* Panel editor section */}
       <FormSection legend={t('viewBuilder.panels', 'Panels')}>
@@ -391,7 +406,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         )}
 
         {panels.length < MAX_PANELS_PER_VIEW ? (
-          <Button variant="outline" onClick={handleAddPanel} className="mt-3">
+          <Button type="button" variant="outline" onClick={handleAddPanel} className="mt-3 min-h-11">
             {t('viewBuilder.addPanel', '+ Add panel')}
           </Button>
         ) : (
@@ -405,6 +420,40 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       <FormSection legend={t('viewBuilder.livePreview', 'Live preview')}>
         <ViewPreview spec={spec} />
       </FormSection>
+
+      {saveError && (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px] text-destructive-text"
+        >
+          {saveError}
+        </div>
+      )}
+
+      <div data-testid="builder-actions" className="mt-5 flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+        {saveDisabled && (
+          <p className="mr-auto self-center text-sm text-muted-foreground" role="status">
+            {nameIsEmpty
+              ? t('viewBuilder.nameRequiredToSave', 'Enter a view name to save.')
+              : noPanel
+                ? t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')
+                : t('viewBuilder.saving', 'Saving…')}
+          </p>
+        )}
+        <Button type="button" variant="ghost" className="min-h-11" onClick={leaveBuilder}>
+          {t('viewBuilder.cancel', 'Cancel')}
+        </Button>
+        <Button
+          type="button"
+          variant="primary"
+          className="min-h-11"
+          disabled={saveDisabled}
+          aria-disabled={saveDisabled}
+          onClick={handleSave}
+        >
+          {mode === 'create' ? t('viewBuilder.saveView', 'Save view') : t('viewBuilder.updateView', 'Update view')}
+        </Button>
+      </div>
 
       {/* Panel editor modal */}
       <PanelEditorForm
@@ -431,12 +480,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         open={showDiscardDialog}
         tone="destructive"
         title={t('viewBuilder.discardChangesTitle', 'Discard unsaved changes?')}
-        description={t('viewBuilder.discardChangesDescription', 'Your panel configuration and name will be lost.')}
+        description={t('viewBuilder.discardChangesDescription', 'Your view details and panel configuration will be lost.')}
         confirmLabel={t('viewBuilder.discard', 'Discard')}
         cancelLabel={t('viewBuilder.keepEditing', 'Keep editing')}
         onConfirm={() => {
           setShowDiscardDialog(false);
-          navigate('/views');
+          navigate(mode === 'edit' && viewId ? `/views/${viewId}` : '/views');
         }}
         onCancel={() => {
           setShowDiscardDialog(false);

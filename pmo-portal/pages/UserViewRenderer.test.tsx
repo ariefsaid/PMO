@@ -9,13 +9,15 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
 // ── Hoisted mocks ────────────────────────────────────────────────────────────
 
-const { mockUseUserView, mockUseAuth, mockFeatureEnabled } = vi.hoisted(() => ({
+const { mockUseUserView, mockUseAuth, mockFeatureEnabled, mockRefetch } = vi.hoisted(() => ({
   mockUseUserView: vi.fn(),
+  mockRefetch: vi.fn(),
   mockUseAuth: vi.fn(() => ({
     currentUser: { id: 'u1', org_id: 'org1' },
     role: 'Admin',
@@ -97,6 +99,7 @@ describe('UserViewRenderer — guard states', () => {
   it('AC-VR-001: renders loading skeleton while useUserView is pending', () => {
     mockUseUserView.mockReturnValue({ data: undefined, isPending: true, isError: false });
     renderRenderer();
+    expect(screen.getByRole('heading', { level: 1, name: 'Opening saved view' })).toBeInTheDocument();
     // Expect at least one ChartFrame loading state (liststate-loading testid from ListState)
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });
@@ -104,8 +107,8 @@ describe('UserViewRenderer — guard states', () => {
   it('AC-VR-002: renders not-found state when useUserView returns null', () => {
     mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: false });
     renderRenderer();
-    expect(screen.getByText(/this view was not found/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /go to dashboard/i })).toBeInTheDocument();
+    expect(screen.getByText(/view not found/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /back to saved views/i })).toBeInTheDocument();
   });
 
   it('AC-VR-003: renders not-found state when view has non-null archived_at', () => {
@@ -115,7 +118,7 @@ describe('UserViewRenderer — guard states', () => {
       isError: false,
     });
     renderRenderer();
-    expect(screen.getByText(/this view was not found/i)).toBeInTheDocument();
+    expect(screen.getByText(/view not found/i)).toBeInTheDocument();
   });
 
   it('AC-VR-004: renders spec-invalid error state when compileCompositionSpec throws', () => {
@@ -128,7 +131,7 @@ describe('UserViewRenderer — guard states', () => {
       throw new ValidationError('UNKNOWN_PRIMITIVE', 'p1');
     });
     renderRenderer();
-    expect(screen.getByText(/this view's definition is invalid/i)).toBeInTheDocument();
+    expect(screen.getByText(/saved view cannot be shown/i)).toBeInTheDocument();
     expect(screen.queryByText(/PieChart/i)).not.toBeInTheDocument(); // no partial render
   });
 
@@ -141,16 +144,20 @@ describe('UserViewRenderer — guard states', () => {
     mockCompile.mockReturnValue([]);
     renderRenderer();
     expect(screen.getByRole('heading', { name: 'Empty View' })).toBeInTheDocument();
-    expect(screen.getByText(/this view has no panels yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/this saved view has no panels yet/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit view/i })).toBeInTheDocument();
   });
 
-  it('AC-VR-019: renders page-level error state with retry when useUserView returns isError=true', () => {
-    mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true });
+  it('AC-VR-019: page-level read failure keeps a title and retries the saved-view query', async () => {
+    mockRefetch.mockReset();
+    mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true, refetch: mockRefetch });
     renderRenderer();
-    expect(screen.getByText(/could not load this view/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Saved view' })).toBeInTheDocument();
+    expect(screen.getByText(/could not load saved view/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }));
+    expect(mockRefetch).toHaveBeenCalledTimes(1);
     // Must not show not-found copy (isError should not fall through to not-found guard)
-    expect(screen.queryByText(/this view was not found/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/view not found/i)).not.toBeInTheDocument();
   });
 
   it('AC-VR-020: dev-disclosure <details> is absent when VITE_APP_ENV is "prod"', async () => {
@@ -165,7 +172,7 @@ describe('UserViewRenderer — guard states', () => {
     });
     renderRenderer();
     // The spec-invalid state should render but not expose the developer <details> block
-    expect(screen.getByText(/this view's definition is invalid/i)).toBeInTheDocument();
+    expect(screen.getByText(/saved view cannot be shown/i)).toBeInTheDocument();
     expect(document.querySelector('details')).not.toBeInTheDocument();
     vi.unstubAllEnvs();
   });
@@ -187,7 +194,7 @@ describe('UserViewRenderer — guard states', () => {
     );
     // UserViewRenderer is NOT rendered when feature is off — no loading skeleton or not-found text
     expect(screen.queryByTestId('liststate-loading')).not.toBeInTheDocument();
-    expect(screen.queryByText(/this view was not found/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/view not found/i)).not.toBeInTheDocument();
   });
 });
 
@@ -264,7 +271,7 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     });
   });
 
-  it('AC-VR-010: multi-panel layout with colSpan hint applies grid-column style', async () => {
+  it('AC-VR-010: multi-panel saved answers still load each configured panel', async () => {
     const twoPanel = [
       { ...COMPILED_KPITILE[0], id: 'p1', layout: { colSpan: 2 } },
       { ...COMPILED_KPITILE[0], id: 'p2' },
@@ -273,8 +280,8 @@ describe('UserViewRenderer — data states (AC-VR-006..010)', () => {
     mockExecute.mockResolvedValue([{ total: 99 }]);
     renderRenderer();
     await waitFor(() => {
-      const wrappers = document.querySelectorAll('[style*="grid-column: span 2"]');
-      expect(wrappers.length).toBe(1);
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      expect(screen.getAllByText('Total Contract Value')).toHaveLength(2);
     });
   });
 

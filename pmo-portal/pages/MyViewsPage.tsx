@@ -30,6 +30,7 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import AIComposerModal from '@/src/components/builder/AIComposerModal';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
 import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
 
 const MyViewsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -41,6 +42,7 @@ const MyViewsPage: React.FC = () => {
   const { currentUser } = useAuth();
   const realRole = useOptionalRealRole();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { openRecord } = useListReturn({ list: 'views', contentReady: !isPending && !isError });
 
   const [archiveTarget, setArchiveTarget] = useState<UserViewRow | null>(null);
   const [aiComposerOpen, setAIComposerOpen] = useState(false);
@@ -88,7 +90,15 @@ const MyViewsPage: React.FC = () => {
       key: 'name',
       header: t('financeCopy.name', "Name"),
       cell: (row) => (
-        <Link to={`/views/${row.id}`} className="font-medium text-foreground hover:underline">
+        <Link
+          to={`/views/${row.id}`}
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            openRecord(`/views/${row.id}`);
+          }}
+          className="font-medium text-foreground hover:underline"
+        >
           {row.name}
         </Link>
       ),
@@ -204,7 +214,6 @@ const MyViewsPage: React.FC = () => {
           rows={rows}
           rowKey={(r) => r.id}
           rowMenu={rowMenu}
-          onActivate={(row) => navigate(`/views/${row.id}`)}
           rowLabel={(row) => t('financeCopy.openSavedView', 'Open {{name}}', { name: row.name })}
           state={rows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noViewsMatch', 'No saved views match these filters')}

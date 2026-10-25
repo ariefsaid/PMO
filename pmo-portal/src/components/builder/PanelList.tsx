@@ -45,6 +45,7 @@ export const PanelList: React.FC<PanelListProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              className="min-h-11 min-w-11"
               aria-label={t('viewBuilder.movePanelUp', 'Move panel {{number}} up', { number: idx + 1 })}
               disabled={idx === 0}
               onClick={() => onMoveUp(idx)}
@@ -54,6 +55,7 @@ export const PanelList: React.FC<PanelListProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              className="min-h-11 min-w-11"
               aria-label={t('viewBuilder.movePanelDown', 'Move panel {{number}} down', { number: idx + 1 })}
               disabled={idx === panels.length - 1}
               onClick={() => onMoveDown(idx)}
@@ -63,6 +65,7 @@ export const PanelList: React.FC<PanelListProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              className="min-h-11"
               aria-label={t('viewBuilder.editPanel', 'Edit panel {{number}}', { number: idx + 1 })}
               onClick={() => onEdit(idx)}
             >
@@ -71,6 +74,7 @@ export const PanelList: React.FC<PanelListProps> = ({
             <Button
               variant="ghost"
               size="sm"
+              className="min-h-11"
               aria-label={t('viewBuilder.removePanel', 'Remove panel {{number}}', { number: idx + 1 })}
               onClick={() => onRemove(idx)}
             >

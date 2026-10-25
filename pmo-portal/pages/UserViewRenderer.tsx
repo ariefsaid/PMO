@@ -23,14 +23,18 @@
  */
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { Button } from '@/src/components/ui';
 import { useUserView } from '@/src/hooks/useUserViews';
 import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { compileCompositionSpec } from '@/src/lib/viewspec/compiler';
 import { executeCompiledQuery } from '@/src/lib/viewspec/executor';
 import { ValidationError } from '@/src/lib/viewspec/types';
 import type { CompiledPanel, CompositionSpec } from '@/src/lib/viewspec/types';
 import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
-import { DashGrid, DashPageHead } from '@/src/components/dashboard/layout';
+import { DashGrid } from '@/src/components/dashboard/layout';
 import { ListState } from '@/src/components/ui/ListState';
 import { HydratedPrimitive } from '@/src/components/dashboard/HydratedPrimitive';
 
@@ -40,6 +44,33 @@ export { HydratedPrimitive };
 
 /** Maximum panels per view (OD-9, FR-VR-010 extension). */
 const MAX_PANELS_PER_VIEW = 20;
+
+/** Local title/scope adapter; the shared shell frame can replace this without touching panels. */
+const SavedViewHeader: React.FC<{
+  title: string;
+  description?: string | null;
+  scope?: string;
+  actions?: React.ReactNode;
+  onBack: () => void;
+}> = ({ title, description, scope, actions, onBack }) => {
+  const { t } = useTranslation();
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <Button variant="ghost" className="mb-2 min-h-11 px-2" onClick={onBack}>
+          {t('viewRenderer.backToViews', 'Back to saved views')}
+        </Button>
+        <h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{title}</h1>
+        {(scope || description) && (
+          <p className="mt-1 max-w-[68ch] text-sm text-muted-foreground">
+            {[scope, description].filter(Boolean).join(' · ')}
+          </p>
+        )}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </header>
+  );
+};
 
 export interface UserViewRendererProps {
   /** Optional: if provided, overrides the :viewId route param (for tests). */
@@ -57,13 +88,21 @@ interface PanelState {
 // ── Main component ────────────────────────────────────────────────────────────
 
 const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const params = useParams<{ viewId: string }>();
   // Accept prop (for tests) or fall back to route param
   const viewId = viewIdProp ?? params.viewId ?? '';
+  const { returnToList } = useListReturn({ list: 'views' });
+  const backToViews = () => returnToList();
 
   const { currentUser } = useAuth();
-  const { data: view, isPending, isError } = useUserView(viewId);
+  const realRole = useOptionalRealRole();
+  const { data: view, isPending, isError, refetch } = useUserView(viewId);
+  const canManageView = Boolean(view && (view.user_id === currentUser?.id || realRole === 'Admin'));
+  const scopeLabel = view?.scope === 'shared_org'
+    ? t('viewRenderer.sharedScope', 'Shared with your organisation')
+    : t('viewRenderer.privateScope', 'Private');
 
   // Per-panel query state (FR-VR-036..038, FR-VR-042)
   const [panelStates, setPanelStates] = useState<PanelState[]>([]);
@@ -158,15 +197,16 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   if (isPending || compiling) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        {/* DashPageHead skeleton — mirrors h1 + p two-line structure (DESIGN.md §7) */}
+        <SavedViewHeader
+          title={t('viewRenderer.loadingTitle', 'Opening saved view')}
+          description={t('viewRenderer.loadingDescription', 'Loading the saved answer and its panels…')}
+          onBack={backToViews}
+        />
         <div aria-hidden="true" className="flex flex-col gap-1">
-          <div className="skel h-7 w-2/5 rounded" />
           <div className="skel skel-line w-3/5" />
         </div>
-        {/* ChartFrame loading placeholders */}
         <DashGrid>
-          <ChartFrame state="loading">{null}</ChartFrame>
-          <ChartFrame state="loading">{null}</ChartFrame>
+          <div className="min-[920px]:col-span-2"><ChartFrame state="loading">{null}</ChartFrame></div>
         </DashGrid>
       </div>
     );
@@ -178,24 +218,32 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   // genuine RLS null and offers no retry affordance (design-review finding, I3).
   if (isError) {
     return (
-      <ListState
-        variant="error"
-        title="Could not load this view."
-        sub="A network or server error occurred. Please try again."
-        onRetry={() => window.location.reload()}
-      />
+      <div className="flex flex-col gap-4 p-6">
+        <SavedViewHeader
+          title={t('viewRenderer.savedViewTitle', 'Saved view')}
+          onBack={backToViews}
+        />
+        <ListState
+          variant="error"
+          title={t('viewRenderer.loadErrorTitle', 'Could not load saved view')}
+          sub={t('viewRenderer.loadErrorDescription', 'The saved answer did not load. Retry or return to saved views.')}
+          onRetry={() => void refetch()}
+        />
+      </div>
     );
   }
 
   // ── Not-found / no-access / archived (FR-VR-032, FR-VR-033, OD-1) ─────
   if (view === null || view === undefined || (view && view.archived_at !== null)) {
     return (
-      <ListState
-        variant="empty"
-        title="This view was not found."
-        sub="The view may have been removed, or you may not have access."
-        action={{ label: 'Go to Dashboard', onClick: () => navigate('/') }}
-      />
+      <div className="flex flex-col gap-4 p-6">
+        <SavedViewHeader title={t('viewRenderer.savedViewTitle', 'Saved view')} onBack={backToViews} />
+        <ListState
+          variant="empty"
+          title={t('viewRenderer.notFoundTitle', 'View not found')}
+          sub={t('viewRenderer.notFoundDescription', 'This saved answer is unavailable. It may have been archived or you may not have access.')}
+        />
+      </div>
     );
   }
 
@@ -204,16 +252,17 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     const isValidationError = specError instanceof ValidationError;
     return (
       <div className="flex flex-col gap-4 p-6">
+        <SavedViewHeader title={view.name} description={view.description} scope={scopeLabel} onBack={backToViews} />
         <ListState
           variant="error"
-          title="This view's definition is invalid."
-          sub="The view cannot be rendered because its specification is invalid."
+          title={t('viewRenderer.invalidTitle', 'This saved view cannot be shown')}
+          sub={t('viewRenderer.invalidDescription', 'Its saved definition could not be interpreted.')}
         />
         {/* OD-2: dev/non-prod disclosure — VITE_APP_ENV=prod in production (docs/environments.md §3) */}
         {import.meta.env.VITE_APP_ENV !== 'prod' && isValidationError && (
           <details className="rounded border border-border p-3 text-[12px]">
-            <summary className="cursor-pointer font-semibold text-muted-foreground">
-              Developer detail (hidden in production)
+            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-muted-foreground">
+              {t('viewRenderer.developerDetail', 'Developer detail (hidden in production)')}
             </summary>
             <pre className="mt-2 overflow-auto">
               {`code: ${(specError as ValidationError).code}\ndetail: ${(specError as ValidationError).detail ?? '—'}\nmessage: ${specError.message}`}
@@ -221,7 +270,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           </details>
         )}
         {specError.message.includes(`maximum of ${MAX_PANELS_PER_VIEW}`) && (
-          <p className="text-[13px] text-muted-foreground">{specError.message}</p>
+          <p className="text-[13px] text-muted-foreground">{t('viewRenderer.maximumPanels', 'This view has more than {{count}} panels.', { count: MAX_PANELS_PER_VIEW })}</p>
         )}
       </div>
     );
@@ -231,11 +280,23 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   if (compiledPanels !== null && compiledPanels.length === 0) {
     return (
       <div className="flex flex-col gap-6 p-6">
-        <DashPageHead title={view.name} sub={view.description ?? ''} />
-        {/* TODO I4: add CTA to open builder */}
+        <SavedViewHeader
+          title={view.name}
+          description={view.description}
+          scope={scopeLabel}
+          onBack={backToViews}
+          actions={canManageView ? (
+            <Button variant="primary" className="min-h-11" onClick={() => navigate(`/views/${view.id}/edit`)}>
+              {t('viewRenderer.editView', 'Edit view')}
+            </Button>
+          ) : undefined}
+        />
         <ListState
           variant="empty"
-          title="This view has no panels yet."
+          title={t('viewRenderer.emptyTitle', 'This saved view has no panels yet')}
+          sub={canManageView
+            ? t('viewRenderer.emptyOwnerDescription', 'Add a panel to define the answer this view should save.')
+            : t('viewRenderer.emptyReaderDescription', 'Ask the owner to add panels to this saved answer.')}
         />
       </div>
     );
@@ -250,13 +311,23 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
 
   return (
     <div className="flex flex-col gap-6 p-6">
-      <DashPageHead title={view.name} sub={view.description ?? ''} />
+      <SavedViewHeader
+        title={view.name}
+        description={view.description}
+        scope={scopeLabel}
+        onBack={backToViews}
+        actions={canManageView ? (
+          <Button variant="outline" className="min-h-11" onClick={() => navigate(`/views/${view.id}/edit`)}>
+            {t('viewRenderer.editView', 'Edit view')}
+          </Button>
+        ) : undefined}
+      />
       {/* NFR-VR-A11Y-002: DashGrid is inside the shell's <main>; panels use correct heading hierarchy */}
       <DashGrid>
         {compiledPanels.map((panel, idx) => {
           const state = panelStates[idx] ?? { loading: true, data: null, error: null };
           const data = state.data ?? [];
-          const colSpan = panel.layout?.colSpan;
+          const colSpan = compiledPanels.length === 1 ? 2 : panel.layout?.colSpan;
           const panelStyle = colSpan ? { gridColumn: `span ${colSpan}` } : undefined;
 
           return (

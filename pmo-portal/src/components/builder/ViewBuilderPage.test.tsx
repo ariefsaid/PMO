@@ -6,7 +6,7 @@
  * (AC-VB-002 is owned by PanelEditorForm.test.tsx — entity-change reset is panel-editor behavior.)
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, act, waitFor } from '@testing-library/react';
+import { render, screen, act, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -209,6 +209,25 @@ beforeEach(() => {
 });
 
 describe('ViewBuilderPage — guard states', () => {
+  it('AC-WORK-VB-01: builder follows identity, panels, preview, then the save action', () => {
+    renderCreate();
+    expect(screen.getByRole('heading', { level: 1, name: 'New view' })).toBeInTheDocument();
+    const name = screen.getByRole('textbox', { name: /view name/i });
+    const scope = screen.getByLabelText(/^Scope$/i);
+    const description = screen.getByRole('textbox', { name: /^Description$/i });
+    const addPanel = screen.getByRole('button', { name: /Add panel/i });
+    const preview = screen.getByText('Live preview');
+    const actions = screen.getByTestId('builder-actions');
+    const save = within(actions).getByRole('button', { name: 'Save view' });
+    const follows = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(name, scope)).toBe(true);
+    expect(follows(scope, description)).toBe(true);
+    expect(follows(description, addPanel)).toBe(true);
+    expect(follows(addPanel, preview)).toBe(true);
+    expect(follows(preview, save)).toBe(true);
+    expect(screen.getByRole('status')).toHaveTextContent('Enter a view name to save.');
+  });
+
   it('AC-VB-001: opens empty (no panels, add-panel button, save disabled, name empty)', () => {
     renderCreate();
     expect(screen.getByRole('textbox', { name: /view name/i })).toHaveValue('');
@@ -263,6 +282,29 @@ describe('ViewBuilderPage — guard states', () => {
     expect(screen.getByText(/DataTable/i)).toBeInTheDocument();
     // Save button should say "Update view"
     expect(screen.getByRole('button', { name: /update view/i })).toBeInTheDocument();
+  });
+
+  it('AC-WORK-VB-02: a shared reader cannot edit another owner’s saved view', () => {
+    mockUseUserView.mockReturnValue({
+      data: {
+        id: 'v2',
+        name: 'Shared answer',
+        description: null,
+        scope: 'shared_org',
+        spec: { version: 1, panels: [PANEL_A] },
+        archived_at: null,
+        org_id: 'org1',
+        user_id: 'u2',
+        created_at: '2026-06-01T00:00:00Z',
+        updated_at: '2026-06-28T00:00:00Z',
+      },
+      isPending: false,
+      isError: false,
+    });
+    renderEdit('v2');
+    expect(screen.getByRole('heading', { level: 1, name: 'View is read-only' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go to saved views/i })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument();
   });
 });
 

@@ -12,7 +12,7 @@ import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/sales
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
 import { DEFAULT_PROJECT_SORT, PROJECT_SORTS, type ProjectSort } from './projects/projectSorting';
 
-export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
+export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings' | 'views';
 
 export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
 export type SalesScope = 'Open' | 'Lost' | 'Needs attention';
