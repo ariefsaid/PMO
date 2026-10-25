@@ -104,7 +104,9 @@
       "maxLatency": "Latency (p95, max)",
       "metricsOverview": "Agent cost overview",
       "cacheHitByMonth": "Cache hit-rate by month",
-      "chartSummary": "Cache hit-rate by month, {{count}} months.",
+      "chartSummary_one": "Cache hit-rate by month, {{count}} month.",
+      "chartSummary_other": "Cache hit-rate by month, {{count}} months.",
+      "chartLegend": "Chart legend",
       "chartEmptyTitle": "Not enough data yet",
       "chartEmptyHelp": "Cache hit-rate trends appear once usage spans two or more months."
     },
@@ -128,7 +130,6 @@
     },
     "postingAccounts": {
       "guidance": "How posting accounts work",
-      "blockingSummary": "{{count}} budget categories need a posting account. The whole budget push waits until each category is mapped.",
       "category": "Purpose / category",
       "account": "Account",
       "search": {
@@ -153,7 +154,6 @@
         "desc": "Name Z–A"
       },
       "unmapped": "Not mapped",
-      "needsSetupBlocking": "Needs setup",
       "noMatches": "No posting accounts match these filters",
       "clearHelp": "Clear the filters to see all budget categories and expense accounts.",
       "clear": "Clear filters"
@@ -162,6 +162,14 @@
       "saved": "Saved pattern",
       "current": "Current pattern:",
       "edit": "Edit numbering"
+    },
+    "budgetMap": {
+      "needsSetup": "Needs setup"
+    },
+    "spendApprovers": {
+      "projectEmptyNoOverhead": "No project or overhead set is configured. Standard rules also cover over-budget requests.",
+      "projectNoEligibleNoOverhead": "No project approver can act, and no overhead set is configured. Standard rules cover these requests.",
+      "routeChecking": "Checking which overhead approvers can act."
     }
   },
   "projectClassification": {

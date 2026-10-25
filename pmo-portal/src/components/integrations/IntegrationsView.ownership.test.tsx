@@ -46,7 +46,7 @@ import { IntegrationsView } from './IntegrationsView';
 installIntegrationDefaults();
 
 describe('AC-EAS-015 the read-only Integrations view renders both states with no write affordances', () => {
-  it('AC-EAS-015 (a) empty ownership ⇒ connect cards render with Not connected status, details explain what updates automatically', () => {
+  it('AC-EAS-015 (a) empty disconnected service keeps a compact status row without an empty details container', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true, isLoading: false, isFetching: false, refetch: vi.fn(), status: 'success' as const, dataUpdatedAt: 0, error: null, isPlaceholderData: false, fetchStatus: 'idle', isLoadingError: false, isRefetchError: false, errorUpdatedAt: 0, failureCount: 0, failureReason: null, isPaused: false } as any);
     vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
     wrapWithRole('Admin', <IntegrationsView />);
@@ -56,11 +56,7 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
     expect(screen.getAllByText('Not connected')).toHaveLength(2);
-    // AC-IRUX-007: ownership is nested inside the service's own connection details.
-    const clickupDetails = screen.getByTestId('service-details-clickup');
-    fireEvent.click(within(clickupDetails).getByText(/connection details/i));
-    expect(within(clickupDetails).getByTestId('service-information-clickup')).toHaveTextContent(/No information from this service/i);
-    expect(within(clickupDetails).getByTestId('service-information-clickup').querySelector('button')).toBeNull();
+    expect(screen.queryByTestId('service-details-clickup')).not.toBeInTheDocument();
   });
 
   it('AC-EAS-015 (b) an employed tier owning {clickup: tasks, erpnext: procurement} lists the tier + domains, no write affordance', () => {
@@ -194,7 +190,7 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     wrapWithRole('Admin', <IntegrationsView />);
     const details = screen.getByTestId('service-details-clickup');
     fireEvent.click(within(details).getByText(/connection details/i));
-    expect(within(details).getByText(/No information from this service is currently updated automatically/i)).toBeInTheDocument();
+    expect(within(details).getByText('No information areas are selected for updates from this service.')).toBeInTheDocument();
     expect(within(screen.getByTestId('service-information-clickup')).queryByRole('button')).toBeNull();
   });
 })

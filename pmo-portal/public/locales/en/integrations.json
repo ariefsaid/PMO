@@ -10,7 +10,8 @@
     "setupCheckBoundary": "Outbound queue status was checked separately; it does not confirm ERP business setup.",
     "viewConfiguredSetup": "View configured setup",
     "reviewSetupStatus": "Review setup status",
-    "organizationApproval": "Organization approval"
+    "organizationApproval": "Organization approval",
+    "ownershipNone": "No information areas are selected for updates from this service."
   },
   "uxs11": {
     "doneEditing": "Done editing",
@@ -41,5 +42,8 @@
     "batchSaveFailed": "This link was not saved. Your choice is kept so you can retry.",
     "batchSaveFailedSummary": "Some project links could not be saved.",
     "batchPartialOutcome": "{{saved}} saved; {{failed}} need attention. Saved links are not repeated."
+  },
+  "personalM365": {
+    "unavailable": "Microsoft 365 is not available for this workspace. Ask a workspace administrator to enable it."
   }
 }

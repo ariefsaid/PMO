@@ -13,7 +13,8 @@ export type ButtonVariant = 'primary' | 'outline' | 'ghost' | 'destructive' | 's
 export type ButtonSize = 'default' | 'sm' | 'icon';
 
 const base =
-  'inline-flex items-center justify-center gap-[7px] rounded-lg border ' +
+  // Every size gets the coarse-pointer hit-area hook; the transparent overlay leaves desktop geometry unchanged.
+  'touch-target inline-flex items-center justify-center gap-[7px] rounded-lg border ' +
   'text-sm font-medium whitespace-nowrap select-none ' +
   'transition-[background-color,border-color,color,box-shadow,transform] duration-100 ' +
   'active:translate-y-px ' +
@@ -35,13 +36,9 @@ const variantClasses: Record<ButtonVariant, string> = {
 
 const sizeClasses: Record<ButtonSize, string> = {
   default: 'h-8 px-3',
-  // C6 touch-target sweep (OD-W4-4 / WCAG 2.5.5): sm (28px) and icon (32px) both fall
-  // below the 44px touch-target floor on coarse pointers. The `.touch-target` utility
-  // extends the hit area via a transparent ::before overlay on coarse pointers ONLY —
-  // desktop visual size is unchanged. Applied automatically so every sm/icon consumer
-  // inherits it without per-callsite annotation.
-  sm: 'touch-target h-7 px-[9px] text-[13px]',
-  icon: 'touch-target h-8 w-8 p-0',
+  // Keep the compact visual size; `base` supplies the shared coarse-pointer overlay to all sizes.
+  sm: 'h-7 px-[9px] text-[13px]',
+  icon: 'h-8 w-8 p-0',
 };
 
 export const buttonClasses = (

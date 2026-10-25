@@ -329,7 +329,10 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
           {/* Body (the form) */}
           <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
+            <div
+              tabIndex={0}
+              className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            >
               {visibleSaveError && (
                 <div
                   ref={saveErrorRef}

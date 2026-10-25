@@ -119,7 +119,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     expect(route).not.toHaveTextContent('Gus Gone');
     // Common fallback and eligible people are stated once; the project group keeps its distinct over-budget route.
     expect(screen.getAllByText(/Standard rules:/)).toHaveLength(1);
-    expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Over-budget requests');
+    expect(screen.getByTestId('spend-route-project')).toHaveTextContent(/over-budget requests/i);
     expect(screen.getByTestId('spend-route-project')).not.toHaveTextContent('Admin, Executive, Project Manager or Finance');
   });
 
@@ -155,7 +155,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listSpendApprovers.mockResolvedValue([]);
     listOrgProfiles.mockRejectedValue(new Error('boom'));
     renderPanel('Admin');
-    const route = await screen.findByTestId('spend-route-org');
+    const route = await screen.findByTestId('spend-fallback-summary');
     expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
     await waitFor(() => expect(route).toHaveTextContent("Couldn't check who holds these roles right now."));
   });
@@ -170,7 +170,7 @@ describe('UX-081 resolved approval route (S-32)', () => {
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
     expect(note).toHaveTextContent('Within budget, the standard rules apply');
-    expect(note).toHaveTextContent('go to the overhead approvers');
+    expect(note).toHaveTextContent('go to the configured overhead approvers');
   });
 
   it('UX-081: an empty project list with no eligible senior approver leaves decisions to an Admin (DD-APR-4)', async () => {
@@ -206,8 +206,9 @@ describe('UX-081 resolved approval route (S-32)', () => {
     listOrgProfiles.mockResolvedValue([{ id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' }]);
     renderPanel('Admin');
     const note = await screen.findByTestId('spend-route-project');
-    expect(note).toHaveTextContent('Standard rules: any of');
+    expect(note).toHaveTextContent(/standard rules cover these requests/i);
     expect(note).not.toHaveTextContent('Only an Admin can decide');
+    expect(screen.getByTestId('spend-fallback-summary')).toHaveTextContent('Standard rules: any of');
   });
 
   it('UX-081: dead project and senior sets leave only an Admin (DD-APR-4 cascade)', async () => {

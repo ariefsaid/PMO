@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
 import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
@@ -186,8 +186,11 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   // frame stable so the same job remains recognizable while its evidence narrows.
   const chartSummary = t('administration:admin.usage.chartSummary', {
     count: monthlyCacheHit.length,
-    defaultValue: 'Cache hit-rate by month, {{count}} months.',
+    defaultValue_one: 'Cache hit-rate by month, {{count}} month.',
+    defaultValue_other: 'Cache hit-rate by month, {{count}} months.',
   });
+  const chartLegend = t('administration:admin.usage.chartLegend', 'Chart legend');
+  const cacheHitRateLabel = t('administration:admin.usage.cacheHitRate', 'Cache hit-rate');
 
   return (
     <div className="flex flex-col gap-5">
@@ -214,7 +217,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
           </p>
         )}
         <ChartFrame state="ready">
-          <figure role="img" aria-label={chartSummary} className="m-0">
+          <figure aria-label={chartSummary} className="m-0">
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={monthlyCacheHit} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
@@ -245,22 +248,27 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   labelFormatter={(label) => formatMonthTick(Number(label))}
                   formatter={(value) => [
                     `${Number(value).toFixed(1)}%`,
-                    t('administration:admin.usage.cacheHitRate', 'Cache hit-rate'),
+                    cacheHitRateLabel,
                   ]}
                 />
                 <Line
                   type="monotone"
                   dataKey="pct"
-                  name={t('administration:admin.usage.cacheHitRate', 'Cache hit-rate')}
+                  name={cacheHitRateLabel}
                   stroke={chartTheme.series.primary}
                   strokeWidth={2}
                   dot={{ r: 3 }}
                   isAnimationActive={!prefersReducedMotion}
                 />
-                <Legend verticalAlign="bottom" height={24} />
               </LineChart>
             </ResponsiveContainer>
           </figure>
+          <div role="group" aria-label={chartLegend} className="mt-1 flex items-center justify-center gap-2 text-[12px] text-muted-foreground">
+            <span aria-hidden="true" className="relative inline-block h-0.5 w-4" style={{ backgroundColor: chartTheme.series.primary }}>
+              <span className="absolute -top-[2px] left-1.5 size-1.5 rounded-full border border-background" style={{ backgroundColor: chartTheme.series.primary }} />
+            </span>
+            <span>{cacheHitRateLabel}</span>
+          </div>
         </ChartFrame>
       </div>
     </div>

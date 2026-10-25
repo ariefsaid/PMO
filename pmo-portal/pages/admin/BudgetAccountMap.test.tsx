@@ -385,11 +385,14 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
-  it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
+  it('I-8 an unmapped category has a concise row state and one whole-budget blocking explanation', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     const row = screen.getByText('Contingency').closest('tr')!;
-    expect(within(row).getByText(/blocks every push/i)).toBeInTheDocument();
+    expect(within(row).getByText('Needs setup')).toBeInTheDocument();
+    const map = screen.getByRole('region', { name: 'Budget category to ERP account map' });
+    expect(within(map).getByText(/blocks the push for the WHOLE budget/i)).toBeInTheDocument();
+    expect(within(map).getAllByText(/blocks the push for the WHOLE budget/i)).toHaveLength(1);
   });
 
   it('I-8 a MAPPED category is not marked as blocking', async () => {
@@ -419,11 +422,12 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('AC-BAM-008 a category with accounts but no push account is marked as blocking every push', async () => {
+  it('AC-BAM-008 identifies an actuals-only category with no push account under the single blocking explanation', async () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Admin');
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    expect(within(materials).getByText('No push account — blocks every push')).toBeInTheDocument();
+    expect(within(materials).getByText('No budget account')).toBeInTheDocument();
+    expect(screen.getByText(/blocks the push for the WHOLE budget/i)).toBeInTheDocument();
   });
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {

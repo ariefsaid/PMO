@@ -129,10 +129,31 @@ const SpendApprovers: React.FC = () => {
   const renderRoute = (rows: SpendApproverRow[], scope: 'org' | 'project') => {
     if (rows.length === 0) {
       if (scope === 'org') return null;
-      if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
+      if (orgRows.length === 0) {
+        return (
+          <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+            {t('administration:admin.spendApprovers.projectEmptyNoOverhead', 'No project or overhead set is configured. Standard rules also cover over-budget requests.')}
+          </p>
+        );
+      }
+      if (peopleError) {
+        return (
+          <p data-testid="spend-route-project" role="status" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+            {t('uxs32.routeUnavailable', "Couldn't verify who can approve right now.")}
+          </p>
+        );
+      }
+      if (!peopleReady) {
+        return (
+          <p data-testid="spend-route-project" role="status" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+            {t('administration:admin.spendApprovers.routeChecking', 'Checking which overhead approvers can act.')}
+          </p>
+        );
+      }
+      if (!orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
       return (
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
-          {t('uxs32.projectEmpty', 'Over-budget requests, or requests whose budget line cannot be checked, go to the overhead approvers.')}
+          {t('uxs32.projectEmpty', 'Within budget, the standard rules apply. Over-budget or uncheckable requests go to the configured overhead approvers.')}
         </p>
       );
     }
@@ -156,14 +177,19 @@ const SpendApprovers: React.FC = () => {
         </p>
       );
     }
-    return senior === 'admin' ? adminRouteNote(scope) : null;
+    if (senior === 'admin') return adminRouteNote(scope);
+    return (
+      <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
+        {t('administration:admin.spendApprovers.projectNoEligibleNoOverhead', 'No project approver can act, and no overhead set is configured. Standard rules cover these requests.')}
+      </p>
+    );
   };
 
   const renderRows = (rows: SpendApproverRow[], scope: 'org' | 'project') =>
     rows.length === 0 ? (
       <>
         <p className="text-[13px] text-muted-foreground">
-          {t('admin.spendApprovers.empty', 'Nobody listed — the standard role rules apply.')}
+          {t('admin.spendApprovers.empty', 'No named approvers listed.')}
         </p>
         {renderRoute(rows, scope)}
       </>

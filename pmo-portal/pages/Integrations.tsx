@@ -45,7 +45,7 @@ const IntegrationsPage: React.FC = () => {
           <p role="status" className="rounded-md border border-border bg-secondary/35 px-4 py-3 text-sm text-muted-foreground">
             {t(
               'integrations:personalM365.unavailable',
-              "Microsoft 365 isn't available for this workspace. Ask a workspace administrator to enable it.",
+              'Microsoft 365 is not available for this workspace. Ask a workspace administrator to enable it.',
             )}
           </p>
         )}

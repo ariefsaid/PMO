@@ -287,7 +287,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
         }
         return <StatusPill variant="warn">{accounts.length
           ? t('admin.budgetMap.noPush', 'No budget account')
-          : t('administration:admin.postingAccounts.needsSetupBlocking', 'Needs setup')}</StatusPill>;
+          : t('administration:admin.budgetMap.needsSetup', 'Needs setup')}</StatusPill>;
       },
     },
     ...(canManage ? [{
@@ -349,10 +349,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
       </h2>
       {categoriesNeedingPosting.length > 0 && (
         <p role="status" className="mt-2 text-[13px] text-warning-foreground">
-          {t('administration:admin.postingAccounts.blockingSummary', {
-            defaultValue: '{{count}} budget categories need a posting account. The whole budget push waits until each category is mapped.',
-            count: categoriesNeedingPosting.length,
-          })}
+          {t('admin.budgetMap.description', 'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.')}
         </p>
       )}
       <details className="group mt-2 rounded-md border border-border px-3">

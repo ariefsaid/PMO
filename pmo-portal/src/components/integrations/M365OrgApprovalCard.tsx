@@ -70,7 +70,7 @@ export const M365OrgApprovalCard: React.FC = () => {
       <div className="flex items-center gap-2">
         <Icon name="plug" aria-hidden="true" />
         <h3 className="text-[15px] text-foreground font-semibold">
-          {t('integrations.m365OrgApproval.heading', 'Microsoft 365')}
+          {t('integrations.m365OrgApproval.heading', 'Organization approval')}
         </h3>
         <span className="rounded-full border border-border bg-muted/40 px-2 py-0.5 text-xs text-muted-foreground">
           {t('integrations.m365OrgApproval.badge', 'Organization approval')}

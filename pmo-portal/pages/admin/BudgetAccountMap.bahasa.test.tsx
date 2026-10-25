@@ -94,7 +94,8 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     const labor = rows.find((row) => row.textContent?.includes('Labor'))!;
     const materials = rows.find((row) => row.textContent?.includes('Materials'))!;
     expect(within(labor).getByText('Dikonfigurasi', { exact: true })).toBeInTheDocument();
-    expect(within(materials).getByText('Perlu disiapkan — memblokir setiap pengiriman')).toBeInTheDocument();
+    expect(within(materials).getByText('Perlu disiapkan')).toBeInTheDocument();
+    expect(screen.getByText(/memblokir pengiriman SELURUH anggaran/i)).toBeInTheDocument();
     expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
     await userEvent.click(within(labor).getByText('Opsi akun'));
     expect(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();

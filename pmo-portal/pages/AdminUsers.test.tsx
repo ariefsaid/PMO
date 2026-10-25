@@ -179,7 +179,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     expect(invite.className).not.toContain('bg-primary');
   });
 
-  it('AC-ADMIA-010: orders identity and manager before role and status with phone details available', () => {
+  it('AC-ADMIA-010: orders identity and manager before role and status with phone details available', async () => {
     renderPage();
     const header = screen.getAllByRole('row')[0];
     expect(within(header).getAllByRole('columnheader').slice(0, 4).map((cell) => cell.textContent)).toEqual([
@@ -188,7 +188,12 @@ describe('Admin Users — directory (AC-AU-001)', () => {
       'Role',
       'Status',
     ]);
-    expect(screen.getAllByText('Details').length).toBeGreaterThan(0);
+    const summary = screen.getAllByText('Member details')[0]!;
+    const details = summary.closest('details');
+    expect(details).not.toHaveAttribute('open');
+    await userEvent.click(summary);
+    expect(details).toHaveAttribute('open');
+    expect(within(details!).getByText(/Manager: Renata Halloway/i)).toBeInTheDocument();
   });
 
   it('AC-AU-001: loading skeleton while pending', () => {

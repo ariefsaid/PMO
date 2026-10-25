@@ -104,7 +104,9 @@
       "maxLatency": "Latensi (p95, maksimum)",
       "metricsOverview": "Ringkasan biaya agen",
       "cacheHitByMonth": "Tingkat cache hit per bulan",
-      "chartSummary": "Tingkat cache hit per bulan, {{count}} bulan.",
+      "chartSummary_one": "Tingkat cache hit per bulan, {{count}} bulan.",
+      "chartSummary_other": "Tingkat cache hit per bulan, {{count}} bulan.",
+      "chartLegend": "Legenda grafik",
       "chartEmptyTitle": "Data belum cukup",
       "chartEmptyHelp": "Tren cache hit akan muncul setelah data pemakaian mencakup setidaknya dua bulan."
     },
@@ -128,7 +130,6 @@
     },
     "postingAccounts": {
       "guidance": "Cara kerja akun pencatatan",
-      "blockingSummary": "{{count}} kategori anggaran memerlukan akun pencatatan. Seluruh pengiriman anggaran menunggu sampai setiap kategori dipetakan.",
       "category": "Tujuan / kategori",
       "account": "Akun",
       "search": {
@@ -153,7 +154,6 @@
         "desc": "Nama Z–A"
       },
       "unmapped": "Belum dipetakan",
-      "needsSetupBlocking": "Perlu disiapkan",
       "noMatches": "Tidak ada akun pencatatan yang cocok dengan filter ini",
       "clearHelp": "Hapus filter untuk melihat semua kategori anggaran dan akun pengeluaran.",
       "clear": "Hapus filter"
@@ -162,6 +162,14 @@
       "saved": "Pola tersimpan",
       "current": "Pola saat ini:",
       "edit": "Edit penomoran"
+    },
+    "budgetMap": {
+      "needsSetup": "Perlu disiapkan"
+    },
+    "spendApprovers": {
+      "projectEmptyNoOverhead": "Belum ada daftar penyetuju proyek atau overhead. Aturan standar juga berlaku untuk permintaan yang melebihi anggaran.",
+      "projectNoEligibleNoOverhead": "Tidak ada penyetuju proyek yang dapat bertindak dan daftar overhead belum dikonfigurasi. Aturan standar berlaku untuk permintaan ini.",
+      "routeChecking": "Memeriksa penyetuju overhead yang dapat bertindak."
     }
   },
   "projectClassification": {

@@ -15,16 +15,16 @@ function messageFor(t: TFunction, code: string | undefined): string {
   switch (code) {
     case 'CONNECTION_STALE':
     case 'CONNECTION_REVOKED':
-      return t('m365Documents.notice.expired', 'The Microsoft 365 connection expired. Reconnect to link more documents.');
+      return t('m365Documents:notice.expired', 'The Microsoft 365 connection expired. Reconnect to link more documents.');
     case 'SCOPE_INSUFFICIENT':
-      return t('m365Documents.notice.scope', 'The connection needs additional permissions. Reconnect to grant them.');
+      return t('m365Documents:notice.scope', 'The connection needs additional permissions. Reconnect to grant them.');
     case 'NOT_CONNECTED':
-      return t('m365Documents.notice.notConnected', 'Connect Microsoft 365 first to browse documents.');
+      return t('m365Documents:notice.notConnected', 'Connect Microsoft 365 first to browse documents.');
     case 'external-unreachable':
-      return t('m365Documents.notice.network', 'Could not load Microsoft items. Retry; your selection and location are kept.');
+      return t('m365Documents:notice.network', 'Could not load Microsoft items. Retry; your selection and location are kept.');
     default:
       return (code && TAXONOMY_CODES.has(code) ? knownM365ErrorReason(t, code) : null)
-        ?? t('m365Documents.notice.generic', 'Microsoft could not load this location. Check access and SharePoint availability with your Microsoft admin, or retry.');
+        ?? t('m365Documents:notice.generic', 'Microsoft could not load this location. Check access and SharePoint availability with your Microsoft admin, or retry.');
   }
 }
 
@@ -71,18 +71,18 @@ export function M365BrowseNotice({ code, onRetry, onReconnect, connection }: M36
   return (
     <div className="min-w-0 space-y-2">
       <GateNotice variant="blocked">{messageFor(t, code)}</GateNotice>
-      {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{t('m365Documents.notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
+      {reconnectFailed && <p role="alert" className="text-[12.5px] text-destructive-text">{t('m365Documents:notice.reconnectFailed', 'Could not start the Microsoft 365 reconnect. Try again.')}</p>}
       <div className="flex flex-wrap gap-2">
         {code === 'NOT_CONNECTED' && (
           <Link
             to="/integrations"
             className="touch-target inline-flex h-8 items-center rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent"
           >
-            {t('m365Documents.notice.openIntegrations', 'Open My integrations')}
+            {t('m365Documents:notice.openIntegrations', 'Open My integrations')}
           </Link>
         )}
-        {canRetry && <Button variant="outline" onClick={onRetry}>{t('m365Documents.notice.retry', 'Retry')}</Button>}
-        {canReconnect && <Button variant="outline" loading={reconnecting} onClick={() => void reconnect()}>{t('m365Documents.notice.reconnect', 'Reconnect Microsoft 365')}</Button>}
+        {canRetry && <Button variant="outline" onClick={onRetry}>{t('m365Documents:notice.retry', 'Retry')}</Button>}
+        {canReconnect && <Button variant="outline" loading={reconnecting} onClick={() => void reconnect()}>{t('m365Documents:notice.reconnect', 'Reconnect Microsoft 365')}</Button>}
       </div>
     </div>
   );

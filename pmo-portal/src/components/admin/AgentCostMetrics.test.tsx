@@ -160,11 +160,11 @@ describe('AgentCostMetrics', () => {
   });
 
   it('zero-data scope keeps the KPI and figure frame visible with an explicit empty basis', () => {
-    const { container } = render(<AgentCostMetrics {...defaultProps} summaryRows={[]} runStatsRows={[]} />);
+    render(<AgentCostMetrics {...defaultProps} summaryRows={[]} runStatsRows={[]} />);
     expect(screen.getByText(/no metrics for this selection/i)).toBeInTheDocument();
     expect(screen.getAllByText('—')).toHaveLength(5);
-    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
-    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: /Cache hit-rate by month/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
   });
 
   // ── KPI derivation ─────────────────────────────────────────────────────────
@@ -237,11 +237,11 @@ describe('AgentCostMetrics', () => {
   // ── Chart form remains stable as a filter narrows the selected months ─────
 
   it('keeps the line chart, legend and frame when summaryRows span one month', () => {
-    const { container } = render(
+    render(
       <AgentCostMetrics {...defaultProps} summaryRows={[summaryRows[0]]} />,
     );
-    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
-    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: /1 month/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
     expect(screen.getByText(/more months/i)).toBeInTheDocument();
   });
 

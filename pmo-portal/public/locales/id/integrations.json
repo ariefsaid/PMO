@@ -10,7 +10,8 @@
     "setupCheckBoundary": "Status antrean keluar diperiksa secara terpisah; hasil ini tidak mengonfirmasi penyiapan bisnis ERP.",
     "viewConfiguredSetup": "Lihat penyiapan yang sudah dikonfigurasi",
     "reviewSetupStatus": "Tinjau status penyiapan",
-    "organizationApproval": "Persetujuan organisasi"
+    "organizationApproval": "Persetujuan organisasi",
+    "ownershipNone": "Belum ada area informasi yang dipilih untuk diperbarui dari layanan ini."
   },
   "uxs11": {
     "doneEditing": "Selesai mengedit",
@@ -41,5 +42,8 @@
     "batchSaveFailed": "Tautan ini belum tersimpan. Pilihan Anda tetap tersimpan untuk dicoba lagi.",
     "batchSaveFailedSummary": "Beberapa tautan proyek tidak dapat disimpan.",
     "batchPartialOutcome": "{{saved}} tersimpan; {{failed}} perlu ditangani. Tautan tersimpan tidak diulang."
+  },
+  "personalM365": {
+    "unavailable": "Microsoft 365 tidak tersedia untuk ruang kerja ini. Minta administrator ruang kerja untuk mengaktifkannya."
   }
 }

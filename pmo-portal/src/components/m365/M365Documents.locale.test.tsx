@@ -18,6 +18,9 @@ const read = (path: string) => readFileSync(resolve(__dirname, '../../..', path)
 describe('m365Documents localization (AC-M365DOC-020/064/065/067)', () => {
   it('AC-M365DOC-020: en and id carry the same keys, all non-empty', () => {
     expect(Object.keys(idFlat).sort()).toEqual(Object.keys(enFlat).sort());
+    expect(en.procurement.heading).toBe('SharePoint links for this case');
+    expect(en.picker.title).toBe('Choose a Microsoft document');
+    expect(en.versions.title).toBe('Versions of {{name}}');
     for (const catalogue of [enFlat, idFlat]) {
       for (const value of Object.values(catalogue)) expect(value.trim()).not.toBe('');
     }

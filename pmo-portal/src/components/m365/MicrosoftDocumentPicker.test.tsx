@@ -4,6 +4,8 @@ import userEvent from '@testing-library/user-event';
 import { StrictMode, useState } from 'react';
 import i18n from 'i18next';
 import idCatalogue from '../../../public/locales/id/common.json';
+import enM365Catalogue from '../../../public/locales/en/m365Documents.json';
+import idM365Catalogue from '../../../public/locales/id/m365Documents.json';
 import { MemoryRouter } from 'react-router';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import { AppError } from '@/src/lib/appError';
@@ -45,6 +47,9 @@ const page = <T,>(value: T[], next: GraphReadRequest | null = null, unsupported_
 const deferred = <T,>() => { let resolve!: (v: T) => void; let reject!: (e: unknown) => void; const promise = new Promise<T>((a, b) => { resolve = a; reject = b; }); return { promise, resolve, reject }; };
 const LIBRARY = { site_id: 'site-1', site_name: 'Synthetic site', drive_id: 'drive-d', drive_name: 'Project library' };
 const PROJECT: PickerContext = { kind: 'project', code: 'P-100' };
+
+i18n.addResourceBundle('en', 'm365Documents', enM365Catalogue, true, true);
+i18n.addResourceBundle('id', 'm365Documents', idM365Catalogue, true, true);
 
 const spy = {
   open: vi.fn(), close: vi.fn(), select: vi.fn(),

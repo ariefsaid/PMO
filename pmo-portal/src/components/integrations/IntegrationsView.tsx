@@ -368,7 +368,7 @@ export const IntegrationsView: React.FC = () => {
           </div>
         ) : domains.length === 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('uxs07.ownershipNone', 'No information areas are selected for updates from this service.')}
+            {t('integrations:uxs07.ownershipNone', 'No information areas are selected for updates from this service.')}
           </p>
         ) : (
           <>
@@ -473,7 +473,7 @@ export const IntegrationsView: React.FC = () => {
           const isConnected = binding?.status === 'active';
           const isDisconnected = binding?.status === 'disconnected';
           const hasConnectionHistory = Boolean(binding?.connected_by || binding?.connected_at || binding?.disconnected_at);
-          const hasServiceDetails = isConnected || hasConnectionHistory;
+          const hasServiceDetails = isConnected || hasConnectionHistory || (domainsByTier[tier]?.length ?? 0) > 0 || ownershipQuery?.isError;
           const showConnect = !isConnected; // show connect when not active (disconnected or never connected)
           const showDisconnect = isConnected && !isError;
 
@@ -675,7 +675,7 @@ export const IntegrationsView: React.FC = () => {
               'Microsoft confirms organization approval during connection. An administrator can approve the app if Microsoft asks.',
             )}
           </p>
-          <details className="group mt-3 border-t border-border">
+          <details className="group mt-3 border-t border-border" data-testid="m365-organization-approval-details">
             <DisclosureSummary className="font-medium">
               {t('integrations:uxs07.m365Options', 'Document library and approval options')}
             </DisclosureSummary>

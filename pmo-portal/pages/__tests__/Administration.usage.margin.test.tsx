@@ -5,7 +5,8 @@
  * ONLY from the usage RPCs (the privacy line, NFR-PRIV-001).
  */
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { AdministrationUsage } from '../AdministrationUsage';
@@ -96,8 +97,9 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     expect(screen.getByText(/no usage yet/i)).toBeInTheDocument();
   });
 
-  it('filters the monthly table by period and action, with a clear recovery for no matches', () => {
-    const { container } = renderUsage(
+  it('filters the monthly table by period and action, with a clear recovery for no matches', async () => {
+    const user = userEvent.setup();
+    renderUsage(
       <AdministrationUsage
         rows={[
           baseRow,
@@ -111,16 +113,18 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Diagnostics'));
-    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
-    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
+    const diagnostics = screen.getByText('Diagnostics').closest('details')!;
+    await user.click(within(diagnostics).getByText('Diagnostics'));
+    expect(diagnostics).toHaveAttribute('open');
+    await waitFor(() => expect(within(diagnostics).getByRole('figure', { name: /Cache hit-rate by month/i })).toBeInTheDocument());
+    expect(within(diagnostics).getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
 
     fireEvent.change(screen.getByLabelText('Period'), { target: { value: '2026-08-01' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Action' }), { target: { value: 'chat' } });
     expect(screen.getByText(/no usage matches/i)).toBeInTheDocument();
     expect(screen.getByText(/no metrics for this selection/i)).toBeInTheDocument();
-    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
-    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
+    expect(within(diagnostics).getByRole('figure', { name: /Cache hit-rate by month/i })).toBeInTheDocument();
+    expect(within(diagnostics).getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
 
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
     const table = screen.getByRole('table');
