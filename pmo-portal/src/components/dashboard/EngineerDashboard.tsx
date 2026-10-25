@@ -78,12 +78,14 @@ export const EngineerDashboard: React.FC = () => {
     () => recentEntries(sheets ?? [], RECENT_ENTRIES_LIMIT),
     [sheets],
   );
+  const hasCurrentWeekEntries = (current?.entries.length ?? 0) > 0;
 
   return (
     <div className="space-y-4">
       <DashPageHead
         title={t('dashboard:engineer.title', 'My Dashboard')}
-        sub={weekScope}
+        sub={t('dashboard:engineer.scope', 'Review and log your hours.')}
+        showBreadcrumb
       />
 
       <Card aria-labelledby="engineer-week-summary-title" data-testid="engineer-week-summary" aria-busy={isPending}>
@@ -144,7 +146,7 @@ export const EngineerDashboard: React.FC = () => {
         </div>
       </Card>
 
-      <Card>
+      {!isError && (isPending || hasCurrentWeekEntries) && <Card>
         <CardHead>{t('dashboard:engineer.weeklyHoursCardTitle', 'Hours this week by day')}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={4} /></div>
@@ -173,9 +175,9 @@ export const EngineerDashboard: React.FC = () => {
             })}
           </div>
         )}
-      </Card>
+      </Card>}
 
-      <Card>
+      {!isError && (isPending || hasCurrentWeekEntries) && <Card>
         <CardHead>{t('dashboard:engineer.byProject', 'This week by project')}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={3} /></div>
@@ -187,17 +189,13 @@ export const EngineerDashboard: React.FC = () => {
               <HoursBar key={row.projectId} label={row.name} code={row.code} hours={row.hours} maxHours={hoursThisWeek} />
             ))}
           </div>
-        ) : (
-          <p className="px-4 pb-4 text-sm text-muted-foreground" aria-label={t('dashboard:engineer.noProjectHours', 'No project hours recorded this week')}>—</p>
-        )}
-      </Card>
+        ) : null}
+      </Card>}
 
-      <Card>
+      {!isError && <Card>
         <CardHead>{t('dashboard:engineer.recentEntries', 'Recent entries')}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={4} /></div>
-        ) : isError ? (
-          <p className="px-4 pb-4 text-sm text-muted-foreground">{t('dashboard:engineer.entriesUnavailable', 'Recent entries unavailable')}</p>
         ) : flatRecent.length === 0 ? (
           <p className="sr-only">{t('dashboard:engineer.noRecentEntries', 'No recent entries')}</p>
         ) : (
@@ -217,7 +215,7 @@ export const EngineerDashboard: React.FC = () => {
             ))}
           </ul>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 };

@@ -144,6 +144,7 @@ export const PMDashboard: React.FC = () => {
       <DashPageHead
         title={t('dashboard:pm.title', 'My Dashboard')}
         sub={t('dashboard:pm.deliveryScope', 'Delivery projects assigned to you.')}
+        showBreadcrumb
       />
 
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden">
@@ -167,7 +168,7 @@ export const PMDashboard: React.FC = () => {
             {!isPending && !isError && atRiskCount > 0 && (
               <AtRiskProjectsLink
                 count={atRiskCount}
-                className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             )}
             {!isPending && !isError && mine.length > 0 && (
@@ -234,7 +235,7 @@ export const PMDashboard: React.FC = () => {
                         <Link
                           to={`/projects/${project.id}`}
                           title={name !== project.name ? project.name : undefined}
-                          className="flex min-h-11 min-w-0 basis-72 grow items-center whitespace-normal text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          className="flex min-h-11 min-w-0 basis-72 grow items-center whitespace-normal text-sm font-semibold text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           <span className="min-w-0 break-words">{name}</span>
                         </Link>
@@ -285,10 +286,13 @@ export const PMDashboard: React.FC = () => {
                         aria-controls={evidenceId}
                         onClick={() => toggleEvidence(project.id)}
                         className="inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border px-3 text-left text-sm hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:w-auto sm:self-start"
+                        aria-label={isExpanded
+                          ? t('dashboard:pm.hideEvidenceFor', 'Hide evidence for {{name}}', { name })
+                          : t('dashboard:pm.showEvidenceFor', 'Evidence for {{name}}', { name })}
                       >
                         <span>{isExpanded
-                          ? t('dashboard:pm.hideEvidence', 'Hide project evidence for {{name}}', { name })
-                          : t('dashboard:pm.showEvidence', 'Project evidence for {{name}}', { name })}</span>
+                          ? t('dashboard:pm.hideEvidence', 'Hide evidence')
+                          : t('dashboard:pm.showEvidence', 'Evidence')}</span>
                         <span aria-hidden="true">{isExpanded ? '−' : '+'}</span>
                       </button>
 
@@ -329,9 +333,10 @@ export const PMDashboard: React.FC = () => {
                           </div>
                           <Link
                             to={`/projects/${project.id}/budget`}
+                            aria-label={t('dashboard:pm.openBudgetFor', 'Open budget for {{name}}', { name })}
                             className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                           >
-                            {t('dashboard:pm.openBudgetFor', 'Open budget for {{name}}', { name })}
+                            {t('dashboard:pm.openBudget', 'Open budget')}
                           </Link>
                         </div>
                       )}

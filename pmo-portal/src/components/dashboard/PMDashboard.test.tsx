@@ -87,11 +87,13 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.queryByRole('heading', { name: 'Project Status' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Spending vs contract' })).not.toBeInTheDocument();
 
-    const evidence = screen.getByRole('button', { name: /project evidence.*my project b/i });
+    const evidence = screen.getByRole('button', { name: /evidence.*my project b/i });
+    expect(evidence).toHaveTextContent('Evidence');
     fireEvent.click(evidence);
     expect(screen.getByTestId('pm-dashboard-search')).toHaveTextContent('pmProjectEvidence=p2');
     expect(screen.getByText('$980,000')).toBeInTheDocument();
     expect(screen.getByText('$2,000,000')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveTextContent('Open budget');
     expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveAttribute('href', '/projects/p2/budget');
     expect(screen.getByRole('progressbar', { name: /My Project B.*49% of contract/i })).toBeInTheDocument();
 

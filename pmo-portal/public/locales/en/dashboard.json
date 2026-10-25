@@ -150,8 +150,8 @@
     "contract": "Contract",
     "actualUnavailable": "Actual unavailable",
     "contractUnavailable": "Contract unavailable",
-    "showEvidence": "Project evidence for {{name}}",
-    "hideEvidence": "Hide project evidence for {{name}}",
+    "showEvidence": "Evidence",
+    "hideEvidence": "Hide evidence",
     "openBudgetFor": "Open budget for {{name}}",
     "comparisonBar": "{{name}}: {{percent}}% of contract",
     "comparisonUnavailable": "Comparison unavailable; Actual or contract coverage is incomplete.",
@@ -165,7 +165,10 @@
     "noMilestonesNote": "No milestone progress was supplied for some projects; open a project to review its milestones.",
     "myProjectsHelp": "Delivery projects where you are the assigned project manager.",
     "noProjects": "No delivery projects assigned to you yet",
-    "noProjectsSub": "Projects in the delivery phase will appear here."
+    "noProjectsSub": "Projects in the delivery phase will appear here.",
+    "showEvidenceFor": "Evidence for {{name}}",
+    "hideEvidenceFor": "Hide evidence for {{name}}",
+    "openBudget": "Open budget"
   },
   "pmRow": {
     "delivery": "Delivery",
@@ -220,7 +223,8 @@
       "thu": "Thu",
       "fri": "Fri",
       "sat": "Sat"
-    }
+    },
+    "scope": "Review and log your hours."
   },
   "winRate": {
     "valueRateBasisMissing": "Value win rate needs recorded won and lost amounts in the same currency.",
@@ -263,5 +267,13 @@
     "label": "Breadcrumb",
     "home": "Home",
     "dashboard": "Dashboard"
+  },
+  "approval": {
+    "checking": "Checking approval requests…",
+    "unavailable": "Approval status unavailable",
+    "item": "item",
+    "items": "items",
+    "review": "Review requests",
+    "open": "Open approvals"
   }
 }

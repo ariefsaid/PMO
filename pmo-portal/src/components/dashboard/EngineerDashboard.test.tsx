@@ -147,6 +147,23 @@ describe('Engineer dashboard weekly summary', () => {
     expect(screen.getByTestId('engineer-timesheet-status')).toHaveTextContent('—');
     expect(screen.getByRole('link', { name: "Log this week's hours" })).toHaveAttribute('href', '/timesheets');
     expect(screen.getAllByRole('button', { name: /Retry/i })).toHaveLength(1);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load your timesheets");
+    expect(screen.queryByText('Hours this week by day')).not.toBeInTheDocument();
+    expect(screen.queryByText('This week by project')).not.toBeInTheDocument();
+    expect(screen.queryByText('Recent entries')).not.toBeInTheDocument();
+  });
+
+  it('AC-806-ENG-03: a known-empty week has one date and omits empty breakdown cards', () => {
+    tsState.data = [];
+    renderPane();
+
+    const week = screen.getByTestId('engineer-week-scope');
+    expect(screen.getAllByText(week.textContent!)).toHaveLength(1);
+    expect(screen.getByTestId('engineer-empty-week-note')).toHaveTextContent('No hours are recorded for this calendar week yet.');
+    expect(screen.queryByText('Hours this week by day')).not.toBeInTheDocument();
+    expect(screen.queryByText('This week by project')).not.toBeInTheDocument();
+    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: "Log this week's hours" })).toHaveAttribute('href', '/timesheets');
   });
 });
 

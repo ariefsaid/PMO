@@ -150,8 +150,8 @@
     "contract": "Kontrak",
     "actualUnavailable": "Aktual tidak tersedia",
     "contractUnavailable": "Kontrak tidak tersedia",
-    "showEvidence": "Bukti proyek {{name}}",
-    "hideEvidence": "Sembunyikan bukti proyek {{name}}",
+    "showEvidence": "Bukti",
+    "hideEvidence": "Sembunyikan bukti",
     "openBudgetFor": "Buka anggaran {{name}}",
     "comparisonBar": "{{name}}: {{percent}}% dari kontrak",
     "comparisonUnavailable": "Perbandingan tidak tersedia; cakupan Aktual atau kontrak belum lengkap.",
@@ -165,7 +165,10 @@
     "noMilestonesNote": "Progres tonggak belum tersedia untuk beberapa proyek; buka proyek untuk meninjau tonggaknya.",
     "myProjectsHelp": "Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.",
     "noProjects": "Belum ada proyek pengiriman yang ditetapkan kepada Anda",
-    "noProjectsSub": "Proyek dalam tahap pengiriman akan muncul di sini."
+    "noProjectsSub": "Proyek dalam tahap pengiriman akan muncul di sini.",
+    "showEvidenceFor": "Bukti untuk {{name}}",
+    "hideEvidenceFor": "Sembunyikan bukti untuk {{name}}",
+    "openBudget": "Buka anggaran"
   },
   "pmRow": {
     "delivery": "Pengiriman",
@@ -220,7 +223,8 @@
       "thu": "Kam",
       "fri": "Jum",
       "sat": "Sab"
-    }
+    },
+    "scope": "Tinjau dan catat jam kerja Anda."
   },
   "winRate": {
     "valueRateBasisMissing": "Tingkat kemenangan berdasarkan nilai memerlukan nilai menang dan kalah tercatat dalam mata uang yang sama.",
@@ -263,5 +267,13 @@
     "label": "Breadcrumb",
     "home": "Beranda",
     "dashboard": "Dasbor"
+  },
+  "approval": {
+    "checking": "Memeriksa permintaan persetujuan…",
+    "unavailable": "Status persetujuan tidak tersedia",
+    "item": "item",
+    "items": "item",
+    "review": "Tinjau permintaan",
+    "open": "Buka persetujuan"
   }
 }
