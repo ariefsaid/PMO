@@ -58,5 +58,7 @@ test('AC-1117: dashboard shows delivery measures and a stable win-rate figure be
   await expect(tenderStage).toContainText('$');
   await tenderStage.click();
   await page.waitForURL('**/sales?status=Tender%20Submitted');
+  // The URL updates before the lazy Sales Pipeline route finishes mounting.
+  await expect(page.getByRole('heading', { name: 'Sales Pipeline' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
 });
