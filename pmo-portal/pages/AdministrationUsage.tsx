@@ -95,8 +95,9 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
     return (
       <ListState
         variant="error"
-        title="Couldn't load usage"
-        sub="The request failed. Check your connection and try again."
+        title={t('admin.usage.loadError', "Couldn't load usage")}
+        sub={t('admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
+        retryLabel={t('admin.retry', 'Retry')}
         onRetry={onRetry}
       />
     );
@@ -107,8 +108,8 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       <ListState
         variant="empty"
         icon="admin"
-        title="No usage yet"
-        sub="Agent usage appears here once your workspace starts using the assistant."
+        title={t('admin.usage.emptyTitle', 'No usage yet')}
+        sub={t('admin.usage.emptyHelp', 'Agent usage appears here once your workspace starts using the assistant.')}
       />
     );
   }
@@ -126,9 +127,9 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   );
 
   const columns: Column<UsageRow>[] = [
-    { key: 'action', header: 'Action', cell: (r) => r.action },
-    { key: 'month', header: 'Month', cell: (r) => r.month },
-    { key: 'runs', header: 'Runs', cell: (r) => formatNumber(r.run_count) },
+    { key: 'action', header: t('admin.usage.actionColumn', 'Action'), cell: (r) => r.action },
+    { key: 'month', header: t('admin.usage.monthColumn', 'Month'), cell: (r) => r.month },
+    { key: 'runs', header: t('admin.usage.runsColumn', 'Runs'), cell: (r) => formatNumber(r.run_count) },
     {
       key: 'tokens',
       header: t('admin.usage.inputOutputTokens', 'Input / output tokens'),
@@ -138,7 +139,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
       ? [
           {
             key: 'providerCost',
-            header: 'Provider cost',
+            header: t('admin.usage.providerCostColumn', 'Provider cost'),
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
             // The RPC returns null when provider pricing is unconfigured, and formatting null
             // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
@@ -149,9 +150,9 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: 'Credits charged', cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: t('admin.usage.creditsChargedColumn', 'Credits charged'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
     ...(hasMargin
-      ? [{ key: 'margin', header: 'Margin', cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: t('admin.usage.marginColumn', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
       : []),
   ];
 

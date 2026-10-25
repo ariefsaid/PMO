@@ -175,7 +175,9 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
                   </div>
                 ) : (
                   <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                    {enabled ? 'Included in your plan' : 'Hidden'}
+                      {enabled
+                        ? t('admin.features.includedInPlan', 'Included in your plan')
+                        : t('admin.features.hidden', 'Hidden')}
                   </StatusPill>
                 )}
               </li>
@@ -195,7 +197,9 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
               <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
                 <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
                 <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                  {enabled ? 'Preview — on' : 'Preview — off'}
+                  {enabled
+                    ? t('admin.features.previewOn', 'Preview — on')
+                    : t('admin.features.previewOff', 'Preview — off')}
                 </StatusPill>
               </li>
             );
@@ -211,7 +215,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
           {core.map((key) => (
             <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
               <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
-              <StatusPill variant="neutral">Always on</StatusPill>
+              <StatusPill variant="neutral">{t('admin.features.alwaysOn', 'Always on')}</StatusPill>
             </li>
           ))}
         </ul>
