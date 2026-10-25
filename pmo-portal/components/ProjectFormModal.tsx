@@ -667,7 +667,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
         </FormGrid>
       </FormSection>}
 
-      <details open={classificationOpen} onToggle={(event) => setClassificationOpen(event.currentTarget.open)} className="group rounded-lg border border-border bg-card px-4 py-3">
+      <details open={classificationOpen} onToggle={(event) => setClassificationOpen(event.currentTarget.open)} className="group border-t border-border pt-3">
         <summary className="touch-target flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2 rounded-sm font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
           <span>{t('projectClassification.title', 'Classification')}</span>
           <span className="min-w-0 break-words text-[12px] font-normal text-muted-foreground">
