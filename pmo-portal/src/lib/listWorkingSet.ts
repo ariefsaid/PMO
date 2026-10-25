@@ -10,6 +10,7 @@ import {
 import { ProcurementStatus } from '../../types';
 import { OPEN_FUNNEL_STAGES, type OpenFunnelStage } from '../../components/salesPipeline';
 import { UNASSIGNED_PROJECT_MANAGER } from './projects/projectManagerLabel';
+import { DEFAULT_PROJECT_SORT, PROJECT_SORTS, type ProjectSort } from './projects/projectSorting';
 
 export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'contacts' | 'meetings';
 
@@ -40,6 +41,7 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
    * the URL only ever carries a month the user navigated away to (#716).
    */
   month?: string;
+  sort: ProjectSort;
 }
 
 export interface SalesWorkingSet extends ProjectClassificationFilters {
@@ -339,6 +341,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       q: searchValue(params),
       view: viewValue(params, 'projects', options.sessionView),
       month: monthValue(params.get('month')),
+      sort: enumValue(params.get('sort'), PROJECT_SORTS, DEFAULT_PROJECT_SORT),
     }),
     serialize: (params, value, options) => {
       putClassification(params, value);
@@ -349,6 +352,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       putParam(params, 'pm', value.pm, 'All');
       putParam(params, 'q', value.q);
       putView(params, 'projects', value.view, options.sessionView);
+      params.set('sort', value.sort);
       // The month only means something while the calendar is showing; omit the current month.
       const month = value.view === 'calendar' ? monthValue(value.month ?? null) : undefined;
       if (month) params.set('month', month);
@@ -493,3 +497,12 @@ export function materializeSessionView(list: ListName, search: string, sessionVi
   params.set('view', view);
   return `?${params.toString()}`;
 }
+
+/** Materializes the Projects default sort so a copied URL names its visible ordering. */
+export function materializeProjectSort(search: string): string {
+  const params = paramsFrom(search);
+  if (params.has('sort')) return search;
+  params.set('sort', DEFAULT_PROJECT_SORT);
+  return `?${params.toString()}`;
+}
+
