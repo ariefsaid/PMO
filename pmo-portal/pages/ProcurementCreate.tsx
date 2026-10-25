@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { BackBar } from '@/src/components/shell';
+import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 import { Button, Combobox, ConfirmDialog, FormGrid, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { usePermission } from '@/src/auth/usePermission';
@@ -41,6 +41,7 @@ export default function ProcurementCreate() {
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [budgetCategory, setBudgetCategory] = useState('');
+  const [vendorOpen, setVendorOpen] = useState(false);
   const [lines, setLines] = useState<DraftLine[]>([]);
   const [errors, setErrors] = useState<{ title?: string; save?: string }>({});
   const [saving, setSaving] = useState(false);
@@ -134,19 +135,20 @@ export default function ProcurementCreate() {
 
   return (
     <main className="mx-auto w-full max-w-7xl p-4 md:p-6">
-      <BackBar label={t('shell.nav.procurement', 'Procurement')} onBack={() => guardLeave(() => navigate('/procurement'))} />
+      <MoneyOutPageHeader
+        title={t('procurement:create.heading', 'New purchase request')}
+        scope={[
+          <span key="draft">{t('procurement:create.draft', 'Draft')}</span>,
+          <span key="project">{projectOption?.label ?? t('procurement:create.projectNotSelected', 'No project selected')}</span>,
+          <span key="currency">{t('procurement:create.currency', 'Currency')}: {orgCurrency}</span>,
+        ]}
+        returnAction={{
+          label: t('shell.nav.procurement', 'Procurement'),
+          onReturn: () => guardLeave(() => navigate('/procurement')),
+        }}
+      />
       <form onSubmit={submit} noValidate>
-        <header className="mb-6 flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
-          <div>
-            <h1 className="text-2xl font-semibold">{t('procurement:create.heading', 'New purchase request')}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{t('procurement:create.draftNote', 'This request remains a draft until you submit it.')}</p>
-          </div>
-          <Button type="submit" variant="primary" loading={saving || create.isPending || createItem.isPending}>
-            {t('procurement:create.save', 'Save')}
-          </Button>
-        </header>
         <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Request details')}>
-          <h2 className="mb-4 font-semibold">{t('procurement:create.requestDetails', 'Request details')}</h2>
           <fieldset disabled={Boolean(savedRequestId) || saving}>
           <FormGrid>
             <TextField
@@ -167,15 +169,6 @@ export default function ProcurementCreate() {
               onChange={setSelectedProject}
               loadOptions={async () => projects}
             />
-            <Combobox
-              label={t('procurement:create.vendor', 'Vendor')}
-              noun="vendor"
-              placeholder={t('procurement:create.selectVendor', 'Optional — select a vendor…')}
-              value={vendorId}
-              selectedOption={vendors.find((option) => option.value === vendorId) ?? null}
-              onChange={setVendorId}
-              loadOptions={async () => vendors}
-            />
             <SelectField
               id="procurement-create-budget-category"
               label={t('procurement:create.budgetCategory', 'Budget category')}
@@ -185,6 +178,34 @@ export default function ProcurementCreate() {
               helper={BUDGET_CATEGORY_HELPER}
             />
           </FormGrid>
+          <div className="mt-4">
+            <Button
+              type="button"
+              variant="outline"
+              className="min-h-11"
+              aria-expanded={vendorOpen}
+              aria-controls="procurement-vendor-disclosure"
+              disabled={Boolean(savedRequestId) || saving}
+              onClick={() => setVendorOpen((open) => !open)}
+            >
+              {vendorOpen
+                ? t('procurement:create.hideVendor', 'Hide vendor')
+                : t('procurement:create.addVendor', 'Add vendor (optional)')}
+            </Button>
+            {vendorOpen && (
+              <div id="procurement-vendor-disclosure" className="mt-3 max-w-xl">
+                <Combobox
+                  label={t('procurement:create.vendor', 'Vendor')}
+                  noun="vendor"
+                  placeholder={t('procurement:create.selectVendor', 'Optional — select a vendor…')}
+                  value={vendorId}
+                  selectedOption={vendors.find((option) => option.value === vendorId) ?? null}
+                  onChange={setVendorId}
+                  loadOptions={async () => vendors}
+                />
+              </div>
+            )}
+          </div>
           </fieldset>
         </section>
         {errors.save && <p role="alert" className="mb-4 text-sm text-destructive-text">{errors.save}</p>}
@@ -200,6 +221,14 @@ export default function ProcurementCreate() {
           currency={orgCurrency}
         />
         </fieldset>
+        <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => guardLeave(() => navigate('/procurement'))}>
+            {t('common.cancel', 'Cancel')}
+          </Button>
+          <Button type="submit" variant="primary" className="min-h-11" loading={saving || create.isPending || createItem.isPending}>
+            {t('procurement:create.saveDraft', 'Save draft')}
+          </Button>
+        </div>
       </form>
       <ConfirmDialog
         open={pendingLeave !== null}

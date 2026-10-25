@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import ProcurementCreate from './ProcurementCreate';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -45,15 +46,21 @@ describe('AC-PROC1 one-page request creation', () => {
     mocks.createItem.mockResolvedValue({});
   });
 
-  it('AC-PROC1-001 shows inline request fields and line editor but no quotations', () => {
+  it('AC-PROC1-001 keeps vendor optional behind disclosure and places Save draft after the line editor', async () => {
     renderCreate();
     expect(screen.getByRole('heading', { name: /new purchase request/i })).toBeVisible();
-    expect(screen.getByLabelText(/title/i)).toBeVisible();
-    expect(screen.getByLabelText(/project/i)).toBeVisible();
+    const title = screen.getByLabelText(/title/i);
+    const project = screen.getByLabelText(/project/i);
+    const category = screen.getByLabelText(/budget category/i);
+    expect(title.compareDocumentPosition(project) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(project.compareDocumentPosition(category) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByLabelText(/vendor/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /add vendor/i }));
     expect(screen.getByLabelText(/vendor/i)).toBeVisible();
-    expect(screen.getByLabelText(/budget category/i)).toBeVisible();
     expect(screen.getByTestId('line-items-section')).toBeVisible();
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
+    const saveDraft = screen.getByRole('button', { name: 'Save draft' });
+    expect(screen.getByTestId('line-items-section').compareDocumentPosition(saveDraft) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-PROC1-002 saves the Draft request and its entered line before replacing to detail', async () => {
@@ -63,7 +70,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.createItem).toHaveBeenCalledWith({
       procurementId: 'new-id', input: expect.objectContaining({ id: expect.any(String), name: 'Paper', quantity: 2, rate: 10 }),
     }));
@@ -77,13 +84,13 @@ describe('AC-PROC1 one-page request creation', () => {
     renderCreate();
     expect(screen.queryByLabelText('First document')).toBeNull();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
     const { unmount } = renderCreate('/procurement/new?project=p1');
-    expect(screen.getByText('Project One')).toBeVisible();
+    expect(screen.getAllByText('Project One')).toHaveLength(2);
     unmount();
     expect(mocks.createRequest).not.toHaveBeenCalled();
     expect(mocks.createItem).not.toHaveBeenCalled();
@@ -91,7 +98,7 @@ describe('AC-PROC1 one-page request creation', () => {
 
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
     renderCreate();
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(screen.getByText('A request title is required.')).toBeVisible();
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
@@ -104,13 +111,13 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
     expect(screen.getByText('Paper')).toBeVisible();
     expect(screen.queryByText(/procurement\/new-id/)).not.toBeInTheDocument();
     expect(mocks.createRequest).toHaveBeenCalledTimes(1);
     expect(mocks.createItem).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
     expect(mocks.createRequest).toHaveBeenCalledTimes(1);
     expect(mocks.createItem).toHaveBeenCalledTimes(2);
@@ -133,7 +140,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/Open the saved request to reconcile it before retrying/i);
     expect(screen.queryByText(/Save again to retry/i)).not.toBeInTheDocument();
@@ -142,12 +149,13 @@ describe('AC-PROC1 one-page request creation', () => {
   it('AC-PROC1-005 freezes saved request fields after a child write needs retry', async () => {
     mocks.createItem.mockRejectedValueOnce(new Error('line write failed'));
     renderCreate();
+    await userEvent.click(screen.getByRole('button', { name: /add vendor/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Original request' } });
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(screen.getByLabelText(/project/i)).toBeDisabled();
@@ -163,7 +171,7 @@ describe('AC-PROC1 one-page request creation', () => {
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
     fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
     await waitFor(() => expect(mocks.createItem).toHaveBeenCalled());
     expect(screen.getByRole('button', { name: /add line item/i })).toBeDisabled();
     resolveLine({});
@@ -203,7 +211,7 @@ describe('AC-PROC1 one-page request creation', () => {
   it('AC-PROC1-008 an unpriced line shows an unknown total, never 0', () => {
     renderCreate();
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
-    fireEvent.click(screen.getByRole('button', { name: /add/i }));
+    fireEvent.click(screen.getByRole('button', { name: /add line item/i }));
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 });

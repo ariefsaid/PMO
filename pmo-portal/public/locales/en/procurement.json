@@ -30,6 +30,12 @@
   },
   "create": {
     "heading": "New purchase request",
+    "draft": "Draft",
+    "projectNotSelected": "No project selected",
+    "currency": "Currency",
+    "addVendor": "Add vendor (optional)",
+    "hideVendor": "Hide vendor",
+    "saveDraft": "Save draft",
     "save": "Save",
     "draftNote": "This request remains a draft until you submit it.",
     "requestDetails": "Request details",

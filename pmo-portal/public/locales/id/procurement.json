@@ -30,6 +30,12 @@
   },
   "create": {
     "heading": "Permintaan pembelian baru",
+    "draft": "Draf",
+    "projectNotSelected": "Proyek belum dipilih",
+    "currency": "Mata uang",
+    "addVendor": "Tambah pemasok (opsional)",
+    "hideVendor": "Sembunyikan pemasok",
+    "saveDraft": "Simpan draf",
     "save": "Simpan",
     "draftNote": "Permintaan ini tetap berstatus Draf sampai Anda mengirimkannya.",
     "requestDetails": "Rincian permintaan",
