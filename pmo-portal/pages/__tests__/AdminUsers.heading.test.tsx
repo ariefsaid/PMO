@@ -5,15 +5,7 @@ import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
-/**
- * B-8 (AC-W2-IA-003): The Administration page heading must agree with its route
- * breadcrumb. Route = /administration · breadcrumb = "Administration" · page <h1>
- * was "Users" — a three-way mismatch (OUTSTANDING E4).
- *
- * Fix: set <h1> to "Administration" (the route/rail/crumb label); the Users
- * directory becomes a section sub-heading below it. This way the page, its
- * breadcrumb, and the rail item all say the same word — no cognitive disconnect.
- */
+/** The selected route job is the page h1, and the matching section link identifies its location. */
 
 vi.mock('@/src/hooks/useUsers', () => ({
   useUsers: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -27,7 +19,10 @@ vi.mock('@/src/hooks/useUsers', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Admin' }),
 }));
-vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
+vi.mock('@/src/auth/useIsOperator', () => ({
+  useIsOperator: () => false,
+  useOperatorMembership: () => ({ isOperator: false, isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useUsage', () => ({
   useUsage: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useAgentRunStats: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -43,30 +38,27 @@ vi.mock('@/src/lib/repositories', () => ({
   },
 }));
 
-import AdminUsers from '../AdminUsers';
+import Administration from '../Administration';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 const renderAs = (realRole: 'Admin' | 'Executive') =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ImpersonationProvider realRole={realRole}>
-        <MemoryRouter>
+        <MemoryRouter initialEntries={['/administration/users']}>
           <ToastProvider>
-            <AdminUsers />
+            <Administration />
           </ToastProvider>
         </MemoryRouter>
       </ImpersonationProvider>
     </QueryClientProvider>,
   );
 
-describe('AdminUsers — heading matches breadcrumb (B-8, AC-W2-IA-003)', () => {
-  it('AC-W2-IA-003: the page <h1> is "Administration" matching the route/crumb label (not "Users")', () => {
+describe('Administration — route job heading identifies the selected destination', () => {
+  it('shows one Users route h1 and an active Users destination link', () => {
     renderAs('Admin');
-    // h1 must say "Administration" — same as the rail item and breadcrumb label.
-    expect(screen.getByRole('heading', { level: 1, name: /^Administration$/i })).toBeInTheDocument();
-    // "Users" may appear as a sub-heading but must not be the primary h1.
-    const h1s = screen.getAllByRole('heading', { level: 1 });
-    expect(h1s).toHaveLength(1);
-    expect(h1s[0].textContent).toMatch(/^Administration$/i);
+    expect(screen.getByRole('heading', { level: 1, name: 'Users' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page');
   });
 });
