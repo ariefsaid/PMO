@@ -105,6 +105,43 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
+  it('AC-PD-BILL-01 shows the billing answer, newest dated claims, then the progress and BoQ register', () => {
+    h.claims = [
+      claim('claim-old', { created_at: '2026-08-01T00:00:00Z' }),
+      claim('claim-new', { created_at: '2026-10-15T00:00:00Z' }),
+    ];
+    renderTab();
+
+    const answer = screen.getByRole('heading', { name: /Billing summary/ });
+    const claims = screen.getByRole('heading', { name: 'Billing claims' });
+    const boq = screen.getByRole('heading', { name: 'Bill of quantities' });
+    expect(answer.compareDocumentPosition(claims) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(claims.compareDocumentPosition(boq) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const dates = screen.getAllByTestId(/^claim-date-/);
+    expect(dates.map((date) => date.getAttribute('datetime'))).toEqual([
+      '2026-10-15T00:00:00Z',
+      '2026-08-01T00:00:00Z',
+    ]);
+  });
+
+  it('AC-PD-BILL-02 gives eligible Finance the Create invoice chooser as the single primary action', () => {
+    renderTab();
+
+    expect(screen.getByRole('button', { name: 'Create invoice' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
+  });
+
+  it('AC-PD-BILL-03 gives an eligible project assessor Record progress when invoice creation is unavailable', () => {
+    h.role = 'Project Manager';
+    h.userId = 'pm-1';
+    renderTab();
+
+    expect(screen.getByRole('button', { name: 'Record progress' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create invoice' })).toBeNull();
+  });
+
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
@@ -277,14 +314,14 @@ describe('BillingTab', () => {
 
     it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Create invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Create invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });

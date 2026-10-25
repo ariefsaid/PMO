@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
@@ -7,7 +7,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyCents, formatInstantDate, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -87,7 +87,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = boq.data ?? [];
-  const claimRows = claims.data ?? [];
+  const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
+  const orderedClaimRows = useMemo(() => [...claimRows].sort((left, right) =>
+    right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)), [claimRows]);
+  const workOrderById = useMemo(() => new Map((workOrders.data ?? []).map((row) => [row.id, row] as const)), [workOrders.data]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
   const money = (value: number) => formatCurrencyCents(value, currency);
@@ -190,8 +193,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       cell: (row) => row.earning_basis === 'lump_sum'
         ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
         : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
-    { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
-      cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
@@ -255,6 +256,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </span>
       );
     } },
+    { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
+      cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
     { key: 'actions', header: t('projectDetail.billing.boq.column.actions', 'Actions'), cell: (row) => (
       <div className="flex gap-1.5">
         {may('edit', 'boqItem') && (
@@ -269,10 +272,41 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   ];
 
   const claimColumns: Column<ProgressClaimWithInvoice>[] = [
-    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), cell: (c) => (
-      <span>{c.kind === 'down_payment'
-        ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
-        : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim / scope'), cell: (c) => {
+      const workOrder = c.work_order_id ? workOrderById.get(c.work_order_id) : undefined;
+      const scope = workOrder
+        ? workOrder.wo_number ?? workOrder.title
+        : c.work_order_id
+          ? t('projectDetail.billing.claims.scope.workOrder', 'Work order')
+          : c.lines.length > 0
+            ? t('projectDetail.billing.claims.scope.quantityLines', 'Quantity · {{count}} lines', { count: c.lines.length })
+            : t('projectDetail.billing.claims.scope.project', 'Project scope');
+      return (
+        <div className="flex min-w-0 flex-col">
+          <span className="font-semibold">{c.kind === 'down_payment'
+            ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
+            : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+          <span className="max-w-48 truncate text-[11px] text-muted-foreground" title={scope}>{scope}</span>
+        </div>
+      );
+    } },
+    { key: 'invoiceDateEvidence', header: t('projectDetail.billing.claims.column.invoiceDateEvidence', 'Invoice / date / evidence'), cell: (c) => (
+      <div className="flex flex-col gap-0.5">
+        <span>{c.withdrawn_at
+          ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
+          : c.invoice
+            ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
+            : t('projectDetail.billing.claims.notRaised', 'Not raised')}</span>
+        <time dateTime={c.created_at} data-testid={`claim-date-${c.id}`} className="text-[11px] text-muted-foreground">
+          {formatInstantDate(c.created_at)}
+        </time>
+        <span className="text-[11px] text-muted-foreground" data-testid={`claim-evidence-${c.id}`}>
+          {t('projectDetail.billing.claims.evidenceCount', '{{formattedCount}} evidence', {
+            count: c.evidence.length,
+            formattedCount: formatNumber(c.evidence.length),
+          })}
+        </span>
+      </div>
     ) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Claimed'), align: 'num',
       cell: (c) => <span className="tabular">{cents(c.gross_amount)}</span> },
@@ -280,15 +314,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       cell: (c) => <span className="tabular">{cents(c.dp_recovery_amount)}</span> },
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num',
       cell: (c) => <span className="tabular">{cents(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span> },
-    { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (c) => (
-      <span>{c.withdrawn_at
-        ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
-        : c.invoice
-          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
-          : t('projectDetail.billing.claims.notRaised', 'Not raised')}</span>
-    ) },
-    { key: 'evidence', header: t('projectDetail.billing.claims.column.evidence', 'Evidence'), align: 'num',
-      cell: (c) => <span className="tabular" data-testid={`claim-evidence-${c.id}`}>{formatNumber(c.evidence.length)}</span> },
     { key: 'actions', header: t('projectDetail.billing.claims.column.actions', 'Actions'), cell: (c) => {
       const open = !c.withdrawn_at && !c.invoice;
       return (
@@ -328,13 +353,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         className="text-base"
         actions={
           <>
-            {canAssess && boqRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                {t('projectDetail.billing.assessment.record', 'Record progress')}
-              </Button>
-            )}
             {may('create', 'boqItem') && (
-              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+              <Button variant="outline" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
             )}
           </>
         }
@@ -352,6 +372,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
           errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => boq.refetch()}
+          cardBelow={700}
         tableId="project-detail-tabs-billingtab-1-table" />
       </CardPad>
     </Card>
@@ -364,7 +385,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         className="text-base"
         actions={
           canBill && !canStartInvoice && (
-            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            <Button variant="outline" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >
@@ -372,7 +393,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
-          rows={claimRows}
+          rows={orderedClaimRows}
           columns={claimColumns}
           rowKey={(row) => row.id}
           state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
@@ -381,6 +402,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
+          cardBelow={700}
         tableId="project-detail-tabs-billingtab-2-table" />
       </CardPad>
     </Card>
@@ -393,16 +415,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           level={2}
           className="text-base"
           actions={
-            canStartInvoice && (
+            canStartInvoice ? (
               <ProjectBillingStart
                 projectId={projectId}
                 clientId={clientId}
+                triggerLabel={t('projectDetail.billing.primary.createInvoice', 'Create invoice')}
+                triggerClassName="max-sm:min-h-11 max-sm:w-full"
                 onWorkOrder={() => {
                   navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
                 }}
                 onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
               />
-            )
+            ) : canAssess && boqRows.length > 0 ? (
+              <Button variant="primary" size="sm" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setAssessOpen(true)}>
+                {t('projectDetail.billing.assessment.record', 'Record progress')}
+              </Button>
+            ) : undefined
           }
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
@@ -454,14 +482,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             {t('projectTabs:billing.quantity', 'Quantity billing')}
           </summary>
           <div className="mt-3 space-y-6">
-            {boqCard}
             {claimsCard}
+            {boqCard}
           </div>
         </details>
       ) : (
         <>
-          {boqCard}
           {claimsCard}
+          {boqCard}
         </>
       )}
 

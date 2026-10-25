@@ -2070,6 +2070,9 @@
   "projectDetail": {
     "backToProjects": "Projects",
     "billing": {
+      "primary": {
+        "createInvoice": "Create invoice"
+      },
       "assessment": {
         "errors": {
           "month": "Enter the month as YYYY-MM",
@@ -2093,7 +2096,7 @@
           "assessed": "Assessed",
           "claimed": "Claimed",
           "item": "Item",
-          "quantity": "Contract",
+          "quantity": "Unit / basis",
           "rate": "Rate",
           "remaining": "Left to claim"
         },
@@ -2160,10 +2163,9 @@
         "attachEvidence": "Attach evidence",
         "column": {
           "actions": "Actions",
-          "claim": "Claim",
-          "evidence": "Evidence",
+          "claim": "Claim / scope",
           "gross": "Claimed",
-          "invoice": "Invoice",
+          "invoiceDateEvidence": "Invoice / date / evidence",
           "net": "Net",
           "recovery": "Down payment recovered"
         },
@@ -2186,6 +2188,7 @@
           "claimWithdrawn": "This claim was withdrawn — its invoice can't be raised."
         },
         "evidenceNeeded": "Attach evidence before raising",
+        "evidenceCount": "{{formattedCount}} evidence",
         "kind": {
           "downPayment": "Down payment",
           "progress": "Progress"
@@ -2193,6 +2196,11 @@
         "new": "New claim",
         "notRaised": "Not raised",
         "raise": "Raise invoice",
+        "scope": {
+          "project": "Project scope",
+          "quantityLines": "Quantity · {{count}} lines",
+          "workOrder": "Work order"
+        },
         "title": "Billing claims",
         "toast": {
           "created": "Billing claim created",

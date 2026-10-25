@@ -2070,6 +2070,9 @@
   "projectDetail": {
     "backToProjects": "Proyek",
     "billing": {
+      "primary": {
+        "createInvoice": "Buat faktur"
+      },
       "assessment": {
         "errors": {
           "month": "Isi bulan dengan format YYYY-MM",
@@ -2093,7 +2096,7 @@
           "assessed": "Dinilai",
           "claimed": "Ditagih",
           "item": "Item",
-          "quantity": "Kontrak",
+          "quantity": "Unit / dasar",
           "rate": "Harga satuan",
           "remaining": "Sisa untuk ditagih"
         },
@@ -2160,10 +2163,9 @@
         "attachEvidence": "Lampirkan bukti",
         "column": {
           "actions": "Aksi",
-          "claim": "Tagihan",
-          "evidence": "Bukti",
+          "claim": "Tagihan / cakupan",
           "gross": "Ditagih",
-          "invoice": "Faktur",
+          "invoiceDateEvidence": "Faktur / tanggal / bukti",
           "net": "Neto",
           "recovery": "Uang muka dipulihkan"
         },
@@ -2186,6 +2188,7 @@
           "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
         },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
+        "evidenceCount": "{{formattedCount}} bukti",
         "kind": {
           "downPayment": "Uang muka",
           "progress": "Progres"
@@ -2193,6 +2196,11 @@
         "new": "Tagihan baru",
         "notRaised": "Belum diterbitkan",
         "raise": "Terbitkan faktur",
+        "scope": {
+          "project": "Cakupan proyek",
+          "quantityLines": "Kuantitas · {{count}} baris",
+          "workOrder": "Work order"
+        },
         "title": "Tagihan",
         "toast": {
           "created": "Tagihan dibuat",
