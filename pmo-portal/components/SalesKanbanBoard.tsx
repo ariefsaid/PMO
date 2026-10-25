@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { StatusPill, TaxBasisLabel } from '@/src/components/ui';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { ATTENTION_THRESHOLD_DAYS, daysSince, pillVariantForStatus, SALES_COLUMNS, formatPercent } from './salesPipeline';
@@ -84,7 +84,7 @@ const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: bo
         <div className="min-w-0 sm:col-span-2">
           <dt className="text-xs text-muted-foreground">{t('pipeline.value', 'Value')}</dt>
           <dd className="flex min-w-0 flex-wrap items-center gap-1 tabular font-medium">
-            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{formatCurrency(project.contract_value, project.currency)}</span>
+            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span>
             <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
           </dd>
         </div>

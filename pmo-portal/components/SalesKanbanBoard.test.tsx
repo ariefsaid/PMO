@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
@@ -70,9 +70,16 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     const idr = screen.getByRole('link', { name: 'IDR Deal' }).closest('article')!;
     const usd = screen.getByRole('link', { name: 'USD Deal' }).closest('article')!;
     const normalized = (value: string) => value.replace(/\u00a0/g, ' ');
-    expect(within(idr).getByText((text) => normalized(text) === normalized(formatCurrency(1_234, 'IDR')))).toBeInTheDocument();
-    expect(within(usd).getByText((text) => normalized(text) === normalized(formatCurrency(9_000, 'USD')))).toBeInTheDocument();
+    expect(within(idr).getByText((text) => normalized(text) === normalized(formatCurrencyAuto(1_234, 'IDR')))).toBeInTheDocument();
+    expect(within(usd).getByText((text) => normalized(text) === normalized(formatCurrencyAuto(9_000, 'USD')))).toBeInTheDocument();
     expect(within(idr).queryByText(/\$/)).toBeNull();
+  });
+
+  it('RD-046: preserves fractional contract value precision on a deal card', () => {
+    const fractional = { ...projects[1], contract_value: 1_200_000.25 };
+    renderBoard([fractional]);
+    const card = screen.getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
+    expect(within(card).getByText(formatCurrencyAuto(1_200_000.25, 'USD'))).toBeInTheDocument();
   });
 
   it('AC-S24-002: the phone projection is a vertical list with stage once and a real project link', () => {
@@ -82,7 +89,7 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     expect(within(card).getByText('Tender Submitted')).toBeInTheDocument();
     expect(within(card).getByText('Activity unavailable')).toBeInTheDocument();
     expect(within(card).getByText('Customer unavailable')).toBeInTheDocument();
-    expect(within(card).getByText(formatCurrency(1_200_000, 'USD'))).toBeInTheDocument();
+    expect(within(card).getByText(formatCurrencyAuto(1_200_000, 'USD'))).toBeInTheDocument();
     expect(list.querySelectorAll('li')).toHaveLength(1);
   });
 

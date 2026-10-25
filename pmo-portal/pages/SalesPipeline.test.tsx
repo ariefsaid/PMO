@@ -7,7 +7,7 @@ import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
@@ -192,9 +192,27 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     renderPage();
     await userEvent.click(screen.getByText('Pipeline summary'));
     const forecast = within(screen.getByTestId('sales-summary')).getByTestId('pipeline-weighted-total');
-    expect(forecast).toHaveTextContent(formatCurrency(800000, 'USD'));
+    expect(forecast).toHaveTextContent(formatCurrencyAuto(800000, 'USD'));
     expect(screen.getAllByTestId('pipeline-weighted-total')).toHaveLength(1);
     expect(screen.queryAllByTestId('funnel-stage-weighted')).toHaveLength(0);
+  });
+
+  it('RD-046: preserves fractional precision in the visible row and stage summary', async () => {
+    const exactValue = 2_345_678.25;
+    pipelineState.data = {
+      stages: seedStages.map((stage) => stage.status === 'Leads'
+        ? { ...stage, count: 1, total_value: exactValue, weighted_value: exactValue * 0.1 }
+        : stage),
+      projects: [{ ...seedProjects[0], id: 'fractional', name: 'Fractional Deal', status: 'Leads', contract_value: exactValue, win_probability: 0.1 }],
+    };
+    renderPage('/sales?view=table');
+    const row = screen.getByRole('row', { name: /Fractional Deal/ });
+    expect(within(row).getByText(formatCurrencyAuto(exactValue, 'USD'))).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Pipeline summary'));
+    const summary = screen.getByTestId('sales-summary');
+    const leads = within(summary).getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent(formatCurrencyAuto(exactValue, 'USD'));
   });
 
   it('AC-SALES-S02: missing stage evidence is unavailable while a confirmed empty stage remains zero', async () => {
@@ -732,7 +750,7 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     renderPage();
     await openSummary();
     const preQual = stageCell('Pre-Qual');
-    expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
+    expect(within(preQual).getByText(formatCurrencyAuto(800000, 'USD'))).toBeInTheDocument();
   });
 
   it('AC-RD-SALES-002 the summary never adds stage values into a mixed-currency total', async () => {
@@ -792,6 +810,6 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr') as HTMLElement;
-    expect(within(row).getByText(formatCurrency(1200000, 'USD'))).toBeInTheDocument();
+    expect(within(row).getByText(formatCurrencyAuto(1200000, 'USD'))).toBeInTheDocument();
   });
 });

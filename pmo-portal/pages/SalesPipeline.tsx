@@ -23,7 +23,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { activeClassificationCount } from '@/src/lib/projectClassification';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { weightedValue, openOpportunity, daysSince, ATTENTION_THRESHOLD_DAYS, SALES_COLUMNS, formatPercent, pillVariantForStatus } from '../components/salesPipeline';
 import { selectSalesProjects } from '@/src/components/sales/salesWorkingSet';
@@ -194,7 +194,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 180, align: 'num',
-      cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 tabular"><span>{formatCurrency(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
+      cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 tabular"><span>{formatCurrencyAuto(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
       exportValue: (project) => project.contract_value,
     },
     {
@@ -204,7 +204,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'weighted', header: t('sales.column.weighted', 'Weighted'), kind: 'money', size: 150, align: 'num',
-      cell: (project) => isTerminal(project) ? salesT('pipeline.notApplicable', 'Not applicable') : formatCurrency(weightedValue(project), project.currency),
+      cell: (project) => isTerminal(project) ? salesT('pipeline.notApplicable', 'Not applicable') : formatCurrencyAuto(weightedValue(project), project.currency),
       exportValue: (project) => isTerminal(project) ? '' : weightedValue(project),
     },
   ];
@@ -239,7 +239,7 @@ const SalesPipeline: React.FC = () => {
       name: stageLabel(column),
       dotColor: column.dotColor,
       prob: !probabilityUnavailable && aggregate ? formatPercent(aggregate.win_probability) : undefined,
-      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatCurrency(aggregate?.total_value ?? 0, currency),
+      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatCurrencyAuto(aggregate?.total_value ?? 0, currency),
       weighted: undefined,
       barPct: valueUnavailable || pipelineCurrencies.size > 1 || maxStageWeight === 0
         ? undefined
@@ -253,7 +253,7 @@ const SalesPipeline: React.FC = () => {
   summaryHasUnknown ||= forecastUnavailable;
   const weightedForecast = forecastUnavailable
     ? salesT('pipeline.summaryForecastUnavailable', 'Not available')
-    : formatCurrency(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
+    : formatCurrencyAuto(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
   const summary = (
     <details data-testid="sales-summary" className="mb-4 rounded-lg border border-border bg-card px-4 py-3">
       <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 font-medium">
