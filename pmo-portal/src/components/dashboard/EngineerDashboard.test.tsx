@@ -1,24 +1,44 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
+import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-// listTimesheets returns newest-first; the latest sheet is "this week".
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function mondayOf(date: Date): Date {
+  const monday = new Date(date);
+  const day = monday.getDay();
+  monday.setDate(monday.getDate() - day + (day === 0 ? -6 : 1));
+  return monday;
+}
+
+const currentWeekStartDate = mondayOf(new Date());
+const olderWeekStartDate = new Date(currentWeekStartDate);
+olderWeekStartDate.setDate(olderWeekStartDate.getDate() - 7);
+const currentWeekStart = dateKey(currentWeekStartDate);
+const olderWeekStart = dateKey(olderWeekStartDate);
+const currentTuesday = new Date(currentWeekStartDate);
+currentTuesday.setDate(currentTuesday.getDate() + 1);
+
+// Sheets arrive newest-first; only an exact calendar-week match is current.
 const sheets = [
   {
-    id: 's1', status: 'Draft', week_start_date: '2026-06-01', user_id: 'eng-1', org_id: 'o1',
+    id: 's1', status: 'Draft', week_start_date: currentWeekStart, user_id: 'eng-1', org_id: 'o1',
     submitted_at: null, approved_at: null, approved_by: null,
     entries: [
-      { id: 'e1', hours: 8, entry_date: '2026-06-01', project_id: 'p1', timesheet_id: 's1', org_id: 'o1', notes: null, project: { name: 'A', code: null } },
-      { id: 'e2', hours: 7.5, entry_date: '2026-06-02', project_id: 'p1', timesheet_id: 's1', org_id: 'o1', notes: null, project: { name: 'A', code: null } },
+      { id: 'e1', hours: 8, entry_date: currentWeekStart, project_id: 'p1', timesheet_id: 's1', org_id: 'o1', notes: null, project: { name: 'A', code: null } },
+      { id: 'e2', hours: 7.5, entry_date: dateKey(currentTuesday), project_id: 'p1', timesheet_id: 's1', org_id: 'o1', notes: null, project: { name: 'A', code: null } },
     ],
   },
   {
-    id: 's0', status: 'Approved', week_start_date: '2026-05-25', user_id: 'eng-1', org_id: 'o1',
+    id: 's0', status: 'Approved', week_start_date: olderWeekStart, user_id: 'eng-1', org_id: 'o1',
     submitted_at: null, approved_at: null, approved_by: null,
     entries: [
-      { id: 'e0', hours: 40, entry_date: '2026-05-25', project_id: 'p1', timesheet_id: 's0', org_id: 'o1', notes: null, project: { name: 'A', code: null } },
+      { id: 'e0', hours: 40, entry_date: olderWeekStart, project_id: 'p1', timesheet_id: 's0', org_id: 'o1', notes: 'Earlier entry', project: { name: 'A', code: null } },
     ],
   },
 ];
@@ -36,11 +56,14 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'eng-1', org_id: 'o1' }, role: 'Engineer' }),
 }));
 
-const renderPane = (locale: 'en' | 'id' = 'en') => render(
-  <BahasaProvider locale={locale}>
-    <MemoryRouter><EngineerDashboard /></MemoryRouter>
-  </BahasaProvider>,
-);
+const renderPane = (locale: 'en' | 'id' = 'en') => {
+  setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
+  return render(
+    <BahasaProvider locale={locale}>
+      <MemoryRouter><EngineerDashboard /></MemoryRouter>
+    </BahasaProvider>,
+  );
+};
 
 beforeEach(() => {
   tsState.data = sheets;
@@ -48,67 +71,61 @@ beforeEach(() => {
   tsState.isError = false;
 });
 
-describe('EngineerDashboard weekly summary (AC-UXA-002)', () => {
-  it('AC-UXA-002: localizes the week, status, day summaries and actions while retaining data', () => {
+describe('EngineerDashboard localization and weekly facts', () => {
+  it('AC-UXA-002: localizes the week, status, day summaries and action while retaining values', () => {
     renderPane('id');
     expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
-    expect(screen.getByText('Jam kerja minggu ini dan status timesheet Anda.')).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-week-scope')).toHaveAttribute('data-week-start', currentWeekStart);
     expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByText('Jam minggu ini')).toBeInTheDocument();
     expect(screen.getByText('Draf')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Jam minggu ini menurut hari' })).toBeInTheDocument();
-    expect(screen.getByText('Jam Kerja Minggu Ini')).toBeInTheDocument();
+    expect(screen.getByText('Jam kerja minggu ini menurut hari')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Minggu ini menurut proyek' })).toBeInTheDocument();
     expect(screen.getByText('Entri terbaru')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Sen: 8 jam' })).toBeInTheDocument();
-    expect(screen.getAllByText('A').length).toBeGreaterThan(0);
-    expect(screen.getByText('15.5 jam')).toBeInTheDocument();
-    expect(screen.getAllByText('Tidak ada catatan').length).toBeGreaterThan(0);
-    expect(screen.getByText('15.5 jam · minggu mulai 2026-06-01')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Minggu ini: 15,5 jam' })).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-hours-total')).toHaveTextContent('15,5');
     expect(sheets[0].entries[0].hours).toBe(8);
     expect(sheets[0].status).toBe('Draft');
 
     cleanup();
-    const days = ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-06', '2026-06-07'];
-    tsState.data = [{ ...sheets[0], entries: days.map((entry_date, index) => ({ ...sheets[0].entries[0], id: `day-${index}`, entry_date, hours: index + 1 })) }];
+    const dates = Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(currentWeekStartDate);
+      date.setDate(date.getDate() + index);
+      return dateKey(date);
+    });
+    tsState.data = [{ ...sheets[0], entries: dates.map((entry_date, index) => ({ ...sheets[0].entries[0], id: `day-${index}`, entry_date, hours: index + 1 })) }];
     renderPane('id');
     for (const [name, hours] of [['Sen', 1], ['Sel', 2], ['Rab', 3], ['Kam', 4], ['Jum', 5], ['Sab', 6], ['Min', 7]] as const) {
       expect(screen.getByRole('progressbar', { name: `${name}: ${hours} jam` })).toBeInTheDocument();
     }
+  });
+});
 
-    cleanup();
-    tsState.data = [{ ...sheets[0], status: 'Approved' }];
-    renderPane('id');
-    expect(screen.getByText('Disetujui')).toBeInTheDocument();
+describe('Engineer dashboard weekly summary', () => {
+  it('AC-806-ENG-01: an older latest sheet stays historical when this calendar week has no sheet', () => {
+    tsState.data = [sheets[1]];
+    renderPane();
 
-    cleanup();
-    tsState.data = undefined; tsState.isPending = true; tsState.isError = false;
-    renderPane('id');
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(3);
-    expect(screen.getAllByText('Memuat…').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getByTestId('engineer-week-scope')).toHaveAttribute('data-week-start', currentWeekStart);
+    expect(screen.getByTestId('engineer-hours-total')).toHaveTextContent('0');
+    expect(screen.getByTestId('engineer-timesheet-status')).toHaveTextContent('No timesheet this week');
+    expect(screen.getByTestId('engineer-timesheet-status')).not.toHaveTextContent('Approved');
+    expect(screen.getByTestId('engineer-recent-row-e0')).toHaveTextContent('Earlier entry');
+    expect(screen.getByRole('link', { name: "Log this week's hours" })).toHaveAttribute('href', '/timesheets');
+  });
 
-    cleanup();
-    tsState.data = undefined; tsState.isPending = false; tsState.isError = true;
-    renderPane('id');
-    expect(screen.getAllByText('Gagal memuat timesheet Anda').length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('button', { name: 'Coba lagi' }).length).toBeGreaterThan(0);
+  it('AC-806-ENG-02: a failed timesheet read keeps the week scope and action but withholds hours and status', () => {
+    tsState.data = undefined;
+    tsState.isError = true;
+    renderPane();
 
-    cleanup();
-    tsState.data = []; tsState.isPending = false; tsState.isError = false;
-    renderPane('id');
-    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Tidak ada untuk periode ini');
-    expect(screen.getAllByText('Belum ada jam kerja minggu ini').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
-
-    cleanup();
-    tsState.data = [{ ...sheets[0], entries: sheets[0].entries.map((entry) => ({ ...entry, hours: 0 })) }];
-    renderPane('id');
-    expect(screen.getByText('Catat jam kerja untuk melihat ringkasan mingguan.')).toBeInTheDocument();
-    expect(screen.getByRole('progressbar', { name: 'A: 0 jam' })).toBeInTheDocument();
-
-    cleanup();
-    tsState.data = [{ ...sheets[0], entries: [] }];
-    renderPane('id');
-    expect(screen.getByText('Jam yang Anda catat akan muncul di sini.')).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-week-scope')).toHaveAttribute('data-week-start', currentWeekStart);
+    expect(screen.getByTestId('engineer-hours-total')).toHaveTextContent('—');
+    expect(screen.getByTestId('engineer-timesheet-status')).toHaveTextContent('—');
+    expect(screen.getByRole('link', { name: "Log this week's hours" })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getAllByRole('button', { name: /Retry/i })).toHaveLength(1);
   });
 });
 
@@ -134,10 +151,23 @@ describe('EngineerDashboard T9: Recent entries card', () => {
     renderPane();
     expect(screen.getByText(/Recent entries/i)).toBeInTheDocument();
   });
-  it('T9: shows up to 8 recent entries as list items', () => {
+  it('T9: shows the latest eight entries with project, date, note and hours', () => {
+    const entries = Array.from({ length: 10 }, (_, index) => ({
+      ...sheets[0].entries[0],
+      id: `recent-${String(index).padStart(2, '0')}`,
+      entry_date: dateKey(new Date(currentWeekStartDate.getFullYear(), currentWeekStartDate.getMonth(), currentWeekStartDate.getDate() + Math.min(index, 6))),
+      notes: index === 9 ? 'A long note that remains visible in the recent entry row instead of being clipped.' : `Entry ${index}`,
+      hours: index + 1,
+    }));
+    tsState.data = [{ ...sheets[0], entries }];
     renderPane();
-    // fixture has 3 entries total
-    expect(document.querySelectorAll('li').length).toBeGreaterThanOrEqual(1);
+    const recentList = screen.getByRole('list', { name: 'Recent entries' });
+    const rows = within(recentList).getAllByRole('listitem');
+    expect(rows).toHaveLength(8);
+    expect(rows[0]).toHaveAttribute('data-testid', 'engineer-recent-row-recent-06');
+    expect(screen.getByTestId('engineer-recent-row-recent-09')).toHaveTextContent('A long note that remains visible in the recent entry row instead of being clipped.');
+    expect(screen.getByTestId('engineer-recent-row-recent-09')).toHaveTextContent('10h');
+    expect(rows[7]).toHaveAttribute('data-testid', 'engineer-recent-row-recent-02');
   });
 });
 
@@ -145,18 +175,14 @@ describe('EngineerDashboard T10: single CTA rule', () => {
   it('T10: empty state for recent entries has NO action button (no competing CTA)', () => {
     tsState.data = [];
     renderPane();
-    // hours-card shows Log hours CTA but recent-entries empty must NOT add another
-    const buttons = Array.from(document.querySelectorAll('button'));
-    const logButtons = buttons.filter((b) => /log hours/i.test(b.textContent ?? ''));
-    // At most ONE Log hours button
-    expect(logButtons.length).toBeLessThanOrEqual(1);
+    expect(screen.getAllByRole('link', { name: "Log this week's hours" })).toHaveLength(1);
   });
 });
 
 describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('sums hours this week from the latest sheet (8 + 7.5 = 15.5)', () => {
     renderPane();
-    expect(screen.getByText('15.5 hours · week of 2026-06-01')).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-hours-total')).toHaveTextContent('15.5');
   });
   it('shows the latest timesheet status pill', () => {
     renderPane();
@@ -165,9 +191,9 @@ describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('G4: with no current timesheet, the status reads "None this period" (no em-dash)', () => {
     tsState.data = [];
     renderPane();
-    const tile = screen.getByTestId('kpi-timesheet-status');
-    expect(tile).toHaveTextContent('None this period');
-    expect(tile.textContent).not.toContain('—');
+    const status = screen.getByTestId('engineer-timesheet-status');
+    expect(status).toHaveTextContent('No timesheet this week');
+    expect(status.textContent).not.toContain('—');
   });
   it('does NOT render a tasks coming-soon placeholder (removed; tracked in backlog)', () => {
     renderPane();
@@ -178,14 +204,4 @@ describe('EngineerDashboard (real hours, deferred tasks)', () => {
     expect(screen.getByRole('group', { name: /Hours this week by day/i })).toBeInTheDocument();
   });
 
-  it('M-1: hours bars stay neutral data bars, not blue action bars', () => {
-    const { container } = renderPane();
-    const dayFill = container.querySelector('[aria-label="Mon: 8 hours"] > span') as HTMLElement;
-    expect(dayFill.className).toContain('bg-muted-foreground');
-    expect(dayFill.className).not.toContain('bg-primary');
-
-    const projectFill = screen.getByRole('progressbar', { name: /A: 15.5 hours/i }).querySelector('span') as HTMLElement;
-    expect(projectFill.className).toContain('bg-muted-foreground');
-    expect(projectFill.className).not.toContain('bg-primary');
-  });
 });

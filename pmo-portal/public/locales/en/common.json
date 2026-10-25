@@ -1282,7 +1282,8 @@
     "delivery": { "percent": "Delivery {{rounded}}%" },
     "engineer": {
       "title": "My Dashboard", "subtitle": "Your hours this week and timesheet status.", "logHours": "Log this week's hours", "logHoursShort": "Log hours", "kpiBand": "My KPIs",
-      "weeklyHoursCardTitle": "Hours This Week",
+      "hoursThisWeek": "Hours this week", "weeklyHoursCardTitle": "Hours this week by day", "weekOf": "week of {{date}}", "openTimesheetsLog": "Open your timesheets to log this week's hours", "hoursHelp": "Total hours on your most recent timesheet.",
+        "calendarWeek": "Calendar week of {{date}}", "calendarWeekLabel": "Calendar week", "weekSummary": "This week", "weekHoursAria": "This week: {{hours}} hours", "noTimesheetThisWeek": "No timesheet this week", "hoursUnavailable": "Hours unavailable", "statusUnavailable": "Timesheet status unavailable", "emptyWeekNote": "No hours are recorded for this calendar week yet.", "entriesUnavailable": "Recent entries unavailable", "noRecentEntries": "No recent entries", "noProjectHours": "No project hours recorded this week",
       "timesheetStatus": "Timesheet status", "noneThisPeriod": "None this period", "openTimesheetsStatus": "Open your timesheets to see your current status", "statusHelp": "The status of your most recent timesheet.",
       "loadError": "Couldn't load your timesheets", "recentError": "Couldn't load recent entries", "noHours": "No hours logged this week", "noHoursSub": "Log your hours to see your weekly breakdown.", "projectBreakdownSub": "Log your hours to see a project breakdown.",
       "hoursByDay": "Hours this week by day", "dayHours": "{{day}}: {{hours}} hours", "byProject": "This week by project", "recentEntries": "Recent entries", "entriesEmptySub": "Hours you log will show up here.", "noNote": "No note", "unknownProject": "Unknown", "hoursShort": "{{hours}}h", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "hours",
