@@ -95,15 +95,6 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
       <h2 className="text-base font-semibold tracking-tight">
         {t('admin.projectNumberPattern.title', 'Project number pattern')}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t(
-          'admin.projectNumberPattern.description',
-          'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
-        )}
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}
-      </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
           <ListState
@@ -126,6 +117,15 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
         ) : canManage ? (
           <div className="space-y-3">
             <p className="text-[13px] text-muted-foreground">{t('administration:admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
+            <div className="space-y-1 text-[13px] text-muted-foreground">
+              <p>
+                {t(
+                  'admin.projectNumberPattern.description',
+                  'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
+                )}
+              </p>
+              <p>{t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}</p>
+            </div>
             <TextField
               id="org-project-number-pattern-input"
               label={t('admin.projectNumberPattern.label', 'Project number pattern')}

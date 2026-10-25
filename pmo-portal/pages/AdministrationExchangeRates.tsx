@@ -212,20 +212,9 @@ const AdministrationExchangeRates: React.FC = () => {
           variant="empty"
           icon="upload"
           title={t('fx.empty', 'No JISDOR rates yet')}
-          sub={
-            canUpload
-              ? `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
-                  'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
-                )}`
-              : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
-                  'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
-                )} ${t(
-                  'uxs38.emptyNeedRole',
-                  'An Admin or Finance member can upload them from this page.',
-                )}`
-          }
+          sub={canUpload
+            ? t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")
+            : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t('uxs38.emptyNeedRole', 'An Admin or Finance member can upload them from this page.')}`}
           stateId="fx-rates-empty"
           role={realRole ?? undefined}
           module="administration"

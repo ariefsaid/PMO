@@ -127,7 +127,7 @@ const OrgTaxDefault: React.FC<OrgTaxDefaultProps> = ({ editing, onEdit, onClose 
                   : t('admin.taxDefault.value.exclusive', 'Exclusive — tax is on top of the amount')}
               </p>
               <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>
-                {t('integrations:uxs11.editSetting', 'Edit setting')}
+                {t('integrations:uxs11.editTaxTreatment', 'Edit tax treatment')}
               </Button>
             </div>
           )

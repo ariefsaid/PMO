@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
 import { AgentCostMetrics, type AgentCostRunStatsRow } from '@/src/components/admin/AgentCostMetrics';
-import { DataTable, ListState, SelectField, type Column } from '@/src/components/ui';
+import { DataTable, DisclosureSummary, ListState, SelectField, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
 import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
 
@@ -225,10 +225,10 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
         </div>
       )}
 
-      <details className="rounded-lg border border-border bg-card">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <details className="group rounded-lg border border-border bg-card px-4">
+        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
           {t('administration:admin.usage.diagnostics', 'Diagnostics')}
-        </summary>
+        </DisclosureSummary>
         <div className="border-t border-border p-4">
           <AgentCostMetrics
             summaryRows={filteredRows}

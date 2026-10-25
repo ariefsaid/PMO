@@ -17,6 +17,7 @@ import {
   useToast,
   Button,
   Icon,
+  DisclosureSummary,
   type Column,
   type RowMenuItem,
   type ComboboxOption,
@@ -30,6 +31,7 @@ import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useLocation, useNavigate } from 'react-router';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -125,11 +127,29 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { data, isPending, isError, refetch } = useUsers();
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const { currentUser } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const tableRef = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'disabled'>('all');
-  const [sortDescending, setSortDescending] = useState(false);
+  const directoryParams = new URLSearchParams(location.search);
+  const search = directoryParams.get('search') ?? '';
+  const statusValue = directoryParams.get('status');
+  const statusFilter: 'all' | 'active' | 'disabled' =
+    statusValue === 'active' || statusValue === 'disabled' ? statusValue : 'all';
+  const sortDescending = directoryParams.get('sort') === 'desc';
+  const updateDirectoryUrl = (key: 'search' | 'status' | 'sort', value: string) => {
+    const next = new URLSearchParams(location.search);
+    if (!value || (key === 'status' && value === 'all')) next.delete(key);
+    else next.set(key, value);
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next.toString()}` : '',
+        hash: location.hash,
+      },
+      { replace: true, state: location.state },
+    );
+  };
   // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
   const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserRow } | null>(null);
   // Pending high-impact role change awaiting the confirm step.
@@ -204,8 +224,17 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   }, [all, i18n.resolvedLanguage, search, sortDescending, statusFilter]);
 
   const clearFilters = () => {
-    setSearch('');
-    setStatusFilter('all');
+    const next = new URLSearchParams(location.search);
+    next.delete('search');
+    next.delete('status');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next.toString()}` : '',
+        hash: location.hash,
+      },
+      { replace: true, state: location.state },
+    );
   };
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
@@ -215,6 +244,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       : all.length === 0
         ? 'empty'
         : undefined;
+  const noMatches = state === undefined && filtered.length === 0;
 
   // ── A direct deep-link still needs its own gate. Admin, Executive, and platform Operator
   // proceed; RLS and the server-side Operator RPCs remain the authority for each action.
@@ -249,13 +279,13 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
               </span>
             </div>
           </div>
-          <details className="mt-1 md:hidden">
-            <summary
+          <details className="group mt-1 md:hidden">
+            <DisclosureSummary
               aria-label={t('administration:admin.users.detailsFor', { defaultValue: 'Details for {{name}}', name: u.full_name })}
-              className="flex min-h-11 cursor-pointer items-center text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
-              {t('administration:admin.users.details', 'Details')}
-            </summary>
+              {t('administration:admin.users.memberDetails', 'Member details')}
+            </DisclosureSummary>
             <div className="grid min-w-0 gap-1 py-1 text-xs">
               <span className="break-all">{u.full_name}</span>
               <span className="break-all text-muted-foreground">{u.email}</span>
@@ -457,7 +487,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             placeholder={t('admin.users.search.placeholder', 'Search by name or email…')}
             aria-label={t('admin.users.search.label', 'Search users')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateDirectoryUrl('search', e.target.value)}
             containerClassName="min-h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
           />
           <label className="sr-only" htmlFor="admin-users-status-filter">
@@ -468,7 +498,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             aria-label={t('administration:admin.users.statusFilter.label', 'Filter users by status')}
             className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}
+            onChange={(event) => updateDirectoryUrl('status', event.target.value)}
           >
             <option value="all">{t('administration:admin.users.statusFilter.all', 'All statuses')}</option>
             <option value="active">{t('admin.users.status.active', 'Active')}</option>
@@ -478,12 +508,12 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             variant="outline"
             aria-pressed={sortDescending}
             className="min-h-11"
-            onClick={() => setSortDescending((descending) => !descending)}
+            onClick={() => updateDirectoryUrl('sort', sortDescending ? 'asc' : 'desc')}
           >
             {sortDescending ? t('administration:admin.users.sort.nameDesc', 'Name Z–A') : t('administration:admin.users.sort.nameAsc', 'Name A–Z')}
           </Button>
           {embedded && canInvite && (
-            <Button variant="primary" className="min-h-11 shrink-0" onClick={() => setInviteOpen(true)}>
+            <Button variant={noMatches ? 'outline' : 'primary'} className="min-h-11 shrink-0" onClick={() => setInviteOpen(true)}>
               <Icon name="plus" />
               {t('admin.users.invite', 'Invite user')}
             </Button>

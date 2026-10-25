@@ -49,6 +49,12 @@ export function TaskListBatchMatchReview({
   const pendingRetries = selected.filter(({ projectId }) => outcomes[projectId] === 'failed');
   const batchRows = Object.keys(outcomes).length > 0 ? pendingRetries : selected;
   const canReview = canConfirm && selected.length > 0 && selected.every(({ projectId }) => Boolean(directionFor(projectId)));
+  const submitError = pendingRetries.length > 0
+    ? {
+      headline: t('integrations:uxs21.batchSaveFailedSummary', 'Some project links could not be saved.'),
+      detail: pendingRetries.map(({ projectName }) => projectName).join(', '),
+    }
+    : null;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -107,6 +113,7 @@ export function TaskListBatchMatchReview({
       onClose={onClose}
       loading={saving}
       dirty={selectedCount > 0 && Boolean(batchDirection)}
+      submitError={submitError}
       submitDisabled={stage === 'selection'
         ? !canReview || saving
         : !canConfirm || saving || batchRows.length === 0}

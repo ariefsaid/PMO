@@ -212,7 +212,7 @@ export function ErpSetupChecklist(
                       ? setup.data.domains.map((value) =>
                         domainText(value)
                       ).join(', ')
-                      : t('uxs07.noDomains', 'No connected information is currently updating from ERPNext')}
+                      : t('integrations:erpSetup.noDomains', 'No connected information is currently updating from ERPNext')}
                   </p>
                 </div>
                 <Button variant='outline' size='sm' onClick={openDomains}>

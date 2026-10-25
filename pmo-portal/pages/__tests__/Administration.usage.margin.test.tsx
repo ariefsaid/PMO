@@ -97,7 +97,7 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
   });
 
   it('filters the monthly table by period and action, with a clear recovery for no matches', () => {
-    renderUsage(
+    const { container } = renderUsage(
       <AdministrationUsage
         rows={[
           baseRow,
@@ -111,11 +111,16 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
       />,
     );
 
+    fireEvent.click(screen.getByText('Diagnostics'));
+    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
+    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText('Period'), { target: { value: '2026-08-01' } });
     fireEvent.change(screen.getByRole('combobox', { name: 'Action' }), { target: { value: 'chat' } });
     expect(screen.getByText(/no usage matches/i)).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Diagnostics'));
-    expect(screen.getByText(/no agent cost data yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no metrics for this selection/i)).toBeInTheDocument();
+    expect(container.querySelector('.recharts-wrapper')).toBeInTheDocument();
+    expect(container.querySelector('.recharts-legend-wrapper')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /clear filters/i }));
     const table = screen.getByRole('table');

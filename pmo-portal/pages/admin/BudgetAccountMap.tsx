@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListState,
   DataTable,
+  DisclosureSummary,
   type Column,
   ConfirmDialog,
   EntityFormModal,
@@ -285,8 +286,8 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
           return <StatusPill variant="won">{t('administration:admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>;
         }
         return <StatusPill variant="warn">{accounts.length
-          ? t('admin.budgetMap.noPush', 'No push account — blocks every push')
-          : t('administration:admin.postingAccounts.needsSetupBlocking', 'Needs setup — blocks every push')}</StatusPill>;
+          ? t('admin.budgetMap.noPush', 'No budget account')
+          : t('administration:admin.postingAccounts.needsSetupBlocking', 'Needs setup')}</StatusPill>;
       },
     },
     ...(canManage ? [{
@@ -346,18 +347,23 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
       <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
         {t('admin.budgetMap.title', 'Budget account map')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t(
-          'admin.budgetMap.description',
-          'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.',
-        )}
-      </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('uxs10.mapPrinciple', 'One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.')}
-      </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}
-      </p>
+      {categoriesNeedingPosting.length > 0 && (
+        <p role="status" className="mt-2 text-[13px] text-warning-foreground">
+          {t('administration:admin.postingAccounts.blockingSummary', {
+            defaultValue: '{{count}} budget categories need a posting account. The whole budget push waits until each category is mapped.',
+            count: categoriesNeedingPosting.length,
+          })}
+        </p>
+      )}
+      <details className="group mt-2 rounded-md border border-border px-3">
+        <DisclosureSummary className="text-[13px] font-medium">
+          {t('administration:admin.postingAccounts.guidance', 'How posting accounts work')}
+        </DisclosureSummary>
+        <div className="space-y-1 pb-3 text-[13px] text-muted-foreground">
+          <p>{t('uxs10.mapPrinciple', 'One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.')}</p>
+          <p>{t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}</p>
+        </div>
+      </details>
 
       {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">

@@ -252,7 +252,7 @@ export default function OrgVendorTaxAccounts({ editing, onEdit, onClose }: OrgVe
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline font-medium">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline font-medium">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
             </dl>
-            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editSetting', 'Edit setting')}</Button>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editVendorTaxAccounts', 'Edit vendor tax accounts')}</Button>
           </div>
         ) : (
           <>

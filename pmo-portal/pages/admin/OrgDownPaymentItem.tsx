@@ -152,7 +152,7 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
           </form> : canManage ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] font-medium">{savedValue}</p>
-              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editSetting', 'Edit setting')}</Button>
+              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editDownPaymentItem', 'Edit down payment item')}</Button>
             </div>
           ) : <p className="text-[13px]">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
       </div>

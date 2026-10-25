@@ -113,15 +113,6 @@ const SpendApprovers: React.FC = () => {
         : t('uxs32.holdersNone', 'Nobody active holds these roles right now.')
       : '';
 
-  const flatRouteNote = (scope: 'org' | 'project') => (
-    <p data-testid={`spend-route-${scope}`} className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
-      {t('uxs32.roleRoute', {
-        defaultValue: "Standard rules: any of {{roles}} can approve someone else's request.",
-        roles,
-      })}{' '}
-      {holders}
-    </p>
-  );
   const adminRouteNote = (scope: 'org' | 'project') => (
     <p data-testid={`spend-route-${scope}`} role="status" className="mt-2 max-w-[68ch] text-[13px] text-warning-foreground">
       {t('uxs32.noEligible', 'Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.')}
@@ -137,16 +128,11 @@ const SpendApprovers: React.FC = () => {
    */
   const renderRoute = (rows: SpendApproverRow[], scope: 'org' | 'project') => {
     if (rows.length === 0) {
-      if (scope === 'org' || orgRows.length === 0) return flatRouteNote(scope);
+      if (scope === 'org') return null;
       if (peopleReady && !orgRows.some((r) => eligibleIds.has(r.profileId))) return adminRouteNote(scope);
       return (
         <p data-testid="spend-route-project" className="mt-2 max-w-[68ch] text-[13px] text-muted-foreground">
-          {t('uxs32.projectEmpty', {
-            defaultValue:
-              'No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers.',
-            roles,
-          })}{' '}
-          {holders}
+          {t('uxs32.projectEmpty', 'Over-budget requests, or requests whose budget line cannot be checked, go to the overhead approvers.')}
         </p>
       );
     }
@@ -170,7 +156,7 @@ const SpendApprovers: React.FC = () => {
         </p>
       );
     }
-    return senior === 'admin' ? adminRouteNote(scope) : flatRouteNote(scope);
+    return senior === 'admin' ? adminRouteNote(scope) : null;
   };
 
   const renderRows = (rows: SpendApproverRow[], scope: 'org' | 'project') =>
@@ -215,7 +201,7 @@ const SpendApprovers: React.FC = () => {
       <p className="mt-1 max-w-[68ch] text-[13px] text-muted-foreground">
         {t(
           'admin.spendApprovers.description',
-          "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+          "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve.",
         )}
       </p>
       {isError ? (
@@ -230,6 +216,15 @@ const SpendApprovers: React.FC = () => {
         <ListState variant="loading" rows={2} testId="spend-approvers-loading" />
       ) : (
         <div className="mt-3 space-y-4">
+          {(orgRows.length === 0 || projectRows.length === 0) && (
+            <p data-testid="spend-fallback-summary" className="max-w-[68ch] text-[13px] text-muted-foreground">
+              {t('uxs32.roleRoute', {
+                defaultValue: "Standard rules: any of {{roles}} can approve someone else's request.",
+                roles,
+              })}{' '}
+              {holders}
+            </p>
+          )}
           <div>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-[13px] font-semibold">

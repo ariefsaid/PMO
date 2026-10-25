@@ -14,6 +14,7 @@ import {
   FieldError,
   ListState,
   DataTable,
+  DisclosureSummary,
   type Column,
   Combobox,
   type StatusVariant,
@@ -367,7 +368,7 @@ export const IntegrationsView: React.FC = () => {
           </div>
         ) : domains.length === 0 ? (
           <p className="mt-1 text-sm text-muted-foreground">
-            {t('uxs07.noDomains', 'No information from this service is currently updated automatically.')}
+            {t('uxs07.ownershipNone', 'No information areas are selected for updates from this service.')}
           </p>
         ) : (
           <>
@@ -471,6 +472,8 @@ export const IntegrationsView: React.FC = () => {
           const binding = isError ? undefined : getBinding(tier);
           const isConnected = binding?.status === 'active';
           const isDisconnected = binding?.status === 'disconnected';
+          const hasConnectionHistory = Boolean(binding?.connected_by || binding?.connected_at || binding?.disconnected_at);
+          const hasServiceDetails = isConnected || hasConnectionHistory;
           const showConnect = !isConnected; // show connect when not active (disconnected or never connected)
           const showDisconnect = isConnected && !isError;
 
@@ -513,7 +516,7 @@ export const IntegrationsView: React.FC = () => {
           const firstMissingSetupStep = missingSetupSteps[0]?.key;
 
           return (
-            <Card key={tier} className="p-4" data-tier={tier}>
+            <Card key={tier} className={hasServiceDetails ? 'p-4' : 'p-3'} data-tier={tier}>
               {/* AC-IRUX-010: flex-wrap so the long activation status pill reflows beside/under the
                   tier name instead of overflowing the card at 390px. */}
               <div className="flex flex-wrap items-center gap-2">
@@ -524,7 +527,7 @@ export const IntegrationsView: React.FC = () => {
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
                   ? <StatusPill variant="neutral" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.setupAdminRequired', 'Ask an administrator to check setup')}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !erpSetup
-                  ? <StatusPill variant={erpSetupQuery.isError ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupQuery.isError ? t('uxs07.setupUnavailable', 'Setup status unavailable') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
+                  ? <StatusPill variant={erpSetupQuery.isError ? 'warn' : 'neutral'} className="min-w-0 max-w-full shrink whitespace-normal break-words">{erpSetupQuery.isError ? t('integrations:uxs07.setupCheckFailed', 'Setup check failed') : t('uxs07.setupChecking', 'Checking setup')}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && erpSetup
                   ? <span className="text-xs font-medium text-success-text">{t('uxs07.ready', 'Ready')}</span>
                   : <StatusPill variant={pillVariant} className="min-w-0 max-w-full shrink whitespace-normal break-words">{pillLabel}</StatusPill>}
@@ -540,10 +543,11 @@ export const IntegrationsView: React.FC = () => {
                   </CanWrite>
                 </div>
               )}
-              <details className="mt-3 border-t border-border px-0" data-testid={`service-details-${tier}`}>
-                <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                  {t('integrations:uxs07.connectionDetails', 'Connection details')}
-                </summary>
+              {hasServiceDetails && (
+              <details className="group mt-3 border-t border-border px-0" data-testid={`service-details-${tier}`}>
+                <DisclosureSummary className="font-medium">
+                  {t('integrations:uxs07.detailsForService', '{{service}} connection details', { service: tierLabel(tier) })}
+                </DisclosureSummary>
                 <div className="space-y-3 pb-3">
                   {!isError && (isConnected || isDisconnected) && binding && (
                     <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -573,6 +577,7 @@ export const IntegrationsView: React.FC = () => {
                   {renderServiceInformation(tier)}
                 </div>
               </details>
+              )}
 
               {/* Binding-status retry when the read failed (AC-IRUX-001) */}
               {isError && (
@@ -589,6 +594,7 @@ export const IntegrationsView: React.FC = () => {
                 <HealthPanel
                   state={healthState}
                   onRetry={() => healthQueries[tier].refetch()}
+                  setupUnavailable={tier === 'erpnext' && erpSetupQuery.isError}
                   t={t}
                 />
               )}
@@ -619,10 +625,10 @@ export const IntegrationsView: React.FC = () => {
                       </Button>
                     )}
                     {showDisconnect && (
-                      <details className="text-sm">
-                        <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <details className="group text-sm">
+                        <DisclosureSummary className="rounded-md px-2 text-muted-foreground underline underline-offset-4 hover:text-foreground">
                           {t('uxs07.connectionOptions', 'Connection options')}
-                        </summary>
+                        </DisclosureSummary>
                         <div className="absolute z-10 mt-1 rounded-md border border-border bg-card p-2 shadow-sm">
                           <Button variant="ghost" size="sm" onClick={() => handleDisconnectClick(tier)}>
                             <Icon name="plug" className="size-3.55" aria-hidden="true" />
@@ -638,14 +644,14 @@ export const IntegrationsView: React.FC = () => {
               {/* Tier-specific info notes */}
               {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
                 <CanWrite entity="integration" action="manage">
-                  <details className="mt-3 border-t border-border px-0" open={setupIncomplete || erpSetupQuery.isError}>
-                    <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                  <details className="group mt-3 border-t border-border px-0" open={setupIncomplete || erpSetupQuery.isError}>
+                    <DisclosureSummary className="font-medium">
                       {setupIncomplete
                         ? t('uxs07.finishSetup', 'Finish setup')
                         : erpSetupQuery.isError
                           ? t('integrations:uxs07.reviewSetupStatus', 'Review setup status')
                           : t('integrations:uxs07.viewConfiguredSetup', 'View configured setup')}
-                    </summary>
+                    </DisclosureSummary>
                     <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
                   </details>
                 </CanWrite>
@@ -655,17 +661,30 @@ export const IntegrationsView: React.FC = () => {
         })}
         {/* Microsoft 365 is the third shared service, after financial and project connections. Its
             approval and default-library decisions stay distinct from each member's personal sign-in. */}
-        <div data-testid="m365-organization-service">
-          <M365DefaultLibraryCard />
-          {canManageIntegrations && (
-            <details className="rounded-md border border-border bg-card px-3" data-testid="m365-organization-approval-details">
-              <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-                {t('integrations:uxs07.organizationApproval', 'Organization approval')}
-              </summary>
-              <M365OrgApprovalCard />
-            </details>
-          )}
-        </div>
+        <Card className="min-w-0 p-4" data-testid="m365-organization-service">
+          <div className="flex flex-wrap items-center gap-2">
+            <Icon name="plug" aria-hidden="true" />
+            <h2 className="text-[15px] font-semibold text-foreground">Microsoft 365</h2>
+            <StatusPill variant="neutral">
+              {t('integrations:uxs07.m365ApprovalMayBeRequired', 'Organization approval may be required')}
+            </StatusPill>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {t(
+              'integrations:uxs07.m365ApprovalScope',
+              'Microsoft confirms organization approval during connection. An administrator can approve the app if Microsoft asks.',
+            )}
+          </p>
+          <details className="group mt-3 border-t border-border">
+            <DisclosureSummary className="font-medium">
+              {t('integrations:uxs07.m365Options', 'Document library and approval options')}
+            </DisclosureSummary>
+            <div className="space-y-3 pb-1">
+              <M365DefaultLibraryCard />
+              {canManageIntegrations && <M365OrgApprovalCard />}
+            </div>
+          </details>
+        </Card>
       </div>
 
       {bindingMapVisible && (
@@ -768,10 +787,10 @@ export const IntegrationsView: React.FC = () => {
           {!clickUpListsUnavailable && !isBindingsPending && !isBindingsError && !projectsPending && !projectsError && (
             <>
               {clickupLists.some((list) => !boundListIds.has(list.id)) && (
-                <details className="mt-4 rounded-md border border-border px-3">
-                  <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                <details className="group mt-4 rounded-md border border-border px-3">
+                  <DisclosureSummary className="font-medium">
                     {t('integrations:uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
-                  </summary>
+                  </DisclosureSummary>
                   <div className="pb-3">
                     <h3 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h3>
                     <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
@@ -959,11 +978,12 @@ export const IntegrationsView: React.FC = () => {
 interface HealthPanelProps {
   state: TierHealthState;
   onRetry: () => void;
+  setupUnavailable?: boolean;
   t: (key: string, def: string, options?: Record<string, string | number>) => string;
 }
 
 /** The per-tier health read: loading / unavailable / available (AC-IRUX-003/004). */
-const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, t }) => {
+const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, setupUnavailable = false, t }) => {
   if (state.kind === 'loading') {
     return (
       <p className="mt-3 text-sm text-muted-foreground" role="status">
@@ -993,6 +1013,11 @@ const HealthPanel: React.FC<HealthPanelProps> = ({ state, onRetry, t }) => {
   ] as const;
   return (
     <div className="mt-3 space-y-2 text-sm">
+      {setupUnavailable && (
+        <p role="status" className="text-muted-foreground">
+          {t('integrations:uxs07.setupCheckBoundary', 'Outbound queue status was checked separately; it does not confirm ERP business setup.')}
+        </p>
+      )}
       <p className="flex items-center gap-1 text-muted-foreground" role="status">
         <Icon name={counts.pending === 0 ? 'check' : 'info'} className="size-3.55 shrink-0" aria-hidden="true" />
         <span className="tabular-nums">{counts.pending === 0

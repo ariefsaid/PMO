@@ -2,7 +2,7 @@ import ProjectSetupTask from './admin/ProjectSetupTask';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Link, Navigate, useLocation } from 'react-router';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -187,6 +187,7 @@ const OperatorMembershipPending: React.FC = () => {
 
 const AccountingSectionNavigation: React.FC<{ selected: AccountingTask }> = ({ selected }) => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const tasks: { id: AccountingTask; label: string }[] = [
     { id: 'posting-accounts', label: t('administration:admin.accounting.postingAccounts', 'Posting accounts') },
     { id: 'tax-advances', label: t('administration:admin.accounting.taxAdvances', 'Tax and advances') },
@@ -195,7 +196,18 @@ const AccountingSectionNavigation: React.FC<{ selected: AccountingTask }> = ({ s
   ];
   return (
     <nav aria-label={t('administration:admin.accounting.sectionsLabel', 'Accounting tasks')} className="mb-4 min-w-0">
-      <ul className="grid min-w-0 gap-1 sm:flex sm:flex-wrap">
+      <label className="sr-only" htmlFor="accounting-task-selector">
+        {t('administration:admin.accounting.sectionsLabel', 'Accounting tasks')}
+      </label>
+      <select
+        id="accounting-task-selector"
+        className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground sm:hidden"
+        value={selected}
+        onChange={(event) => navigate({ hash: `#${event.target.value}` })}
+      >
+        {tasks.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+      </select>
+      <ul className="hidden min-w-0 gap-1 sm:flex sm:flex-wrap">
         {tasks.map(({ id, label }) => (
           <li key={id}>
             <Link
@@ -327,7 +339,10 @@ const Administration: React.FC = () => {
   const needsOperatorCheck = operatorRoute || (!isAdminViewer && !isFinance);
   const navigationSections: AdministrationSection[] = isFinance
     ? FINANCE_SECTIONS
-    : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
+    : [
+        ...ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx),
+        ...(section === 'cost-attribution' ? ['cost-attribution' as const] : []),
+      ];
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
   const isPhone = usePhoneLayout();
@@ -383,16 +398,12 @@ const Administration: React.FC = () => {
     return <Navigate to={isFinance ? '/administration/exchange-rates' : '/administration/users'} replace />;
   }
 
-  return (
-    <div className="min-w-0">
-      <AdministrationPageHeader title={label(section)} scope={scope} />
-      {(() => {
-        const financeDestination = isFinance && (fxRoute || costAttributionRoute);
-        const showNavigation = isAdminViewer || (isOperator && !operatorMembership.isPending) || financeDestination;
-        const navigation = showNavigation ? (
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} phone={isPhone} label={label} />
-        ) : null;
-        const content = operatorMembership.isPending && needsOperatorCheck ? (
+  const financeDestination = isFinance && (fxRoute || costAttributionRoute);
+  const showNavigation = isAdminViewer || (isOperator && !operatorMembership.isPending) || financeDestination;
+  const navigation = showNavigation ? (
+    <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} phone={isPhone} label={label} />
+  ) : null;
+  const content = operatorMembership.isPending && needsOperatorCheck ? (
           <OperatorMembershipPending />
         ) : operatorMembership.isError && needsOperatorCheck ? (
           <ListState
@@ -428,18 +439,24 @@ const Administration: React.FC = () => {
           />
         );
 
-        return showNavigation && !isPhone ? (
-          <div className="grid min-w-0 gap-6 md:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)]">
-            {navigation}
-            <div className="min-w-0">{content}</div>
-          </div>
-        ) : (
+  return (
+    <div className="min-w-0">
+      {showNavigation && !isPhone ? (
+        <div className="grid min-w-0 grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)] gap-x-6 gap-y-4">
+          <div aria-hidden="true" />
+          <AdministrationPageHeader title={label(section)} scope={scope} desktopContentAligned />
+          {navigation}
+          <div className="min-w-0">{content}</div>
+        </div>
+      ) : (
+        <>
+          <AdministrationPageHeader title={label(section)} scope={scope} />
           <div className="min-w-0">
             {navigation}
             {content}
           </div>
-        );
-      })()}
+        </>
+      )}
     </div>
   );
 };

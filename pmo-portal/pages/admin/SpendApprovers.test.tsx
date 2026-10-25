@@ -111,14 +111,16 @@ describe('UX-081 resolved approval route (S-32)', () => {
       { id: 'u-gone', full_name: 'Gus Gone', role: 'Finance', status: 'disabled' },
     ]);
     renderPanel('Admin');
-    const route = await screen.findByTestId('spend-route-org');
+    const route = await screen.findByTestId('spend-fallback-summary');
     expect(route).toHaveTextContent('Admin, Executive, Project Manager or Finance');
     await waitFor(() => expect(route).toHaveTextContent('Eve Exec'));
     expect(route).toHaveTextContent('Fay Fin');
     expect(route).not.toHaveTextContent('Eli Eng');
     expect(route).not.toHaveTextContent('Gus Gone');
-    // project section follows the role rules too when no overhead set exists
-    expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Admin, Executive, Project Manager or Finance');
+    // Common fallback and eligible people are stated once; the project group keeps its distinct over-budget route.
+    expect(screen.getAllByText(/Standard rules:/)).toHaveLength(1);
+    expect(screen.getByTestId('spend-route-project')).toHaveTextContent('Over-budget requests');
+    expect(screen.getByTestId('spend-route-project')).not.toHaveTextContent('Admin, Executive, Project Manager or Finance');
   });
 
   it('UX-081: a configured list nobody on it can act on says only an Admin can decide', async () => {

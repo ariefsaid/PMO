@@ -2,13 +2,26 @@
   "uxs07": {
     "viewConfiguredConnections": "Lihat koneksi yang dikonfigurasi dan daftar yang tidak digunakan",
     "connectionDetails": "Detail koneksi",
+    "detailsForService": "Detail koneksi {{service}}",
+    "m365ApprovalMayBeRequired": "Persetujuan organisasi mungkin diperlukan",
+    "m365ApprovalScope": "Microsoft mengonfirmasi persetujuan organisasi saat koneksi. Administrator dapat menyetujui aplikasi jika diminta oleh Microsoft.",
+    "m365Options": "Opsi pustaka dokumen dan persetujuan",
+    "setupCheckFailed": "Pemeriksaan penyiapan gagal",
+    "setupCheckBoundary": "Status antrean keluar diperiksa secara terpisah; hasil ini tidak mengonfirmasi penyiapan bisnis ERP.",
     "viewConfiguredSetup": "Lihat penyiapan yang sudah dikonfigurasi",
     "reviewSetupStatus": "Tinjau status penyiapan",
     "organizationApproval": "Persetujuan organisasi"
   },
   "uxs11": {
     "doneEditing": "Selesai mengedit",
-    "editSetting": "Edit pengaturan"
+    "editSetting": "Edit pengaturan",
+    "editTaxTreatment": "Edit perlakuan pajak",
+    "editWithholdingAccount": "Edit akun pemotongan",
+    "editVendorTaxAccounts": "Edit akun pajak pemasok",
+    "editDownPaymentItem": "Edit item uang muka"
+  },
+  "erpSetup": {
+    "noDomains": "Belum ada informasi terhubung yang diperbarui dari ERPNext"
   },
   "uxs21": {
     "batchAcceptAllAction": "Terima semua kecocokan yang jelas",
@@ -26,6 +39,7 @@
     "batchConsequence": "Ini menghubungkan setiap proyek PMO terpilih ke daftar ClickUp yang ditampilkan. Pilihan sumber awal tidak memulai sinkronisasi berkelanjutan.",
     "batchSaved": "Tersimpan",
     "batchSaveFailed": "Tautan ini belum tersimpan. Pilihan Anda tetap tersimpan untuk dicoba lagi.",
+    "batchSaveFailedSummary": "Beberapa tautan proyek tidak dapat disimpan.",
     "batchPartialOutcome": "{{saved}} tersimpan; {{failed}} perlu ditangani. Tautan tersimpan tidak diulang."
   }
 }

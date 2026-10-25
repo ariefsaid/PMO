@@ -220,7 +220,7 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
 });
 
 describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup path', () => {
-  it('offers the reviewed setup path: consequence copy, reference-vs-accounting scope, and one Upload action that opens the dialog', async () => {
+  it('offers the reviewed setup path once and one Upload action that opens the dialog', async () => {
     h.role = 'Finance';
     h.list.mockResolvedValue({ rows: [], nextCursor: null });
     renderPage();
@@ -230,10 +230,8 @@ describe('S-38 / RF-054 — empty reference-rate history leaves a useful setup p
     expect(
       screen.getByText(/Upload BI's JISDOR history to show rupiah equivalents/),
     ).toBeInTheDocument();
-    // Reference equivalents are not accounting figures — the page says so before any upload.
-    expect(
-      screen.getByText(/accounting records are never changed/i),
-    ).toBeInTheDocument();
+    // The route scope owns the display-only explanation; the empty state keeps only missing history and its first step.
+    expect(screen.queryByText(/accounting records are never changed/i)).not.toBeInTheDocument();
     // Exactly one primary setup action (the empty state carries it; the header stands down).
     const uploadButtons = screen.getAllByRole('button', { name: 'Upload rates' });
     expect(uploadButtons).toHaveLength(1);

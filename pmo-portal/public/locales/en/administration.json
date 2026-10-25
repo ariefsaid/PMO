@@ -95,8 +95,8 @@
       "selectedScope": "Showing {{period}} · {{action}}.",
       "allScope": "Across all actions and months.",
       "metricsLoadError": "Couldn't load agent cost metrics",
-      "metricsEmptyTitle": "No agent cost data yet",
-      "metricsEmptyHelp": "Agent cost telemetry appears here once your workspace starts using the assistant.",
+      "metricsEmptyTitle": "No metrics for this selection",
+      "metricsEmptyHelp": "There are no cost or run statistics for the selected period and action.",
       "cacheHitRate": "Cache hit-rate",
       "reasoningShare": "Reasoning share",
       "weightedP50": "Cost / run (p50, weighted by runs)",
@@ -118,6 +118,7 @@
         "nameDesc": "Name Z–A"
       },
       "details": "Details",
+      "memberDetails": "Member details",
       "detailsFor": "Details for {{name}}",
       "unavailable": "Unavailable",
       "clearFilters": "Clear filters"
@@ -126,6 +127,8 @@
       "balanceLabel": "Available balance"
     },
     "postingAccounts": {
+      "guidance": "How posting accounts work",
+      "blockingSummary": "{{count}} budget categories need a posting account. The whole budget push waits until each category is mapped.",
       "category": "Purpose / category",
       "account": "Account",
       "search": {
@@ -150,7 +153,7 @@
         "desc": "Name Z–A"
       },
       "unmapped": "Not mapped",
-      "needsSetupBlocking": "Needs setup — blocks every push",
+      "needsSetupBlocking": "Needs setup",
       "noMatches": "No posting accounts match these filters",
       "clearHelp": "Clear the filters to see all budget categories and expense accounts.",
       "clear": "Clear filters"

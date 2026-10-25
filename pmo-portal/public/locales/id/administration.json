@@ -95,8 +95,8 @@
       "selectedScope": "Menampilkan {{period}} · {{action}}.",
       "allScope": "Semua tindakan dan bulan.",
       "metricsLoadError": "Gagal memuat metrik biaya agen",
-      "metricsEmptyTitle": "Belum ada data biaya agen",
-      "metricsEmptyHelp": "Telemetri biaya agen akan muncul di sini setelah ruang kerja Anda menggunakan asisten.",
+      "metricsEmptyTitle": "Tidak ada metrik untuk pilihan ini",
+      "metricsEmptyHelp": "Tidak ada statistik biaya atau penggunaan untuk periode dan tindakan yang dipilih.",
       "cacheHitRate": "Tingkat cache hit",
       "reasoningShare": "Proporsi penalaran",
       "weightedP50": "Biaya per penggunaan (p50, tertimbang menurut jumlah penggunaan)",
@@ -118,6 +118,7 @@
         "nameDesc": "Nama Z–A"
       },
       "details": "Detail",
+      "memberDetails": "Detail anggota",
       "detailsFor": "Detail untuk {{name}}",
       "unavailable": "Tidak tersedia",
       "clearFilters": "Hapus filter"
@@ -126,6 +127,8 @@
       "balanceLabel": "Saldo tersedia"
     },
     "postingAccounts": {
+      "guidance": "Cara kerja akun pencatatan",
+      "blockingSummary": "{{count}} kategori anggaran memerlukan akun pencatatan. Seluruh pengiriman anggaran menunggu sampai setiap kategori dipetakan.",
       "category": "Tujuan / kategori",
       "account": "Akun",
       "search": {
@@ -150,7 +153,7 @@
         "desc": "Nama Z–A"
       },
       "unmapped": "Belum dipetakan",
-      "needsSetupBlocking": "Perlu disiapkan — memblokir setiap pengiriman",
+      "needsSetupBlocking": "Perlu disiapkan",
       "noMatches": "Tidak ada akun pencatatan yang cocok dengan filter ini",
       "clearHelp": "Hapus filter untuk melihat semua kategori anggaran dan akun pengeluaran.",
       "clear": "Hapus filter"

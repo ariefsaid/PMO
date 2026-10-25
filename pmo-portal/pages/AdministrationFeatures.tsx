@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, Switch, useToast } from '@/src/components/ui';
+import { DisclosureSummary, ListState, StatusPill, Switch, useToast } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
@@ -199,10 +199,10 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
         </ul>
       </section>
 
-      <details className="rounded-lg border border-border bg-card">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <details className="group rounded-lg border border-border bg-card px-4">
+        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
           {t('administration:admin.features.preview', 'Preview')}
-        </summary>
+        </DisclosureSummary>
         <ul className="divide-y divide-border border-t border-border">
           {envGated.map((key) => {
             const enabled = resolve(key);
@@ -220,10 +220,10 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
         </ul>
       </details>
 
-      <details className="rounded-lg border border-border bg-card">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 py-2 text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <details className="group rounded-lg border border-border bg-card px-4">
+        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
           {t('administration:admin.features.alwaysIncluded', 'Always included')}
-        </summary>
+        </DisclosureSummary>
         <ul className="divide-y divide-border border-t border-border">
           {core.map((key) => (
             <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">

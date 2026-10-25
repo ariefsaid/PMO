@@ -1,11 +1,11 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
 import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
-import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
+import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
@@ -174,17 +174,6 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     );
   }
 
-  if (summaryRows.length === 0 && runStatsRows.length === 0) {
-    return (
-      <ListState
-        variant="empty"
-        icon="admin"
-        title={t('administration:admin.usage.metricsEmptyTitle', 'No agent cost data yet')}
-        sub={t('administration:admin.usage.metricsEmptyHelp', 'Agent cost telemetry appears here once your workspace starts using the assistant.')}
-      />
-    );
-  }
-
   const tiles: StatTile[] = [
     { label: t('administration:admin.usage.cacheHitRate', 'Cache hit-rate'), value: kpis.cacheHitRate },
     { label: t('administration:admin.usage.reasoningShare', 'Reasoning share'), value: kpis.reasoningShare },
@@ -193,7 +182,8 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     { label: t('administration:admin.usage.maxLatency', 'Latency (p95, max)'), value: kpis.latencyP95 },
   ];
 
-  const chartState: ChartState = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
+  // Filters can leave zero or one valid month. Keep the figure, axes, legend and 200px chart
+  // frame stable so the same job remains recognizable while its evidence narrows.
   const chartSummary = t('administration:admin.usage.chartSummary', {
     count: monthlyCacheHit.length,
     defaultValue: 'Cache hit-rate by month, {{count}} months.',
@@ -216,11 +206,14 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
         <h3 className="mb-3 text-[13.5px] font-semibold text-muted-foreground">
           {t('administration:admin.usage.cacheHitByMonth', 'Cache hit-rate by month')}
         </h3>
-        <ChartFrame
-          state={chartState}
-          emptyTitle={t('administration:admin.usage.chartEmptyTitle', 'Not enough data yet')}
-          emptySub={t('administration:admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}
-        >
+        {monthlyCacheHit.length < 2 && (
+          <p role="status" className="mb-2 text-[12px] text-muted-foreground">
+            {summaryRows.length === 0 && runStatsRows.length === 0
+              ? `${t('administration:admin.usage.metricsEmptyTitle', 'No metrics for this selection')} — ${t('administration:admin.usage.metricsEmptyHelp', 'There are no cost or run statistics for the selected period and action.')}`
+              : `${t('administration:admin.usage.chartEmptyTitle', 'Not enough data yet')} — ${t('administration:admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}`}
+          </p>
+        )}
+        <ChartFrame state="ready">
           <figure role="img" aria-label={chartSummary} className="m-0">
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={monthlyCacheHit} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
@@ -229,7 +222,9 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   dataKey="ts"
                   type="number"
                   scale="time"
-                  domain={['dataMin', 'dataMax']}
+                  domain={monthlyCacheHit.length === 1
+                    ? [monthlyCacheHit[0].ts - 45 * 24 * 60 * 60 * 1000, monthlyCacheHit[0].ts + 45 * 24 * 60 * 60 * 1000]
+                    : ['dataMin', 'dataMax']}
                   tickFormatter={formatMonthTick}
                   tick={axisTickStyle}
                   tickLine={false}
@@ -262,6 +257,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   dot={{ r: 3 }}
                   isAnimationActive={!prefersReducedMotion}
                 />
+                <Legend verticalAlign="bottom" height={24} />
               </LineChart>
             </ResponsiveContainer>
           </figure>

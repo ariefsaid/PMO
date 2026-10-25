@@ -116,7 +116,7 @@ export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgW
       {t('uxs11.withholdingHeading', 'Receipt withholding')}
     </h2>
     <p className="mt-1 text-[13px] text-muted-foreground">
-      {t('uxs11.withholdingIntro', 'Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.')}
+      {t('uxs11.withholdingIntro', 'An Admin must configure this before a receipt with withholding can be recorded.')}
     </p>
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title={t('uxs11.withholdingLoadError', "Couldn't load the tax-prepaid account")} onRetry={() => void query.refetch()} />
@@ -166,7 +166,7 @@ export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgW
               <p className="text-[13px] font-medium">{readOnlyValue}</p>
               <p className="mt-0.5 text-[13px] text-muted-foreground">{savedContext}</p>
             </div>
-            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editSetting', 'Edit setting')}</Button>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editWithholdingAccount', 'Edit withholding account')}</Button>
           </div>
         ) : <p className="text-[13px]">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
     </div>

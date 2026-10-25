@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -65,13 +65,19 @@ const seed = [
   { id: 'u4', full_name: 'Tobias Lindqvist', email: 'tobias@meridian.example', role: 'Finance', manager_id: 'u1', org_id: 'org-1', status: 'active' },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>;
+};
+
+const renderPage = (role: Role = 'Admin', path = '/administration/users', embedded = false) => {
   realRole = role;
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter>
-          <AdminUsers />
+        <MemoryRouter initialEntries={[path]}>
+          <AdminUsers embedded={embedded} />
+          <LocationProbe />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -149,6 +155,28 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     await user.click(screen.getByRole('button', { name: 'Name A–Z' }));
     expect(within(userRows()[0]).getAllByText('Tobias Lindqvist').length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Name Z–A' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('AC-ADMIA-009: restores search, status, and sort from the URL and writes filter changes back', async () => {
+    renderPage('Admin', '/administration/users?search=nobody&status=disabled&sort=desc');
+
+    expect(screen.getByLabelText('Search users')).toHaveValue('nobody');
+    expect(screen.getByLabelText('Filter users by status')).toHaveValue('disabled');
+    expect(screen.getByRole('button', { name: 'Name Z–A' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('location')).toHaveTextContent('/administration/users?search=nobody&status=disabled&sort=desc');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/administration/users?sort=desc');
+  });
+
+  it('AC-ADMIA-009: no-match recovery is the only filled action while Invite user stays available', async () => {
+    renderPage('Admin', '/administration/users', true);
+    await userEvent.type(screen.getByLabelText('Search users'), 'nobody');
+
+    const clear = screen.getByRole('button', { name: 'Clear filters' });
+    const invite = screen.getByRole('button', { name: 'Invite user' });
+    expect(clear.className).toContain('bg-primary');
+    expect(invite.className).not.toContain('bg-primary');
   });
 
   it('AC-ADMIA-010: orders identity and manager before role and status with phone details available', () => {

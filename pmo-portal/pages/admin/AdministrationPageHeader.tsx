@@ -8,8 +8,9 @@ const AdministrationPageHeader: React.FC<{
   title: React.ReactNode;
   scope: React.ReactNode;
   primary?: React.ReactNode;
-}> = ({ title, scope, primary }) => (
-  <header className="mb-5 flex min-w-0 flex-wrap items-end justify-between gap-3">
+  desktopContentAligned?: boolean;
+}> = ({ title, scope, primary, desktopContentAligned = false }) => (
+  <header className={`mb-5 flex min-w-0 flex-wrap items-end justify-between gap-3 ${desktopContentAligned ? 'md:mb-0' : ''}`}>
     <div className="min-w-0">
       <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
       <p className="mt-1 max-w-[68ch] text-sm text-muted-foreground">{scope}</p>

@@ -158,6 +158,10 @@ describe('administration integrations composition', () => {
     expect(order.every(Boolean)).toBe(true);
     expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const microsoft = within(order[2] as HTMLElement);
+    expect(microsoft.getByRole('heading', { name: 'Microsoft 365' })).toBeInTheDocument();
+    expect(microsoft.getByText('Organization approval may be required')).toBeInTheDocument();
+    expect(microsoft.getByText('Document library and approval options')).toBeInTheDocument();
   });
 
   it('AC-ADMIA-012: keeps the unused ClickUp list roll call behind configured connections', async () => {
@@ -193,7 +197,7 @@ describe('administration integrations composition', () => {
 
     const details = screen.getByTestId('service-details-clickup');
     expect(details).not.toHaveAttribute('open');
-    fireEvent.click(within(details).getByText('Connection details'));
+    fireEvent.click(within(details).getByText(/connection details/i));
     expect(within(details).getByText(/Connected by/)).toBeInTheDocument();
     expect(within(details).getByTestId('service-information-clickup')).toHaveTextContent('Tasks');
     expect(screen.getAllByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toHaveLength(1);
