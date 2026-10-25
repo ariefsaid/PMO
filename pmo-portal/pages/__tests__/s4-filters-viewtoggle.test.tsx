@@ -148,6 +148,13 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     expect(scrollWrapper!.className).toContain('overflow-x-auto');
   });
 
+  it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
+    renderProcurement();
+    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
+    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
+    expect(scrollWrapper!.className).not.toContain('hidden');
+  });
+
   it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
     renderIncidents();
     const statusFilter = screen.getByRole('tablist', { name: /filter by status/i });

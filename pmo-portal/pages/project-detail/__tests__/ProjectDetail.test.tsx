@@ -160,10 +160,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(
-    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
-    { timeout: 10_000 },
-  );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   return view;
 };
 
