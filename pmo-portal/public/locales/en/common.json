@@ -564,6 +564,20 @@
       "amountRequired": "Amount is required.",
       "amountPositive": "Grant amount must be positive."
     },
+    "postingAccounts": {
+      "category": "Purpose / category",
+      "account": "Account",
+      "search": { "placeholder": "Search categories and accounts…", "label": "Search posting accounts" },
+      "purpose": { "label": "Filter posting account purpose", "all": "All purposes", "budget": "Budget accounts", "expense": "Expense accounts" },
+      "coverage": { "label": "Filter posting account coverage", "all": "All coverage", "configured": "Configured", "needsSetup": "Needs setup", "header": "Coverage" },
+      "sort": { "asc": "Name A–Z", "desc": "Name Z–A" },
+      "noAccount": "No account selected",
+      "unmapped": "Not mapped",
+      "needsSetupBlocking": "Needs setup — blocks every push",
+      "noMatches": "No posting accounts match these filters",
+      "clearHelp": "Clear the filters to see all budget categories and expense accounts.",
+      "clear": "Clear filters"
+    },
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
       "title": "Budget account map",

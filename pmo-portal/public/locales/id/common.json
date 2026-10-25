@@ -564,6 +564,20 @@
       "amountRequired": "Jumlah wajib diisi.",
       "amountPositive": "Jumlah pemberian harus positif."
     },
+    "postingAccounts": {
+      "category": "Tujuan / kategori",
+      "account": "Akun",
+      "search": { "placeholder": "Cari kategori dan akun…", "label": "Cari akun pencatatan" },
+      "purpose": { "label": "Filter tujuan akun pencatatan", "all": "Semua tujuan", "budget": "Akun anggaran", "expense": "Akun pengeluaran" },
+      "coverage": { "label": "Filter cakupan akun pencatatan", "all": "Semua cakupan", "configured": "Dikonfigurasi", "needsSetup": "Perlu disiapkan", "header": "Cakupan" },
+      "sort": { "asc": "Nama A–Z", "desc": "Nama Z–A" },
+      "noAccount": "Belum ada akun yang dipilih",
+      "unmapped": "Belum dipetakan",
+      "needsSetupBlocking": "Perlu disiapkan — memblokir setiap pengiriman",
+      "noMatches": "Tidak ada akun pencatatan yang cocok dengan filter ini",
+      "clearHelp": "Hapus filter untuk melihat semua kategori anggaran dan akun pengeluaran.",
+      "clear": "Hapus filter"
+    },
     "budgetMap": {
       "sectionLabel": "Peta kategori anggaran ke akun ERP",
       "title": "Peta akun anggaran",

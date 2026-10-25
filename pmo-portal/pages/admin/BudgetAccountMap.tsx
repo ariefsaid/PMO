@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -32,6 +32,7 @@ import {
   listBudgetPostingAccountCatalogue,
 } from '@/src/lib/repositories/budgetProjection';
 import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
+import { DEFAULT_POSTING_ACCOUNT_FILTERS, type PostingAccountFilters } from './postingAccountFilters';
 
 /**
  * Administration › Budget account map (P3c FR-BUD-110..113; #768 FR-BAM-010..013) — the Admin CRUD surface for
@@ -63,9 +64,10 @@ type FormTarget =
   | { mode: 'create'; category: BudgetCategory; isPushTarget: boolean }
   | { mode: 'edit'; row: CategoryAccountMapRow };
 
-const BudgetAccountMap: React.FC = () => {
-  const { t } = useTranslation();
-  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
+const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filters }) => {
+  const { t, i18n } = useTranslation();
+  const activeFilters = filters ?? { ...DEFAULT_POSTING_ACCOUNT_FILTERS, onClear: () => undefined };
+  const categoryLabel = useCallback((value: string) => accountMapCategoryLabel(value, t), [t]);
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
@@ -98,6 +100,21 @@ const BudgetAccountMap: React.FC = () => {
     for (const row of rows) byCategory.set(row.category, [...(byCategory.get(row.category) ?? []), row]);
     return byCategory;
   }, [rows]);
+  const visibleCategories = useMemo(() => {
+    const term = activeFilters.search.trim().toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language);
+    return BUDGET_CATEGORIES.filter((category) => {
+      const accounts = accountsByCategory.get(category) ?? [];
+      const configured = accounts.some((account) => account.isPushTarget);
+      if (activeFilters.coverage === 'configured' && !configured) return false;
+      if (activeFilters.coverage === 'needs-setup' && configured) return false;
+      return !term || [categoryLabel(category), ...accounts.map((account) => account.erpAccount)]
+        .some((value) => value.toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language).includes(term));
+    }).sort((a, b) => {
+      const result = categoryLabel(a).localeCompare(categoryLabel(b), i18n.resolvedLanguage ?? i18n.language, { sensitivity: 'base' });
+      return activeFilters.sort === 'desc' ? -result : result;
+    });
+  }, [activeFilters.coverage, activeFilters.search, activeFilters.sort, accountsByCategory, categoryLabel, i18n.language, i18n.resolvedLanguage]);
+  const filterActive = Boolean(activeFilters.search.trim()) || activeFilters.coverage !== 'all';
 
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [removeTarget, setRemoveTarget] = useState<CategoryAccountMapRow | null>(null);
@@ -222,7 +239,7 @@ const BudgetAccountMap: React.FC = () => {
   const columns: Column<CategoryRow>[] = [
     {
       key: 'category',
-      header: t('admin.budgetMap.columns.category', 'Category'),
+      header: t('admin.postingAccounts.category', 'Purpose / category'),
       kind: 'text',
       size: 180,
       cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
@@ -234,19 +251,15 @@ const BudgetAccountMap: React.FC = () => {
       size: 360,
       cell: (category) => {
         const accounts = accountsByCategory.get(category) ?? [];
-        const hasPush = accounts.some((a) => a.isPushTarget);
-        if (accounts.length === 0) {
-          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>;
-        }
         return (
           <div className="space-y-2">
-            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
             {accounts.filter((account) => account.isPushTarget).map((account) => (
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>
                 <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
               </div>
             ))}
+            {accounts.length === 0 && <span className="text-muted-foreground">{t('admin.postingAccounts.unmapped', 'Not mapped')}</span>}
             {accounts.some((account) => !account.isPushTarget) && (
               <details className="text-[13px]">
                 <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
@@ -259,6 +272,21 @@ const BudgetAccountMap: React.FC = () => {
             )}
           </div>
         );
+      },
+    },
+    {
+      key: 'coverage',
+      header: t('admin.postingAccounts.coverage.header', 'Coverage'),
+      kind: 'text',
+      size: 180,
+      cell: (category) => {
+        const accounts = accountsByCategory.get(category) ?? [];
+        if (accounts.some((account) => account.isPushTarget)) {
+          return <StatusPill variant="won">{t('admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>;
+        }
+        return <StatusPill variant="warn">{accounts.length
+          ? t('admin.budgetMap.noPush', 'No push account — blocks every push')
+          : t('admin.postingAccounts.needsSetupBlocking', 'Needs setup — blocks every push')}</StatusPill>;
       },
     },
     ...(canManage ? [{
@@ -351,11 +379,15 @@ const BudgetAccountMap: React.FC = () => {
       </div>}
       <div className="mt-3.5">
         <DataTable
-          rows={[...BUDGET_CATEGORIES]}
+          rows={visibleCategories}
           columns={columns}
           rowKey={(category) => category}
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
+          state={filterActive && visibleCategories.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('admin.postingAccounts.noMatches', 'No posting accounts match these filters')}
+          emptySub={t('admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}
+          emptyAction={{ label: t('admin.postingAccounts.clear', 'Clear filters'), onClick: activeFilters.onClear }}
         />
       </div>
 

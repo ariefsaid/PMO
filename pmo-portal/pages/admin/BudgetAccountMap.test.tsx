@@ -38,6 +38,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import BudgetAccountMap from './BudgetAccountMap';
 import { Constants } from '@/src/lib/supabase/database.types';
+import type { PostingAccountFilters } from './postingAccountFilters';
 
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
@@ -74,13 +75,13 @@ const openRowOptions = async (user: ReturnType<typeof userEvent.setup>, category
   return row;
 };
 
-const renderPage = (role: Role = 'Admin', initial = '/administration/accounting') => {
+const renderPage = (role: Role = 'Admin', initial = '/administration/accounting', filters?: PostingAccountFilters) => {
   realRole = role;
   return render(
     <MemoryRouter initialEntries={[initial]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
-          <BudgetAccountMap />
+          <BudgetAccountMap filters={filters} />
           <FragmentNav />
         </ToastProvider>
       </QueryClientProvider>
@@ -507,18 +508,31 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
 });
 
 describe('BudgetAccountMap T5 DataTable adoption', () => {
-  it('lists every category in the shared DataTable with Category / ERP account / Actions headers for an Admin', async () => {
+  it('lists purpose, account, coverage, and actions in that order for an Admin', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account', 'Actions']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Purpose / category', 'ERP account', 'Coverage', 'Actions']);
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('a non-Admin sees no Actions column', async () => {
     renderPage('Finance');
     await screen.findByText('Labor');
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Purpose / category', 'ERP account', 'Coverage']);
+  });
+
+  it('searches category and account names, and its no-match state clears the shared filters', async () => {
+    const onClear = vi.fn();
+    const first = renderPage('Admin', '/administration/accounting', { purpose: 'all', coverage: 'all', sort: 'asc', search: '5100', onClear });
+    expect(await screen.findByText('Labor')).toBeInTheDocument();
+    expect(screen.queryByText('Contingency')).not.toBeInTheDocument();
+
+    first.unmount();
+    renderPage('Admin', '/administration/accounting', { purpose: 'all', coverage: 'all', sort: 'asc', search: 'not present', onClear });
+    expect(await screen.findByText('No posting accounts match these filters')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClear).toHaveBeenCalled();
   });
 
   it('on a phone each category is a stacked card with its account still visible', async () => {

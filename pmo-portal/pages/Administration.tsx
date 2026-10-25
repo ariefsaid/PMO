@@ -23,9 +23,8 @@ import OrgVendorTaxAccounts from './admin/OrgVendorTaxAccounts';
 import OrgDownPaymentItem from './admin/OrgDownPaymentItem';
 import OrgProcurementGates from './admin/OrgProcurementGates';
 import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
-import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
-import ExpenseAccountMap from './admin/ExpenseAccountMap';
+import PostingAccountsTask from './admin/PostingAccountsTask';
 import AdministrationPageHeader from './admin/AdministrationPageHeader';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
@@ -274,7 +273,7 @@ const SelectedAdministrationPanel: React.FC<{
         <div data-testid="administration-panel-accounting" className="min-w-0">
           <AccountingSectionNavigation selected={accountingTask} />
           <div id={accountingTask} tabIndex={-1} className="min-w-0 space-y-5 focus:outline-none">
-            {accountingTask === 'posting-accounts' && <><BudgetAccountMap /><ExpenseAccountMap /></>}
+            {accountingTask === 'posting-accounts' && <PostingAccountsTask />}
             {accountingTask === 'tax-advances' && <><OrgTaxDefault /><OrgWithholdingAccount /><OrgVendorTaxAccounts /><OrgDownPaymentItem /></>}
             {accountingTask === 'purchase-rules' && <OrgProcurementGates />}
             {accountingTask === 'spend-approvers' && <SpendApprovers />}
