@@ -4,6 +4,7 @@ Apply [OD-VISUAL-RESET and OD-REDESIGN-SCOPE](../decisions.md) to contract- and 
 Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period and loading/empty/error state; include URL and before/after pairs for navigation and actions. Checks below refer to these captures; rendered screens require owner approval.
 
 ## Page anatomy
+**PA-00** Before composing a route, answer for each persona who can reach it (Admin, Executive, Finance, PM, Engineer): "arriving here, what do I expect to see, and what job do I finish on this page?" in one clause each; a route no persona can answer for is flagged to the owner as a merge/retire candidate (e.g. a report page nobody knows the purpose of), never silently kept or removed — *spec carries the per-persona lines; the first screen settles that job.*
 **PA-01** Give each page one type: collection (find projects), record (understand a contract), capture (enter time), review queue (decide requests), dashboard (prioritize portfolio), settings (configure tools), sign-in (enter workspace) — *title and main content identify one job/type.*
 **PA-02** Use title → scope → toolbar → content → action bar, where applicable, on one left edge so PM/Finance can scan consistently — *section starts align; project/customer/period precede their results.*
 **PA-03** Put decision evidence together: PM sees phase/task context; Finance sees amount and invoice; approver sees request and evidence — *no intervening unrelated tiles or repeated summary boxes.*
