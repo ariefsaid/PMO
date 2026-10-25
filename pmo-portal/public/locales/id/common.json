@@ -395,7 +395,7 @@
       "projects": "Proyek mendatang",
       "credits": "Saldo Assistant bersama",
       "exchangeRates": "USD → IDR · JISDOR · hanya untuk nilai tampilan",
-      "costAttribution": "Biaya buku besar yang belum terkait",
+      "costAttribution": "Alokasikan biaya buku besar tanpa proyek ERP tanpa mengubah catatan ERP",
       "usage": "Operator · konsumsi agregat",
       "features": "Operator · kapabilitas ruang kerja"
     },

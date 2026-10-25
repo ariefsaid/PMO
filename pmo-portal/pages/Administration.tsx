@@ -359,7 +359,7 @@ const Administration: React.FC = () => {
             : section === 'exchange-rates'
               ? t('admin.scope.exchangeRates', 'USD to IDR · display reference rates')
               : section === 'cost-attribution'
-                ? t('admin.scope.costAttribution', 'Untagged ledger costs')
+                ? t('admin.scope.costAttribution', 'Assign untagged ledger cost to projects without changing ERP records')
                 : section === 'usage'
                   ? t('admin.scope.usage', 'Operator · aggregate consumption')
                   : t('admin.scope.features', 'Operator · workspace capabilities');

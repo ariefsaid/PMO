@@ -395,7 +395,7 @@
       "projects": "Future projects",
       "credits": "Shared Assistant balance",
       "exchangeRates": "USD → IDR · JISDOR · display equivalents only",
-      "costAttribution": "Untagged ledger costs",
+      "costAttribution": "Assign untagged ledger cost to projects without changing ERP records",
       "usage": "Operator · aggregate consumption",
       "features": "Operator · workspace capabilities"
     },
