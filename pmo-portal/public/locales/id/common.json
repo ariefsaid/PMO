@@ -1262,7 +1262,22 @@
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya",
       "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
       "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
-      "loadError": "Gagal memuat proyek Anda"
+      "loadError": "Gagal memuat proyek Anda",
+      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan",
+      "deliveryScope": "Proyek pelaksanaan yang ditugaskan kepada Anda.", "projectsTitle": "Proyek pelaksanaan saya",
+      "projectScope": "{{count}} proyek pelaksanaan · Total kontrak: {{total}}", "sortLabel": "Urutkan proyek",
+      "sortRisk": "Proyek berisiko dahulu", "sortName": "Nama proyek", "riskClear": "Tidak ada risiko anggaran yang terkonfirmasi",
+      "riskUnavailable": "Risiko tidak tersedia", "riskUnavailableNote": "Risiko memerlukan anggaran aktif positif dan Aktual lengkap yang dapat dibandingkan.",
+      "actual": "Aktual", "contract": "Kontrak", "actualUnavailable": "Aktual tidak tersedia", "contractUnavailable": "Kontrak tidak tersedia",
+      "showEvidence": "Bukti proyek {{name}}", "hideEvidence": "Sembunyikan bukti proyek {{name}}",
+      "openBudgetFor": "Buka anggaran {{name}}", "comparisonBar": "{{name}}: {{percent}}% dari kontrak",
+      "comparisonUnavailable": "Perbandingan tidak tersedia; cakupan Aktual atau kontrak belum lengkap.",
+      "deliveryUnavailable": "Belum ada tonggak pelaksanaan yang dicatat.", "deliveryLoading": "Memuat progres pelaksanaan",
+      "dataNotes": "Catatan data proyek", "marginUnavailable": "Margin tidak tersedia",
+      "marginUnavailableNote": "Margin memerlukan pendapatan tertagih dan Aktual yang lengkap.",
+      "contractUnavailableNote": "Total kontrak memerlukan nilai tercatat untuk setiap proyek yang ditugaskan.",
+      "deliveryUnavailableNote": "Progres pelaksanaan tidak dapat dimuat; coba lagi kueri progres.",
+      "noMilestonesNote": "Progres tonggak belum tersedia untuk beberapa proyek; buka proyek untuk meninjau tonggaknya."
     },
     "delivery": { "percent": "Progres {{rounded}}%" },
     "engineer": {

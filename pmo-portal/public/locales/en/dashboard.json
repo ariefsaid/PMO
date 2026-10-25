@@ -52,7 +52,7 @@
   },
   "pmRow": {
     "delivery": "Delivery",
-    "margin": "Margin",
+    "margin": "Margin to date",
     "marginAria": "{{name}} margin to date: {{pct}}%"
   },
   "risk": {

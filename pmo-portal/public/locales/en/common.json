@@ -1262,7 +1262,22 @@
       "myProjects": "My projects", "openMyProjects": "Open my projects",
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "loadError": "Couldn't load your projects"
+      "loadError": "Couldn't load your projects",
+      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet",
+      "deliveryScope": "Delivery projects assigned to you.", "projectsTitle": "My delivery projects",
+      "projectScope": "{{count}} delivery projects · Contract total: {{total}}", "sortLabel": "Sort projects",
+      "sortRisk": "At risk first", "sortName": "Project name", "riskClear": "No confirmed budget risk",
+      "riskUnavailable": "Risk unavailable", "riskUnavailableNote": "Risk needs a positive active budget and complete, comparable Actual.",
+      "actual": "Actual", "contract": "Contract", "actualUnavailable": "Actual unavailable", "contractUnavailable": "Contract unavailable",
+      "showEvidence": "Project evidence for {{name}}", "hideEvidence": "Hide project evidence for {{name}}",
+      "openBudgetFor": "Open budget for {{name}}", "comparisonBar": "{{name}}: {{percent}}% of contract",
+      "comparisonUnavailable": "Comparison unavailable; Actual or contract coverage is incomplete.",
+      "deliveryUnavailable": "No delivery milestones are recorded.", "deliveryLoading": "Loading delivery",
+      "dataNotes": "Project data notes", "marginUnavailable": "Margin unavailable",
+      "marginUnavailableNote": "Margin needs billed-work revenue and complete Actual.",
+      "contractUnavailableNote": "Contract totals need a recorded value for each assigned project.",
+      "deliveryUnavailableNote": "Delivery progress could not be loaded; retry the delivery query.",
+      "noMilestonesNote": "No milestone progress was supplied for some projects; open a project to review its milestones."
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },
     "engineer": {

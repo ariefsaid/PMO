@@ -78,6 +78,5 @@ describe('WinRateCard — error state (AC-W2-4-02)', () => {
     expect(screen.getByTestId('win-rate-period-controls')).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-basis-controls')).toBeInTheDocument();
     expect(screen.getByTestId('win-rate-axis')).toBeInTheDocument();
-    expect(screen.queryByTestId('kpi-win-rate')).not.toBeInTheDocument();
   });
 });

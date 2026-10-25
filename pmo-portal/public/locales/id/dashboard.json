@@ -52,7 +52,7 @@
   },
   "pmRow": {
     "delivery": "Pengiriman",
-    "margin": "Margin",
+    "margin": "Margin hingga saat ini",
     "marginAria": "Margin sampai saat ini {{name}}: {{pct}}%"
   },
   "risk": {
