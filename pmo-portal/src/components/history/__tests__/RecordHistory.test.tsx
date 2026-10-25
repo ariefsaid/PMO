@@ -711,3 +711,39 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
     expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-xs', 'text-muted-foreground');
   });
 });
+
+describe('RecordHistory — merged procurement Activity', () => {
+  it('hides progression status and linked-document creation already shown in the Activity timeline', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(4, { entityType: 'procurement', entityId: 'proc-1', changes: {
+        status: { old: 'Requested', new: 'Approved' },
+      } }),
+      ev(3, { entityType: 'purchase_request', entityId: 'pr-1', op: 'insert', changes: {
+        status: { old: null, new: 'Submitted' },
+      } }),
+      ev(2, { entityType: 'procurement', entityId: 'proc-1', changes: {
+        status: { old: 'Draft', new: 'Requested' },
+        title: { old: 'Laptops', new: 'Field laptops' },
+      } }),
+      ev(1, { entityType: 'purchase_request', entityId: 'pr-1', op: 'update', changes: {
+        amount: { old: 100, new: 120 },
+      } }),
+    ], nextCursor: null });
+    repo.recordHistory.lookupNames.mockResolvedValue({ purchase_request: new Map([['pr-1', 'PR-1']]) });
+
+    renderIt({
+      entityType: 'procurement',
+      entityId: 'proc-1',
+      includeChildren: true,
+      omitFieldChanges: { procurement: ['status'] },
+      omitInsertEntities: ['purchase_request'],
+    });
+
+    const events = await screen.findAllByTestId('history-event');
+    expect(events).toHaveLength(2);
+    expect(screen.queryByText('Requested → Approved')).toBeNull();
+    expect(screen.queryByText('Purchase request · PR-1')).toBeNull();
+    await userEvent.click(screen.getAllByRole('button', { name: 'View details' })[0]);
+    expect(screen.getByText('Laptops → Field laptops')).toBeInTheDocument();
+  });
+});

@@ -27,6 +27,7 @@
  */
 import React from 'react';
 import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
@@ -61,6 +62,10 @@ export interface DecisionSupportPanelProps {
   /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
    *  from `totalValue`/the project's budget rollups, which share this record's currency. */
   currency: string;
+  /** The record Review can name this fact once beside its selected quote and PO amount. */
+  showRequestValue?: boolean;
+  /** The record scope already names the project; avoid repeating it in that context. */
+  showProjectName?: boolean;
 }
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
@@ -70,7 +75,10 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectLegalName,
   status,
   currency,
+  showRequestValue = true,
+  showProjectName = true,
 }) => {
+  const { t } = useTranslation();
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
   // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
   // panel is not offered to it and its reads are not issued.
@@ -94,10 +102,10 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-[12.5px] font-semibold text-muted-foreground uppercase tracking-[0.06em]">
-        Budget impact
+      <h3 className="text-[12.5px] font-semibold text-muted-foreground">
+        {t('procurementDetail.budgetImpact', 'Budget impact')}
       </h3>
-      {projectName ? (
+      {showProjectName && projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
@@ -117,7 +125,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <div className="flex flex-col gap-2" aria-label="Loading budget impact">
+            <div className="flex flex-col gap-2" aria-label={t('procurementDetail.loadingBudget', 'Loading budget impact')}>
             <div className="skel h-[18px] w-3/4" />
             <div className="skel h-[14px] w-1/2" />
           </div>
@@ -133,7 +141,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
-            Budget unavailable — budget impact can&apos;t be shown right now.
+            {t('procurementDetail.budgetUnavailable', 'Budget unavailable — budget impact cannot be shown right now.')}
           </p>
         </CardPad>
       </Card>
@@ -149,7 +157,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <CardPad>
           {heading}
           <p className="text-[13px] text-muted-foreground">
-            No active budget set for this project — budget impact can&apos;t be shown.
+            {t('procurementDetail.noActiveBudget', 'No active budget is set for this project — budget impact cannot be shown.')}
           </p>
         </CardPad>
       </Card>
@@ -174,26 +182,26 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    { label: 'This request', value: formatCurrency(totalValue, currency) },
+    ...(showRequestValue ? [{ label: t('procurementDetail.budget.request', 'This request'), value: formatCurrency(totalValue, currency) }] : []),
     {
-      label: 'Reserved',
+      label: t('procurementDetail.budget.reserved', 'Reserved'),
       value: formatCurrency(otherReserved, currency),
-      sub: 'approved, not yet ordered',
+      sub: t('procurementDetail.budget.reservedSub', 'approved, not yet ordered'),
     },
     {
-      label: 'Available',
+      label: t('procurementDetail.budget.available', 'Available'),
       value: formatCurrency(available, currency),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
+      ...(otherCurrencyCommitted ? { sub: t('procurementDetail.budget.otherCurrencies', 'Not counting commitments in other currencies: {{amounts}}', { amounts: otherCurrencyCommitted }) } : {}),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
+    { label: t('procurementDetail.budget.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, currency) },
     {
-      label: 'After this request',
+      label: t('procurementDetail.budget.afterRequest', 'After this request'),
       value: formatCurrency(afterRequest, currency),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: `${afterPct.toFixed(1)}% headroom remaining`,
+      sub: t('procurementDetail.budget.headroomRemaining', '{{percent}}% headroom remaining', { percent: afterPct.toFixed(1) }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     },
   ];
@@ -207,7 +215,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={5} />
+        <StatTiles tiles={tiles} columns={showRequestValue ? 5 : 4} />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
@@ -215,12 +223,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overAvailable && (
           <ErrBanner
             className="mt-3 mb-0"
-            title="Over available budget"
+            title={t('procurementDetail.budget.overAvailable', 'Over available budget')}
             sub={
               <>
-                This request exceeds available budget by{' '}
-                <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>. Approval
-                is still permitted — this is an advisory only.
+                {t('procurementDetail.budget.overAvailableSub', 'This request exceeds available budget by')}{' '}
+                <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>.{' '}
+                {t('procurementDetail.budget.advisoryOnly', 'Approval is still permitted — this is an advisory only.')}
               </>
             }
           />
@@ -231,12 +239,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overBudgetReserved && (
           <ErrBanner
             className="mt-3 mb-0"
-            title="Project over budget"
+            title={t('procurementDetail.budget.projectOverBudget', 'Project over budget')}
             sub={
               <>
-                This project is over budget by{' '}
+                {t('procurementDetail.budget.projectOverBudgetSub', 'This project is over budget by')}{' '}
                 <strong className="tabular">{formatCurrency(-available, currency)}</strong> across committed
-                and reserved demand. This is an advisory only.
+                {t('procurementDetail.budget.projectOverBudgetDetail', ' across committed and reserved demand. This is an advisory only.')}
               </>
             }
           />
@@ -250,7 +258,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             to={`/projects/${scopedProjectId}`}
             className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
-            Open project
+            {t('procurementDetail.budget.openProject', 'Open project')}
           </Link>
         </div>
       </CardPad>

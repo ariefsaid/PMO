@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
@@ -89,6 +89,9 @@ vi.mock('@/src/components/ui', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
+vi.mock('@/src/components/history/RecordHistory', () => ({
+  RecordHistory: () => <div data-testid="record-change-history">Record changes</div>,
+}));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
 }));
@@ -155,7 +158,7 @@ const renderAt = (path: string) =>
     </MemoryRouter>,
   );
 
-describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
+describe('ProcurementDetails — named record sections', () => {
   beforeEach(() => {
     detailState.data = { ...orderedProcurement };
     detailState.isPending = false;
@@ -165,82 +168,77 @@ describe('ProcurementDetails — tabbed record shell (Slice 1)', () => {
     navigate.mockClear();
   });
 
-  it('renders the Procurement tablist with Overview · Line items · Documents · Vendor quotes', () => {
+  it('lets users navigate the five named record sections', () => {
     renderAt('/procurement/proc-001');
-    const tablist = screen.getByRole('tablist', { name: /Procurement sections/i });
-    expect(within(tablist).getByRole('tab', { name: 'Overview' })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Line items/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Documents/ })).toBeInTheDocument();
-    expect(within(tablist).getByRole('tab', { name: /Vendor quotes/ })).toBeInTheDocument();
+    const navigation = screen.getByRole('navigation', { name: /Procurement sections/i });
+    for (const name of ['Review', 'Items', 'Documents', 'Quotes', 'Activity']) {
+      expect(within(navigation).getByRole('link', { name })).toBeInTheDocument();
+    }
+    expect(within(navigation).getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('defaults to the Overview tab when no :tab param is present', () => {
+  it('defaults to Review on the bare record URL', () => {
     renderAt('/procurement/proc-001');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-    // The Overview bento renders its progression timeline.
-    expect(screen.getByTestId('procurement-progression')).toBeInTheDocument();
-  });
-
-  it('an unknown :tab param falls back to Overview', () => {
-    renderAt('/procurement/proc-001/bogus');
-    expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
-  });
-
-  it('deep-links to the Documents tab via /procurement/:id/documents', () => {
-    renderAt('/procurement/proc-001/documents');
-    expect(screen.getByRole('tab', { name: /Documents/ })).toHaveAttribute('aria-selected', 'true');
-    // The Overview-only progression slot is NOT rendered on the Documents panel.
+    expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
     expect(screen.queryByTestId('procurement-progression')).toBeNull();
   });
 
-  it('deep-links to the Line items tab and shows the line-items section', () => {
+  it('an unknown section falls back to Review', () => {
+    renderAt('/procurement/proc-001/bogus');
+    expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('deep-links to Documents and keeps the current section in the URL', () => {
+    renderAt('/procurement/proc-001/documents');
+    expect(screen.getByRole('link', { name: 'Documents' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByTestId('procurement-progression')).toBeNull();
+  });
+
+  it('deep-links to Items and shows the line-items evidence', () => {
     renderAt('/procurement/proc-001/items');
-    expect(screen.getByRole('tab', { name: /Line items/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('link', { name: 'Items' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId('line-items-section')).toBeInTheDocument();
   });
 
-  // list-working-set-return (#682): tab switches now forward the current router `location.state`
-  // so a captured list-return context survives a tab change (Director ruling 2026-09-29 amended
-  // — same class as the other `{ replace: true }` tab-switch assertions).
-  it('clicking a tab navigates (replace) to its deep-link, forwarding location.state', async () => {
+  it('selecting a section navigates to its canonical URL and retains list-return state', async () => {
     renderAt('/procurement/proc-001');
-    await userEvent.click(screen.getByRole('tab', { name: /Vendor quotes/ }));
-    // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
+    await userEvent.click(screen.getByRole('link', { name: 'Quotes' }));
     expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/quotes', {
       replace: true,
       state: { pmoTabSwitch: true },
     });
   });
 
-  it('ArrowRight moves selection to the next tab (roving keyboard nav), forwarding location.state', async () => {
-    renderAt('/procurement/proc-001');
-    const overview = screen.getByRole('tab', { name: 'Overview' });
-    overview.focus();
-    await userEvent.keyboard('{ArrowRight}');
-    // #879: the navigation carries the tab-switch marker (AppShell route-focus exemption).
-    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', {
-      replace: true,
-      state: { pmoTabSwitch: true },
-    });
+  it('moves a legacy History URL to Activity while retaining its query and return context', async () => {
+    const returnContext = { list: 'procurement', pathname: '/procurement', search: '?status=Requested' };
+    render(
+      <MemoryRouter initialEntries={[{
+        pathname: '/procurement/proc-001/history',
+        search: '?source=dashboard',
+        state: { pmoListReturn: returnContext },
+      }]}
+    >
+      <Routes>
+        <Route path="/procurement/:procurementId/:tab" element={<ProcurementDetails />} />
+      </Routes>
+    </MemoryRouter>,
+    );
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith(
+      '/procurement/proc-001/activity?source=dashboard',
+      { replace: true, state: { pmoListReturn: returnContext, pmoTabSwitch: true } },
+    ));
   });
 
-  it('the active panel is a role=tabpanel labelled by the active tab (a11y wiring)', () => {
-    renderAt('/procurement/proc-001');
-    const panel = screen.getByRole('tabpanel');
-    expect(panel).toHaveAttribute('id', 'procurement-detail-tabpanel-overview');
-    expect(panel).toHaveAttribute('aria-labelledby', 'procurement-detail-tab-overview');
+  it('Activity combines dated progression with the record change log', () => {
+    renderAt('/procurement/proc-001/activity');
+    expect(screen.getByRole('link', { name: 'Activity' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('list', { name: /Progression history/i })).toBeInTheDocument();
+    expect(screen.getByTestId('record-change-history')).toBeInTheDocument();
   });
 
   it('the RecordActionZone is rendered OUTSIDE the tabs (present on every tab)', () => {
     renderAt('/procurement/proc-001/documents');
     expect(screen.getByTestId('record-action-zone')).toBeInTheDocument();
-  });
-
-  it('the tab count badges reflect items / documents / quotes counts', () => {
-    renderAt('/procurement/proc-001');
-    // 1 item, 1 quotation, 0 documents-collection rows.
-    expect(screen.getByRole('tab', { name: /Line items\s*1/ })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /Vendor quotes\s*1/ })).toBeInTheDocument();
   });
 
   it('CanWrite gating still applies: an Engineer non-requester is NOT offered Confirm Receipt', () => {

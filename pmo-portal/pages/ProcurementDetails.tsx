@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useLayoutEffect, useState } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router';
+import { Link, useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -11,21 +11,17 @@ import {
   Button,
   Combobox,
   StatusPill,
-  LifecycleStepper,
   ListState,
   Icon,
   ConfirmDialog,
-  Tabs,
-  tabId,
-  tabPanelId,
   useToast,
   ProjectNameLink,
   CompanyNameLink,
-  type StatTile,
-  type TabItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
-import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
+import { ProcurementOverviewTab } from './procurement/ProcurementOverviewTab';
+import { ProcurementProgressionTimeline } from './procurement/ProcurementProgressionTimeline';
+import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
@@ -37,7 +33,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
 import { PaymentCeilingNotice } from './procurement/PaymentCeilingNotice';
@@ -73,8 +69,6 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import {
-  lifecycleSteps,
-  visibleLifecycleSteps,
   pillVariantForStatus,
   stageLabelForStatus,
   selectedQuotation,
@@ -99,20 +93,71 @@ const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also a
 const LEDGER_KIND = {
   PR: 'purchase_request', RFQ: 'rfq', Quote: 'quotation', PO: 'purchase_order', GR: 'goods_receipt', Invoice: 'vendor_invoice', Payment: 'payment',
 } as const;
-const REQUEST_STAGE_STATUSES: ReadonlySet<string> = new Set(['Requested', 'Approved', 'Vendor Quoted', 'Quote Selected']);
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 // ---------------------------------------------------------------------------
-// Tabbed record shell (mirrors ProjectDetail's `/projects/:id/:tab`). Default tab =
-// Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
-// :tab defaults to Overview and is role-invariant (CW-7); an explicit :tab always wins.
+// Named procurement sections. The bare route remains the Review home; historical
+// section URLs stay addressable and `/history` is redirected to Activity below.
 // ---------------------------------------------------------------------------
-type ProcTab = 'overview' | 'items' | 'documents' | 'quotes' | 'history';
-const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes', 'history'];
+type ProcTab = 'overview' | 'items' | 'documents' | 'quotes' | 'activity';
+const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes', 'activity'];
 function tabFromParam(param: string | undefined): ProcTab {
+  if (param === 'history') return 'activity';
   if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
   return 'overview';
 }
+
+const PROCUREMENT_ACTIVITY_OMIT_FIELD_CHANGES = { procurement: ['status'] } as const;
+const PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES = ['purchase_request', 'rfq', 'purchase_order', 'payment'] as const;
+
+interface ProcurementSection {
+  value: ProcTab;
+  label: string;
+}
+
+const ProcurementSectionNavigation: React.FC<{
+  sections: ProcurementSection[];
+  active: ProcTab;
+  label: string;
+  selectLabel: string;
+  onSelect: (section: ProcTab) => void;
+}> = ({ sections, active, label, selectLabel, onSelect }) => (
+  <div className="mb-5 min-w-0">
+    <nav aria-label={label} className="hidden flex-wrap border-b border-border sm:flex">
+      {sections.map((section) => (
+        <Link
+          key={section.value}
+          to={section.value === 'overview' ? './overview' : `./${section.value}`}
+          aria-current={active === section.value ? 'page' : undefined}
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            onSelect(section.value);
+          }}
+          className={[
+            'inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
+            active === section.value ? 'border-primary text-primary-text' : 'border-transparent text-muted-foreground hover:text-foreground',
+          ].join(' ')}
+        >
+          {section.label}
+        </Link>
+      ))}
+    </nav>
+    <div className="sm:hidden">
+      <label htmlFor="procurement-section-select" className="mb-1 block text-sm font-medium text-foreground">
+        {selectLabel}
+      </label>
+      <select
+        id="procurement-section-select"
+        value={active}
+        onChange={(event) => onSelect(event.currentTarget.value as ProcTab)}
+        className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-foreground"
+      >
+        {sections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
+      </select>
+    </div>
+  </div>
+);
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -303,7 +348,7 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
 const ProcurementDetails: React.FC = () => {
   const { t } = useTranslation();
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
-  // Active tab from the URL :tab param (deep-linkable, role-invariant default Overview).
+  // Active section from the URL :tab param (deep-linkable, role-invariant default Review).
   const tab = tabFromParam(tabParam);
   // ADR-0016: write affordances gate on the REAL JWT role (not the impersonated
   // effectiveRole) so the buttons shown match what the RPC will actually honor.
@@ -386,17 +431,24 @@ const ProcurementDetails: React.FC = () => {
   const { returnToList } = useListReturn({ list: 'procurement' });
   const goBack = () => returnToList('procurement');
 
-  // Deep-linkable tab switch (mirrors ProjectDetail) — replace so tab changes don't
-  // pile up in history. The shell route is `/procurement/:procurementId/:tab?`.
+  // Section switches replace the current entry so changing sections does not
+  // pollute browser history. Preserve the captured list return context.
   // list-working-set-return (#682): forward the current router state so a captured
   // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
-  // #879: mark the navigation as an in-page tab switch so AppShell's route-focus
-  // effect keeps focus in the tab bar (WCAG 2.4.3); Tabs moves focus to the new tab.
+  // Mark navigation as an in-page section switch so the shell keeps focus in place.
   const setTab = (next: ProcTab) =>
     navigate(`/procurement/${procurementId}/${next}`, {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
+
+  React.useEffect(() => {
+    if (tabParam !== 'history' || !procurementId) return;
+    navigate(`/procurement/${procurementId}/activity${location.search}${location.hash}`, {
+      replace: true,
+      state: withTabSwitchNavState(location.state),
+    });
+  }, [location.hash, location.search, location.state, navigate, procurementId, tabParam]);
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -805,139 +857,38 @@ const ProcurementDetails: React.FC = () => {
     mutations.createInvoice.isPending ||
     mutations.captureVendorInvoice.isPending;
 
-  // ── Stat tiles (sparse + honest — I2/I3 design-review fixes) ───────────────
-  // I3: only render a tile when its value is real (not a placeholder like
-  //     "Pending / None yet / no PO yet / awaiting delivery"). Early/Draft cases
-  //     had 4 placeholder tiles that re-introduced the empty-state noise the
-  //     revamp removed. Build the tile array conditionally then pass the live set.
-  // I2: on terminal states (Paid / Cancelled) never show "awaiting delivery" —
-  //     derive the sub-text from actual record state; omit the tile if no receipt
-  //     exists rather than asserting a falsehood.
-  const statTilesRaw: (StatTile | null)[] = [
-    // PR value — always shown (every procurement has a total_value)
-    {
-      label: t('procurementDetail.tile.prValue', 'PR value'),
-      value: formatCurrency(Number(p.total_value), p.currency),
-      sub: p.project ? projectDisplayName(p.project) : undefined,
-    },
-    // Selected quote — only when a quote is committed (Quote Selected onward).
-    // AC-IXD-PROC-004: the chosen quotation tile is bound through to Paid.
-    // PRD-1 (AC-JR-W3B-E1): vendor name is a CompanyNameLink.
-    selectedQuote
-      ? {
-          label: t('procurementDetail.tile.selectedQuote', 'Selected quote'),
-          value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
-          sub: (
-            <CompanyNameLink
-              companyId={p.vendor_id}
-              name={p.vendor?.name ?? selectedQuote.vq_number ?? t('procurementDetail.tile.selectedFallback', 'selected')}
-              className="text-[11px]"
-            />
-          ),
-        }
-      : null,
-    // PO committed — only when a purchase_order record exists.
-    // I1 companion: we derive existence from the record table, not the denormalized
-    // p.po_number header column (which may be set before a PO record is captured).
-    p.purchase_orders && p.purchase_orders.length > 0
-      ? {
-          label: t('procurementDetail.tile.poCommitted', 'PO committed'),
-          // Use the PO record's amount if available, else fall back to total_value —
-          // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
-          value: formatCurrency(
-            Number(
-              (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).amount ??
-                p.total_value,
-            ),
-            (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).currency ??
-              p.currency,
-          ),
-          sub: p.vendor?.name ? (
-            // PRD-1 (AC-JR-W3B-E1)
-            <CompanyNameLink
-              companyId={p.vendor_id}
-              name={p.vendor.name}
-              className="text-[11px]"
-            />
-          ) : undefined,
-        }
-      : null,
-    // Goods received — only when at least one receipt exists.
-    // I2: on terminal states, derive sub from actual receipt status (not "awaiting
-    // delivery"). If no receipt exists on a terminal case, omit the tile entirely.
-    p.receipts.length > 0
-      ? {
-          label: t('procurementDetail.tile.goodsReceived', 'Goods received'),
-          value: `${p.receipts.length} ${
-            p.receipts.length > 1
-              ? t('procurementDetail.tile.receiptOther', 'receipts')
-              : t('procurementDetail.tile.receiptOne', 'receipt')
-          }`,
-          // Derive from actual receipt status — never assert "awaiting delivery"
-          // on a terminal case (Paid/Cancelled) where goods are already settled.
-          sub: p.receipts[p.receipts.length - 1].status,
-        }
-      : null,
-  ];
-  const stats = statTilesRaw.filter((t): t is StatTile => t !== null);
+  const selectedQuoteAmount = selectedQuote
+    ? { amount: Number(selectedQuote.total_amount), currency: selectedQuote.currency }
+    : null;
+  const firstOrder = p.purchase_orders?.[0] as { amount?: number | null; currency?: string | null } | undefined;
+  const orderedAmount = firstOrder
+    ? { amount: firstOrder.amount == null ? null : Number(firstOrder.amount), currency: firstOrder.currency ?? p.currency }
+    : null;
 
-  // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
-  // document) must not start with a stray "·".
-  const meta = [
+  const currentStatusAt = [...(p.statusEvents ?? [])].reverse().find((event) => event.to_status === p.status)?.created_at;
+  const statusDate = currentStatusAt
+    ? formatInstantDate(currentStatusAt)
+    : t('procurementDetail.statusDateUnavailable', 'Date not available');
+  const recordScope = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
-    p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
-    p.requested_by?.full_name ? <span key="req">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
-  ].filter((part): part is React.ReactElement => part !== null)
-    .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
-
-  // Overview Detail <dl> rows (the Field grammar). Vendor / Approved-by read a muted
-  // "Not yet selected" / "Pending" while absent rather than a bare blank (G5 honesty).
-  const detailRows: DetailRow[] = [
-    {
-      label: t('procurementDetail.detail.project', 'Project'),
-      value: p.project?.name ? (
-        <ProjectNameLink projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} />
-      ) : (
-        <span className="text-muted-foreground">{t('procurementDetail.detail.notLinked', 'Not linked')}</span>
-      ),
-    },
-    {
-      label: t('procurementDetail.detail.vendor', 'Vendor'),
-      value: p.vendor?.name ? (
-        <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
-      ) : (
-        <span className="text-muted-foreground">
-          {t('procurementDetail.detail.notYetSelected', 'Not yet selected')}
-        </span>
-      ),
-    },
-    {
-      label: t('procurementDetail.detail.requestedBy', 'Requested by'),
-      value: p.requested_by?.full_name ?? (
-        <span className="text-muted-foreground">—</span>
-      ),
-    },
-    {
-      label: t('procurementDetail.detail.approvedBy', 'Approved by'),
-      value: p.approved_by?.full_name ?? (
-        <span className="text-muted-foreground">{t('procurementDetail.detail.pending', 'Pending')}</span>
-      ),
-    },
-  ];
+    <span key="status-date">{t('procurementDetail.statusAsOf', 'Status as of')} {statusDate}</span>,
+    p.project?.name && p.project_id
+      ? <ProjectNameLink key="project" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} />
+      : <span key="project-missing">{t('procurementDetail.detail.notLinked', 'Project not linked')}</span>,
+    p.requested_by?.full_name
+      ? <span key="requester">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span>
+      : null,
+    p.vendor?.name
+      ? <CompanyNameLink key="vendor" companyId={p.vendor_id} name={p.vendor.name} />
+      : <span key="vendor-missing">{t('procurementDetail.vendorNotSelected', 'Vendor not selected')}</span>,
+  ].filter((part): part is React.ReactElement => part !== null);
 
   // Progression-history events — transition-centric merge (buildProgressionTimeline):
   // transitions are the spine; each matching record is folded in as a docRef annotation
   // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
   const historyEvents = buildProgressionTimeline(p, p.id);
 
-  // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
-  // row count (all 7 record types, one row each, as built by buildLedgerRows).
   const ledgerRows = buildLedgerRows(p);
-  // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
-  // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
-  // The badge counts the purchase's own records plus the ERPNext documents linked to it. SharePoint links stay out of it:
-  // they are fetched only when this tab opens (#1020 F8).
-  const documentsCount = ledgerRows.length + (linkedDocs?.length ?? 0);
   // FR-PFE-038: a SharePoint link can be attached to any record of the purchase or a linked ERP document.
   const attachTypeName: Record<LedgerRow['type'], string> = {
     PR: t('procurement:documents.type.pr', 'Purchase request'), RFQ: t('procurement:documents.type.rfq', 'Quote request'),
@@ -956,45 +907,18 @@ const ProcurementDetails: React.FC = () => {
       value: `erp_document:${d.id}`, label: `${erpDoctypeLabel(t, d.doctype)} ${d.name}`, recordKind: 'erp_document' as const, recordId: d.id,
     })),
   ];
-  const procTabs: TabItem<ProcTab>[] = [
-    { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
-    {
-      value: 'items',
-      label: t('procurementDetail.tabs.lineItems', 'Line items'),
-      count: p.items.length || null,
-    },
-    {
-      value: 'documents',
-      label: t('procurementDetail.tabs.documents', 'Documents'),
-      count: documentsCount || null,
-    },
-    {
-      value: 'quotes',
-      label: t('procurementDetail.tabs.vendorQuotes', 'Vendor quotes'),
-      count: p.quotations.length || null,
-    },
-    { value: 'history', label: t('procurementDetail.tabs.history', 'History') },
+  const procSections: ProcurementSection[] = [
+    { value: 'overview', label: t('procurementDetail.sections.review', 'Review') },
+    { value: 'items', label: t('procurementDetail.sections.items', 'Items') },
+    { value: 'documents', label: t('procurementDetail.sections.documents', 'Documents') },
+    { value: 'quotes', label: t('procurementDetail.sections.quotes', 'Quotes') },
+    { value: 'activity', label: t('procurementDetail.sections.activity', 'Activity') },
   ];
 
   return (
     <div>
-      {/* C-IMP-1 (AC-S6-3): BackBar on mobile success render ≤920px.
-          The top-bar breadcrumb owns desktop wayfinding (I7); on mobile the rail
-          is collapsed and the breadcrumb is not visible, so the BackBar is the
-          only in-content escape. CSS-only visibility: `hidden` on desktop,
-          `max-[920px]:block` on mobile — single DOM, no dual a11y tree. */}
-      <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
-      </div>
-
-      {/* CW-3a: the ONE RecordHeader anatomy — icon + name + status pill + top-right
-          action zone (DESIGN.md §7). Procurement's role-allowed header action is Edit
-          (requester/Admin while Draft/Rejected); it has no archive/delete (Cancel is a
-          lifecycle transition, surfaced in the decision/action zone below). */}
-      <RecordHeader
-        name={p.title}
-        iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
-        icon={<Icon name="cart" />}
+      <MoneyOutPageHeader
+        title={p.title}
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
@@ -1002,12 +926,17 @@ const ProcurementDetails: React.FC = () => {
             </StatusPill>
           </span>
         }
-        meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={
+        scope={recordScope}
+        returnAction={{
+          label: t('procurementDetail.backToProcurement', 'Procurement'),
+          onReturn: goBack,
+          phoneOnly: true,
+        }}
+        primaryAction={
           canEditHeader ? (
             <Button
               variant="outline"
-              size="sm"
+              className="min-h-11 max-sm:w-full"
               data-testid="edit-header"
               onClick={() => setHeaderEditOpen((open) => !open)}
               aria-expanded={headerEditOpen}
@@ -1017,38 +946,6 @@ const ProcurementDetails: React.FC = () => {
           ) : undefined
         }
       />
-
-      {/* Full lifecycle bar stepper (PR → VQ → PO → GR → VI → Paid) — the ONE stepper
-          (DESIGN.md §5; the numbered-circle node variant was retired in the Coherence Wave). */}
-      <Card className="mb-4">
-        <CardPad>
-          <LifecycleStepper
-            variant="bar"
-            steps={visibleLifecycleSteps(lifecycleSteps(p.status, {
-              // I1 (design-review): refs must come from ACTUAL record rows, not the
-              // denormalized header columns (p.pr_number / p.po_number). The header
-              // columns may be set even when no record exists in the ledger, causing
-              // the stepper to show a doc number that has no corresponding record in
-              // the Documents tab — a dishonest doorway. Derive each ref from the
-              // actual record arrays so the stepper can only show a ref when a record
-              // genuinely exists. GR and VI already used the record arrays.
-              pr_number: p.purchase_requests?.[0]?.pr_number ?? null,
-              vq_number: selectedQuote?.vq_number,
-              po_number: p.purchase_orders?.[0]?.po_number ?? null,
-              gr_number: p.receipts[0]?.gr_number,
-              vi_number: p.invoices[0]?.vi_number,
-            }), {
-              // The approval path (Requested → Approved → quoting) always began with a request, whether or not its record row is loaded.
-              pr: (p.purchase_requests?.length ?? 0) > 0 || REQUEST_STAGE_STATUSES.has(p.status),
-              vq: (p.quotations?.length ?? 0) > 0,
-              po: (p.purchase_orders?.length ?? 0) > 0,
-              gr: p.receipts.length > 0,
-              vi: p.invoices.length > 0,
-            })}
-            aria-label={t('procurementDetail.lifecycleLabel', 'Procurement lifecycle')}
-          />
-        </CardPad>
-      </Card>
 
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
@@ -1073,28 +970,28 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
-          Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
-          progression). The other tabs home the Line items / Documents / Vendor quotes. */}
-      <Tabs<ProcTab>
-        items={procTabs}
-        value={tab}
-        onChange={setTab}
-        ariaLabel={t('procurementDetail.tabsLabel', 'Procurement sections')}
-        idBase="procurement-detail"
+      <ProcurementSectionNavigation
+        sections={procSections}
+        active={tab}
+        onSelect={setTab}
+        label={t('procurementDetail.tabsLabel', 'Procurement sections')}
+        selectLabel={t('procurementDetail.sectionSelect', 'Section')}
       />
 
-      <div
-        role="tabpanel"
-        id={tabPanelId('procurement-detail', tab)}
-        aria-labelledby={tabId('procurement-detail', tab)}
-        data-testid={`procurement-tabpanel-${tab}`}
-      >
+      <div data-testid={`procurement-section-${tab}`}>
         {tab === 'overview' && (
           <ProcurementOverviewTab
-            tiles={stats}
-            detailRows={detailRows}
-            events={historyEvents}
+            requestAmount={Number(p.total_value)}
+            requestCurrency={p.currency}
+            selectedQuote={selectedQuoteAmount}
+            orderedAmount={orderedAmount}
+            items={p.items.map((item) => ({
+              id: item.id,
+              name: item.name,
+              quantity: Number(item.quantity),
+              rate: Number(item.rate),
+              amount: item.amount == null ? null : Number(item.amount),
+            }))}
             projectId={p.project_id}
             projectName={p.project ? projectDisplayName(p.project) : null}
             projectLegalName={p.project?.name ?? null}
@@ -1218,7 +1115,33 @@ const ProcurementDetails: React.FC = () => {
             Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
         {/* #878: PR/RFQ/PO/payment are filed under their PROCUREMENT (0277), so the document
             children roll up here — the project reaches them on read through this procurement. */}
-        {tab === 'history' && <RecordHistory entityType="procurement" entityId={p.id} includeChildren />}
+        {tab === 'activity' && (
+          <section aria-labelledby="procurement-activity-heading" className="min-w-0">
+            <h2 id="procurement-activity-heading" className="mb-5 text-xl font-semibold">
+              {t('procurementDetail.sections.activity', 'Activity')}
+            </h2>
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 text-base font-semibold">
+                  {t('procurementDetail.activity.progression', 'Progression')}
+                </h3>
+                <ProcurementProgressionTimeline events={historyEvents} />
+              </div>
+              <div className="border-t border-border pt-5">
+                <h3 className="mb-3 text-base font-semibold">
+                  {t('procurementDetail.activity.recordChanges', 'Record changes')}
+                </h3>
+                <RecordHistory
+                  entityType="procurement"
+                  entityId={p.id}
+                  includeChildren
+                  omitFieldChanges={PROCUREMENT_ACTIVITY_OMIT_FIELD_CHANGES}
+                  omitInsertEntities={PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES}
+                />
+              </div>
+            </div>
+          </section>
+        )}
 
         {tab === 'quotes' && (
           <VendorQuotesTab

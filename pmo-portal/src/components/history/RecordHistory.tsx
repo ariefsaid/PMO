@@ -31,6 +31,10 @@ export interface RecordHistoryProps {
   kindFilters?: boolean;
   /** Lazy mount (collapsed sections): no fetch until true. */
   enabled?: boolean;
+  /** Omit already-presented fields from a second, consolidated activity stream. */
+  omitFieldChanges?: Readonly<Record<string, readonly string[]>>;
+  /** Omit child-record creation events when their evidence is already in that stream. */
+  omitInsertEntities?: readonly string[];
 }
 
 type EnumLabel = ReturnType<typeof useHistoryEnumLabel>;
@@ -213,6 +217,24 @@ function companyIdsOf(events: HistoryEvent[]): string[] {
   return [...ids].sort();
 }
 
+function filterDisplayEvents(
+  source: readonly HistoryEvent[],
+  omitFieldChanges?: Readonly<Record<string, readonly string[]>>,
+  omitInsertEntities?: readonly string[],
+): HistoryEvent[] {
+  return source.flatMap((event) => {
+    if (event.source === 'change' && event.op === 'insert' && omitInsertEntities?.includes(event.entityType)) {
+      return [];
+    }
+    const omitted = omitFieldChanges?.[event.entityType];
+    if (event.source !== 'change' || !omitted?.length) return [event];
+    const changes = Object.fromEntries(
+      Object.entries(event.changes).filter(([field]) => !omitted.includes(field)),
+    );
+    return Object.keys(changes).length > 0 ? [{ ...event, changes }] : [];
+  });
+}
+
 /**
  * Read-only change history of one record (spec D5 / FR-CHG-010..012): newest first, one group per save
  * (`Actor · time`, then `Label: old → new` per field), 50 per page with "Load older". Visibility is the
@@ -220,16 +242,22 @@ function companyIdsOf(events: HistoryEvent[]): string[] {
  */
 export const RecordHistory: React.FC<RecordHistoryProps> = ({
   entityType, entityId, includeChildren = false, kindFilters = false, enabled = true,
+  omitFieldChanges, omitInsertEntities,
 }) => {
   const { t } = useTranslation();
   const [kind, setKind] = useState('all');
   const entityTypes = KIND_FILTERS.find((k) => k.key === kind)?.types ?? null;
   const q = useRecordHistory({ entityType, entityId, includeChildren, entityTypes, enabled });
   const filters = useMemo(() => filterLabels(t), [t]);
-  const events = useMemo(() => q.data?.pages.flatMap((p) => p.events) ?? [], [q.data]);
+  const events = useMemo(() => {
+    const source = q.data?.pages.flatMap((p) => p.events) ?? [];
+    return filterDisplayEvents(source, omitFieldChanges, omitInsertEntities);
+  }, [q.data, omitFieldChanges, omitInsertEntities]);
   const groups = useMemo(
-    () => q.data?.pages.flatMap((page) => groupHistoryEvents(page.events)) ?? [],
-    [q.data],
+    () => q.data?.pages.flatMap((page) => groupHistoryEvents(
+      filterDisplayEvents(page.events, omitFieldChanges, omitInsertEntities),
+    )) ?? [],
+    [q.data, omitFieldChanges, omitInsertEntities],
   );
   const companyIdsKey = companyIdsOf(events).join(',');
   const companyIds = useMemo(() => (companyIdsKey ? companyIdsKey.split(',') : []), [companyIdsKey]);
