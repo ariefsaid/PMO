@@ -134,7 +134,9 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
               <span className="tabular text-muted-foreground">{group.projects.length}</span>
             </h2>
             <ul className="grid min-w-0 list-none gap-3 p-0">
-              {group.projects.map((project) => <li key={project.id} className="min-w-0">{renderProject(project, !group.terminal)}</li>)}
+              {group.projects.length > 0
+                ? group.projects.map((project) => <li key={project.id} className="min-w-0">{renderProject(project, !group.terminal)}</li>)
+                : <li className="px-1 py-2 text-sm text-muted-foreground">{t('pipeline.emptyStageGroup', 'No projects in {{stage}}', { stage: group.name })}</li>}
             </ul>
           </section>
         ))}

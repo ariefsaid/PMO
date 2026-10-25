@@ -94,7 +94,7 @@ const SalesPipeline: React.FC = () => {
     q: search,
   }), [openProjects, lostProjects, search, workingSet]);
   const hasActiveClassification = activeClassificationCount(workingSet) > 0;
-  const hasActiveFilters = Boolean(search.trim() || hasActiveClassification || selectedStatus);
+  const hasActiveFilters = Boolean(search.trim() || hasActiveClassification || selectedStatus || workingSet.scope !== 'Open');
   const sortLabel = sortLabels[workingSet.sort];
   const stageName = selectedStatus ? stageLabel(OPEN_COLUMNS.find((column) => column.statuses.includes(selectedStatus)) ?? OPEN_COLUMNS[0]) : salesT('pipeline.allStages', 'All stages');
   const displayStage = (project: PipelineProject) => {
@@ -352,8 +352,8 @@ const SalesPipeline: React.FC = () => {
       )}
       {state === 'loading' && <ListState variant="loading" rows={5} />}
       {state === 'error' && <ListState variant="error" title={t('sales.error.title', "Couldn't load the sales pipeline")} sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')} onRetry={() => refetch()} />}
-      {state === 'empty' && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}</p></div>}
-      {state === undefined && showEmpty && <ListState variant="empty" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
+      {state === 'empty' && !hasActiveFilters && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}</p></div>}
+      {(state === undefined || state === 'empty' && hasActiveFilters) && showEmpty && <ListState variant="empty" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (

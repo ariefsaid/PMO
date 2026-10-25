@@ -293,7 +293,7 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     // SalesPipeline's real default view is 'kanban' — switch to Table to see the zero-match state.
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
-    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No matching projects/i)).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);
     expect(await screen.findByText('Northwind ERP')).toBeInTheDocument();
@@ -310,10 +310,10 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     ];
     renderList(SalesPipeline);
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Project scope/i }), 'Lost');
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
-    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No matching projects/i)).toBeInTheDocument();
     expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
@@ -329,7 +329,7 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     renderList(SalesPipeline);
     // Default view is Board (kanban) — no view switch needed to reach this state.
     await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
-    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No matching projects/i)).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);
     expect(await screen.findByText('Northwind ERP')).toBeInTheDocument();
@@ -345,7 +345,7 @@ describe('AC-LRC-012 — Sales Pipeline', () => {
     lostState.data = [];
     renderList(SalesPipeline);
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /Project scope/i }), 'Lost');
     expect(await screen.findByText(/No lost projects/i)).toBeInTheDocument();
   });
 });

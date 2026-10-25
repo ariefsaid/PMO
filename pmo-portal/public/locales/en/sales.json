@@ -49,6 +49,7 @@
     "emptyAttentionBody": "No project has been untouched for {{days}}+ days.",
     "emptyStageTitle": "No projects in this stage",
     "emptyStageBody": "Choose another stage to see more projects.",
+    "emptyStageGroup": "No projects in {{stage}}",
     "emptyMatchTitle": "No matching projects",
     "emptyMatchBody": "Try another search or clear filters.",
     "clearFilters": "Clear filters",

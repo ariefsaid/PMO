@@ -42,18 +42,18 @@ const emptyProjects: PipelineProject[] = [
 
 describe('CW-DEAL-1: SalesKanbanBoard empty column uses "No projects" noun', () => {
   it('CW-DEAL-1: empty Leads column shows "No projects in Leads", not "No deals"', () => {
-    render(<SalesKanbanBoard projects={emptyProjects} onOpen={vi.fn()} />);
+    render(<MemoryRouter><SalesKanbanBoard projects={emptyProjects} onOpen={vi.fn()} /></MemoryRouter>);
     expect(screen.getByText('No projects in Leads')).toBeInTheDocument();
     expect(screen.queryByText('No deals in Leads')).toBeNull();
   });
 
   it('CW-DEAL-1: empty Negotiation column shows "No projects in Negotiation"', () => {
-    render(<SalesKanbanBoard projects={emptyProjects} onOpen={vi.fn()} />);
+    render(<MemoryRouter><SalesKanbanBoard projects={emptyProjects} onOpen={vi.fn()} /></MemoryRouter>);
     expect(screen.getByText('No projects in Negotiation')).toBeInTheDocument();
   });
 
   it('CW-DEAL-1: no "No deals in" strings remain in the board', () => {
-    render(<SalesKanbanBoard projects={[]} onOpen={vi.fn()} />);
+    render(<MemoryRouter><SalesKanbanBoard projects={[]} onOpen={vi.fn()} /></MemoryRouter>);
     // With all columns empty, none should show the old "No deals in <stage>" copy
     expect(screen.queryAllByText(/No deals in /)).toHaveLength(0);
   });

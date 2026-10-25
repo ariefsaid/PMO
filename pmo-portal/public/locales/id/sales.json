@@ -49,6 +49,7 @@
     "emptyAttentionBody": "Tidak ada proyek yang tidak diperbarui selama {{days}}+ hari.",
     "emptyStageTitle": "Tidak ada proyek pada tahap ini",
     "emptyStageBody": "Pilih tahap lain untuk melihat proyek lainnya.",
+    "emptyStageGroup": "Tidak ada proyek pada tahap {{stage}}",
     "emptyMatchTitle": "Tidak ada proyek yang cocok",
     "emptyMatchBody": "Coba pencarian lain atau hapus filter.",
     "clearFilters": "Hapus filter",
