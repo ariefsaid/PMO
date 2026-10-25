@@ -82,17 +82,17 @@ test('AC-TBL-RESIZE-001 AC-TBL-GEOM-001: Projects columns resize, controls remai
       const bounds = await control.boundingBox();
       expect(bounds).not.toBeNull();
       const uses44pxTargetUtility = await control.evaluate((element) => {
-        for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+        for (let node: Element | null = element; node; node = node.parentElement) {
           if (Array.from(node.classList).some((token) => token.includes('touch-target'))) return true;
-          if (node.dataset.testid === 'list-page-toolbar') break;
+          if (node.getAttribute('data-testid') === 'list-page-toolbar') break;
         }
         return false;
       });
       const targetDescription = await control.evaluate((element) => {
         const ancestors: string[] = [];
-        for (let node: HTMLElement | null = element; node; node = node.parentElement) {
-          ancestors.push(node.className.toString());
-          if (node.dataset.testid === 'list-page-toolbar') break;
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          ancestors.push(node.getAttribute('class') ?? '');
+          if (node.getAttribute('data-testid') === 'list-page-toolbar') break;
         }
         return ancestors.join(' <- ');
       });
