@@ -80,7 +80,7 @@ const ProjectNew: React.FC = () => {
       title={t('projectForm.title.create', 'New project')}
       scope={(
         <>
-          <button type="button" onClick={() => returnToList()} className="touch-target min-h-11 rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <button type="button" onClick={() => guardLeave(() => returnToList())} className="touch-target min-h-11 rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('projects:create.backToProjects', 'Back to Projects')}
           </button>
           <span aria-hidden="true">·</span>

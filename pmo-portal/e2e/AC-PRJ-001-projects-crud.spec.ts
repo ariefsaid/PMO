@@ -108,3 +108,23 @@ test(
     await expect(page.getByRole('button', { name: /new project/i })).not.toBeVisible({ timeout: 10_000 });
   },
 );
+
+test('ProjectNew dirty Back to Projects offers Stay and Leave without losing the entered project name', async ({ page }) => {
+  await login(page, 'pm@acme.test');
+  await page.goto('/projects/new');
+
+  const projectName = page.getByLabel(/project name/i);
+  await projectName.fill('Unsaved project navigation check');
+  await page.getByRole('button', { name: 'Back to Projects', exact: true }).click();
+
+  const discardDialog = page.getByRole('dialog', { name: 'Discard your changes?' });
+  await expect(discardDialog).toBeVisible();
+  await discardDialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await expect(projectName).toHaveValue('Unsaved project navigation check');
+
+  await page.getByRole('button', { name: 'Back to Projects', exact: true }).click();
+  await expect(discardDialog).toBeVisible();
+  await discardDialog.getByRole('button', { name: 'Leave', exact: true }).click();
+  await expect(page).toHaveURL(/\/projects(?:\?.*)?$/u);
+  await expect(page.getByText('Unsaved project navigation check')).toHaveCount(0);
+});
