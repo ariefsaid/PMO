@@ -335,6 +335,54 @@ export const IntegrationsView: React.FC = () => {
   const clickUpListById = new Map(clickupLists.map((list) => [list.id, list]));
   const bindingMapVisible = activeClickUpBinding;
   const clickUpListsUnavailable = isListsError || isListsPending;
+  const renderServiceInformation = (tier: ExternalTier) => {
+    const domains = domainsByTier[tier] ?? [];
+    return (
+      <section className="border-t border-border pt-3" data-testid={`service-information-${tier}`}>
+        <h4 className="text-sm font-semibold text-foreground">
+          {t('uxs07.ownershipTitle', 'Information updated automatically')}
+        </h4>
+        {ownershipQuery?.isPending ? (
+          <p className="mt-1 text-sm text-muted-foreground" role="status">
+            {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
+          </p>
+        ) : ownershipQuery?.isError ? (
+          <div className="mt-2" data-testid={`ownership-error-${tier}`}>
+            <ListState
+              variant="error"
+              title={t('uxs07.ownershipUnavailable', 'Automatic updates unavailable')}
+              sub={t('uxs07.ownershipUnavailableHelp', 'PMO could not check which information updates automatically. Try again.')}
+              onRetry={ownershipQuery.refetch}
+              retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
+            />
+          </div>
+        ) : domains.length === 0 ? (
+          <p className="mt-1 text-sm text-muted-foreground">
+            {t('uxs07.noDomains', 'No information from this service is currently updated automatically.')}
+          </p>
+        ) : (
+          <>
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {domains.map((domain) => (
+                <li key={domain} className="rounded-md border border-border bg-background px-2 py-1 text-sm text-muted-foreground">
+                  {domainLabel(domain)}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('uxs07.ownershipDomains', '{{service}} updates {{count}} information areas here.', { count: domains.length, service: tierLabel(tier) })}
+            </p>
+          </>
+        )}
+        <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
+          <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
+          <span>{tier === 'clickup'
+            ? t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS — task-domain data resides with ClickUp')
+            : t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP — data resides on your ERPNext instance')}</span>
+        </p>
+      </section>
+    );
+  };
   // AC-IRUX-006: a PMO-native/bound conclusion needs EVERY map input (lists, bindings, projects).
   const bindingMapDataUnavailable =
     clickUpListsUnavailable ||
@@ -389,7 +437,7 @@ export const IntegrationsView: React.FC = () => {
           PERSONAL route at /integrations — a personal Microsoft 365 connection never implies that the
           organization integration is ready. The panel also names its next permitted action. */}
       <p className="mb-4 text-sm text-muted-foreground" data-testid="integrations-owner-scope">
-        {t('uxs07.organizationScope', 'Shared workspace connections. ')}
+        {t('uxs07.organizationScope', 'Organization connections are shared; your personal connection is separate. Manage it in ')}
         <a className="font-medium text-foreground underline underline-offset-4" href="/integrations">
           {t('uxs07.personalConnections', 'My integrations')}
         </a>
@@ -483,35 +531,39 @@ export const IntegrationsView: React.FC = () => {
                   </CanWrite>
                 </div>
               )}
-              {!isError && (isConnected || isDisconnected) && binding && (
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  {/* AC-ICI-001/002 — always-present connector identity line: readable same-org
-                      profile name or a translated neutral fallback, never the raw actor value. */}
-                  <span className="min-w-0 break-words">
-                    {t('integrations.organization.readiness.connectedBy', 'Connected by')}:{' '}
-                    <span className="font-medium text-foreground">
-                      {connectorNamesById.get(binding.connected_by ?? '') ??
-                        t('integrations.organization.readiness.connectedByUnavailable', 'Former or unavailable user')}
-                    </span>
-                  </span>
-                  <span>
-                    {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
-                    <span className="font-medium text-foreground">
-                      {binding.connected_at
-                        ? formatInstantDate(binding.connected_at)
-                        : '—'}
-                    </span>
-                  </span>
-                  {isDisconnected && binding.disconnected_at && (
-                    <span>
-                      {t('integrations.organization.readiness.disconnectedAt', 'Disconnected')}:{' '}
-                      <span className="font-medium text-foreground">
-                        {formatInstantDate(binding.disconnected_at)}
+              <details className="mt-3 rounded-md border border-border px-3" data-testid={`service-details-${tier}`}>
+                <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                  {t('uxs07.connectionDetails', 'Connection details')}
+                </summary>
+                <div className="space-y-3 pb-3">
+                  {!isError && (isConnected || isDisconnected) && binding && (
+                    <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                      {/* AC-ICI-001/002 — resolve the same-org audit actor to a readable profile name;
+                          never expose the stored identifier. */}
+                      <span className="min-w-0 break-words">
+                        {t('integrations.organization.readiness.connectedBy', 'Connected by')}:{' '}
+                        <span className="font-medium text-foreground">
+                          {connectorNamesById.get(binding.connected_by ?? '') ??
+                            t('integrations.organization.readiness.connectedByUnavailable', 'Former or unavailable user')}
+                        </span>
                       </span>
-                    </span>
+                      <span>
+                        {t('integrations.organization.readiness.connectedAt', 'Connected')}:{' '}
+                        <span className="font-medium text-foreground">
+                          {binding.connected_at ? formatInstantDate(binding.connected_at) : '—'}
+                        </span>
+                      </span>
+                      {isDisconnected && binding.disconnected_at && (
+                        <span>
+                          {t('integrations.organization.readiness.disconnectedAt', 'Disconnected')}:{' '}
+                          <span className="font-medium text-foreground">{formatInstantDate(binding.disconnected_at)}</span>
+                        </span>
+                      )}
+                    </div>
                   )}
+                  {renderServiceInformation(tier)}
                 </div>
-              )}
+              </details>
 
               {/* Binding-status retry when the read failed (AC-IRUX-001) */}
               {isError && (
@@ -577,20 +629,17 @@ export const IntegrationsView: React.FC = () => {
               {/* Tier-specific info notes */}
               {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
                 <CanWrite entity="integration" action="manage">
-                  <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
+                  <details className="mt-3 rounded-md border border-border px-3" open={setupIncomplete || erpSetupQuery.isError}>
+                    <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                      {setupIncomplete
+                        ? t('uxs07.finishSetup', 'Finish setup')
+                        : erpSetupQuery.isError
+                          ? t('uxs07.reviewSetupStatus', 'Review setup status')
+                          : t('uxs07.viewConfiguredSetup', 'View configured setup')}
+                    </summary>
+                    <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
+                  </details>
                 </CanWrite>
-              )}
-              {tier === 'clickup' && (
-                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                  <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS — task-domain data resides with ClickUp')}</span>
-                </p>
-              )}
-              {tier === 'erpnext' && (
-                <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                  <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                  <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP — data resides on your ERPNext instance')}</span>
-                </p>
               )}
             </Card>
           );
@@ -599,7 +648,14 @@ export const IntegrationsView: React.FC = () => {
             approval and default-library decisions stay distinct from each member's personal sign-in. */}
         <div data-testid="m365-organization-service">
           <M365DefaultLibraryCard />
-          <M365OrgApprovalCard />
+          {canManageIntegrations && (
+            <details className="rounded-md border border-border bg-card px-3" data-testid="m365-organization-approval-details">
+              <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+                {t('uxs07.organizationApproval', 'Organization approval')}
+              </summary>
+              <M365OrgApprovalCard />
+            </details>
+          )}
         </div>
       </div>
 
@@ -705,80 +761,6 @@ export const IntegrationsView: React.FC = () => {
           )}
         </section>
       )}
-
-      {/* Employed domains section (existing read-only panel, AC-IRUX-007) */}
-      <div className="mt-6">
-        <h4 className="mb-3 text-sm font-semibold text-foreground">
-          {t('uxs07.ownershipTitle', 'Information updated from connected services')}
-        </h4>
-        <div data-testid="integrations-tier-list">
-        {ownershipQuery?.isPending ? (
-          <div className="rounded-lg border border-border bg-card">
-            <p className="px-4 pt-4 text-sm text-muted-foreground" role="status">
-              {t('uxs07.ownershipLoading', 'Checking which information is updated automatically…')}
-            </p>
-            <ListState variant="loading" rows={2} />
-          </div>
-        ) : ownershipQuery?.isError ? (
-          <div data-testid="ownership-error">
-            <ListState
-              variant="error"
-              title={t('uxs07.ownershipUnavailable', 'Automatic updates unavailable')}
-              sub={t('uxs07.ownershipUnavailableHelp', 'PMO could not check which information updates automatically. Try again.')}
-              onRetry={ownershipQuery.refetch}
-              retryLabel={t('integrations.organization.readiness.retry', 'Retry')}
-            />
-          </div>
-        ) : ownershipRows.length === 0 ? (
-          <div className="flex flex-col gap-3.5">
-            <div className="rounded-lg border border-border bg-card" data-testid="ownership-empty">
-              <ListState
-                variant="empty"
-                title={t('uxs07.ownershipEmpty', 'No information is set to update automatically')}
-                sub={t('uxs07.ownershipEmptyHelp', 'Choose which information should stay current from each connected service.')}
-              />
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3.5">
-            {TIERS.map((tier) => {
-              const domains = domainsByTier[tier] ?? [];
-              if (domains.length === 0) return null;
-              return (
-                <Card key={tier} className="p-4" data-tier={tier}>
-                  <div className="flex items-center gap-2">
-                    <Icon name="plug" />
-                    <h3 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h3>
-                  </div>
-                  <ul className="mt-2.5 flex flex-wrap gap-1.5">
-                    {domains.map((d) => (
-                      <li key={d} className="rounded-md border border-border bg-background px-2 py-1 text-sm text-muted-foreground">
-                        {domainLabel(d)}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                      {t('uxs07.ownershipDomains', '{{service}} updates {{count}} information areas here.', { count: domains.length, service: tierLabel(tier) })}
-                  </p>
-                  {tier === 'clickup' && (
-                    <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                      <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.clickupLocation', 'ClickUp is US-hosted SaaS — task-domain data resides with ClickUp')}</span>
-                    </p>
-                  )}
-                  {tier === 'erpnext' && (
-                    <p className="mt-2 flex items-center gap-1 text-sm text-muted-foreground">
-                      <Icon name="info" className="size-3.55 shrink-0" aria-hidden="true" />
-                      <span>{t('integrations.organization.readiness.erpLocation', 'Self-hosted ERP — data resides on your ERPNext instance')}</span>
-                    </p>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        )}
-        </div>
-      </div>
 
       {/* Connect Modal */}
       {connectTier && (

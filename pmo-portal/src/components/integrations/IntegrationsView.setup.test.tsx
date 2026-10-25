@@ -86,7 +86,10 @@ describe('ERP setup checklist', () => {
       domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
     });
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(await screen.findByText(/Setup is complete\. Confirmed connections are retained/)).toBeInTheDocument();
+    const completed = await screen.findByText(/Setup is complete\. Confirmed connections are retained/);
+    const setupDetails = completed.closest('details');
+    expect(setupDetails).not.toHaveAttribute('open');
+    fireEvent.click(within(setupDetails!).getByText('View configured setup'));
     expect(document.getElementById('erp-setup-employee-links')).toHaveAttribute('hidden');
     expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });
@@ -172,6 +175,27 @@ describe('administration integrations composition', () => {
     expect(disclosure).not.toHaveAttribute('open');
     expect(within(disclosure!).getByText(/View configured connections/i)).toBeInTheDocument();
     expect(within(disclosure!).getByRole('heading', { name: 'ClickUp Lists PMO does not track' })).toBeInTheDocument();
+  });
+
+  it('AC-ADMIA-013: keeps connector identity and information ownership in connection details', async () => {
+    const erpBinding = { ...mockBinding, external_tier: 'erpnext' as const, config: { company: 'Example Company' } };
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({
+      ...baseExternalDomainReturn,
+      data: [{ id: 'domain-1', orgId: 'org-1', externalTier: 'clickup', domain: 'tasks' }],
+    } as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      bindings: [erpBinding, mockBinding],
+      getBinding: (tier: string) => tier === 'erpnext' ? erpBinding : mockBinding,
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const details = screen.getByTestId('service-details-clickup');
+    expect(details).not.toHaveAttribute('open');
+    fireEvent.click(within(details).getByText('Connection details'));
+    expect(within(details).getByText(/Connected by/)).toBeInTheDocument();
+    expect(within(details).getByTestId('service-information-clickup')).toHaveTextContent('Tasks');
+    expect(screen.getAllByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toHaveLength(1);
   });
 });
 
