@@ -339,7 +339,7 @@ const PipelineSection: React.FC<{
       ) : (
         <>
           {pipelineError ? (
-            <ListState variant="error" title={t('dashboard.chart.pipelineMargin.error', "Couldn't load the pipeline stages")} onRetry={onPipelineRetry} />
+            <ListState variant="error" title={t('dashboard.chart.pipelineMargin.error', "Couldn't load the pipeline")} onRetry={onPipelineRetry} />
           ) : pipelinePending ? (
             <ListState variant="loading" rows={4} />
           ) : pipeline ? (

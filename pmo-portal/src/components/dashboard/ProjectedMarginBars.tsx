@@ -59,7 +59,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
   const max = useMemo(() => Math.max(1, ...open.map((s) => s.weighted_value)), [open]);
 
   return (
-    <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')} className="space-y-4">
+    <div role="group" aria-label={t('dashboard:projectedMargin.group', 'Pipeline projected margin')} className="space-y-4">
       <div className="border-b border-border pb-3">
         <h3 className="text-sm font-semibold">{t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</h3>
         {projectedMargin !== null ? (
@@ -105,7 +105,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
         <p className="text-sm text-muted-foreground">{t('dashboard:exec.stageValuesMixedCurrency', 'Stage values cannot be compared across currencies.')}</p>
       )}
       {allowStageBars && open.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t('dashboard.projectedMargin.emptyStages', 'No open pipeline stages')}</p>
+        <p className="text-sm text-muted-foreground">{t('dashboard:projectedMargin.emptyStages', 'No open pipeline stages')}</p>
       )}
       <div className="flex flex-col divide-y divide-border/70">
         {open.map((s) => {
@@ -120,7 +120,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
               <span className="min-w-20 max-w-[9rem] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>
               <span
                 role="progressbar"
-                aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
+                aria-label={t('dashboard:projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
                 aria-valuenow={s.weighted_value}
                 aria-valuemin={0}
                 aria-valuemax={max}

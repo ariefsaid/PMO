@@ -39,10 +39,10 @@ export const HoursBar: React.FC<HoursBarProps> = ({
 }) => {
   const { t } = useTranslation();
   const pct = maxHours > 0 ? (hours / maxHours) * 100 : 0;
-  const display = formatValue ? formatValue(hours) : t('dashboard.engineer.hoursShort', '{{hours}}h', { hours });
+  const display = formatValue ? formatValue(hours) : t('dashboard:engineer.hoursShort', '{{hours}}h', { hours });
   // When a custom formatter is given, the formatted string is the a11y suffix;
   // otherwise fall back to the "N hours" phrasing.
-  const ariaValue = formatValue ? display : t('dashboard.engineer.hoursSpoken', '{{hours}} {{unit}}', { hours, unit: unitLabel === 'hours' ? t('dashboard.engineer.hoursUnit', 'hours') : unitLabel });
+  const ariaValue = formatValue ? display : t('dashboard:engineer.hoursSpoken', '{{hours}} {{unit}}', { hours, unit: unitLabel === 'hours' ? t('dashboard:engineer.hoursUnit', 'hours') : unitLabel });
 
   return (
     <div className="flex items-center gap-2.5 py-[5px]">

@@ -142,8 +142,8 @@ export const PMDashboard: React.FC = () => {
   return (
     <div className="space-y-4">
       <DashPageHead
-        title={t('dashboard.pm.title', 'My Dashboard')}
-        sub={t('dashboard.pm.deliveryScope', 'Delivery projects assigned to you.')}
+        title={t('dashboard:pm.title', 'My Dashboard')}
+        sub={t('dashboard:pm.deliveryScope', 'Delivery projects assigned to you.')}
       />
 
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden">
@@ -154,11 +154,11 @@ export const PMDashboard: React.FC = () => {
         <div className="border-b border-border/70 px-4 py-3.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardHead><span id="pm-delivery-projects-heading">{t('dashboard.pm.projectsTitle', 'My delivery projects')}</span></CardHead>
+              <CardHead><span id="pm-delivery-projects-heading">{t('dashboard:pm.projectsTitle', 'My delivery projects')}</span></CardHead>
               <p data-testid="pm-project-scope" aria-describedby={hasUnknownContract && showUnknownDataNote ? 'pm-project-data-note' : undefined} className="mt-1 text-sm text-muted-foreground">
                 {isPending || isError
                   ? t('uxs03.notAvailableYet', 'Not available yet')
-                  : t('dashboard.pm.projectScope', '{{count}} delivery projects · Contract total: {{total}}', {
+                  : t('dashboard:pm.projectScope', '{{count}} delivery projects · Contract total: {{total}}', {
                     count: mine.length,
                     total: contractScope,
                   })}
@@ -172,16 +172,16 @@ export const PMDashboard: React.FC = () => {
             )}
             {!isPending && !isError && mine.length > 0 && (
               <label className="flex min-w-40 flex-col gap-1 text-xs text-muted-foreground">
-                <span>{t('dashboard.pm.sortLabel', 'Sort projects')}</span>
+                <span>{t('dashboard:pm.sortLabel', 'Sort projects')}</span>
                 <select
                   data-testid="pm-project-sort"
-                  aria-label={t('dashboard.pm.sortLabel', 'Sort projects')}
+                  aria-label={t('dashboard:pm.sortLabel', 'Sort projects')}
                   value={sort}
                   onChange={(event) => updateParam('pmSort', event.currentTarget.value, 'risk')}
                   className="min-h-11 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  <option value="risk">{t('dashboard.pm.sortRisk', 'At risk first')}</option>
-                  <option value="name">{t('dashboard.pm.sortName', 'Project name')}</option>
+                  <option value="risk">{t('dashboard:pm.sortRisk', 'At risk first')}</option>
+                  <option value="name">{t('dashboard:pm.sortName', 'Project name')}</option>
                 </select>
               </label>
             )}
@@ -192,7 +192,7 @@ export const PMDashboard: React.FC = () => {
           {isPending ? (
             <ListState variant="loading" rows={3} />
           ) : isError ? (
-            <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
+            <ListState variant="error" title={t('dashboard:pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
           ) : mine.length === 0 ? (
             <div data-testid="pm-projects-empty" className="py-4">
               <p className="text-sm font-medium">{t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}</p>
@@ -201,7 +201,7 @@ export const PMDashboard: React.FC = () => {
                 to="/projects?filter=My+Projects"
                 className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                {t('dashboard.pm.openMyProjects', 'Open my projects')}
+                {t('dashboard:pm.openMyProjects', 'Open my projects')}
               </Link>
             </div>
           ) : (
@@ -239,13 +239,13 @@ export const PMDashboard: React.FC = () => {
                           <span className="min-w-0 break-words">{name}</span>
                         </Link>
                         <StatusPill variant={statusVariant(project.status)}>{statusLabel(project.status)}</StatusPill>
-                        {isAtRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
+                        {isAtRisk && <StatusPill variant="warn">{t('dashboard:pm.atRisk', 'At risk')}</StatusPill>}
                         {isActive && !isAtRisk && !isRiskUnknown && (
-                          <span className="text-xs text-muted-foreground">{t('dashboard.pm.riskClear', 'No confirmed budget risk')}</span>
+                          <span className="text-xs text-muted-foreground">{t('dashboard:pm.riskClear', 'No confirmed budget risk')}</span>
                         )}
                         {isRiskUnknown && (
                           <span data-testid={`pm-risk-unavailable-${project.id}`} aria-describedby={rowNoteId} className="text-xs text-muted-foreground">
-                            {t('dashboard.pm.riskUnavailable', 'Risk unavailable')}
+                            {t('dashboard:pm.riskUnavailable', 'Risk unavailable')}
                           </span>
                         )}
                       </div>
@@ -257,21 +257,21 @@ export const PMDashboard: React.FC = () => {
                             <DeliveryPctChip pct={deliveryPct[project.id]} />
                           ) : deliveryError ? (
                             <button type="button" onClick={() => refetchDelivery()} className="inline-flex min-h-11 items-center text-left text-muted-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                              <span aria-hidden="true">—</span><span className="sr-only">{t('dashboard.pm.deliveryUnavailable', 'Delivery unavailable')}</span>
-                              <span className="ml-2">{t('common.retry', 'Retry')}</span>
+                              <span aria-hidden="true">—</span><span className="sr-only">{t('dashboard:pm.deliveryUnavailable', 'No delivery milestones are recorded.')}</span>
+                              <span className="ml-2">{t('dashboard:retry', 'Retry')}</span>
                             </button>
                           ) : deliveryPending ? (
-                            <span role="img" aria-label={t('dashboard.pm.deliveryLoading', 'Loading delivery')} className="text-muted-foreground">—</span>
+                            <span role="img" aria-label={t('dashboard:pm.deliveryLoading', 'Loading delivery')} className="text-muted-foreground">—</span>
                           ) : (
-                            <span role="img" aria-label={t('dashboard.pm.deliveryUnavailable', 'No delivery milestones are recorded.')} aria-describedby={rowNoteId} className="text-muted-foreground">
-                              <span aria-hidden="true">—</span><span className="sr-only">{t('dashboard.pm.deliveryUnavailable', 'No delivery milestones are recorded.')}</span>
+                            <span role="img" aria-label={t('dashboard:pm.deliveryUnavailable', 'No delivery milestones are recorded.')} aria-describedby={rowNoteId} className="text-muted-foreground">
+                              <span aria-hidden="true">—</span><span className="sr-only">{t('dashboard:pm.deliveryUnavailable', 'No delivery milestones are recorded.')}</span>
                             </span>
                           )}
                         </p>
                         <p className="flex min-w-0 items-center gap-2 text-sm">
                           <span className="text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin to date')}</span>
                           {margin === null ? (
-                            <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard.pm.marginUnavailable', 'Margin unavailable')} className="font-semibold tabular text-muted-foreground">—</span>
+                            <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.marginUnavailable', 'Margin unavailable')} className="font-semibold tabular text-muted-foreground">—</span>
                           ) : (
                             <span role="img" aria-label={t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: project.name, pct: margin.toFixed(1) })} className="font-semibold tabular">{margin.toFixed(1)}%</span>
                           )}
@@ -287,8 +287,8 @@ export const PMDashboard: React.FC = () => {
                         className="inline-flex min-h-11 w-full items-center justify-between gap-3 rounded-md border border-border px-3 text-left text-sm hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring sm:w-auto sm:self-start"
                       >
                         <span>{isExpanded
-                          ? t('dashboard.pm.hideEvidence', 'Hide project evidence for {{name}}', { name })
-                          : t('dashboard.pm.showEvidence', 'Project evidence for {{name}}', { name })}</span>
+                          ? t('dashboard:pm.hideEvidence', 'Hide project evidence for {{name}}', { name })
+                          : t('dashboard:pm.showEvidence', 'Project evidence for {{name}}', { name })}</span>
                         <span aria-hidden="true">{isExpanded ? '−' : '+'}</span>
                       </button>
 
@@ -296,22 +296,22 @@ export const PMDashboard: React.FC = () => {
                         <div id={evidenceId} data-testid={`pm-project-evidence-${project.id}`} className="grid min-w-0 gap-3 rounded-md bg-secondary/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                           <div className="grid min-w-0 gap-2 sm:grid-cols-2">
                             <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                              <span className="text-muted-foreground">{t('dashboard.pm.actual', 'Actual')}</span>
+                              <span className="text-muted-foreground">{t('dashboard:pm.actual', 'Actual')}</span>
                               {actual === null ? (
-                                <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard.pm.actualUnavailable', 'Actual unavailable')} className="font-medium tabular">—</span>
-                              ) : <span role="img" aria-label={`${t('dashboard.pm.actual', 'Actual')}: ${money(actual, project.actual_currency ?? project.currency)}`} className="font-medium tabular">{money(actual, project.actual_currency ?? project.currency)}</span>}
+                                <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.actualUnavailable', 'Actual unavailable')} className="font-medium tabular">—</span>
+                              ) : <span role="img" aria-label={`${t('dashboard:pm.actual', 'Actual')}: ${money(actual, project.actual_currency ?? project.currency)}`} className="font-medium tabular">{money(actual, project.actual_currency ?? project.currency)}</span>}
                             </p>
                             <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                              <span className="text-muted-foreground">{t('dashboard.pm.contract', 'Contract')}</span>
+                              <span className="text-muted-foreground">{t('dashboard:pm.contract', 'Contract')}</span>
                               {project.contract_value === null
-                                ? <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard.pm.contractUnavailable', 'Contract unavailable')} className="font-medium tabular">—</span>
-                                : <span role="img" aria-label={`${t('dashboard.pm.contract', 'Contract')}: ${money(project.contract_value, project.currency)}`} className="font-medium tabular">{money(project.contract_value, project.currency)}</span>}
+                                ? <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.contractUnavailable', 'Contract unavailable')} className="font-medium tabular">—</span>
+                                : <span role="img" aria-label={`${t('dashboard:pm.contract', 'Contract')}: ${money(project.contract_value, project.currency)}`} className="font-medium tabular">{money(project.contract_value, project.currency)}</span>}
                             </p>
                             <div className="sm:col-span-2">
                               {barPercent !== null && comparisonPct !== null ? (
                                 <div
                                   role="progressbar"
-                                  aria-label={t('dashboard.pm.comparisonBar', '{{name}}: {{percent}}% of contract', { name, percent: Math.round(comparisonPct) })}
+                                  aria-label={t('dashboard:pm.comparisonBar', '{{name}}: {{percent}}% of contract', { name, percent: Math.round(comparisonPct) })}
                                   aria-valuenow={barPercent}
                                   aria-valuemin={0}
                                   aria-valuemax={100}
@@ -322,7 +322,7 @@ export const PMDashboard: React.FC = () => {
                                 </div>
                               ) : (
                                 <p aria-describedby={rowNoteId} className="text-xs text-muted-foreground">
-                                  {t('dashboard.pm.comparisonUnavailable', 'Comparison unavailable; Actual or contract coverage is incomplete.')}
+                                  {t('dashboard:pm.comparisonUnavailable', 'Comparison unavailable; Actual or contract coverage is incomplete.')}
                                 </p>
                               )}
                             </div>
@@ -331,7 +331,7 @@ export const PMDashboard: React.FC = () => {
                             to={`/projects/${project.id}/budget`}
                             className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                           >
-                            {t('dashboard.pm.openBudgetFor', 'Open budget for {{name}}', { name })}
+                            {t('dashboard:pm.openBudgetFor', 'Open budget for {{name}}', { name })}
                           </Link>
                         </div>
                       )}
@@ -344,18 +344,18 @@ export const PMDashboard: React.FC = () => {
         </div>
 
         {showUnknownDataNote && (
-          <aside id="pm-project-data-note" data-testid="pm-project-data-note" className="border-t border-border/70 px-4 py-3 text-xs text-muted-foreground" aria-label={t('dashboard.pm.dataNotes', 'Project data notes')}>
-            <p className="font-medium text-foreground">{t('dashboard.pm.dataNotes', 'Project data notes')}</p>
+          <aside id="pm-project-data-note" data-testid="pm-project-data-note" className="border-t border-border/70 px-4 py-3 text-xs text-muted-foreground" aria-label={t('dashboard:pm.dataNotes', 'Project data notes')}>
+            <p className="font-medium text-foreground">{t('dashboard:pm.dataNotes', 'Project data notes')}</p>
             <ul className="mt-1 list-inside list-disc space-y-1">
-              {hasUnknownRisk && <li>{t('dashboard.pm.riskUnavailableNote', 'Risk needs a positive active budget and complete, comparable Actual.')}</li>}
-              {hasUnknownMargin && <li>{t('dashboard.pm.marginUnavailableNote', 'Margin needs billed-work revenue and complete Actual.')}</li>}
-              {hasUnknownContract && <li>{t('dashboard.pm.contractUnavailableNote', 'Contract totals need a recorded value for each assigned project.')}</li>}
-              {deliveryError && <li>{t('dashboard.pm.deliveryUnavailableNote', 'Delivery progress could not be loaded; retry the delivery query.')}</li>}
-              {hasUnknownDelivery && <li>{t('dashboard.pm.noMilestonesNote', 'No milestone progress was supplied for some projects; open a project to review its milestones.')}</li>}
+              {hasUnknownRisk && <li>{t('dashboard:pm.riskUnavailableNote', 'Risk needs a positive active budget and complete, comparable Actual.')}</li>}
+              {hasUnknownMargin && <li>{t('dashboard:pm.marginUnavailableNote', 'Margin needs billed-work revenue and complete Actual.')}</li>}
+              {hasUnknownContract && <li>{t('dashboard:pm.contractUnavailableNote', 'Contract totals need a recorded value for each assigned project.')}</li>}
+              {deliveryError && <li>{t('dashboard:pm.deliveryUnavailableNote', 'Delivery progress could not be loaded; retry the delivery query.')}</li>}
+              {hasUnknownDelivery && <li>{t('dashboard:pm.noMilestonesNote', 'No milestone progress was supplied for some projects; open a project to review its milestones.')}</li>}
             </ul>
             {hasUnknownDelivery && (
               <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                {t('dashboard.pm.openMyProjects', 'Open my projects')}
+                {t('dashboard:pm.openMyProjects', 'Open my projects')}
               </Link>
             )}
           </aside>

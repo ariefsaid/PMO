@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from 'react-router';
 import { WinRateCard } from './WinRateCard';
 import i18next from 'i18next';
 import idCommon from '../../../public/locales/id/common.json';
+import idDashboard from '../../../public/locales/id/dashboard.json';
 
 const populatedOracle = {
   wins_count: 2, losses_count: 1, wins_value: 8_000_000, losses_value: 650_000,
@@ -116,6 +117,7 @@ describe('WinRateCard (AC-1117 — preserve win-rate logic, recompose the figure
 
   it('AC-1106: renders the currency breakdown with Indonesian catalogue copy', async () => {
     i18next.addResourceBundle('id', 'common', idCommon, true, true);
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
     await act(async () => { await i18next.changeLanguage('id'); });
     oracle = {
       ...populatedOracle,

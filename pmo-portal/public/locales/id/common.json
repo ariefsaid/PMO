@@ -1248,46 +1248,14 @@
     }
   },
   "dashboard": {
-    "winRate": {
-      "title": "Tingkat kemenangan", "basisCount": "Menurut jumlah", "basisValue": "Menurut nilai", "basis": "Dasar tingkat kemenangan", "periodAll": "Sepanjang waktu", "periodYtd": "Tahun ini", "periodQuarter": "Kuartal terakhir", "periodTrailing": "12 bulan terakhir", "period": "Periode",
-      "errorTitle": "Gagal memuat tingkat kemenangan", "errorSub": "Terjadi kesalahan. Coba lagi.", "emptyTitle": "Tidak ada proyek selesai dalam periode ini", "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
-      "aggregateLabel": "Semua hasil", "sampleOne": "{{count}} hasil ditutup", "sampleMany": "{{count}} hasil ditutup", "sampleAcrossCurrenciesOne": "{{count}} hasil tercatat dari berbagai mata uang", "sampleAcrossCurrenciesMany": "{{count}} hasil tercatat dari berbagai mata uang", "outcomeCounts": "{{wins}} menang · {{losses}} kalah", "outcomeBreakdown": "{{wins}} menang · {{losses}} kalah · {{total}} ditutup", "valuesUnavailable": "Nilai hasil tidak tersedia", "rateUnavailable": "Tingkat tidak tersedia", "scale": "Skala win rate, 0 hingga 100 persen", "legend": "Legenda",
-      "progress": "Tingkat kemenangan {{percent}}%", "won": "Menang", "lost": "Kalah", "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
+    "bva": {
+      "atRisk": "Berisiko"
     },
-    "bva": { "atRisk": "Berisiko" },
-    "projectedMargin": { "group": "Margin proyeksi pipeline", "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif", "stage": "tahap", "stages": "tahap", "barLabel": "{{stage}}: {{value}} tertimbang", "emptyStages": "Tidak ada tahap pipeline aktif" },
-    "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}." },
-    "pm": {
-      "title": "Dashboard saya", "subtitle": "Proyek, kesehatan anggaran, dan antrean persetujuan Anda.", "kpiBand": "KPI saya",
-      "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya",
-      "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
-      "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
-      "loadError": "Gagal memuat proyek Anda",
-      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan",
-      "deliveryScope": "Proyek pelaksanaan yang ditugaskan kepada Anda.", "projectsTitle": "Proyek pelaksanaan saya",
-      "projectScope": "{{count}} proyek pelaksanaan · Total kontrak: {{total}}", "sortLabel": "Urutkan proyek",
-      "sortRisk": "Proyek berisiko dahulu", "sortName": "Nama proyek", "riskClear": "Tidak ada risiko anggaran yang terkonfirmasi",
-      "riskUnavailable": "Risiko tidak tersedia", "riskUnavailableNote": "Risiko memerlukan anggaran aktif positif dan Aktual lengkap yang dapat dibandingkan.",
-      "actual": "Aktual", "contract": "Kontrak", "actualUnavailable": "Aktual tidak tersedia", "contractUnavailable": "Kontrak tidak tersedia",
-      "showEvidence": "Bukti proyek {{name}}", "hideEvidence": "Sembunyikan bukti proyek {{name}}",
-      "openBudgetFor": "Buka anggaran {{name}}", "comparisonBar": "{{name}}: {{percent}}% dari kontrak",
-      "comparisonUnavailable": "Perbandingan tidak tersedia; cakupan Aktual atau kontrak belum lengkap.",
-      "deliveryUnavailable": "Belum ada tonggak pelaksanaan yang dicatat.", "deliveryLoading": "Memuat progres pelaksanaan",
-      "dataNotes": "Catatan data proyek", "marginUnavailable": "Margin tidak tersedia",
-      "marginUnavailableNote": "Margin memerlukan pendapatan tertagih dan Aktual yang lengkap.",
-      "contractUnavailableNote": "Total kontrak memerlukan nilai tercatat untuk setiap proyek yang ditugaskan.",
-      "deliveryUnavailableNote": "Progres pelaksanaan tidak dapat dimuat; coba lagi kueri progres.",
-      "noMilestonesNote": "Progres tonggak belum tersedia untuk beberapa proyek; buka proyek untuk meninjau tonggaknya."
+    "procurementStatus": {
+      "summary": "{{label}}, {{total}} {{noun}}, terbanyak pada {{status}}."
     },
-    "delivery": { "percent": "Progres {{rounded}}%" },
-    "engineer": {
-      "title": "Dashboard saya", "subtitle": "Jam kerja minggu ini dan status timesheet Anda.", "logHours": "Catat jam kerja minggu ini", "logHoursShort": "Catat jam kerja", "kpiBand": "KPI saya",
-      "hoursThisWeek": "Jam minggu ini", "weeklyHoursCardTitle": "Jam kerja minggu ini menurut hari", "weekOf": "minggu mulai {{date}}", "openTimesheetsLog": "Buka timesheet untuk mencatat jam kerja minggu ini", "hoursHelp": "Total jam pada timesheet terbaru Anda.",
-        "calendarWeek": "Minggu kalender mulai {{date}}", "calendarWeekLabel": "Minggu kalender", "weekSummary": "Minggu ini", "weekHoursAria": "Minggu ini: {{hours}} jam", "noTimesheetThisWeek": "Belum ada timesheet minggu ini", "hoursUnavailable": "Jam tidak tersedia", "statusUnavailable": "Status timesheet tidak tersedia", "emptyWeekNote": "Belum ada jam yang dicatat untuk minggu kalender ini.", "entriesUnavailable": "Entri terbaru tidak tersedia", "noRecentEntries": "Tidak ada entri terbaru", "noProjectHours": "Tidak ada jam proyek yang dicatat minggu ini",
-      "timesheetStatus": "Status timesheet", "noneThisPeriod": "Tidak ada untuk periode ini", "openTimesheetsStatus": "Buka timesheet untuk melihat status terbaru", "statusHelp": "Status timesheet terbaru Anda.",
-      "loadError": "Gagal memuat timesheet Anda", "recentError": "Gagal memuat entri terbaru", "noHours": "Belum ada jam kerja minggu ini", "noHoursSub": "Catat jam kerja untuk melihat ringkasan mingguan.", "projectBreakdownSub": "Catat jam kerja untuk melihat rincian proyek.",
-      "hoursByDay": "Jam minggu ini menurut hari", "dayHours": "{{day}}: {{hours}} jam", "byProject": "Minggu ini menurut proyek", "recentEntries": "Entri terbaru", "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam",
-      "day": { "sun": "Min", "mon": "Sen", "tue": "Sel", "wed": "Rab", "thu": "Kam", "fri": "Jum", "sat": "Sab" }
+    "delivery": {
+      "percent": "Progres {{rounded}}%"
     },
     "atRisk": {
       "reviewSingle": "Tinjau {{count}} proyek berisiko",
@@ -1326,46 +1294,23 @@
       }
     },
     "empty": {
-      "sub": "Buat proyek pertama Anda untuk melihat KPI portofolio di sini.",
       "title": "Belum ada data"
     },
     "error": {
-      "sub": "Kueri dashboard gagal. Coba lagi, atau periksa kembali sebentar lagi.",
       "title": "Gagal memuat dashboard"
     },
     "kpi": {
       "awaitingApproval": {
         "label": "Menunggu persetujuan Anda",
-        "unavailable": "tidak tersedia — periksa koneksi", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
-        "linkUnavailable": "{{label}}: tidak tersedia", "linkOne": "{{label}}: {{count}} item menunggu", "linkMany": "{{label}}: {{count}} item menunggu", "review": "Tinjau"
+        "unavailable": "tidak tersedia — periksa koneksi",
+        "one": "{{count}} item menunggu",
+        "many": "{{count}} item menunggu",
+        "linkUnavailable": "{{label}}: tidak tersedia",
+        "linkOne": "{{label}}: {{count}} item menunggu",
+        "linkMany": "{{label}}: {{count}} item menunggu",
+        "review": "Tinjau"
       },
-      "pipelineWeighted": {
-        "help": "Jumlah (nilai proyek × peluang menang tahap) di semua tahap aktif.",
-        "label": "Pipeline (tertimbang)",
-        "linkLabel": "Buka pipeline penjualan",
-        "vs": "dari {{gross}} bruto"
-      },
-      "revenueOnHand": {
-        "help": "Nilai kontrak di seluruh proyek yang sedang berjalan. Margin hanya diukur pada pekerjaan yang telah ditagihkan: pendapatan tertagih dikurangi Aktual. Margin bukan kas yang sudah diterima."
-      },
-      "aboutMetric": "Tentang metrik ini",
-      "helpLabel": "Bantuan: {{label}}",
-      "totalContractValue": {
-        "help": "Total nilai kontrak di seluruh portofolio aktif.",
-        "label": "Total nilai kontrak",
-        "linkLabel": "Buka proyek aktif untuk melihat total nilai kontrak"
-      },
-      "totalSpend": {
-        "help": "Aktual portofolio saat ini yang tercatat hingga kini.",
-        "label": "Pengeluaran tercatat",
-        "linkLabel": "Buka proyek aktif untuk melihat rincian pengeluaran"
-      }
-    },
-    "kpiBand": {
-      "label": "KPI portofolio"
-    },
-    "sr": {
-      "activeProjects": "proyek aktif"
+      "helpLabel": "Bantuan: {{label}}"
     },
     "stillToInvoice": {
       "count": "Work Order: {{n}}",
@@ -4637,17 +4582,31 @@
     }
   },
   "uxs03": {
-    "contractedRevenue":"Pendapatan terikat kontrak", "contractValueOnHand":"Nilai kontrak dalam portofolio saat ini", "activeContractValue":"Nilai kontrak aktif", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
-    "notAvailableYet":"Belum tersedia",
-    "attentionAndApprovals":"Perhatian dan persetujuan",
-    "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
-    "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "actualIncompleteCategories":"Aktual belum lengkap: {{count}} kategori biaya belum dipetakan", "openAccountingMap":"Tinjau pemetaan akuntansi", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
-    "activeBudget":"Anggaran aktif", "actual":"Aktual", "variance":"Selisih", "utilization":"Pemakaian", "atRisk":"Berisiko",
-    "activeBudgetReviewEmpty":"Belum ada anggaran aktif yang siap ditinjau", "activeBudgetReviewEmptySub":"Anggaran aktif bernilai positif ditampilkan di sini.",
-    "actualSourceCurrency":"Mata uang sumber: {{currency}}", "actualAsOf":"Per {{date}}",
-    "deliveryChartEmpty":"Belum ada proyek pelaksanaan untuk dibandingkan", "deliveryChartScope":"Proyek menang, ditahan, dalam pelaksanaan atau selesai, serta proyek internal.",
-    "financeDashboardTitle":"Dasbor Keuangan", "financeDashboardSubtitle":"Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.",
-    "financeBudgetReviewTitle":"Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)", "financeProjectColumn":"Proyek", "financeReadyToPay":"Siap dibayar"
+    "contractValueOnHand": "Nilai kontrak dalam portofolio saat ini",
+    "activeContractValue": "Nilai kontrak aktif",
+    "notAvailableYet": "Belum tersedia",
+    "attentionAndApprovals": "Perhatian dan persetujuan",
+    "realizedMargin": "Margin atas pekerjaan yang ditagihkan",
+    "realizedMarginKnown": "Margin yang diketahui atas pekerjaan yang ditagihkan",
+    "contractRemaining": "Sisa kontrak setelah Aktual yang diketahui",
+    "coverage": "Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan",
+    "coverageCategories": "Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan",
+    "openAccountingMap": "Tinjau pemetaan akuntansi",
+    "recordedOutcomesOnly": "Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.",
+    "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
+    "activeBudget": "Anggaran aktif",
+    "actual": "Aktual",
+    "variance": "Selisih",
+    "utilization": "Pemakaian",
+    "atRisk": "Berisiko",
+    "activeBudgetReviewEmpty": "Belum ada anggaran aktif yang siap ditinjau",
+    "activeBudgetReviewEmptySub": "Anggaran aktif bernilai positif ditampilkan di sini.",
+    "actualSourceCurrency": "Mata uang sumber: {{currency}}",
+    "actualAsOf": "Per {{date}}",
+    "deliveryChartEmpty": "Belum ada proyek pelaksanaan untuk dibandingkan",
+    "financeDashboardTitle": "Dasbor Keuangan",
+    "financeProjectColumn": "Proyek",
+    "financeReadyToPay": "Siap dibayar"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",

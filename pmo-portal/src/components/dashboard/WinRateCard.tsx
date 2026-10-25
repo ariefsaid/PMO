@@ -74,17 +74,17 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     });
   };
 
-  const periodLabel = t('dashboard.winRate.period', 'Time frame');
-  const basisLabel = t('dashboard.winRate.basis', 'Win-rate basis');
+  const periodLabel = t('dashboard:winRate.period', 'Time frame');
+  const basisLabel = t('dashboard:winRate.basis', 'Win-rate basis');
   const periodOptions: ViewOption<PeriodKey>[] = [
-    { value: 'all', label: t('dashboard.winRate.periodAll', 'All time'), testId: 'win-rate-period-all' },
-    { value: 'ytd', label: t('dashboard.winRate.periodYtd', 'YTD'), testId: 'win-rate-period-ytd' },
-    { value: 'q', label: t('dashboard.winRate.periodQuarter', 'Last quarter'), testId: 'win-rate-period-q' },
-    { value: 't12', label: t('dashboard.winRate.periodTrailing', 'Trailing 12 mo'), testId: 'win-rate-period-t12' },
+    { value: 'all', label: t('dashboard:winRate.periodAll', 'All time'), testId: 'win-rate-period-all' },
+    { value: 'ytd', label: t('dashboard:winRate.periodYtd', 'YTD'), testId: 'win-rate-period-ytd' },
+    { value: 'q', label: t('dashboard:winRate.periodQuarter', 'Last quarter'), testId: 'win-rate-period-q' },
+    { value: 't12', label: t('dashboard:winRate.periodTrailing', 'Trailing 12 mo'), testId: 'win-rate-period-t12' },
   ];
   const basisOptions: ViewOption<Basis>[] = [
-    { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
-    { value: 'value', label: t('dashboard.winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
+    { value: 'count', label: t('dashboard:winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
+    { value: 'value', label: t('dashboard:winRate.basisValue', 'By value'), testId: 'win-rate-toggle-value' },
   ];
 
   const sampleCount = (data?.wins_count ?? 0) + (data?.losses_count ?? 0);
@@ -117,13 +117,13 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
         losses,
         rate: data?.win_rate_count ?? null,
         sampleCount: count,
-        label: t('dashboard.winRate.aggregateLabel', 'All outcomes'),
+        label: t('dashboard:winRate.aggregateLabel', 'All outcomes'),
         sampleLabel: count === 1
-          ? t('dashboard.winRate.sampleOne', '{{count}} closed outcome', { count })
-          : t('dashboard.winRate.sampleMany', '{{count}} closed outcomes', { count }),
+          ? t('dashboard:winRate.sampleOne', '{{count}} closed outcome', { count })
+          : t('dashboard:winRate.sampleMany', '{{count}} closed outcomes', { count }),
         valuesLabel: wins === null || losses === null
-          ? t('dashboard.winRate.valuesUnavailable', 'Outcome values are unavailable')
-          : t('dashboard.winRate.outcomeCounts', '{{wins}} won · {{losses}} lost', {
+          ? t('dashboard:winRate.valuesUnavailable', 'Outcome values are unavailable')
+          : t('dashboard:winRate.outcomeCounts', '{{wins}} won · {{losses}} lost', {
             wins: formatNumber(wins), losses: formatNumber(losses),
           }),
       }];
@@ -132,11 +132,11 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     return valueRows.map((row) => {
       const knownTotal = row.wins !== null && row.losses !== null ? row.wins + row.losses : null;
       const amount = (value: number | null) => value === null
-        ? t('dashboard.winRate.rateUnavailable', 'Rate unavailable')
+        ? t('dashboard:winRate.rateUnavailable', 'Rate unavailable')
         : formatCurrency(value, row.currency);
       const sampleLabel = sampleCount === 1
-        ? t('dashboard.winRate.sampleAcrossCurrenciesOne', '{{count}} closed outcome across currencies', { count: sampleCount })
-        : t('dashboard.winRate.sampleAcrossCurrenciesMany', '{{count}} closed outcomes across currencies', { count: sampleCount });
+          ? t('dashboard:winRate.sampleAcrossCurrenciesOne', '{{count}} recorded outcome across currencies', { count: sampleCount })
+          : t('dashboard:winRate.sampleAcrossCurrenciesMany', '{{count}} recorded outcomes across currencies', { count: sampleCount });
       return {
         id: row.currency,
         currency: row.currency,
@@ -147,8 +147,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
         label: row.currency,
         sampleLabel,
         valuesLabel: knownTotal === null
-          ? t('dashboard.winRate.valuesUnavailable', 'Outcome values are unavailable')
-          : t('dashboard.winRate.outcomeBreakdown', '{{wins}} won · {{losses}} lost · {{total}} closed', {
+          ? t('dashboard:winRate.valuesUnavailable', 'Outcome values are unavailable')
+          : t('dashboard:winRate.outcomeBreakdown', '{{wins}} won · {{losses}} lost · {{total}} closed', {
             wins: amount(row.wins), losses: amount(row.losses), total: amount(knownTotal),
           }),
       };
@@ -159,8 +159,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
     ? sampleCount > 0
     : valueRows.some((row) => (row.wins ?? 0) + (row.losses ?? 0) > 0 || (sampleCount > 0 && row.rate !== null));
   const declined = !isPending && !isError ? data?.declined_count ?? 0 : 0;
-  const unavailableLabel = t('dashboard.winRate.rateUnavailable', 'Rate unavailable');
-  const scaleLabel = t('dashboard.winRate.scale', 'Win-rate scale, 0 to 100 percent');
+  const unavailableLabel = t('dashboard:winRate.rateUnavailable', 'Rate unavailable');
+  const scaleLabel = t('dashboard:winRate.scale', 'Win-rate scale, 0 to 100 percent');
   const rowSlots = Math.max(2, activeRows.length);
   const visibleRows = isPending || isError ? [] : activeRows;
   const hasDataRows = visibleRows.length > 0;
@@ -191,7 +191,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           data-testid={trackTestId}
           role="progressbar"
           aria-label={measured
-            ? t('dashboard.winRate.progress', 'Win rate {{percent}}%', { percent: percent!.toFixed(1) })
+            ? t('dashboard:winRate.progress', 'Win rate {{percent}}%', { percent: percent!.toFixed(1) })
             : unavailableLabel}
           aria-valuetext={measured ? undefined : unavailableLabel}
           aria-valuenow={measured ? Number(percent!.toFixed(1)) : undefined}
@@ -224,14 +224,14 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   };
 
   const emptyNote = !isPending && !isError && !hasOutcomes;
-  const errorTitle = t('dashboard.winRate.errorTitle', "Couldn't load win rate");
-  const emptyTitle = t('dashboard.winRate.emptyTitle', 'No closed projects in this window');
+  const errorTitle = t('dashboard:winRate.errorTitle', "Couldn't load win rate");
+  const emptyTitle = t('dashboard:winRate.emptyTitle', 'No closed projects in this window');
 
   return (
     <section aria-labelledby="win-rate-title" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h2 id="win-rate-title" className="text-sm font-semibold">
-          {t('dashboard.winRate.title', 'Win rate')}
+          {t('dashboard:winRate.title', 'Win rate')}
         </h2>
       </div>
 
@@ -309,7 +309,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           ) : isError ? (
             <div data-testid="win-rate-error-rows" className="space-y-3" role="alert">
               <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-t border-border/70 py-2 md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
-                <span className="text-sm font-medium">{basis === 'count' ? t('dashboard.winRate.aggregateLabel', 'All outcomes') : '—'}</span>
+                <span className="text-sm font-medium">{basis === 'count' ? t('dashboard:winRate.aggregateLabel', 'All outcomes') : '—'}</span>
                 <span className="text-right text-sm font-semibold tabular">—</span>
                 <span
                   data-testid={basis === 'count' ? 'win-rate-track-count' : 'win-rate-track-unavailable-0'}
@@ -321,7 +321,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
                   className="col-span-2 h-3 rounded-full bg-secondary md:col-span-1 md:col-start-2"
                 />
                 <p className="col-span-2 text-xs text-muted-foreground md:col-start-2 md:col-span-2">
-                  {t('dashboard.winRate.valuesUnavailable', 'Outcome values are unavailable')}
+                  {t('dashboard:winRate.valuesUnavailable', 'Outcome values are unavailable')}
                 </p>
               </div>
               <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-t border-border/70 py-2 md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
@@ -340,14 +340,14 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border/70 pt-3" role="group" aria-label={errorTitle}>
                 <div>
                   <p className="text-sm font-medium">{errorTitle}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t('dashboard.winRate.errorSub', 'Something went wrong. Try again.')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('dashboard:winRate.errorSub', 'Something went wrong. Try again.')}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => refetch()}
                   className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  {t('common.retry', 'Retry')}
+                  {t('dashboard:retry', 'Retry')}
                 </button>
               </div>
             </div>
@@ -368,14 +368,14 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           )}
         </div>
 
-        <div data-testid="win-rate-legend" role="group" aria-label={t('dashboard.winRate.legend', 'Legend')} className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div data-testid="win-rate-legend" role="group" aria-label={t('dashboard:winRate.legend', 'Legend')} className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="size-2 rounded-full bg-success" />
-            {t('dashboard.winRate.won', 'Won')}
+            {t('dashboard:winRate.won', 'Won')}
           </span>
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="size-2 rounded-full bg-secondary-foreground/40" />
-            {t('dashboard.winRate.lost', 'Lost')}
+            {t('dashboard:winRate.lost', 'Lost')}
           </span>
         </div>
       </figure>
@@ -383,12 +383,12 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       {emptyNote && (
         <p data-testid="win-rate-empty-note" className="mt-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{emptyTitle}.</span>{' '}
-          {t('dashboard.winRate.emptySub', 'Try a wider time frame to see your win rate.')}
+          {t('dashboard:winRate.emptySub', 'Try a wider time frame to see your win rate.')}
         </p>
       )}
       {declined > 0 && (
         <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
-          {t('dashboard.winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
+          {t('dashboard:winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
         </p>
       )}
       {!isPending && !isError && hasOutcomes && (
