@@ -657,3 +657,67 @@ describe('erpnext/ledgerMirrorFeed — a reposted voucher is replaced, never dou
     expect(ple).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ voucher: { type: 'Purchase Invoice', no: 'ACC-PINV-2026-00006' } }));
   });
 });
+
+/**
+ * The one-off repair (0382). A per-source repair marker (`<domain>::repair`) re-reads from its cursor
+ * once, independently of the ordinary cursor — so an old-code tick that runs between the DB and the
+ * edge-function deploy cannot consume the repair (old code never reads the marker).
+ */
+describe('erpnext/ledgerMirrorFeed — the one-off repair re-read', () => {
+  const client = { fetchImpl: fetch, apiKey: 'k', apiSecret: 's', baseUrl: 'http://erp.test' };
+  const GL_REPAIR = `${LEDGER_GL_WM_DOMAIN}::repair`;
+  const PLE_REPAIR = `${LEDGER_PLE_WM_DOMAIN}::repair`;
+
+  it('reads from the repair marker, keeps the ordinary cursor monotonic, and clears the marker once caught up', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 11:52:16.353591');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    h(sc).setWatermark('erpnext', LEDGER_PLE_WM_DOMAIN, '2026-10-25 11:52:16.308551');
+    h(sc).setWatermark('erpnext', PLE_REPAIR, '2000-01-01 00:00:00');
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('G1', { modified: '2026-10-25 08:32:12.251858' })], caughtUp: true });
+    const ple = vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    const res = await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl.mock.calls[0][1].since).toBe('2026-10-24 00:00:00');
+    expect(ple.mock.calls[0][1].since).toBe('2000-01-01 00:00:00');
+    expect(res.glCursor).toBe('2026-10-25 11:52:16.353591'); // never rewound
+    expect(h(sc).watermarks.has(`erpnext::${GL_REPAIR}`)).toBe(false);
+    expect(h(sc).watermarks.has(`erpnext::${PLE_REPAIR}`)).toBe(false);
+  });
+
+  it('a repair that hits the page budget advances its marker and resumes next tick', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-25 11:52:16.353591');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [glRow('G1', { modified: '2026-10-24 09:00:00' })], caughtUp: false });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(h(sc).watermarks.get(`erpnext::${GL_REPAIR}`)).toBe('2026-10-24 09:00:00');
+    expect(h(sc).watermarks.get(`erpnext::${LEDGER_GL_WM_DOMAIN}`)).toBe('2026-10-25 11:52:16.353591');
+  });
+
+  it('a failed repair tick keeps the marker', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    vi.spyOn(ledgerFetch, 'fetchGlEntries').mockRejectedValue(new Error('ERP down'));
+
+    await expect(feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' })).rejects.toThrow('ERP down');
+    expect(h(sc).watermarks.get(`erpnext::${GL_REPAIR}`)).toBe('2026-10-24 00:00:00');
+  });
+
+  it('a marker NEWER than the ordinary cursor is ignored (the cursor already covers it) and cleared', async () => {
+    const sc = fakeServiceClient();
+    h(sc).setWatermark('erpnext', LEDGER_GL_WM_DOMAIN, '2026-10-20 00:00:00');
+    h(sc).setWatermark('erpnext', GL_REPAIR, '2026-10-24 00:00:00');
+    const gl = vi.spyOn(ledgerFetch, 'fetchGlEntries').mockResolvedValue({ rows: [], caughtUp: true });
+    vi.spyOn(ledgerFetch, 'fetchPaymentLedgerEntries').mockResolvedValue({ rows: [], caughtUp: true });
+
+    await feedLedgerMirrors(sc, { client, orgId: 'org-1', company: 'Synthetic Co' });
+
+    expect(gl.mock.calls[0][1].since).toBe('2026-10-20 00:00:00');
+    expect(h(sc).watermarks.has(`erpnext::${GL_REPAIR}`)).toBe(false);
+  });
+});

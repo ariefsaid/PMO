@@ -9,9 +9,9 @@
 -- existing convention for rows absent from ERPNext (finish_erp_gl_replay, 0312); the statement dirty-date
 -- trigger (0321) sees the delete like any other mirror write.
 --
--- Also: the Payment Ledger mirror gains the voucher it was written by (the replace key), and both ledger
--- cursors are rewound once so the next full sweep re-reads every voucher touched since 2026-10-24 (the
--- reposts) and backfills the PLE voucher columns.
+-- Also: the Payment Ledger mirror gains the voucher it was written by (the replace key), and a one-off
+-- repair marker per ledger source makes the next full sweep re-read every voucher touched since
+-- 2026-10-24 (the reposts) and backfill the PLE voucher columns.
 -- Reversal: supabase/migrations/rollback/0382_ledger_voucher_replace_down.sql.
 
 alter table public.erp_payment_ledger_mirror
@@ -145,12 +145,17 @@ $$;
 revoke execute on function public.replace_erp_ple_voucher_rows(uuid, text, text, text, jsonb, text[]) from public, anon, authenticated;
 grant execute on function public.replace_erp_ple_voucher_rows(uuid, text, text, text, jsonb, text[]) to service_role;
 
--- One-off repair through the normal sweep: the next full tick re-reads every GL row modified since the
--- reposts began, so each reposted voucher is replaced; the PLE cursor restarts so every current PLE row
--- gains its voucher columns. Re-reading is idempotent (the per-row erp_modified >= guard).
-update public.external_sync_watermarks
-   set watermark_cursor = '2026-10-24 00:00:00'
- where external_tier = 'erpnext' and domain = 'ledger::GL Entry'
-   and watermark_cursor > '2026-10-24 00:00:00';
-delete from public.external_sync_watermarks
- where external_tier = 'erpnext' and domain = 'ledger::Payment Ledger Entry';
+-- One-off repair through the normal sweep. A repair marker per ledger source makes the next full tick
+-- re-read from it (GL: every row modified since the reposts began, so each reposted voucher is replaced;
+-- PLE: every row, so each gains its voucher columns), then the feed deletes the marker. Only the new feed
+-- reads the marker, so an older edge function ticking before its deploy cannot consume the repair. The
+-- ordinary cursors are untouched; re-reading is idempotent (the per-row erp_modified >= guard). The marker
+-- keeps its source row's updated_at so the integration-health "last sync" is not refreshed by a migration.
+insert into public.external_sync_watermarks (org_id, external_tier, domain, watermark_cursor, updated_at)
+select w.org_id, w.external_tier, w.domain || '::repair',
+       case w.domain when 'ledger::GL Entry' then '2026-10-24 00:00:00' else '2000-01-01 00:00:00' end,
+       w.updated_at
+  from public.external_sync_watermarks w
+ where w.external_tier = 'erpnext' and w.domain in ('ledger::GL Entry', 'ledger::Payment Ledger Entry')
+on conflict (org_id, external_tier, domain) do update
+  set watermark_cursor = least(public.external_sync_watermarks.watermark_cursor, excluded.watermark_cursor);

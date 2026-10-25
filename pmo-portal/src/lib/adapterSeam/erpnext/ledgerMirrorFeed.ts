@@ -44,6 +44,10 @@ const MIRROR_UNIQUE_KEY = 'org_id,erp_name';
 /** Per-source watermark `domain` keys on `external_sync_watermarks` (namespaced under `ledger::`). */
 export const LEDGER_GL_WM_DOMAIN = 'ledger::GL Entry';
 export const LEDGER_PLE_WM_DOMAIN = 'ledger::Payment Ledger Entry';
+/** A one-off repair marker (`<domain>::repair`, written by a migration — 0382): the feed re-reads from
+ *  it, independently of the ordinary cursor, and deletes it once caught up. Code that predates the
+ *  marker never reads it, so a tick of old code cannot consume the repair. */
+export const repairWmDomain = (domain: string): string => `${domain}::repair`;
 const ERPNEXT_TIER = 'erpnext';
 
 /** Structural service-role client seam (matches supabase-js): `.from(t).select(c).eq()...` (thenable
@@ -59,6 +63,10 @@ export interface LedgerFeedTable {
   select(columns: string): LedgerFeedSelectBuilder;
   update(values: Record<string, unknown>, opts?: { count?: 'exact' }): LedgerFeedUpdateBuilder;
   upsert(rows: unknown | unknown[], opts?: { onConflict?: string; ignoreDuplicates?: boolean }): Promise<{ error: { message: string; code?: string } | null }>;
+  delete(): LedgerFeedDeleteBuilder;
+}
+export interface LedgerFeedDeleteBuilder extends PromiseLike<{ error: { message: string; code?: string } | null }> {
+  eq(column: string, value: string | number | boolean | null): LedgerFeedDeleteBuilder;
 }
 export interface LedgerFeedUpdateBuilder extends PromiseLike<{ count: number | null; error: { message: string; code?: string } | null }> {
   eq(column: string, value: string | number | boolean | null): LedgerFeedUpdateBuilder;
@@ -107,12 +115,13 @@ export async function feedLedgerMirrors(
   const { client, orgId, company, pageSize, maxPages, fullReplay = false } = opts;
 
   const glCursor = await readWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN);
+  const glRepair = fullReplay ? null : await readWm(serviceClient, orgId, repairWmDomain(LEDGER_GL_WM_DOMAIN));
   // A caller-supplied small budget is used to exercise/limit the initial backfill. Resumed ticks use
   // the production default budget so the inclusive boundary row does not consume an entire override
   // budget before the next unseen page can be observed; production remains bounded on every tick.
   const glResult = await fetchGlEntries(client, {
     company,
-    since: fullReplay ? undefined : glCursor ?? undefined,
+    since: fullReplay ? undefined : earlierCursor(glCursor, glRepair) ?? undefined,
     pageSize,
     maxPages: fullReplay ? (maxPages ?? 300) : maxPages,
   });
@@ -134,12 +143,14 @@ export async function feedLedgerMirrors(
     glFinalCursor = glNext;
   } else {
     glFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glNext, glCursor);
+    await settleRepair(serviceClient, orgId, LEDGER_GL_WM_DOMAIN, glRepair, glNext, glResult.caughtUp);
   }
 
   const pleCursor = await readWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN);
+  const pleRepair = await readWm(serviceClient, orgId, repairWmDomain(LEDGER_PLE_WM_DOMAIN));
   const pleResult = await fetchPaymentLedgerEntries(client, {
     company,
-    since: pleCursor ?? undefined,
+    since: earlierCursor(pleCursor, pleRepair) ?? undefined,
     pageSize,
     maxPages,
   });
@@ -147,6 +158,7 @@ export async function feedLedgerMirrors(
     (voucher) => fetchPaymentLedgerEntries(client, { company, voucher, maxPages: VOUCHER_MAX_PAGES }));
   const pleNext = maxModified(pleResult.rows);
   const pleFinalCursor = await advanceWm(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleNext, pleCursor);
+  await settleRepair(serviceClient, orgId, LEDGER_PLE_WM_DOMAIN, pleRepair, pleNext, pleResult.caughtUp);
 
   return {
     glFed,
@@ -156,6 +168,25 @@ export async function feedLedgerMirrors(
     glCaughtUp: glResult.caughtUp,
     pleCaughtUp: pleResult.caughtUp,
   };
+}
+
+/** The read start: the repair marker when it is behind the cursor. No cursor already means a full read. */
+function earlierCursor(cursor: string | null, repair: string | null): string | null {
+  return cursor !== null && repair !== null && repair < cursor ? repair : cursor;
+}
+
+/** After a successful read: a caught-up repair is done (marker deleted); a budget-bounded one resumes
+ *  from what it read. A failed tick never gets here, so the marker survives it. */
+async function settleRepair(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string, repair: string | null, next: string | null, caughtUp: boolean): Promise<void> {
+  if (repair === null) return;
+  const repairDomain = repairWmDomain(domain);
+  if (!caughtUp) {
+    await advanceWm(sc, orgId, repairDomain, next, repair);
+    return;
+  }
+  const { error } = await sc.from('external_sync_watermarks').delete()
+    .eq('org_id', orgId).eq('external_tier', ERPNEXT_TIER).eq('domain', repairDomain);
+  if (error) throw new AppError(error.message, error.code);
 }
 
 export async function readWm(sc: Pick<LedgerFeedServiceClient, 'from'>, orgId: string, domain: string): Promise<string | null> {
