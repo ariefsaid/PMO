@@ -26,6 +26,8 @@ const EN_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/loca
 const ID_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/integrations.json'), 'utf8'));
 const EN_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/m365Documents.json'), 'utf8'));
 const ID_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/m365Documents.json'), 'utf8'));
+const EN_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/projects.json'), 'utf8'));
+const ID_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/projects.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -37,6 +39,7 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     resources: {
       id: {
         common: ID,
+        projects: ID_PROJECTS,
         dashboard: ID_DASHBOARD,
         finance: ID_FINANCE,
         project: ID_PROJECT,
@@ -47,6 +50,7 @@ function makeBahasaI18n(locale: 'en' | 'id') {
       },
       en: {
         common: EN,
+        projects: EN_PROJECTS,
         dashboard: EN_DASHBOARD,
         finance: EN_FINANCE,
         project: EN_PROJECT,

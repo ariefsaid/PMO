@@ -73,7 +73,8 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByLabelText(/Nilai estimasi/)).toBeInTheDocument();
     expect(screen.getByLabelText('Perkiraan mulai')).toBeInTheDocument();
     expect(screen.getByLabelText('Perkiraan selesai')).toBeInTheDocument();
-    expect(screen.getByText('Jadwal')).toBeInTheDocument();
+    expect(screen.getByText('Kepemilikan & jadwal')).toBeInTheDocument();
+    expect(screen.getByText('Estimasi & pajak')).toBeInTheDocument();
   });
 
   it('#693: the origination stage options show Bahasa names while the values stay the enum', () => {

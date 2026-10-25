@@ -57,6 +57,9 @@ it('AC-TAG-002 a location over 140 characters is refused inline and not submitte
   await user.click(screen.getByLabelText('Location'));
   await user.paste('x'.repeat(141));
   await user.click(screen.getByRole('button', { name: 'Create project' }));
-  expect(await screen.findByText('Use 140 characters or fewer.')).toBeVisible();
+  const errorSummaryLink = await screen.findByRole('link', { name: 'Use 140 characters or fewer.' });
+  expect(errorSummaryLink).toHaveAttribute('href', '#project-classification-location');
+  expect(screen.getByRole('alert', { name: 'Form errors' })).toContainElement(errorSummaryLink);
+  expect(screen.getByText('Use 140 characters or fewer.', { selector: 'span' })).toBeVisible();
   expect(onSubmit).not.toHaveBeenCalled();
 });

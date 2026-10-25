@@ -922,7 +922,7 @@ it('AC-806-SORT: the visible default order changes to the selected URL sort', as
     };
     renderPage('Project Manager', '/projects');
 
-    const sort = screen.getByRole('combobox', { name: 'Sort projects' });
+    const sort = sortControl();
     expect(sort).toHaveValue('attention');
     await waitFor(() => expect(screen.getByTestId('location-probe').dataset.search).toContain('sort=attention'));
     expect(within(screen.getAllByRole('row')[1]).getByRole('button', { name: 'Northwind ERP Rollout' })).toBeVisible();

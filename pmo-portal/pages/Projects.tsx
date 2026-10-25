@@ -685,7 +685,7 @@ const Projects: React.FC = () => {
       <SearchMini id="projects-search" placeholder={t('projects.search.placeholder', 'Search projects…')}
         aria-label={t('projects.search.ariaLabel', 'Search projects')} value={search}
         onChange={(event) => setSearch(event.target.value)} searchSurface="projects-list" module="projects"
-        resultCount={filtered.length} containerClassName="min-w-0 w-full md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
+        resultCount={filtered.length} containerClassName="h-11 min-w-0 w-full md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
       <div className="flex min-w-0 w-full flex-wrap items-end gap-2 md:w-auto">
         <div className="min-w-[144px] flex-1 md:flex-none">
           <SelectField label={t('projects.filters.scopeLabel', 'Scope')} value={filter}
@@ -695,6 +695,7 @@ const Projects: React.FC = () => {
         <ProjectClassificationFilters {...classificationFilterProps} hideAppliedSummary
           panel={(fields, disclosure) => (
             <MobileToolbarDisclosure label={t('uxs14.filters', 'Filters')} count={filtersCount}
+              className="[&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
               open={disclosure.open} closeOnSelectChange
               onOpenChange={(next) => { disclosure.onOpenChange(next); if (next) setMoreOpen(false); }}>
               <div className="grid w-full min-w-0 gap-3">
@@ -740,6 +741,7 @@ const Projects: React.FC = () => {
           ]} className="touch-target min-w-0" />
       </div>
       <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen}
+        className="[&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
         onOpenChange={(next) => { setMoreOpen(next); if (next) setFiltersOpen(false); }}>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />
@@ -912,7 +914,7 @@ const Projects: React.FC = () => {
  */
 const newProjectAction = (canCreate: boolean | undefined, onNew: () => void, label: string) =>
   canCreate ? (
-    <Button variant="primary" onClick={onNew} className="max-sm:min-h-11 max-sm:w-full">
+    <Button variant="primary" className="touch-target h-11 md:h-8" onClick={onNew}>
       <Icon name="plus" />
       {label}
     </Button>
