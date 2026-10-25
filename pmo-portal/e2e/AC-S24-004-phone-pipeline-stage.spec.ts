@@ -218,6 +218,9 @@ for (const locale of ['en', 'id'] as const) {
       await expect(selector).toBeVisible();
       const phoneList = page.getByTestId('sales-phone-stage-list');
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
+      const sortSelector = page.getByRole('combobox', { name: locale === 'id' ? 'Urutkan' : 'Sort' });
+      await expect(sortSelector).toHaveValue('activity-oldest');
+      await sortSelector.selectOption('activity-newest');
       const firstCard = phoneList.locator('article').first();
       await expect(firstCard.getByRole('link', { name: LONG_NAME, exact: true })).toBeVisible();
       await expect(firstCard.getByText(LONG_CUSTOMER, { exact: true })).toBeVisible();
@@ -241,7 +244,8 @@ for (const locale of ['en', 'id'] as const) {
       await firstCard.getByRole('link', { name: LONG_NAME, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/projects/${OPEN_PROJECTS[0].id}$`));
       await page.goBack();
-      await expect(page).toHaveURL(/\/sales\?view=kanban$/);
+      await expect(page).toHaveURL(/\/sales\?.*view=kanban/);
+      await expect(page).toHaveURL(/[?&]sort=activity-newest(?:&|$)/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
     });
 
@@ -259,9 +263,9 @@ for (const locale of ['en', 'id'] as const) {
       await expect(phoneList.getByText(LONG_NAME)).toHaveCount(0);
 
       await page.getByRole('searchbox', { name: locale === 'id' ? 'Cari proyek' : 'Search projects' }).fill('no synthetic match');
-      await expect(page.getByText(locale === 'id' ? 'Tidak ada proyek pada tahap ini' : 'No projects in this stage')).toBeVisible();
+      await expect(page.getByText(locale === 'id' ? 'Tidak ada proyek yang cocok' : 'No matching projects')).toBeVisible();
       await page.getByRole('button', { name: locale === 'id' ? 'Hapus filter' : 'Clear filters' }).click();
-      await expect(page).toHaveURL(/\/sales\?view=kanban$/);
+      await expect(page).toHaveURL(/\/sales\?.*view=kanban/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
 
       await scopeSelector.selectOption('Lost');

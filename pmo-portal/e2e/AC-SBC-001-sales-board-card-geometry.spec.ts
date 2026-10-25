@@ -94,7 +94,7 @@ test.describe('AC-SBC-001 sales board card money-row geometry (#696)', () => {
         if (bahasa) await expect(page.locator('html')).toHaveAttribute('lang', 'id', { timeout: 60_000 });
         const collection = width === 390
           ? page.getByTestId('sales-phone-stage-list')
-          : page.getByRole('region', { name: 'Sales pipeline board' });
+          : page.getByRole('region', { name: /Sales pipeline board|Papan pipeline penjualan/ });
         await expect(collection.locator('article').first()).toBeVisible({ timeout: 60_000 });
         await waitForFonts(page);
 
