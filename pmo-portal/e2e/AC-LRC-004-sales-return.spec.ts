@@ -5,14 +5,13 @@ import { login } from './helpers';
 /**
  * AC-LRC-004 (list-working-set-return, #682): a narrowed Sales Pipeline, opened project record,
  * and a return via the project's quiet "Back to Sales Pipeline" wayfinding link restores the same
- * stage/search working set — while the record path and the Projects breadcrumb/BackBar stay
+ * scope/stage/search/sort/scroll working set — while the record path and Projects breadcrumb stay
  * canonical, structural, and UNAFFECTED by the Sales context (design decision 3 / FR-LRC-006).
  *
  * Seed: "Riverside Plastics 2.1 MW Carport PV" and "Northwind ERP Rollout" are both Tender
  * Submitted; "Cascade Foods Phase 2 — 4.0 MW Extension" is PQ Submitted (excluded by the Tender
- * funnel-stage filter). The funnel/stage filter narrows only the Table view (the Board always
- * shows every open ∪ lost deal, by design — so this journey switches to Table first, the same as
- * a user would to use the status SegFilter). Selecting the Tender stage narrows OUT the PQ row;
+ * Stage selector). The user selects Table, then Stage and Sort in the unified toolbar. Selecting
+ * Tender narrows OUT the PQ row;
  * searching "Riverside" then narrows OUT "Northwind ERP Rollout" too (its name has no "Riverside"
  * substring) — so each control visibly removes a row, and the Sales-link return must bring back
  * exactly that narrowed set, not just the URL. Neither fixture is mutated by any other spec.
@@ -34,15 +33,16 @@ test(
     await page.goto('/sales');
     await waitReady(page);
 
-    // ── Switch to Table (the status/stage filters act on Table; Board always shows every deal) ─
+    // ── Switch to Table while retaining the same Open scope ───────────────────────────────
     await page.getByRole('tab', { name: /^Table$/i }).click();
     await expect(page).toHaveURL(/[?&]view=table/);
     const table = page.getByRole('table');
 
-    // ── Narrow: funnel stage=Tender, then a search ("Riverside") that removes Northwind ───────
-    const funnel = page.getByLabel('Pipeline summary');
-    await funnel.getByRole('button', { name: /Tender/ }).click();
+    // ── Narrow: Stage=Tender, newest activity first, then search for Riverside ─────────────
+    await page.getByRole('combobox', { name: 'Stage' }).selectOption('Tender Submitted');
     await expect(page).toHaveURL(/[?&]status=Tender\+Submitted/);
+    await page.getByRole('combobox', { name: 'Sort' }).selectOption('activity-newest');
+    await expect(page).toHaveURL(/[?&]sort=activity-newest/);
     await expect(table.getByText('Northwind ERP Rollout')).toBeVisible();
     await expect(table.getByText('Cascade Foods Phase 2')).not.toBeVisible();
     const search = page.getByRole('searchbox', { name: /Search projects/i });
@@ -52,6 +52,10 @@ test(
     await expect(table.getByText('Riverside Plastics 2.1 MW Carport PV')).toBeVisible();
 
     const narrowedSalesUrl = page.url();
+    const mainScroll = page.locator('.main-scroll');
+    await mainScroll.evaluate((element) => { element.scrollTop = Math.min(160, element.scrollHeight - element.clientHeight); });
+    const capturedScrollTop = await mainScroll.evaluate((element) => element.scrollTop);
+    expect(capturedScrollTop).toBeGreaterThan(0);
 
     // ── Open the project from the Sales table; the record path stays canonical /projects/:id ──
     await table.getByText('Riverside Plastics 2.1 MW Carport PV').click();
@@ -78,21 +82,18 @@ test(
     await expect(page).toHaveURL(/[?&]status=Tender\+Submitted/, { timeout: 10_000 });
     await expect(page).toHaveURL(/[?&]q=Riverside/);
     await waitReady(page);
+    await expect(page.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Open');
+    await expect(page.getByRole('combobox', { name: 'Stage' })).toHaveValue('Tender Submitted');
+    await expect(page.getByRole('combobox', { name: 'Sort' })).toHaveValue('activity-newest');
+    await expect.poll(() => mainScroll.evaluate((element) => element.scrollTop)).toBe(capturedScrollTop);
     // The narrowed SET came back, not just the URL: the searched-out and filtered-out rows stay
     // out. Scoped to the table so the locator can't transiently match the breadcrumb/heading of
     // the just-departed detail page during the return transition (strict-mode ambiguity).
     await expect(table.getByText('Riverside Plastics 2.1 MW Carport PV')).toBeVisible();
     await expect(table.getByText('Northwind ERP Rollout')).not.toBeVisible();
     await expect(table.getByText('Cascade Foods Phase 2')).not.toBeVisible();
-    // No scroll-restore assertion here: the quiet Sales link is a plain <a> BY DESIGN (it mounts
-    // outside Router context, PipelineLens.tsx), so activating it is a hard browser navigation —
-    // a fresh history entry with no `location.state` to carry the one-shot scroll payload. The
-    // URL-derived working set (status/q, asserted above) still restores correctly across that
-    // hard nav; only the position is not carried, which is why this AC's own owning proof (unlike
-    // AC-LRC-003/005's push-based BackBar/breadcrumb returns) makes no scroll-restore claim.
-
     // ── A direct project link carries no Sales context — the Sales link falls back to bare
-    //    /sales (design decision 3 / AC-LRC-011), and the Projects breadcrumb stays canonical. ─
+    //    /sales, and the Projects breadcrumb stays canonical. ──────────────────────────────
     const freshPage = await page.context().newPage();
     await freshPage.goto(recordUrl);
     await expect(freshPage.getByTestId('record-header')).toContainText(

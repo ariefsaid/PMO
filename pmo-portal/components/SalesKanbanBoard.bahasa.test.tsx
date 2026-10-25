@@ -1,55 +1,44 @@
-/**
- * #693 (F-2) — the Sales board's screen-reader name, weighted-value suffix and empty-column
- * message were hard-coded English. Rendered under the real `id` catalogue they must read as Bahasa.
- */
+/** EN/ID Sales row labels, grouped headings, and missing evidence stay in the active locale. */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { BahasaProvider } from '@/test/bahasa';
 import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+const project: PipelineProject = {
+  id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme',
+  status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD',
+  tax_treatment: 'exclusive', win_probability: 0.4, last_update: null,
+};
+const renderBoard = (presentation: 'board' | 'list' = 'board') => render(
+  <BahasaProvider><MemoryRouter><SalesKanbanBoard projects={[project]} onOpen={vi.fn()} presentation={presentation} /></MemoryRouter></BahasaProvider>,
+);
 
-const projects: PipelineProject[] = [
-  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
-];
-
-describe('SalesKanbanBoard in Bahasa (#693 F-2)', () => {
-  it('#693: the board has a Bahasa screen-reader name', () => {
-    render(<BahasaProvider><SalesKanbanBoard projects={projects} onOpen={vi.fn()} /></BahasaProvider>);
-    expect(screen.getByLabelText('Papan pipeline penjualan')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Sales pipeline board')).toBeNull();
+describe('SalesKanbanBoard Bahasa labels', () => {
+  it('gives the grouped board a Bahasa accessible name and translated stage headers', () => {
+    renderBoard();
+    expect(screen.getByRole('region', { name: 'Papan pipeline penjualan' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Leads')).getByText('Prospek')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-PQ Submitted')).getByText('Pra-kualifikasi')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Quotation Submitted')).getByText('Penawaran')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Tender Submitted')).getByText('Tender')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Negotiation')).getByText('Negosiasi')).toBeInTheDocument();
   });
 
-  // ⚑ The empty-message assertion above once read "…tahap Leads" — it locked in the English stage
-  // enum leaking through a Bahasa sentence (the bug). Stage NAMES are display labels; the enum
-  // values ('Leads', 'Quotation Submitted', …) stay as data and never reach the user's eyes.
-  it('#693: column titles, the mobile stage indicator and the status pill show Bahasa stage names', () => {
-    render(<BahasaProvider><SalesKanbanBoard projects={projects} onOpen={vi.fn()} /></BahasaProvider>);
-    const titleIn = (testId: string, name: string) => within(screen.getByTestId(testId)).getByText(name, { exact: true });
-    expect(titleIn('stage-Leads', 'Prospek')).toBeInTheDocument();
-    expect(titleIn('stage-PQ Submitted', 'Pra-kualifikasi')).toBeInTheDocument();
-    expect(titleIn('stage-Quotation Submitted', 'Penawaran')).toBeInTheDocument();
-    expect(titleIn('stage-Tender Submitted', 'Tender')).toBeInTheDocument();
-    expect(titleIn('stage-Negotiation', 'Negosiasi')).toBeInTheDocument();
-    expect(titleIn('stage-Won', 'Menang')).toBeInTheDocument();
-    expect(titleIn('stage-Lost', 'Kalah')).toBeInTheDocument();
-    // mobile indicator (rendered md:hidden, always in the DOM)
-    expect(screen.getByRole('button', { name: 'Prospek' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pra-kualifikasi' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Leads' })).toBeNull();
-    // the card's pill names the STATUS in full, in Bahasa
-    const card = screen.getByTestId('project-card');
-    expect(within(card).getByText('Penawaran diajukan')).toBeInTheDocument();
+  it('uses the localized lifecycle label and does not repeat stage inside the grouped card', () => {
+    renderBoard();
+    const card = screen.getByRole('link', { name: 'Quotation Deal Alpha' }).closest('article')!;
+    expect(within(card).queryByText('Penawaran diajukan')).toBeNull();
+    expect(within(card).getByText('Aktivitas tidak tersedia')).toBeInTheDocument();
     expect(within(card).queryByText('Quotation Submitted')).toBeNull();
+    expect(within(card).queryByText(/tertimbang$/)).toBeNull();
   });
 
-  it('#693: the empty-column message is Bahasa and cards carry no weighted suffix', () => {
-    render(<BahasaProvider><SalesKanbanBoard projects={projects} onOpen={vi.fn()} /></BahasaProvider>);
-    const card = screen.getByTestId('project-card');
-    expect(within(card).queryByText(/tertimbang$/)).toBeNull();
-    expect(within(card).queryByText(/wtd/)).toBeNull();
-    expect(screen.getByText('Tidak ada proyek pada tahap Prospek')).toBeInTheDocument();
+  it('keeps stage visible on the ungrouped phone row', () => {
+    renderBoard('list');
+    const card = screen.getByRole('link', { name: 'Quotation Deal Alpha' }).closest('article')!;
+    expect(within(card).getByText('Penawaran diajukan')).toBeInTheDocument();
   });
 });

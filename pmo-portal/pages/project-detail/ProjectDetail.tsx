@@ -16,6 +16,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
 import PipelineLens, { type PipelinePrimaryAction } from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
@@ -151,6 +152,10 @@ const ProjectDetail: React.FC = () => {
   // breadcrumb reads the same context via App.tsx's `contextualListReturnNavigation`.
   const { returnToList } = useListReturn({ list: 'projects' });
   const goBack = () => returnToList('projects');
+  const returnToSales = () => {
+    const destination = listReturnNavigation(location.state, 'sales');
+    navigate(destination.path, { state: destination.state });
+  };
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -170,7 +175,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -180,7 +185,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
@@ -195,7 +200,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           icon="inbox"
@@ -287,7 +292,7 @@ const ProjectDetail: React.FC = () => {
       {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
           loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
           rule as every other record page and this page's loading / not-found states). */}
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
@@ -323,7 +328,7 @@ const ProjectDetail: React.FC = () => {
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} locationState={location.state} onPrimaryActionChange={setPipelinePrimaryAction} />
+            <PipelineLens project={project} locationState={location.state} onPrimaryActionChange={setPipelinePrimaryAction} onReturnToSales={returnToSales} />
           </div>
           {/* Classification, codes and the ERP project link live in the one closed details disclosure. */}
           <ProjectDetailRail project={project} showActionSection={false} />

@@ -12,8 +12,6 @@ interface SalesKanbanBoardProps {
   projects: PipelineProject[];
   onOpen: (project: PipelineProject) => void;
   presentation?: 'board' | 'list';
-  /** Compatibility prop for existing unit journeys; stage filtering is owned by the page now. */
-  selectedStatus?: PipelineProject['status'] | null;
 }
 
 const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void }> = ({ project, onOpen }) => {

@@ -60,9 +60,12 @@ test('AC-SP-206: the view toggle switches the body to a Table of deals', async (
   await page.waitForURL('**/sales');
 
   await page.getByRole('tab', { name: /Table/i }).click();
-  // Table view renders P011 (dedicated AC-SP seed row) in a row with a win-% progressbar.
-  await expect(page.getByText('Highfield Bridge Survey')).toBeVisible();
-  await expect(page.getByRole('progressbar').first()).toBeVisible();
+  // Table view retains the project identity, stage, and readable numeric probability.
+  const table = page.getByRole('table', { name: 'Sales projects' });
+  const row = table.getByRole('row').filter({ hasText: 'Highfield Bridge Survey' });
+  await expect(row).toBeVisible();
+  await expect(page.getByRole('columnheader', { name: 'Win %' })).toBeVisible();
+  await expect(row).toContainText('50%');
 });
 
 test('AC-SP-208: Mark-won inline SoD panel reveals contract-reference + contract-date fields', async ({ page }) => {

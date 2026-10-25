@@ -108,13 +108,13 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   const fields = (
     <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
-        onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
+        onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} className="min-h-11" />
       <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
-        onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} />
+        onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} className="min-h-11" />
       <SelectField label={t('projectClassification.filterAwardType', 'Filter by award type')} value={value.awardType ?? ''}
-        onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
+        onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} className="min-h-11" />
       <SelectField label={t('projectClassification.filterBiddingEntity', 'Filter by bidding entity')} value={value.biddingEntity ?? ''}
-        onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
+        onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} className="min-h-11" />
       <TextField label={t('projectClassification.filterLocation', 'Filter by location')} value={locationText}
         onChange={(location) => {
           setLocationText(location);
@@ -124,7 +124,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
             lastLocation.current = location;
             onChange({ location });
           }, LOCATION_DEBOUNCE_MS);
-        }} />
+        }} className="min-h-11" />
     </div>
   );
   // Outside dismissal is committed after the click completes (see the effect above), so a record row

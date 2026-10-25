@@ -60,6 +60,8 @@ export interface PipelineLensProps {
   locationState?: unknown;
   /** When supplied, the forward transition is rendered in the shared record heading slot. */
   onPrimaryActionChange?: (action: PipelinePrimaryAction | null) => void;
+  /** Router-backed return used by the canonical record route to restore list scroll state. */
+  onReturnToSales?: () => void;
 }
 
 export interface PipelinePrimaryAction {
@@ -78,7 +80,7 @@ export interface PipelinePrimaryAction {
  * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
-const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onPrimaryActionChange }) => {
+const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onPrimaryActionChange, onReturnToSales }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -463,6 +465,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                 the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
             <a
               href={listReturnNavigation(locationState, 'sales').path}
+              onClick={onReturnToSales ? (event) => { event.preventDefault(); onReturnToSales(); } : undefined}
               className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}

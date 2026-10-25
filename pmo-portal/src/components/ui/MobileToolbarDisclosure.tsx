@@ -180,7 +180,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
         type="button"
         variant="outline"
         title={compactOnMobile ? label : undefined}
-        className={compactOnMobile ? 'max-md:w-11 max-md:px-0' : undefined}
+        className={cn('min-h-11 md:min-h-8', compactOnMobile && 'max-md:w-11 max-md:px-0')}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setOpen(!isOpen)}

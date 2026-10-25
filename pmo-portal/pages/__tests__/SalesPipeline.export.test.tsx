@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider, type Column } from '@/src/components/ui';
@@ -19,11 +20,16 @@ import type { PipelineProject } from '@/src/lib/db/dashboard';
  */
 
 // useExport is the only seam the button calls; stub it so no real download fires.
-const exportXlsx = vi.fn();
+const { exportXlsx, lostState, viewport } = vi.hoisted(() => ({
+  exportXlsx: vi.fn(),
+  lostState: { data: [] as Record<string, unknown>[] },
+  viewport: { isDesktop: true },
+}));
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
 // than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
 // syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => viewport.isDesktop }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx, busy: false }),
 }));
@@ -75,21 +81,27 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     isError: false,
     refetch: vi.fn(),
   }),
-  useLostDeals: () => ({ data: [] }),
+  useLostDeals: () => ({ data: lostState.data, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
 import SalesPipeline from '../SalesPipeline';
 
-const renderAs = (role: 'Project Manager' | 'Finance') =>
+const renderAs = (role: 'Project Manager' | 'Finance', path = '/sales') =>
   render(
     <ImpersonationProvider realRole={role}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
           <SalesPipeline />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>,
   );
+
+beforeEach(() => {
+  lostState.data = [];
+  viewport.isDesktop = true;
+  exportXlsx.mockClear();
+});
 
 describe('SalesPipeline — live Export (AC-EXP-008)', () => {
   it('AC-EXP-008: shows a live (enabled) Export and the "arrives with Reports" stub is gone', () => {
@@ -124,18 +136,18 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
     const { header, body } = buildExportRows(rows, columns);
     expect(header).toEqual([
       'Project',
-      'Customer',
+      'Customer / end customer',
       'End customer',
+      'Owner',
       'Stage',
+      'Last activity',
       'Value',
       'Currency',
-      'Weighted',
       'Win %',
-      'Owner',
-      'Last touch',
+      'Weighted',
     ]);
-    // Currency sits immediately after Value and immediately before Weighted.
-    expect(header.indexOf('Currency')).toBe(5);
+    // Per-row currency stays adjacent to the numeric value in the workbook.
+    expect(header.indexOf('Currency')).toBe(7);
 
     const byProject = new Map(
       (body as (string | number)[][]).map((row) => [row[0], row]),
@@ -144,18 +156,42 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
     const usd = byProject.get('Contractual Deal 1') as (string | number)[];
     expect(byProject.has('Short Deal 1')).toBe(false);
     expect(usd).toBeDefined();
-    expect(usd[5]).toBe('USD');
-    expect(usd[4]).toBe(10000);
-    expect(typeof usd[4]).toBe('number');
-    expect(usd[6]).toBe(5000);
+    expect(usd[7]).toBe('USD');
+    expect(usd[6]).toBe(10000);
     expect(typeof usd[6]).toBe('number');
+    expect(usd[9]).toBe(5000);
+    expect(typeof usd[9]).toBe('number');
 
     const idr = byProject.get('Deal 2') as (string | number)[];
     expect(idr).toBeDefined();
-    expect(idr[5]).toBe('IDR');
-    expect(idr[4]).toBe(1234);
-    expect(typeof idr[4]).toBe('number');
-    expect(idr[6]).toBe(308.5);
+    expect(idr[7]).toBe('IDR');
+    expect(idr[6]).toBe(1234);
     expect(typeof idr[6]).toBe('number');
+    expect(idr[9]).toBe(308.5);
+    expect(typeof idr[9]).toBe('number');
+  });
+
+  it('AC-SALES-C01: Board, Table, and phone Export receive the displayed Lost subset', async () => {
+    const user = userEvent.setup();
+    lostState.data = [{ id: 'lost-1', name: 'Lost Terminal Project', client_name: 'Customer C', status: 'Loss Tender', contract_value: 4321, currency: 'IDR', tax_treatment: null, win_probability: 0 }];
+    renderAs('Project Manager', '/sales?view=kanban&scope=Lost');
+    expect(screen.getByText('Lost Terminal Project')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    let [rows] = exportXlsx.mock.calls.at(-1) as [PipelineProject[], Column<PipelineProject>[], string];
+    expect(rows.map((row) => row.id)).toEqual(['lost-1']);
+
+    await user.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByText('Lost Terminal Project')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    [rows] = exportXlsx.mock.calls.at(-1) as [PipelineProject[], Column<PipelineProject>[], string];
+    expect(rows.map((row) => row.id)).toEqual(['lost-1']);
+
+    cleanup();
+    viewport.isDesktop = false;
+    renderAs('Project Manager', '/sales?view=kanban&scope=Lost');
+    await user.click(screen.getByText('More actions'));
+    fireEvent.click(screen.getByRole('button', { name: /export/i }));
+    [rows] = exportXlsx.mock.calls.at(-1) as [PipelineProject[], Column<PipelineProject>[], string];
+    expect(rows.map((row) => row.id)).toEqual(['lost-1']);
   });
 });

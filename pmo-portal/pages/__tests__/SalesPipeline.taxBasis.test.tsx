@@ -98,7 +98,7 @@ describe('OD-TAX-1 §2: the pipeline table states each deal’s own tax basis (#
     // The table opens scoped to Open deals, so reaching a lost one means taking the same step a
     // user takes: switch the scope. Driving the real journey rather than asserting whatever the
     // default render happens to show — a bare figure on the Lost scope is still a bare figure.
-    await userEvent.click(screen.getByRole('tab', { name: 'Lost' }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     expect(within(rowFor('Lost Deal Delta')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
   });
 });

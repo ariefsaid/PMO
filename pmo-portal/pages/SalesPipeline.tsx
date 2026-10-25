@@ -97,7 +97,15 @@ const SalesPipeline: React.FC = () => {
   const hasActiveFilters = Boolean(search.trim() || hasActiveClassification || selectedStatus);
   const sortLabel = sortLabels[workingSet.sort];
   const stageName = selectedStatus ? stageLabel(OPEN_COLUMNS.find((column) => column.statuses.includes(selectedStatus)) ?? OPEN_COLUMNS[0]) : salesT('pipeline.allStages', 'All stages');
-  const scopeLine = [scopeLabels[workingSet.scope], stageName, sortLabel].join(' · ');
+  const displayStage = (project: PipelineProject) => {
+    const column = OPEN_COLUMNS.find((candidate) => candidate.statuses.includes(project.status));
+    return column ? stageLabel(column) : statusLabel(project.status);
+  };
+  const activeFilterSummary = [
+    search.trim() ? `${salesT('pipeline.searchSummary', 'Search')}: ${search.trim()}` : null,
+    hasActiveClassification ? salesT('pipeline.classificationActive', 'Classification filters active') : null,
+  ].filter(Boolean).join(' · ');
+  const scopeLine = [scopeLabels[workingSet.scope], stageName, sortLabel, activeFilterSummary || null].filter(Boolean).join(' · ');
   const state: 'loading' | 'error' | 'empty' | undefined = isPending
     ? 'loading'
     : isError || !data
@@ -173,8 +181,8 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'stage', header: t('sales.column.stage', 'Stage'), kind: 'status', size: 145,
-      cell: (project) => <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>,
-      exportValue: (project) => statusLabel(project.status),
+      cell: (project) => <StatusPill variant={pillVariantForStatus(project.status)}>{displayStage(project)}</StatusPill>,
+      exportValue: (project) => displayStage(project),
     },
     {
       key: 'last_activity', header: salesT('pipeline.lastActivity', 'Last activity'), size: 145,
@@ -223,20 +231,29 @@ const SalesPipeline: React.FC = () => {
     const aggregate = data?.stages.find((stage) => stage.status === column.statuses[0]);
     const stageRows = openProjects.filter((project) => column.statuses.includes(project.status));
     const currencies = new Set(stageRows.map((project) => project.currency));
-    const valueUnavailable = currencies.size > 1 || (!aggregate && stageRows.length > 0);
-    summaryHasUnknown ||= valueUnavailable;
+    const valueUnavailable = currencies.size > 1 || !aggregate || !Number.isFinite(aggregate.total_value);
+    const probabilityUnavailable = !aggregate || !Number.isFinite(aggregate.win_probability);
+    summaryHasUnknown ||= valueUnavailable || probabilityUnavailable || !Number.isFinite(aggregate?.weighted_value);
     const currency = currencies.size === 1 ? [...currencies][0] : orgCurrency;
     return {
       name: stageLabel(column),
       dotColor: column.dotColor,
-      prob: aggregate ? formatPercent(aggregate.win_probability) : undefined,
+      prob: !probabilityUnavailable && aggregate ? formatPercent(aggregate.win_probability) : undefined,
       value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatCurrency(aggregate?.total_value ?? 0, currency),
-      weighted: valueUnavailable ? undefined : salesT('pipeline.weighted', '{{value}} weighted', { value: formatCurrency(aggregate?.weighted_value ?? 0, currency) }),
+      weighted: undefined,
       barPct: valueUnavailable || pipelineCurrencies.size > 1 || maxStageWeight === 0
         ? undefined
         : (stageWeights[index] / maxStageWeight) * 100,
     };
   });
+  const summaryAggregates = OPEN_COLUMNS.map((column) => data?.stages.find((stage) => stage.status === column.statuses[0]));
+  const forecastUnavailable = pipelineCurrencies.size > 1 || summaryAggregates.some((aggregate) =>
+    !aggregate || !Number.isFinite(aggregate.weighted_value) || !Number.isFinite(aggregate.total_value),
+  );
+  summaryHasUnknown ||= forecastUnavailable;
+  const weightedForecast = forecastUnavailable
+    ? salesT('pipeline.summaryForecastUnavailable', 'Not available')
+    : formatCurrency(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
   const summary = (
     <details data-testid="sales-summary" className="mb-4 rounded-lg border border-border bg-card px-4 py-3">
       <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 font-medium">
@@ -245,6 +262,10 @@ const SalesPipeline: React.FC = () => {
       </summary>
       <div className="mt-3">
         <Funnel stages={summaryStages} />
+        <p data-testid="pipeline-weighted-total" className="mt-3 text-sm font-medium">
+          <span>{salesT('pipeline.summaryForecast', 'Weighted pipeline forecast')}: </span>
+          <span>{weightedForecast}</span>
+        </p>
         {summaryHasUnknown && <p className="mt-3 text-sm text-muted-foreground">{salesT('pipeline.summaryCaveat', 'Some stage totals are unavailable or span mixed currencies.')} <Link className="text-primary-text underline underline-offset-4" to="/projects">{salesT('pipeline.reviewEvidence', 'Review project records')}</Link></p>}
       </div>
     </details>
@@ -286,22 +307,25 @@ const SalesPipeline: React.FC = () => {
       {isDesktop ? <ExportButton rows={visible} columns={exportColumns} entity="Pipeline" /> : (
         <details className="relative">
           <summary className="flex min-h-11 cursor-pointer items-center rounded-md border border-input px-3 text-sm font-medium">{salesT('pipeline.moreActions', 'More actions')}</summary>
-          <div className="absolute right-0 z-10 mt-1 rounded-md border border-border bg-card p-2"><ExportButton rows={visible} columns={exportColumns} entity="Pipeline" /></div>
+          <div className="absolute right-0 z-10 mt-1 rounded-md border border-border bg-card p-2"><ExportButton rows={visible} columns={exportColumns} entity="Pipeline" className="min-h-11" /></div>
         </details>
       )}
     </section>
   );
 
   const narrowedEmpty = hasActiveFilters;
-  const emptyCopy = workingSet.scope === 'Lost'
+  const hasTextOrClassificationFilter = Boolean(search.trim() || hasActiveClassification);
+  const emptyCopy = hasTextOrClassificationFilter
+    ? [salesT('pipeline.emptyMatchTitle', 'No matching projects'), salesT('pipeline.emptyMatchBody', 'Try another search or clear filters.')]
+    : selectedStatus
+      ? [salesT('pipeline.emptyStageTitle', 'No projects in this stage'), salesT('pipeline.emptyStageBody', 'Choose another stage to see more projects.')]
+      : workingSet.scope === 'Lost'
     ? [salesT('pipeline.emptyLostTitle', 'No lost projects'), salesT('pipeline.emptyLostBody', 'Projects marked lost will appear here.')]
     : workingSet.scope === 'Needs attention'
       ? [salesT('pipeline.emptyAttentionTitle', 'No projects need attention'), salesT('pipeline.emptyAttentionBody', 'No project has been untouched for {{days}}+ days.', { days: ATTENTION_THRESHOLD_DAYS })]
-      : selectedStatus
-        ? [salesT('pipeline.emptyStageTitle', 'No projects in this stage'), salesT('pipeline.emptyStageBody', 'Choose another stage to see more projects.')]
-        : [salesT('pipeline.emptyMatchTitle', 'No matching projects'), salesT('pipeline.emptyMatchBody', 'Try another search or clear filters.')];
+      : [salesT('pipeline.emptyMatchTitle', 'No matching projects'), salesT('pipeline.emptyMatchBody', 'Try another search or clear filters.')];
   const showEmpty = state !== 'loading' && state !== 'error' && !lostScopeBlocked && !lostScopePending && !partialLostFailure && !partialLostPending && visible.length === 0;
-  const shouldShowSummary = state === undefined || state === 'empty';
+  const shouldShowSummary = state === undefined;
 
   return (
     <div className="min-w-0">
@@ -319,8 +343,8 @@ const SalesPipeline: React.FC = () => {
         </div>
       )}
       {lostScopePending && <ListState variant="loading" rows={4} />}
-      {partialLostPending && visible.length > 0 && <p role="status" className="mb-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{salesT('pipeline.partialLostLoading', 'Lost-project evidence is loading; open projects needing attention are shown.')}</p>}
-      {partialLostFailure && visible.length > 0 && (
+      {partialLostPending && <p role="status" className="mb-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">{salesT('pipeline.partialLostLoading', 'Lost-project evidence is loading; matching open projects remain available.')}</p>}
+      {partialLostFailure && (
         <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning bg-card p-3">
           <p>{salesT('pipeline.partialLostError', 'Lost-project evidence is unavailable; open projects needing attention are shown.')}</p>
           <Button variant="outline" className="min-h-11" onClick={() => refetchLost()}>{t('common.retry', 'Retry')}</Button>
@@ -329,9 +353,9 @@ const SalesPipeline: React.FC = () => {
       {state === 'loading' && <ListState variant="loading" rows={5} />}
       {state === 'error' && <ListState variant="error" title={t('sales.error.title', "Couldn't load the sales pipeline")} sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')} onRetry={() => refetch()} />}
       {state === 'empty' && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}</p></div>}
-      {showEmpty && <ListState variant="empty" title={narrowedEmpty ? emptyCopy[0] : emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
+      {state === undefined && showEmpty && <ListState variant="empty" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
-      {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && (!isDesktop || view === 'kanban') && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
+      {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (
         <div className="min-w-0">
           <details className="mb-2">

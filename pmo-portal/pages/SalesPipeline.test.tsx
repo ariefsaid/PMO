@@ -105,15 +105,16 @@ beforeEach(() => {
   lostState.isError = false;
 });
 
-describe('SalesPipeline header + funnel (AC-SP-202)', () => {
-  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+describe('SalesPipeline header + summary (AC-SP-202)', () => {
+  it('renders the local shared-shell adapter, ordered controls, closed read-only summary, and desktop view control', () => {
     renderPage();
-    expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
-    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
-    // the funnel summary band rides in the shell banner, above the toolbar
-    expect(screen.getByLabelText('Pipeline summary')).toBeInTheDocument();
-    // the view-switcher is right-aligned (Board / Table)
-    expect(screen.getByTestId('list-page-view')).toBeInTheDocument();
+    expect(screen.getByTestId('sales-page-header-adapter')).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Sales pipeline controls' })).toBeInTheDocument();
+    expect(screen.getByTestId('sales-summary')).not.toHaveAttribute('open');
+    expect(screen.getByRole('tablist', { name: /Pipeline view/i })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Open');
+    expect(screen.getByRole('combobox', { name: 'Stage' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('activity-oldest');
   });
 
   it('AC-SP-202 / C3: renders the page title "Pipeline", the live Export action, and the live "New project" CTA for PM', () => {
@@ -123,8 +124,9 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
     // PM can create → the live "New project" button is present.
     expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
-    // the live Export outline button is kept.
+    // The live Export action remains reachable on desktop.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /New project/i })).toHaveLength(1);
   });
 
   it('AC-002 #1325: open pipeline cards and table search by both identities while disclosing the contractual title', async () => {
@@ -136,8 +138,8 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     };
     renderPage();
 
-    const boardTitle = screen.getByText(shortName).closest('[title]');
-    expect(boardTitle).toHaveAttribute('title', contractualName);
+    expect(screen.getByRole('link', { name: shortName })).toBeInTheDocument();
+    expect(screen.getByText(contractualName)).toBeInTheDocument();
     const search = screen.getByRole('searchbox', { name: /search projects/i });
     fireEvent.change(search, { target: { value: contractualName } });
     expect(screen.getByText(shortName)).toBeInTheDocument();
@@ -162,21 +164,50 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
     expect(screen.queryByText('Regional Services')).not.toBeInTheDocument();
   });
 
-  it('AC-SP-202: funnel band shows the five open stages, not Won/Lost', () => {
+  it('AC-SP-202: the collapsed summary opens to five read-only open stages, not Won/Lost', async () => {
     renderPage();
-    const funnel = screen.getByLabelText('Pipeline summary');
-    const f = within(funnel);
+    await userEvent.click(screen.getByText('Pipeline summary'));
+    const f = within(screen.getByTestId('sales-summary'));
     expect(f.getByText('Leads')).toBeInTheDocument();
     expect(f.getByText('Negotiation')).toBeInTheDocument();
     expect(f.queryByText(/Won/)).toBeNull();
+    expect(f.queryByRole('button')).toBeNull();
   });
 
-  it('AC-1117: the weighted total test id is preserved and sums only the open stages', () => {
-    // Single-currency open pipeline (the shared fixture's IDR deal would make it a mixed one).
-    pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD' && p.id !== 'usd1') };
+  it('AC-SALES-S02: mixed pipeline currencies show one caveat and suppress cross-stage comparison bars', async () => {
     renderPage();
-    // 200000 + 600000 = 800000
-    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent(formatCurrency(800000, 'USD'));
+    await userEvent.click(screen.getByText('Pipeline summary'));
+    const summary = screen.getByTestId('sales-summary');
+    expect(summary).toHaveTextContent(/Some stage totals are unavailable or span mixed currencies/i);
+    expect(within(summary).getByTestId('pipeline-weighted-total')).toHaveTextContent('Not available');
+    expect(within(summary).getByRole('link', { name: 'Review project records' })).toHaveAttribute('href', '/projects');
+    expect(within(summary).getAllByTestId('funnel-stage-grid')[0]).toBeInTheDocument();
+  });
+
+  it('AC-SALES-S02: one-currency open stages show exactly one combined weighted forecast', async () => {
+    pipelineState.data = {
+      stages: seedStages,
+      projects: seedProjects.filter((project) => project.currency === 'USD'),
+    };
+    renderPage();
+    await userEvent.click(screen.getByText('Pipeline summary'));
+    const forecast = within(screen.getByTestId('sales-summary')).getByTestId('pipeline-weighted-total');
+    expect(forecast).toHaveTextContent(formatCurrency(800000, 'USD'));
+    expect(screen.getAllByTestId('pipeline-weighted-total')).toHaveLength(1);
+    expect(screen.queryAllByTestId('funnel-stage-weighted')).toHaveLength(0);
+  });
+
+  it('AC-SALES-S02: missing stage evidence is unavailable while a confirmed empty stage remains zero', async () => {
+    pipelineState.data = {
+      stages: seedStages.filter((stage) => stage.status !== 'Leads'),
+      projects: [{ ...seedProjects[0], status: 'Leads' }],
+    };
+    renderPage();
+    await userEvent.click(screen.getByText('Pipeline summary'));
+    const leads = within(screen.getByTestId('sales-summary')).getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(leads.querySelector('[aria-label="Summary unavailable"]')).not.toBeNull();
+    const negotiation = within(screen.getByTestId('sales-summary')).getByText('Negotiation').closest('[data-funnel-stage]')!;
+    expect(negotiation.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('$0');
   });
 });
 
@@ -191,11 +222,11 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
     renderPage('/sales?view=kanban&status=Tender%20Submitted');
 
     const phoneList = screen.getByTestId('sales-phone-stage-list');
-    const selection = screen.getByRole('combobox', { name: 'Pipeline stage' });
+    const selection = screen.getByRole('combobox', { name: 'Stage' });
     expect(selection).toHaveValue('Tender Submitted');
     expect(within(phoneList).getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(within(phoneList).queryByText('Regional Services')).toBeNull();
-    expect(screen.getAllByRole('combobox', { name: 'Pipeline stage' })).toHaveLength(1);
+    expect(screen.getAllByRole('combobox', { name: 'Stage' })).toHaveLength(1);
 
     await user.selectOptions(selection, 'PQ Submitted');
     await waitFor(() => {
@@ -205,7 +236,7 @@ describe('SalesPipeline phone stage list (AC-S24-001)', () => {
     });
     expect(within(screen.getByTestId('sales-phone-stage-list')).queryByText('Northwind ERP Rollout')).toBeNull();
 
-    await user.click(screen.getByRole('tab', { name: /Lost/ }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     await waitFor(() => {
       const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
       expect(params.get('scope')).toBe('Lost');
@@ -264,8 +295,8 @@ describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', (
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     // table view: opportunity rows present
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    // win% progressbar with aria-label
-    expect(screen.getAllByRole('progressbar').length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Win %' })).toBeInTheDocument();
+    expect(within(screen.getByText('Northwind ERP Rollout').closest('tr')!).getByText('50%')).toBeInTheDocument();
   });
 
   it('I3: the data-less "Decision" column of em-dashes is omitted from the table', async () => {
@@ -308,7 +339,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
   // record-open now additionally carries validated Sales list-return context.
   it('AC-IXD-PROJ-001 / AC-LRC-004: clicking a card navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
-    fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('[role="button"]')!);
+    fireEvent.click(screen.getByRole('link', { name: 'Northwind ERP Rollout' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
@@ -318,7 +349,7 @@ describe('SalesPipeline drill-down (Model B canonical route)', () => {
   it('AC-IXD-PROJ-001 / AC-LRC-004: a table row click navigates to the canonical /projects/:id detail route, carrying Sales return context', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    fireEvent.click(screen.getByText('Northwind ERP Rollout').closest('tr')!);
+    fireEvent.click(screen.getByRole('link', { name: 'Northwind ERP Rollout' }));
     const probe = screen.getByTestId('location-probe');
     await waitFor(() => expect(probe.dataset.pathname).toBe('/projects/p2'));
     const state = JSON.parse(probe.dataset.state ?? 'null') as Record<string, unknown>;
@@ -335,8 +366,8 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
     renderPage('/sales?scope=Lost&q=Coastal&view=table');
-    // The URL-driven scope segment is selected.
-    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    // The URL-driven scope and presentation are preserved.
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
     // The URL-driven search is present in the search box.
     expect(screen.getByLabelText(/Search projects/i)).toHaveValue('Coastal');
     // The URL-driven view renders the table.
@@ -345,14 +376,11 @@ describe('SalesPipeline list working set — AC-LRC-001/002', () => {
 
   it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
     renderPage('/sales?view=table');
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
-    const toggle = screen.getByRole('tablist', { name: /Project scope/i });
-    expect(within(toggle).getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
-    // View change persists AND writes the URL in one event (board renders). Scope is meaningful
-    // only for the table view (#682 Director ruling, 2026-09-29 — see the dedicated describe
-    // block below), so it resets to Open on this same switch rather than surviving untouched.
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').dataset.search ?? '').get('scope')).toBe('Lost');
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
-    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
+    expect(new URLSearchParams(screen.getByTestId('location-probe').dataset.search ?? '').get('scope')).toBe('Lost');
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
   });
 });
 
@@ -413,46 +441,40 @@ describe('SalesPipeline recomposed working set — AC-SALES-C01', () => {
   });
 });
 
-// #682 Director ruling (2026-09-29): the Board is the open pipeline by stage and has no scope.
-// Switching Table → Board resets scope to Open in the working set's single write, so the URL no
-// longer carries an inert `scope`; a direct/copied board URL with a stale scope parses to Open
-// the same way. Switching back to Table then shows Open, never the scope that was active before.
-describe('SalesPipeline Board has no scope (#682 Director ruling)', () => {
-  it('switching Table (Lost) → Board resets scope to Open and drops it from the URL; switching back to Table shows Open', async () => {
+describe('SalesPipeline preserves one scope across presentations — AC-SALES-C01', () => {
+  it('switching Table (Lost) → Board keeps Lost selected and displays only terminal rows', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
     renderPage('/sales?view=table&scope=Lost');
-    expect(screen.getByRole('tab', { name: /^Lost$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
 
     await userEvent.click(screen.getByRole('tab', { name: /^Board$/i }));
-    // The board renders (no scope segmented control at all — it is table-only).
-    expect(screen.getByTestId('stage-Tender Submitted')).toBeInTheDocument();
-    expect(screen.queryByRole('tablist', { name: /Project scope/i })).not.toBeInTheDocument();
-    // The URL no longer carries the inert scope.
+    expect(screen.getByTestId('stage-Lost')).toBeInTheDocument();
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
+    expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+    // The scope remains URL-owned on both presentations.
     const probe = screen.getByTestId('location-probe');
-    expect(probe.dataset.search).not.toContain('scope=Lost');
-    expect(new URLSearchParams(probe.dataset.search).get('scope')).toBeNull();
+    expect(new URLSearchParams(probe.dataset.search).get('scope')).toBe('Lost');
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 
-  it('a direct/copied `?view=kanban&scope=Lost` URL parses to Open scope (Board renders; Table then shows Open)', async () => {
+  it('a direct/copied `?view=kanban&scope=Lost` URL restores Lost scope in Board and Table', async () => {
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
     renderPage('/sales?view=kanban&scope=Lost');
     expect(screen.getByRole('tab', { name: /^Board$/i })).toHaveAttribute('aria-selected', 'true');
-    // The lost deal still appears on the board (its own terminal Lost column) — the stale scope
-    // never hid it, because the board never applied it in the first place.
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
+    expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
+    expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
 });
 
@@ -461,7 +483,7 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     lostState.data = [
       { id: 'pl', name: 'Coastal Depot Bid', client_name: 'Coastal', status: 'Loss Tender', contract_value: 950000, currency: 'USD', win_probability: 0 },
     ];
-    renderPage();
+    renderPage('/sales?scope=Lost');
     const lostColumn = screen.getByTestId('stage-Lost');
     expect(within(lostColumn).getByText('Coastal Depot Bid')).toBeInTheDocument();
   });
@@ -472,11 +494,7 @@ describe('SalesPipeline — Lost deals in the Pipeline (AC-IXD-PROJ-007)', () =>
     ];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    // default Open scope: the open deal shows, the lost deal does not
-    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.queryByText('Coastal Depot Bid')).toBeNull();
-    // switch to the Lost scope: the lost deal shows, the open deal does not
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   });
@@ -492,92 +510,57 @@ describe('SalesPipeline table zero-match', () => {
     ];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     expect(screen.getByText('Coastal Depot Bid')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-deal');
     // Lost projects DO exist — the search excluded them, so the scope-empty copy would be false.
-    expect(await screen.findByText(/No projects match your search/i)).toBeInTheDocument();
+    expect(await screen.findByText(/No matching projects/i)).toBeInTheDocument();
     expect(screen.queryByText(/No lost projects/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^Open$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Open');
   });
 });
 
-// #697: in Board view a funnel stage selection used to mark the stage pressed and change nothing
-// else (the stage filter only narrows the Table). The selection now takes the board to that stage's
-// column (the same jump the mobile stage tabs make) and marks the column.
-describe('SalesPipeline Board stage selection (#697)', () => {
-  const scrollToSpy = vi.fn();
-  beforeEach(() => {
-    scrollToSpy.mockClear();
-    Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
-      configurable: true,
-      writable: true,
-      value: scrollToSpy,
-    });
-    Object.defineProperty(window, 'matchMedia', {
-      configurable: true,
-      writable: true,
-      value: vi.fn().mockImplementation((query: string) => ({
-        matches: false,
-        media: query,
-        addEventListener: vi.fn(),
-        removeEventListener: vi.fn(),
-      })),
-    });
+it('AC-SALES-E04: a lost-fetch failure keeps stale open work visible in Needs attention and offers one scoped retry', () => {
+  pipelineState.data = {
+    stages: seedStages,
+    projects: [{ ...seedProjects[0], last_update: '2026-09-01T12:00:00.000Z' }],
+  };
+  lostState.isError = true;
+  lostState.data = [];
+  renderPage('/sales?scope=Needs%20attention');
+  expect(screen.getByText(/Lost-project evidence is unavailable/i).closest('[role="status"]')).toBeInTheDocument();
+  expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+  expect(screen.queryByText(/No projects need attention/i)).toBeNull();
+});
+
+// The read-only summary no longer acts as a second stage control; the toolbar Stage filter owns
+// the visible set in both desktop presentations and on phone.
+describe('SalesPipeline unified Stage control — AC-SALES-C01', () => {
+  it('choosing Tender filters the Board and Table to the same open records; All stages restores them', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const stage = screen.getByRole('combobox', { name: 'Stage' });
+    await user.selectOptions(stage, 'Tender Submitted');
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).toBeNull();
+    expect(new URLSearchParams(screen.getByTestId('location-probe').dataset.search ?? '').get('status')).toBe('Tender Submitted');
+
+    await user.click(screen.getByRole('tab', { name: /^Table$/i }));
+    expect(screen.getByRole('combobox', { name: 'Stage' })).toHaveValue('Tender Submitted');
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).toBeNull();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Stage' }), '');
+    expect(screen.getByText('Regional Services')).toBeInTheDocument();
   });
 
-  const funnelStage = (name: RegExp) =>
-    within(screen.getByLabelText('Pipeline summary')).getByRole('button', { name });
-
-  it('#697: selecting a stage in Board view brings that stage column into view and marks it', async () => {
-    renderPage('/sales?view=kanban');
-    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
-    expect(within(stageNav).getByRole('button', { name: 'Leads' })).toHaveAttribute('aria-current', 'true');
-    expect(scrollToSpy).not.toHaveBeenCalled();
-
-    await userEvent.click(funnelStage(/^Tender/));
-
-    // The board jumped: the programmatic scroll ran on the board's scroller and the indicator
-    // moved to the selected stage's column.
-    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
-    expect(within(stageNav).getByRole('button', { name: 'Tender' })).toHaveAttribute('aria-current', 'true');
-    expect(within(stageNav).getByRole('button', { name: 'Leads' })).not.toHaveAttribute('aria-current');
-    // The selected column carries a visible mark; the others do not.
-    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
-    expect(screen.getByTestId('stage-Leads').querySelector('[data-selected="true"]')).toBeNull();
-    // Not colour-only: the selected column is announced (aria-current) and carries a ring cue.
-    const selectedColumn = screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]');
-    expect(selectedColumn).toHaveAttribute('aria-current', 'true');
-    expect(selectedColumn).toHaveClass('ring-2');
-    expect(screen.getByTestId('stage-Leads').querySelector('[aria-current="true"]')).toBeNull();
-  });
-
-  it('#697: selecting a different stage moves again; deselecting clears the mark', async () => {
-    renderPage('/sales?view=kanban');
-    await userEvent.click(funnelStage(/^Tender/));
-    await userEvent.click(funnelStage(/^Negotiation/));
-    const stageNav = screen.getByRole('navigation', { name: /Pipeline stage navigation/i });
-    await waitFor(() =>
-      expect(within(stageNav).getByRole('button', { name: 'Negotiation' })).toHaveAttribute('aria-current', 'true'),
-    );
-    expect(scrollToSpy).toHaveBeenCalledTimes(2);
-
-    await userEvent.click(funnelStage(/^Negotiation/)); // toggle off
-    expect(document.querySelector('[data-selected="true"]')).toBeNull();
-  });
-
-  it('#697: a board opened with ?status= already selected lands on that stage column', async () => {
+  it('a copied stage URL restores the same subset and starts in Open scope', () => {
     renderPage('/sales?view=kanban&status=Tender%20Submitted');
-    await waitFor(() => expect(scrollToSpy).toHaveBeenCalledTimes(1));
-    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
-  });
-
-  it('#697: a scroller without scrollTo (old webview) still opens on the selected stage without throwing', () => {
-    Object.defineProperty(HTMLElement.prototype, 'scrollTo', { configurable: true, writable: true, value: undefined });
-    renderPage('/sales?view=kanban&status=Tender%20Submitted');
-    expect(screen.getByTestId('stage-Tender Submitted').querySelector('[data-selected="true"]')).not.toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Open');
+    expect(screen.getByRole('combobox', { name: 'Stage' })).toHaveValue('Tender Submitted');
+    expect(screen.getByText('Northwind ERP Rollout')).toBeInTheDocument();
+    expect(screen.queryByText('Regional Services')).toBeNull();
   });
 });
 
@@ -592,7 +575,7 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   // #830: the location filter writes the URL after a short pause, not on every keystroke.
   await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
   expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
-  if (view === 'kanban') expect(screen.getByText('No projects match these classifications')).toBeVisible();
+  if (view === 'kanban') expect(screen.getByText('No matching projects')).toBeVisible();
 });
 
 describe('#830 location filter debounce', () => {
@@ -677,60 +660,11 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     ...p, tax_treatment: 'exclusive', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1,
   });
 
-  it('SUB-H deletes the page description that restates the title', () => {
-    renderPage();
-    expect(screen.queryByText('Track projects in the sales pipeline and forecast revenue.')).toBeNull();
-  });
-
-  it('SUB-H shows the Classification disclosure only when a row carries a tag or a filter is active', () => {
-    renderPage();
-    expect(screen.queryByRole('button', { name: /^Classification/ })).toBeNull();
-  });
-
-  it('SUB-H shows the Classification disclosure when some row has a tag', () => {
-    pipelineState.data = { stages: seedStages, projects: seedProjects.map((p, i) => ({ ...p, sector: i === 0 ? 'Energy' : null })) } as never;
-    renderPage();
-    expect(screen.getByRole('button', { name: /^Classification/ })).toBeInTheDocument();
-  });
-
-  it('SUB-H shows the Classification disclosure when a filter is active even if no row has a tag', () => {
-    renderPage('/sales?sector=Energy');
-    expect(screen.getByRole('button', { name: /^Classification/ })).toBeInTheDocument();
-  });
-
-  it('SUB-H open board columns show the count only, and cards carry no weighted figure', () => {
+  it('SUB-H shows one count per open stage group and omits a repeated weighted forecast on cards', () => {
     renderPage();
     const tender = screen.getByTestId('stage-Tender Submitted');
     expect(within(tender).queryByText(/wtd/)).toBeNull();
     expect(within(tender).getByText('3')).toBeInTheDocument();
-  });
-
-  it('SUB-H board cards carry no PMO number / client code lines (the table keeps them)', () => {
-    renderPage();
-    const tender = screen.getByTestId('stage-Tender Submitted');
-    expect(within(tender).queryByText(/PMO-26-7712/)).toBeNull();
-    expect(within(tender).queryByText(/CLIENT-82/)).toBeNull();
-  });
-
-  it('SUB-H table name cell is one mono line "PMO number · client code" with the labels in its title', async () => {
-    renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
-    const ids = within(row as HTMLElement).getByText('PMO-26-7712 · CLIENT-82');
-    expect(ids).toHaveClass('font-mono');
-    expect(ids).toHaveAttribute('title', 'PMO Project Number: PMO-26-7712 · Client Project Code: CLIENT-82');
-    expect(within(row as HTMLElement).queryByText(/PMO Project Number:/)).toBeNull();
-  });
-
-  it('SUB-H folds the End customer column into a "for X" second line (export keeps the column)', async () => {
-    pipelineState.data = { stages: seedStages, projects: seedProjects.map((p) => p.id === 'p2' ? { ...p, end_client_name: 'Contoso' } : p) } as never;
-    renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    expect(screen.queryByRole('columnheader', { name: /End customer/i })).toBeNull();
-    const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
-    expect(within(row as HTMLElement).getByText('for Contoso')).toBeInTheDocument();
-    const other = screen.getByText('Regional Services').closest('tr')!;
-    expect(within(other as HTMLElement).queryByText(/^for /)).toBeNull();
   });
 
   it('SUB-H table value shows the PPN basis without the rate or DPP', async () => {
@@ -743,11 +677,13 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     expect(r.queryByText(/11%/)).toBeNull();
   });
 
-  it('SUB-H phone: no Board/Table toggle, no Export, no per-card details disclosure, win % beside the value', () => {
+  it('SUB-H phone: no Board/Table toggle; Export is in More actions and the vertical row carries probability', async () => {
     viewport.isDesktop = false;
     renderPage('/sales?view=kanban');
     expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /Export/i })).toBeNull();
+    expect(screen.getByText('More actions')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('More actions'));
+    expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
     const list = screen.getByTestId('sales-phone-stage-list');
     expect(within(list).queryByText('Financial and project details')).toBeNull();
     const card = within(list).getByText('Northwind ERP Rollout').closest('li')!;
@@ -764,7 +700,7 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     lostState.data = [{ id: 'l1', name: 'Lost Deal Delta', client_name: 'Initech', status: 'Loss Tender', contract_value: 700000, currency: 'USD', win_probability: 0 }];
     viewport.isDesktop = false;
     renderPage('/sales?view=kanban');
-    await userEvent.click(screen.getByRole('tab', { name: /Lost/ }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     expect(await screen.findByText('Lost Deal Delta')).toBeInTheDocument();
     expect(screen.queryByRole('tablist', { name: /Pipeline view/i })).toBeNull();
   });
@@ -772,39 +708,47 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
 
 describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
   const stageCell = (name: string) => {
-    const funnel = screen.getByLabelText('Pipeline summary');
+    const funnel = screen.getByTestId('sales-summary');
     return within(funnel).getByText(name, { exact: true }).closest('[data-funnel-stage]') as HTMLElement;
   };
 
-  it('AC-RD-SALES-002 a stage holding two currencies shows "—" with the reason, never a sum', () => {
+  const openSummary = async () => {
+    const details = screen.getByTestId('sales-summary');
+    if (!details.hasAttribute('open')) await userEvent.click(screen.getByText('Pipeline summary'));
+  };
+
+  it('AC-RD-SALES-002 a stage holding two currencies shows an unavailable value, never a sum', async () => {
     renderPage(); // Tender holds USD + IDR deals
+    await openSummary();
     const tender = stageCell('Tender');
     const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
     expect(amount).toHaveTextContent('—');
     expect(amount.textContent).not.toContain('1,200,000');
-    expect(within(amount).getByText('Mixed currencies, so no single total')).toHaveClass('sr-only');
-    expect(amount.querySelector('[title="Mixed currencies, so no single total"]')).not.toBeNull();
+    expect(amount.querySelector('[aria-label="Summary unavailable"]')).not.toBeNull();
+    expect(screen.getByTestId('sales-summary')).toHaveTextContent(/Some stage totals are unavailable or span mixed currencies/i);
   });
 
-  it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', () => {
+  it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', async () => {
     renderPage();
+    await openSummary();
     const preQual = stageCell('Pre-Qual');
     expect(within(preQual).getByText(formatCurrency(800000, 'USD'))).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-002 the weighted forecast total is "—" while the open pipeline mixes currencies', () => {
+  it('AC-RD-SALES-002 the summary never adds stage values into a mixed-currency total', async () => {
     renderPage();
-    const total = screen.getByTestId('pipeline-weighted-total');
-    expect(total).toHaveTextContent('—');
-    expect(total.textContent).not.toMatch(/\d/);
+    await openSummary();
+    expect(screen.getByTestId('pipeline-weighted-total')).toHaveTextContent('Not available');
+    expect(within(screen.getByTestId('sales-summary')).getByRole('link', { name: 'Review project records' })).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', () => {
+  it('AC-RD-SALES-002 a one-currency pipeline denominates stages in that currency, not the org default', async () => {
     pipelineState.data = {
       stages: seedStages,
       projects: seedProjects.filter((p) => p.id === 'idr1').map((p) => ({ ...p, status: 'PQ Submitted' })),
     };
     renderPage();
+    await openSummary();
     const amount = stageCell('Pre-Qual').querySelector('[data-funnel-stage-amount]') as HTMLElement;
     expect(amount.textContent).toContain('IDR');
     expect(amount.textContent).not.toContain('$');
@@ -820,21 +764,20 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     expect(within(tenderRow).getByText('Tender')).toBeInTheDocument();
   });
 
-  it('AC-RD-SALES-001 funnel bars are neutral except the selected stage', () => {
+  it('AC-RD-SALES-002 summary stages are read-only and no longer provide a competing filter', async () => {
     pipelineState.data = { stages: seedStages, projects: seedProjects.filter((p) => p.currency === 'USD') };
     renderPage('/sales?status=Tender%20Submitted');
-    const funnel = screen.getByLabelText('Pipeline summary');
-    const fills = Array.from(funnel.querySelectorAll('[data-funnel-stage-bar]')).map((b) => (b.firstElementChild as HTMLElement).style.background);
-    expect(fills.filter((f) => f === 'hsl(var(--primary))')).toHaveLength(1);
+    await openSummary();
+    expect(within(screen.getByTestId('sales-summary')).queryByRole('button')).toBeNull();
+    expect(screen.getByRole('combobox', { name: 'Stage' })).toHaveValue('Tender Submitted');
   });
 });
 
 describe('SalesPipeline table on the shared contract (T4)', () => {
-  it('T4 the project column is the primary cell: the full name stays visible without a line clamp', async () => {
+  it('T4 project identity is a direct canonical link and remains the primary column', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
-    const name = screen.getByText('Northwind ERP Rollout');
-    expect(name).toHaveTextContent('Northwind ERP Rollout');
+    expect(screen.getByRole('link', { name: 'Northwind ERP Rollout' })).toHaveAttribute('href', '/projects/p2');
     expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
   });
 
