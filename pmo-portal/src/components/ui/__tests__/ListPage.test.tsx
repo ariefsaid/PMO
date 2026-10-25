@@ -21,6 +21,21 @@ describe('ListPage shell', () => {
     expect(within(header).getByRole('button', { name: 'New company' })).toBeInTheDocument();
   });
 
+  it('puts an opted-in collection primary at the end of its toolbar', () => {
+    render(
+      <ListPage
+        title="Projects"
+        search={<input aria-label="Search projects" />}
+        primaryAction={<button type="button">New project</button>}
+        primaryActionPlacement="toolbar"
+      />,
+    );
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(screen.getByTestId('list-page-header')).queryByRole('button', { name: 'New project' })).toBeNull();
+    expect(within(toolbar).getByTestId('page-primary-action-slot')).toBeInTheDocument();
+    expect(within(toolbar).getAllByRole('button').at(-1)).toHaveTextContent('New project');
+  });
+
   it('renders the toolbar slots in the canonical order: filters · search · secondaryFilter · export · import, view right-aligned', () => {
     render(
       <ListPage

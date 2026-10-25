@@ -700,6 +700,7 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         description={pageDescription}
         primaryAction={primaryAction}
+        primaryActionPlacement="toolbar"
       >
         <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -714,6 +715,7 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         description={pageDescription}
         primaryAction={primaryAction}
+        primaryActionPlacement="toolbar"
       >
         <ListState
           variant="error"
@@ -731,6 +733,7 @@ const Projects: React.FC = () => {
         title={t('projects.title', 'Projects')}
         description={pageDescription}
         primaryAction={primaryAction}
+        primaryActionPlacement="toolbar"
       >
         <ListState
           variant="empty"
@@ -1002,6 +1005,7 @@ const Projects: React.FC = () => {
       title={t('projects.title', 'Projects')}
       description={pageDescription}
       primaryAction={primaryAction}
+      primaryActionPlacement="toolbar"
       mobileToolbar={mobileToolbar}
       desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
       filters={
@@ -1290,7 +1294,7 @@ const Projects: React.FC = () => {
  */
 const newProjectAction = (canCreate: boolean | undefined, onNew: () => void, label: string) =>
   canCreate ? (
-    <Button variant="primary" onClick={onNew}>
+    <Button variant="primary" onClick={onNew} className="max-sm:min-h-11 max-sm:w-full">
       <Icon name="plus" />
       {label}
     </Button>

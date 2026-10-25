@@ -3,6 +3,7 @@ import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
+import { PageFrame, type PageFrameProps } from './PageFrame';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import {
@@ -17,6 +18,8 @@ export interface AppShellProps {
   rail: React.ReactNode;
   header: React.ReactNode;
   children: React.ReactNode;
+  /** Routes adopting the content-track breadcrumb and shared page frame. */
+  pageFrame?: Omit<PageFrameProps, 'children'>;
   /** Optional full-bleed strip pinned to the top of `main` (e.g. the
    *  impersonation banner). Rendered above the padded content container. */
   banner?: React.ReactNode;
@@ -60,6 +63,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   rail,
   header,
   children,
+  pageFrame,
   banner,
   railOpen = false,
   onCloseRail,
@@ -274,7 +278,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* C3: max-[921px]:px-4 narrows the gutter at 375px for more card
             width (16px vs 24px). max-[921px]:pt-4 matches. */}
         <div className="mx-auto max-w-[1600px] px-6 pb-16 pt-5 max-[921px]:px-4 max-[921px]:pt-4">
-          {children}
+          {pageFrame ? <PageFrame {...pageFrame}>{children}</PageFrame> : children}
         </div>
       </main>
 

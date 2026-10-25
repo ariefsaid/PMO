@@ -37,6 +37,23 @@ describe('AppShell', () => {
     expect(screen.getByText('page content')).toBeInTheDocument();
   });
 
+  it('renders opted-in breadcrumb wayfinding in the content track', () => {
+    const breadcrumb = breadcrumbForPath('/projects/p1', 'Project One');
+    const { container } = wrap(
+      <AppShell
+        rail={null}
+        header={<div data-testid="header-slot">Projects</div>}
+        pageFrame={{ breadcrumb }}
+      >
+        <h1>Project One</h1>
+      </AppShell>,
+    );
+    const frame = container.querySelector('[data-page-frame]');
+    expect(frame).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).parentElement).toBe(frame);
+    expect(screen.getByRole('heading', { name: 'Project One' })).toBeInTheDocument();
+  });
+
   it('main is a programmatically-focusable landmark with id=main', () => {
     wrap(
       <AppShell rail={null} header={null}>

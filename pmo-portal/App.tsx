@@ -364,6 +364,15 @@ export const ShellChrome: React.FC = () => {
   // Project records belong to Projects for every stage and cold-load state. The source-list return
   // context preserves Sales Pipeline as the originating collection lens.
   const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
+  const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
+  const usesContentPageFrame = pathname === '/' || pathname === '/projects' || projectRecordRoute || pathname === '/approvals' || pathname === '/timesheets';
+  const areaName = pathname === '/'
+    ? t('shell.nav.dashboard', 'Dashboard')
+    : pathname === '/approvals'
+      ? t('shell.nav.approvals', 'Approvals')
+      : pathname === '/timesheets'
+        ? t('shell.nav.timesheets', 'Timesheets')
+        : t('shell.nav.projects', 'Projects');
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -427,7 +436,7 @@ export const ShellChrome: React.FC = () => {
         }
         header={
           <ContextBar
-            breadcrumb={breadcrumb}
+            {...(usesContentPageFrame ? { areaName } : { breadcrumb })}
             onOpenPalette={openPalette}
             onToggleRail={() => setRailOpen((v) => !v)}
           />
@@ -438,6 +447,12 @@ export const ShellChrome: React.FC = () => {
         assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
+        pageFrame={usesContentPageFrame ? {
+          breadcrumb,
+          ...(projectRecordRoute ? {
+            returnLabel: t('shell.nav.projects', 'Projects'),
+          } : {}),
+        } : undefined}
       >
         <AppRoutes />
       </AppShell>

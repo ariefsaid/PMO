@@ -11,6 +11,7 @@ import {
   StatusPill,
   TimesheetGrid,
   MobileActionStrip,
+  PageHeading,
   Toolbar,
   AccessDenied,
   useToast,
@@ -590,19 +591,16 @@ const TimesheetsPage: React.FC = () => {
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (
     <>
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-            {t('timesheets.title', 'Timesheets')}
-          </h1>
-          <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
-            {t(
+      <div className="mb-4">
+        <PageHeading
+          kind="review"
+          title={t('timesheets.title', 'Timesheets')}
+          scope={t(
               'timesheets.subtitle',
               'Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.',
               { range: weekRangeLabel },
-            )}
-          </p>
-        </div>
+          )}
+        />
       </div>
 
       <Toolbar standalone>
