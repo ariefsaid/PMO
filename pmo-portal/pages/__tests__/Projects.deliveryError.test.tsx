@@ -106,7 +106,7 @@ describe('Projects — delivery cell error state (AC-W2-4-07)', () => {
     renderPage();
 
     const deliveryColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Delivery');
-    const deliveryCell = document.querySelector('tbody tr')!.cells[deliveryColumn];
+    const deliveryCell = document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[deliveryColumn];
     expect(deliveryCell).toHaveTextContent('Unavailable');
     expect(deliveryCell).not.toHaveTextContent('Loading…');
     expect(within(deliveryCell).getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/proj-1/overview');
@@ -119,7 +119,7 @@ describe('Projects — delivery cell error state (AC-W2-4-07)', () => {
     renderPage();
 
     const deliveryColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Delivery');
-    const deliveryCell = document.querySelector('tbody tr')!.cells[deliveryColumn];
+    const deliveryCell = document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[deliveryColumn];
     expect(deliveryCell).toHaveTextContent('Loading…');
     expect(deliveryCell).not.toHaveTextContent('Unavailable');
   });

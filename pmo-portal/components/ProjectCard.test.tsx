@@ -191,10 +191,11 @@ describe('ProjectCard', () => {
   });
 
   it('AC-S02/R-012: partial and restricted Actual names its state and offers finance review without driving budget usage', () => {
-    for (const [actuals, expectedState] of [
+    const cases: Array<[ProjectMoneyRead['actuals'], string]> = [
       [{ currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] }, 'Incomplete source coverage'],
       [{ currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: true, categories: [{ category: 'Labor', mapped: true, amount: '450.00' }] }, 'Restricted rows excluded'],
-    ] as const) {
+    ];
+    for (const [actuals, expectedState] of cases) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
       expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
       expect(screen.getAllByText(expectedState)).toHaveLength(2);

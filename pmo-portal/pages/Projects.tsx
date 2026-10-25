@@ -414,7 +414,7 @@ const Projects: React.FC = () => {
     ? t('projects:coverage.partialUpdated', 'Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.', { partial: partialRows.length, total: filtered.length, date: formatInstantDate(coverageAsOf) })
     : t('projects:coverage.partial', 'Actual is partial on {{partial}} of {{total}} projects.', { partial: partialRows.length, total: filtered.length });
   const actualStateLabel = (money?: ProjectMoneyRead) => {
-    if (moneyError || !money || money.ledgerBasis === 'unavailable') return t('uxs02.unavailable', 'Unavailable');
+    if (moneyError || !money) return t('uxs02.unavailable', 'Unavailable');
     if (money.actuals.excludesRestrictedRows) return t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded');
     if ((money.ledgerBasis ?? 'erp') === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null)) {
       return t('uxs02.incompleteCoverage', 'Incomplete source coverage');

@@ -46,7 +46,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     ? Number(projectMoney.activeBudgetAmount)
     : null;
   const actualStateLabel = () => {
-    if (projectMoneyError || !projectMoney || projectMoney.ledgerBasis === 'unavailable') return t('uxs02.unavailable', 'Unavailable');
+    if (projectMoneyError || !projectMoney) return t('uxs02.unavailable', 'Unavailable');
     if (projectMoney.actuals.excludesRestrictedRows) return t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded');
     if ((projectMoney.ledgerBasis ?? 'erp') === 'erp' && projectMoney.actuals.categories.some((category) => !category.mapped || category.amount == null)) {
       return t('uxs02.incompleteCoverage', 'Incomplete source coverage');
