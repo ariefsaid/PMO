@@ -4928,6 +4928,31 @@
       "notVerifiedYet": "Belum diverifikasi.",
       "notVerifiedYetFailed": "Belum diverifikasi. Microsoft tidak dapat diperiksa."
     },
+    "versions": {
+      "title": "Versi {{name}}",
+      "done": "Selesai",
+      "close": "Tutup",
+      "loading": "Memuat…",
+      "emptyTitle": "Tidak ada versi",
+      "emptySub": "Microsoft tidak mencantumkan versi sebelumnya dari file ini.",
+      "list": "Versi",
+      "version": "Versi {{id}}",
+      "loadMore": "Muat lebih banyak"
+    },
+    "history": {
+      "view": "Lihat riwayat versi yang disetujui",
+      "viewAria": "Lihat riwayat versi yang disetujui: {{name}}",
+      "partial": "Versi yang disetujui tidak ditemukan dalam riwayat yang dimuat.",
+      "loadMore": "Muat riwayat lebih banyak",
+      "noSharepointIds": "Riwayat versi tidak tersedia: Microsoft tidak memberikan pengenal SharePoint.",
+      "notRecorded": "Versi yang disetujui tidak tersedia: tidak ada versi yang dicatat saat file ini diterbitkan.",
+      "pruned": "Versi yang disetujui tidak tersedia: Microsoft tidak lagi mencantumkannya, mungkin sudah dihapus. Versi terbaru masih tersedia.",
+      "noVersioning": "Versi yang disetujui tidak tersedia: Microsoft tidak mencantumkan versi apa pun untuk file ini (riwayat versi mungkin dimatikan). Versi terbaru masih tersedia.",
+      "needsConnection": "Riwayat versi yang disetujui memerlukan koneksi Microsoft 365.",
+      "needsReconnect": "Riwayat versi yang disetujui mengharuskan Anda menghubungkan ulang Microsoft 365.",
+      "needsScope": "Riwayat versi yang disetujui memerlukan izin Microsoft tambahan.",
+      "generic": "Microsoft tidak dapat memuat riwayat versi. Coba lagi, atau buka versi terbaru."
+    },
     "notice": {
       "expired": "Koneksi Microsoft 365 telah kedaluwarsa. Hubungkan ulang untuk menautkan lebih banyak dokumen.",
       "scope": "Koneksi memerlukan izin tambahan. Hubungkan ulang untuk memberikannya.",

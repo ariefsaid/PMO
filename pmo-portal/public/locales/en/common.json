@@ -4928,6 +4928,31 @@
       "notVerifiedYet": "Not verified yet.",
       "notVerifiedYetFailed": "Not verified yet. Microsoft could not be checked."
     },
+    "versions": {
+      "title": "Versions of {{name}}",
+      "done": "Done",
+      "close": "Close",
+      "loading": "Loading…",
+      "emptyTitle": "No versions listed",
+      "emptySub": "Microsoft lists no earlier versions of this file.",
+      "list": "Versions",
+      "version": "Version {{id}}",
+      "loadMore": "Load more"
+    },
+    "history": {
+      "view": "View approved version history",
+      "viewAria": "View approved version history: {{name}}",
+      "partial": "Approved version not found in loaded history.",
+      "loadMore": "Load more history",
+      "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",
+      "notRecorded": "Approved version unavailable: no version was recorded when this file was issued.",
+      "pruned": "Approved version unavailable: Microsoft no longer lists it, so it may have been pruned. The latest version is still available.",
+      "noVersioning": "Approved version unavailable: Microsoft lists no versions for this file (version history may be turned off). The latest version is still available.",
+      "needsConnection": "Approved version history needs a Microsoft 365 connection.",
+      "needsReconnect": "Approved version history needs you to reconnect Microsoft 365.",
+      "needsScope": "Approved version history needs additional Microsoft permissions.",
+      "generic": "Microsoft could not load version history. Retry, or open the latest version."
+    },
     "notice": {
       "expired": "The Microsoft 365 connection expired. Reconnect to link more documents.",
       "scope": "The connection needs additional permissions. Reconnect to grant them.",
