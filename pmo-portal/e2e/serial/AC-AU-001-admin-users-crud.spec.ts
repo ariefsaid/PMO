@@ -54,7 +54,8 @@ async function setUserRole(page: Page, email: string, role: string) {
   const editor = page.getByRole('dialog');
   await editor.getByLabel(/role/i).selectOption(role);
   await editor.getByRole('button', { name: /save role/i }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /change role/i }).click();
+  const confirmation = page.getByRole('dialog').getByRole('button', { name: /change role/i });
+  if (await confirmation.count()) await confirmation.click();
   await expect(userRow(page, email).getByRole('cell', { name: role, exact: true })).toBeVisible({ timeout: 15_000 });
 }
 
