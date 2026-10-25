@@ -10,17 +10,19 @@ import type { TopProject } from '@/src/lib/db/dashboard';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { isActualComplete } from '@/src/lib/projectFinances';
 
-export interface BvACardProps {
-  projects: TopProject[];
+export interface BvACardProps<T extends TopProject = TopProject> {
+  projects: T[];
   /** Org operating currency (the top-projects RPC carries no per-row currency) — FR-L10N-020. */
   currency: string;
+  /** Extra decision details for a role-specific worklist that shares this project row. */
+  projectDetails?: (project: T) => React.ReactNode;
 }
 
 /**
  * Plain-language contract comparison with a separate Active-budget risk signal.
  * Unknown Actual is never rendered as zero and never produces a progress bar.
  */
-export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
+export function BvACard<T extends TopProject = TopProject>({ projects, currency, projectDetails }: BvACardProps<T>) {
   const { t } = useTranslation();
   const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
@@ -51,7 +53,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
             />
             <Link
               to={`/projects/${p.id}`}
-              title={projectDisplayName(p) !== p.name ? p.name : undefined}
+              title={p.name}
               className="min-w-0 truncate text-[13px] font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
               {projectDisplayName(p)}
@@ -80,9 +82,10 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency }) => {
               })}
             </span>
           )}
+          {projectDetails?.(p)}
         </div>
       );
     })}
   </div>
   );
-};
+}

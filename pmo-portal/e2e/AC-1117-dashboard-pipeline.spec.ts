@@ -2,7 +2,7 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 
-// AC-1117: capstone journey — dashboard shows dual-lens KPIs and Sales Pipeline renders weighted stages
+// AC-1117: capstone journey — dashboard shows portfolio and pipeline evidence, then Sales renders weighted stages
 // from real data (FR-SPD-012/013/014). Cross-stack curated journey per ADR-0010.
 test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighted stages from real data (FR-SPD-012/013/014)', async ({ page }) => {
   // Sign in as the seed Executive
@@ -24,20 +24,19 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   await expect(pipelineWeightedTile).toBeVisible();
   await expect(pipelineWeightedTile).toContainText('$');
 
-  // ── Exec Dashboard: pipeline projected margin tile ────────────────────────────
-  // pipeline_projected_margin = 0.200 → 20.0%
-  // SL-B: the tile exists only when the margin is computable (it needs active budgets); otherwise the
-  // pipeline card still renders, titled by the weighted value, and no tile claims a margin.
-  await expect(page.getByTestId('dashboard-pipeline-margin')).toBeVisible();
-  const projectedMarginTile = page.getByTestId('kpi-pipeline-projected-margin');
-  if (await projectedMarginTile.count() > 0) await expect(projectedMarginTile).toContainText('%');
+// ── Exec Dashboard: one pipeline projected-margin figure beside stage evidence ──
+  // pipeline_projected_margin = 0.200 → 20.0%; a single figure lives beside its weighted stage rows.
+  const pipelineMargin = page.getByTestId('dashboard-pipeline-margin');
+  await expect(pipelineMargin).toBeVisible();
+  await expect(pipelineMargin).toContainText('20.0%');
+  await expect(page.getByText('20.0%', { exact: true })).toHaveCount(1);
 
   // ── Exec Dashboard: win-rate tile (default count mode) ───────────────────────
   const winRateTile = page.getByTestId('kpi-win-rate');
   await expect(winRateTile).toBeVisible();
   await expect(winRateTile).toContainText('%');
 
-  // ── Drill into the Sales Pipeline VIA the weighted-pipeline KPI tile ──────────
+  // ── Drill into the Sales Pipeline VIA the retained weighted-value doorway ────
   // Wave-5 Cluster-2 PR-A: the Pipeline KPI is now itself the doorway (drill-through),
   // so the natural journey is to click the tile. (Also disambiguates from the nav-rail
   // "Sales Pipeline" link.) Goal-oracle below — weighted stages render — is unchanged.

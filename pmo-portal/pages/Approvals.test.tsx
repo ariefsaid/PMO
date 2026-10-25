@@ -259,7 +259,7 @@ describe('Approvals page states', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByText(/customer invoices/i)).toBeInTheDocument();
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 

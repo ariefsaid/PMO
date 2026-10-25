@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
@@ -48,17 +48,13 @@ beforeEach(() => {
   tsState.isError = false;
 });
 
-describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+describe('EngineerDashboard weekly summary (AC-UXA-002)', () => {
   it('AC-UXA-002: localizes the week, status, day summaries and actions while retaining data', () => {
     renderPane('id');
     expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
     expect(screen.getByText('Jam kerja minggu ini dan status timesheet Anda.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByText('Jam minggu ini')).toBeInTheDocument();
-    fireEvent.focus(screen.getByRole('button', { name: 'Bantuan: Jam minggu ini' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Total jam pada timesheet terbaru Anda.');
     expect(screen.getByText('Draf')).toBeInTheDocument();
-    expect(screen.getByText('minggu mulai 2026-06-01')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Jam minggu ini menurut hari' })).toBeInTheDocument();
     expect(screen.getByText('Jam Kerja Minggu Ini')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Minggu ini menurut proyek' })).toBeInTheDocument();
@@ -67,7 +63,7 @@ describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', 
     expect(screen.getAllByText('A').length).toBeGreaterThan(0);
     expect(screen.getByText('15.5 jam')).toBeInTheDocument();
     expect(screen.getAllByText('Tidak ada catatan').length).toBeGreaterThan(0);
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('15.5');
+    expect(screen.getByText('15.5 jam · minggu mulai 2026-06-01')).toBeInTheDocument();
     expect(sheets[0].entries[0].hours).toBe(8);
     expect(sheets[0].status).toBe('Draft');
 
@@ -101,7 +97,7 @@ describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', 
     renderPane('id');
     expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Tidak ada untuk periode ini');
     expect(screen.getAllByText('Belum ada jam kerja minggu ini').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: 'Buka timesheet untuk mencatat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
 
     cleanup();
     tsState.data = [{ ...sheets[0], entries: sheets[0].entries.map((entry) => ({ ...entry, hours: 0 })) }];
@@ -113,12 +109,6 @@ describe('EngineerDashboard KPI grid — monotonic arbitrary breakpoints (C1)', 
     tsState.data = [{ ...sheets[0], entries: [] }];
     renderPane('id');
     expect(screen.getByText('Jam yang Anda catat akan muncul di sini.')).toBeInTheDocument();
-  });
-  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
-    const { container } = renderPane();
-    const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
-    expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).not.toContain('sm:grid-cols');
   });
 });
 
@@ -166,7 +156,7 @@ describe('EngineerDashboard T10: single CTA rule', () => {
 describe('EngineerDashboard (real hours, deferred tasks)', () => {
   it('sums hours this week from the latest sheet (8 + 7.5 = 15.5)', () => {
     renderPane();
-    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('15.5');
+    expect(screen.getByText('15.5 hours · week of 2026-06-01')).toBeInTheDocument();
   });
   it('shows the latest timesheet status pill', () => {
     renderPane();

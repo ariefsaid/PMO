@@ -85,16 +85,18 @@ const emptyProps = {
 };
 
 describe('AccountingSnapshotsSection — empty state (unflipped default)', () => {
-  it('renders an empty state for each of the three snapshots when no rows exist', () => {
+  it('merges missing snapshots into one source summary when no rows exist', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
-    expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
+    expect(screen.getByText('Financial position and accounting evidence')).toBeInTheDocument();
+    expect(screen.getByText('Actuals (ERP ledger)')).toBeInTheDocument();
+    expect(screen.getByText('Vendor payables (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Customer collections (AR)')).toBeInTheDocument();
   });
 
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot and gives Finance a usable next step', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
-    expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
-    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
+    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(1);
+    expect(screen.getByText('These accounting sources have no snapshot yet.')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /sync/i })).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });

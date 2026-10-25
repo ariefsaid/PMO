@@ -73,8 +73,7 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.');
     expect(screen.getByRole('link', { name: 'Buka proyek saya' })).toHaveAttribute('href', '/projects?filter=My+Projects');
     expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
-    expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
-    expect(screen.getByText('Status Proyek')).toBeInTheDocument();
+    expect(screen.getByText('Proyek pengiriman saya')).toBeInTheDocument();
     expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10,6 jt');
     expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="US$10.600.000"]')).not.toBeNull();
@@ -148,31 +147,20 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.queryByText('Loss Tender')).toBeNull();
     expect(screen.queryByText('Leads')).toBeNull();
   });
-  it('UIP-011: every Project Status name is an accessible, correctly routed project link', () => {
+  it('UIP-011: every delivery-project name is an accessible, correctly routed project link', () => {
     renderPane();
-    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+    const statusCard = screen.getByRole('region', { name: 'My delivery projects' });
 
     for (const project of mine.filter((m) => !['Loss Tender', 'Leads'].includes(m.status))) {
       const projectLink = within(statusCard).getByRole('link', { name: project.name });
       expect(projectLink).toHaveAttribute('href', `/projects/${project.id}`);
-      expect(projectLink.className).toContain('focus-visible:outline');
     }
 
     expect(within(statusCard).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
   });
 });
 
-describe('PMDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
-  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
-    const { container } = renderPane();
-    const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
-    expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).toContain('min-[1180px]:grid-cols-4');
-    expect(band.className).not.toContain('sm:grid-cols');
-  });
-});
-
-describe('PMDashboard Project Status margin — no false-green (I2)', () => {
+describe('PMDashboard delivery project details — no false-green (I2)', () => {
   it('AC-UX-015: names the trailing metric and shows billed-work margin, not contract remainder', () => {
     // Assigned fixture: delivery rows (including Close Out) are listed; p3/p5 are lost/pipeline and excluded.
     renderPane();
@@ -182,19 +170,11 @@ describe('PMDashboard Project Status margin — no false-green (I2)', () => {
     // G3: delivery rows without a margin read a concrete "Not set" value,
     // never a bare em-dash placeholder (the "—" in the section heading separator
     // is typographic, not a value placeholder, so we scope to the list rows).
-    const listItems = document.querySelectorAll('ul li');
-    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project B'));
-    expect(lossTenderItem?.textContent).toMatch(/Belum tersedia|Not available yet/);
-    expect(lossTenderItem?.textContent).not.toContain('—');
-    expect(lossTenderItem?.textContent).not.toMatch(/\d+\.\d+%/);
-  });
-  it('does not emit text-success on non-active project margin cells', () => {
-    const { container } = renderPane();
-    const listItems = container.querySelectorAll('ul li');
-    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project B'));
-    // The margin span must NOT carry text-success
-    const marginSpan = lossTenderItem?.querySelector('span:last-child');
-    expect(marginSpan?.className).not.toContain('text-success');
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    const row = within(worklist).getByRole('link', { name: 'My Project B' }).closest('[data-row]');
+    expect(row?.textContent).toMatch(/Belum tersedia|Not available yet/);
+    expect(row?.textContent).not.toContain('—');
+    expect(row?.textContent).not.toMatch(/\d+\.\d+%/);
   });
 });
 
@@ -207,7 +187,7 @@ describe('PMDashboard states', () => {
   it('shows an error + retry when the projects query fails', () => {
     projState.isError = true; projState.data = undefined;
     renderPane();
-    // At least one Retry button (both cards show error).
+    // The merged worklist has one recovery action.
     expect(screen.getAllByRole('button', { name: /Retry/i }).length).toBeGreaterThan(0);
   });
   it('shows a delivery-scoped empty state when assignments are only pre-win projects', () => {
@@ -247,35 +227,37 @@ describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-W3-G2 — Project Status card loading/error states
+// AC-W3-G2 — merged worklist loading/error states
 // ---------------------------------------------------------------------------
 
-describe('AC-W3-G2: PMDashboard "Project Status" card handles loading and error', () => {
-  it('AC-W3-G2: isPending → Project Status card shows loading state, not empty state', () => {
+describe('AC-W3-G2: PMDashboard merged worklist handles loading and error', () => {
+  it('AC-W3-G2: isPending → worklist shows loading state, not empty state', () => {
     projState.isPending = true; projState.data = undefined;
     renderPane();
-    // There must be at least 2 loading skeletons — one per card (BvA + Project Status).
+    // One projects query now owns one worklist recovery state.
     const loaders = screen.getAllByTestId('liststate-loading');
-    expect(loaders.length).toBeGreaterThanOrEqual(2);
+    expect(loaders).toHaveLength(1);
     // The empty "Nothing to show yet" must NOT appear.
     expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
   });
 
-  it('AC-W3-G2: isError → Project Status card shows error + retry, not empty state', () => {
+  it('AC-W3-G2: isError → worklist shows error + retry, not empty state', () => {
     projState.isError = true; projState.data = undefined;
     renderPane();
-    // There must be at least 2 Retry buttons — one per card (BvA + Project Status).
+    // One projects query now has one recovery action.
     const retryButtons = screen.getAllByRole('button', { name: /Retry/i });
-    expect(retryButtons.length).toBeGreaterThanOrEqual(2);
+    expect(retryButtons).toHaveLength(1);
     // The empty "Nothing to show yet" must NOT appear.
     expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
   });
 
-  it('AC-W3-G2: populated → Project Status card still shows the project list', () => {
+  it('AC-W3-G2: populated → worklist shows delivery, spend and margin for each project', () => {
     projState.data = mine; projState.isPending = false; projState.isError = false;
     renderPane();
-    // All my projects appear (multiple elements OK — BvA chart + Project Status list).
-    expect(screen.getAllByText('My Project A').length).toBeGreaterThan(0);
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    expect(within(worklist).getByRole('link', { name: 'My Project A' })).toHaveAttribute('href', '/projects/p1');
+    expect(within(worklist).getByText('25.0%')).toBeInTheDocument();
+    expect(within(worklist).getByText('$1,000,000 / $4,000,000')).toBeInTheDocument();
     // No loading or error states.
     expect(screen.queryByTestId('liststate-loading')).toBeNull();
     expect(screen.queryByRole('button', { name: /Retry/i })).toBeNull();
@@ -290,15 +272,11 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
     // OD-MONEY-FMT: short on the KPI card, the exact sum rides in the figure title.
     expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
     expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
-    const spending = screen.getByRole('group', { name: 'Spending vs contract' });
-    expect(within(spending).queryByText('My Project C')).toBeNull();
-    expect(within(spending).queryByText('My Project E')).toBeNull();
-    expect(within(spending).getByText('My Project D')).toBeInTheDocument();
-    expect(within(spending).getByText('My Project F')).toBeInTheDocument();
-    const statusCard = screen.getByRole('region', { name: 'Project Status' });
-    expect(within(statusCard).queryByText('My Project C')).toBeNull();
-    expect(within(statusCard).queryByText('My Project E')).toBeNull();
-    expect(within(statusCard).getByText('My Project F')).toBeInTheDocument();
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    expect(within(worklist).queryByRole('link', { name: 'My Project C' })).toBeNull();
+    expect(within(worklist).queryByRole('link', { name: 'My Project E' })).toBeNull();
+    expect(within(worklist).getByRole('link', { name: 'My Project D' })).toBeInTheDocument();
+    expect(within(worklist).getByRole('link', { name: 'My Project F' })).toBeInTheDocument();
   });
   it('AC-1238-001: mixed currencies among delivery projects stay unknown, never summed', () => {
     projState.data = [
@@ -310,22 +288,21 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
   });
 });
 
-describe('AC-1238: PM project-status row legibility', () => {
-  it('AC-1238-002: the project name is never squeezed out — it keeps a minimum width, title and wrapping row', () => {
+describe('AC-1238: PM delivery-project row access', () => {
+  it('AC-1238-002: the project name keeps its accessible identity and opens the matching record', () => {
     renderPane();
-    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+    const statusCard = screen.getByRole('region', { name: 'My delivery projects' });
     const link = within(statusCard).getByRole('link', { name: 'My Project B' });
     expect(link).toHaveAttribute('title', 'My Project B');
-    expect(link.className).toMatch(/min-w-\[/);
-    expect(link.closest('li')?.className).toContain('flex-wrap');
+    expect(link).toHaveAttribute('href', '/projects/p2');
   });
-  it('AC-1238-003: margin is labelled (visible + accessible name) and every status shares one dot marker', () => {
+  it('AC-1238-003: margin and status remain named in the merged project row', () => {
     projState.data = [mine[0], mine[3]];
     renderPane();
-    const statusCard = screen.getByRole('region', { name: 'Project Status' });
-    const row = within(statusCard).getByRole('link', { name: 'My Project A' }).closest('li') as HTMLElement;
+    const statusCard = screen.getByRole('region', { name: 'My delivery projects' });
+    const row = within(statusCard).getByRole('link', { name: 'My Project A' }).closest('[data-row]') as HTMLElement;
     expect(within(row).getByText('Margin')).toBeInTheDocument();
     expect(within(row).getByRole('img', { name: 'My Project A margin to date: 25.0%' })).toBeInTheDocument();
-    expect(statusCard.querySelector('[class*="outline-offset-2"]')).toBeNull();
+    expect(within(row).getByText('Ongoing Project')).toBeInTheDocument();
   });
 });

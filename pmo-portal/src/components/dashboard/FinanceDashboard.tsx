@@ -20,8 +20,8 @@ import { ListState } from '@/src/components/ui/ListState';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { StatusBarChart } from './StatusBarChart';
-import { procurementStatusTone } from './procurementStatusTone';
+import { PmoPurchasingCard } from './PmoPurchasingCard';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { DashPageHead, DashGrid } from './layout';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
@@ -226,6 +226,7 @@ function compareNullable(
  */
 export const FinanceDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
+  const procurementStatusLabel = useProcurementStatusLabel();
   const { data, isPending, isError, refetch } = useDashboard();
   const { data: projects } = useProjectIdentity();
   // Org-denominated figures (RPC aggregates, BudgetReviewRow) — the org currency, not a record's.
@@ -263,11 +264,6 @@ export const FinanceDashboard: React.FC = () => {
   }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
     known: data?.on_hand_actual_coverage_count ?? 0, total: data?.on_hand_actual_coverage_total ?? 0,
   });
-  const unknownMarginProjects = (data?.on_hand_realized_margin_by_currency ?? [])
-    .reduce((sum, item) => sum + item.unknown_projects, 0);
-  const marginLabel = unknownMarginProjects > 0
-    ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
-    : t('uxs03.realizedMargin', 'Margin on billed work');
   const outstanding = useMemo(() => {
     const invoiced = (procurements ?? []).filter((p) => p.status === INVOICED_STATUS);
     const currencies = new Set(invoiced.map((p) => p.currency));
@@ -437,8 +433,6 @@ export const FinanceDashboard: React.FC = () => {
         {/* AC-IXD-DASH-W5-C2A: On-hand margin — PLAIN tile (OD-W5-C2-D: no single list view) */}
         <KPITile testId="kpi-margin" tone="blue" icon="up" label={t('dashboard:finance.margin', 'Margin to date')}
           {...figure(data?.on_hand_realized_margin ?? null)} loading={isPending}
-          vs={t('uxs03.contractRemaining', 'Contract remaining after known Actual') + ': ' + money(data?.on_hand_contract_remaining ?? null)
-            + ' · ' + marginLabel + ': ' + money(data?.on_hand_realized_margin ?? null) + ' · ' + actualCoverage}
           help={t('dashboard:finance.marginHelp', 'Billed-work revenue less recorded spending; this is not cash received.')} />
         {/* AC-IXD-DASH-W5-C2A: Outstanding invoices → /procurement?status=Vendor+Invoiced (N16) */}
         <KPITile testId="kpi-outstanding" tone="amber" icon="doc" label={t('dashboard:finance.payables', 'Vendor payables')}
@@ -525,26 +519,12 @@ export const FinanceDashboard: React.FC = () => {
         onRetryArAging={() => refetchArAging()}
         customerLinks={customerLinks}
         actualProjectNames={new Map((projects ?? []).map((project) => [project.id, projectDisplayName(project)]))}
+        positionFact={`${t('uxs03.contractRemaining', 'Contract remaining after known Actual')}: ${money(data?.on_hand_contract_remaining ?? null)}`}
       />
 
       <DashGrid>
-        <Card>
-          <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
-          <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
-          <div className="px-4 pb-4 pt-2">
-            {procError ? (
-              <ListState variant="error" title="Couldn't load procurement" onRetry={() => refetchProc()} />
-            ) : procPending ? (
-              <ListState variant="loading" rows={6} />
-            ) : procByStatus.length === 0 ? (
-              <ListState variant="empty" icon="cart" title={t('dashboard.chart.procStatus.empty', 'No procurement activity yet')} />
-            ) : (
-              <StatusBarChart data={procByStatus} toneFor={procurementStatusTone}
-                label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
-                noun={t('dashboard.chart.procStatus.noun', 'requests')} />
-            )}
-          </div>
-        </Card>
+        <PmoPurchasingCard data={procByStatus} isPending={procPending} isError={procError}
+          onRetry={() => refetchProc()} labelFor={procurementStatusLabel} />
       </DashGrid>
     </div>
   );

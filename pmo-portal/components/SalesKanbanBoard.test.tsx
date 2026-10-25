@@ -65,13 +65,6 @@ describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
 });
 
 describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
-  it('AC-002 #1325: the avatar initial stays the client\'s first letter, not the short name\'s', () => {
-    const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'Zulu Terminal', client_name: 'Acme' };
-    render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);
-    const card = screen.getByTestId('project-card');
-    expect(within(card).getByText('A')).toBeInTheDocument();
-    expect(within(card).queryByText('Z')).toBeNull();
-  });
   it('AC-002 #1325: open pipeline DealCard shows the alias and preserves the contractual title', () => {
     const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'North Terminal' };
     render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);

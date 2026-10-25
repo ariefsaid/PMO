@@ -1262,12 +1262,12 @@
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
       "loadError": "Couldn't load your projects",
-      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet"
+      "deliveryProjects": "My delivery projects"
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },
     "engineer": {
       "title": "My Dashboard", "subtitle": "Your hours this week and timesheet status.", "logHours": "Log this week's hours", "logHoursShort": "Log hours", "kpiBand": "My KPIs",
-      "hoursThisWeek": "Hours this week", "weeklyHoursCardTitle": "Hours This Week", "weekOf": "week of {{date}}", "openTimesheetsLog": "Open your timesheets to log this week's hours", "hoursHelp": "Total hours on your most recent timesheet.",
+      "hoursThisWeek": "Hours this week", "weeklyHoursCardTitle": "Hours This Week", "weekOf": "week of {{date}}", "weekSummary": "{{hours}} hours · week of {{date}}", "openTimesheetsLog": "Open your timesheets to log this week's hours", "hoursHelp": "Total hours on your most recent timesheet.",
       "timesheetStatus": "Timesheet status", "noneThisPeriod": "None this period", "openTimesheetsStatus": "Open your timesheets to see your current status", "statusHelp": "The status of your most recent timesheet.",
       "loadError": "Couldn't load your timesheets", "recentError": "Couldn't load recent entries", "noHours": "No hours logged this week", "noHoursSub": "Log your hours to see your weekly breakdown.", "projectBreakdownSub": "Log your hours to see a project breakdown.",
       "hoursByDay": "Hours this week by day", "dayHours": "{{day}}: {{hours}} hours", "byProject": "This week by project", "recentEntries": "Recent entries", "entriesEmptySub": "Hours you log will show up here.", "noNote": "No note", "unknownProject": "Unknown", "hoursShort": "{{hours}}h", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "hours",
@@ -1283,6 +1283,8 @@
       "guidance": "Ask your administrator to sync accounting data."
     },
     "accountingSnapshots": "Accounting snapshots",
+    "financialEvidenceTitle": "Financial position and accounting evidence",
+    "financialEvidenceMissing": "These accounting sources have no snapshot yet.",
     "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
     "uxs36ReportDate": "Report date",
     "uxs36AgeingBasis": "Ageing basis",

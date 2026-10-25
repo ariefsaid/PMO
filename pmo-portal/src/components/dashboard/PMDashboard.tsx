@@ -1,8 +1,6 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
-import { Link } from 'react-router';
 import { usePMDashboardProjects } from '@/src/hooks/useDashboard';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
 import { DeliveryPctChip } from '@/components/DeliveryPctChip';
@@ -78,7 +76,7 @@ export const PMDashboard: React.FC = () => {
   // FR-DEL-017: one batched delivery-% call for all PM projects (NFR-DEL-PERF-001).
   const { data: deliveryPct } = useProjectsDelivery(mine.map((p) => p.id));
 
-  const bvaProjects: PMDashboardProject[] = mine;
+  const bvaProjects: PMDashboardProject[] = mineSorted;
 
   return (
     <div className="space-y-4">
@@ -114,8 +112,8 @@ export const PMDashboard: React.FC = () => {
       </section>
 
       <DashGrid>
-        <Card>
-          <CardHead>{t('uxs03.spendingContract', 'Spending vs contract')}</CardHead>
+        <Card role="region" aria-label={t('dashboard.pm.deliveryProjects', 'My delivery projects')}>
+          <CardHead>{t('dashboard.pm.deliveryProjects', 'My delivery projects')}</CardHead>
           <div className="px-4 pb-3.5">
             {isError ? (
               <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
@@ -125,65 +123,26 @@ export const PMDashboard: React.FC = () => {
               <ListState variant="empty" icon="folder" title={t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}
                 sub={t('dashboard:pm.noProjectsSub', 'Projects in the delivery phase will appear here.')} />
             ) : (
-              <BvACard projects={bvaProjects} currency={orgCurrency} />
-            )}
-          </div>
-        </Card>
-
-        <Card role="region" aria-labelledby="pm-project-status-heading">
-          <CardHead><span id="pm-project-status-heading">{t('dashboard.pm.statusTitle', 'Project Status')}</span><span className="ml-2 text-[12px] font-normal text-muted-foreground">{t('uxs03.marginToDate', 'Margin to date')}</span></CardHead>
-          <div className="px-4 pb-3.5">
-            {isPending ? (
-              <ListState variant="loading" />
-            ) : isError ? (
-              <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
-            ) : mine.length === 0 ? (
-              <ListState variant="empty" icon="folder" title={t('dashboard.pm.nothingToShow', 'Nothing to show yet')} />
-            ) : (
-              <ul className="divide-y divide-border/70">
-                {mineSorted.map((p) => {
-                  const margin = p.realized_margin_pct === null ? null : p.realized_margin_pct * 100;
-                  const marginClass =
-                    margin === null
-                      ? 'text-muted-foreground'
-                      : margin < 10
-                        ? 'text-destructive'
-                        : 'text-foreground';
-                  const atRisk = projectAtRisk(p);
-                  return (
-                    <li key={p.id} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 py-3">
-                      <Link
-                        to={`/projects/${p.id}`}
-                        title={p.name}
-                        className="min-w-[8rem] flex-1 truncate text-[13px] font-medium hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-                      >
-                        {projectDisplayName(p)}
-                      </Link>
-                      {/* AC-IXD-DASH-W5-C2C N18: text+dot pill on at-risk rows (not color-only). */}
-                      {atRisk && <StatusPill variant="warn">{t('dashboard.pm.atRisk', 'At risk')}</StatusPill>}
-                      {/* FR-DEL-017: delivery-% chip (absent when project has no milestones). */}
-                      {deliveryPct?.[p.id] != null && (
-                        <span className="flex shrink-0 items-center gap-1">
-                          <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
-                          <DeliveryPctChip pct={deliveryPct[p.id]} />
-                        </span>
-                      )}
-                      {/* D-021: one dot marker for every status — the progress halo ring made Ongoing look different. */}
-                      <StatusPill variant={statusVariant(p.status)}>{statusLabel(p.status)}</StatusPill>
-                      <span className="flex shrink-0 items-baseline gap-1">
-                        <span className="text-[11.5px] text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
-                        <span
-                          role="img"
-                          aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
-                          className={`min-w-12 text-right text-[13px] font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}
-                        >
-                          {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
-                        </span>
+              <BvACard projects={bvaProjects} currency={orgCurrency} projectDetails={(p) => {
+                const margin = p.realized_margin_pct === null ? null : p.realized_margin_pct * 100;
+                const marginClass = margin === null ? 'text-muted-foreground' : margin < 10 ? 'text-destructive' : 'text-foreground';
+                return (
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+                    <StatusPill variant={statusVariant(p.status)}>{statusLabel(p.status)}</StatusPill>
+                    {deliveryPct?.[p.id] != null && <span className="flex items-center gap-1">
+                      <span className="text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
+                      <DeliveryPctChip pct={deliveryPct[p.id]} />
+                    </span>}
+                    <span className="flex items-baseline gap-1">
+                      <span className="text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin')}</span>
+                      <span role="img" aria-label={margin !== null ? t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: p.name, pct: margin.toFixed(1) }) : undefined}
+                        className={`min-w-12 text-right font-bold ${margin !== null ? 'tabular' : ''} ${marginClass}`}>
+                        {margin !== null ? `${margin.toFixed(1)}%` : t('uxs03.notAvailableYet', 'Not available yet')}
                       </span>
-                    </li>
-                  );
-                })}
-              </ul>
+                    </span>
+                  </div>
+                );
+              }} />
             )}
           </div>
         </Card>

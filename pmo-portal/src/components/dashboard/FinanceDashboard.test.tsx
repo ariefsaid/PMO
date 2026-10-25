@@ -1,5 +1,5 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
@@ -111,17 +111,6 @@ beforeEach(() => {
   collectionsIntegration.customerLinks.clear();
 });
 
-describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
-  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
-    const { container } = renderPane();
-    const band = container.querySelector('[aria-label="Finance KPIs"]') as HTMLElement;
-    expect(band.className).toContain('min-[560px]:grid-cols-2');
-    // 5 tiles now (4 finance KPIs + the N15 approvals shortcut) → 5-col at the widest tier.
-    expect(band.className).toContain('min-[1180px]:grid-cols-5');
-    expect(band.className).not.toContain('sm:grid-cols');
-  });
-});
-
 describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
   it('AC-SL-A-001: no approvals tile when nothing awaits Finance (fixture has no Requested rows)', () => {
     renderPane();
@@ -139,11 +128,17 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
 
   it('labels PMO purchasing scope and explains an empty request chart', () => {
     const previous = procurements.splice(0);
-    renderPane();
-    expect(screen.getByText('PMO purchasing requests')).toBeInTheDocument();
-    expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
-    expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
-    procurements.push(...previous);
+    try {
+      renderPane();
+      const disclosure = screen.getByTestId('dashboard-proc-status');
+      expect(disclosure.tagName).toBe('DETAILS');
+      expect(within(disclosure).getByText('No PMO requests to show')).toBeInTheDocument();
+      const summary = within(disclosure).getByText('No PMO requests to show').closest('summary')!;
+      fireEvent.click(summary);
+      expect(within(disclosure).getByText('ERP-native purchases are outside this PMO request chart.')).toBeVisible();
+    } finally {
+      procurements.push(...previous);
+    }
   });
   it('AC-RD-SPEND-001: calls an incomplete portfolio sum recorded spending and marks it partial', () => {
     dash.on_hand_actual_project_count = 2;
@@ -180,12 +175,13 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
       expect(rendered).not.toContain(englishLabel);
     }
   });
-  it('shows billed-work margin separately from contract remaining', () => {
+  it('shows billed-work margin once and contract remaining in the financial evidence summary', () => {
     renderPane();
     expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1.5M');
     expect(screen.getByTestId('kpi-margin').querySelector('[title="$1,500,000"]')).not.toBeNull();
     expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Margin to date');
-    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4.5M');
+    expect(screen.getByTestId('kpi-margin')).not.toHaveTextContent('Contract remaining after known Actual');
+    expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toHaveTextContent('Contract remaining after known Actual: $4.5M');
   });
   it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();
@@ -239,9 +235,8 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
   it('mounts the read-only actuals/AP-AR aging snapshot section, empty by default', () => {
     renderPane();
     expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
-    expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
-    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
+    expect(screen.getByText('Financial position and accounting evidence')).toBeInTheDocument();
+    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(1);
   });
 
   it('AC-S36-002: links canonical Customer IDs to their exact company collections page', () => {

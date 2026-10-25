@@ -53,7 +53,10 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   usePMDashboardProjects: () => ({ data: mine ?? [], isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesPipeline: () => ({
+    data: { stages: [{ status: 'Tender Submitted', count: 2, total_value: 2_000_000, win_probability: 0.3, weighted_value: 600_000 }] },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
@@ -137,11 +140,12 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     expect(tile).not.toHaveAttribute('href');
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-6: "Pipeline forecast margin" tile is NOT a link (OD-W5-C2-D)', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-6: forecast margin shares its section with named stage links', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    expect(tile.tagName).toBe('DIV');
-    expect(tile).not.toHaveAttribute('href');
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    const panel = screen.getByTestId('dashboard-pipeline-margin');
+    expect(panel).toHaveTextContent('20.0%');
+    expect(within(panel).getByRole('link', { name: 'Tender Submitted' })).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
   });
 
   it('AC-IXD-DASH-W5-C2A-a11y: each drill tile has a non-empty aria-label (full sentence)', () => {
@@ -276,11 +280,11 @@ const renderEngineer = () =>
     </MemoryRouter>,
   );
 
-describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-ENG-1: "Hours this week" tile drills to /timesheets', () => {
+describe('AC-IXD-DASH-W5-C2A — Engineer dashboard timesheet actions', () => {
+  it('AC-IXD-DASH-W5-C2A-ENG-1: dated weekly summary keeps the Log Hours doorway to /timesheets', () => {
     renderEngineer();
-    const tile = screen.getByTestId('kpi-hours-week');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByText('8 hours · week of 2026-06-01')).toBeInTheDocument();
+    expect(screen.getByTestId('cta-log-hours')).toHaveAttribute('href', '/timesheets');
   });
 
   it('AC-IXD-DASH-W5-C2A-ENG-2: "Timesheet status" tile drills to /timesheets', () => {
@@ -289,12 +293,11 @@ describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
   });
 
-  it('AC-IXD-DASH-W5-C2A-ENG-3: drill tiles have descriptive aria-labels', () => {
+  it('AC-IXD-DASH-W5-C2A-ENG-3: timesheet actions have descriptive accessible names', () => {
     renderEngineer();
-    for (const testId of ['kpi-hours-week', 'kpi-timesheet-status']) {
-      const tile = screen.getByTestId(testId);
-      const label = within(tile).getByRole('link').getAttribute('aria-label');
-      expect(label, `${testId} should have aria-label`).toBeTruthy();
-    }
+    expect(screen.getByRole('link', { name: /Log this week's hours/i })).toHaveAttribute('href', '/timesheets');
+    const statusLink = within(screen.getByTestId('kpi-timesheet-status')).getByRole('link');
+    expect(statusLink).toHaveAccessibleName(/timesheets to see your current status/i);
+    expect(statusLink).toHaveAttribute('href', '/timesheets');
   });
 });
