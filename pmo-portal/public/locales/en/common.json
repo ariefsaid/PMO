@@ -438,6 +438,18 @@
         "placeholder": "Search by name or email…",
         "label": "Search users"
       },
+      "statusFilter": {
+        "label": "Filter users by status",
+        "all": "All statuses"
+      },
+      "sort": {
+        "nameAsc": "Name A–Z",
+        "nameDesc": "Name Z–A"
+      },
+      "details": "Details",
+      "detailsFor": "Details for {{name}}",
+      "unavailable": "Unavailable",
+      "clearFilters": "Clear filters",
       "invite": "Invite user",
       "columns": {
         "user": "User",
@@ -482,8 +494,8 @@
         "sub": "People appear here once they are invited to the workspace."
       },
       "noMatch": {
-        "title": "No users match your search",
-        "sub": "Try a different name or email."
+        "title": "No matching users",
+        "sub": "Adjust the search or status filter to see users again."
       },
       "roleConfirm": {
         "title": "Change {{name}}'s role to {{role}}?",

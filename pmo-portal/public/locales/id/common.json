@@ -438,6 +438,18 @@
         "placeholder": "Cari berdasarkan nama atau email…",
         "label": "Cari pengguna"
       },
+      "statusFilter": {
+        "label": "Filter pengguna berdasarkan status",
+        "all": "Semua status"
+      },
+      "sort": {
+        "nameAsc": "Nama A–Z",
+        "nameDesc": "Nama Z–A"
+      },
+      "details": "Detail",
+      "detailsFor": "Detail untuk {{name}}",
+      "unavailable": "Tidak tersedia",
+      "clearFilters": "Hapus filter",
       "invite": "Undang pengguna",
       "columns": {
         "user": "Pengguna",
@@ -482,8 +494,8 @@
         "sub": "Orang akan muncul di sini setelah diundang ke organisasi."
       },
       "noMatch": {
-        "title": "Tidak ada pengguna yang cocok dengan pencarian",
-        "sub": "Coba nama atau email lain."
+        "title": "Tidak ada pengguna yang cocok",
+        "sub": "Ubah pencarian atau filter status untuk melihat pengguna lagi."
       },
       "roleConfirm": {
         "title": "Ubah role {{name}} menjadi {{role}}?",
