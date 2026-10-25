@@ -133,7 +133,7 @@ const ExecutiveDashboard: React.FC = () => {
           </span>
         ))}
         {unmappedCategories > 0 && canOpenAccountingMap && (
-          <Link className="text-xs font-medium text-primary underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
+          <Link className="text-xs font-medium text-primary-text underline-offset-4 hover:underline" to="/administration/accounting#budget-account-map">
             {t('uxs03.openAccountingMap', 'Review accounting mappings')}
           </Link>
         )}

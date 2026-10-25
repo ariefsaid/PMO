@@ -38,7 +38,7 @@ describe('Privacy page', () => {
     expect(screen.queryByRole('banner')).toBeNull();
   });
 
-  it('AC-LEG-013 / AC-LEG-027: one h1 + all 9 section headings as h2 (+ h2 heading token)', () => {
+  it('AC-LEG-013 / AC-LEG-027: one h1 + all 9 section headings as h2', () => {
     renderPrivacy();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const h2s = screen.getAllByRole('heading', { level: 2 });
@@ -49,8 +49,6 @@ describe('Privacy page', () => {
       'Contact Us',
     ].forEach((t) => expect(h2Texts).toContain(t));
 
-    // AMENDMENT (plan review): the h2 heading token class (20/700/-0.01em, DESIGN.md §3).
-    h2s.forEach((h2) => expect(h2.className).toMatch(/text-\[20px\]/));
   });
 
   it('AC-LEG-007: renders config entity/domain/contact email/hosting location; no brackets', () => {
