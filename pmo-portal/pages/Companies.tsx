@@ -14,7 +14,6 @@ import {
   SelectField,
   FormSection,
   FormGrid,
-  GateNotice,
   AccessDenied,
   useEntityForm,
   useToast,
@@ -27,7 +26,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { companyImportDescriptor } from '@/src/lib/import';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -94,6 +93,7 @@ const Companies: React.FC = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useCompanies();
+  const [searchParams, setSearchParams] = useSearchParams();
   // `?? IDLE_PENDING_PUSH` — existing hook mocks (RBAC/export test suites) predate this field.
   const { create, update, setProjectNumberSegment, archive, remove, pendingPush = IDLE_PENDING_PUSH } = useCompanyMutations();
 
@@ -111,14 +111,19 @@ const Companies: React.FC = () => {
     useListSearchWorkingSet('companies');
   const { openRecord } = useListReturn({ list: 'companies', contentReady: !isPending && !isError });
   const filter = workingSet.type;
+  const sort = searchParams.get('sort') === 'name-desc' ? 'name-desc' : 'name-asc';
+  const setSort = (nextSort: 'name-asc' | 'name-desc') => {
+    const next = new URLSearchParams(searchParams);
+    if (nextSort === 'name-asc') next.delete('sort');
+    else next.set('sort', nextSort);
+    setSearchParams(next, { replace: true });
+  };
 
   // Modal: null = closed; { company: null } = create; { company } = edit.
   const [formTarget, setFormTarget] = useState<{ company: CompanyRow | null } | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<CompanyRow | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CompanyRow | null>(null);
-  // In-use delete block (23503): the company whose hard-delete the RPC refused
-  // because it is still referenced. Drives the inline GateNotice + Archive-instead
-  // recovery path (crud-components §5.3).
+  // A failed in-use delete keeps its recovery action on the same row's action menu.
   const [blockedCompany, setBlockedCompany] = useState<CompanyRow | null>(null);
 
   const canCreate = may('create', 'company');
@@ -136,8 +141,12 @@ const Companies: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((c) => filter === 'All' || c.type === filter)
-      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q));
-  }, [all, search, filter]);
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || (c.short_name ?? '').toLowerCase().includes(q))
+      .sort((a, b) => {
+        const order = companyDisplayName(a).localeCompare(companyDisplayName(b), undefined, { sensitivity: 'base' });
+        return (sort === 'name-desc' ? -order : order) || a.id.localeCompare(b.id);
+      });
+  }, [all, search, filter, sort]);
 
   // AC-LRC-012: the DataTable's `empty` branch below (with `clearFilters`) only ever renders when
   // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'`), so a
@@ -198,7 +207,13 @@ const Companies: React.FC = () => {
         label: t('companies.actions.edit', 'Edit'),
         onClick: () => setFormTarget({ company: c }),
       });
-    if (canArchive)
+    if (canArchive && blockedCompany?.id === c.id) {
+      items.push({
+        label: t('companies.deleteGate.archiveInstead', 'Archive instead'),
+        onClick: () => setArchiveTarget(c),
+      });
+      items.push({ label: t('companies.deleteGate.dismiss', 'Dismiss'), onClick: () => setBlockedCompany(null) });
+    } else if (canArchive)
       items.push({
         label: t('companies.actions.archive', 'Archive'),
         onClick: () => setArchiveTarget(c),
@@ -219,6 +234,7 @@ const Companies: React.FC = () => {
       await archive.mutateAsync(target.id);
       toast(t('companies.toast.archived', 'Company archived'), target.name, 'success');
       setArchiveTarget(null);
+      if (blockedCompany?.id === target.id) setBlockedCompany(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -251,8 +267,7 @@ const Companies: React.FC = () => {
         'warning',
       );
       setDeleteTarget(null);
-      // A referenced company also renders a persistent inline GateNotice (the toast
-      // auto-dismisses; the gate keeps the recovery path within reach).
+      // Keep the in-use recovery action attached to this company's row menu.
       setBlockedCompany(isInUse ? target : null);
     }
   };
@@ -260,64 +275,9 @@ const Companies: React.FC = () => {
   return (
     <ListPage
       title={t('companies.title', 'Companies')}
-      description={t(
-        'companies.description',
-        'Clients and vendors used across projects and procurement. Master data shared by the whole organisation.',
-      )}
-      primaryAction={
-        canCreate && (
-          <Button variant="primary" onClick={() => setFormTarget({ company: null })}>
-            <Icon name="plus" />
-            {t('companies.actions.new', 'New company')}
-          </Button>
-        )
-      }
-      /* In-use delete block (23503) — inline GateNotice with an Archive-instead
-         recovery path. Persists until the user archives or dismisses it. */
-      banner={
-        blockedCompany && (
-          <GateNotice variant="blocked" className="mb-3.5" data-testid="company-delete-gate">
-            {/* ⚑ The sentence body is NOT extracted: it wraps the company name in <b>, so it needs
-                <Trans> (or interpolation), and both are unsafe here — see the note on the in-use
-                toast above. The two buttons around it ARE extracted. */}
-            <div>
-              <b className="font-semibold">{blockedCompany.name}</b> is referenced by other
-              records and can&rsquo;t be deleted. Archive it instead to remove it from new records
-              while keeping the audit trail.
-              <div className="mt-2.5 flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setArchiveTarget(blockedCompany);
-                    setBlockedCompany(null);
-                  }}
-                >
-                  {t('companies.deleteGate.archiveInstead', 'Archive instead')}
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setBlockedCompany(null)}>
-                  {t('companies.deleteGate.dismiss', 'Dismiss')}
-                </Button>
-              </div>
-            </div>
-          </GateNotice>
-        )
-      }
-      filters={
-        state !== 'loading' && (
-          <ViewToggle<TypeFilter>
-            options={TYPE_FILTERS.map((f) => ({ value: f, label: filterLabel(f) }))}
-            value={filter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, type: v }));
-              trackFilterApplied('type', TYPE_FILTERS.length, 'companies');
-            }}
-            ariaLabel={t('companies.filters.ariaLabel', 'Filter by type')}
-          />
-        )
-      }
-      search={
-        state !== 'loading' && (
+      description={t('companies.description', 'Companies and partner accounts used across your projects.')}
+      search={state !== 'loading' && (
+        <div data-testid="companies-toolbar" className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <SearchMini
             placeholder={t('companies.search.placeholder', 'Search companies…')}
             aria-label={t('companies.search.ariaLabel', 'Search companies')}
@@ -326,31 +286,50 @@ const Companies: React.FC = () => {
             searchSurface="companies-list"
             module="companies"
             resultCount={filtered.length}
-            // Below `sm` the toolbar stacks: `basis-full` forces the search onto
-            // its own full-width row and `min-w-0` drops the base min-w-[190px]
-            // clip, so it shrinks to the viewport and stays reachable at 375px. At
-            // `sm`+ it right-aligns at its natural width (ml-auto).
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            containerClassName="w-full min-w-0 sm:min-w-[190px] sm:flex-1"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Companies" />
-        )
-      }
-      /* Bulk import (ADR-0027): role-gated via can('create','company'); reuses the
-         entity's create repository so RLS stamps org_id + gates the write role. On a
-         successful import the wizard close refetches the list. */
-      importAction={
-        state !== 'loading' && (
-          <ImportButton
-            entity="company"
-            descriptor={companyImportDescriptor}
-            onImported={() => void refetch()}
+          <div className="min-w-0 max-sm:overflow-x-auto [&_button]:min-h-11">
+            <ViewToggle<TypeFilter>
+              options={TYPE_FILTERS.map((f) => ({ value: f, label: filterLabel(f) }))}
+              value={filter}
+              onChange={(v) => {
+                setWorkingSet((ws) => ({ ...ws, type: v }));
+                trackFilterApplied('type', TYPE_FILTERS.length, 'companies');
+              }}
+              ariaLabel={t('companies.filters.ariaLabel', 'Filter by type')}
+            />
+          </div>
+          <SelectField
+            id="companies-sort"
+            label={t('companies.sort.label', 'Sort companies')}
+            hideLabel
+            value={sort}
+            onChange={(value) => setSort(value as 'name-asc' | 'name-desc')}
+            className="min-h-11 w-full sm:w-auto"
+            options={[
+              { value: 'name-asc', label: t('companies.sort.nameAsc', 'Name A–Z') },
+              { value: 'name-desc', label: t('companies.sort.nameDesc', 'Name Z–A') },
+            ]}
           />
-        )
-      }
+          <div className="hidden items-center gap-2 sm:flex">
+            <ExportButton rows={filtered} columns={columns} entity="Companies" />
+            <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
+          </div>
+          <details className="relative sm:hidden">
+            <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-sm">{t('companies.actions.more', 'More')}</summary>
+            <div className="absolute right-0 z-10 mt-1 flex min-w-40 flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-md">
+              <ExportButton rows={filtered} columns={columns} entity="Companies" />
+              <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
+            </div>
+          </details>
+          {canCreate && (
+            <Button variant="primary" className="min-h-11 w-full sm:w-auto" onClick={() => setFormTarget({ company: null })}>
+              <Icon name="plus" />
+              {t('companies.actions.new', 'New company')}
+            </Button>
+          )}
+        </div>
+      )}
     >
       {/* Body */}
       {state === 'loading' && (

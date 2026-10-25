@@ -110,6 +110,21 @@ describe('Companies index — shared ListPage shell (CW-5)', () => {
     // the page title lives in the shell header
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading', { name: 'Companies' })).toBeInTheDocument();
   });
+
+  it('AC-WORK-CO-01: the toolbar reads search, type, name sort, more, then creation', () => {
+    renderPage();
+    const toolbar = screen.getByTestId('companies-toolbar');
+    const search = within(toolbar).getByLabelText(/Search companies/i);
+    const type = within(toolbar).getByRole('tab', { name: /^All$/i });
+    const sort = within(toolbar).getByLabelText(/Sort companies/i);
+    const more = within(toolbar).getByText('More');
+    const create = within(toolbar).getByRole('button', { name: /New company/i });
+    const follows = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(search, type)).toBe(true);
+    expect(follows(type, sort)).toBe(true);
+    expect(follows(sort, more)).toBe(true);
+    expect(follows(more, create)).toBe(true);
+  });
 });
 
 describe('Companies index — rows + filters (AC-CO-001)', () => {
@@ -119,6 +134,25 @@ describe('Companies index — rows + filters (AC-CO-001)', () => {
     expect(screen.getByText('Steelforge Fabrication')).toBeInTheDocument();
     // type pill rendered
     expect(screen.getAllByText('Client').length).toBeGreaterThan(0);
+  });
+
+  it('AC-WORK-CO-02: company rows default to name order and the URL sort reproduces reverse order', () => {
+    const view = renderPage();
+    const rowFor = (name: string) => screen.getByText(name).closest('tr')!;
+    expect(Boolean(rowFor('Cascade Port Authority').compareDocumentPosition(rowFor('Internal Holdings')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(rowFor('Internal Holdings').compareDocumentPosition(rowFor('Steelforge Fabrication')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+
+    view.unmount();
+    renderPage('Admin', '/companies?sort=name-desc');
+    const descending = (name: string) => screen.getByText(name).closest('tr')!;
+    expect(Boolean(descending('Steelforge Fabrication').compareDocumentPosition(descending('Internal Holdings')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(descending('Internal Holdings').compareDocumentPosition(descending('Cascade Port Authority')) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('AC-WORK-CO-03: changing name sort writes the sort into the current URL filters', async () => {
+    renderPage('Admin', '/companies?type=Vendor');
+    await userEvent.selectOptions(screen.getByLabelText(/Sort companies/i), 'name-desc');
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-search', '?type=Vendor&sort=name-desc'));
   });
 
   it('AC-CO-001: the type filter narrows the visible rows', async () => {
@@ -323,18 +357,15 @@ describe('Companies delete (AC-CO-006)', () => {
     expect(toast).toHaveTextContent(/Archive it instead/i);
   });
 
-  it('AC-CO-006: an in-use (23503) delete renders an inline GateNotice naming the company + an Archive-instead recovery path', async () => {
+  it('AC-CO-006: an in-use delete keeps Archive instead on the same company row actions', async () => {
     mutations.remove.mutateAsync.mockRejectedValue(new AppError('foreign key violation', '23503'));
     renderPage('Admin');
     await userEvent.click(within(screen.getByText('Cascade Port Authority').closest('tr')!).getByRole('button', { name: /Row actions/i }));
     await userEvent.click(screen.getByRole('menuitem', { name: /Delete/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete company/i }));
-    // The inline GateNotice (block-delete-if-referenced) names the company and offers recovery.
-    const gate = await screen.findByTestId('company-delete-gate');
-    expect(gate).toHaveTextContent(/Cascade Port Authority/);
-    expect(gate).toHaveTextContent(/referenced/i);
-    // "Archive instead" opens the archive confirm for that same company (no second click needed).
-    await userEvent.click(within(gate).getByRole('button', { name: /Archive instead/i }));
+    const row = screen.getByText('Cascade Port Authority').closest('tr')!;
+    await userEvent.click(within(row).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getByRole('menuitem', { name: /Archive instead/i }));
     expect(
       screen.getByRole('button', { name: /Archive company/i }),
     ).toBeInTheDocument();

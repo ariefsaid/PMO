@@ -648,8 +648,9 @@
     "salesInvoices": {
       "label": "Customer invoices awaiting you",
       "heading": "Customer invoices awaiting you ({{count}})",
+      "previewHeading": "Review customer invoice",
       "errorTitle": "Couldn't load invoices awaiting you",
-      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "errorSub": "Other approval items remain available.",
       "raisedBy": "Raised by",
       "net": "Net (before tax)",
       "tax": "Tax",
@@ -724,6 +725,8 @@
     "entryOne": "entry",
     "entryOther": "entries",
     "group": {
+      "expense": { "title": "Expense claims" },
+      "invoice": { "title": "Customer invoices" },
       "procurement": {
         "emptySub": "Purchase requests that need your approval will appear here.",
         "emptyTitle": "No requests awaiting your decision",
@@ -736,6 +739,10 @@
       }
     },
     "noProjectLinked": "No project linked",
+    "noInvoiceReference": "Invoice draft",
+    "unknownCustomer": "Unknown customer",
+    "oldestFirst": "Oldest first",
+    "backToQueue": "Back to queue",
     "previewEmpty": {
       "sub": "When a pending request is available, its preview and actions appear here.",
       "title": "Select an approval item"
@@ -818,6 +825,7 @@
       "archive": "Archive",
       "delete": "Delete",
       "edit": "Edit",
+      "more": "More",
       "new": "New company"
     },
     "columns": {
@@ -836,10 +844,15 @@
       "archiveInstead": "Archive instead",
       "dismiss": "Dismiss"
     },
-    "description": "Clients and vendors used across projects and procurement. Master data shared by the whole organisation.",
+    "description": "Companies and partner accounts used across your projects.",
     "filters": {
       "all": "All",
       "ariaLabel": "Filter by type"
+    },
+    "sort": {
+      "label": "Sort companies",
+      "nameAsc": "Name A–Z",
+      "nameDesc": "Name Z–A"
     },
     "form": {
       "editSubmit": "Save company",
@@ -990,7 +1003,6 @@
       "notesPlaceholder": "Anything worth remembering about this contact",
       "phone": "Phone",
       "phonePlaceholder": "e.g. +1 555 010 0000",
-      "primaryContact": "Primary contact",
       "title": "Title",
       "titlePlaceholder": "e.g. Procurement Lead",
       "type": "Type",
@@ -1389,10 +1401,11 @@
       "truncated": "Showing the oldest {{count}} advances."
     },
     "approvals": {
-      "errorSub": "Purchase requests and timesheets below are unaffected.",
+      "errorSub": "Other approval items remain available.",
       "errorTitle": "Couldn't load expense claims awaiting you",
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
+      "previewHeading": "Review expense claim",
       "noReceipts": "No receipts attached.",
       "previewEvidence": "Preview claim evidence",
       "receiptsError": "Couldn't load receipts.",
@@ -1636,13 +1649,15 @@
       "deleteDescription": "This permanently removes the meeting and its minutes. A meeting whose action items still exist as tasks cannot be deleted; archive it instead.",
       "deleteTitle": "Delete meeting?",
       "unsavedMinutes": {
-        "description": "Your meeting minutes have unsaved changes. Leave this page and discard them?",
+        "description": "Your meeting changes have not been saved. Leave and discard them?",
         "leave": "Leave",
         "stay": "Stay",
-        "title": "Unsaved minutes"
+        "title": "Unsaved meeting changes"
       }
     },
     "delete": "Delete",
+    "edit": "Edit meeting",
+    "editing": "Editing meeting",
     "error": {
       "sub": "Something went wrong fetching this meeting.",
       "title": "Couldn't load meeting"
@@ -1767,6 +1782,11 @@
       "ariaLabel": "Search meetings",
       "placeholder": "Search notes and titles…"
     },
+    "sort": {
+      "label": "Sort meetings",
+      "latest": "Latest meeting date",
+      "oldest": "Oldest meeting date"
+    },
     "states": {
       "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
       "emptyTitle": "No meetings yet",
@@ -1787,6 +1807,7 @@
     }
   },
   "myTasks": {
+    "allProjects": "All projects",
     "changeStatusOf": "Change status of",
     "due": "Due {{date}}",
     "empty": {
@@ -1798,9 +1819,15 @@
       "title": "Couldn't load your tasks"
     },
     "logTime": "Log time",
+    "listLabel": "Assigned tasks",
     "noProjectGroup": "No project",
     "overdue": "Overdue",
     "openTasks": "Open tasks",
+    "projectFilter": "Filter by project",
+    "projectUnknown": "Project",
+    "sortDue": "Due date",
+    "sortLabel": "Sort tasks",
+    "sortUrgency": "Urgency",
     "completed": "Completed",
     "queueLabel": "Task status",
     "searchLabel": "Search your tasks",
@@ -1811,6 +1838,31 @@
     "start": "Start {{date}}",
     "subtitle": "Your assigned tasks across all projects.",
     "title": "My Tasks"
+  },
+  "incidents": {
+    "actions": { "file": "File incident" },
+    "columns": {
+      "incident": "Incident", "project": "Project", "severity": "Severity",
+      "status": "Status", "date": "Date", "location": "Location"
+    },
+    "description": "Organization incident register for reporting, investigation and closure.",
+    "filters": { "status": "Filter by status", "severity": "Filter by severity", "sort": "Sort incidents" },
+    "search": { "ariaLabel": "Search incidents", "placeholder": "Search incidents…" },
+    "sort": { "priority": "Severity first", "date": "Newest first" },
+    "status": { "all": "All", "open": "Open", "investigating": "Investigating", "closed": "Closed" },
+    "severity": { "all": "All severities", "critical": "Critical", "high": "High", "medium": "Medium", "low": "Low" },
+    "states": {
+      "errorTitle": "Couldn't load incidents",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "emptyTitle": "No incidents reported",
+      "emptySub": "When something goes wrong on a project or site, file it here so it can be investigated and closed out."
+    },
+    "table": {
+      "emptyTitle": "No incidents match",
+      "emptySub": "Try a different severity, status or search.",
+      "clearFilters": "Clear filters"
+    },
+    "title": "Incidents", "unlinked": "Unlinked", "viewProject": "View project"
   },
   "procurement": {
     "columns": {
@@ -3598,7 +3650,6 @@
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
-      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{value}}",
@@ -3609,7 +3660,6 @@
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
-      "effective": "Effective number format: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{value}}",
@@ -3622,13 +3672,12 @@
       "placeholder": "Select a timezone",
       "search": "Search timezones…",
       "noun": "timezone",
-      "effective": "Effective timezone: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{timezone}}"
       }
     },
-    "save": "Save",
+    "save": "Save preferences",
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
     "error": "Could not save your preferences. Please try again.",
@@ -3879,9 +3928,24 @@
     "name": "Name",
     "updated": "Updated",
     "myViews": "My Views",
+    "savedViews": "Saved views",
+    "savedViewsScope": "Your reusable answers — mine and shared with me",
+    "mineAndShared": "Mine + shared",
+    "mine": "Mine",
+    "sharedWithMe": "Shared with me",
+    "viewScope": "Saved view scope",
+    "searchViews": "Search saved views…",
+    "sortViews": "Sort saved views",
+    "nameAsc": "Name A–Z",
+    "nameDesc": "Name Z–A",
+    "scope": "Scope",
+    "noViewsYetSub": "Save a view when you need the same scoped answer again.",
+    "noViewsMatch": "No saved views match these filters",
+    "noViewsMatchSub": "Try a different search or scope, or clear the filters.",
+    "openSavedView": "Open {{name}}",
     "composeViewWithAI": "Compose view with AI",
     "composeWithAI": "Compose with AI",
-    "newView": "New View",
+    "newView": "New view",
     "couldNotLoadViews": "Could not load views.",
     "aNetworkOrServerErrorOccurred": "A network or server error occurred.",
     "noViewsYet": "No views yet.",

@@ -4,27 +4,32 @@
  * Follows Companies.tsx CRUD/RBAC pattern (ADR-0016/0017/0018).
  * I5: "Compose with AI" entry point (FR-AS-014, AC-AS-011/012).
  */
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { formatRelativeTime } from '@/src/lib/format';
-import { useNavigate, Link } from 'react-router';
+import { useNavigate, Link, useSearchParams } from 'react-router';
 import {
   ListPage,
   ListState,
   DataTable,
   ConfirmDialog,
   Button,
+  SearchMini,
+  SelectField,
   useToast,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { useUserViews, useUserViewMutations } from '@/src/hooks/useUserViews';
 import { usePermission } from '@/src/auth/usePermission';
+import { useAuth } from '@/src/auth/useAuth';
+import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { UserViewRow } from '@/src/lib/db/userViews';
 import { isFeatureEnabled } from '@/src/lib/features';
 import AIComposerModal from '@/src/components/builder/AIComposerModal';
 import type { CompositionSpec } from '@/src/lib/viewspec/types';
+import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 
 const MyViewsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -33,6 +38,9 @@ const MyViewsPage: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useUserViews();
   const { archive } = useUserViewMutations();
+  const { currentUser } = useAuth();
+  const realRole = useOptionalRealRole();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [archiveTarget, setArchiveTarget] = useState<UserViewRow | null>(null);
   const [aiComposerOpen, setAIComposerOpen] = useState(false);
@@ -40,7 +48,40 @@ const MyViewsPage: React.FC = () => {
   const showAIComposer =
     isFeatureEnabled('userViews') && isFeatureEnabled('aiComposer');
 
-  const canArchive = may('archive', 'userView');
+  const canCreate = may('create', 'userView');
+  const sort = searchParams.get('sort') === 'name-desc' ? 'name-desc' : 'name-asc';
+  const query = searchParams.get('q') ?? '';
+  const commitSearch = useCallback((nextQuery: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextQuery.trim()) next.set('q', nextQuery.trim());
+    else next.delete('q');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+  const [search, setSearch] = useUrlSearchInput(query, commitSearch);
+
+  const updateSort = (value: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === 'name-asc') next.delete('sort');
+    else next.set('sort', value);
+    setSearchParams(next, { replace: true });
+  };
+  const clearFilters = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('q');
+    setSearchParams(next, { replace: true });
+    setSearch('');
+  };
+
+  const rows = useMemo(() => (data ?? [])
+    .filter((row) => !search.trim() || `${row.name} ${row.description ?? ''}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => {
+      const order = a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
+      return (sort === 'name-desc' ? -order : order) || a.id.localeCompare(b.id);
+    }), [data, search, sort]);
+
+  const scopeLabel = (row: UserViewRow) => row.user_id === currentUser?.id
+    ? t('financeCopy.mine', 'Mine')
+    : t('financeCopy.sharedWithMe', 'Shared with me');
 
   const columns: Column<UserViewRow>[] = [
     {
@@ -51,6 +92,11 @@ const MyViewsPage: React.FC = () => {
           {row.name}
         </Link>
       ),
+    },
+    {
+      key: 'scope',
+      header: t('financeCopy.scope', 'Scope'),
+      cell: (row) => <span className="text-muted-foreground">{scopeLabel(row)}</span>,
     },
     {
       key: 'description',
@@ -68,15 +114,13 @@ const MyViewsPage: React.FC = () => {
     },
   ];
 
-  const rowMenu = (row: UserViewRow): RowMenuItem[] => [
-    {
-      label: t('financeCopy.edit', "Edit"),
-      onClick: () => navigate(`/views/${row.id}/edit`),
-    },
-    ...(canArchive
-      ? [{ label: t('financeCopy.archive', "Archive"), onClick: () => setArchiveTarget(row) }]
-      : []),
-  ];
+  const rowMenu = (row: UserViewRow): RowMenuItem[] => {
+    const canManage = row.user_id === currentUser?.id || realRole === 'Admin';
+    return canManage ? [
+      { label: t('financeCopy.edit', 'Edit'), onClick: () => navigate(`/views/${row.id}/edit`) },
+      ...(may('archive', 'userView') ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => setArchiveTarget(row) }] : []),
+    ] : [];
+  };
 
   const handleArchiveConfirm = async () => {
     if (!archiveTarget) return;
@@ -97,23 +141,40 @@ const MyViewsPage: React.FC = () => {
     navigate('/views/new', { state: { composedSpec: spec } });
   };
 
-  const rows = data ?? [];
-
   return (
     <ListPage
-      title={t('financeCopy.myViews', "My Views")}
-      primaryAction={
-        <div className="flex gap-2">
+      title={t('financeCopy.savedViews', 'Saved views')}
+      description={t('financeCopy.savedViewsScope', 'Mine and shared with me')}
+      search={
+        <div data-testid="views-toolbar" className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <SearchMini
+            placeholder={t('financeCopy.searchViews', 'Search saved views…')}
+            aria-label={t('financeCopy.searchViews', 'Search saved views')}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            searchSurface="views-list"
+            module="views"
+            resultCount={rows.length}
+            containerClassName="w-full min-w-0 sm:min-w-[190px] sm:flex-1"
+          />
+          <SelectField
+            id="views-sort"
+            label={t('financeCopy.sortViews', 'Sort saved views')}
+            hideLabel
+            value={sort}
+            onChange={updateSort}
+            className="min-h-11 w-full sm:w-auto"
+            options={[
+              { value: 'name-asc', label: t('financeCopy.nameAsc', 'Name A–Z') },
+              { value: 'name-desc', label: t('financeCopy.nameDesc', 'Name Z–A') },
+            ]}
+          />
           {showAIComposer && (
-            <Button
-              variant="outline"
-              onClick={() => setAIComposerOpen(true)}
-              aria-label={t('financeCopy.composeViewWithAI', "Compose view with AI")}
-            >
-              {t('financeCopy.composeWithAI', "Compose with AI")}</Button>
+            <Button variant="outline" className="min-h-11" onClick={() => setAIComposerOpen(true)} aria-label={t('financeCopy.composeViewWithAI', 'Compose view with AI')}>
+              {t('financeCopy.composeWithAI', 'Compose with AI')}
+            </Button>
           )}
-          <Button variant="primary" onClick={() => navigate('/views/new')}>
-            {t('financeCopy.newView', "New View")}</Button>
+          {canCreate && <Button variant="primary" className="min-h-11" onClick={() => navigate('/views/new')}>{t('financeCopy.newView', 'New view')}</Button>}
         </div>
       }
     >
@@ -131,14 +192,11 @@ const MyViewsPage: React.FC = () => {
           rowKey={(r) => r.id}
           state="loading"
         tableId="myviewspage-1-table" />
-      ) : rows.length === 0 ? (
+      ) : (data ?? []).length === 0 ? (
         <ListState
           variant="empty"
-          title={t('financeCopy.noViewsYet', "No views yet.")}
-          sub={
-            <Link to="/views/new" className="font-medium text-primary-text hover:underline">
-              {t('financeCopy.createYourFirstView', "Create your first view")}</Link>
-          }
+          title={t('financeCopy.noViewsYet', 'No saved views yet')}
+          sub={t('financeCopy.noViewsYetSub', 'Save a view when you need the same scoped answer again.')}
         />
       ) : (
         <DataTable
@@ -146,6 +204,12 @@ const MyViewsPage: React.FC = () => {
           rows={rows}
           rowKey={(r) => r.id}
           rowMenu={rowMenu}
+          onActivate={(row) => navigate(`/views/${row.id}`)}
+          rowLabel={(row) => t('financeCopy.openSavedView', 'Open {{name}}', { name: row.name })}
+          state={rows.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('financeCopy.noViewsMatch', 'No saved views match these filters')}
+          emptySub={t('financeCopy.noViewsMatchSub', 'Try a different search or scope, or clear the filters.')}
+          emptyAction={{ label: t('financeCopy.clearFilters', 'Clear filters'), onClick: clearFilters }}
         tableId="myviewspage-2-table" />
       )}
 

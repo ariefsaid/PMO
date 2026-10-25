@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 
 const { mockUseUserViews, mockArchive, mockUseAuth, mockToast } = vi.hoisted(() => ({
@@ -61,9 +61,15 @@ const VIEW_ROW = {
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/views']}>
+      <LocationProbe />
       <MyViewsPage />
     </MemoryRouter>
   );
+}
+
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="views-location">{location.pathname}</output>;
 }
 
 beforeEach(() => {
@@ -73,12 +79,14 @@ beforeEach(() => {
 });
 
 describe('MyViewsPage', () => {
-  it('AC-VB-017: empty state shows "Create your first view" CTA linking to /views/new', () => {
+  it('AC-VB-017: empty state keeps one New view action available and opens /views/new', async () => {
     mockUseUserViews.mockReturnValue({ data: [], isPending: false, isError: false });
     renderPage();
-    expect(screen.getByText(/create your first view/i)).toBeInTheDocument();
-    const cta = screen.getByRole('link', { name: /create your first view/i });
-    expect(cta).toHaveAttribute('href', '/views/new');
+    const actions = screen.getAllByRole('button', { name: 'New view' });
+    expect(actions).toHaveLength(1);
+    const cta = actions[0];
+    await userEvent.click(cta);
+    expect(screen.getByTestId('views-location')).toHaveTextContent('/views/new');
   });
 
   it('AC-VB-016: archive confirm + success toast + mutation called with view id', async () => {
