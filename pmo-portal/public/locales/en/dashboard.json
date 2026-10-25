@@ -45,6 +45,7 @@
     "value": "Value"
   },
   "pm": {
+    "deliveryProjects": "My delivery projects",
     "myProjectsHelp": "Delivery projects where you are the assigned project manager.",
     "noProjects": "No delivery projects assigned to you yet",
     "noProjectsSub": "Projects in the delivery phase will appear here."
@@ -62,5 +63,8 @@
   },
   "kpi": {
     "activeProjectsCount": "{{count}} active projects"
+  },
+  "engineer": {
+    "weekSummary": "{{hours}} hours · week of {{date}}"
   }
 }

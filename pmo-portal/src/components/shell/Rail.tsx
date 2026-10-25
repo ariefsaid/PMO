@@ -215,13 +215,13 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
     }),
   );
   const groupLabels: Record<NavItem['group'], string> = {
-    'My work': t('shell.rail.group.myWork', 'My work'),
-    'Deliver projects': t('shell.rail.group.deliverProjects', 'Deliver projects'),
-    'Manage money': t('shell.rail.group.manageMoney', 'Manage money'),
-    'Work with partners': t('shell.rail.group.workWithPartners', 'Work with partners'),
+    'My work': t('shell:rail.group.myWork', 'My work'),
+    'Deliver projects': t('shell:rail.group.deliverProjects', 'Deliver projects'),
+    'Manage money': t('shell:rail.group.manageMoney', 'Manage money'),
+    'Work with partners': t('shell:rail.group.workWithPartners', 'Work with partners'),
   };
-  const workspaceSetupLabel = t('shell.rail.group.workspaceSetup', 'Workspace setup');
-  const viewsLabel = t('shell.rail.group.views', 'Views');
+  const workspaceSetupLabel = t('shell:rail.group.workspaceSetup', 'Workspace setup');
+  const viewsLabel = t('shell:rail.group.views', 'Views');
   const navItemBase = cn(NAV_LINK_BASE, collapsed && 'justify-center gap-0 px-0');
   const labelText = (label: string, truncate = false) => (
     <span className={collapsed ? 'sr-only' : truncate ? 'truncate' : undefined}>{label}</span>
@@ -354,9 +354,9 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
         {onToggleCollapse && (
           <button
             type="button"
-            aria-label={collapsed ? t('shell.rail.expand', 'Expand navigation') : t('shell.rail.collapse', 'Collapse navigation')}
+            aria-label={collapsed ? t('shell:rail.expand', 'Expand navigation') : t('shell:rail.collapse', 'Collapse navigation')}
             aria-expanded={!collapsed}
-            title={collapsed ? t('shell.rail.expand', 'Expand navigation') : t('shell.rail.collapse', 'Collapse navigation')}
+            title={collapsed ? t('shell:rail.expand', 'Expand navigation') : t('shell:rail.collapse', 'Collapse navigation')}
             onClick={onToggleCollapse}
             className={cn('touch-target ml-auto grid shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground', collapsed ? 'size-6 [&_svg]:size-3.5' : 'size-8 [&_svg]:size-4')}
           >
@@ -373,7 +373,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
           {items.filter((item) => item.to === '/').map(renderItem)}
         </div>
         <section role="group" aria-label={groupLabels['My work']} data-rail-pinned-work className="shrink-0 border-b border-border px-2.5 pb-2.5">
-          <div data-nav-group-heading="My work" className={cn('px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
+          <div data-nav-group-heading={groupLabels['My work']} className={cn('px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
             {groupLabels['My work']}
           </div>
           {items.filter((item) => item.to === '/approvals').map(renderItem)}
@@ -459,7 +459,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
 
       {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
         <div role="group" aria-label={workspaceSetupLabel} className="flex-shrink-0 border-t border-border p-2.5">
-          <div data-nav-group-heading="Workspace setup" className={cn('px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
+          <div data-nav-group-heading={workspaceSetupLabel} className={cn('px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
             {workspaceSetupLabel}
           </div>
           <NavLink

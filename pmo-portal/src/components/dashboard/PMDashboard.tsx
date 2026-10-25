@@ -112,8 +112,8 @@ export const PMDashboard: React.FC = () => {
       </section>
 
       <DashGrid>
-        <Card role="region" aria-label={t('dashboard.pm.deliveryProjects', 'My delivery projects')}>
-          <CardHead>{t('dashboard.pm.deliveryProjects', 'My delivery projects')}</CardHead>
+        <Card role="region" aria-label={t('pm.deliveryProjects', 'My delivery projects')}>
+          <CardHead>{t('pm.deliveryProjects', 'My delivery projects')}</CardHead>
           <div className="px-4 pb-3.5">
             {isError ? (
               <ListState variant="error" title={t('dashboard.pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />

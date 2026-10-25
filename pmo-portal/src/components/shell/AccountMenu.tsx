@@ -231,7 +231,7 @@ export const AccountMenu: React.FC = () => {
           <div className="my-1 border-t border-border" />
 
           <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-            {t('shell.contextBar.languageHeading', 'Language / Bahasa')}
+            {t('shell:contextBar.languageHeading', 'Language / Bahasa')}
           </div>
           <button
             role="menuitemradio"
@@ -255,7 +255,7 @@ export const AccountMenu: React.FC = () => {
           </button>
           {languageError && (
             <p role="alert" className="px-2.5 py-1 text-[12px] text-destructive-text">
-              {t('shell.contextBar.languageError', 'Could not save language. Try again.')}
+              {t('shell:contextBar.languageError', 'Could not save language. Try again.')}
             </p>
           )}
 

@@ -1,4 +1,9 @@
 {
+  "form": {
+    "scope": {
+      "create": "New project starts in {{stage}}; on-hand projects come through a pipeline win."
+    }
+  },
   "finishSpendingSetup": "Finish spending setup",
   "spendingAdminHandoff": "Ask an administrator to finish spending setup.",
   "spendingSetupDetails": "Spending setup details",

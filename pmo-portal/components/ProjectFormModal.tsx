@@ -686,7 +686,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const submitDisabled = !form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success');
   const submitLabel = isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project');
-  const createScope = t('projectForm.scope.create', 'New project starts in {{stage}}; on-hand projects come through a pipeline win.', {
+  const createScope = t('project:form.scope.create', 'New project starts in {{stage}}; on-hand projects come through a pipeline win.', {
     stage: statusLabel(form.values.status),
   });
 

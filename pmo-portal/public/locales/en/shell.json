@@ -1,0 +1,18 @@
+{
+  "contextBar": {
+    "languageError": "Could not save language. Try again.",
+    "languageHeading": "Language / Bahasa"
+  },
+  "rail": {
+    "collapse": "Collapse navigation",
+    "expand": "Expand navigation",
+    "group": {
+      "deliverProjects": "Deliver projects",
+      "manageMoney": "Manage money",
+      "myWork": "My work",
+      "views": "Views",
+      "workWithPartners": "Work with partners",
+      "workspaceSetup": "Workspace setup"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "contextBar": {
+    "languageError": "Bahasa tidak dapat disimpan. Coba lagi.",
+    "languageHeading": "Bahasa / Language"
+  },
+  "rail": {
+    "collapse": "Ciutkan navigasi",
+    "expand": "Perluas navigasi",
+    "group": {
+      "deliverProjects": "Pelaksanaan proyek",
+      "manageMoney": "Kelola keuangan",
+      "myWork": "Pekerjaan saya",
+      "views": "Tampilan",
+      "workWithPartners": "Mitra kerja",
+      "workspaceSetup": "Pengaturan organisasi"
+    }
+  }
+}

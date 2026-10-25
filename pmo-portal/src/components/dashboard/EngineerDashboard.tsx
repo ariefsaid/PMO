@@ -116,7 +116,7 @@ export const EngineerDashboard: React.FC = () => {
           <CardHead>
             <span>{t('dashboard.engineer.weeklyHoursCardTitle', 'Hours This Week')}</span>
             {current && <span className="ml-2 text-[12px] font-normal text-muted-foreground">
-              {t('dashboard.engineer.weekSummary', '{{hours}} hours · week of {{date}}', { hours: hoursThisWeek, date: current.week_start_date })}
+              {t('dashboard:engineer.weekSummary', '{{hours}} hours · week of {{date}}', { hours: hoursThisWeek, date: current.week_start_date })}
             </span>}
           </CardHead>
           <div className="px-4 pb-3.5">
