@@ -3152,8 +3152,7 @@
       "title": "You don't have access to the Sales Pipeline"
     },
     "column": {
-      "customer": "Customer",
-      "lastTouch": "Last touch",
+      "customer": "Customer / end customer",
       "owner": "Owner",
       "project": "Project",
       "stage": "Stage",
@@ -3170,65 +3169,16 @@
       "sub": "Something went wrong fetching your pipeline.",
       "title": "Couldn't load the sales pipeline"
     },
-    "funnel": {
-      "weighted": "{{value}} weighted"
-    },
-    "lastTouch": {
-      "daysAgo": "days ago",
-      "oneDayAgo": "1 day ago",
-      "stale": "Untouched for {{days}} days — needs attention",
-      "today": "today"
-    },
-    "lastTouchUnavailable": "Last touch not available",
-    "lostError": {
-      "sub": "Something went wrong fetching lost projects.",
-      "title": "Couldn't load lost projects"
-    },
     "newProject": "New project",
-    "openRow": "Open",
-    "ownerUnavailable": "Owner not available",
-    "scope": {
-      "lost": "Lost",
-      "needsAttention": "Needs attention",
-      "open": "Open"
-    },
-    "scopeToggleLabel": "Project scope",
     "search": {
       "label": "Search projects",
       "placeholder": "Search projects…"
-    },
-    "summaryLabel": "Pipeline summary",
-    "boardEmpty": {
-      "classification": {
-        "sub": "Clear a classification filter to see more projects.",
-        "title": "No projects match these classifications"
-      }
-    },
-    "tableEmpty": {
-      "clearFilters": "Clear filters",
-      "lost": {
-        "sub": "Projects marked lost will appear here.",
-        "title": "No lost projects"
-      },
-      "needsAttention": {
-        "sub": "No project has been untouched for {{days}}+ days — pipeline is active.",
-        "title": "No projects need attention"
-      },
-      "search": {
-        "sub": "Try a different name or customer.",
-        "title": "No projects match your search"
-      }
     },
     "view": {
       "board": "Board",
       "table": "Table"
     },
     "viewToggleLabel": "Pipeline view",
-    "weightedForecast": "Weighted pipeline forecast",
-    "winProbability": "Win probability",
-    "board": {
-      "ariaLabel": "Sales pipeline board"
-    },
     "stage": {
       "leads": "Leads",
       "preQual": "Pre-Qual",
@@ -3236,8 +3186,7 @@
       "tender": "Tender",
       "negotiation": "Negotiation",
       "lost": "Lost"
-    },
-    "lostCounts": "Lost {{lost}} · Declined {{declined}}"
+    }
   },
   "shell": {
     "backBar": {
@@ -4668,13 +4617,6 @@
     "contextInvalid": "This project or its customer is no longer available. Start a new invoice and choose from the current options.",
     "retryContext": "Retry context",
     "currencyUnavailable": "Project currency unavailable."
-  },
-  "uxs24": {
-    "stageLabel": "Pipeline stage",
-    "allStages": "All stages",
-    "phoneList": "Projects in selected pipeline stage",
-    "stageEmptyTitle": "No projects in this stage",
-    "stageEmptyBody": "Choose another stage or clear filters to see more projects."
   },
   "uxs16": {
     "invoiceDraftReview": "Invoice draft review",

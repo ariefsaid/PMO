@@ -209,7 +209,7 @@ const SalesPipeline: React.FC = () => {
     },
   ];
   const currencyColumn: Column<PipelineProject> = {
-    key: 'currency', header: 'Currency', kind: 'text', cell: (project) => project.currency,
+    key: 'currency', header: salesT('pipeline.currency', 'Currency'), kind: 'text', cell: (project) => project.currency,
     exportValue: (project) => project.currency,
   };
   const endCustomerColumn: Column<PipelineProject> = {
@@ -310,6 +310,7 @@ const SalesPipeline: React.FC = () => {
           <div className="absolute right-0 z-10 mt-1 rounded-md border border-border bg-card p-2"><ExportButton rows={visible} columns={exportColumns} entity="Pipeline" className="min-h-11" /></div>
         </details>
       )}
+      {!isDesktop && createAction}
     </section>
   );
 
@@ -332,14 +333,14 @@ const SalesPipeline: React.FC = () => {
       <SalesPageHeaderAdapter
         title={t('shell.nav.sales', 'Sales Pipeline')}
         scopeLine={`${scopeLine} · ${salesT('pipeline.firstUse', 'Find the next project needing follow-up, then open it to act.')}${!canCreate ? ` ${salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}` : ''}`}
-        primaryAction={createAction}
+        primaryAction={isDesktop ? createAction : null}
       />
       {toolbar}
       {isDesktop && shouldShowSummary && summary}
       {lostScopeBlocked && (
         <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning bg-card p-3">
           <p>{salesT('pipeline.lostError', "Couldn't load lost project evidence. Open projects remain available below.")}</p>
-          <Button variant="outline" className="min-h-11" onClick={() => refetchLost()}>{t('common.retry', 'Retry')}</Button>
+          <Button variant="outline" className="min-h-11" onClick={() => refetchLost()}>{t('ui.listState.retry', 'Retry')}</Button>
         </div>
       )}
       {lostScopePending && <ListState variant="loading" rows={4} />}
@@ -347,7 +348,7 @@ const SalesPipeline: React.FC = () => {
       {partialLostFailure && (
         <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warning bg-card p-3">
           <p>{salesT('pipeline.partialLostError', 'Lost-project evidence is unavailable; open projects needing attention are shown.')}</p>
-          <Button variant="outline" className="min-h-11" onClick={() => refetchLost()}>{t('common.retry', 'Retry')}</Button>
+          <Button variant="outline" className="min-h-11" onClick={() => refetchLost()}>{t('ui.listState.retry', 'Retry')}</Button>
         </div>
       )}
       {state === 'loading' && <ListState variant="loading" rows={5} />}
