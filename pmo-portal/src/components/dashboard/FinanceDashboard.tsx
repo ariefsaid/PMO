@@ -630,7 +630,7 @@ export const FinanceDashboard: React.FC = () => {
         {!budgetError && !budgetPending && topByVariance.some((project) => !canCompareActual(project)) && (
           <p data-testid="budget-comparison-unavailable-note" className="px-4 pb-3 text-sm text-muted-foreground">
             {t('dashboard:finance.comparisonUnavailable', 'Actual comparisons need complete source coverage in the project budget currency.')}{' '}
-            <a className="font-medium text-primary-text underline underline-offset-2" href="#finance-accounting-evidence">{t('dashboard:finance.reviewAccountingEvidence', 'Review accounting evidence')}</a>
+            <a className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2" href="#finance-accounting-evidence">{t('dashboard:finance.reviewAccountingEvidence', 'Review accounting evidence')}</a>
           </p>
         )}
       </Card>
