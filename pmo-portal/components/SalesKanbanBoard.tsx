@@ -128,7 +128,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
     <div role="region" aria-label={t('pipeline.board', 'Sales pipeline board')} className="max-w-full min-w-0 overflow-x-auto pb-2">
       <div className="grid min-w-[64rem] grid-cols-5 items-start gap-3">
         {groups.map((group) => (
-          <section key={group.key} data-testid={group.key} aria-label={`${group.name}, ${group.projects.length}`} className="min-w-0 rounded-lg border border-border bg-muted/30 p-3">
+          <section key={group.key} data-testid={group.key} aria-label={`${group.name}, ${group.projects.length}`} className="min-w-0 border-l border-border px-3 py-2 first:border-l-0">
             <h2 className="mb-3 flex min-h-11 items-center justify-between gap-2 border-b border-border pb-2 text-sm font-semibold">
               <span>{group.name}</span>
               <span className="tabular text-muted-foreground">{group.projects.length}</span>
