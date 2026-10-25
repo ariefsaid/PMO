@@ -85,18 +85,16 @@ const emptyProps = {
 };
 
 describe('AccountingSnapshotsSection — empty state (unflipped default)', () => {
-  it('merges missing snapshots into one source summary when no rows exist', () => {
+  it('renders an empty state for each of the three snapshots when no rows exist', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
-    expect(screen.getByText('Financial position and accounting evidence')).toBeInTheDocument();
-    expect(screen.getByText('Actuals (ERP ledger)')).toBeInTheDocument();
-    expect(screen.getByText('Vendor payables (AP)')).toBeInTheDocument();
-    expect(screen.getByText('Customer collections (AR)')).toBeInTheDocument();
+    expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
   });
 
-  it('distinguishes an unavailable snapshot from a real zero-balance snapshot and gives Finance a usable next step', () => {
+  it('distinguishes an unavailable snapshot from a real zero-balance snapshot without repeating the page remedy', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
-    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(1);
-    expect(screen.getByText('These accounting sources have no snapshot yet.')).toBeInTheDocument();
+    expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
+    expect(screen.queryByText(/Ask your administrator to sync accounting data/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /sync/i })).not.toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
@@ -157,6 +155,39 @@ describe('AccountingSnapshotsSection — populated state', () => {
     const apCard = screen.getByText('No outstanding balance').closest('.rounded-lg.border') as HTMLElement;
     expect(within(apCard).queryByText(/No aging data to show yet/i)).not.toBeInTheDocument();
     expect(within(apCard).getAllByText('$0')).toHaveLength(6);
+  });
+
+  it('AC-806-FIN-AGING-001 sorts customer aging by oldest bucket within currency with stable party ties', () => {
+    const rows: ErpAgingSnapshotRow[] = [
+      { ...arRows[0]!, party: 'Customer:Later', bucket0to30: 800, bucket61to90: 0, bucketOver90: 0 },
+      { ...arRows[0]!, party: 'Customer:Severe', bucket0to30: 0, bucket61to90: 30, bucketOver90: 100 },
+      { ...arRows[0]!, party: 'Customer:Older', bucket0to30: 0, bucket61to90: 40, bucketOver90: 0 },
+      { ...arRows[0]!, party: 'Customer:Older tie', bucket0to30: 0, bucket61to90: 40, bucketOver90: 0 },
+    ];
+    render(<AccountingSnapshotsSection {...emptyProps} arAging={rows} />);
+    const card = screen.getByText('Customer collections (AR)').closest('.rounded-lg.border') as HTMLElement;
+    const parties = Array.from(within(card).getByRole('table').querySelectorAll('tbody tr'))
+      .map((row) => row.textContent ?? '');
+    expect(parties[0]).toContain('Customer:Severe');
+    expect(parties[1]).toContain('Customer:Older');
+    expect(parties[2]).toContain('Customer:Older tie');
+    expect(parties[3]).toContain('Customer:Later');
+  });
+
+  it('AC-806-FIN-ACTUALS-001 orders ledger rows by latest fiscal year, then project and account', () => {
+    const rows: ErpActualsSnapshotRow[] = [
+      { ...actualsRows[0]!, projectId: 'p2', account: 'Z account', fiscalYear: '2025' },
+      { ...actualsRows[0]!, projectId: 'p2', account: 'B account', fiscalYear: '2026' },
+      { ...actualsRows[0]!, projectId: 'p1', account: 'A account', fiscalYear: '2026' },
+    ];
+    render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={rows} actualProjectNames={new Map([['p1', 'Alpha'], ['p2', 'Beta']])} /></MemoryRouter>);
+    const actualsCard = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const ordered = Array.from(within(actualsCard).getByRole('table').querySelectorAll('tbody tr'))
+      .map((row) => row.textContent ?? '');
+    expect(ordered[0]).toContain('Alpha');
+    expect(ordered[1]).toContain('Beta');
+    expect(ordered[1]).toContain('B account');
+    expect(ordered[2]).toContain('2025');
   });
 
   it('keeps missing AR amounts and currency unavailable while showing the source aging window', () => {
