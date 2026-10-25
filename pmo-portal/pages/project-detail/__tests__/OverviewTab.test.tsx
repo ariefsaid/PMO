@@ -178,11 +178,17 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpend = 150_000, role: Role = 'Project Manager') =>
+const renderTab = (
+  p: ProjectWithRefs = project,
+  setTab = vi.fn(),
+  committedSpend = 150_000,
+  role: Role = 'Project Manager',
+  composition: { phaseSummary?: React.ReactNode; phasePlanner?: React.ReactNode } = {},
+) =>
   render(
     <ImpersonationProvider realRole={role}>
       <MemoryRouter>
-        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={setTab} />
+        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={setTab} {...composition} />
       </MemoryRouter>
     </ImpersonationProvider>,
   );
@@ -406,8 +412,8 @@ describe('OverviewTab T16: Budget snapshot card', () => {
   it('item F: by-category figures render as currency, never the raw "Nh" hours suffix', () => {
     renderTab();
     // Labour 100k + Materials 50k from activeVersion, currency-formatted.
-    expect(screen.getByText('$100,000')).toBeInTheDocument();
-    expect(screen.getByText('$50,000')).toBeInTheDocument();
+    expect(screen.getByText('$100,000.00')).toBeInTheDocument();
+    expect(screen.getByText('$50,000.00')).toBeInTheDocument();
     // the buggy unformatted "100000h" / "50000h" must NOT appear
     expect(screen.queryByText(/\b\d+h\b/)).not.toBeInTheDocument();
   });
@@ -543,5 +549,23 @@ describe('Project detail Overview money position (AC-PD-OV-01)', () => {
     const groups = Array.from(groupContainer.children).filter((child) => child.getAttribute('role') === 'group');
 
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Contract', 'Cost', 'Billing']);
+  });
+
+  it('AC-PD-OV-01: places the money answer before phase attention and its planner in document order', () => {
+    renderTab(project, vi.fn(), 150_000, 'Project Manager', {
+      phaseSummary: <div data-testid="phase-attention">Current phase</div>,
+      phasePlanner: <div data-testid="phase-planner">Plan delivery phases</div>,
+    });
+
+    const position = screen.getByRole('region', { name: 'Money position' });
+    const attention = screen.getByTestId('phase-attention');
+    const planner = screen.getByTestId('phase-planner');
+    expect(position.compareDocumentPosition(attention) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(attention.compareDocumentPosition(planner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('RD-020: preserves cents in the contract figure instead of rounding it to a whole amount', () => {
+    renderTab({ ...project, contract_value: 1_000_000.5 } as ProjectWithRefs);
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('$1,000,000.50');
   });
 });

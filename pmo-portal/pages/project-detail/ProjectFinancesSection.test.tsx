@@ -9,6 +9,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { formatExactMoney, type ProjectFinances, type ProjectReceiptCash } from '@/src/lib/projectFinances';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
 
 const h = vi.hoisted(() => ({
   query: {
@@ -142,7 +143,9 @@ describe('ProjectFinancesSection reading states', () => {
     const cash = screen.getByText('Cash received', { exact: true }).parentElement!;
     const cashValue = cash.querySelector('dd')!;
     expect(cashValue).toHaveTextContent('—');
-    expect(cashValue).toHaveAttribute('title', 'Unavailable — receipt-backed cash data is not available yet');
+    expect(cashValue.querySelector('[title="Unavailable — receipt-backed cash data is not available yet"]'))
+      .toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
+    expect(cashValue.querySelector('.sr-only')).toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
     expect(screen.getByText('Settled')).toHaveAttribute('title', 'Settled against invoices (cash, withholding and credits), not cash received.');
     expect(screen.getByText('Billed-work revenue')).toHaveAttribute('title', 'Net of tax; advances excluded');
     expect(screen.queryByText(/Billed-work revenue \(net of tax/)).not.toBeInTheDocument();
@@ -277,7 +280,10 @@ describe('ProjectFinancesSection reading states', () => {
     });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
     expect(within(screen.getByTestId('project-finances-USD')).getByText('$80.00')).toBeInTheDocument();
-    expect(within(screen.getByTestId('project-finances-IDR')).getByText('Unavailable — different currencies')).toBeInTheDocument();
+    const idr = screen.getByTestId('project-finances-IDR');
+    const unavailableMargin = idr.querySelector('[title="Unavailable — different currencies"]')!;
+    expect(unavailableMargin.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
+    expect(unavailableMargin.querySelector('.sr-only')).toHaveTextContent('Unavailable — different currencies');
     expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
     expect(screen.queryByText('Budget')).not.toBeInTheDocument();
     expect(screen.getByText('Recorded spending')).toBeInTheDocument();
@@ -524,7 +530,7 @@ describe('ProjectFinancesSection reading states', () => {
           expect(cashField).toHaveTextContent(formatExactMoney('0.00', 'USD', language)!);
         } else if (reading.kind === 'multi') {
           expect(cashField).toHaveTextContent(formatExactMoney('30.00', 'USD', language)!);
-          expect(cashField).toHaveTextContent(formatExactMoney('7.00', 'IDR', language)!.replace(/\u00a0/g, ' '));
+          expect(cashField).toHaveTextContent(formatProjectDetailMoney('7.00', 'IDR', language)!.replace(/\u00a0/g, ' '));
         } else if (reading.kind === 'incomplete') {
           expect(cashField).toHaveTextContent(language === 'en'
             ? 'Incomplete — receipt allocation cannot establish cash'

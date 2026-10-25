@@ -10,6 +10,7 @@ import { chartTheme } from '@/src/components/ui/chartTheme';
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { useTasks } from '@/src/hooks/useTasks';
 import { buildSCurve, evenAxisTicks, formatSCurveAxisDate } from '@/src/lib/delivery/sCurve';
+import { projectSectionHeading } from './typography';
 
 export interface ProjectSCurveProps {
   projectId: string;
@@ -83,7 +84,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
 
   return (
     <div>
-      <h2 className="mb-3 text-[14px] font-bold tracking-[-0.01em]">
+      <h2 className={`mb-3 ${projectSectionHeading}`}>
         {t('projectDetail.scurve.heading', 'Progress curve')}
       </h2>
 

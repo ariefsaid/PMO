@@ -1,8 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState, ProgressBar, StatusPill } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
 import { useProjectDrawdown } from '@/src/hooks/useWorkOrders';
+import { UnknownFigure } from './UnknownFigure';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
+import { projectSectionHeading, projectSubsectionHeading } from './typography';
 
 /**
  * The drawdown card (#566 / OD-CR-13) — the number the PM manages by, day one.
@@ -34,6 +36,8 @@ export interface ProjectDrawdownProps {
   alwaysShow?: boolean;
   /** Page-specific title for a combined contract and billing figure set. */
   title?: React.ReactNode;
+  /** Heading level when the drawdown is nested inside another named section. */
+  headingLevel?: 2 | 3 | 4 | 5 | 6;
 }
 
 /**
@@ -50,19 +54,25 @@ const Figure: React.FC<{
   value: number;
   currency: string;
   tone?: string;
-}> = ({ testId, label, value, currency, tone }) => (
-  <div data-testid={testId}>
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-      {label}
-    </dt>
-    <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>
-      {formatCurrency(value, currency)}
-    </dd>
-  </div>
-);
+}> = ({ testId, label, value, currency, tone }) => {
+  const { t, i18n } = useTranslation();
+  const amount = formatProjectDetailMoney(value, currency, i18n.language);
+  return (
+    <div data-testid={testId}>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>
+        {amount ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
+      </dd>
+    </div>
+  );
+};
 
-const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className, afterFigures, alwaysShow = false, title }) => {
-  const { t } = useTranslation();
+const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
+  projectId, className, afterFigures, alwaysShow = false, title, headingLevel = 2,
+}) => {
+  const { t, i18n } = useTranslation();
   const { data, isPending, isError, refetch } = useProjectDrawdown(projectId);
 
   /**
@@ -84,7 +94,10 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className,
 
   return (
     <Card variant="bare" className={className} data-testid="project-drawdown">
-      <CardHead level={2} className="text-base">
+      <CardHead
+        level={headingLevel}
+        className={`border-0 px-0 py-0 ${headingLevel === 2 ? projectSectionHeading : projectSubsectionHeading}`}
+      >
         {title ?? t('projectDetail.drawdown.title', 'Contract drawdown')}
         {data && !isError && (
           <span className="ml-2 text-[12px] font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
@@ -189,7 +202,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className,
                       data-testid="drawdown-over-amount"
                       className="text-[13px] font-bold tabular text-warning-foreground"
                     >
-                      {formatCurrency(overBy, currency)}
+                      {formatProjectDetailMoney(overBy, currency, i18n.language) ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
                     </span>
                   </div>
                   <p className="text-[12px] text-muted-foreground">
@@ -211,7 +224,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className,
                       data-testid="drawdown-would-over-amount"
                       className="text-[13px] font-bold tabular text-warning-foreground"
                     >
-                      {formatCurrency(overBy, currency)}
+                      {formatProjectDetailMoney(overBy, currency, i18n.language) ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
                     </span>
                   </div>
                   <p className="text-[12px] text-muted-foreground">

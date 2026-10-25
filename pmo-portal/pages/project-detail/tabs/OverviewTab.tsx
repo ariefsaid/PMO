@@ -18,6 +18,8 @@ import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { UnknownFigure } from '../UnknownFigure';
+import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
+import { projectSectionHeading, projectSubsectionHeading } from '../typography';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -48,7 +50,7 @@ export interface OverviewTabProps {
  * now live in the persistent page rail, so Overview no longer duplicates them.
  */
 const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, phaseSummary, phasePlanner, showMoneyPosition = true }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const [lockReasonOpen, setLockReasonOpen] = useState(false);
@@ -79,6 +81,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
     spent: actualSpend, actualCurrency: actualPosition.currency,
     actualComplete: actualPosition.complete,
   }) ? budgetUtilPctValue : null;
+  const exactMoney = (value: number) => formatProjectDetailMoney(value, project.currency, i18n.language)
+    ?? t('projectFinances.unavailable', 'Unavailable');
 
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
@@ -96,23 +100,23 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const showProc = procPending || procError || projectProc.length > 0;
   const budgetPositionSupplement = (
     <div data-testid="overview-budget-position" className="min-w-0 space-y-2">
-      <h3 className="text-sm font-semibold">{t('projectDetail.moneyPosition.activeBudget', 'Active budget')}</h3>
-      {budgetPending ? <p role="status">{t('common.loading', 'Loading…')}</p> : budgetError ? (
+      <h4 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.activeBudget', 'Active budget')}</h4>
+      {budgetPending ? <ListState variant="loading" rows={1} className="min-h-12" /> : budgetError ? (
         <ListState variant="error" title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")} onRetry={() => budgetRefetch()} />
       ) : snapshot ? (
         <>
           <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2">
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">{t('projectDetail.moneyPosition.activeBudget', 'Active budget')}</dt>
-              <dd className="break-words font-semibold tabular-nums">{formatCurrency(snapshot.activeTotal, project.currency)}</dd>
+              <dd className="break-words font-semibold tabular-nums">{exactMoney(snapshot.activeTotal)}</dd>
             </div>
             <div className="min-w-0">
               <dt className="text-xs text-muted-foreground">{t('uxs01.budgetPosition', 'Budget position')}</dt>
               <dd data-testid="budget-variance" className="break-words font-semibold tabular-nums">
                 {snapshot.variance > 0
-                  ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: formatCurrency(snapshot.variance, project.currency) })
+                  ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: exactMoney(snapshot.variance) })
                   : snapshot.variance < 0
-                    ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: formatCurrency(Math.abs(snapshot.variance), project.currency) })
+                    ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: exactMoney(Math.abs(snapshot.variance)) })
                     : t('uxs01.onBudget', 'On budget')}
               </dd>
             </div>
@@ -133,7 +137,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                 code={null}
                 hours={cat.amount}
                 maxHours={snapshot.activeTotal}
-                formatValue={(value) => formatCurrency(value, project.currency)}
+                formatValue={(value) => exactMoney(value)}
               />)}
             </div>
           </details>}
@@ -142,7 +146,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
           </button>}
         </>
       ) : budgetVersions?.some((version) => version.status === 'Active') && activeBudget > 0 ? (
-        <p className="break-words font-semibold tabular-nums">{formatCurrency(activeBudget, project.currency)}</p>
+        <p className="break-words font-semibold tabular-nums">{exactMoney(activeBudget)}</p>
       ) : <p className="text-sm text-muted-foreground">{t('projectDetail.moneyPosition.noActiveBudget', 'No active budget')}</p>}
     </div>
   );
@@ -151,14 +155,17 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
     <div className="flex min-w-0 flex-col gap-8">
       {isDelivery && <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]">
         <section role="region" aria-label={t('projectDetail.moneyPosition.title', 'Money position')} className="min-w-0 space-y-4">
-          <h2 className="text-base font-semibold">{t('projectDetail.moneyPosition.title', 'Money position')}</h2>
+          <h2 className={projectSectionHeading}>{t('projectDetail.moneyPosition.title', 'Money position')}</h2>
           <div data-testid="money-position-groups" className="grid min-w-0 gap-4 lg:grid-cols-3">
             <div role="group" aria-label={t('projectDetail.moneyPosition.contract', 'Contract')} className="min-w-0 space-y-3">
-              <h3 className="text-sm font-semibold">{t('projectDetail.moneyPosition.contract', 'Contract')}</h3>
+              <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.contract', 'Contract')}</h3>
               <div className="min-w-0">
                 <dt className="text-xs text-muted-foreground">{t('projectDetail.overview.finance.contract', 'Contract')}</dt>
                 <dd data-testid="overview-contract-value" className="break-words font-semibold tabular-nums">
-                  {project.contract_value == null ? <UnknownFigure reason={t('uxs01.actualUnavailable', 'Unavailable')} /> : formatCurrency(project.contract_value, project.currency)}
+                  {project.contract_value == null
+                    ? <UnknownFigure reason={t('uxs01.actualUnavailable', 'Unavailable')} />
+                    : formatProjectDetailMoney(project.contract_value, project.currency, i18n.language)
+                      ?? <UnknownFigure reason={t('uxs01.actualUnavailable', 'Unavailable')} />}
                 </dd>
                 <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
                 <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails testId="overview-contract-tax-basis" />
@@ -179,7 +186,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                   {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
                 </p>}
               </div>}
-              <ProjectDrawdown projectId={project.id} />
+              <ProjectDrawdown projectId={project.id} headingLevel={4} />
             </div>
             {may('view', 'salesInvoice')
               ? <ProjectFinancesSection project={project} grouped costSupplement={budgetPositionSupplement} />
@@ -193,7 +200,9 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
       {showProc && <div data-testid="overview-procurement-summary" className="min-w-0">
         {/* T14/T15 — Procurement summary card */}
         {showProc && <Card variant="bare">
-          <CardHead>{t('projectDetail.overview.procSummary.title', 'Procurement summary')}</CardHead>
+          <CardHead className={`border-0 px-0 py-0 ${projectSectionHeading}`}>
+            {t('projectDetail.overview.procSummary.title', 'Procurement summary')}
+          </CardHead>
           {procPending ? <ListState variant="loading" rows={3} /> : procError ? (
             <ListState
               variant="error"

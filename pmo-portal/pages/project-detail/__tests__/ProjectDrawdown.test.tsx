@@ -70,11 +70,11 @@ describe('async states', () => {
 describe('the figures', () => {
   it('shows the ceiling, the issued drawdown, the draft pipeline and the headroom', () => {
     render(<ProjectDrawdown projectId="p1" />);
-    expect(screen.getByTestId('drawdown-ceiling')).toHaveTextContent('$900,000');
-    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('$500,000');
-    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('$100,000');
+    expect(screen.getByTestId('drawdown-ceiling')).toHaveTextContent('$900,000.00');
+    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('$500,000.00');
+    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('$100,000.00');
     // headroom = ceiling - committed, the number a PM decides the next work order against.
-    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('$400,000');
+    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('$400,000.00');
   });
 
   it('OD-TAX-1 (SUB-C): the tax basis is stated once on the card head, not repeated under each figure', () => {
@@ -95,7 +95,7 @@ describe('the figures', () => {
   it('SUB-C: a project with only draft work orders still shows the card', () => {
     state.data = drawdown({ committed: 0, draft: 100_000 });
     render(<ProjectDrawdown projectId="p1" />);
-    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('$100,000');
+    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('$100,000.00');
   });
 
   // ⚑ DERIVED, not decorative (spec review Critical). The assertion above passes even if the label
@@ -122,9 +122,9 @@ describe('over-commitment is visible, never silent', () => {
     state.data = drawdown({ committed: 1_000_000, draft: 0, ceiling: 900_000 });
     render(<ProjectDrawdown projectId="p1" />);
     expect(screen.getByTestId('drawdown-over-committed')).toBeInTheDocument();
-    expect(screen.getByTestId('drawdown-over-amount')).toHaveTextContent('$100,000');
+    expect(screen.getByTestId('drawdown-over-amount')).toHaveTextContent('$100,000.00');
     // The headroom is negative and says so rather than clamping to zero.
-    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('-$100,000');
+    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('−$100,000.00');
     expect(screen.queryByTestId('drawdown-would-over-commit')).not.toBeInTheDocument();
   });
 
@@ -133,7 +133,7 @@ describe('over-commitment is visible, never silent', () => {
     render(<ProjectDrawdown projectId="p1" />);
     expect(screen.getByTestId('drawdown-would-over-commit')).toBeInTheDocument();
     // committed + draft - ceiling = 150,000
-    expect(screen.getByTestId('drawdown-would-over-amount')).toHaveTextContent('$150,000');
+    expect(screen.getByTestId('drawdown-would-over-amount')).toHaveTextContent('$150,000.00');
     expect(screen.queryByTestId('drawdown-over-committed')).not.toBeInTheDocument();
   });
 
@@ -147,6 +147,6 @@ describe('over-commitment is visible, never silent', () => {
     state.data = drawdown({ committed: 800_000, draft: 100_000, ceiling: 900_000 });
     render(<ProjectDrawdown projectId="p1" />);
     expect(screen.queryByTestId('drawdown-would-over-commit')).not.toBeInTheDocument();
-    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('$100,000');
+    expect(screen.getByTestId('drawdown-headroom')).toHaveTextContent('$100,000.00');
   });
 });

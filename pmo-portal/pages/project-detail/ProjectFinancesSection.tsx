@@ -1,18 +1,21 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, TaxBasisLabel } from '@/src/components/ui';
+import { Button, ListState, TaxBasisLabel } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, formatSignedExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import { UnknownFigure } from './UnknownFigure';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
+import { projectSectionHeading, projectSubsectionHeading } from './typography';
 
 export interface ProjectFinancesSectionProps {
   project: ProjectWithRefs;
@@ -31,34 +34,45 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
   const query = useProjectFinances(project.id);
   const commitments = useProjectCommittedSpend(project.id, true);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
-  const money = (value: string | null, currency: string | null) => currency
-    ? formatExactMoney(value, currency, i18n.language) ?? unknown
-    : unknown;
-  const title = <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>;
+  const moneyText = (value: string | null, currency: string | null, reason = unknown) =>
+    (currency ? formatProjectDetailMoney(value, currency, i18n.language) : null) ?? reason;
+  const money = (value: string | null, currency: string | null, reason = unknown): React.ReactNode => {
+    const formatted = currency ? formatProjectDetailMoney(value, currency, i18n.language) : null;
+    return formatted ?? <UnknownFigure reason={reason} />;
+  };
+  const title = <h2 className={projectSectionHeading}>{t('projectFinances.title', 'Project finances')}</h2>;
+  const nestedHeadingTag = grouped ? 'h4' : 'h3';
+  const NestedHeading = nestedHeadingTag;
 
   if (query.isPending) return grouped ? (
     <>
       <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
         {costSupplement}
-        <p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
+        <ListState variant="loading" rows={2} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} className="min-h-24" />
       </div>
-      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0" />
+      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+      </div>
     </>
   ) : (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
-      {title}<p role="status">{t('projectFinances.loading', 'Loading project finances…')}</p>
+      {title}<ListState variant="loading" rows={3} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} className="min-h-24" />
     </section>
   );
   if (query.isError || !query.data) return grouped ? (
     <>
       <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
         {costSupplement}
         <div role="alert" className="flex flex-wrap items-center gap-2">
           {t('projectFinances.error', "Couldn't load project finances.")}
           <Button variant="outline" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
         </div>
       </div>
-      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0" />
+      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+      </div>
     </>
   ) : (
     <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
@@ -76,9 +90,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
-  const contractAfterCost = moneyPosition.contractAfterCost === null
-    ? null
-    : formatSignedExactMoney(moneyPosition.contractAfterCost, project.currency, i18n.language);
+  const contractAfterCost = formatProjectDetailMoney(moneyPosition.contractAfterCost, project.currency, i18n.language);
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
   const partialCategoryCoverage = hasCoverage && mappedCategories < actuals.categories.length;
@@ -135,9 +147,9 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
   const cashKnown = cashReading.state === 'known';
   const cashValue = cashReading.state === 'known'
     ? cashReading.buckets.length === 0
-      ? money('0.00', project.currency)
+      ? formatProjectDetailMoney('0.00', project.currency, i18n.language) ?? cashInvalid
       : (() => {
-        const amounts = cashReading.buckets.map(({ amount, currency }) => formatExactMoney(amount, currency, i18n.language));
+        const amounts = cashReading.buckets.map(({ amount, currency }) => formatProjectDetailMoney(amount, currency, i18n.language));
         return amounts.every((amount): amount is string => amount !== null) ? amounts.join(' · ') : cashInvalid;
       })()
     : cashReading.state === 'incomplete'
@@ -145,7 +157,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
       : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
   const settlementNote = t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.');
-  const field = (label: string, value: string, basis?: React.ReactNode, labelTitle?: string) => (
+  const field = (label: string, value: React.ReactNode, basis?: React.ReactNode, labelTitle?: string) => (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground" title={labelTitle}>{label}</dt>
       <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
@@ -156,8 +168,8 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
   const cashField = (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{t('uxs01.cashReceived', 'Cash received')}</dt>
-      <dd className="break-words text-sm font-semibold tabular-nums" title={cashKnown ? undefined : cashValue}>
-        {cashKnown ? cashValue : <><span aria-hidden="true">—</span><span className="sr-only">{cashValue}</span></>}
+      <dd className="break-words text-sm font-semibold tabular-nums">
+        {cashKnown && cashValue !== cashInvalid ? cashValue : <UnknownFigure reason={cashValue} />}
       </dd>
       <dd><span className="text-xs text-muted-foreground">{cashScope}</span></dd>
     </div>
@@ -166,7 +178,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
 
   const billingContent = (
     <>
-      {title}
+      {!grouped && title}
       {/* PD-C: with no invoices, one line replaces Cash received, Invoiced 0, Remaining = contract
           and the scope note. */}
       {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
@@ -191,17 +203,23 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
         return (
           <div key={bucket.currency} className="min-w-0 space-y-2" data-testid={`project-finances-${bucket.currency}`}>
             <div>
-              <h3 className="text-sm font-semibold">{bucket.currency}</h3>
+              <NestedHeading className={projectSubsectionHeading}>{bucket.currency}</NestedHeading>
               <p className="text-xs text-muted-foreground">{t('financeCopy.invoiceCount', '{{count}} invoices', { count: bucket.invoice_count })}</p>
             </div>
             <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.settled, bucket.currency),
+              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0
+                ? <UnknownFigure reason={incomplete} />
+                : money(bucket.settled, bucket.currency),
                 undefined, hasSettlement ? settlementNote : undefined)}
-              {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.outstanding, bucket.currency))}
-              {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency),
+              {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0
+                ? <UnknownFigure reason={incomplete} />
+                : money(bucket.outstanding, bucket.currency))}
+              {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency, reasons['work-unavailable']),
                 undefined, t('project:billedWorkQualifier', 'Net of tax; advances excluded'))}
-              {field(t('projectFinances.margin', 'Margin'), margin.reason ? reasons[margin.reason] : money(margin.amount, bucket.currency))}
+              {field(t('projectFinances.margin', 'Margin'), margin.reason
+                ? <UnknownFigure reason={reasons[margin.reason]} />
+                : money(margin.amount, bucket.currency))}
             </dl>
             <div className="text-xs text-muted-foreground">
               {bucket.tax_basis === 'mixed'
@@ -215,13 +233,13 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
   );
   const spendingContent = (
     <div className="min-w-0 space-y-2">
-        <h3 className="text-sm font-semibold">
+        <NestedHeading className={projectSubsectionHeading}>
           {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
-        </h3>
+        </NestedHeading>
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
         <p className="break-words font-semibold tabular-nums">
-          {money(actualPosition.amount, actualPosition.currency)}
+          {money(actualPosition.amount, actualPosition.currency, spendingExplanation ?? unknown)}
           {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
             {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
           </span>}
@@ -239,9 +257,9 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
           <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
               ? t('costAttribution:split.note', 'Includes {{attributed}} attributed by cost rules · {{tagged}} tagged in the ERP', {
-                attributed: money(split.attributed, actualPosition.currency), tagged: money(split.tagged, actualPosition.currency) })
+                attributed: moneyText(split.attributed, actualPosition.currency), tagged: moneyText(split.tagged, actualPosition.currency) })
               : t('costAttribution:split.noteAttributedOnly', 'Includes {{attributed}} attributed by cost rules', {
-                attributed: money(split.attributed, actualPosition.currency) })}
+                attributed: moneyText(split.attributed, actualPosition.currency) })}
           </p>
         )}
         {needsSpendingExplanation && (
@@ -268,7 +286,9 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
             )}
           </div>
         )}
-        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
+        {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && (
+          <p className="text-xs text-muted-foreground">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>
+        )}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
           <div className="overflow-x-auto">
@@ -292,7 +312,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
                       const part = attributedSplit({ attributed: row.attributed_amount });
                       return part && (
                         <span className="block text-xs font-normal text-muted-foreground">
-                          {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: money(part.attributed, actuals.currency) })}
+                          {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: moneyText(part.attributed, actuals.currency) })}
                         </span>
                       );
                     })()}
@@ -323,10 +343,12 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
     return (
       <>
         <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+          <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
           {costSupplement}
           {spendingContent}
         </div>
         <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
+          <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
           {billingContent}
           {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
             {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
@@ -338,7 +360,7 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
 
   return (
     <section
-      className="min-w-0 space-y-4 border-y border-border py-4"
+      className="min-w-0 space-y-4"
       data-testid="project-finances"
       aria-label={t('projectFinances.title', 'Project finances')}
     >

@@ -16,6 +16,7 @@ import { pct, formatDayMonth } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
+import { projectSectionHeading } from './typography';
 
 export interface MilestoneStripProps {
   projectId: string;
@@ -217,7 +218,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
       ) : (
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-[14px] font-bold tracking-[-0.01em]">
+            <h2 className={projectSectionHeading}>
               {t('projectDetail.milestones.heading', 'Delivery phases')}
             </h2>
             <div
