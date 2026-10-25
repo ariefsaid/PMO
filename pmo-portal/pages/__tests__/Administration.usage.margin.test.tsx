@@ -11,6 +11,7 @@ import React from 'react';
 import { AdministrationUsage } from '../AdministrationUsage';
 import type { UsageSummaryRow } from '@/src/lib/db/usage';
 import type { AgentCostRunStatsRow } from '@/src/components/admin/AgentCostMetrics';
+import { BahasaProvider } from '@/test/bahasa';
 
 const baseRow: UsageSummaryRow = {
   owner_id: 'u1',
@@ -48,6 +49,15 @@ const renderUsage = (ui: React.ReactElement, initialEntry = '/administration/usa
       <CurrentUrl />
       {ui}
     </MemoryRouter>,
+  );
+
+const renderUsageBahasa = (ui: React.ReactElement) =>
+  render(
+    <BahasaProvider>
+      <MemoryRouter initialEntries={['/administration/usage']}>
+        {ui}
+      </MemoryRouter>
+    </BahasaProvider>,
   );
 
 describe('AdministrationUsage — margin column (AC-USE-003)', () => {
@@ -143,5 +153,30 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     expect(screen.getByTestId('current-url')).toHaveTextContent('action=chat');
     expect(screen.getByTestId('current-url')).toHaveTextContent('sort=oldest');
     expect(screen.getByTestId('current-url')).toHaveTextContent('#scope');
+  });
+
+  it('#693: the Usage table and disclosed diagnostics are translated in Bahasa', () => {
+    renderUsageBahasa(
+      <AdministrationUsage
+        rows={[baseRow]}
+        runStatsRows={[baseRunStats]}
+        isPending={false}
+        isError={false}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText('Periode')).toBeInTheDocument();
+    expect(screen.getByLabelText('Tindakan')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Tindakan' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Bulan' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Token masuk / keluar' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Kredit ditagihkan' })).toBeInTheDocument();
+    expect(screen.getByText(/satuan penagihan USD platform/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Diagnostik'));
+    expect(screen.getByRole('heading', { name: 'Ringkasan biaya agen' })).toBeInTheDocument();
+    expect(screen.getByText('Proporsi penalaran')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Tingkat cache hit per bulan' })).toBeInTheDocument();
   });
 });

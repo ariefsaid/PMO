@@ -10,12 +10,13 @@
  *     NOT toggleable by anyone.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+import { BahasaProvider } from '@/test/bahasa';
 
 const { orgFeaturesState, isOperatorState, toggleMock, toastSpy, refetchMock } = vi.hoisted(() => ({
   // The own-org feature map returned by useOrgFeatures (the Features section's read source).
@@ -73,6 +74,21 @@ const renderSection = (props?: Partial<React.ComponentProps<typeof Administratio
     </QueryClientProvider>,
   );
 
+const renderSectionBahasa = () =>
+  render(
+    <BahasaProvider>
+      <QueryClientProvider client={makeQc()}>
+        <ImpersonationProvider realRole="Admin">
+          <MemoryRouter>
+            <ToastProvider>
+              <AdministrationFeatures isOperator={isOperatorState.value} orgId="org-1" />
+            </ToastProvider>
+          </MemoryRouter>
+        </ImpersonationProvider>
+      </QueryClientProvider>
+    </BahasaProvider>,
+  );
+
 beforeEach(() => {
   orgFeaturesState.value = { incidents: false, crm: true };
   orgFeaturesState.status = { isPending: false, isError: false, isFetching: false };
@@ -128,6 +144,24 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
     expect(screen.getByText('Always included').closest('details')).not.toHaveAttribute('open');
     expect(screen.getByText('Agent Assistant').closest('details')).toBe(screen.getByText('Preview').closest('details'));
     expect(screen.getByText('Projects').closest('details')).toBe(screen.getByText('Always included').closest('details'));
+  });
+
+  it('#693: capability states and disclosures are translated in Bahasa', () => {
+    isOperatorState.value = true;
+    renderSectionBahasa();
+
+    expect(screen.getByRole('region', { name: 'Kapabilitas yang dapat diubah' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Insiden' })).toBeInTheDocument();
+    expect(screen.getAllByText('Nonaktif', { exact: true }).length).toBeGreaterThan(0);
+    const preview = screen.getByText('Pratinjau').closest('details')!;
+    const alwaysIncluded = screen.getByText('Selalu tersedia').closest('details')!;
+    expect(preview).not.toHaveAttribute('open');
+    expect(alwaysIncluded).not.toHaveAttribute('open');
+
+    fireEvent.click(screen.getByText('Pratinjau'));
+    expect(within(preview).getByText('Pratinjau — nonaktif')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Selalu tersedia'));
+    expect(within(alwaysIncluded).getByText('Selalu aktif', { exact: true })).toBeInTheDocument();
   });
 
   it('does not present environment defaults as confirmed capability values while the read is pending', () => {
