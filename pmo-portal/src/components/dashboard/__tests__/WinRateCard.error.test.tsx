@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 /**
  * W2-4b — WinRateCard shows error+retry on fetch error, not empty state.
@@ -10,6 +11,7 @@ import React from 'react';
 const { winRateState } = vi.hoisted(() => ({
   winRateState: {
     data: undefined as Record<string, unknown> | undefined,
+    isPending: false,
     isError: false,
     refetch: vi.fn(),
   },
@@ -21,11 +23,12 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 
 import { WinRateCard } from '../WinRateCard';
 
-const renderCard = () => render(<WinRateCard currency="USD" />);
+const renderCard = () => render(<MemoryRouter><WinRateCard currency="USD" /></MemoryRouter>);
 
 describe('WinRateCard — error state (AC-W2-4-02)', () => {
   beforeEach(() => {
     winRateState.data = undefined;
+    winRateState.isPending = false;
     winRateState.isError = false;
     winRateState.refetch.mockClear();
   });
@@ -41,6 +44,8 @@ describe('WinRateCard — error state (AC-W2-4-02)', () => {
     // (Q-1: drop the dead || fallback that short-circuits on the first truthy value
     // and never exercises the alternatives).
     expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-figure')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-track-count')).toHaveAttribute('aria-valuetext', 'Rate unavailable');
   });
 
   it('AC-W2-4-02: Retry button calls refetch on error', () => {
@@ -62,5 +67,17 @@ describe('WinRateCard — error state (AC-W2-4-02)', () => {
     renderCard();
 
     expect(screen.getByText(/No closed projects in this window/i)).toBeInTheDocument();
+  });
+
+  it('#1380 keeps the same plot frame and controls while the win rate loads', () => {
+    winRateState.isPending = true;
+
+    renderCard();
+
+    expect(screen.getByTestId('win-rate-figure')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('win-rate-period-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-basis-controls')).toBeInTheDocument();
+    expect(screen.getByTestId('win-rate-axis')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-win-rate')).not.toBeInTheDocument();
   });
 });
