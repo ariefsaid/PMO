@@ -233,6 +233,7 @@ export const PMDashboard: React.FC = () => {
                       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                         <Link
                           to={`/projects/${project.id}`}
+                          title={name !== project.name ? project.name : undefined}
                           className="inline-flex min-h-11 min-w-0 flex-1 items-center break-words text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           {name}

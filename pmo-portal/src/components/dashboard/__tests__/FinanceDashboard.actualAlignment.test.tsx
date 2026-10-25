@@ -210,16 +210,16 @@ describe('Finance dashboard Bahasa copy', () => {
   it('keeps the English labels and renders the corresponding Indonesian dashboard copy', async () => {
     const english = await renderPane([], 'en');
     expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Portfolio revenue, spend, margin, and budget utilization.')).toBeInTheDocument();
-    expect(screen.getByText('Budget review — top 5 by variance (portfolio-wide)')).toBeInTheDocument();
+    expect(screen.getByText('Invoiceable work, vendor payments and customer collections.')).toBeInTheDocument();
+    expect(screen.getByText('Five projects by budget variance')).toBeInTheDocument();
     expect(within(budgetReviewTable()).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(screen.getByText('Ready to pay', { exact: true })).toBeInTheDocument();
     english.unmount();
 
     await renderPane([], 'id');
     expect(screen.getByRole('heading', { name: 'Dasbor Keuangan' })).toBeInTheDocument();
-    expect(screen.getByText('Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.')).toBeInTheDocument();
-    expect(screen.getByText('Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)')).toBeInTheDocument();
+    expect(screen.getByText('Pekerjaan yang dapat ditagihkan, pembayaran vendor, dan penagihan pelanggan.')).toBeInTheDocument();
+    expect(screen.getByText('Lima proyek menurut varians anggaran')).toBeInTheDocument();
     expect(within(budgetReviewTable()).getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
     expect(screen.getByText('Siap dibayar', { exact: true })).toBeInTheDocument();
   });

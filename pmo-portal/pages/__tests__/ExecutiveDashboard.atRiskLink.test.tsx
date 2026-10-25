@@ -1,15 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from '../ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
-/**
- * AC-IFW-DASH-02 — Exec "N at-risk" subtext becomes a discrete link to /projects?filter=at-risk
- * (Lens-D dead-display sweep). The whole KPITile for Active Projects is already a link to
- * /projects?filter=Ongoing — the at-risk indicator must be a SEPARATE element (no nested interactives).
- */
+/** AC-IFW-DASH-02 — the Executive risk action opens the canonical at-risk project filter. */
 
 const populated = {
   active_projects: 5,
@@ -71,7 +67,6 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
-// Force desktop rendering so the KPI band is in view
 vi.mock('@/src/components/ui/useIsDesktop', () => ({
   useIsDesktop: () => true,
 }));
@@ -87,29 +82,27 @@ const renderPage = () =>
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('ExecutiveDashboard — AC-IFW-DASH-02: at-risk indicator links to /projects?filter=at-risk', () => {
-  it('AC-IFW-DASH-02: a discrete "2 at-risk" link navigates to /projects?filter=at-risk (Lens-D regression invariant)', () => {
+describe('ExecutiveDashboard — AC-IFW-DASH-02: risk action links to /projects?filter=at-risk', () => {
+  it('AC-IFW-DASH-02: the at-risk action navigates to the canonical project filter', () => {
     renderPage();
-    // The at-risk link is a SEPARATE element from the Active projects tile (no nested interactives).
-    const atRiskLink = screen.getByRole('link', { name: /at.risk/i });
-    expect(atRiskLink).toBeInTheDocument();
+    const atRiskLink = screen.getByRole('link', { name: 'Review at-risk projects' });
     expect(atRiskLink).toHaveAttribute('href', '/projects?filter=at-risk');
   });
 
-  it('AC-IFW-DASH-02: the at-risk link text includes the numeric count', () => {
+  it('AC-IFW-DASH-02: risk evidence gives a count before the action', () => {
     renderPage();
-    const atRiskLink = screen.getByRole('link', { name: /at.risk/i });
-    expect(atRiskLink).toHaveTextContent('2');
+    expect(screen.getByText('2 projects at risk')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review at-risk projects' })).toBeInTheDocument();
   });
 
-  it('AC-IFW-DASH-02: the at-risk link is NOT nested inside the active-projects (contract value) tile link (no nested interactives)', () => {
+  it('AC-IFW-DASH-02: risk action and project record links remain separate actions', () => {
     renderPage();
-    const activeProjectsTile = screen.getByTestId('kpi-total-contract-value');
-    const atRiskLink = screen.getByRole('link', { name: /at.risk/i });
-    // The at-risk link must NOT be a descendant of the Active-projects tile link element
-    const tileLink = activeProjectsTile.querySelector('a');
-    if (tileLink) {
-      expect(tileLink.contains(atRiskLink)).toBe(false);
-    }
+    const attention = screen.getByTestId('dashboard-attention');
+    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const riskAction = within(attention).getByRole('link', { name: 'Review at-risk projects' });
+    const projectAction = within(table).getByRole('link', { name: 'Open Meridian HQ' });
+    expect(riskAction.closest('a')).toBe(riskAction);
+    expect(projectAction).toHaveAttribute('href', '/projects/p1');
+    expect(table.contains(riskAction)).toBe(false);
   });
 });

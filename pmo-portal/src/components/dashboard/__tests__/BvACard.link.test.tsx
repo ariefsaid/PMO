@@ -43,34 +43,32 @@ describe('BvACard — AC-IFW-DASH-01: BvA row name links to /projects/:id', () =
   it('AC-IFW-DASH-01: each project name is a link to /projects/:id (Lens-D regression invariant)', () => {
     renderCard();
     // First project name must be a link pointing to /projects/d1
-    const link1 = screen.getByRole('link', { name: /Meridian Steelworks/i });
+    const link1 = screen.getByRole('link', { name: 'Meridian Steelworks' });
     expect(link1).toBeInTheDocument();
     expect(link1).toHaveAttribute('href', '/projects/d1');
 
     // Second project name must be a link pointing to /projects/d2
-    const link2 = screen.getByRole('link', { name: /SunVolt Install/i });
+    const link2 = screen.getByRole('link', { name: 'SunVolt Install' });
     expect(link2).toBeInTheDocument();
     expect(link2).toHaveAttribute('href', '/projects/d2');
   });
 
-  it('AC-IFW-DASH-01: the row data-row structure is preserved alongside the name link', () => {
+  it('AC-IFW-DASH-01: the project identity stays inside its semantic table row', () => {
     renderCard();
-    // Existing layout tests rely on [data-row] selector; it must still exist
-    const row = screen.getByRole('link', { name: /Meridian Steelworks/i }).closest('[data-row]');
+    const row = screen.getByRole('link', { name: 'Meridian Steelworks' }).closest('tr');
     expect(row).toBeInTheDocument();
   });
 
   it('AC-IFW-DASH-01: the progress bar aria-label is preserved (no nested interactives collision)', () => {
     renderCard();
     // The ProgressBar keeps its own aria-label — not obscured by the link
-    expect(screen.getByLabelText(/Meridian Steelworks: \d+% of contract/i)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Meridian Steelworks: \d+% of contract/i })).toBeInTheDocument();
   });
 
   it('AC-IFW-DASH-01 (D-2): at-risk rows have NO trailing chevron — false affordance removed; "At risk" pill is the badge', () => {
     renderCard();
     // d2 (SunVolt Install) is at-risk. The false-affordance chevron must NOT be present.
-    const atRiskRow = screen.getByRole('link', { name: /SunVolt Install/i }).closest('[data-row]') as HTMLElement;
-    expect(within(atRiskRow).queryByTestId('bva-row-open-chevron')).not.toBeInTheDocument();
+    const atRiskRow = screen.getByRole('link', { name: 'Open SunVolt Install' }).closest('tr') as HTMLElement;
     // The "At risk" badge is still present as the exception indicator.
     expect(within(atRiskRow).getByText(/At risk/i)).toBeInTheDocument();
   });

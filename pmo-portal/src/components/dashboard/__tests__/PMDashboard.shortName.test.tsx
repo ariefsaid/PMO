@@ -47,7 +47,7 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 describe('PMDashboard short names (AC-002 #1325)', () => {
-  it('shows one short-name project doorway, titling the contractual name', () => {
+  it('shows the short project name once in the merged delivery worklist and preserves its full identity as the title', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
     const links = screen.getAllByRole('link', { name: 'Steelworks' });
     expect(links).toHaveLength(1);

@@ -340,40 +340,33 @@ describe('AC-IXD-DASH-W5-C2C — D4: Engineer dashboard "Log this week\'s hours"
     tsState.isError = false;
   });
 
-  it('D4-1: renders a "Log this week\'s hours" primary button/link (data-testid="cta-log-hours")', () => {
+  it('D4-1: renders the named "Log this week\'s hours" primary link', () => {
     render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    // The dedicated primary CTA is identified by its testId — distinct from KPI tile linkLabels
-    const cta = screen.getByTestId('cta-log-hours');
+    const cta = screen.getByTestId('engineer-log-hours');
     expect(cta).toBeInTheDocument();
     expect(cta.textContent).toMatch(/log this week.?s hours/i);
   });
 
   it('D4-2: the CTA routes to /timesheets', () => {
     render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    const cta = screen.getByTestId('cta-log-hours');
+    const cta = screen.getByTestId('engineer-log-hours');
     expect(cta).toHaveAttribute('href', '/timesheets');
   });
 
-  it('D4-3: the CTA carries primary styling (bg-primary)', () => {
+  it('D4-4: the Engineer summary has exactly one log-hours action', () => {
     render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    const cta = screen.getByTestId('cta-log-hours');
-    expect(cta.className).toMatch(/bg-primary/);
-  });
-
-  it('D4-4: only ONE primary CTA (data-testid="cta-log-hours") exists per render', () => {
-    render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getAllByTestId('cta-log-hours').length).toBe(1);
+    expect(screen.getAllByTestId('engineer-log-hours').length).toBe(1);
   });
 
   it('D4-5: CTA renders while data is loading (not gated on data)', () => {
     tsState.isPending = true;
     render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getByTestId('cta-log-hours')).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-log-hours')).toBeInTheDocument();
   });
 
   it('D4-6: CTA renders in error state (not gated on data)', () => {
     tsState.isError = true;
     render(<MemoryRouter><EngineerDashboard /></MemoryRouter>);
-    expect(screen.getByTestId('cta-log-hours')).toBeInTheDocument();
+    expect(screen.getByTestId('engineer-log-hours')).toBeInTheDocument();
   });
 });

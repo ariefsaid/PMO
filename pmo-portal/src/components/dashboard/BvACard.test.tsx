@@ -6,49 +6,47 @@ import type { TopProject } from '@/src/lib/db/dashboard';
 
 const projects: TopProject[] = [
   { id: 'p1', name: 'Innovate HQ', client_name: 'Innovate', currency: 'USD', contract_value: 5_000_000, budget: 4_700_000, spent: 2_100_000, status: 'Ongoing Project', actual_complete: true, actual_currency: 'USD' },
-  // 98% utilization → at-risk (spent/budget > 0.9)
   { id: 'p2', name: 'Acme Platform', client_name: 'Acme', currency: 'USD', contract_value: 3_000_000, budget: 2_000_000, spent: 1_960_000, status: 'Ongoing Project', actual_complete: true, actual_currency: 'USD' },
 ];
 
-const renderCard = (p = projects) =>
-  render(
-    <MemoryRouter>
-      <BvACard projects={p} currency="USD" />
-    </MemoryRouter>,
-  );
+const renderCard = (rows = projects) => render(
+  <MemoryRouter><BvACard projects={rows} currency="USD" /></MemoryRouter>,
+);
 
-describe('BvACard (Exec — real top_projects)', () => {
-  it('AC-UX-013: labels spending versus contract and uses contract as the denominator', () => {
+describe('Executive spending comparison', () => {
+  it('AC-UX-013 keeps project identity, known Actual, contract, and an explicit open action', () => {
     renderCard();
-    expect(screen.getByText('Innovate HQ')).toBeInTheDocument();
-    expect(
-      screen.getByText('$2,100,000 / $5,000,000'),
-    ).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    expect(within(table).getByRole('link', { name: 'Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
+    expect(within(table).getByRole('link', { name: 'Open Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
+    expect(within(table).getByText('USD $2,100,000')).toBeInTheDocument();
+    expect(within(table).getByText('USD $5,000,000')).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Known Actual' })).toBeInTheDocument();
   });
 
-  it('exposes a per-row accessible contract comparison percentage', () => {
+  it('labels a comparable Actual bar with project and percentage', () => {
     renderCard();
-    // Innovate spent 2.1M of 5M contract = 42%
-    expect(screen.getByLabelText(/Innovate HQ: 42% of contract/i)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Innovate HQ: 42% of contract' })).toBeInTheDocument();
   });
 
-  it('AC-RF-002: unknown Actual is not rendered as zero and has no fabricated bar', () => {
-    renderCard([{ ...projects[0], spent: null }]);
-    expect(screen.getByText(/Not available yet \/ \$5,000,000/)).toBeInTheDocument();
-    expect(screen.queryByRole('progressbar')).toBeNull();
+  it('AC-RF-002 keeps an unknown Actual as a linked dash and draws no comparison bar', () => {
+    renderCard([{ ...projects[0]!, spent: null, actual_complete: false }]);
+    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    expect(within(table).getByRole('link', { name: 'Actual unavailable; see data note' })).toBeInTheDocument();
+    expect(within(table).getByText('USD $5,000,000')).toBeInTheDocument();
+    expect(within(table).queryByRole('progressbar')).toBeNull();
   });
 
-  it('flags the over-90%-utilized project with an At risk pill', () => {
+  it('marks a known at-risk project in its status row', () => {
     renderCard();
-    const row = screen.getByText('Acme Platform').closest('[data-row]') as HTMLElement;
-    expect(within(row).getByText(/At risk/i)).toBeInTheDocument();
-    // the on-track project has no At-risk pill
-    const ok = screen.getByText('Innovate HQ').closest('[data-row]') as HTMLElement;
-    expect(within(ok).queryByText(/At risk/i)).toBeNull();
+    const row = screen.getByRole('link', { name: 'Open Acme Platform' }).closest('tr') as HTMLElement;
+    expect(within(row).getByText('At risk')).toBeInTheDocument();
+    const onTrack = screen.getByRole('link', { name: 'Open Innovate HQ' }).closest('tr') as HTMLElement;
+    expect(within(onTrack).queryByText('At risk')).toBeNull();
   });
 
-  it('labels the whole section for assistive tech', () => {
+  it('names the table for assistive technology', () => {
     renderCard();
-    expect(screen.getByRole('group', { name: /Spending vs contract/i })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Spending comparison' })).toBeInTheDocument();
   });
 });

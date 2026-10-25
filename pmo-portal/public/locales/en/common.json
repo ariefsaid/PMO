@@ -1255,7 +1255,7 @@
       "progress": "Win rate {{percent}}%", "won": "Won", "lost": "Lost", "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": { "atRisk": "At risk" },
-    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted" },
+    "projectedMargin": { "group": "Pipeline projected margin", "summary": "probability-adjusted across {{count}} open {{stageNoun}}", "stage": "stage", "stages": "stages", "barLabel": "{{stage}}: {{value}} weighted", "emptyStages": "No open pipeline stages" },
     "procurementStatus": { "summary": "{{label}}, {{total}} {{noun}}, most in {{status}}." },
     "pm": {
       "title": "My Dashboard", "subtitle": "Your projects, budget health, and approvals queue.", "kpiBand": "My KPIs",
@@ -1353,30 +1353,13 @@
       "totalContractValue": {
         "help": "Total contract value across the active portfolio.",
         "label": "Total contract value",
-        "linkLabel": "Open active projects to see total contract value",
-        "mobileVs": "Signed value of the {{count}} projects still in delivery"
+        "linkLabel": "Open active projects to see total contract value"
       },
       "totalSpend": {
         "help": "On-hand portfolio Actual recorded to date.",
         "label": "Recorded spending",
         "linkLabel": "Open active projects to see spend breakdown"
       }
-    },
-    "mobile": {
-      "needsAttention": "Needs attention",
-      "riskSummary": "of {{count}} active projects flagged over budget or behind schedule",
-      "noRiskSummary": "of {{count}} active projects · all on track",
-      "spendLink": "Open spend breakdown · {{amount}} spent to date",
-      "breakdown": "Breakdown",
-      "approvals": "Approvals",
-      "awaitingApproval": "Awaiting your approval",
-      "approvalsLink": "Awaiting your approval: {{count}} items. Open approvals inbox.",
-      "approvalsLinkError": "Awaiting your approval. Open approvals inbox.",
-      "review": "Review",
-      "contractBook": "Contract book",
-      "atRiskRegion": "Projects at risk",
-      "atRiskZero": "All projects on track",
-      "atRiskCount": "{{count}} projects at risk"
     },
     "kpiBand": {
       "label": "Portfolio KPIs"
@@ -1393,10 +1376,6 @@
       "title": "Still to invoice on work orders",
       "incompleteMore": "and {{n}} more",
       "clientPo": "Client PO {{po}}"
-    },
-    "subtitle": {
-      "desktop": "Portfolio health across the contracting book — margin on hand, pipeline forecast, and delivery exposure.",
-      "mobile": "What needs your attention across the contracting book."
     },
     "title": "Executive Dashboard"
   },

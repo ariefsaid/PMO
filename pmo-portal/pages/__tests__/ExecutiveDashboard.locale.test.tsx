@@ -1,134 +1,112 @@
-import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { I18nextProvider } from 'react-i18next';
-import i18next from 'i18next';
-import React from 'react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import enCatalogue from '../../../../public/locales/en/common.json';
-import idCatalogue from '../../../../public/locales/id/common.json';
-import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
-import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
-import { MobileExecutiveDashboard } from '../MobileExecutiveDashboard';
+import React from 'react';
+import ExecutiveDashboard from '@/pages/ExecutiveDashboard';
+import { ToastProvider } from '@/src/components/ui/Toast';
+import { BahasaProvider } from '@/test/bahasa';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
+const state = vi.hoisted(() => ({
+  actual: 1_200_000 as number | null,
+  approvals: [] as Array<{ id: string }>,
+}));
+
+vi.mock('@/src/hooks/useDashboard', () => ({
+  useDashboard: () => ({
+    data: {
+      active_projects: 1,
+      active_delivery_projects: 1,
+      total_contract_value: 2_000_000,
+      on_hand_value: 2_000_000,
+      on_hand_value_by_currency: [{
+        currency: 'USD', contract_value: 2_000_000, actual_known: state.actual,
+        contract_remaining: state.actual === null ? null : 2_000_000 - state.actual,
+        actual_coverage_count: state.actual === null ? 0 : 1, actual_coverage_total: 1,
+        realized_margin_known: null, unknown_projects: state.actual === null ? 1 : 0,
+      }],
+      total_contract_value_by_currency: { USD: 2_000_000 },
+      on_hand_contract_remaining: state.actual === null ? null : 2_000_000 - state.actual,
+      on_hand_realized_margin: null,
+      on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: null, unknown_projects: 1 }],
+      on_hand_actual_known: state.actual,
+      on_hand_actual_project_count: state.actual === null ? 0 : 1,
+      on_hand_actual_project_total: 1,
+      on_hand_actual_coverage_count: state.actual === null ? 0 : 1,
+      on_hand_actual_coverage_total: 1,
+      pipeline_total_value: 0,
+      pipeline_weighted_value: 0,
+      pipeline_projected_margin: null,
+      pipeline_total_value_by_currency: [],
+      projects_at_risk: 0,
+      risk_unchecked_projects: state.actual === null ? 1 : 0,
+      projects_by_status: [{ status: 'Ongoing Project', count: 1 }],
+      procurements_by_status: [],
+      top_projects: [{
+        id: 'p1', name: 'Project North', client_name: null, contract_value: 2_000_000, currency: 'USD',
+        budget: 3_000_000, budget_currency: 'USD', spent: state.actual, actual_currency: 'USD',
+        actual_complete: state.actual !== null, actual_coverage_count: state.actual === null ? 0 : 1,
+        actual_coverage_total: 1, status: 'Ongoing Project',
+      }],
+    },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+  useSalesPipeline: () => ({ data: { stages: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useWinRate: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useTimesheetApproval', () => ({ useTimesheetsAwaitingApproval: () => ({ data: state.approvals, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'exec-1', org_id: 'org-1' }, role: 'Executive' }) }));
+vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 
-const data = {
-  active_projects: 2,
-  total_contract_value: 1000,
-  on_hand_margin: 0.25,
-  on_hand_value: 800,
-  on_hand_contract_remaining: 600,
-  on_hand_realized_margin: null,
-  on_hand_actual_known: 200,
-  on_hand_actual_project_count: 1,
-  on_hand_actual_project_total: 2,
-  on_hand_actual_coverage_count: 2,
-  on_hand_actual_coverage_total: 2,
-  pipeline_weighted_value: 0,
-  pipeline_projected_margin: 0,
-  pipeline_total_value: 0,
-  projects_at_risk: 1,
-  projects_by_status: [],
-  procurements_by_status: [],
-  top_projects: [],
-} as Parameters<typeof MobileExecutiveDashboard>[0]['data'];
+function renderDashboard() {
+  setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'UTC' });
+  return render(
+    <BahasaProvider locale="id">
+      <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>
+    </BahasaProvider>,
+  );
+}
 
-describe('AC-UXS-006 dashboard copy — mobile Executive Bahasa labels', () => {
-  afterEach(() => resetActiveLocale());
+beforeEach(() => {
+  state.actual = 1_200_000;
+  state.approvals = [];
+});
+afterEach(() => resetActiveLocale());
 
-  it('uses the known small spend in the accessible link name instead of the unavailable reason', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'en',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      resources: { en: { common: enCatalogue } },
-    });
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    expect(screen.getByRole('link', { name: 'Open spend breakdown · $200 spent to date' })).toBeInTheDocument();
+describe('Executive dashboard localized figures', () => {
+  it('formats a complete Actual using the organization number locale and preserves its currency', () => {
+    renderDashboard();
+    const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
+    expect(delivery).toHaveTextContent('USD');
+    expect(delivery).toHaveTextContent('US$1.200.000');
   });
 
-  it('AC-RD-UNAVAIL-002: the spend link announces a known 0 or 500, and the reason only when spend is unknown', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: enCatalogue } } });
-    const cases: Array<[number | null, RegExp]> = [[0, /\$0 spent/], [500, /\$500 spent/], [null, /Not available yet spent/]];
-    for (const [spend, name] of cases) {
-      const { unmount } = render(
-        <I18nextProvider i18n={i18n}>
-          <MemoryRouter>
-            <MobileExecutiveDashboard data={{ ...data, on_hand_actual_known: spend as number }} riskCheckable={true} approvalCount={0} belowFold={null} />
-          </MemoryRouter>
-        </I18nextProvider>,
-      );
-      const link = screen.getByRole('link', { name: /Open spend breakdown/ });
-      expect(link).toHaveAccessibleName(name);
-      if (spend !== null) expect(link).not.toHaveAccessibleName(/Not available yet/);
-      // No interactive dash nested inside the drill link.
-      expect(link.querySelector('button')).toBeNull();
-      unmount();
-    }
+  it('keeps a known zero distinct from unavailable Actual', () => {
+    state.actual = 0;
+    const known = renderDashboard();
+    const actualRow = screen.getByTestId('dashboard-known-actual');
+    expect(actualRow).toBeInTheDocument();
+    expect(within(actualRow).getByText(/US\$0/)).toBeInTheDocument();
+    known.unmount();
+
+    state.actual = null;
+    renderDashboard();
+    const unknownDelivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
+    const unknownRow = screen.getByTestId('dashboard-known-actual');
+    expect(unknownRow).toHaveTextContent('—');
+    expect(within(unknownRow as HTMLElement).getByRole('link')).toHaveAttribute('href', '#executive-data-note');
+    expect(unknownDelivery).toHaveTextContent('Beberapa nilai portofolio tidak tersedia');
   });
 
-  it('formats the exact spend with the configured number locale, not the UI language', async () => {
-    setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'en',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      resources: { en: { common: enCatalogue } },
-    });
-    const localizedData = { ...data, on_hand_actual_known: 1_200_000 };
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={localizedData} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    const spendLink = screen.getByRole('link', { name: /US\$1\.200\.000/ });
-    expect(spendLink.querySelector('[title]')).toHaveAttribute('title', 'US$1.200.000');
-    expect(spendLink.querySelector('.sr-only')).toHaveTextContent('US$1.200.000');
-  });
-
-  it('keeps the contract-book accessible name, risk link, and KPI help in Bahasa', async () => {
-    const i18n = i18next.createInstance();
-    await i18n.init({
-      lng: 'id',
-      fallbackLng: 'en',
-      defaultNS: 'common',
-      fallbackNS: 'common',
-      resources: {
-        en: { common: enCatalogue, dashboard: enDashboardCatalogue },
-        id: { common: idCatalogue, dashboard: idDashboardCatalogue },
-      },
-    });
-
-    render(
-      <I18nextProvider i18n={i18n}>
-        <MemoryRouter>
-          <MobileExecutiveDashboard data={data} riskCheckable={true} approvalCount={0} belowFold={null} />
-        </MemoryRouter>
-      </I18nextProvider>,
-    );
-
-    expect(screen.getByTestId('mobile-contract-book')).toHaveAttribute('aria-label', 'Portofolio kontrak');
-    expect(screen.getByRole('link', { name: /\$200/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute(
-      'href',
-      '/projects?filter=at-risk',
-    );
-    expect(screen.getByRole('button', { name: /^Tentang metrik ini: \S/ })).toBeInTheDocument();
+  it('keeps Indonesian risk action and project identity destinations', () => {
+    state.approvals = [{ id: 't1' }];
+    renderDashboard();
+    expect(screen.getByRole('link', { name: 'Tinjau permintaan' })).toHaveAttribute('href', '/approvals');
+    const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
+    expect(within(delivery).getByRole('link', { name: 'Project North' })).toHaveAttribute('href', '/projects/p1');
   });
 });
