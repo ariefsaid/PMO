@@ -1,6 +1,6 @@
 // @e2e-isolation: read-only — sign-in + navigate to /projects table view; no DB writes.
 import { test, expect } from '@playwright/test';
-import { signIn, waitForFonts } from './helpers';
+import { ownedContextOptions, signIn, waitForFonts } from './helpers';
 
 test('AC-TBL-OVERFLOW-001 AC-TBL-001: Projects evidence and row actions remain readable without page-level horizontal scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -68,5 +68,43 @@ test('AC-TBL-OVERFLOW-001 AC-TBL-001: Projects evidence and row actions remain r
       clientWidth: document.documentElement.clientWidth,
     }));
     expect(scrollWidth, `page horizontal overflow at ${width}px`).toBeLessThanOrEqual(clientWidth);
+  }
+});
+
+test('AC-TBL-OVERFLOW-001: coarse-pointer controls and links keep 44px phone targets on Projects and New project', async ({ page }, testInfo) => {
+  const browser = page.context().browser();
+  expect(browser).not.toBeNull();
+  if (!browser) return;
+
+  const phoneContext = await browser.newContext(ownedContextOptions(testInfo, {
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  }));
+  try {
+    const phone = await phoneContext.newPage();
+    await signIn(phone, 'pm@acme.test');
+    await expect.poll(() => phone.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+
+    for (const route of ['/projects?view=table', '/projects/new']) {
+      await phone.goto(route);
+      await expect(phone.getByTestId('projects-page-frame')).toBeVisible();
+      const undersized = await phone.locator('[data-testid="projects-page-frame"] :is(button, input, select, textarea, summary, [role="combobox"], a[href])')
+        .evaluateAll((elements) => elements.flatMap((element) => {
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          if (rect.width === 0 || rect.height === 0 || style.display === 'none' || style.visibility === 'hidden') return [];
+          const pseudo = getComputedStyle(element, '::before');
+          const pseudoHeight = Number.parseFloat(pseudo.minHeight) || 0;
+          const targetHeight = Math.max(rect.height, pseudoHeight);
+          return targetHeight < 44 ? [{
+            label: element.getAttribute('aria-label') || element.textContent?.trim() || element.tagName,
+            height: Math.round(targetHeight),
+          }] : [];
+        }));
+      expect(undersized, `${route} should not expose coarse-pointer targets below 44px`).toEqual([]);
+    }
+  } finally {
+    await phoneContext.close();
   }
 });

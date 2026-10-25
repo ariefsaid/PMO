@@ -483,6 +483,18 @@
   }
 }
 
+/* Compact Projects controls become full-size touch targets on phones. */
+@media (pointer: coarse) {
+  .projects-page :is(button, input, select, textarea, summary, [role="combobox"], a[href]) {
+    min-height: 44px;
+  }
+  .projects-page a[href] {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+  }
+}
+
 /* ---------- scroll-fade-x utility (PR-3, Wave-4) ----------
    Right-edge mask-image fade used by 3+ scroll containers (kanban, stepper, tabs,
    timesheet). Defined once here as a reusable class. Compositor-only — no repaint.

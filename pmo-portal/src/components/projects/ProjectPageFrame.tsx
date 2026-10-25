@@ -13,7 +13,7 @@ interface ProjectPageFrameProps {
 /** Local adapter for the Projects page while the shared shell frame is being delivered. */
 export function ProjectPageFrame({ title, scope, toolbar, primaryAction, children, className }: ProjectPageFrameProps) {
   return (
-    <section className={className ?? 'min-w-0 space-y-3'} data-testid="projects-page-frame">
+    <section className={`projects-page ${className ?? 'min-w-0 space-y-3'}`} data-testid="projects-page-frame">
       <header data-testid="list-page-header" className="min-w-0">
         <h1 className="break-words text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
