@@ -3573,3 +3573,5 @@ Owner, after the #806 slices still read as patched tiles: "I don't want a redesi
 - Redesign PRs get machine gates plus one security review only when auth, RLS or money files change. No spec or code-quality rounds on composition. Round cap: one review, one fix.
 - Every owner screenshot becomes a GitHub issue the same day (label `ux-owner`), before anyone touches code.
 - #806 is executed area by area (shell → projects → project detail → dashboards → sales → finance → admin), whole pages recomposed, one PR per area, owner judges screenshots only.
+
+**OD-CI-REDESIGN-LANE (owner, 2026-10-25)** — Redesign-lane PRs (`redesign/*` → dev) do not run GitHub Actions: the builder runs the gates locally (`npm run typecheck`, `npx eslint --max-warnings=0 <touched>`, `scripts/with-test-lock.sh … vitest run --changed origin/dev`, `scripts/ux-proof.sh` on touched routes) and pastes the output in the PR body; the head commit carries `[skip ci]`. Docs deliverables push direct to dev, no PR. CI runs once per release, at the PR to main (full verify + integration). Reason: CI minutes. Supersedes "CI is the full-suite gate for every PR" for this lane only.
