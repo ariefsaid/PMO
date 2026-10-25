@@ -10,7 +10,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { createInstance } from 'i18next';
-import { initReactI18next, I18nextProvider } from 'react-i18next';
+import { I18nextProvider } from 'react-i18next';
 import enCommon from '../public/locales/en/common.json';
 import idCommon from '../public/locales/id/common.json';
 
@@ -81,7 +81,7 @@ describe('ProjectCard', () => {
 
   it('R-015: localizes the project lifecycle state for Indonesian readers', async () => {
     const i18n = createInstance();
-    await i18n.use(initReactI18next).init({
+    await i18n.init({
       lng: 'id', fallbackLng: 'en', defaultNS: 'common',
       resources: { en: { common: enCommon }, id: { common: idCommon } },
       interpolation: { escapeValue: false }, react: { useSuspense: false },
