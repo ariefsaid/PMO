@@ -7,6 +7,13 @@
     "discardBody": "Your claim details and lines have not been saved. Leave and discard them?",
     "discardLeave": "Leave",
     "discardStay": "Stay",
+    "saveDraft": "Save draft",
+    "moreDetails": "More claim details",
+    "scope": "{{project}} · {{currency}}",
+    "projectLoading": "Project scope loading",
+    "currencyUnavailable": "Currency not available; check the project or organization currency settings.",
+    "titleFromReceipt": "Suggested from the receipt filename.",
+    "titleFromLine": "Suggested from the first line description.",
     "saving": "Saving…"
   },
   "accountMap": {

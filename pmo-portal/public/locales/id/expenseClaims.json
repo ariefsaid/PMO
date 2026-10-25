@@ -7,6 +7,13 @@
     "discardBody": "Detail klaim dan rinciannya belum disimpan. Tinggalkan halaman dan buang perubahan?",
     "discardLeave": "Tinggalkan",
     "discardStay": "Tetap di sini",
+    "saveDraft": "Simpan draf",
+    "moreDetails": "Detail klaim lainnya",
+    "scope": "{{project}} · {{currency}}",
+    "projectLoading": "Memuat cakupan proyek",
+    "currencyUnavailable": "Mata uang tidak tersedia; periksa pengaturan mata uang proyek atau organisasi.",
+    "titleFromReceipt": "Disarankan dari nama berkas bukti.",
+    "titleFromLine": "Disarankan dari keterangan rincian pertama.",
     "saving": "Menyimpan…"
   },
   "accountMap": {

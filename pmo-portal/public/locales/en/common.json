@@ -1498,6 +1498,8 @@
         "label": "Project",
         "none": "Overhead (no project)"
       },
+      "projectScope": "Project scope",
+      "currencyScope": "Currency",
       "purpose": {
         "label": "Purpose",
         "placeholder": "What the money was for"
@@ -1518,6 +1520,7 @@
     },
     "lines": {
       "add": "Add line",
+      "additionalTitle": "Additional lines",
       "addTitle": "Add a line",
       "amount": "Amount",
       "columns": {
