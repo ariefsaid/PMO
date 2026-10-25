@@ -17,6 +17,7 @@ export type ListName = 'projects' | 'sales' | 'procurement' | 'companies' | 'con
 export type ProjectFilter = 'All' | 'My Projects' | 'Ongoing' | 'Completed' | 'at-risk';
 export type SalesScope = 'Open' | 'Lost' | 'Needs attention';
 export type SalesStage = '' | OpenFunnelStage;
+export type SalesSort = 'activity-oldest' | 'activity-newest';
 export type ProcurementFilterStatus =
   | 'All'
   | 'Needs approval'
@@ -47,6 +48,7 @@ export interface ProjectsWorkingSet extends ProjectClassificationFilters {
 export interface SalesWorkingSet extends ProjectClassificationFilters {
   scope: SalesScope;
   status: SalesStage;
+  sort: SalesSort;
   q: string;
   view: PipelineView;
 }
@@ -99,6 +101,8 @@ const PROJECT_FILTERS = [
 ] as const satisfies readonly ProjectFilter[];
 const SALES_SCOPES = ['Open', 'Lost', 'Needs attention'] as const satisfies readonly SalesScope[];
 const SALES_STAGES = ['', ...OPEN_FUNNEL_STAGES] as readonly SalesStage[];
+const SALES_SORTS = ['activity-oldest', 'activity-newest'] as const satisfies readonly SalesSort[];
+export const DEFAULT_SALES_SORT: SalesSort = 'activity-oldest';
 
 const PROCUREMENT_FILTER_STATUSES = [
   'All',
@@ -366,32 +370,24 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
       const view = viewValue<PipelineView>(params, 'sales', options.sessionView);
       const requestedScope = enumValue(params.get('scope'), SALES_SCOPES, 'Open');
       return {
-        // Scope is meaningful ONLY for the table view — the board is the open pipeline by stage
-        // and has no scope of its own, so a board URL (including a copied/direct
-        // `?view=kanban&scope=Lost`) always parses to Open, regardless of any scope token.
-        // Within the table, only a Lost scope conflicts with an open funnel stage. "Needs
-        // attention" and an open stage are a valid combination (SalesPipeline intersects them),
-        // so that contradiction forces Open only when Lost was requested together with an open
-        // stage. This is the single place the "scope is table-only" rule lives — mirrored in
-        // `serialize` below, never re-derived on the page.
+        // Scope and stage describe the same working set in Board and Table. Only Lost conflicts
+        // with an open stage; Needs attention may be narrowed to an open stage.
         ...classificationValues(params),
-        scope: view !== 'table' ? 'Open' : status && requestedScope === 'Lost' ? 'Open' : requestedScope,
+        scope: status && requestedScope === 'Lost' ? 'Open' : requestedScope,
         status,
+        sort: enumValue(params.get('sort'), SALES_SORTS, DEFAULT_SALES_SORT),
         q: searchValue(params),
         view,
       };
     },
     serialize: (params, value, options) => {
-      // Mirror of parse: the board carries no scope, so switching to it (or serializing a working
-      // set whose view is already board) never writes an inert `scope` — the key is omitted
-      // entirely rather than pinned to a value the view ignores. A Lost scope cannot coexist with
-      // an open stage in the table, so it is forced to Open only in that contradictory case;
-      // Needs attention + stage round-trips as-is.
+      // Mirror of parse: view changes preserve the selected scope and sort. A Lost scope cannot
+      // coexist with an open stage, so that contradictory combination is normalized to Open.
       putClassification(params, value);
-      const scope =
-        value.view !== 'table' ? 'Open' : value.scope === 'Lost' && value.status ? 'Open' : value.scope;
+      const scope = value.scope === 'Lost' && value.status ? 'Open' : value.scope;
       putParam(params, 'scope', scope, 'Open');
       putParam(params, 'status', value.status);
+      putParam(params, 'sort', value.sort, DEFAULT_SALES_SORT);
       putParam(params, 'q', value.q);
       putView(params, 'sales', value.view, options.sessionView);
       return params;
