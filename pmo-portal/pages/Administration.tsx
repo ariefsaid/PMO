@@ -387,7 +387,8 @@ const Administration: React.FC = () => {
     <div className="min-w-0">
       <AdministrationPageHeader title={label(section)} scope={scope} />
       {(() => {
-        const showNavigation = !operatorMembership.isPending && (isAdminViewer || isOperator || (isFinance && (fxRoute || costAttributionRoute)));
+        const financeDestination = isFinance && (fxRoute || costAttributionRoute);
+        const showNavigation = isAdminViewer || (isOperator && !operatorMembership.isPending) || financeDestination;
         const navigation = showNavigation ? (
           <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} phone={isPhone} label={label} />
         ) : null;

@@ -424,6 +424,7 @@
         "administration": "Administration",
         "revenue": "Revenue (Sales Invoices, Incoming Payments, Revenue by Project)"
       },
+      "editable": "Editable capabilities",
       "preview": "Preview",
       "alwaysIncluded": "Always included",
       "on": "On",

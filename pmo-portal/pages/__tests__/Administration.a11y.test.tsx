@@ -159,7 +159,7 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     await waitFor(() => {
       switch (section) {
         case 'users':
-          expect(screen.getByText('Engineer One')).toBeInTheDocument();
+          expect(screen.getAllByText('Engineer One').length).toBeGreaterThan(0);
           break;
         case 'integrations':
           expect(screen.getByTestId('integrations-owner-scope')).toBeInTheDocument();

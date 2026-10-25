@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useSearchParams } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { AgentCostMetrics, type AgentCostRunStatsRow } from '@/src/components/admin/AgentCostMetrics';
 import { DataTable, ListState, SelectField, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
@@ -43,26 +43,37 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   onRetryStats,
 }) => {
   const { t, i18n } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const period = searchParams.get('period') ?? '';
   const action = searchParams.get('action') ?? '';
   const sort = searchParams.get('sort') === 'oldest' ? 'oldest' : 'newest';
+  const updateSearch = (update: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(location.search);
+    update(next);
+    const serialized = next.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: serialized ? `?${serialized}` : '',
+        hash: location.hash,
+      },
+      { replace: true, state: location.state },
+    );
+  };
   const updateFilter = (key: 'period' | 'action' | 'sort', value: string) => {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
+    updateSearch((next) => {
       if (!value || (key === 'sort' && value === 'newest')) next.delete(key);
       else next.set(key, value);
-      return next;
-    }, { replace: true });
+    });
   };
   const clearFilters = () => {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
+    updateSearch((next) => {
       next.delete('period');
       next.delete('action');
       next.delete('sort');
-      return next;
-    }, { replace: true });
+    });
   };
   const periods = useMemo(
     () => [...new Set(rows.map((row) => row.month))].sort((a, b) => b.localeCompare(a)),

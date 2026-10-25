@@ -112,7 +112,7 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Period'), { target: { value: '2026-08-01' } });
-    fireEvent.change(screen.getByLabelText('Action'), { target: { value: 'chat' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Action' }), { target: { value: 'chat' } });
     expect(screen.getByText(/no usage matches/i)).toBeInTheDocument();
     fireEvent.click(screen.getByText('Diagnostics'));
     expect(screen.getByText(/no agent cost data yet/i)).toBeInTheDocument();
@@ -146,7 +146,7 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     );
 
     fireEvent.change(screen.getByLabelText('Period'), { target: { value: '2026-07-01' } });
-    fireEvent.change(screen.getByLabelText('Action'), { target: { value: 'chat' } });
+    fireEvent.change(screen.getByRole('combobox', { name: 'Action' }), { target: { value: 'chat' } });
     fireEvent.change(screen.getByLabelText('Sort'), { target: { value: 'oldest' } });
     expect(screen.getByTestId('current-url')).toHaveTextContent('keep=1');
     expect(screen.getByTestId('current-url')).toHaveTextContent('period=2026-07-01');
@@ -167,7 +167,7 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     );
 
     expect(screen.getByLabelText('Periode')).toBeInTheDocument();
-    expect(screen.getByLabelText('Tindakan')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Tindakan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Tindakan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Bulan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Token masuk / keluar' })).toBeInTheDocument();

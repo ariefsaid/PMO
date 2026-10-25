@@ -424,6 +424,7 @@
         "administration": "Administrasi",
         "revenue": "Pendapatan (Faktur Penjualan, Pembayaran Masuk, Pendapatan per Proyek)"
       },
+      "editable": "Kapabilitas yang dapat diubah",
       "preview": "Pratinjau",
       "alwaysIncluded": "Selalu tersedia",
       "on": "Aktif",

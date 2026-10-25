@@ -79,6 +79,14 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
+const getUserRow = (name: string) => {
+  const row = screen.getAllByText(name)
+    .map((element) => element.closest('tr'))
+    .find((candidate): candidate is HTMLTableRowElement => candidate !== null);
+  if (!row) throw new Error(`No directory row found for ${name}`);
+  return row;
+};
+
 beforeEach(() => {
   listState.isPending = false;
   listState.isError = false;
@@ -89,8 +97,7 @@ beforeEach(() => {
 describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
   it('opens a destructive confirm dialog for a non-self Disable target', async () => {
     renderPage();
-    const row = screen.getByText('Engineer One').closest('tr') ?? screen.getByText('Engineer One').closest('div');
-    const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
+    const menuBtn = within(getUserRow('Engineer One')).getByRole('button', { name: /Row actions/i });
     await userEvent.click(menuBtn);
     const disableItem = await screen.findByRole('menuitem', { name: /disable/i });
     await userEvent.click(disableItem);
@@ -102,8 +109,7 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
   it('commits the disable on confirm for a non-self target', async () => {
     mutations.setStatus.mutateAsync.mockResolvedValue(undefined);
     renderPage();
-    const row = screen.getByText('Engineer One').closest('tr') ?? screen.getByText('Engineer One').closest('div');
-    const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
+    const menuBtn = within(getUserRow('Engineer One')).getByRole('button', { name: /Row actions/i });
     await userEvent.click(menuBtn);
     const disableItem = await screen.findByRole('menuitem', { name: /disable/i });
     await userEvent.click(disableItem);
@@ -124,8 +130,7 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
   it('self-disable is rejected server-side (P0001 lockout) and surfaces a classified toast', async () => {
     mutations.setStatus.mutateAsync.mockRejectedValue(new LockoutError('cannot disable yourself'));
     renderPage();
-    const row = screen.getByText('Sole Admin').closest('tr') ?? screen.getByText('Sole Admin').closest('div');
-    const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
+    const menuBtn = within(getUserRow('Sole Admin')).getByRole('button', { name: /Row actions/i });
     await userEvent.click(menuBtn);
     const disableItem = await screen.findByRole('menuitem', { name: /disable/i });
     await userEvent.click(disableItem);
@@ -140,9 +145,8 @@ describe('AdminUsers — Disable/Re-enable (AC-INV-004)', () => {
 
   it('a disabled user shows a "Re-enable" action and a visible disabled StatusPill', async () => {
     renderPage();
-    expect(screen.getByText('Disabled Engineer')).toBeInTheDocument();
-    const row = screen.getByText('Disabled Engineer').closest('tr') ?? screen.getByText('Disabled Engineer').closest('div');
-    const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
+    expect(screen.getAllByText('Disabled Engineer').length).toBeGreaterThan(0);
+    const menuBtn = within(getUserRow('Disabled Engineer')).getByRole('button', { name: /Row actions/i });
     await userEvent.click(menuBtn);
     expect(await screen.findByRole('menuitem', { name: /re-enable/i })).toBeInTheDocument();
   });

@@ -159,9 +159,9 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
     expect(alwaysIncluded).not.toHaveAttribute('open');
 
     fireEvent.click(screen.getByText('Pratinjau'));
-    expect(within(preview).getByText('Pratinjau — nonaktif')).toBeInTheDocument();
+    expect(within(preview).getAllByText('Pratinjau — nonaktif').length).toBeGreaterThan(0);
     fireEvent.click(screen.getByText('Selalu tersedia'));
-    expect(within(alwaysIncluded).getByText('Selalu aktif', { exact: true })).toBeInTheDocument();
+    expect(within(alwaysIncluded).getAllByText('Selalu aktif', { exact: true })).toHaveLength(4);
   });
 
   it('does not present environment defaults as confirmed capability values while the read is pending', () => {
