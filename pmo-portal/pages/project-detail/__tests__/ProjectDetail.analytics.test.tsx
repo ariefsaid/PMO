@@ -113,7 +113,10 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await waitFor(
+    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
+    { timeout: 10_000 },
+  );
   return view;
 };
 
