@@ -58,10 +58,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       label={label}
       to={`/projects/${project.id}/${destination === 'budget' ? 'budget' : 'overview'}`}
       actionLabel={destination === 'budget'
-        ? t('projects.actions.reviewBudget', 'Review budget')
+        ? t('projects:actions.reviewBudget', 'Review budget')
         : destination === 'delivery'
-          ? t('projects.actions.reviewDelivery', 'Review delivery plan')
-          : t('projects.actions.reviewFinances', 'Review project finances')}
+          ? t('projects:actions.reviewDelivery', 'Review delivery plan')
+          : t('projects:actions.reviewFinances', 'Review project finances')}
     />
   );
   const actualIsComplete = isActualComplete({
@@ -98,7 +98,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
     project.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), project.customer_contract_ref],
   ].filter((row): row is [string, string] => Boolean(row));
   const activeBudgetContent = projectMoneyPending
-    ? <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>
+    ? <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>
     : projectMoneyError || !projectMoney
       ? dataState(t('uxs02.unavailable', 'Unavailable'), 'budget')
       : !projectMoney.hasActiveBudget
@@ -107,7 +107,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           ? dataState(t('uxs02.unavailable', 'Unavailable'), 'budget')
           : formatCurrency(activeBudget, projectMoney.activeBudgetCurrency ?? currency);
   const actualContent = projectMoneyPending
-    ? <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>
+    ? <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>
     : showActual && !projectMoneyError
     ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? dataState(t('uxs02.unavailable', 'Unavailable'))
     : dataState(actualStateLabel());
@@ -139,8 +139,8 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         <div className="mt-1 min-w-0 space-y-0.5 text-[12px]">
           {project.client
             ? <CompanyNameLink companyId={project.client_id} name={companyDisplayName(project.client)} className="touch-target block max-w-full break-words" />
-            : <p className="break-words text-muted-foreground">{t('projects.customerUnavailable', 'Customer unavailable')}</p>}
-          {project.end_client && <p className="break-words text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</p>}
+            : <p className="break-words text-muted-foreground">{t('projects:customerUnavailable', 'Customer unavailable')}</p>}
+          {project.end_client && <p className="break-words text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</p>}
         </div>
       </div>
 
@@ -148,16 +148,16 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>{project.status}</StatusPill>
         <span className="text-[12px] text-muted-foreground">
           {project.end_date
-            ? t('projects.card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
-            : t('projects.dates.noExpectedEnd', 'No expected end')}
+            ? t('projects:card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
+            : t('projects:dates.noExpectedEnd', 'No expected end')}
         </span>
         {atRisk && <span className="text-[12px] font-semibold text-warning">{t('projects.atRiskPill', 'At risk')}</span>}
       </div>
 
       <div className="min-w-0">
-        <p className="mb-1 text-[12px] font-medium text-muted-foreground">{t('projects.columns.delivery', 'Delivery')}</p>
+        <p className="mb-1 text-[12px] font-medium text-muted-foreground">{t('projects:columns.delivery', 'Delivery')}</p>
         {deliveryPending
-          ? <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>
+          ? <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>
           : deliveryError
             ? dataState(t('uxs02.unavailable', 'Unavailable'), 'delivery')
             : deliverySummary?.deliveryPct == null
@@ -188,7 +188,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
           <dd className="break-words font-semibold tabular">
             {budgetUsedPct == null
               ? projectMoneyPending
-                ? <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>
+                ? <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>
                 : budgetUsedState && dataState(budgetUsedState.label, budgetUsedState.destination)
               : <ProgressBar value={budgetUsedPct} showValue
                   tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}

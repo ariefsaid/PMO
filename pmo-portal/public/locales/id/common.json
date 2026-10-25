@@ -42,7 +42,6 @@
   "uxs14": {
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "projectReferences": "Referensi proyek lainnya",
     "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
     "contractReference": "Referensi kontrak pelanggan"
   },
@@ -205,14 +204,12 @@
     "activeBudget": "Anggaran Aktif",
     "noActiveBudget": "Tidak ada anggaran aktif",
     "zeroActiveBudget": "Anggaran Aktif {{budget}}; pemakaian tidak tersedia",
-    "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
-    "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
     "incompleteCoverage": "Cakupan sumber belum lengkap",
     "restrictedRowsExcluded": "Baris terbatas dikecualikan",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
     "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
-    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
-    "atRisk": "Berisiko"  },
+    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual"
+  },
   "fx": {
     "saveRate": "Simpan kurs",
     "saveRates": "Simpan kurs",
@@ -2951,8 +2948,7 @@
       "edit": "Simpan proyek"
     },
     "section": {
-      "project": "Proyek",
-      "schedule": "Jadwal"
+      "project": "Proyek"
     },
     "name": {
       "label": "Nama proyek",
@@ -3003,10 +2999,7 @@
     "actions": {
       "archive": "Arsipkan",
       "edit": "Edit",
-      "new": "Proyek baru",
-      "reviewBudget": "Tinjau anggaran",
-      "reviewFinances": "Tinjau keuangan proyek",
-      "reviewDelivery": "Tinjau rencana pelaksanaan"
+      "new": "Proyek baru"
     },
     "atRiskPill": "Berisiko",
     "columns": {
@@ -3014,31 +3007,24 @@
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "PM",
-      "progress": "Progres",
-      "project": "Proyek",
-      "status": "Status"
+      "project": "Proyek"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
       "archiveDescription": "Proyek akan disembunyikan dari daftar proyek default. Referensi yang ada tetap utuh. Anda dapat memulihkannya nanti.",
       "archiveTitle": "Arsipkan proyek ini?"
     },
-    "description": "Proyek pra-menang ada di Pipeline.",
-    "data": {
-      "loading": "Memuat…"
-    },
     "empty": {
       "clearFilters": "Hapus filter",
-      "noMatchSub": "Coba status, klien, PM, atau kata kunci lain.",
-      "noMatchTitle": "Tidak ada proyek yang cocok dengan filter",
-      "nothingAtRiskSub": "Belum ada sinyal risiko anggaran yang terkonfirmasi. Data pengeluaran atau Anggaran Aktif yang tidak lengkap belum dapat dinilai.",
-      "nothingAtRiskTitle": "Tidak ada yang berisiko"
+      "noMatchSub": "Ubah cakupan atau filter untuk melihat proyek lain.",
+      "noMatchTitle": "Tidak ada proyek yang cocok dalam cakupan ini",
+      "nothingAtRiskSub": "Data anggaran yang belum dinilai bukan jaminan bahwa proyek aman.",
+      "nothingAtRiskTitle": "Belum ada sinyal risiko anggaran terkonfirmasi"
     },
     "filters": {
       "all": "Semua",
       "allCustomers": "Semua klien",
       "allManagers": "Semua manajer",
-      "ariaLabel": "Filter status",
       "atRisk": "Berisiko",
       "completed": "Selesai",
       "customerLabel": "Filter berdasarkan klien",
@@ -3067,9 +3053,7 @@
       "updated": "Proyek diperbarui"
     },
     "unassigned": "Belum ditugaskan",
-    "customerUnavailable": "Klien tidak tersedia",
     "view": {
-      "ariaLabel": "Tampilan proyek",
       "board": "Board",
       "calendar": "Kalender",
       "cards": "Kartu",
@@ -3088,21 +3072,7 @@
     "unnamedUser": "Pengguna tanpa nama",
     "export": "Ekspor",
     "import": "Impor",
-    "mobile": {
-      "activeCount": "Filter aktif",
-      "customer": "Klien",
-      "manager": "Manajer proyek",
-      "removeCustomer": "Hapus filter klien",
-      "removeManager": "Hapus filter manajer proyek",
-      "clearAll": "Hapus semua",
-      "error": "Gagal memuat opsi",
-      "retry": "Coba lagi",
-      "unavailable": "Pilihan tidak tersedia",
-      "endCustomer": "Pelanggan akhir",
-      "removeEndCustomer": "Hapus filter pelanggan akhir"
-    },
     "card": {
-      "delivery": "Penyelesaian",
       "deliveryPercent": "Penyelesaian {{percent}}%",
       "editProject": "Edit {{name}}"
     },

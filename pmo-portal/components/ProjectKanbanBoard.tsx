@@ -119,19 +119,19 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
   ].filter((row): row is [string, string] => Boolean(row));
   return (
     <button type="button" onClick={onActivate}
-      aria-label={t('projects.kanban.openProject', 'Open project {{name}}', { name: displayName })}
+      aria-label={t('projects:kanban.openProject', 'Open project {{name}}', { name: displayName })}
       aria-describedby={displayName !== project.name ? legalNameId : undefined}
       className="touch-target flex min-h-11 w-full min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
       <span title={project.name} className="block min-w-0 break-words font-semibold text-foreground">{displayName}</span>
       {displayName !== project.name && <span id={legalNameId} className="sr-only">{project.name}</span>}
       {project.client
         ? <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{companyDisplayName(project.client)}</span>
-        : <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.customerUnavailable', 'Customer unavailable')}</span>}
-      {project.end_client && <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</span>}
+        : <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects:customerUnavailable', 'Customer unavailable')}</span>}
+      {project.end_client && <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</span>}
       <span className="block min-w-0 text-[12px] text-muted-foreground">
         {project.end_date
-          ? t('projects.card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
-          : t('projects.dates.noExpectedEnd', 'No expected end')}
+          ? t('projects:card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
+          : t('projects:dates.noExpectedEnd', 'No expected end')}
       </span>
       {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words text-xs text-muted-foreground"><span className="font-medium">{label}:</span> <span className="break-all font-mono text-foreground">{value}</span></span>)}
       <span className="block break-words text-[12px] font-semibold tabular">

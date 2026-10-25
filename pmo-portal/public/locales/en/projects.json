@@ -1,4 +1,17 @@
 {
+  "actions": {
+    "reviewBudget": "Review budget",
+    "reviewDelivery": "Review delivery plan",
+    "reviewFinances": "Review project finances"
+  },
+  "card": {
+    "expectedEnd": "Expected end {{date}}"
+  },
+  "columns": {
+    "delivery": "Delivery",
+    "statusAndEnd": "Status / expected end"
+  },
+  "customerUnavailable": "Customer unavailable",
   "coverage": {
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",
     "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
@@ -32,5 +45,47 @@
   },
   "committed": {
     "otherCurrencies": "Plus amounts in other currencies: {{amounts}}"
+  },
+  "data": {
+    "deliveryUnavailable": "Delivery progress is unavailable.",
+    "loading": "Loading…",
+    "moneyUnavailable": "Actual and Active budget are unavailable.",
+    "noteTitle": "Some project data needs attention",
+    "retryDelivery": "Retry delivery",
+    "retryMoney": "Retry financial data"
+  },
+  "dates": {
+    "noExpectedEnd": "No expected end"
+  },
+  "endCustomer": "End customer",
+  "filters": {
+    "active": "Applied filters",
+    "customerChip": "Customer: {{value}}",
+    "endCustomerChip": "End customer: {{value}}",
+    "managerChip": "Project manager: {{value}}",
+    "removeFilter": "Remove filter: {{filter}}",
+    "retryOptions": "Retry options",
+    "scopeChip": "Scope: {{scope}}",
+    "scopeLabel": "Scope",
+    "searchChip": "Search: {{value}}",
+    "unavailableSelection": "Unavailable selection"
+  },
+  "kanban": {
+    "openProject": "Open project {{name}}"
+  },
+  "scope": {
+    "loading": "Loading projects",
+    "onHandInternal": "On-hand + internal",
+    "pipeline": "Pipeline",
+    "resultCount": "{{count}} projects"
+  },
+  "sort": {
+    "attention": "Budget risk first, then expected end",
+    "expectedEnd": "Expected end (soonest first)",
+    "label": "Sort projects",
+    "name": "Project name (A to Z)"
+  },
+  "view": {
+    "label": "View"
   }
 }

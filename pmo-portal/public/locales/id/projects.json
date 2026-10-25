@@ -1,4 +1,17 @@
 {
+  "actions": {
+    "reviewBudget": "Tinjau anggaran",
+    "reviewDelivery": "Tinjau rencana pelaksanaan",
+    "reviewFinances": "Tinjau keuangan proyek"
+  },
+  "card": {
+    "expectedEnd": "Perkiraan selesai {{date}}"
+  },
+  "columns": {
+    "delivery": "Pelaksanaan",
+    "statusAndEnd": "Status / perkiraan selesai"
+  },
+  "customerUnavailable": "Klien tidak tersedia",
   "coverage": {
     "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
     "partialUpdated": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek. Diperbarui {{date}}."
@@ -32,5 +45,47 @@
   },
   "committed": {
     "otherCurrencies": "Ditambah jumlah dalam mata uang lain: {{amounts}}"
+  },
+  "data": {
+    "deliveryUnavailable": "Progres pelaksanaan tidak tersedia.",
+    "loading": "Memuat…",
+    "moneyUnavailable": "Realisasi dan Anggaran Aktif tidak tersedia.",
+    "noteTitle": "Beberapa data proyek perlu diperiksa",
+    "retryDelivery": "Coba muat pelaksanaan lagi",
+    "retryMoney": "Coba muat data keuangan lagi"
+  },
+  "dates": {
+    "noExpectedEnd": "Belum ada tanggal selesai"
+  },
+  "endCustomer": "Pelanggan akhir",
+  "filters": {
+    "active": "Filter diterapkan",
+    "customerChip": "Klien: {{value}}",
+    "endCustomerChip": "Pelanggan akhir: {{value}}",
+    "managerChip": "Manajer proyek: {{value}}",
+    "removeFilter": "Hapus filter: {{filter}}",
+    "retryOptions": "Coba muat opsi lagi",
+    "scopeChip": "Cakupan: {{scope}}",
+    "scopeLabel": "Cakupan",
+    "searchChip": "Cari: {{value}}",
+    "unavailableSelection": "Pilihan tidak tersedia"
+  },
+  "kanban": {
+    "openProject": "Buka proyek {{name}}"
+  },
+  "scope": {
+    "loading": "Memuat proyek",
+    "onHandInternal": "Proyek berjalan + internal",
+    "pipeline": "Pipeline",
+    "resultCount": "{{count}} proyek"
+  },
+  "sort": {
+    "attention": "Dahulukan risiko anggaran, lalu tanggal selesai",
+    "expectedEnd": "Tanggal selesai (terdekat lebih dulu)",
+    "label": "Urutkan proyek",
+    "name": "Nama proyek (A ke Z)"
+  },
+  "view": {
+    "label": "Tampilan"
   }
 }

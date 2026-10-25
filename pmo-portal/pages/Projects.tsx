@@ -257,9 +257,9 @@ const Projects: React.FC = () => {
   };
 
   const sortLabels: Record<ProjectSort, string> = {
-    attention: t('projects.sort.attention', 'Budget risk first, then expected end'),
-    'expected-end': t('projects.sort.expectedEnd', 'Expected end (soonest first)'),
-    name: t('projects.sort.name', 'Project name (A to Z)'),
+    attention: t('projects:sort.attention', 'Budget risk first, then expected end'),
+    'expected-end': t('projects:sort.expectedEnd', 'Expected end (soonest first)'),
+    name: t('projects:sort.name', 'Project name (A to Z)'),
   };
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
@@ -426,10 +426,10 @@ const Projects: React.FC = () => {
       label={label}
       to={`/projects/${project.id}/${destination === 'budget' ? 'budget' : 'overview'}`}
       actionLabel={destination === 'budget'
-        ? t('projects.actions.reviewBudget', 'Review budget')
+        ? t('projects:actions.reviewBudget', 'Review budget')
         : destination === 'delivery'
-          ? t('projects.actions.reviewDelivery', 'Review delivery plan')
-          : t('projects.actions.reviewFinances', 'Review project finances')}
+          ? t('projects:actions.reviewDelivery', 'Review delivery plan')
+          : t('projects:actions.reviewFinances', 'Review project finances')}
       align="end"
     />
   );
@@ -453,7 +453,7 @@ const Projects: React.FC = () => {
         return (
           <span data-testid="projects-identity-secondary" className="block min-w-0 space-y-1" onClick={(event) => event.stopPropagation()}>
             {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="touch-target block max-w-full break-words text-xs" />}
-            {p.end_client && <span className="block break-words text-xs text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
+            {p.end_client && <span className="block break-words text-xs text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
             {references.length > 0 && <span className="block min-w-0 space-y-0.5 text-xs text-muted-foreground">
               {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words">{label}: <span className="break-all font-mono text-foreground">{value}</span></span>)}
             </span>}
@@ -519,7 +519,7 @@ const Projects: React.FC = () => {
       // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
       // status labels is its own decision (it needs one map every surface shares) and is not in
       // this pass. Only the column header moves.
-      header: t('projects.columns.statusAndEnd', 'Status / expected end'),
+      header: t('projects:columns.statusAndEnd', 'Status / expected end'),
       kind: 'status',
       size: 180,
       minSize: 176,
@@ -529,7 +529,7 @@ const Projects: React.FC = () => {
         <div className="flex min-w-0 flex-col items-start gap-1">
           <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
           <span className="text-[12px] text-muted-foreground">
-            {p.end_date ? formatDateOnly(p.end_date) : t('projects.dates.noExpectedEnd', 'No expected end')}
+            {p.end_date ? formatDateOnly(p.end_date) : t('projects:dates.noExpectedEnd', 'No expected end')}
           </span>
         </div>
       ),
@@ -584,7 +584,7 @@ const Projects: React.FC = () => {
       colClassName: 'xl:pr-4',
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
-        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
+        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
         if (moneyError || !money) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'));
         const actualPosition = deriveActualPosition({
@@ -613,7 +613,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'progress',
-      header: t('projects.columns.delivery', 'Delivery'),
+      header: t('projects:columns.delivery', 'Delivery'),
       kind: 'percent',
       size: 120,
       minSize: 96,
@@ -623,7 +623,7 @@ const Projects: React.FC = () => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'), 'delivery');
         if (deliveryPending) {
-          return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
+          return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
@@ -646,7 +646,7 @@ const Projects: React.FC = () => {
       minSize: 152,
       maxSize: 320,
       cell: (p) => {
-        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects.data.loading', 'Loading…')}</span>;
+        if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
         const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
         const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
@@ -694,7 +694,7 @@ const Projects: React.FC = () => {
   const optionRetry = (result: { isPending: boolean; isError: boolean; refetch?: () => unknown }) =>
     !result.isPending && result.isError ? (
       <button type="button" onClick={() => result.refetch?.()} className="touch-target text-[12px] font-semibold text-primary-text underline-offset-2 hover:underline">
-        {t('projects.filters.retryOptions', 'Retry options')}
+        {t('projects:filters.retryOptions', 'Retry options')}
       </button>
     ) : null;
   const toolbar = (
@@ -706,7 +706,7 @@ const Projects: React.FC = () => {
         containerClassName="h-11 min-w-0 w-full md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
       <div className="flex min-w-0 w-full flex-wrap items-end gap-2 md:w-auto">
         <div className="min-w-[144px] flex-1 md:flex-none">
-          <SelectField label={t('projects.filters.scopeLabel', 'Scope')} value={filter}
+          <SelectField label={t('projects:filters.scopeLabel', 'Scope')} value={filter}
             onChange={(value) => { setWorkingSet((ws) => ({ ...ws, filter: value as StatusFilter })); trackFilterApplied('status', FILTERS.length, 'projects'); }}
             options={FILTERS.map((value) => ({ value, label: filterLabels[value] }))} className="touch-target min-w-0" />
         </div>
@@ -743,13 +743,13 @@ const Projects: React.FC = () => {
           )} />
       </div>
       <div className="min-w-[205px] flex-1 md:flex-none">
-        <SelectField label={t('projects.sort.label', 'Sort projects')} value={workingSet.sort}
+        <SelectField label={t('projects:sort.label', 'Sort projects')} value={workingSet.sort}
           onChange={(value) => setWorkingSet((ws) => ({ ...ws, sort: value as ProjectSort }))}
           options={(Object.keys(sortLabels) as ProjectSort[]).map((value) => ({ value, label: sortLabels[value] }))}
           className="touch-target min-w-0" />
       </div>
       <div data-testid="list-page-view" className="min-w-[138px] flex-1 md:flex-none">
-        <SelectField label={t('projects.view.label', 'View')} value={view}
+        <SelectField label={t('projects:view.label', 'View')} value={view}
           onChange={(value) => onViewChange(value as ProjectView)}
           options={[
             { value: 'table', label: t('projects.view.table', 'Table') },
@@ -770,18 +770,18 @@ const Projects: React.FC = () => {
     </>
   );
   const activeChips: Array<{ label: string; remove: () => void }> = [];
-  if (filter !== roleDefault) activeChips.push({ label: t('projects.filters.scopeChip', 'Scope: {{scope}}', { scope: filterLabels[filter] }), remove: () => setWorkingSet((ws) => ({ ...ws, filter: roleDefault })) });
+  if (filter !== roleDefault) activeChips.push({ label: t('projects:filters.scopeChip', 'Scope: {{scope}}', { scope: filterLabels[filter] }), remove: () => setWorkingSet((ws) => ({ ...ws, filter: roleDefault })) });
   if (filterClient !== 'All') {
-    const value = customerFilterOptions.find((option) => option.value === filterClient)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
-    activeChips.push({ label: t('projects.filters.customerChip', 'Customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, client: 'All' })) });
+    const value = customerFilterOptions.find((option) => option.value === filterClient)?.label ?? t('projects:filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects:filters.customerChip', 'Customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, client: 'All' })) });
   }
   if (filterEndCustomer !== 'All') {
-    const value = endCustomerFilterOptions.find((option) => option.value === filterEndCustomer)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
-    activeChips.push({ label: t('projects.filters.endCustomerChip', 'End customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, endClient: 'All' })) });
+    const value = endCustomerFilterOptions.find((option) => option.value === filterEndCustomer)?.label ?? t('projects:filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects:filters.endCustomerChip', 'End customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, endClient: 'All' })) });
   }
   if (filterPM !== 'All') {
-    const value = pmFilterOptions.find((option) => option.value === filterPM)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
-    activeChips.push({ label: t('projects.filters.managerChip', 'Project manager: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, pm: 'All' })) });
+    const value = pmFilterOptions.find((option) => option.value === filterPM)?.label ?? t('projects:filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects:filters.managerChip', 'Project manager: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, pm: 'All' })) });
   }
   const classificationLabels: Record<(typeof CLASSIFICATION_FILTER_KEYS)[number], string> = {
     serviceLine: t('projectClassification.serviceLine', 'Service line'), sector: t('projectClassification.sector', 'Sector'),
@@ -792,12 +792,12 @@ const Projects: React.FC = () => {
     const value = workingSet[key];
     if (value) activeChips.push({ label: classificationLabels[key] + ': ' + classificationValueLabel(t, value), remove: () => setWorkingSet((ws) => ({ ...ws, [key]: undefined })) });
   }
-  if (search.trim()) activeChips.push({ label: t('projects.filters.searchChip', 'Search: {{value}}', { value: search.trim() }), remove: () => setSearch('') });
+  if (search.trim()) activeChips.push({ label: t('projects:filters.searchChip', 'Search: {{value}}', { value: search.trim() }), remove: () => setSearch('') });
   const activeFilterSummary = filtersActive ? (
-    <div data-testid="active-filter-summary" aria-label={t('projects.filters.active', 'Applied filters')} className="flex min-w-0 flex-wrap items-center gap-2">
+    <div data-testid="active-filter-summary" aria-label={t('projects:filters.active', 'Applied filters')} className="flex min-w-0 flex-wrap items-center gap-2">
       {activeChips.map((chip) => <button key={chip.label} type="button"
         className="touch-target inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-1 pl-2.5 pr-1.5 text-left text-[12px] text-muted-foreground hover:text-foreground"
-        aria-label={t('projects.filters.removeFilter', 'Remove filter: {{filter}}', { filter: chip.label })} onClick={chip.remove}>
+        aria-label={t('projects:filters.removeFilter', 'Remove filter: {{filter}}', { filter: chip.label })} onClick={chip.remove}>
         <span className="min-w-0 break-words">{chip.label}</span><Icon name="x" className="size-3 shrink-0" />
       </button>)}
       <Button variant="ghost" size="sm" className="touch-target text-primary-text" onClick={clearFilters}>{t('projects.empty.clearFilters', 'Clear filters')}</Button>
@@ -805,15 +805,15 @@ const Projects: React.FC = () => {
   ) : null;
   const dataIssues = [
     coverageReason,
-    deliveryError ? t('projects.data.deliveryUnavailable', 'Delivery progress is unavailable.') : null,
-    moneyError ? t('projects.data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
+    deliveryError ? t('projects:data.deliveryUnavailable', 'Delivery progress is unavailable.') : null,
+    moneyError ? t('projects:data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
   ].filter((issue): issue is string => Boolean(issue));
   const abnormalNote = dataIssues.length > 0 ? (
     <aside role="status" data-testid="projects-data-note" className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-[12px] text-muted-foreground">
-      <div className="min-w-0 space-y-0.5"><p className="font-semibold text-foreground">{t('projects.data.noteTitle', 'Some project data needs attention')}</p>{dataIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>
+      <div className="min-w-0 space-y-0.5"><p className="font-semibold text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</p>{dataIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>
       <div className="flex flex-wrap gap-2">
-        {deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects.data.retryDelivery', 'Retry delivery')}</Button>}
-        {moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects.data.retryMoney', 'Retry financial data')}</Button>}
+        {deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects:data.retryDelivery', 'Retry delivery')}</Button>}
+        {moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects:data.retryMoney', 'Retry financial data')}</Button>}
       </div>
     </aside>
   ) : null;
@@ -858,11 +858,11 @@ const Projects: React.FC = () => {
   );
 
   const scopeLine = <>
-    <span>{t('projects.scope.onHandInternal', 'On-hand + internal')}</span><span aria-hidden>·</span>
+    <span>{t('projects:scope.onHandInternal', 'On-hand + internal')}</span><span aria-hidden>·</span>
     <span>{filterLabels[filter]}</span><span aria-hidden>·</span>
-    <span>{isPending ? t('projects.scope.loading', 'Loading projects') : t('projects.scope.resultCount', '{{count}} projects', { count: filtered.length })}</span>
+    <span>{isPending ? t('projects:scope.loading', 'Loading projects') : t('projects:scope.resultCount', '{{count}} projects', { count: filtered.length })}</span>
     <span aria-hidden>·</span>
-    <Link to="/sales" className="touch-target rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects.scope.pipeline', 'Pipeline')}</Link>
+    <Link to="/sales" className="touch-target rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects:scope.pipeline', 'Pipeline')}</Link>
   </>;
 
   return (
