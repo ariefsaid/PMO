@@ -3061,6 +3061,7 @@
       "updated": "Project updated"
     },
     "unassigned": "Unassigned",
+    "customerUnavailable": "Customer unavailable",
     "view": {
       "ariaLabel": "Projects view",
       "board": "Board",

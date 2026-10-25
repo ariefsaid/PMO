@@ -1,9 +1,4 @@
-/**
- * AC-RD-SUB-PL-A — the Projects table says each fact once (v0.24 UI subtraction).
- * The default screen carries fewer elements: one help sentence, one Filters trigger, no
- * optional-columns toggle, no End customer column, no per-row references disclosure, no
- * repeated coverage prose, one table-level coverage note.
- */
+/** Projects table keeps identity, customer and money evidence legible without duplicating caveats. */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -84,27 +79,23 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
-  it('help text is the single Pipeline pointer', () => {
+  it('scope line has one quiet Pipeline link', () => {
     renderPage();
-    expect(screen.getByText('Pre-win projects live in the Pipeline.')).toBeInTheDocument();
-    expect(screen.queryByText(/Track your active and completed projects/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Pipeline' })).toHaveLength(1);
   });
 
-  it('has no optional-columns toggle and no End customer column; end customer is a muted line only when set', () => {
+  it('keeps end-customer identity beside the project without a second data column', () => {
     renderPage();
-    expect(screen.queryByRole('button', { name: /optional columns|hide empty columns/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
-    expect(screen.getAllByText('Endco')).toHaveLength(1);
+    expect(screen.getByText('End customer: Endco')).toBeInTheDocument();
   });
 
-  it('name cell carries no per-row references disclosure; identifiers sit on one mono line', () => {
+  it('project identity keeps customer and references labelled and visible', () => {
     renderPage();
-    expect(screen.queryByText('More project references')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Customer contract reference/)).not.toBeInTheDocument();
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
-    const ids = within(first).getByText('PMO-1000 · CLI-0');
-    expect(ids).toHaveClass('font-mono');
+    expect(within(first).getByText(/PMO Project Number: PMO-1000/)).toBeInTheDocument();
+    expect(within(first).getByText(/Client Project Code: CLI-0/)).toBeInTheDocument();
+    expect(within(first).getByText(/Customer contract reference: CONTRACT-0/)).toBeInTheDocument();
   });
 
   it('classification fields live inside the one Filters disclosure (no second trigger)', async () => {
@@ -144,19 +135,16 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getAllByText('Restricted excluded')).toHaveLength(1);
   });
 
-  it('Budget used is bar + % only; the "x of y" detail is a title, not text', () => {
+  it('Budget used reports the percentage against its Active-budget basis', () => {
     renderPage();
-    const body = document.querySelector('tbody')!;
-    expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004.00 of $4,000,000.00 Active budget');
+    expect(bar).toBeInTheDocument();
   });
 
-  it('Progress without phases is a dash, not "No phases yet"', () => {
+  it('delivery without phases is named explicitly', () => {
     renderPage();
-    expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
     const noPhases = screen.getByText('Synthetic project 0').closest('tr')!;
-    expect(within(noPhases).getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
+    expect(within(noPhases).getByText('No phases yet')).toBeInTheDocument();
   });
 
   it('phone Filters panel drops the "Loading options…" and "No options available" lines', async () => {
@@ -185,8 +173,9 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
     const panel = screen.getByRole('region', { name: 'Filters' });
-    expect(within(panel).getByRole('alert')).toHaveTextContent("Couldn't load options");
-    expect(within(panel).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    clientsState.refetch.mockClear();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Retry options' }));
+    expect(clientsState.refetch).toHaveBeenCalled();
     clientsState.isError = false; clientsState.isSuccess = true;
   });
 });

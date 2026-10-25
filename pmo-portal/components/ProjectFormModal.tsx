@@ -16,7 +16,6 @@ import {
   FormSection,
   FormGrid,
   FormActions,
-  PageHeader,
   useEntityForm,
   type ComboboxOption,
 } from '@/src/components/ui';
@@ -183,6 +182,8 @@ export interface ProjectFormModalProps {
   variant?: 'modal' | 'page';
   /** Reports whether the form holds unsaved entries (host guards leaving). */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Reports the selected origination stage to the Projects page scope line. */
+  onOriginationStageChange?: (stage: ProjectStatus) => void;
 }
 
 const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
@@ -194,6 +195,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   onError,
   variant = 'modal',
   onDirtyChange,
+  onOriginationStageChange,
 }) => {
   const classificationOptions = useProjectClassificationOptions();
   const isEdit = mode === 'editHeader';
@@ -244,6 +246,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   const appliedProposal = useRef<string | null>(null);
   const [numberConflict, setNumberConflict] = useState(false);
   const [shortNameConflict, setShortNameConflict] = useState(false);
+  const [classificationOpen, setClassificationOpen] = useState(false);
   useEffect(() => {
     if (!isEdit && numberProposal.status === 'success' && numberProposal.number !== appliedProposal.current) {
       form.setValue('pmoProjectNumber', numberProposal.number);
@@ -335,9 +338,13 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     form.errors.name ? { fieldId: nameField.id, message: form.errors.name } : null,
     form.errors.clientId ? { fieldId: nameField.id, message: form.errors.clientId } : null,
     form.errors.value ? { fieldId: valueField.id, message: form.errors.value } : null,
+    form.errors.location ? { fieldId: 'project-classification-location', message: form.errors.location } : null,
     shortNameConflict ? { fieldId: shortNameField.id, message: shortNameDuplicate } : null,
     numberConflict ? { fieldId: pmoNumberField.id, message: t('projectForm.projectNumber.duplicate', 'That PMO Project Number is already in use. Choose another number.') } : null,
   ].filter((x): x is { fieldId: string; message: string } => x != null);
+  useEffect(() => {
+    if (form.hasAttemptedSubmit && form.errors.location) setClassificationOpen(true);
+  }, [form.hasAttemptedSubmit, form.errors.location]);
 
   // Typed entries only: the org tax default and the proposed project number are seeded, not entered,
   // so a pristine page must not count as dirty (it would ask before leaving an empty form).
@@ -508,23 +515,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             noun={t('projectForm.endCustomer.noun', 'company')}
           />
 
-          <Combobox
-            label={t('projectForm.pm.label', 'Project manager')}
-            value={form.values.pmId}
-            selectedOption={
-              form.values.pmId && pmLabel
-                ? { value: form.values.pmId, label: pmLabel, initials: initialsOf(pmLabel) }
-                : null
-            }
-            onChange={(v, opt) => {
-              form.setValue('pmId', v);
-              setPmLabel(opt.label);
-            }}
-            loadOptions={loadManagers}
-            placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
-            noun={t('projectForm.pm.noun', 'manager')}
-          />
-
           {isEdit ? (
             <TextField
               id={codeField.id}
@@ -578,69 +568,119 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
                 id={statusField.id}
                 label={t('projectForm.stage.label', 'Origination stage')}
                 value={statusField.value}
-                onChange={(v) => statusField.onChange(v as ProjectStatus)}
+                onChange={(v) => {
+                  const nextStage = v as ProjectStatus;
+                  statusField.onChange(nextStage);
+                  onOriginationStageChange?.(nextStage);
+                }}
                 options={originationOptions}
                 helper={t('projectForm.stage.helper', 'On-hand is reached only by winning a project in the pipeline, never created directly.')}
               />
-              <NumberField
-                id={valueField.id}
-                label={t('projectForm.estimatedValue', 'Estimated value')}
-                prefix={moneyPrefix}
-                value={valueField.value}
-                onChange={valueField.onChange}
-                onBlur={valueField.onBlur}
-                error={valueField.error}
-                localeAware
-                placeholder="0"
-                helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
-              />
-              {/* #513: asked ONLY once a non-zero value is entered — a project originated at 0
-                  states nothing and is asked nothing (migration 0197's conditional CHECK). No
-                  pre-selected treatment: the select starts empty and Create stays disabled, with
-                  the hint below saying why. Options/placeholder/parse are single-sourced in
-                  src/lib/taxTreatment.ts, shared with the vendor-invoice forms. */}
-              {taxRequired && (
-                <>
-                  <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
-                  <SelectField
-                    id={taxTreatmentField.id}
-                    label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
-                    required
-                    value={taxTreatmentField.value}
-                    onChange={taxTreatmentField.onChange}
-                    placeholder={taxOptions.placeholder}
-                    options={taxOptions.options}
-                    data-testid="project-tax-treatment"
-                  />
-                  <NumberField
-                    id={taxAmountField.id}
-                    label={t('projectDetail.header.taxAmount', 'Tax amount')}
-                    required
-                    prefix={moneyPrefix}
-                    value={taxAmountField.value}
-                    readOnly={taxFields.hasRate}
-                    onChange={taxAmountField.onChange}
-                    onBlur={taxAmountField.onBlur}
-                    localeAware
-                    placeholder="0"
-                    data-testid="project-tax-amount"
-                  />
-                  {taxIncomplete && (
-                    <p
-                      data-testid="project-tax-required-hint"
-                      className="col-span-full text-[12px] text-muted-foreground"
-                    >
-                      {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
-                    </p>
-                  )}
-                </>
-              )}
             </>
           )}
         </FormGrid>
       </FormSection>
 
-      <FormSection legend={t('projectClassification.title', 'Classification')}>
+      <FormSection legend={t('projects:create.section.ownershipSchedule', 'Ownership & schedule')}>
+        <FormGrid>
+          <Combobox
+            label={t('projectForm.pm.label', 'Project manager')}
+            value={form.values.pmId}
+            selectedOption={
+              form.values.pmId && pmLabel
+                ? { value: form.values.pmId, label: pmLabel, initials: initialsOf(pmLabel) }
+                : null
+            }
+            onChange={(v, opt) => {
+              form.setValue('pmId', v);
+              setPmLabel(opt.label);
+            }}
+            loadOptions={loadManagers}
+            placeholder={t('projectForm.pm.placeholder', 'Assign a PM…')}
+            noun={t('projectForm.pm.noun', 'manager')}
+          />
+          <TextField
+            id={startField.id}
+            label={t('projectForm.expectedStart', 'Expected start')}
+            type="date"
+            value={startField.value}
+            onChange={startField.onChange}
+          />
+          <TextField
+            id={endField.id}
+            label={t('projectForm.expectedEnd', 'Expected end')}
+            type="date"
+            value={endField.value}
+            onChange={endField.onChange}
+          />
+        </FormGrid>
+      </FormSection>
+
+      {!isEdit && <FormSection legend={t('projects:create.section.estimateTax', 'Estimate & tax')}>
+        <FormGrid>
+          <NumberField
+            id={valueField.id}
+            label={t('projectForm.estimatedValue', 'Estimated value')}
+            prefix={moneyPrefix}
+            value={valueField.value}
+            onChange={valueField.onChange}
+            onBlur={valueField.onBlur}
+            error={valueField.error}
+            localeAware
+            placeholder="0"
+            helper={t('projectForm.value.helper', 'Estimate, pre-win. Editable by Admin, Executive, and PM.')}
+          />
+          {/* A stated contract value requires its tax basis; zero remains a known blank estimate. */}
+          {taxRequired && (
+            <>
+              <div className="col-span-full"><TaxRateFields fields={taxFields} /></div>
+              <SelectField
+                id={taxTreatmentField.id}
+                label={t('projectDetail.header.taxTreatment', 'Tax treatment')}
+                required
+                value={taxTreatmentField.value}
+                onChange={taxTreatmentField.onChange}
+                placeholder={taxOptions.placeholder}
+                options={taxOptions.options}
+                data-testid="project-tax-treatment"
+              />
+              <NumberField
+                id={taxAmountField.id}
+                label={t('projectDetail.header.taxAmount', 'Tax amount')}
+                required
+                prefix={moneyPrefix}
+                value={taxAmountField.value}
+                readOnly={taxFields.hasRate}
+                onChange={taxAmountField.onChange}
+                onBlur={taxAmountField.onBlur}
+                localeAware
+                placeholder="0"
+                data-testid="project-tax-amount"
+              />
+              {taxIncomplete && (
+                <p data-testid="project-tax-required-hint" className="col-span-full text-[12px] text-muted-foreground">
+                  {t('projectForm.taxRequiredHint', CONTRACT_TAX_REQUIRED_HINT)}
+                </p>
+              )}
+            </>
+          )}
+        </FormGrid>
+      </FormSection>}
+
+      <details open={classificationOpen} onToggle={(event) => setClassificationOpen(event.currentTarget.open)} className="group rounded-lg border border-border bg-card px-4 py-3">
+        <summary className="touch-target flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-2 rounded-sm font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+          <span>{t('projectClassification.title', 'Classification')}</span>
+          <span className="min-w-0 break-words text-[12px] font-normal text-muted-foreground">
+            {[
+              form.values.serviceLine,
+              form.values.sector,
+              form.values.awardType,
+              form.values.biddingEntity,
+              form.values.location,
+            ].filter(Boolean).join(' · ') || t('projects:create.classificationEmpty', 'Optional project context')}
+          </span>
+        </summary>
+        <FormSection className="mt-3">
         <FormGrid>
           {(['serviceLine', 'sector'] as const).map((key) => {
             const configured = key === 'serviceLine' ? classificationOptions.data?.serviceLines : classificationOptions.data?.sectors;
@@ -661,26 +701,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             options={[{ value: '', label: t('projectClassification.notSet', 'Not set') }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
           <TextField {...form.fieldProps('location')} id="project-classification-location" label={t('projectClassification.location', 'Location')} fullWidth />
         </FormGrid>
-      </FormSection>
-
-      <FormSection legend={t('projectForm.section.schedule', 'Schedule')}>
-        <FormGrid>
-          <TextField
-            id={startField.id}
-            label={t('projectForm.expectedStart', 'Expected start')}
-            type="date"
-            value={startField.value}
-            onChange={startField.onChange}
-          />
-          <TextField
-            id={endField.id}
-            label={t('projectForm.expectedEnd', 'Expected end')}
-            type="date"
-            value={endField.value}
-            onChange={endField.onChange}
-          />
-        </FormGrid>
-      </FormSection>
+        </FormSection>
+      </details>
     </>
   );
 
@@ -692,12 +714,8 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   if (variant === 'page') {
     return (
-      <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[880px]">
-        <PageHeader
-          name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
-          meta={isEdit ? t('projectForm.subtitle.edit', 'Update the project header details') : createScope}
-        />
-        <div className="rounded-lg border border-border bg-card px-5 py-4">
+      <form onSubmit={handleSubmit} className="w-full min-w-0">
+        <div className="rounded-lg border border-border bg-card px-4 py-4 sm:px-5">
           {errorSummary.length > 0 && form.hasAttemptedSubmit && (
             <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">
               {errorSummary.map((item) => (

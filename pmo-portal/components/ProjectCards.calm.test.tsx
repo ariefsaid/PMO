@@ -1,8 +1,7 @@
 /**
  * AC-RD-SUB-PL-B — Projects cards and board say each fact once (v0.24 UI subtraction).
- * Removed on the default card: the duplicate "No active budget", the status-change control,
- * per-card freshness/coverage prose, the "x of y" caption, the rate/DPP + "Show tax details"
- * toggle, and the board card's "PMO Project Number:" label text.
+ * The project-specific card and board retain the evidence users need while keeping money
+ * coverage and references distinct.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
@@ -45,12 +44,12 @@ const money = (over: Partial<ProjectMoneyRead> = {}): ProjectMoneyRead => ({
 }) as ProjectMoneyRead;
 
 describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
-  it('a card with no Active budget says "No active budget" once, and has no Budget used row', () => {
+  it('a missing Active budget is explicit once while Actual and Budget used remain distinct', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
-    expect(screen.queryByText('Budget used')).not.toBeInTheDocument();
-    // Same without a delivery summary: no second grid.
+    expect(screen.getByText('Budget used')).toBeInTheDocument();
+    expect(screen.getByText('Unavailable')).toBeInTheDocument();
     expect(screen.getByLabelText('Delivery 40%')).toBeInTheDocument();
   });
 
@@ -58,7 +57,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()}
       projectMoney={money({ activeBudgetAmount: null, activeBudgetCurrency: null, hasActiveBudget: false })} />);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
-    expect(screen.queryByTestId('project-card-bars')).not.toBeInTheDocument();
+    expect(screen.getByText('No phases yet')).toBeInTheDocument();
   });
 
   it('has no status-change control; the status pill remains', () => {
@@ -70,7 +69,7 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
 
   it('Actual is the amount only; the bar carries the percentage, not an "x of y" caption', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 40, committedSpend: 0, budget: 0 }} projectMoney={money()} />);
-    const card = screen.getByTestId('project-card');
+    const card = screen.getByRole('article');
     expect(within(card).getByText('$125,000.00')).toBeInTheDocument();
     expect(within(card).queryByText(/Updated|Update time|Incomplete source coverage|Restricted rows excluded/)).not.toBeInTheDocument();
     expect(within(card).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
@@ -82,37 +81,30 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
       actuals: { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
     } as Partial<ProjectMoneyRead>)} />);
-    const card = screen.getByTestId('project-card');
+    const card = screen.getByRole('article');
     expect(within(card).queryByText('$450.00')).not.toBeInTheDocument();
-    expect(within(card).getAllByText('Unavailable')).toHaveLength(1);
+    expect(within(card).getAllByText('Unavailable')).toHaveLength(2);
     expect(within(card).queryByText(/Incomplete source coverage/)).not.toBeInTheDocument();
   });
 
-  it('the tax basis is plain "excl. PPN": no rate, no DPP, no Show tax details toggle', () => {
+  it('the contract states its tax basis', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money()} />);
-    const card = screen.getByTestId('project-card');
+    const card = screen.getByRole('article');
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
-    expect(within(card).queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
-    expect(card).not.toHaveTextContent(/DPP|11%/);
   });
 });
 
-describe('AC-RD-SUB-PL-B: Projects board card shows values only, on one line', () => {
-  it('shows PMO number and client code as values, without the "PMO Project Number:" label text', () => {
+describe('AC-RD-SUB-PL-B: Projects board preserves recognizable references', () => {
+  it('shows labelled PMO number and client code references', () => {
     render(<ProjectKanbanBoard projects={[project]} onOpen={vi.fn()} />);
-    const card = screen.getByTestId('project-card');
-    expect(card).not.toHaveTextContent('PMO Project Number');
-    expect(card).not.toHaveTextContent('Client Project Code');
-    const line = within(card).getByText('PMO-26-7711 · CLI-81');
-    expect(line).toHaveClass('font-mono');
-    // the accessible name keeps the labelled identities for assistive technology
-    expect(card).toHaveAttribute('aria-label', expect.stringContaining('PMO Project Number: PMO-26-7711'));
+    const card = screen.getByRole('button', { name: /Open project Synthetic project/ });
+    expect(card).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(card).toHaveTextContent('Client Project Code: CLI-81');
   });
 
-  it('the board tax basis is plain "excl. PPN" with no rate or DPP', () => {
+  it('the board contract states its tax basis', () => {
     render(<ProjectKanbanBoard projects={[project]} onOpen={vi.fn()} />);
-    const card = screen.getByTestId('project-card');
+    const card = screen.getByRole('button', { name: /Open project Synthetic project/ });
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
-    expect(card).not.toHaveTextContent(/DPP|11%/);
   });
 });

@@ -26,6 +26,7 @@ describe('ProjectsWorkingSet — end-customer filter (issue #758, AC-EC-003)', (
         pm: 'All',
         q: '',
         view: 'table',
+        sort: 'attention',
       },
     ).toString();
     expect(serialized).toContain(`endClient=${END_ID}`);
@@ -36,7 +37,7 @@ describe('ProjectsWorkingSet — end-customer filter (issue #758, AC-EC-003)', (
     const serialized = serializeListWorkingSet(
       'projects',
       '',
-      { filter: 'All', client: 'All', endClient: 'All', pm: 'All', q: '', view: 'table' },
+      { filter: 'All', client: 'All', endClient: 'All', pm: 'All', q: '', view: 'table', sort: 'attention' },
     ).toString();
     expect(serialized).not.toContain('endClient');
   });

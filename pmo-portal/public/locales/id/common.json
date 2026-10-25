@@ -3061,6 +3061,7 @@
       "updated": "Proyek diperbarui"
     },
     "unassigned": "Belum ditugaskan",
+    "customerUnavailable": "Klien tidak tersedia",
     "view": {
       "ariaLabel": "Tampilan proyek",
       "board": "Board",

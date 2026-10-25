@@ -6,7 +6,7 @@ import type { AwardType, BiddingEntity, ProjectClassification, ProjectClassifica
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 const LOCATION_DEBOUNCE_MS = 300;
-export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, resetToken, panel }: {
+export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, hideAppliedSummary = false, resetToken, panel }: {
   rows: readonly ProjectClassification[];
   value: FilterValues;
   onChange: (patch: FilterValues) => void;
@@ -17,6 +17,8 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   inlineTrigger?: boolean;
   /** Preserve Projects' phone selection-and-return-to-trigger behavior. */
   closeOnMobileSelect?: boolean;
+  /** Let Projects render one combined applied-filter summary with its other filters. */
+  hideAppliedSummary?: boolean;
   /** Bump when the page's Clear-filters action runs: cancels a pending location debounce and empties the box. */
   resetToken?: number;
   /**
@@ -131,16 +133,31 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     if (!next && pointerGesture.current) closeAfterClick.current = true;
     else commitOpen(next);
   };
+  const panelFields = panel && activeKeys.length > 0 ? (
+    <div className="grid min-w-0 gap-3">
+      {fields}
+      <Button variant="ghost" className="touch-target w-fit text-primary-text" onClick={() => {
+        focusTrigger();
+        clearTimeout(timer.current);
+        lastLocation.current = '';
+        setLocationText('');
+        onChange({ serviceLine: '', sector: '', awardType: undefined, biddingEntity: undefined, location: '' });
+        requestOpen(false);
+      }}>
+        {t('projectClassification.clear', 'Clear classifications')}
+      </Button>
+    </div>
+  ) : fields;
   return (
     <div ref={rootRef} className={panel ? 'min-w-0' : inlineTrigger ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
-      {panel ? panel(fields, { open: isOpen, onOpenChange: requestOpen }) : (
+      {panel ? panel(panelFields, { open: isOpen, onOpenChange: requestOpen }) : (
         <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
           count={activeClassificationCount(value)} open={isOpen} onOpenChange={requestOpen}
           className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
           {fields}
         </MobileToolbarDisclosure>
       )}
-      {activeKeys.length > 0 && (
+      {!hideAppliedSummary && activeKeys.length > 0 && (
         <div className="mt-2 flex w-full min-w-0 flex-wrap items-center gap-2">
           <ul aria-label={t('projectClassification.applied', 'Applied classifications')} className="flex min-w-0 flex-wrap gap-2">
             {activeKeys.map((key) => {

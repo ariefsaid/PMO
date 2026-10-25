@@ -1,8 +1,8 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel, CompanyNameLink } from '@/src/components/ui';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -11,7 +11,6 @@ import { formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { pillVariantForProjectStatus } from './projects';
-import ProjectCardShell from './ProjectCardShell';
 
 export interface ProjectCardProps {
   project: ProjectWithRefs;
@@ -39,165 +38,140 @@ export interface ProjectCardProps {
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, projectMoney, onEdit }) => {
   const { t } = useTranslation();
-  // FR-L10N-020: every figure on this card belongs to THIS project, so the currency is the
-  // project's own — not the org default. Two projects in different currencies render correctly
-  // side by side in the same list, which is the whole point of the per-record column (0187).
   const currency = project.currency;
-  const contract = project.contract_value ?? 0;
   const actual = projectMoney?.actuals.total == null ? null : Number(projectMoney.actuals.total);
   const activeBudget = projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
     ? Number(projectMoney.activeBudgetAmount)
     : null;
-  const activeBudgetLabel = !projectMoney || (projectMoney.hasActiveBudget && activeBudget == null)
+  const activeBudgetLabel = !projectMoney
     ? t('uxs02.unavailable', 'Unavailable')
-    : projectMoney.hasActiveBudget
-      ? formatCurrency(activeBudget!, projectMoney.activeBudgetCurrency ?? currency)
-      : t('uxs02.noActiveBudget', 'No active budget');
+    : !projectMoney.hasActiveBudget
+      ? t('uxs02.noActiveBudget', 'No active budget')
+      : activeBudget == null
+        ? t('uxs02.unavailable', 'Unavailable')
+        : formatCurrency(activeBudget, projectMoney.activeBudgetCurrency ?? currency);
+  const actualIsComplete = isActualComplete({
+    basis: projectMoney?.ledgerBasis ?? 'unavailable',
+    readSucceeded: Boolean(projectMoney),
+    complete: projectMoney?.actuals.complete,
+    categories: projectMoney?.actuals.categories,
+    excludesRestrictedRows: projectMoney?.actuals.excludesRestrictedRows,
+  });
+  const showActual = actual != null && actualIsComplete;
   const budgetCurrencyMatches = projectMoney?.activeBudgetCurrency === projectMoney?.actuals.currency
-    && projectMoney?.actuals.currency === project.currency;
-  const actualIsComplete = isActualComplete({ basis: projectMoney?.ledgerBasis ?? (projectMoney ? 'erp' : 'unavailable'),
-    readSucceeded: Boolean(projectMoney), complete: projectMoney?.actuals.complete,
-    categories: projectMoney?.actuals.categories, excludesRestrictedRows: projectMoney?.actuals.excludesRestrictedRows });
-  const budgetUsedPct = actual != null && actualIsComplete && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
+    && projectMoney?.actuals.currency === currency;
+  const budgetUsedPct = showActual && activeBudget != null && activeBudget > 0 && budgetCurrencyMatches
     ? Math.round((actual / activeBudget) * 100)
     : null;
-  const atRisk = isMoneyAtRisk({ status: project.status as string, budget: activeBudget,
-    budgetCurrency: projectMoney?.activeBudgetCurrency ?? null, projectCurrency: project.currency, spent: actual,
-    actualCurrency: projectMoney?.actuals.currency ?? null, actualComplete: actualIsComplete });
-  // FR-PRJUX-004/005: the footer label reads from the manager ID, so an assigned blank-name
-  // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — never the
-  // same label for both states.
+  const atRisk = isMoneyAtRisk({
+    status: project.status as string,
+    budget: activeBudget,
+    budgetCurrency: projectMoney?.activeBudgetCurrency ?? null,
+    projectCurrency: currency,
+    spent: actual,
+    actualCurrency: projectMoney?.actuals.currency ?? null,
+    actualComplete: actualIsComplete,
+  });
   const pmLabel = projectManagerLabel({
     managerId: project.project_manager_id,
     fullName: project.pm?.full_name,
     unassignedLabel: t('projects.unassigned', 'Unassigned'),
     unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
   });
-  const initial = (pmLabel.trim().charAt(0) || '?').toUpperCase();
+  const referenceRows = [
+    project.pmo_project_number && [t('projects.identifiers.pmo', 'PMO Project Number'), project.pmo_project_number],
+    project.code && [t('projects.identifiers.client', 'Client Project Code'), project.code],
+    project.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), project.customer_contract_ref],
+  ].filter((row): row is [string, string] => Boolean(row));
 
-  // Actual is shown only when complete — the same rule as the table: unknown is never a partial total.
-  const showActual = actual != null && actualIsComplete;
-  const body = (
-    <>
-      {/* Body: money rows. Each fact once: no freshness, coverage or "x of y" prose on the card. */}
-      <dl className="grid grid-cols-3 gap-2 text-[12px]">
-        <div>
+  return (
+    <article className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-4">
+      <div className="min-w-0">
+        <button type="button" onClick={() => onOpen(project)}
+          className="touch-target block min-h-11 max-w-full break-words text-left text-[15px] font-semibold text-foreground hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          title={project.name}
+          aria-describedby={projectDisplayName(project) !== project.name ? 'project-legal-' + project.id : undefined}>
+          {projectDisplayName(project)}
+        </button>
+        {projectDisplayName(project) !== project.name && <span id={'project-legal-' + project.id} className="sr-only">{project.name}</span>}
+        <div className="mt-1 min-w-0 space-y-0.5 text-[12px]">
+          {project.client
+            ? <CompanyNameLink companyId={project.client_id} name={companyDisplayName(project.client)} className="touch-target block max-w-full break-words" />
+            : <p className="break-words text-muted-foreground">{t('projects.customerUnavailable', 'Customer unavailable')}</p>}
+          {project.end_client && <p className="break-words text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</p>}
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>{project.status}</StatusPill>
+        <span className="text-[12px] text-muted-foreground">
+          {project.end_date
+            ? t('projects.card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
+            : t('projects.dates.noExpectedEnd', 'No expected end')}
+        </span>
+        {atRisk && <span className="text-[12px] font-semibold text-warning">{t('projects.atRiskPill', 'At risk')}</span>}
+      </div>
+
+      <div className="min-w-0">
+        <p className="mb-1 text-[12px] font-medium text-muted-foreground">{t('projects.columns.delivery', 'Delivery')}</p>
+        {deliverySummary?.deliveryPct == null
+          ? <span className="text-[12px] text-muted-foreground">{t('projects.noPhasesYet', 'No phases yet')}</span>
+          : <ProgressBar value={Math.round(deliverySummary.deliveryPct)} showValue
+              tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
+              aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })} />}
+      </div>
+
+      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 text-[12px]">
+        <div className="min-w-0">
           <dt className="text-muted-foreground">{t('projects.columns.contract', 'Contract')}</dt>
-          <dd className="font-semibold tabular">{formatCurrency(contract, currency)}</dd>
-          {/* OD-TAX-1 §2 — the card's headline money figure states its basis (plain; rate/DPP live on the record). */}
-          <dd>
-            <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
+          <dd className="break-words font-semibold tabular">{formatCurrency(project.contract_value, currency)}</dd>
+          <dd><TaxBasisLabel treatment={project.tax_treatment} showDetails={false} /></dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
+          <dd className="break-words font-semibold tabular">{activeBudgetLabel}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
+          <dd className="break-words font-semibold tabular">
+            {showActual
+              ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable')
+              : t('uxs02.unavailable', 'Unavailable')}
           </dd>
         </div>
-        <div>
-          <dt className="text-muted-foreground">{t('uxs02.activeBudget', 'Active budget')}</dt>
-          <dd className="font-semibold tabular text-muted-foreground">{activeBudgetLabel}</dd>
-        </div>
-        <div>
-          <dt className="text-muted-foreground">{t('projects.columns.actual', 'Actual')}</dt>
-          <dd className="font-semibold tabular">
-            {showActual ? formatExactMoney(projectMoney?.actuals.total ?? null, projectMoney?.actuals.currency ?? currency, getNumberLocale()) ?? t('uxs02.unavailable', 'Unavailable') : t('uxs02.unavailable', 'Unavailable')}
+        <div className="min-w-0">
+          <dt className="text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</dt>
+          <dd className="break-words font-semibold tabular">
+            {budgetUsedPct == null
+              ? t('uxs02.unavailable', 'Unavailable')
+              : <ProgressBar value={budgetUsedPct} showValue
+                  tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
+                  aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })} />}
           </dd>
         </div>
       </dl>
 
-      {/* Delivery progress and Active-budget utilization use separate, explicit denominators;
-          a row appears only when it has a figure. */}
-      {((deliverySummary && deliverySummary.deliveryPct != null) || budgetUsedPct != null) && (
-        <div
-          data-testid="project-card-bars"
-          className="grid grid-cols-[auto_1fr] items-center gap-x-2.5 gap-y-1.5"
-        >
-          {deliverySummary && deliverySummary.deliveryPct != null && (
-            <>
-              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.card.delivery', 'Delivery')}</span>
-              <ProgressBar
-                value={Math.round(deliverySummary.deliveryPct)}
-                showValue
-                tone={Math.round(deliverySummary.deliveryPct) >= 100 ? 'success' : 'primary'}
-                aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: Math.round(deliverySummary.deliveryPct) })}
-              />
-            </>
-          )}
-          {budgetUsedPct != null && (
-            <>
-              <span className="text-[12px] font-semibold text-muted-foreground">{t('projects.columns.budgetUsed', 'Budget used')}</span>
-              <div className="flex flex-col gap-0.5">
-                <ProgressBar
-                  value={budgetUsedPct}
-                  showValue
-                  tone={atRisk ? 'destructive' : budgetUsedPct >= 70 ? 'warning' : undefined}
-                  aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent: budgetUsedPct })}
-                />
-                {atRisk && <span className="text-[11px] font-semibold text-warning">{t('uxs02.atRisk', 'At risk')}</span>}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {(project.pmo_project_number || project.code || project.customer_contract_ref) && (
-        <details>
-          <summary aria-label={t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: project.name })} className="cursor-pointer text-[11px] text-muted-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-            {t('uxs14.projectReferences', 'More project references')}
+      {referenceRows.length > 0 && (
+        <details className="min-w-0">
+          <summary className="touch-target min-h-11 cursor-pointer break-words text-[12px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('uxs14.projectReferencesFor', 'More project references for {{name}}', { name: project.name })}
           </summary>
-          <div className="space-y-0.5 pt-1 font-mono text-[11px] text-muted-foreground">
-            {project.pmo_project_number && <div>{t('projects.identifiers.pmo', 'PMO Project Number')}: <span className="break-words md:truncate" title={project.pmo_project_number}>{project.pmo_project_number}</span></div>}
-            {project.code && <div>{t('projects.identifiers.client', 'Client Project Code')}: <span className="break-words md:truncate" title={project.code}>{project.code}</span></div>}
-            {project.customer_contract_ref && <div>{t('uxs14.contractReference', 'Customer contract reference')}: <span className="break-words md:truncate" title={project.customer_contract_ref}>{project.customer_contract_ref}</span></div>}
-          </div>
+          <dl className="space-y-1 pt-1 text-[11px] text-muted-foreground">
+            {referenceRows.map(([label, value]) => <div key={label}><dt className="sr-only">{label}</dt><dd className="break-all font-mono">{label}: {value}</dd></div>)}
+          </dl>
         </details>
       )}
-    </>
-  );
 
-  // Foot: PM + the optional Edit button (stops propagation so it never triggers the card drill).
-  const foot = (
-    <>
-      <span className="flex min-w-0 items-center gap-2 text-[12px]">
-        {project.project_manager_id != null && (
-          <span aria-hidden className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground">
-            {initial}
-          </span>
-        )}
-        <span className="truncate text-muted-foreground">{pmLabel}</span>
-      </span>
-      <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-        {onEdit && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit(project);
-            }}
-            aria-label={t('projects.card.editProject', 'Edit {{name}}', { name: project.name })}
-          >
-            <Icon name="pencil" />
-            {t('projects.actions.edit', 'Edit')}
-          </Button>
-        )}
-      </div>
-    </>
-  );
-
-  return (
-    // UX-019: secondary identifiers are rendered only in the disclosure above.
-    <ProjectCardShell
-      variant="grid"
-      name={projectDisplayName(project)}
-      contractualName={project.name}
-      client={project.client ? companyDisplayName(project.client) : null}
-      clientId={project.client_id}
-      status={
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>
-          {project.status}
-        </StatusPill>
-      }
-      body={body}
-      foot={foot}
-      onOpen={() => onOpen(project)}
-    />
+      <footer className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-t border-border pt-2">
+        <span className="min-w-0 break-words text-[12px] text-muted-foreground">
+          {t('projects.columns.pm', 'PM')}: {pmLabel}
+        </span>
+        {onEdit && <Button variant="ghost" size="sm" className="touch-target text-muted-foreground"
+          onClick={() => onEdit(project)} aria-label={t('projects.card.editProject', 'Edit {{name}}', { name: project.name })}>
+          <Icon name="pencil" />{t('projects.actions.edit', 'Edit')}
+        </Button>}
+      </footer>
+    </article>
   );
 };
 

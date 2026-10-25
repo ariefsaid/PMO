@@ -31,11 +31,10 @@ import {
   TaxBasisLabel,
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
-import ProjectCardShell from './ProjectCardShell';
 
 // ---------------------------------------------------------------------------
 // Column definitions — lifecycle order, DESIGN.md tokens for dot colors.
@@ -94,9 +93,8 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
 
 // ---------------------------------------------------------------------------
 // ProjectKanbanCard — a single project card in the kanban view.
-// Renders the canonical ProjectCardShell (CW-3b, `kanban` variant) — the SAME
-// visual vocabulary as the cards-view and Sales board. Delivery-lens content:
-// contract value + PM; the column heading carries lifecycle status.
+// Project lifecycle is communicated by the column header. Cards keep the project
+// evidence needed to identify and open a record without repeating the status.
 // ---------------------------------------------------------------------------
 
 interface ProjectKanbanCardProps {
@@ -107,47 +105,43 @@ interface ProjectKanbanCardProps {
 const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
   const { t } = useTranslation();
   const displayName = projectDisplayName(project);
-  // FR-PRJUX-004/005: the footer label reads from the manager ID so an assigned blank-name
-  // profile shows `Unnamed user · <short ID>` and a null ID shows `Unassigned` — the two
-  // "no name" states stay distinct across every visible Projects view (incl. Kanban).
+  const legalNameId = `kanban-project-legal-${project.id}`;
   const pmLabel = projectManagerLabel({
     managerId: project.project_manager_id,
     fullName: project.pm?.full_name,
     unassignedLabel: t('projects.unassigned', 'Unassigned'),
     unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
   });
+  const references = [
+    project.pmo_project_number && [t('projects.identifiers.pmo', 'PMO Project Number'), project.pmo_project_number],
+    project.code && [t('projects.identifiers.client', 'Client Project Code'), project.code],
+    project.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), project.customer_contract_ref],
+  ].filter((row): row is [string, string] => Boolean(row));
   return (
-    <ProjectCardShell
-      variant="kanban"
-      name={displayName}
-      contractualName={project.name}
-      client={project.client ? companyDisplayName(project.client) : null}
-      pmoProjectNumber={project.pmo_project_number}
-      code={project.code}
-      body={
-        <div className="text-[12px] font-bold tabular">
-          {formatCurrency(project.contract_value, project.currency)}{' '}
-          {/* OD-TAX-1 §2 — the card's only number, so it is the one that must not be bare. */}
-          <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
-        </div>
-      }
-      foot={
-        <span className="ml-auto flex items-center gap-1 text-[11px] text-muted-foreground">
-          {project.project_manager_id != null && (
-            <span
-              aria-hidden
-              className="grid size-[16px] shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-muted-foreground"
-            >
-              {(pmLabel.trim().charAt(0) || '?').toUpperCase()}
-            </span>
-          )}
-          <span className={project.project_manager_id == null ? undefined : 'max-w-[14ch] truncate'}>{pmLabel}</span>
-        </span>
-      }
-      onOpen={onActivate}
-    />
+    <button type="button" onClick={onActivate}
+      aria-label={t('projects.kanban.openProject', 'Open project {{name}}', { name: displayName })}
+      aria-describedby={displayName !== project.name ? legalNameId : undefined}
+      className="touch-target flex min-h-11 w-full min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <span title={project.name} className="block min-w-0 break-words font-semibold text-foreground">{displayName}</span>
+      {displayName !== project.name && <span id={legalNameId} className="sr-only">{project.name}</span>}
+      {project.client
+        ? <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{companyDisplayName(project.client)}</span>
+        : <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.customerUnavailable', 'Customer unavailable')}</span>}
+      {project.end_client && <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</span>}
+      <span className="block min-w-0 text-[12px] text-muted-foreground">
+        {project.end_date
+          ? t('projects.card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
+          : t('projects.dates.noExpectedEnd', 'No expected end')}
+      </span>
+      {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words text-[11px] text-muted-foreground"><span className="font-medium">{label}:</span> {value}</span>)}
+      <span className="block break-words text-[12px] font-semibold tabular">
+        {formatCurrency(project.contract_value, project.currency)} <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
+      </span>
+      <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects.columns.pm', 'PM')}: {pmLabel}</span>
+    </button>
   );
 };
+
 
 // ---------------------------------------------------------------------------
 // ProjectKanbanBoard

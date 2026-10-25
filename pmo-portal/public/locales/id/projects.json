@@ -9,7 +9,18 @@
   "create": {
     "accessDenied": "Anda tidak dapat membuat proyek",
     "leave": "Keluar",
-    "stay": "Tetap di sini"
+    "stay": "Tetap di sini",
+    "backToProjects": "Kembali ke Proyek",
+    "workspaceScope": "Cakupan ruang kerja",
+    "originScope": "Cakupan Proyek: {{scope}} · {{view}}",
+    "startsAs": "Dimulai sebagai {{stage}}",
+    "leadConsequence": "Prospek dilacak di Pipeline.",
+    "internalConsequence": "Proyek internal tetap di ruang kerja.",
+    "classificationEmpty": "Konteks proyek opsional",
+    "section": {
+      "ownershipSchedule": "Kepemilikan & jadwal",
+      "estimateTax": "Estimasi & pajak"
+    }
   },
   "shortName": {
     "label": "Nama singkat (opsional)",

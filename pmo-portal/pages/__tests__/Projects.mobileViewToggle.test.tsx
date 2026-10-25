@@ -1,16 +1,5 @@
 /**
- * AC-MOB-VT (round-3) — Projects phone-width view toggle.
- *
- * Wave-2 hid the Table option below md because DataTable auto-rendered cards on mobile
- * (the toggle became a no-op). The Projects mobile toolbar (AC-PRJUX-001) now exposes the
- * full view toggle below md — Table included — because the ListPage mobile branch owns the
- * toolbar at phone widths and DataTable still reflows Table into cards. Cards / Calendar /
- * Board remain reachable as before.
- *
- * TESTS (all at <768px):
- * 1. (AC-PRJUX-001) Table / Cards / Calendar / Board are ALL present and reachable below md.
- * 2. (AC-PRJUX-001) None of the four options carries `hidden` (nothing is CSS-hidden on phones).
- * 3. (AC-MOB-VT-003) All four view values exist (Table preserved as a real selectable view).
+ * Projects keeps all four saved views available from its ordered collection toolbar.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -120,25 +109,12 @@ describe('AC-PRJUX-001 — Projects phone-width view toggle (round-3)', () => {
     projectsState.isError = false;
   });
 
-  it('AC-PRJUX-001: Table / Cards / Calendar / Board are ALL present and reachable below md', () => {
+  it('AC-PRJUX-001: all four views remain selectable on a phone', async () => {
     renderPage();
-    const toggle = screen.getByRole('tablist', { name: /projects view/i });
+    const toggle = screen.getByRole('combobox', { name: 'View' });
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
-      expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
+      expect(within(toggle).getByRole('option', { name })).toBeInTheDocument();
     }
-  });
-
-  it('AC-PRJUX-001: none of the four options carries `hidden` (nothing is CSS-hidden on phones)', () => {
-    renderPage();
-    const toggle = screen.getByRole('tablist', { name: /projects view/i });
-    for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
-      expect(within(toggle).getByRole('tab', { name: new RegExp(`^${name}$`) }).className).not.toContain('hidden');
-    }
-  });
-
-  it('AC-MOB-VT-003: all four view values exist (Table preserved as a real selectable view)', () => {
-    renderPage();
-    const toggle = screen.getByRole('tablist', { name: /projects view/i });
-    expect(within(toggle).getByRole('tab', { name: /^Table$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(toggle).toHaveValue('table');
   });
 });

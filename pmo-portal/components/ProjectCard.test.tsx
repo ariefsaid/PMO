@@ -66,11 +66,11 @@ describe('ProjectCard', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
-    expect(screen.getByText('Alice Manager')).toBeInTheDocument();
+    expect(screen.getByText(/PM: Alice Manager/)).toBeInTheDocument();
     expect(screen.getByText('$5,000,000')).toBeInTheDocument();
   });
 
-  it('renders a StatusPill (dot + text), not a legacy badge', () => {
+  it('shows the project lifecycle state on the card', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
   });
@@ -82,16 +82,16 @@ describe('ProjectCard', () => {
 
   it('shows the customer contract ref on demand', async () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    await userEvent.click(screen.getByLabelText('More project references for Innovate Corp HQ Fit-Out'));
-    expect(screen.getByTitle('CPO-2026-001')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('More project references for Innovate Corp HQ Fit-Out'));
+    expect(screen.getByText(/Customer contract reference: CPO-2026-001/)).toBeInTheDocument();
   });
 
   it('renders em-dashes for a missing customer and PM rather than blank', () => {
     // A genuinely unassigned project: BOTH pm:null AND project_manager_id:null.
     const sparse = { ...base, client: null, pm: null, project_manager_id: null } as unknown as ProjectWithRefs;
     render(<ProjectCard project={sparse} onOpen={vi.fn()} />);
-    expect(screen.getByText('Unassigned')).toBeInTheDocument();
-    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.getByText(/PM: Unassigned/)).toBeInTheDocument();
+    expect(screen.getByText('Customer unavailable')).toBeInTheDocument();
   });
 
   it('FR-PRJUX-004: an assigned profile with a blank name shows `Unnamed user · shortID`, not Unassigned', () => {
@@ -101,8 +101,8 @@ describe('ProjectCard', () => {
       pm: { full_name: '   ' },
     } as unknown as ProjectWithRefs;
     render(<ProjectCard project={blankAssigned} onOpen={vi.fn()} />);
-    expect(screen.getByText('Unnamed user · aaaaaaaa')).toBeInTheDocument();
-    expect(screen.queryByText('Unassigned')).not.toBeInTheDocument();
+    expect(screen.getByText(/PM: Unnamed user · aaaaaaaa/)).toBeInTheDocument();
+    expect(screen.queryByText(/PM: Unassigned/)).not.toBeInTheDocument();
   });
 
   it('calls onOpen when the card is activated, but not when Edit is used', async () => {
@@ -120,18 +120,13 @@ describe('ProjectCard', () => {
 
   it('AC-CODE-003: renders PMO Project Number and Client Project Code as separate labelled identities', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getByTestId('project-card')).toHaveTextContent('PMO Project Number: PMO-26-7711');
-    expect(screen.getByTestId('project-card')).toHaveTextContent('Client Project Code: CLIENT-81');
-  });
-
-  it('has a carrier with the project-card testid', () => {
-    render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getByTestId('project-card')).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(screen.getByRole('article')).toHaveTextContent('Client Project Code: CLIENT-81');
   });
 
   it('AC-S02: an unresolved collection read does not claim that no Active budget exists', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getAllByText('Unavailable')).toHaveLength(3);
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByText('$4,700,000')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -201,7 +196,7 @@ describe('ProjectCard', () => {
     ]) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
       expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
-      expect(screen.getAllByText('Unavailable')).toHaveLength(1);
+      expect(screen.getAllByText('Unavailable')).toHaveLength(2);
       expect(screen.queryByRole('progressbar', { name: /Active budget/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/Restricted rows excluded|Incomplete source coverage/)).not.toBeInTheDocument();
       unmount();
@@ -253,7 +248,7 @@ describe('ProjectCard', () => {
       hasActiveBudget: false,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
     expect(screen.getAllByText('No active budget')).toHaveLength(1);
     expect(screen.queryByLabelText(/Actual spend: 0%/)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget used 0%/)).not.toBeInTheDocument();
@@ -276,7 +271,7 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
     expect(screen.queryByTestId('tax-basis')).not.toBeInTheDocument();
   });
 
-  it('PL-B: the card states the plain basis only; rate and DPP live on the record, with no disclosure to operate', () => {
+  it('the card keeps the contract amount paired with its basis', () => {
     const project = {
       ...base,
       tax_rate: 12,
@@ -285,10 +280,8 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
     } as unknown as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} />);
 
-    const card = screen.getByTestId('project-card');
+    const card = screen.getByRole('article');
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
-    expect(within(card).queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
     expect(within(card).getByText('$5,000,000')).toBeInTheDocument();
-    expect(card).not.toHaveTextContent(/DPP|12%/);
   });
 });

@@ -29,21 +29,6 @@ function page(path = '/projects?view=table') {
 }
 beforeEach(() => { sessionStorage.clear(); viewport(); state.isPending = false; state.isError = false; });
 
-describe('UIP-003 project recognition', () => {
-  it('UIP-003 reserves desktop identity space and two-line titles while keeping numeric alignment', async () => {
-    page();
-    const title = screen.getByRole('button', { name: state.data[0].name });
-    expect(title).toHaveClass('md:line-clamp-2');
-    expect(title.className).not.toMatch(/truncate|16ch/);
-    expect(screen.getByRole('columnheader', { name: 'Project' })).toHaveStyle({ minWidth: '240px' });
-    expect(screen.queryByRole('columnheader', { name: 'Customer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('columnheader', { name: 'End customer' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /optional columns/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Contract' })).toHaveClass('text-right');
-    expect(screen.getByText(/CLIENT-001/)).toBeInTheDocument();
-  });
-});
-
 it.each([true, false])('UIP-004 Projects folds classification into its one collapsed Filters disclosure (desktop=%s) with URL-owned summary, count and clear', async (desktop) => {
   viewport(desktop);
   page('/projects?view=table&serviceLine=Engineering&sector=Energy');
@@ -59,9 +44,11 @@ it.each([true, false])('UIP-004 Projects folds classification into its one colla
   expect(screen.getByLabelText('Filter by service line')).toHaveValue('Engineering');
   await user.keyboard('{Escape}');
   expect(trigger).toHaveFocus();
+  await user.click(trigger);
   await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
   expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
   expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
 });
 
 it('UIP-004 shared classifications summarize all five selections, retain missing options, remove individually and clear a pending location', async () => {

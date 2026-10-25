@@ -1,13 +1,11 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
-import { activeClassificationCount, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
+import { activeClassificationCount, CLASSIFICATION_FILTER_KEYS, classificationValueLabel, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
 import type { ProjectClassificationFilters as ClassificationFilterValues } from '@/src/lib/projectClassification';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
-  ListPage,
   SearchMini,
-  ViewToggle,
   ListState,
   DataTable,
   StatusPill,
@@ -49,19 +47,22 @@ import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { ProjectStatus as ProjectStatusEnum } from '../types';
-import { pillVariantForProjectStatus, projectIconColor } from '../components/projects';
+import { pillVariantForProjectStatus } from '../components/projects';
 import ProjectCard from '../components/ProjectCard';
 import ProjectFormModal from '../components/ProjectFormModal';
 import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { sortProjectRows } from '@/src/lib/projects/projectSorting';
+import type { ProjectSort } from '@/src/lib/projects/projectSorting';
+import { ProjectPageFrame } from '@/src/components/projects/ProjectPageFrame';
+import { Link } from 'react-router';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -164,7 +165,7 @@ const Projects: React.FC = () => {
   const all = useMemo<ProjectWithRefs[]>(() => data ?? [], [data]);
 
   // NFR-DEL-PERF-001: one batched call for all project delivery summaries (no per-row N+1).
-  const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError } = useProjectsDeliverySummary(all.map((p) => p.id));
+  const { data: deliverySummary, isPending: deliveryPending, isError: deliveryError, refetch: refetchDelivery } = useProjectsDeliverySummary(all.map((p) => p.id));
   const { data: projectMoney, isPending: moneyPending, isError: moneyError, refetch: refetchMoney } = useProjectsMoneyCollection(all.map((p) => p.id));
 
   // Financial risk uses the canonical mapped Actual over an explicit Active budget.
@@ -199,7 +200,7 @@ const Projects: React.FC = () => {
           case 'Completed':
             return COMPLETED.includes(p.status as string);
           case 'at-risk':
-            return isAtRiskActual(p);
+            return true;
           default:
             return true;
         }
@@ -228,11 +229,9 @@ const Projects: React.FC = () => {
           (p.end_client?.name ?? '').toLowerCase().includes(q) ||
           (p.end_client?.short_name ?? '').toLowerCase().includes(q),
       );
-    // AC-IXD-DASH-W5-C2C N18: within the result, sort at-risk rows to the top.
-    // Stable: JS sort is stable, so non-at-risk rows keep their original relative order.
-    // Applied to all views so the ordering is consistent regardless of the active segment.
-    return rows.sort((a, b) => (isAtRiskActual(a) ? 0 : 1) - (isAtRiskActual(b) ? 0 : 1));
-  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual]);
+    const riskRows = filter === 'at-risk' && !moneyError ? rows.filter(isAtRiskActual) : rows;
+    return sortProjectRows(riskRows, workingSet.sort, isAtRiskActual);
+  }, [all, workingSet, filter, filterClient, filterEndCustomer, filterPM, search, currentUser?.id, isEngineer, myProjectIds, isAtRiskActual, moneyError]);
 
   // Dated milestones for the calendar view — one batched read for the visible set
   // (NFR-CAL-PERF-001). Gated on view === 'calendar' so the RPC is skipped on table/cards loads.
@@ -255,7 +254,11 @@ const Projects: React.FC = () => {
     'at-risk': t('projects.filters.atRisk', 'At risk'),
   };
 
-  const pageDescription = t('projects.description', 'Pre-win projects live in the Pipeline.');
+  const sortLabels: Record<ProjectSort, string> = {
+    attention: t('projects.sort.attention', 'Budget risk first, then expected end'),
+    'expected-end': t('projects.sort.expectedEnd', 'Expected end (soonest first)'),
+    name: t('projects.sort.name', 'Project name (A to Z)'),
+  };
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
@@ -337,10 +340,7 @@ const Projects: React.FC = () => {
     onChange: (patch: ClassificationFilterValues) => setWorkingSet((ws) => ({ ...ws, ...patch })),
   };
   const filtersActive =
-    classificationCount > 0 || filter !== 'All' || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
-  const hasNonDefaultFilter =
     classificationCount > 0 || filter !== roleDefault || filterClient !== 'All' || filterEndCustomer !== 'All' || filterPM !== 'All' || search.trim() !== '';
-
   // AC-PRJUX-002: Clear all returns the list to the role-default status (All for
   // PM/Admin, My Projects for Engineer), not a literal 'All', while clearing customer,
   // PM, and search — ONE working-set update plus the search reset (#683), so the URL and
@@ -348,12 +348,15 @@ const Projects: React.FC = () => {
   const clearFilters = () => {
     setSearch('');
     setClassificationResetToken((n) => n + 1);
-    setWorkingSet(() =>
-      parseListWorkingSet('projects', '', {
+    setWorkingSet((current) => ({
+      ...parseListWorkingSet('projects', '', {
         projectsDefaultFilter: roleDefault,
         sessionView: readProjectView(),
       }),
-    );
+      view: current.view,
+      month: current.month,
+      sort: current.sort,
+    }));
   };
 
   // Row/card drill captures the current list URL + scroll as validated return context
@@ -394,8 +397,6 @@ const Projects: React.FC = () => {
     }
   };
 
-  const hasDeliveryData = deliveryPending || deliveryError || filtered.some((project) => deliverySummary?.[project.id]?.deliveryPct != null);
-  const hasBudgetData = moneyPending || moneyError || filtered.some((project) => projectMoney?.[project.id]?.hasActiveBudget);
   // ONE table-level coverage note (AC-RD-TBL-PROJ-001): the count of ERP rows with an unmapped or
   // amount-less category, and the newest ERP update among the visible rows.
   const partialRows = filtered.filter((project) => {
@@ -420,27 +421,23 @@ const Projects: React.FC = () => {
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
-        const ids = [p.pmo_project_number, p.code].filter(Boolean).join(' · ');
+        const references = [
+          p.pmo_project_number && t('projects.identifiers.pmo', 'PMO Project Number') + ': ' + p.pmo_project_number,
+          p.code && t('projects.identifiers.client', 'Client Project Code') + ': ' + p.code,
+          p.customer_contract_ref && t('uxs14.contractReference', 'Customer contract reference') + ': ' + p.customer_contract_ref,
+        ].filter((value): value is string => Boolean(value));
         return (
-          <span className="block min-w-0" onClick={(event) => event.stopPropagation()}>
-            <CompanyNameLink companyId={p.client_id} name={p.client ? companyDisplayName(p.client) : null} className="inline max-w-[180px] align-baseline text-[12px]" />
-            {ids && <> · {p.pmo_project_number && <span className="sr-only">{t('projects.identifiers.pmo', 'PMO Project Number')}: </span>}<span className="font-mono" title={ids}>{ids}</span></>}
-            {p.end_client && <span className="block truncate text-[11px] text-muted-foreground">{companyDisplayName(p.end_client)}</span>}
+          <span className="block min-w-0 space-y-0.5" onClick={(event) => event.stopPropagation()}>
+            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="touch-target block max-w-full break-words text-[12px]" />}
+            {p.end_client && <span className="block break-words text-[11px] text-muted-foreground">{t('projects.endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
+            {references.length > 0 && <span className="block break-all font-mono text-[10px] text-muted-foreground">{references.join(' · ')}</span>}
           </span>
         );
       },
       cell: (p) => {
         const atRisk = isAtRiskActual(p);
         return (
-          <div className="flex min-w-0 items-start gap-2.5">
-            <span
-              aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-md text-[11px] font-bold text-white"
-              style={{ background: projectIconColor() }}
-            >
-              {(projectDisplayName(p).trim().charAt(0) || '•').toUpperCase()}
-            </span>
-            <div className="min-w-0 flex-1">
+          <div className="min-w-0">
               <div className="flex min-w-0 flex-col items-start gap-1">
                 <button
                   type="button"
@@ -461,7 +458,6 @@ const Projects: React.FC = () => {
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
                 )}
               </div>
-            </div>
           </div>
         );
       },
@@ -482,42 +478,35 @@ const Projects: React.FC = () => {
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         }),
-      // The compact initials avatar preserves the full PM name for assistive technology and hover.
       cell: (p) => {
-        if (p.project_manager_id == null) {
-          return <span className="text-[12px] text-muted-foreground">{t('projects.unassigned', 'Unassigned')}</span>;
-        }
         const label = projectManagerLabel({
           managerId: p.project_manager_id,
           fullName: p.pm?.full_name,
           unassignedLabel: t('projects.unassigned', 'Unassigned'),
           unnamedUserLabel: t('projects.unnamedUser', 'Unnamed user'),
         });
-        const initials = label.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0)).join('').toUpperCase() || '?';
-        return (
-          <span className="flex items-center justify-center">
-            <span
-              role="img"
-              aria-label={label}
-              title={label}
-              className="grid size-[18px] shrink-0 place-items-center rounded-full text-[8px] font-bold text-white"
-              style={{ background: 'hsl(var(--avatar-2))' }}
-            >
-              {initials}
-            </span>
-          </span>
-        );
+        return <span className="text-[12px] text-foreground">{label}</span>;
       },
     },
     {
       key: 'status',
-      header: t('projects.columns.status', 'Status'),
+      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
+      // status labels is its own decision (it needs one map every surface shares) and is not in
+      // this pass. Only the column header moves.
+      header: t('projects.columns.statusAndEnd', 'Status / expected end'),
       kind: 'status',
       size: 140,
       minSize: 112,
       maxSize: 220,
-      exportValue: (p) => projectStatusLabel(String(p.status)),
-      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(String(p.status))}</StatusPill>,
+      exportValue: (p) => String(p.status),
+      cell: (p) => (
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
+          <span className="text-[12px] text-muted-foreground">
+            {p.end_date ? formatDateOnly(p.end_date) : t('projects.dates.noExpectedEnd', 'No expected end')}
+          </span>
+        </div>
+      ),
     },
     {
       key: 'contract',
@@ -567,7 +556,6 @@ const Projects: React.FC = () => {
       maxSize: 320,
       align: 'num',
       colClassName: 'xl:pr-4',
-      caveat: coverageReason ? { reason: coverageReason } : undefined,
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-[12px] text-muted-foreground">…</span>;
@@ -607,7 +595,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'progress',
-      header: t('projects.columns.progress', 'Progress'),
+      header: t('projects.columns.delivery', 'Delivery'),
       kind: 'percent',
       size: 120,
       minSize: 96,
@@ -622,7 +610,7 @@ const Projects: React.FC = () => {
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
           const noPhases = t('projects.noPhasesYet', 'No phases yet');
-          return <span role="img" aria-label={noPhases} title={noPhases} className="text-[12px] text-muted-foreground">—</span>;
+          return <span className="break-words text-[12px] text-muted-foreground">{noPhases}</span>;
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -676,557 +664,191 @@ const Projects: React.FC = () => {
       },
     },
   ];
-  // Columns with no data in the visible set (no phases anywhere, no Active budget anywhere) are omitted.
-  const visibleColumns = columns.filter((column) => {
-    if (column.key === 'progress') return hasDeliveryData;
-    if (column.key === 'budget-used') return hasBudgetData;
-    return true;
-  });
+  const columnOrder = ['project', 'pm', 'status', 'progress', 'contract', 'actual', 'budget-used'];
+  columns.sort((left, right) => columnOrder.indexOf(left.key) - columnOrder.indexOf(right.key));
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
 
-  // ── States ──────────────────────────────────────────────────────────────
-  const primaryAction = newProjectAction(
-    canCreate,
-    () => openRecord('/projects/new'),
-    t('projects.actions.new', 'New project'),
-  );
-
-  if (isPending) {
-    return (
-      <ListPage
-        title={t('projects.title', 'Projects')}
-        description={pageDescription}
-        primaryAction={primaryAction}
-        primaryActionPlacement="toolbar"
-      >
-        <div data-testid="projects-loading" className="rounded-lg border border-border bg-card">
-          <ListState variant="loading" rows={6} />
+  const primaryAction = newProjectAction(canCreate, () => openRecord('/projects/new'), t('projects.actions.new', 'New project'));
+  const filtersCount = (filter !== roleDefault ? 1 : 0) +
+    (isEngineer ? 0 : Number(filterClient !== 'All') + Number(filterEndCustomer !== 'All') + Number(filterPM !== 'All')) +
+    classificationCount;
+  const optionRetry = (result: { isPending: boolean; isError: boolean; refetch?: () => unknown }) =>
+    !result.isPending && result.isError ? (
+      <button type="button" onClick={() => result.refetch?.()} className="touch-target text-[12px] font-semibold text-primary-text underline-offset-2 hover:underline">
+        {t('projects.filters.retryOptions', 'Retry options')}
+      </button>
+    ) : null;
+  const toolbar = (
+    <>
+      <SearchMini id="projects-search" placeholder={t('projects.search.placeholder', 'Search projects…')}
+        aria-label={t('projects.search.ariaLabel', 'Search projects')} value={search}
+        onChange={(event) => setSearch(event.target.value)} searchSurface="projects-list" module="projects"
+        resultCount={filtered.length} containerClassName="min-w-0 w-full md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
+      <div className="flex min-w-0 w-full flex-wrap items-end gap-2 md:w-auto">
+        <div className="min-w-[144px] flex-1 md:flex-none">
+          <SelectField label={t('projects.filters.scopeLabel', 'Scope')} value={filter}
+            onChange={(value) => { setWorkingSet((ws) => ({ ...ws, filter: value as StatusFilter })); trackFilterApplied('status', FILTERS.length, 'projects'); }}
+            options={FILTERS.map((value) => ({ value, label: filterLabels[value] }))} className="touch-target min-w-0" />
         </div>
-      </ListPage>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <ListPage
-        title={t('projects.title', 'Projects')}
-        description={pageDescription}
-        primaryAction={primaryAction}
-        primaryActionPlacement="toolbar"
-      >
-        <ListState
-          variant="error"
-          title={t('projects.states.errorTitle', "Couldn't load projects")}
-          sub={t('projects.states.errorSub', 'Something went wrong fetching your projects.')}
-          onRetry={() => refetch()}
-        />
-      </ListPage>
-    );
-  }
-
-  if (all.length === 0 && filter !== 'at-risk') {
-    return (
-      <ListPage
-        title={t('projects.title', 'Projects')}
-        description={pageDescription}
-        primaryAction={primaryAction}
-        primaryActionPlacement="toolbar"
-      >
-        <ListState
-          variant="empty"
-          icon="folder"
-          title={t('projects.states.emptyTitle', 'No projects yet')}
-          sub={t('projects.states.emptySub', 'Projects you create or win will appear here.')}
-          stateId="projects-empty"
-          role={realRole ?? undefined}
-          module="projects"
-        />
-      </ListPage>
-    );
-  }
-
-  // ── Phone-width (below md) mobile toolbar (FR-PRJUX-001) ────────────────
-  // Keeps status, search, the selected view, and New project visible while grouping the
-  // secondary filters and bulk actions behind named disclosures. Only rendered in the
-  // loaded slate. The Table view option is NOT hidden here — DataTable already reflows
-  // it into cards.
-  const secondaryCount =
-    (filterClient !== 'All' ? 1 : 0) + (filterEndCustomer !== 'All' ? 1 : 0) + (filterPM !== 'All' ? 1 : 0);
-  const selectedCustomer = customerFilterOptions.find((o) => o.value === filterClient);
-  const selectedEndCustomer = endCustomerFilterOptions.find((o) => o.value === filterEndCustomer);
-  const selectedPm = pmFilterOptions.find((o) => o.value === filterPM);
-
-  // One count for the one Filters trigger: the manager-browse selects (not offered to an Engineer) plus classifications.
-  const filtersCount = (isEngineer ? 0 : secondaryCount) + classificationCount;
-  // A failed options load keeps its Retry; a loading or empty list says nothing.
-  const optionsRetry = (result: { isPending: boolean; isError: boolean; refetch?: () => unknown }) =>
-    !result.isPending && result.isError && (
-      <div className="flex items-center gap-2">
-        <p role="alert" className="text-[12px] text-destructive">
-          {t('projects.mobile.error', "Couldn't load options")}
-        </p>
-        <button
-          type="button"
-          onClick={() => result.refetch?.()}
-          className="text-[12px] font-semibold text-primary underline-offset-2 hover:underline"
-        >
-          {t('projects.mobile.retry', 'Retry')}
-        </button>
-      </div>
-    );
-
-  const moreActionsChildren = [
-    <ExportButton
-      key="export"
-      rows={filtered}
-      columns={exportColumns}
-      entity="Projects"
-      label={t('projects.export', 'Export')}
-      onExport={() => setMoreOpen(false)}
-    />,
-    // ImportButton is internally permission-gated (returns null for a non-create real
-    // role). Opening its wizard must NOT close/unmount this More disclosure — the wizard
-    // stays mounted for its own lifecycle (DD-BIMP-3) — so no close is wired here.
-    <ImportButton
-      key="import"
-      entity="project"
-      descriptor={importDescriptor}
-      onImported={() => void refetch()}
-      label={t('projects.import', 'Import')}
-    />,
-    <ImportButton
-      key="importBudget"
-      entity="budgetLine"
-      label={t('projects.importBudgets', 'Import budgets')}
-      descriptor={budgetImportDescriptor}
-      onImported={() => void refetch()}
-    />,
-  ].filter((c): c is React.ReactElement => c !== null);
-
-  const mobileToolbar = (
-    <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
-      {/* Search starts the collection narrowing sequence. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <SearchMini
-          placeholder={t('projects.search.placeholder', 'Search projects…')}
-          aria-label={t('projects.search.ariaLabel', 'Search projects')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          searchSurface="projects-list"
-          module="projects"
-          resultCount={filtered.length}
-          containerClassName="min-w-0 flex-1 basis-40"
-        />
-      </div>
-
-      {/* Scope tabs precede finer classification filters. Wrapping keeps all five visible. */}
-      <div data-testid="status-filter-scroll" className="status-filter-wrap min-w-0 overflow-x-auto scroll-fade-x">
-        <ViewToggle<StatusFilter>
-          className="max-w-full flex-wrap"
-          options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-          value={filter}
-          onChange={(v) => {
-            setWorkingSet((ws) => ({ ...ws, filter: v }));
-            trackFilterApplied('status', FILTERS.length, 'projects');
-          }}
-          ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
-        />
-      </div>
-
-      {/* Classification filters follow the status scope. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <ProjectClassificationFilters
-          {...classificationFilterProps}
+        <ProjectClassificationFilters {...classificationFilterProps} hideAppliedSummary
           panel={(fields, disclosure) => (
-            <MobileToolbarDisclosure
-              label={t('uxs14.filters', 'Filters')}
-              count={filtersCount}
-              open={disclosure.open}
-              closeOnSelectChange
-              onOpenChange={disclosure.onOpenChange}
-            >
-              <div className="w-full min-w-0 space-y-3">
-                {!isEngineer && (
-                  <>
-                    <div className="w-full min-w-0 space-y-1">
-                      <SelectField
-                        label={t('projects.filters.customerLabel', 'Filter by customer')}
-                        value={filterClient}
-                        onChange={(v) => {
-                          setWorkingSet((ws) => ({ ...ws, client: v }));
-                          trackFilterApplied('customer', customerFilterOptions.length, 'projects');
-                        }}
-                        options={customerFilterOptions}
-                        fullWidth
-                      />
-                      {optionsRetry(clientCompaniesResult)}
+            <MobileToolbarDisclosure label={t('uxs14.filters', 'Filters')} count={filtersCount}
+              open={disclosure.open} closeOnSelectChange
+              onOpenChange={(next) => { disclosure.onOpenChange(next); if (next) setMoreOpen(false); }}>
+              <div className="grid w-full min-w-0 gap-3">
+                {!isEngineer && <>
+                  <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+                    <SelectField label={t('projects.filters.customerLabel', 'Filter by customer')} value={filterClient}
+                      onChange={(value) => { setWorkingSet((ws) => ({ ...ws, client: value })); trackFilterApplied('customer', customerFilterOptions.length, 'projects'); }}
+                      options={customerFilterOptions} fullWidth />
+                    <div className="min-w-0">
+                      <SelectField label={t('projects.filters.endCustomerLabel', 'Filter by end customer')} value={filterEndCustomer}
+                        onChange={(value) => { setWorkingSet((ws) => ({ ...ws, endClient: value })); trackFilterApplied('end_customer', endCustomerFilterOptions.length, 'projects'); }}
+                        options={endCustomerFilterOptions} fullWidth />
+                      {optionRetry(companiesResult)}
                     </div>
-                    <div className="w-full min-w-0 space-y-1">
-                      <SelectField
-                        label={t('projects.filters.endCustomerLabel', 'Filter by end customer')}
-                        value={filterEndCustomer}
-                        onChange={(v) => {
-                          setWorkingSet((ws) => ({ ...ws, endClient: v }));
-                          trackFilterApplied('end_customer', endCustomerFilterOptions.length, 'projects');
-                        }}
-                        options={endCustomerFilterOptions}
-                        fullWidth
-                      />
-                      {optionsRetry(companiesResult)}
-                    </div>
-                    <div className="w-full min-w-0 space-y-1">
-                      <SelectField
-                        label={t('projects.filters.pmLabel', 'Filter by project manager')}
-                        value={filterPM}
-                        onChange={(v) => {
-                          setWorkingSet((ws) => ({ ...ws, pm: v }));
-                          trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
-                        }}
-                        options={pmFilterOptions}
-                        fullWidth
-                      />
-                      {optionsRetry(projectManagersResult)}
-                    </div>
-                  </>
-                )}
+                  </div>
+                  <div className="min-w-0">
+                    <SelectField label={t('projects.filters.pmLabel', 'Filter by project manager')} value={filterPM}
+                      onChange={(value) => { setWorkingSet((ws) => ({ ...ws, pm: value })); trackFilterApplied('project_manager', pmFilterOptions.length, 'projects'); }}
+                      options={pmFilterOptions} fullWidth />
+                    {optionRetry(projectManagersResult)}
+                  </div>
+                  {optionRetry(clientCompaniesResult)}
+                </>}
                 {fields}
               </div>
             </MobileToolbarDisclosure>
-          )}
-        />
+          )} />
       </div>
-
-      <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full">
-        <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-          className="max-w-full flex-wrap"
+      <div className="min-w-[205px] flex-1 md:flex-none">
+        <SelectField label={t('projects.sort.label', 'Sort projects')} value={workingSet.sort}
+          onChange={(value) => setWorkingSet((ws) => ({ ...ws, sort: value as ProjectSort }))}
+          options={(Object.keys(sortLabels) as ProjectSort[]).map((value) => ({ value, label: sortLabels[value] }))}
+          className="touch-target min-w-0" />
+      </div>
+      <div data-testid="list-page-view" className="min-w-[138px] flex-1 md:flex-none">
+        <SelectField label={t('projects.view.label', 'View')} value={view}
+          onChange={(value) => onViewChange(value as ProjectView)}
           options={[
-            { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
-            { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-            { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-            { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-        />
+            { value: 'table', label: t('projects.view.table', 'Table') },
+            { value: 'cards', label: t('projects.view.cards', 'Cards') },
+            { value: 'kanban', label: t('projects.view.board', 'Board') },
+            { value: 'calendar', label: t('projects.view.calendar', 'Calendar') },
+          ]} className="touch-target min-w-0" />
       </div>
-
-      {/* Export/import actions follow the scope, filters, and view choice. */}
-      <div className="flex flex-wrap items-center gap-2">
-        {moreActionsChildren.length > 0 && (
-          <MobileToolbarDisclosure
-            label={t('uxs14.moreActions', 'More actions')}
-            open={moreOpen}
-            onOpenChange={(next) => {
-              setMoreOpen(next);
-              if (next) setFiltersOpen(false);
-            }}
-          >
-            <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-              {moreActionsChildren}
-            </div>
-          </MobileToolbarDisclosure>
-        )}
-      </div>
-
-      {/* active secondary-filter chips + Clear all (AC-PRJUX-002) */}
-      {hasNonDefaultFilter && (
-        <div
-          data-testid="active-filter-chips"
-          aria-label={t('projects.mobile.activeCount', 'Active filters')}
-          className="flex flex-wrap items-center gap-2"
-        >
-          {filterClient !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
-              <span className="font-medium text-muted-foreground">
-                {t('projects.mobile.customer', 'Customer')}: {selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
-              </span>
-              <button
-                type="button"
-                aria-label={`${t('projects.mobile.removeCustomer', 'Remove customer filter')}: ${selectedCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
-                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
-                onClick={() => setWorkingSet((ws) => ({ ...ws, client: 'All' }))}
-              >
-                <Icon name="x" className="size-3" />
-              </button>
-            </span>
-          )}
-          {filterPM !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
-              <span className="font-medium text-muted-foreground">
-                {t('projects.mobile.manager', 'Project manager')}: {selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
-              </span>
-              <button
-                type="button"
-                aria-label={`${t('projects.mobile.removeManager', 'Remove project manager filter')}: ${selectedPm?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
-                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
-                onClick={() => setWorkingSet((ws) => ({ ...ws, pm: 'All' }))}
-              >
-                <Icon name="x" className="size-3" />
-              </button>
-            </span>
-          )}
-          {filterEndCustomer !== 'All' && (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-0.5 pl-2.5 pr-1 text-[12px]">
-              <span className="font-medium text-muted-foreground">
-                {t('projects.mobile.endCustomer', 'End customer')}: {selectedEndCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}
-              </span>
-              <button
-                type="button"
-                aria-label={`${t('projects.mobile.removeEndCustomer', 'Remove end customer filter')}: ${selectedEndCustomer?.label ?? t('projects.mobile.unavailable', 'Unavailable selection')}`}
-                className="grid size-[18px] place-items-center rounded-full hover:bg-accent"
-                onClick={() => setWorkingSet((ws) => ({ ...ws, endClient: 'All' }))}
-              >
-                <Icon name="x" className="size-3" />
-              </button>
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="text-[12.5px] font-semibold text-primary-text underline-offset-2 hover:underline"
-          >
-            {t('projects.mobile.clearAll', 'Clear all')}
-          </button>
+      <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen}
+        onOpenChange={(next) => { setMoreOpen(next); if (next) setFiltersOpen(false); }}>
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
+          <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />
+          <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
+          <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
         </div>
-      )}
+      </MobileToolbarDisclosure>
+    </>
+  );
+  const activeChips: Array<{ label: string; remove: () => void }> = [];
+  if (filter !== roleDefault) activeChips.push({ label: t('projects.filters.scopeChip', 'Scope: {{scope}}', { scope: filterLabels[filter] }), remove: () => setWorkingSet((ws) => ({ ...ws, filter: roleDefault })) });
+  if (filterClient !== 'All') {
+    const value = customerFilterOptions.find((option) => option.value === filterClient)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects.filters.customerChip', 'Customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, client: 'All' })) });
+  }
+  if (filterEndCustomer !== 'All') {
+    const value = endCustomerFilterOptions.find((option) => option.value === filterEndCustomer)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects.filters.endCustomerChip', 'End customer: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, endClient: 'All' })) });
+  }
+  if (filterPM !== 'All') {
+    const value = pmFilterOptions.find((option) => option.value === filterPM)?.label ?? t('projects.filters.unavailableSelection', 'Unavailable selection');
+    activeChips.push({ label: t('projects.filters.managerChip', 'Project manager: {{value}}', { value }), remove: () => setWorkingSet((ws) => ({ ...ws, pm: 'All' })) });
+  }
+  const classificationLabels: Record<(typeof CLASSIFICATION_FILTER_KEYS)[number], string> = {
+    serviceLine: t('projectClassification.serviceLine', 'Service line'), sector: t('projectClassification.sector', 'Sector'),
+    location: t('projectClassification.location', 'Location'), awardType: t('projectClassification.awardType', 'Award type'),
+    biddingEntity: t('projectClassification.biddingEntity', 'Bidding entity'),
+  };
+  for (const key of CLASSIFICATION_FILTER_KEYS) {
+    const value = workingSet[key];
+    if (value) activeChips.push({ label: classificationLabels[key] + ': ' + classificationValueLabel(t, value), remove: () => setWorkingSet((ws) => ({ ...ws, [key]: undefined })) });
+  }
+  if (search.trim()) activeChips.push({ label: t('projects.filters.searchChip', 'Search: {{value}}', { value: search.trim() }), remove: () => setSearch('') });
+  const activeFilterSummary = filtersActive ? (
+    <div data-testid="active-filter-summary" aria-label={t('projects.filters.active', 'Applied filters')} className="flex min-w-0 flex-wrap items-center gap-2">
+      {activeChips.map((chip) => <button key={chip.label} type="button"
+        className="touch-target inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-1 pl-2.5 pr-1.5 text-left text-[12px] text-muted-foreground hover:text-foreground"
+        aria-label={t('projects.filters.removeFilter', 'Remove filter: {{filter}}', { filter: chip.label })} onClick={chip.remove}>
+        <span className="min-w-0 break-words">{chip.label}</span><Icon name="x" className="size-3 shrink-0" />
+      </button>)}
+      <Button variant="ghost" size="sm" className="touch-target text-primary-text" onClick={clearFilters}>{t('projects.empty.clearFilters', 'Clear filters')}</Button>
+    </div>
+  ) : null;
+  const dataIssues = [
+    coverageReason,
+    deliveryError ? t('projects.data.deliveryUnavailable', 'Delivery progress is unavailable.') : null,
+    moneyError ? t('projects.data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
+  ].filter((issue): issue is string => Boolean(issue));
+  const abnormalNote = dataIssues.length > 0 ? (
+    <aside role="status" data-testid="projects-data-note" className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-[12px] text-muted-foreground">
+      <div className="min-w-0 space-y-0.5"><p className="font-semibold text-foreground">{t('projects.data.noteTitle', 'Some project data needs attention')}</p>{dataIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>
+      <div className="flex flex-wrap gap-2">
+        {deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects.data.retryDelivery', 'Retry delivery')}</Button>}
+        {moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects.data.retryMoney', 'Retry financial data')}</Button>}
+      </div>
+    </aside>
+  ) : null;
+  const loadingContent = view === 'table' ? (
+    <DataTable<ProjectWithRefs> rows={[]} columns={columns} rowKey={(project) => project.id} tableId="projects-list"
+      rowMenu={canRowWrite ? rowMenu : undefined} state="loading" />
+  ) : <div data-testid="projects-loading" className="min-w-0 rounded-lg border border-border bg-card p-3"><ListState variant="loading" rows={view === 'cards' ? 3 : 5} /></div>;
+
+  let content: React.ReactNode;
+  if (isPending) content = loadingContent;
+  else if (isError || !data) content = (
+    <ListState variant="error" title={t('projects.states.errorTitle', "Couldn't load projects")}
+      sub={t('projects.states.errorSub', 'Something went wrong fetching your projects.')} onRetry={() => refetch()} />
+  );
+  else if (all.length === 0) content = (
+    <ListState variant="empty" icon="folder" title={t('projects.states.emptyTitle', 'No projects yet')}
+      sub={t('projects.states.emptySub', 'Projects you create or win will appear here.')} stateId="projects-empty"
+      role={realRole ?? undefined} module="projects" />
+  );
+  else if (filter === 'at-risk' && moneyPending) content = loadingContent;
+  else if (filtered.length === 0) content = (
+    <ListState variant="empty" icon="folder"
+      title={filter === 'at-risk' ? t('projects.empty.nothingAtRiskTitle', 'No confirmed budget-risk signals') : t('projects.empty.noMatchTitle', 'No projects match this scope')}
+      sub={filter === 'at-risk' ? t('projects.empty.nothingAtRiskSub', 'Unassessed budget data is not assurance.') : t('projects.empty.noMatchSub', 'Adjust the scope or filters to see more projects.')} />
+  );
+  else if (view === 'kanban') content = <ProjectKanbanBoard projects={filtered} onOpen={(project) => onOpen(project, 'card')} />;
+  else if (view === 'calendar') content = (
+    <ProjectCalendarView projects={filtered} milestoneDates={milestoneDates} cursor={calendarCursor} onCursorChange={onCalendarCursorChange}
+      onOpenProject={(id) => { trackProjectDetailOpened('/projects/:projectId', 'card'); openRecord('/projects/' + id); }} />
+  );
+  else if (view === 'table') content = (
+    <DataTable<ProjectWithRefs> rows={filtered} columns={columns} rowKey={(project) => project.id}
+      tableId="projects-list" onActivate={onOpen} rowMenu={canRowWrite ? rowMenu : undefined} />
+  );
+  else content = (
+    <div className="grid min-w-0 grid-cols-1 gap-3.5 md:grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))]">
+      {filtered.map((project) => <ProjectCard key={project.id} project={project} onOpen={(row) => onOpen(row, 'card')}
+        deliverySummary={deliverySummary?.[project.id]} projectMoney={projectMoney?.[project.id]}
+        onEdit={canEdit ? (row) => setEditTarget(row) : undefined} />)}
     </div>
   );
 
-  return (
-    <ListPage
-      title={t('projects.title', 'Projects')}
-      description={pageDescription}
-      primaryAction={primaryAction}
-      primaryActionPlacement="toolbar"
-      searchFirst
-      viewBeforeActions
-      mobileToolbar={mobileToolbar}
-      desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
-      filters={
-        /* Keep the full scope set visible by wrapping its labelled options at phone widths. */
-        <div data-testid="status-filter-scroll" className="status-filter-wrap min-w-0 overflow-x-auto scroll-fade-x">
-          <ViewToggle<StatusFilter>
-            className="max-w-full flex-wrap"
-            options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-            value={filter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, filter: v }));
-              trackFilterApplied('status', FILTERS.length, 'projects');
-            }}
-            ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
-          />
-        </div>
-      }
-      search={
-        <SearchMini
-          placeholder={t('projects.search.placeholder', 'Search projects…')}
-          aria-label={t('projects.search.ariaLabel', 'Search projects')}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          searchSurface="projects-list"
-          module="projects"
-          resultCount={filtered.length}
-          containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0"
-        />
-      }
-      secondaryFilter={
-        /*
-          N19 (AC-IXD-PIPE-W5-C5): The customer and PM filter dropdowns are manager-browse
-          tools — an Engineer manages no projects and cares only about their assigned work.
-          For the Engineer scope they are hidden so the toolbar leads with the relevant
-          SegFilter (already defaulted to "My Projects" per B-11). The classification fields
-          stay: ONE Filters trigger holds every secondary filter (FE-only on effectiveRole).
-        */
-        <ProjectClassificationFilters
-          {...classificationFilterProps}
-          panel={(fields, disclosure) => (
-            <MobileToolbarDisclosure
-              label={t('uxs14.filters', 'Filters')}
-              count={filtersCount}
-              open={disclosure.open}
-              onOpenChange={disclosure.onOpenChange}
-            >
-              <div className="flex min-w-0 flex-col gap-3">
-                {!isEngineer && (
-                  <div className="flex min-w-0 flex-wrap gap-2">
-                    <SelectField
-                      hideLabel
-                      label={t('projects.filters.customerLabel', 'Filter by customer')}
-                      value={filterClient}
-                      onChange={(v) => {
-                        setWorkingSet((ws) => ({ ...ws, client: v }));
-                        trackFilterApplied('customer', customerFilterOptions.length, 'projects');
-                      }}
-                      options={customerFilterOptions}
-                      className="w-auto"
-                    />
-                    <SelectField
-                      hideLabel
-                      label={t('projects.filters.endCustomerLabel', 'Filter by end customer')}
-                      value={filterEndCustomer}
-                      onChange={(v) => {
-                        setWorkingSet((ws) => ({ ...ws, endClient: v }));
-                        trackFilterApplied('end_customer', endCustomerFilterOptions.length, 'projects');
-                      }}
-                      options={endCustomerFilterOptions}
-                      className="w-auto"
-                    />
-                    <SelectField
-                      hideLabel
-                      label={t('projects.filters.pmLabel', 'Filter by project manager')}
-                      value={filterPM}
-                      onChange={(v) => {
-                        setWorkingSet((ws) => ({ ...ws, pm: v }));
-                        trackFilterApplied('project_manager', pmFilterOptions.length, 'projects');
-                      }}
-                      options={pmFilterOptions}
-                      className="w-auto"
-                    />
-                  </div>
-                )}
-                {fields}
-              </div>
-            </MobileToolbarDisclosure>
-          )}
-        />
-      }
-      exportAction={
-        <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen} onOpenChange={setMoreOpen}>
-          <div className="flex flex-wrap gap-2">
-            <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} />
-            <ImportButton entity="project" descriptor={importDescriptor} onImported={() => void refetch()} label={t('projects.import', 'Import')} />
-            <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
-          </div>
-        </MobileToolbarDisclosure>
-      }
-      view={
-        /* All four views remain reachable; DataTable reflows Table into cards below md. */
-        <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-          options={[
-            {
-              value: 'table',
-              label: t('projects.view.table', 'Table'),
-              icon: 'table',
-            },
-            { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-            { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-            { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-          ]}
-          value={view}
-          onChange={onViewChange}
-          ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-        />
-      }
-    >
-      {/* Body */}
-      {filter === 'at-risk' && all.length > 0 && moneyPending ? (
-        <ListState variant="loading" rows={3} />
-      ) : filter === 'at-risk' && all.length > 0 && moneyError ? (
-        <ListState
-          variant="error"
-          title={t('uxs02.riskUnavailableTitle', "Couldn't check project budget risk")}
-          sub={t('uxs02.riskUnavailableSub', 'Project spending and Active budget information could not be checked.')}
-          onRetry={() => void refetchMoney()}
-        />
-      ) : view === 'kanban' ? (
-        <ProjectKanbanBoard projects={filtered} onOpen={(p) => onOpen(p, 'card')} />
-      ) : view === 'calendar' ? (
-        <ProjectCalendarView
-          projects={filtered}
-          milestoneDates={milestoneDates}
-          cursor={calendarCursor}
-          onCursorChange={onCalendarCursorChange}
-          onOpenProject={(id) => {
-            trackProjectDetailOpened('/projects/:projectId', 'card');
-            openRecord(`/projects/${id}`);
-          }}
-        />
-      ) : view === 'table' ? (
-        <>
-          <DataTable<ProjectWithRefs>
-            rows={filtered}
-            columns={visibleColumns}
-            rowKey={(p) => p.id}
-            tableId="projects-list"
-            onActivate={onOpen}
-            rowMenu={canRowWrite ? rowMenu : undefined}
-            state={filtered.length === 0 ? 'empty' : undefined}
-            emptyTitle={
-              filter === 'at-risk'
-                ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
-                : filtersActive
-                  ? t('projects.empty.noMatchTitle', 'No projects match these filters')
-                  : t('projects.states.emptyTitle', 'No projects yet')
-            }
-            emptySub={
-              filter === 'at-risk'
-                ? t(
-                    'projects.empty.nothingAtRiskSub',
-                    "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
-                  )
-                : filtersActive
-                  ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
-                  : t('projects.states.emptySub', 'Projects you create or win will appear here.')
-            }
-            emptyAction={
-              filter === 'at-risk'
-                ? undefined
-                : filtersActive
-                  ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
-                  : undefined
-            }
-          />
-        </>
-      ) : filtered.length === 0 ? (
-        <ListState
-          variant="empty"
-          icon="folder"
-          title={
-            filter === 'at-risk'
-              ? t('projects.empty.nothingAtRiskTitle', 'Nothing at risk')
-              : filtersActive
-                ? t('projects.empty.noMatchTitle', 'No projects match these filters')
-                : t('projects.states.emptyTitle', 'No projects yet')
-          }
-          sub={
-            filter === 'at-risk'
-              ? t(
-                  'projects.empty.nothingAtRiskSub',
-                  "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
-                )
-              : filtersActive
-                ? t('projects.empty.noMatchSub', 'Try a different status, customer, PM, or search term.')
-                : t('projects.states.emptySub', 'Projects you create or win will appear here.')
-          }
-          action={
-            filter === 'at-risk'
-              ? undefined
-              : filtersActive
-                ? { label: t('projects.empty.clearFilters', 'Clear filters'), onClick: clearFilters }
-                : undefined
-          }
-        />
-      ) : (
-        <div
-          className="grid gap-3.5"
-          style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}
-        >
-          {filtered.map((p) => (
-            <ProjectCard
-              key={p.id}
-              project={p}
-              onOpen={(proj) => onOpen(proj, 'card')}
-              deliverySummary={deliverySummary?.[p.id]}
-              projectMoney={projectMoney?.[p.id]}
-              onEdit={canEdit ? (proj) => setEditTarget(proj) : undefined}
-            />
-          ))}
-        </div>
-      )}
+  const scopeLine = <>
+    <span>{t('projects.scope.onHandInternal', 'On-hand + internal')}</span><span aria-hidden>·</span>
+    <span>{filterLabels[filter]}</span><span aria-hidden>·</span>
+    <span>{isPending ? t('projects.scope.loading', 'Loading projects') : t('projects.scope.resultCount', '{{count}} projects', { count: filtered.length })}</span>
+    <span aria-hidden>·</span>
+    <Link to="/sales" className="touch-target rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects.scope.pipeline', 'Pipeline')}</Link>
+  </>;
 
+  return (
+    <ProjectPageFrame title={t('projects.title', 'Projects')} scope={scopeLine} toolbar={toolbar} primaryAction={primaryAction}>
+      {activeFilterSummary}
+      {abnormalNote}
+      {content}
       {/* Edit-header modal (Admin·Exec·PM) — opened from the row menu */}
       {editTarget && (
         <ProjectFormModal
@@ -1278,7 +900,7 @@ const Projects: React.FC = () => {
         onConfirm={onArchiveConfirm}
         onCancel={() => setArchiveTarget(null)}
       />
-    </ListPage>
+    </ProjectPageFrame>
   );
 };
 

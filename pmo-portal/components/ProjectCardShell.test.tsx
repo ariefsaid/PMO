@@ -4,12 +4,8 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import ProjectCardShell from './ProjectCardShell';
 
-/**
- * ProjectCardShell behavior and accessible identity. Every project card
- * (grid cards-view, Projects kanban, Sales pipeline kanban) renders through this
- * shell; content varies by lens via props/slots.
- */
-describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
+/** Shared Sales card shell behavior remains covered while Projects uses page-specific cards. */
+describe('ProjectCardShell', () => {
   const baseProps = {
     name: 'Innovate Corp HQ Fit-Out',
     client: 'Innovate Corp',
@@ -31,7 +27,7 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     expect(screen.getByRole('button', { name: /Innovate Corp HQ Fit-Out.*PMO Project Number: PMO-26-0042.*Client Project Code: CLIENT-77/ })).toBeInTheDocument();
   });
 
-  it('renders the project name, client and code alongside the status slot', () => {
+  it('renders the project name, client, reference and supplied status', () => {
     render(<ProjectCardShell {...baseProps} />);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
@@ -59,9 +55,8 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
         foot={<div data-testid="foot-slot">pm</div>}
       />,
     );
-    const card = screen.getByTestId('project-card');
-    expect(within(card).getByTestId('body-slot')).toBeInTheDocument();
-    expect(within(card).getByTestId('foot-slot')).toBeInTheDocument();
+    expect(screen.getByTestId('body-slot')).toBeInTheDocument();
+    expect(screen.getByTestId('foot-slot')).toBeInTheDocument();
   });
 
   it('AC-002 #1325: short-first grid and kanban titles disclose contractual name and retain one activation target', () => {
@@ -69,7 +64,7 @@ describe('ProjectCardShell (CW-3b canonical project-card vocabulary)', () => {
     const gridButton = screen.getByRole('button', { name: 'Harbor Operations' });
     expect(gridButton).toHaveAttribute('title', 'Contractual Harbor Works');
     expect(gridButton).toHaveAccessibleDescription('Contractual Harbor Works');
-    expect(within(screen.getByTestId('project-card')).queryByRole('button')).toBe(gridButton);
+    expect(screen.getAllByRole('button')).toEqual([gridButton]);
     rerender(<ProjectCardShell {...baseProps} name="Harbor Operations" contractualName="Contractual Harbor Works" variant="kanban" onOpen={vi.fn()} />);
     const kanbanButton = screen.getByRole('button', { name: /Harbor Operations/ });
     expect(within(kanbanButton).getByTitle('Contractual Harbor Works')).toHaveTextContent('Harbor Operations');

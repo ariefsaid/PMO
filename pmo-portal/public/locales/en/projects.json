@@ -9,7 +9,18 @@
   "create": {
     "accessDenied": "You can't create projects",
     "leave": "Leave",
-    "stay": "Stay"
+    "stay": "Stay",
+    "backToProjects": "Back to Projects",
+    "workspaceScope": "Workspace scope",
+    "originScope": "Projects scope: {{scope}} · {{view}}",
+    "startsAs": "Starts as {{stage}}",
+    "leadConsequence": "Leads are tracked in the Pipeline.",
+    "internalConsequence": "Internal projects stay in the workspace.",
+    "classificationEmpty": "Optional project context",
+    "section": {
+      "ownershipSchedule": "Ownership & schedule",
+      "estimateTax": "Estimate & tax"
+    }
   },
   "shortName": {
     "label": "Short name (optional)",

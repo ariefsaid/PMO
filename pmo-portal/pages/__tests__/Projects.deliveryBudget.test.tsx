@@ -146,8 +146,7 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getByLabelText('53% of Active budget').closest('[title]')).toHaveAttribute('title', '$2,000,000.00 of $3,800,000.00 Active budget');
     expect(screen.getByText('53%')).toBeInTheDocument();
     // PL-A: a project without phases shows a dash (its reason is the title), not prose.
-    expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
-    expect(screen.getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
+    expect(screen.getByText('No phases yet')).toBeInTheDocument();
 
     // Freed-Blue Status Rule (CW-2) + S1 (ADR-0068): on-hand "Ongoing Project" is the
     // neutral grey `progress` treatment — a muted dot + muted label, NO tint slab and
