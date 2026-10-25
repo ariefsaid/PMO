@@ -13,7 +13,6 @@ import {
   Combobox,
   FormSection,
   GateNotice,
-  SectionHeader,
   useEntityForm,
   useToast,
   Button,
@@ -426,7 +425,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       )}
 
       {/* Toolbar */}
-      {state !== 'loading' && (
+      {state !== 'loading' && state !== 'empty' && (
         <Toolbar standalone>
           <span className="text-[13px] font-semibold">{t('admin.users.allUsers', 'All users')}</span>
           {state === undefined && (
@@ -439,6 +438,12 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
           />
+          {embedded && canInvite && (
+            <Button variant="primary" className="min-h-11 shrink-0" onClick={() => setInviteOpen(true)}>
+              <Icon name="plus" />
+              {t('admin.users.invite', 'Invite user')}
+            </Button>
+          )}
         </Toolbar>
       )}
 
@@ -460,12 +465,22 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       )}
 
       {state === 'empty' && (
-        <ListState
-          variant="empty"
-          icon="admin"
-          title={t('admin.users.empty.title', 'No users yet')}
-          sub={t('admin.users.empty.sub', 'People appear here once they are invited to the workspace.')}
-        />
+        <div>
+          <ListState
+            variant="empty"
+            icon="admin"
+            title={t('admin.users.empty.title', 'No users yet')}
+            sub={t('admin.users.empty.sub', 'People appear here once they are invited to the workspace.')}
+          />
+          {embedded && canInvite && (
+            <div className="mt-3">
+              <Button variant="primary" className="min-h-11" onClick={() => setInviteOpen(true)}>
+                <Icon name="plus" />
+                {t('admin.users.invite', 'Invite user')}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {state === undefined && (
@@ -580,9 +595,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
     </Button>
   ) : undefined;
 
-  if (embedded) {
-    return <SectionHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
-  }
+  if (embedded) return null;
 
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">

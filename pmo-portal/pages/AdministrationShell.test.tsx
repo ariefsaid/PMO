@@ -183,6 +183,7 @@ const LocationProbe: React.FC = () => {
     <>
       <output data-testid="location">
         {location.pathname}
+        {location.search}
         {location.hash}
       </output>
       <button type="button" onClick={() => navigate(-1)}>
@@ -223,6 +224,7 @@ const renderShell = (path: string, role: Role = 'Admin', isOperator = false, pen
 };
 
 beforeEach(() => {
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1024 });
   roleState.value = 'Admin';
   operatorState.value = false;
   operatorState.pending = false;
@@ -242,6 +244,25 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('Administration route-backed shell', () => {
+  it('AC-ADMIA-006: puts the route job first and keeps phone section links disclosed', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+    const user = userEvent.setup();
+    renderShell('/administration/users');
+
+    await waitFor(() => expect(screen.getByRole('heading', { level: 1, name: 'Users' })).toBeInTheDocument());
+    expect(screen.getByText('Workspace members')).toBeInTheDocument();
+
+    const summaryText = screen.getByText('Administration sections');
+    expect(summaryText.closest('summary')).not.toBeNull();
+    const disclosure = summaryText.closest('details')!;
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(within(disclosure).getByRole('navigation', { name: 'Administration sections' })).toBeInTheDocument();
+
+    await user.click(summaryText);
+    expect(disclosure).toHaveAttribute('open');
+    expect(screen.getByRole('link', { name: 'Organization integrations' })).toBeInTheDocument();
+  });
+
   it('AC-ADMIA-001/002: an org Admin starts on Users with only the Users panel mounted', async () => {
     renderShell('/administration');
 
@@ -358,28 +379,36 @@ describe('Administration route-backed shell', () => {
     },
   );
 
-  it('UX-074: Accounting setup exposes direct links to its focused setup sections', async () => {
+  it('AC-ADMIA-007: Accounting keeps one task selected and opens its matching settings', async () => {
+    const user = userEvent.setup();
     renderShell('/administration/accounting');
-    const nav = screen.getByRole('navigation', { name: 'Accounting setup sections' });
+    const nav = screen.getByRole('navigation', { name: 'Accounting tasks' });
+    expect(within(nav).getAllByRole('link').map((link) => link.getAttribute('href'))).toEqual([
+      '/administration/accounting#posting-accounts',
+      '/administration/accounting#tax-advances',
+      '/administration/accounting#purchase-rules',
+      '/administration/accounting#spend-approvers',
+    ]);
+    expect(screen.getByText('Budget account map panel')).toBeInTheDocument();
+    expect(screen.queryByText('Tax default panel')).not.toBeInTheDocument();
 
-    const destinations = [
-      ['Default tax treatment', 'org-tax-default'],
-      ['Spend approvers', 'spend-approvers'],
-      ['Receipt withholding', 'withholding-account-heading'],
-      ['Vendor bill tax accounts', 'vendor-tax-accounts-heading'],
-      ['Down payments', 'down-payment-item-heading'],
-      ['Purchase rules', 'procurement-gates-heading'],
-      ['Budget account map', 'budget-account-map'],
-      ['Expense account map', 'expense-account-map'],
-    ] as const;
+    await user.click(within(nav).getByRole('link', { name: 'Tax and advances' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('#tax-advances'));
+    await waitFor(() => expect(document.getElementById('tax-advances')).toHaveFocus());
+    expect(screen.getByText('Tax default panel')).toBeInTheDocument();
+    expect(screen.queryByText('Budget account map panel')).not.toBeInTheDocument();
 
-    for (const [label, id] of destinations) {
-      const link = within(nav).getByRole('link', { name: label });
-      expect(link).toHaveAttribute('href', `/administration/accounting#${id}`);
-      await userEvent.click(link);
-      expect(screen.getByTestId('location')).toHaveTextContent(`#${id}`);
-      await waitFor(() => expect(document.getElementById(id)).toHaveFocus());
-    }
+    await user.click(within(nav).getByRole('link', { name: 'Purchase rules' }));
+    expect(await screen.findByRole('heading', { name: 'Purchase rules' })).toBeInTheDocument();
+    expect(screen.queryByText('Tax default panel')).not.toBeInTheDocument();
+  });
+
+  it('AC-ADMIA-008: the retired Accounting attribution body redirects to its canonical route', async () => {
+    renderShell('/administration/accounting?returnTo=setup#cost-attribution');
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/administration/cost-attribution?returnTo=setup'));
+    expect(screen.getByTestId('administration-panel-cost-attribution')).toHaveTextContent('Cost attribution panel');
+    expect(screen.queryByTestId('administration-panel-accounting')).not.toBeInTheDocument();
   });
 
   it('AC-ADMIA-003: an unknown section is replaced with Users', async () => {
@@ -473,18 +502,6 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
     }
   });
 
-  it('DOM order follows heading → section nav → selected panel heading/content', async () => {
-    renderShell('/administration/users');
-    await waitFor(() => expect(screen.getByTestId('administration-panel-users')).toBeInTheDocument());
-    const heading = screen.getByRole('heading', { level: 1, name: 'Administration' });
-    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
-    const panel = screen.getByTestId('administration-panel-users');
-    const follows = (a: Element, b: Element) =>
-      (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
-    expect(follows(heading, nav)).toBe(true);
-    expect(follows(nav, panel)).toBe(true);
-  });
-
   it('uses no fake tab semantics — no role=tab/tablist and no aria-selected without that contract', async () => {
     renderShell('/administration/users');
     const nav = screen.getByRole('navigation', { name: 'Administration sections' });
@@ -521,40 +538,3 @@ describe('AC-ADMIA-005 / Task 8 — administration shell navigation semantics', 
   });
 });
 
-/**
- * AC-ADMIA-005 — phone-width operability: every Administration section link clears the 44px
- * coarse-pointer touch target (via the project's `.touch-target` mechanism, WCAG 2.5.5) and the
- * nav lets long labels wrap inside the viewport instead of forcing a horizontal page scroll
- * (`min-w-0` on the container and every link).
- */
-describe('AC-ADMIA-005 — Administration section touch targets (phone)', () => {
-  it('every organization section link carries the ≥44px touch-target class', async () => {
-    renderShell('/administration/users');
-    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
-    const links = within(nav).getAllByRole('link');
-    expect(links.length).toBeGreaterThanOrEqual(4);
-    for (const link of links) {
-      expect(link.className).toContain('touch-target');
-    }
-  });
-
-  it('Operator sections also carry the ≥44px touch-target class', () => {
-    renderShell('/administration/usage', 'Admin', true);
-    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
-    const links = within(nav).getAllByRole('link');
-    expect(links).toHaveLength(8);
-    for (const link of links) {
-      expect(link.className).toContain('touch-target');
-    }
-  });
-
-  it('the section nav and its links keep min-w-0 so long labels wrap instead of widening the page', async () => {
-    renderShell('/administration/users');
-    const nav = screen.getByRole('navigation', { name: 'Administration sections' });
-    expect(nav.className).toContain('min-w-0');
-    const links = within(nav).getAllByRole('link');
-    for (const link of links) {
-      expect(link.className).toContain('min-w-0');
-    }
-  });
-});

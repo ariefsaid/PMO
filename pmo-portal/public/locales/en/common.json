@@ -385,6 +385,24 @@
       "users": "Users",
       "projects": "Project setup"
     },
+    "scope": {
+      "users": "Workspace members",
+      "integrations": "Shared workspace setup",
+      "accounting": "Workspace accounting",
+      "projects": "Future projects",
+      "credits": "Shared Assistant balance",
+      "exchangeRates": "USD to IDR · display reference rates",
+      "costAttribution": "Untagged ledger costs",
+      "usage": "Operator · aggregate consumption",
+      "features": "Operator · workspace capabilities"
+    },
+    "accounting": {
+      "sectionsLabel": "Accounting tasks",
+      "postingAccounts": "Posting accounts",
+      "taxAdvances": "Tax and advances",
+      "purchaseRules": "Purchase rules",
+      "spendApprovers": "Spend approvers"
+    },
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
       "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",

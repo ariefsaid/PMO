@@ -1,5 +1,5 @@
 import OrgProjectClassificationOptions from './admin/OrgProjectClassificationOptions';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Link, Navigate, useLocation } from 'react-router';
@@ -8,7 +8,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useOperatorMembership } from '@/src/auth/useIsOperator';
 import { cn } from '@/src/components/ui/cn';
-import { GateNotice, ListState, SectionHeader } from '@/src/components/ui';
+import { GateNotice, ListState } from '@/src/components/ui';
 import AdminUsers from './AdminUsers';
 import AdministrationCredits from './AdministrationCredits';
 import { AdministrationUsage } from './AdministrationUsage';
@@ -26,6 +26,7 @@ import OrgProjectNumberPattern from './admin/OrgProjectNumberPattern';
 import BudgetAccountMap from './admin/BudgetAccountMap';
 import CostAttribution from './admin/CostAttribution';
 import ExpenseAccountMap from './admin/ExpenseAccountMap';
+import AdministrationPageHeader from './admin/AdministrationPageHeader';
 import { useUsage, useAgentRunStats } from '@/src/hooks/useUsage';
 
 export type AdministrationSection =
@@ -45,6 +46,27 @@ const OPERATOR_SECTIONS: AdministrationSection[] = ['usage', 'features'];
 /** #1271: Finance's second destination, beside Exchange rates. Admin/Executive reach cost attribution inside Accounting setup, so it is not in their nav. */
 const FINANCE_SECTIONS: AdministrationSection[] = ['exchange-rates', 'cost-attribution'];
 const ALL_SECTIONS: AdministrationSection[] = [...ORGANIZATION_SECTIONS, 'cost-attribution', ...OPERATOR_SECTIONS];
+
+type AccountingTask = 'posting-accounts' | 'tax-advances' | 'purchase-rules' | 'spend-approvers';
+
+const accountingTaskForHash = (hash: string): AccountingTask => {
+  if (hash === '#org-tax-default' || hash === '#withholding-account-heading' || hash === '#vendor-tax-accounts-heading' || hash === '#down-payment-item-heading' || hash === '#tax-advances') return 'tax-advances';
+  if (hash === '#procurement-gates-heading' || hash === '#purchase-rules') return 'purchase-rules';
+  if (hash === '#spend-approvers') return 'spend-approvers';
+  return 'posting-accounts';
+};
+
+const usePhoneLayout = (): boolean => {
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+
+  useEffect(() => {
+    const updateViewport = () => setIsPhone(window.innerWidth < 768);
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
+
+  return isPhone;
+};
 
 /** English defaults for the shell's labels — the translatable source (i18next-parser convention). */
 const SECTION_LABEL_DEFAULTS: Record<AdministrationSection, string> = {
@@ -87,34 +109,21 @@ function administrationSectionForPath(pathname: string): AdministrationSection |
 const isOperatorSection = (section: AdministrationSection): boolean =>
   section === 'usage' || section === 'features';
 
-const AdministrationHeader: React.FC = () => {
-  const { t } = useTranslation();
-  return (
-    <div className="mb-4 min-w-0">
-      <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-        {t('admin.nav.title', 'Administration')}
-      </h1>
-      <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
-        {t('admin.nav.description', 'Organization setup and governance.')}
-      </p>
-    </div>
-  );
-};
-
 const AdministrationNavigation: React.FC<{
   section: AdministrationSection;
   sections: AdministrationSection[];
   isOperator: boolean;
+  phone: boolean;
   label: (id: AdministrationSection) => string;
-}> = ({ section, sections, isOperator, label }) => {
+}> = ({ section, sections, isOperator, phone, label }) => {
   const { t } = useTranslation();
   const linkClass = (active: boolean) =>
     cn(
-      'touch-target flex min-h-11 min-w-0 items-center justify-center rounded-md px-2.5 py-1.5 text-center text-[13px] leading-tight transition-colors md:min-h-0',
+      'flex min-h-11 min-w-0 items-center rounded-md px-3 py-2 text-sm leading-tight transition-colors',
       'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       active
-        ? 'bg-background font-semibold text-nav-active-text shadow-sm'
-        : 'text-foreground hover:bg-accent hover:text-accent-foreground',
+        ? 'bg-primary/10 font-semibold text-nav-active-text'
+        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
     );
 
   const links = (items: ReadonlyArray<AdministrationSection>) =>
@@ -130,19 +139,41 @@ const AdministrationNavigation: React.FC<{
     ));
 
   return (
-    <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="mb-6 min-w-0">
-      <div className="grid min-w-0 grid-cols-2 gap-1 rounded-lg bg-secondary p-1 md:flex md:flex-wrap">
-        {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
-        {isOperator && (
-          <>
-            <span className="col-span-2 px-2 pt-2 text-left text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:col-span-1 md:ml-1 md:self-center md:px-1 md:pt-0">
-              {t('admin.nav.platform', 'Platform')}
-            </span>
-            {links(OPERATOR_SECTIONS)}
-          </>
-        )}
-      </div>
-    </nav>
+    <>
+      {phone ? (
+        <details className="min-w-0 border-b border-border">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+            <span>{t('admin.nav.ariaLabel', 'Administration sections')}</span>
+            <span aria-hidden="true" className="text-muted-foreground">⌄</span>
+          </summary>
+          <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="grid min-w-0 gap-1 pb-2">
+            {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
+            {isOperator && (
+              <>
+                <span className="px-3 pt-2 text-left text-xs font-semibold text-muted-foreground">
+                  {t('admin.nav.platform', 'Platform')}
+                </span>
+                {links(OPERATOR_SECTIONS)}
+              </>
+            )}
+          </nav>
+        </details>
+      ) : (
+        <nav aria-label={t('admin.nav.ariaLabel', 'Administration sections')} className="min-w-0">
+          <div className="grid min-w-0 gap-1">
+            {links([...ORGANIZATION_SECTIONS, 'cost-attribution' as const].filter((id) => sections.includes(id)))}
+            {isOperator && (
+              <>
+                <span className="px-3 pt-3 text-left text-xs font-semibold text-muted-foreground">
+                  {t('admin.nav.platform', 'Platform')}
+                </span>
+                {links(OPERATOR_SECTIONS)}
+              </>
+            )}
+          </div>
+        </nav>
+      )}
+    </>
   );
 };
 
@@ -160,25 +191,27 @@ const OperatorMembershipPending: React.FC = () => {
   );
 };
 
-const AccountingSectionNavigation: React.FC = () => {
+const AccountingSectionNavigation: React.FC<{ selected: AccountingTask }> = ({ selected }) => {
   const { t } = useTranslation();
-  const anchors = [
-    { id: 'org-tax-default', label: t('uxs31.accounting.taxDefault', 'Default tax treatment') },
-    { id: 'spend-approvers', label: t('uxs31.accounting.spendApprovers', 'Spend approvers') },
-    { id: 'withholding-account-heading', label: t('uxs31.accounting.withholding', 'Receipt withholding') },
-    { id: 'vendor-tax-accounts-heading', label: t('uxs31.accounting.vendorTax', 'Vendor bill tax accounts') },
-    { id: 'down-payment-item-heading', label: t('uxs31.accounting.downPayments', 'Down payments') },
-    { id: 'procurement-gates-heading', label: t('procurement:gates.heading', 'Purchase rules') },
-    { id: 'budget-account-map', label: t('uxs31.accounting.budgetMap', 'Budget account map') },
-    { id: 'expense-account-map', label: t('uxs31.accounting.expenseMap', 'Expense account map') },
-    { id: 'cost-attribution', label: t('costAttribution:title', 'Cost attribution') },
+  const tasks: { id: AccountingTask; label: string }[] = [
+    { id: 'posting-accounts', label: t('admin.accounting.postingAccounts', 'Posting accounts') },
+    { id: 'tax-advances', label: t('admin.accounting.taxAdvances', 'Tax and advances') },
+    { id: 'purchase-rules', label: t('admin.accounting.purchaseRules', 'Purchase rules') },
+    { id: 'spend-approvers', label: t('admin.accounting.spendApprovers', 'Spend approvers') },
   ];
   return (
-    <nav aria-label={t('uxs31.accounting.sectionsLabel', 'Accounting setup sections')} className="mb-5">
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 border-b border-border pb-3 text-[13px]">
-        {anchors.map(({ id, label }) => (
+    <nav aria-label={t('admin.accounting.sectionsLabel', 'Accounting tasks')} className="mb-4 min-w-0">
+      <ul className="grid min-w-0 gap-1 sm:flex sm:flex-wrap">
+        {tasks.map(({ id, label }) => (
           <li key={id}>
-            <Link className="touch-target inline-flex items-center rounded-sm px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline focus-visible:text-foreground" to={{ hash: `#${id}` }}>
+            <Link
+              aria-current={selected === id ? 'page' : undefined}
+              className={cn(
+                'flex min-h-11 items-center rounded-md px-3 py-2 text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+                selected === id ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+              )}
+              to={{ hash: `#${id}` }}
+            >
               {label}
             </Link>
           </li>
@@ -218,10 +251,11 @@ const UsagePanel: React.FC = () => {
 
 const SelectedAdministrationPanel: React.FC<{
   section: AdministrationSection;
+  accountingTask: AccountingTask;
   orgId: string;
   isOperator: boolean;
-  label: (id: AdministrationSection) => string;
-}> = ({ section, orgId, isOperator, label }) => {
+}> = ({ section, accountingTask, orgId, isOperator }) => {
+  const { t } = useTranslation();
   switch (section) {
     case 'users':
       return (
@@ -232,26 +266,22 @@ const SelectedAdministrationPanel: React.FC<{
     case 'integrations':
       return (
         <div data-testid="administration-panel-integrations" className="min-w-0">
-          <SectionHeader title={label('integrations')} />
           <IntegrationsView />
         </div>
       );
     case 'accounting':
       return (
         <div data-testid="administration-panel-accounting" className="min-w-0">
-          <SectionHeader title={label('accounting')} />
-          <AccountingSectionNavigation />
-          <div className="space-y-6">
-            <OrgTaxDefault />
-            <SpendApprovers />
-            <OrgWithholdingAccount />
-            <OrgVendorTaxAccounts />
-            <OrgDownPaymentItem />
-            <OrgProcurementGates />
-            <BudgetAccountMap />
-            <ExpenseAccountMap />
-            <CostAttribution />
+          <AccountingSectionNavigation selected={accountingTask} />
+          <div id={accountingTask} tabIndex={-1} className="min-w-0 space-y-5 focus:outline-none">
+            {accountingTask === 'posting-accounts' && <><BudgetAccountMap /><ExpenseAccountMap /></>}
+            {accountingTask === 'tax-advances' && <><OrgTaxDefault /><OrgWithholdingAccount /><OrgVendorTaxAccounts /><OrgDownPaymentItem /></>}
+            {accountingTask === 'purchase-rules' && <OrgProcurementGates />}
+            {accountingTask === 'spend-approvers' && <SpendApprovers />}
           </div>
+          <Link className="mt-5 inline-flex min-h-11 items-center rounded-md text-sm font-medium text-nav-active-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring" to="/administration/cost-attribution">
+            {t('costAttribution:title', 'Cost attribution')} <span aria-hidden="true" className="ml-1">→</span>
+          </Link>
         </div>
       );
     case 'cost-attribution':
@@ -263,7 +293,6 @@ const SelectedAdministrationPanel: React.FC<{
     case 'projects':
       return (
         <div data-testid="administration-panel-projects" className="min-w-0">
-          <SectionHeader title={label('projects')} />
           <div className="space-y-6">
             <OrgProjectNumberPattern />
             <OrgProjectClassificationOptions />
@@ -285,14 +314,12 @@ const SelectedAdministrationPanel: React.FC<{
     case 'usage':
       return (
         <div data-testid="administration-panel-usage" className="min-w-0">
-          <SectionHeader title={label('usage')} />
           <UsagePanel />
         </div>
       );
     case 'features':
       return (
         <div data-testid="administration-panel-features" className="min-w-0">
-          <SectionHeader title={label('features')} />
           <AdministrationFeatures isOperator={isOperator} orgId={orgId} />
         </div>
       );
@@ -301,7 +328,7 @@ const SelectedAdministrationPanel: React.FC<{
 
 const Administration: React.FC = () => {
   const { t } = useTranslation();
-  const { pathname, hash } = useLocation();
+  const { pathname, hash, search } = useLocation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -322,6 +349,25 @@ const Administration: React.FC = () => {
     : ORGANIZATION_SECTIONS.filter((id) => id !== 'exchange-rates' || canFx);
   const sectionLabels = buildSectionLabels(t);
   const label = (id: AdministrationSection) => sectionLabels[id];
+  const isPhone = usePhoneLayout();
+  const accountingTask = accountingTaskForHash(hash);
+  const scope = section === 'users'
+    ? t('admin.scope.users', 'Workspace members')
+    : section === 'integrations'
+      ? t('admin.scope.integrations', 'Shared workspace setup')
+      : section === 'accounting'
+        ? t('admin.scope.accounting', 'Workspace accounting')
+        : section === 'projects'
+          ? t('admin.scope.projects', 'Future projects')
+          : section === 'credits'
+            ? t('admin.scope.credits', 'Shared Assistant balance')
+            : section === 'exchange-rates'
+              ? t('admin.scope.exchangeRates', 'USD to IDR · display reference rates')
+              : section === 'cost-attribution'
+                ? t('admin.scope.costAttribution', 'Untagged ledger costs')
+                : section === 'usage'
+                  ? t('admin.scope.usage', 'Operator · aggregate consumption')
+                  : t('admin.scope.features', 'Operator · workspace capabilities');
 
   useEffect(() => {
     if (!hash) return;
@@ -339,6 +385,10 @@ const Administration: React.FC = () => {
     return <Navigate to="/administration/projects#org-project-number-pattern" replace />;
   }
 
+  if (hash === '#cost-attribution' && pathname === '/administration/accounting') {
+    return <Navigate to={{ pathname: '/administration/cost-attribution', search }} replace />;
+  }
+
   if (pathname === '/administration') {
     const target = hash === '#budget-account-map'
       ? '/administration/accounting#budget-account-map'
@@ -354,55 +404,60 @@ const Administration: React.FC = () => {
 
   return (
     <div className="min-w-0">
-      <AdministrationHeader />
-
-      {operatorMembership.isPending && needsOperatorCheck ? (
-        <OperatorMembershipPending />
-      ) : operatorMembership.isError && needsOperatorCheck ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />}
+      <AdministrationPageHeader title={label(section)} scope={scope} />
+      {(() => {
+        const showNavigation = !operatorMembership.isPending && (isAdminViewer || isOperator || (isFinance && (fxRoute || costAttributionRoute)));
+        const navigation = showNavigation ? (
+          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} phone={isPhone} label={label} />
+        ) : null;
+        const content = operatorMembership.isPending && needsOperatorCheck ? (
+          <OperatorMembershipPending />
+        ) : operatorMembership.isError && needsOperatorCheck ? (
           <ListState
             variant="error"
             title={t('admin.access.verifyError', 'Could not verify access')}
             sub={t('admin.access.verifyErrorSub', 'Try again to open Administration controls.')}
             onRetry={operatorMembership.retry}
           />
-        </>
-      ) : !canEnterAdministration ? (
-        <GateNotice variant="blocked">
+        ) : !canEnterAdministration ? (
+          <GateNotice variant="blocked">
           {t(
             'admin.access.denied',
             "Administration is an Admin, Executive, or platform Operator area. You don't have access.",
           )}
-        </GateNotice>
-      ) : fxRoute && !canFx ? (
-        <>
-          {isAdminViewer && <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />}
+          </GateNotice>
+        ) : fxRoute && !canFx ? (
           <GateNotice variant="blocked">
             {t('fx.denied', 'Exchange rates are available to Finance and Admin.')}
           </GateNotice>
-        </>
-      ) : operatorRoute && !isOperator ? (
-        <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={false} label={label} />
+        ) : operatorRoute && !isOperator ? (
           <GateNotice variant="blocked">
             {t(
               'admin.access.operatorOnly',
               'Operator-only access: Usage and Features are available to platform Operators.',
             )}
           </GateNotice>
-        </>
-      ) : (
-        <>
-          <AdministrationNavigation section={section} sections={navigationSections} isOperator={isOperator} label={label} />
+        ) : (
           <SelectedAdministrationPanel
             section={section}
+            accountingTask={accountingTask}
             orgId={currentUser?.org_id ?? ''}
             isOperator={isOperator}
-            label={label}
           />
-        </>
-      )}
+        );
+
+        return showNavigation && !isPhone ? (
+          <div className="grid min-w-0 gap-6 md:grid-cols-[minmax(10rem,13rem)_minmax(0,1fr)]">
+            {navigation}
+            <div className="min-w-0">{content}</div>
+          </div>
+        ) : (
+          <div className="min-w-0">
+            {navigation}
+            {content}
+          </div>
+        );
+      })()}
     </div>
   );
 };

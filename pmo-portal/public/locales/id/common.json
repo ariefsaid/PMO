@@ -385,6 +385,24 @@
       "users": "Pengguna",
       "projects": "Pengaturan proyek"
     },
+    "scope": {
+      "users": "Anggota ruang kerja",
+      "integrations": "Pengaturan bersama ruang kerja",
+      "accounting": "Akuntansi ruang kerja",
+      "projects": "Proyek mendatang",
+      "credits": "Saldo Assistant bersama",
+      "exchangeRates": "USD ke IDR · kurs referensi tampilan",
+      "costAttribution": "Biaya buku besar yang belum terkait",
+      "usage": "Operator · konsumsi agregat",
+      "features": "Operator · kapabilitas ruang kerja"
+    },
+    "accounting": {
+      "sectionsLabel": "Tugas akuntansi",
+      "postingAccounts": "Akun posting",
+      "taxAdvances": "Pajak dan uang muka",
+      "purchaseRules": "Aturan pembelian",
+      "spendApprovers": "Penyetuju pengeluaran"
+    },
     "taxDefault": {
       "adminOnly": "Hanya Admin yang bisa mengubah ini.",
       "description": "Basis awal untuk nilai kontrak, work order, atau invoice baru. Siapa pun yang mencatatnya bisa mengubahnya di formulir.",
