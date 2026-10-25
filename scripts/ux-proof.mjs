@@ -32,11 +32,20 @@ fs.mkdirSync(output, { recursive: true });
 
 const slug = (route) => route.replace(/^\/+|\/+$/g, '').replace(/[^a-zA-Z0-9]+/g, '-') || 'root';
 const countDetectorFindings = (value) => {
-  if (Array.isArray(value)) return value.length;
+  const advisory = (item) => item?.advisory === true || item?.isAdvisory === true
+    || item?.severity === 'advisory' || item?.category === 'advisory';
+  if (Array.isArray(value)) return value.filter((item) => !advisory(item)).length;
   if (!value || typeof value !== 'object') return 0;
-  if (Array.isArray(value.findings)) return value.findings.length;
-  if (Array.isArray(value.results)) return value.results.reduce((sum, item) => sum + countDetectorFindings(item), 0);
   return Object.entries(value).reduce((sum, [key, item]) => sum + (key === 'advisories' ? 0 : countDetectorFindings(item)), 0);
+};
+const countDetectorAdvisories = (value) => {
+  const advisory = (item) => item?.advisory === true || item?.isAdvisory === true
+    || item?.severity === 'advisory' || item?.category === 'advisory';
+  if (Array.isArray(value)) return value.filter(advisory).length;
+  if (!value || typeof value !== 'object') return 0;
+  return Object.entries(value).reduce((sum, [key, item]) => sum + (
+    key === 'advisories' && Array.isArray(item) ? item.length : countDetectorAdvisories(item)
+  ), 0);
 };
 
 let failed = false;
@@ -48,6 +57,7 @@ const browser = await chromium.launch({ headless: true, args: [`--remote-debuggi
 try {
   for (const route of routes) {
     let detectorCount = 0;
+    let advisoryCount = 0;
     let seriousAxe = 0;
     for (const width of [390, 1440]) {
       const height = width === 390 ? 844 : 900;
@@ -70,7 +80,7 @@ try {
         });
         await page.screenshot({ path: path.join(output, `${stem}.png`), fullPage: true });
 
-        const detect = spawnSync(detector, ['detect', '--cdp', `${cdpPort}`, '--target', page.url(), '--json', '--no-advisory'], {
+        const detect = spawnSync(detector, ['detect', '--cdp', `${cdpPort}`, '--target', page.url(), '--json'], {
           cwd: ROOT, encoding: 'utf8', timeout: 120_000,
         });
         if (detect.error) throw detect.error;
@@ -79,7 +89,9 @@ try {
         catch { throw new Error(`Impeccable returned invalid JSON for ${route} @${width}: ${detect.stderr || detect.stdout}`); }
         fs.writeFileSync(path.join(output, `${stem}.detector.json`), `${JSON.stringify(detectorJson, null, 2)}\n`);
         const currentDetectorFindings = countDetectorFindings(detectorJson);
+        const currentAdvisories = countDetectorAdvisories(detectorJson);
         detectorCount += currentDetectorFindings;
+        advisoryCount += currentAdvisories;
         if (detect.status !== 0 || currentDetectorFindings > 0) failed = true;
 
         const axeJson = await new AxeBuilder({ page }).analyze();
@@ -90,7 +102,7 @@ try {
         await context.close();
       }
     }
-    console.log(`${route}: impeccable findings=${detectorCount}; axe serious/critical=${seriousAxe}`);
+    console.log(`${route}: impeccable findings=${detectorCount}; advisory=${advisoryCount}; axe serious/critical=${seriousAxe}`);
   }
 } finally {
   await browser.close();
