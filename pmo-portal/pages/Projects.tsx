@@ -40,6 +40,7 @@ import { useMyTasks } from '@/src/hooks/useMyTasks';
 import { readProjectView, writeProjectView } from '@/src/hooks/useProjectView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { currentMonthToken, parseListWorkingSet } from '@/src/lib/listWorkingSet';
 import type { MonthCursor } from '@/src/lib/calendar/monthMatrix';
 import type { ProjectView } from '@/src/hooks/useProjectView';
@@ -80,7 +81,7 @@ const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
-  const projectStatusLabel = useProjectStatusLabel();
+  const statusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -516,9 +517,6 @@ const Projects: React.FC = () => {
     },
     {
       key: 'status',
-      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
-      // status labels is its own decision (it needs one map every surface shares) and is not in
-      // this pass. Only the column header moves.
       header: t('projects:columns.statusAndEnd', 'Status / expected end'),
       kind: 'status',
       size: 180,
@@ -527,7 +525,7 @@ const Projects: React.FC = () => {
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
-          <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>
+          <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{statusLabel(p.status as string)}</StatusPill>
           <span className="text-[12px] text-muted-foreground">
             {p.end_date ? formatDateOnly(p.end_date) : t('projects:dates.noExpectedEnd', 'No expected end')}
           </span>

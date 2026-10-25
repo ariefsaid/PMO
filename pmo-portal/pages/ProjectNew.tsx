@@ -69,6 +69,7 @@ const ProjectNew: React.FC = () => {
     return (
       <AccessDenied
         title={t('projects:create.accessDenied', "You can't create projects")}
+        sub={t('projects:create.accessDeniedReason', 'Project creation is limited to Admin, Executive, and Project Manager roles. Return to Projects to find assigned work or review project finances.')}
         backLabel={t('projectDetail.backToProjects', 'Projects')}
         onBack={() => returnToList()}
       />

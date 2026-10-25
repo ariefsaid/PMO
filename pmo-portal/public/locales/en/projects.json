@@ -21,6 +21,7 @@
   },
   "create": {
     "accessDenied": "You can't create projects",
+    "accessDeniedReason": "Project creation is limited to Admin, Executive, and Project Manager roles. Return to Projects to find assigned work or review project finances.",
     "leave": "Leave",
     "stay": "Stay",
     "backToProjects": "Back to Projects",

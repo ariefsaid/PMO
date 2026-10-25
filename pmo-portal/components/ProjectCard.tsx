@@ -1,6 +1,7 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { StatusPill, ProgressBar, Button, Icon, TaxBasisLabel, CompanyNameLink } from '@/src/components/ui';
 import { formatCurrency, formatDateOnly } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
@@ -40,6 +41,7 @@ export interface ProjectCardProps {
  */
 const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySummary, deliveryPending = false, deliveryError = false, projectMoney, projectMoneyPending = false, projectMoneyError = false, onEdit }) => {
   const { t } = useTranslation();
+  const statusLabel = useProjectStatusLabel();
   const currency = project.currency;
   const actual = projectMoney?.actuals.total == null ? null : Number(projectMoney.actuals.total);
   const activeBudget = projectMoney?.hasActiveBudget && projectMoney.activeBudgetAmount != null
@@ -145,7 +147,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
       </div>
 
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>{project.status}</StatusPill>
+        <StatusPill variant={pillVariantForProjectStatus(project.status as string)}>{statusLabel(project.status as string)}</StatusPill>
         <span className="text-[12px] text-muted-foreground">
           {project.end_date
             ? t('projects:card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })

@@ -21,6 +21,7 @@
   },
   "create": {
     "accessDenied": "Anda tidak dapat membuat proyek",
+    "accessDeniedReason": "Pembuatan proyek hanya tersedia untuk peran Admin, Eksekutif, dan Manajer Proyek. Kembali ke Proyek untuk mencari pekerjaan yang ditugaskan atau meninjau keuangan proyek.",
     "leave": "Keluar",
     "stay": "Tetap di sini",
     "backToProjects": "Kembali ke Proyek",

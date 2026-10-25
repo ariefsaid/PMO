@@ -9,6 +9,10 @@ import ProjectCard from './ProjectCard';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
+import { createInstance } from 'i18next';
+import { initReactI18next, I18nextProvider } from 'react-i18next';
+import enCommon from '../public/locales/en/common.json';
+import idCommon from '../public/locales/id/common.json';
 
 // ProjectCard embeds ProjectStatusControl (useToast) + CompanyNameLink (Link) —
 // wrap in both providers.
@@ -73,6 +77,21 @@ describe('ProjectCard', () => {
   it('shows the project lifecycle state on the card', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
+  });
+
+  it('R-015: localizes the project lifecycle state for Indonesian readers', async () => {
+    const i18n = createInstance();
+    await i18n.use(initReactI18next).init({
+      lng: 'id', fallbackLng: 'en', defaultNS: 'common',
+      resources: { en: { common: enCommon }, id: { common: idCommon } },
+      interpolation: { escapeValue: false }, react: { useSuspense: false },
+    });
+    rtlRender(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter><ToastProvider><ProjectCard project={base} onOpen={vi.fn()} /></ToastProvider></MemoryRouter>
+      </I18nextProvider>,
+    );
+    expect(screen.getByText('Proyek berjalan')).toBeInTheDocument();
   });
 
   it('PL-B: carries no status-change control (transitions live on the record)', () => {

@@ -150,6 +150,7 @@ describe('ProjectNew — one-step create page (#806)', () => {
   it('gates the page: Finance sees a named return instead of the create form', async () => {
     renderPage('Finance');
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Project creation is limited to Admin, Executive, and Project Manager roles/)).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Projects' }));
     expect(returnToList).toHaveBeenCalledTimes(1);
   });
@@ -157,6 +158,7 @@ describe('ProjectNew — one-step create page (#806)', () => {
   it('gates the page: Engineer sees a named return instead of the create form', async () => {
     renderPage('Engineer');
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Project creation is limited to Admin, Executive, and Project Manager roles/)).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Projects' }));
     expect(returnToList).toHaveBeenCalledTimes(1);
   });
