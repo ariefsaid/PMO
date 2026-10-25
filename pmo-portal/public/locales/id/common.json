@@ -2835,6 +2835,19 @@
         "new": "Work Order baru",
         "setValue": "Tetapkan nilai"
       },
+      "positionTitle": "Sisa nilai kontrak dan posisi penagihan",
+      "toolbar": {
+        "allStatuses": "Semua status",
+        "clearFilters": "Hapus pencarian dan filter",
+        "label": "Alat Work Order",
+        "newest": "Tanggal order terbaru",
+        "noMatches": "Tidak ada Work Order yang cocok dengan pencarian dan filter ini",
+        "oldest": "Tanggal order terlama",
+        "searchLabel": "Cari Work Order",
+        "searchPlaceholder": "Cari nomor WO, judul, atau PO klien…",
+        "sortOrders": "Urutkan Work Order",
+        "statusFilter": "Filter Work Order berdasarkan status"
+      },
       "billing": {
         "column": "Penagihan",
         "openDraft": "Buka draf",

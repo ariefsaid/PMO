@@ -9,9 +9,11 @@ import {
   ConfirmDialog,
   DataTable,
   GateNotice,
+  SearchMini,
   ListState,
   StatusPill,
   TaxBasisLabel,
+  Toolbar,
   useToast,
   type Column,
   type StatusVariant,
@@ -107,6 +109,8 @@ const ROLE_RANK: Record<string, number> = {
   Admin: 50,
 };
 
+const WORK_ORDER_STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
+
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
   Draft: 'draft',
   Issued: 'progress',
@@ -128,6 +132,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | 'all'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
   const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
@@ -330,6 +337,29 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       default:
         return t('projectDetail.workOrders.status.cancelled', 'Cancelled');
     }
+  };
+
+  const query = search.trim().toLocaleLowerCase();
+  const visibleRows = useMemo(() => [...rows]
+    .sort((left, right) => {
+      if (left.order_date === null) return right.order_date === null ? left.id.localeCompare(right.id) : 1;
+      if (right.order_date === null) return -1;
+      const leftDate = left.order_date ?? '';
+      const rightDate = right.order_date ?? '';
+      const dateOrder = leftDate.localeCompare(rightDate);
+      const ordered = sortOrder === 'newest' ? -dateOrder : dateOrder;
+      return ordered || left.id.localeCompare(right.id);
+    })
+    .filter((row) => {
+      const matchesStatus = statusFilter === 'all' || row.status === statusFilter;
+      const matchesSearch = !query || [row.wo_number, row.title, row.client_po_number, row.id]
+        .some((value) => value?.toLocaleLowerCase().includes(query));
+      return matchesStatus && matchesSearch;
+    }), [rows, query, sortOrder, statusFilter]);
+  const hasActiveFilters = query.length > 0 || statusFilter !== 'all';
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
   };
 
   /**
@@ -613,7 +643,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     },
   ];
 
-  const tableState = isPending ? 'loading' : isError ? 'error' : rows.length === 0 ? 'empty' : undefined;
+  const tableState = isPending ? 'loading' : isError ? 'error' : visibleRows.length === 0 ? 'empty' : undefined;
 
   const confirmCopy = (p: PendingTransition) => {
     if (p.to === 'Issued') {
@@ -649,123 +679,153 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     };
   };
 
+  const billingPosition = canViewBilling && rows.length > 0 ? (
+    <section data-testid="wo-billing-summary" aria-labelledby="wo-billing-summary-heading">
+      <h3 id="wo-billing-summary-heading" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+        {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
+        {billing.data && totals.complete && excl}
+      </h3>
+      <div className="mt-3">
+        {billing.isPending ? (
+          <ListState variant="loading" rows={1} testId="wo-billing-loading" />
+        ) : billing.isError || !billing.data ? (
+          <ListState
+            variant="error"
+            title={t('projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")}
+            onRetry={() => billing.refetch()}
+          />
+        ) : (
+          <>
+            <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+              {([
+                ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
+                ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
+                ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
+                ...(totals.inDraft > 0
+                  ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted'), totals.inDraft] as const]
+                  : []),
+              ] as const).map(([testId, label, value]) => (
+                <div key={testId} data-testid={testId}>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
+                  <dd className="mt-0.5 text-[15px] font-bold tabular">
+                    {totals.complete
+                      ? formatCurrencyCents(value, currency)
+                      : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+            {!totals.complete && (
+              <p className="mt-2 text-[12px] text-muted-foreground">
+                {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
+              </p>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  ) : null;
+
   return (
     <div className="space-y-6">
-      <ProjectDrawdown projectId={projectId} />
-
-      {dpNotice !== null && (
-        <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
-          {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
-            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
-            { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
-        </div>
-      )}
-
-      {canViewBilling && (
-        <>
-          {createdInvoice && (
-            <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-              <p className="text-sm text-muted-foreground">
-                {createdInvoice.native
-                  ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
-                  : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
-              </p>
-              <Link className="inline-flex min-h-8 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
-                {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
-              </Link>
-            </div>
-          )}
-          {rows.length > 0 && (
-            <Card variant="bare" data-testid="wo-billing-summary">
-              <CardHead level={2} className="gap-2 text-base">
-                {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
-                {billing.data && totals.complete && excl}
-              </CardHead>
-              <CardPad>
-            {billing.isPending ? (
-              <ListState variant="loading" rows={1} testId="wo-billing-loading" />
-            ) : billing.isError || !billing.data ? (
-              <ListState
-                variant="error"
-                title={t('projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")}
-                onRetry={() => billing.refetch()}
-              />
-            ) : (
-              <>
-                {/* auto-fit sizes the totals off the card's OWN width (DESIGN.md, record-layout column): beside the record
-                    panel four IDR billions do not fit one row, so the fourth wraps instead of colliding. */}
-                <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
-                  {([
-                    ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
-                    ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
-                    ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
-                    ...(totals.inDraft > 0
-                      ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted'), totals.inDraft] as const]
-                      : []),
-                  ] as const).map(([testId, label, value]) => (
-                    <div key={testId} data-testid={testId}>
-                      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
-                      <dd className="mt-0.5 text-[15px] font-bold tabular">
-                        {totals.complete
-                          ? formatCurrencyCents(value, currency)
-                          : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                {!totals.complete && (
-                  <p className="mt-2 text-[12px] text-muted-foreground">
-                    {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
-                  </p>
-                )}
-              </>
+      <ProjectDrawdown
+        projectId={projectId}
+        title={t('projectDetail.workOrders.positionTitle', 'Contract headroom and billing position')}
+        alwaysShow={rows.length > 0}
+        afterFigures={(
+          <>
+            {billingPosition}
+            {dpNotice !== null && (
+              <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
+                {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
+                  '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+                  { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
+              </div>
             )}
-              </CardPad>
-            </Card>
-          )}
-        </>
-      )}
+          </>
+        )}
+      />
 
-      <Card variant="bare">
-        <CardHead
-          level={2}
-          className="text-base"
-          actions={
-            may('create', 'workOrder') && (
-              <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
-                {t('projectDetail.workOrders.action.new', 'New work order')}
-              </Button>
-            )
-          }
-        >
+      <section aria-labelledby="project-work-orders-heading">
+        <Toolbar standalone role="group" aria-label={t('projectDetail.workOrders.toolbar.label', 'Work order tools')}>
+          <SearchMini
+            placeholder={t('projectDetail.workOrders.toolbar.searchPlaceholder', 'Search by WO number, title, or client PO…')}
+            aria-label={t('projectDetail.workOrders.toolbar.searchLabel', 'Search work orders')}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
+          />
+          <select
+            aria-label={t('projectDetail.workOrders.toolbar.statusFilter', 'Filter work orders by status')}
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
+            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <option value="all">{t('projectDetail.workOrders.toolbar.allStatuses', 'All statuses')}</option>
+            {WORK_ORDER_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+          </select>
+          <select
+            aria-label={t('projectDetail.workOrders.toolbar.sortOrders', 'Sort work orders')}
+            value={sortOrder}
+            onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
+            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            <option value="newest">{t('projectDetail.workOrders.toolbar.newest', 'Newest order date')}</option>
+            <option value="oldest">{t('projectDetail.workOrders.toolbar.oldest', 'Oldest order date')}</option>
+          </select>
+          {may('create', 'workOrder') && (
+            <Button variant="primary" size="sm" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormFor(null)}>
+              {t('projectDetail.workOrders.action.new', 'New work order')}
+            </Button>
+          )}
+        </Toolbar>
+
+        {createdInvoice && (
+          <div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <p className="text-sm text-muted-foreground">
+              {createdInvoice.native
+                ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
+                : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
+            </p>
+            <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
+              {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
+            </Link>
+          </div>
+        )}
+
+        <h2 id="project-work-orders-heading" className="mb-3.5 text-[16px] font-bold tracking-[-0.01em]">
           {t('projectDetail.workOrders.title', 'Work orders')}
-        </CardHead>
-        <CardPad>
-          {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
-              container size (36rem = 576px) of its own width it becomes the record cards (AC-TBL-CARDS-001) instead of
-              scrolling Invoice out of sight. */}
-          <DataTable<WorkOrderRow>
+        </h2>
+        {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
+            container size (36rem = 576px) of its own width it becomes the record cards (AC-TBL-CARDS-001) instead of
+            scrolling Invoice out of sight. */}
+        <DataTable<WorkOrderRow>
             className="@container"
-            cardBelow={576}
-            rows={rows}
+            rows={visibleRows}
             columns={columns}
             rowKey={(row) => row.id}
             selectedKey={focusWorkOrderId ?? undefined}
             state={tableState}
-            emptyTitle={t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
-            emptySub={t(
+            emptyTitle={hasActiveFilters
+              ? t('projectDetail.workOrders.toolbar.noMatches', 'No work orders match these search and filters')
+              : t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
+            emptySub={!hasActiveFilters ? t(
               'projectDetail.workOrders.empty.sub',
               'Record the client’s purchase orders here. Once issued, they draw down the project’s contract value.',
-            )}
+            ) : undefined}
             errorTitle={t('projectDetail.workOrders.error.title', 'Couldn’t load the work orders')}
             errorSub={t(
               'projectDetail.workOrders.error.sub',
               'The client’s purchase orders for this project could not be read. Retry, or reopen the project.',
             )}
             onRetry={() => refetch()}
-          tableId="project-detail-tabs-workorderstab-table" />
-        </CardPad>
-      </Card>
+            emptyAction={hasActiveFilters ? {
+              label: t('projectDetail.workOrders.toolbar.clearFilters', 'Clear search and filters'),
+              onClick: clearFilters,
+            } : undefined}
+            cardBelow={576}
+            tableId="project-detail-tabs-workorderstab-table" />
+      </section>
 
       {showQuantities && rows.length > 0 && (
         <Card variant="bare" data-testid="wo-quantities">

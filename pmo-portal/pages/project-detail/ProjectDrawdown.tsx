@@ -28,6 +28,12 @@ import { useProjectDrawdown } from '@/src/hooks/useWorkOrders';
 export interface ProjectDrawdownProps {
   projectId: string;
   className?: string;
+  /** Related money figures that share the contract basis and heading. */
+  afterFigures?: React.ReactNode;
+  /** Keep the card present when the issued and draft drawdown are both zero. */
+  alwaysShow?: boolean;
+  /** Page-specific title for a combined contract and billing figure set. */
+  title?: React.ReactNode;
 }
 
 /**
@@ -55,7 +61,7 @@ const Figure: React.FC<{
   </div>
 );
 
-const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className }) => {
+const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className, afterFigures, alwaysShow = false, title }) => {
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useProjectDrawdown(projectId);
 
@@ -74,30 +80,31 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
 
   // SUB-C: the card exists to manage work orders against the ceiling — with none issued or
   // drafted there is nothing to manage and the card is noise. (An error still shows.)
-  if (data && !isError && data.committed <= 0 && data.draft <= 0) return null;
+  if (!alwaysShow && data && !isError && data.committed <= 0 && data.draft <= 0) return null;
 
   return (
     <Card variant="bare" className={className} data-testid="project-drawdown">
       <CardHead level={2} className="text-base">
-        {t('projectDetail.drawdown.title', 'Contract drawdown')}
+        {title ?? t('projectDetail.drawdown.title', 'Contract drawdown')}
         {data && !isError && (
           <span className="ml-2 text-[12px] font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
         )}
       </CardHead>
-      {isPending ? (
-        <ListState variant="loading" rows={3} testId="drawdown-loading" />
-      ) : isError || !data ? (
-        <ListState
-          variant="error"
-          title={t('projectDetail.drawdown.error.title', "Couldn't load the drawdown")}
-          sub={t(
-            'projectDetail.drawdown.error.sub',
-            'The committed total against this contract could not be read. Retry, or reopen the project.',
-          )}
-          onRetry={() => refetch()}
-        />
-      ) : (
-        (() => {
+      <CardPad className="flex flex-col gap-3">
+        {isPending ? (
+          <ListState variant="loading" rows={3} testId="drawdown-loading" />
+        ) : isError || !data ? (
+          <ListState
+            variant="error"
+            title={t('projectDetail.drawdown.error.title', "Couldn't load the drawdown")}
+            sub={t(
+              'projectDetail.drawdown.error.sub',
+              'The committed total against this contract could not be read. Retry, or reopen the project.',
+            )}
+            onRetry={() => refetch()}
+          />
+        ) : (
+          (() => {
           const { committed, draft, ceiling, currency } = data;
           // ⚑ EPSILON, not bare float comparison (security review L4). `ceiling - committed` on JS
           // floats lands at ~-1e-13 at exact parity, which painted "Remaining headroom" in
@@ -114,7 +121,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
           const overBy = alreadyOver ? committed - ceiling : committed + draft - ceiling;
 
           return (
-            <CardPad className="flex flex-col gap-3">
+            <>
               <div
                 role="group"
                 aria-label={t('projectDetail.drawdown.groupLabel', 'Contract drawdown')}
@@ -215,10 +222,12 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className 
                   </p>
                 </div>
               )}
-            </CardPad>
+            </>
           );
         })()
-      )}
+        )}
+        {afterFigures && <div className="border-t border-border pt-3">{afterFigures}</div>}
+      </CardPad>
     </Card>
   );
 };

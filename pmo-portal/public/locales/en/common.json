@@ -2835,6 +2835,19 @@
         "new": "New work order",
         "setValue": "Set value"
       },
+      "positionTitle": "Contract headroom and billing position",
+      "toolbar": {
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "label": "Work order tools",
+        "newest": "Newest order date",
+        "noMatches": "No work orders match these search and filters",
+        "oldest": "Oldest order date",
+        "searchLabel": "Search work orders",
+        "searchPlaceholder": "Search by WO number, title, or client PO…",
+        "sortOrders": "Sort work orders",
+        "statusFilter": "Filter work orders by status"
+      },
       "billing": {
         "column": "Billing",
         "openDraft": "Open draft",

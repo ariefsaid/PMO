@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectWorkOrders: () => h.list,
-  useProjectDrawdown: () => ({ data: { committed: 0, draft: 0, ceiling: 1_000_000, currency: 'USD', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectDrawdown: () => ({ data: { committed: 200_000, draft: 10_000, ceiling: 1_000_000, currency: 'USD', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() }),
   useWorkOrderMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false }, update: { mutateAsync: vi.fn(), isPending: false },
     setValue: { mutateAsync: vi.fn(), isPending: false }, transition: { mutateAsync: vi.fn(), isPending: false },
@@ -82,6 +82,47 @@ beforeEach(() => {
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
+  it('AC-PD-WO-01 groups contract headroom and billing before a searchable register sorted by order date', () => {
+    h.list.data = [
+      wo({ id: 'wo-old', title: 'Older order', order_date: '2026-05-01', created_at: '2026-10-01T00:00:00Z' }),
+      wo({ id: 'wo-new', title: 'Newer order', order_date: '2026-09-01', created_at: '2026-01-01T00:00:00Z' }),
+    ];
+    h.billing.data = [bill({ workOrderId: 'wo-old' }), bill({ workOrderId: 'wo-new' })];
+    renderTab();
+
+    const position = screen.getByTestId('project-drawdown');
+    expect(position).toContainElement(screen.getByTestId('wo-billing-summary'));
+    const toolbar = screen.getByRole('group', { name: 'Work order tools' });
+    expect(position.compareDocumentPosition(toolbar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Sort work orders')).toHaveValue('newest');
+
+    const newer = screen.getByText('Newer order');
+    const older = screen.getByText('Older order');
+    expect(newer.compareDocumentPosition(older) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-PD-WO-02 search and status filters operate on the register and offer a clear recovery', async () => {
+    const user = userEvent.setup();
+    h.list.data = [
+      wo({ id: 'wo-draft', title: 'Draft for north site', status: 'Draft' }),
+      wo({ id: 'wo-issued', title: 'Issued for south site', status: 'Issued' }),
+    ];
+    h.billing.data = [bill({ workOrderId: 'wo-draft' }), bill({ workOrderId: 'wo-issued' })];
+    renderTab();
+
+    await user.selectOptions(screen.getByLabelText('Filter work orders by status'), 'Issued');
+    expect(screen.getByText('Issued for south site')).toBeInTheDocument();
+    expect(screen.queryByText('Draft for north site')).not.toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText('Search work orders'));
+    await user.type(screen.getByLabelText('Search work orders'), 'no matching work order');
+    expect(screen.getByText('No work orders match these search and filters')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Clear search and filters' }));
+    expect(screen.getByText('Draft for north site')).toBeInTheDocument();
+    expect(screen.getByText('Issued for south site')).toBeInTheDocument();
+  });
+
   it('AC-S15-003 a truly empty work-order register leads with its first-use action, without zero billing totals', () => {
     h.list.data = [];
     renderTab('Admin');
@@ -122,7 +163,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const basis = screen.getAllByTestId('wo-billing-basis');
     expect(basis).toHaveLength(1);
     expect(basis[0]).toHaveClass('whitespace-nowrap');
-    expect(screen.getByTestId('wo-billing-summary').querySelector('h2')).toContainElement(basis[0]);
+    expect(screen.getByTestId('wo-billing-summary').querySelector('h3')).toContainElement(basis[0]);
     expect(within(screen.getByTestId('wo-billing-wo-1')).queryByTestId('wo-billing-basis')).toBeNull();
   });
 
