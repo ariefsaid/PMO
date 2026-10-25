@@ -8,10 +8,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
-/**
- * AC-RD-TBL-INV-001 (T4) + FIN-S1: the invoice list is the shared DataTable with a number+customer primary
- * cell, at most 7 columns at 1440, and none of the subtracted chrome in its default state.
- */
+/** Invoice collection behavior: identity, exact amounts, scope and ordering stay testable as the layout changes. */
 const h = vi.hoisted(() => ({
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   orgDay: { day: '2026-10-18' as string | null, isPending: false },
@@ -125,31 +122,17 @@ beforeEach(() => {
   h.mode = 'erp';
 });
 
-describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
-  it('shows at most 7 columns, with no Date, Received, separate Customer or empty e-Faktur column', () => {
+describe('invoice list evidence', () => {
+  it('keeps invoice identity, customer context and exact amounts available', () => {
     renderAt('/sales-invoices');
     const cols = headers();
-    expect(cols.length).toBeLessThanOrEqual(7);
-    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer reference', 'Status', 'Amount', 'Outstanding', 'Due Date']));
-    for (const gone of ['Date', 'Received', 'Customer', 'e-Faktur']) expect(cols).not.toContain(gone);
-  });
-
-  it('adds the e-Faktur column only when a loaded row carries a value', () => {
-    h.invoices.data = [invoice('INV-001', { efaktur_number: '010.000-26.00000001', efaktur_date: '2026-10-02' })];
-    renderAt('/sales-invoices');
-    expect(headers()).toContain('e-Faktur');
-    expect(screen.getByText('010.000-26.00000001')).toBeInTheDocument();
-  });
-
-  it('puts the invoice number and the customer in one primary cell, with the full amount in another', () => {
-    renderAt('/sales-invoices');
+    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer / project', 'Status / due', 'Outstanding', 'Amount']));
     const row = screen.getByRole('row', { name: /INV-001/ });
-    const primary = within(row).getByRole('link', { name: 'INV-001' }).closest('td,th')!;
-    expect(primary).toHaveTextContent('Northwind Services');
+    expect(within(row).getByText('Northwind Services')).toBeInTheDocument();
     expect(within(row).getAllByText('$1,250,000.50').length).toBeGreaterThan(0);
   });
 
-  it('shows the project under the customer only when its label is known', () => {
+  it('shows a known project name and names an unavailable attributed project', () => {
     h.invoices.data = [
       invoice('INV-001', { project_id: 'project-1' }),
       invoice('INV-002', { project_id: 'project-gone' }),
@@ -157,10 +140,8 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     ];
     renderAt('/sales-invoices');
     expect(within(screen.getByRole('row', { name: /INV-001/ })).getByText('Contractual Harbor Retrofit')).toBeInTheDocument();
-    for (const id of ['INV-002', 'INV-003']) {
-      const text = screen.getByRole('row', { name: new RegExp(id) }).textContent ?? '';
-      expect(text).not.toMatch(/Project (not recorded|details)/);
-    }
+    expect(within(screen.getByRole('row', { name: /INV-002/ })).getByText('Project details unavailable')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /INV-003/ })).queryByText('Project details unavailable')).not.toBeInTheDocument();
     expect(screen.getAllByText('Contractual Harbor Retrofit')).toHaveLength(1);
   });
 
@@ -178,14 +159,51 @@ describe('FIN-S1 / AC-RD-TBL-INV-001: invoice list default state', () => {
     expect(within(screen.getByRole('row', { name: /INV-002/ })).getByText('EUR')).toBeInTheDocument();
   });
 
-  it('has no project filter, no sort button and no organization-date loading text; Overdue only appears once', () => {
+  it('shows the visible sort and overdue filter without an organization-date loading message', () => {
     h.orgDay.day = null;
     h.orgDay.isPending = true;
     renderAt('/sales-invoices');
-    expect(screen.queryByRole('combobox', { name: 'Filter by project' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Oldest overdue first/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Sort invoices' })).toHaveValue('due-asc');
     expect(screen.queryByText(/Loading the organization date/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Overdue only' })).toHaveLength(1);
+  });
+
+  it('places search, filters, sort, export and creation in the prescribed toolbar order', () => {
+    renderAt('/sales-invoices');
+    const toolbar = screen.getByTestId('money-in-toolbar');
+    const search = within(toolbar).getByRole('searchbox', { name: 'Search sales invoices' });
+    const filters = within(toolbar).getByRole('region', { name: 'Filter by status' });
+    const sort = within(toolbar).getByRole('combobox', { name: 'Sort invoices' });
+    const exportAction = within(toolbar).getByRole('button', { name: /export/i });
+    const create = within(toolbar).getByRole('button', { name: 'New Invoice' });
+
+    expect(search.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(filters.compareDocumentPosition(sort) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(sort.compareDocumentPosition(exportAction) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(exportAction.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it('orders by due date by default, leaves unknown due dates last and uses invoice IDs for ties', () => {
+    h.invoices.data = [
+      invoice('INV-LATER', { erp_due_date: '2026-11-01' }),
+      invoice('INV-UNKNOWN', { invoice_date: null, erp_payment_terms_days: null, erp_due_date: null }),
+      invoice('INV-SOONER-B', { erp_due_date: '2026-10-20' }),
+      invoice('INV-SOONER-A', { erp_due_date: '2026-10-20' }),
+    ];
+    renderAt('/sales-invoices');
+    expect(screen.getAllByRole('link', { name: /^INV-/ }).map((link) => link.textContent)).toEqual([
+      'INV-SOONER-A', 'INV-SOONER-B', 'INV-LATER', 'INV-UNKNOWN',
+    ]);
+  });
+
+  it('uses latest invoice date for Draft and keeps an explicit sort when status changes', async () => {
+    const defaulted = renderAt('/sales-invoices?status=Draft');
+    expect(screen.getByRole('combobox', { name: 'Sort invoices' })).toHaveValue('invoice-date-desc');
+    defaulted.unmount();
+
+    renderAt('/sales-invoices?sort=overdue-desc');
+    await userEvent.setup().click(screen.getByRole('tab', { name: 'Draft' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('sort=overdue-desc');
   });
 
   it('describes the page in one short line and offers no Browse Projects button to a project manager', () => {
@@ -214,14 +232,13 @@ describe('FIN-S1: project reaches the list through search and a removable chip',
     expect(screen.queryByRole('link', { name: 'INV-002' })).not.toBeInTheDocument();
   });
 
-  it('a ?project= link-in shows a chip that clears only the project', async () => {
+  it('a ?project= link-in restores the project filter and clearing it preserves search', async () => {
     h.invoices.data = [invoice('INV-001', { project_id: 'project-1' }), invoice('INV-002')];
     const user = userEvent.setup();
     renderAt('/sales-invoices?project=project-1&q=INV');
-    const chip = screen.getByTestId('project-filter');
-    expect(chip).toHaveTextContent('North Harbor');
+    expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('project-1');
     expect(screen.queryByRole('link', { name: 'INV-002' })).not.toBeInTheDocument();
-    await user.click(within(chip).getByRole('button', { name: 'Clear project filter' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Filter by project' }), '');
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices?q=INV');
     expect(screen.getByRole('link', { name: 'INV-002' })).toBeInTheDocument();
   });

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -57,12 +56,23 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { MoneyInPageHeader } from './money-in/MoneyInPageHeader';
+import { sortSalesInvoiceCollection, type SalesInvoiceCollectionSort } from '@/src/lib/salesInvoiceCollectionSort';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
 const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 /** M-7: PMO invoices are never "Submitted" (DD-NAR-3: Draft → Unpaid → Paid); a part-paid one is its own filter. */
 const NATIVE_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
+const INVOICE_SORTS: SalesInvoiceCollectionSort[] = ['due-asc', 'overdue-desc', 'invoice-date-desc'];
+
+function isInvoiceSort(value: string | null): value is SalesInvoiceCollectionSort {
+  return INVOICE_SORTS.includes(value as SalesInvoiceCollectionSort);
+}
+
+function invoiceStatusDefaultSort(status: StatusFilter): SalesInvoiceCollectionSort {
+  return status === 'Draft' || status === 'Paid' || status === 'Cancelled' ? 'invoice-date-desc' : 'due-asc';
+}
 
 function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
   const labels: Record<StatusFilter, string> = {
@@ -329,6 +339,8 @@ const SalesInvoices: React.FC = () => {
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
     : 'All';
+  const requestedSort = searchParams.get('sort');
+  const invoiceSort = isInvoiceSort(requestedSort) ? requestedSort : invoiceStatusDefaultSort(statusFilter);
   useEffect(() => {
     if (mode === undefined) return;
     const requested = searchParams.get('status');
@@ -339,15 +351,38 @@ const SalesInvoices: React.FC = () => {
       return next;
     }, { replace: true });
   }, [mode, searchParams, setSearchParams, statusFilters]);
+  useEffect(() => {
+    if (requestedSort === null || isInvoiceSort(requestedSort)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('sort', invoiceStatusDefaultSort(statusFilter));
+      return next;
+    }, { replace: true });
+  }, [requestedSort, searchParams, setSearchParams, statusFilter]);
+  useEffect(() => {
+    const attribution = searchParams.get('attribution');
+    if (attribution === null || attribution === 'assigned' || attribution === 'unassigned') return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('attribution');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
 
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
 
-  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
+  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue' | 'sort', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
       else next.set(key, value);
+      if (key === 'status' && !current.has('sort')) {
+        const nextStatus = value as StatusFilter;
+        const defaultSort = invoiceStatusDefaultSort(nextStatus || 'All');
+        if (defaultSort === 'due-asc') next.delete('sort');
+        else next.set('sort', defaultSort);
+      }
       return next;
     }, { replace: true });
   };
@@ -465,8 +500,9 @@ const SalesInvoices: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const attribution = searchParams.get('attribution');
     return all
-      .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
+      .filter((inv) => attribution === 'unassigned' ? inv.project_id === null : attribution === 'assigned' ? inv.project_id !== null : true)
       .filter((inv) => matchesStatus(inv, statusFilter))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
       .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
@@ -485,21 +521,15 @@ const SalesInvoices: React.FC = () => {
         || [projectOptions?.find((option) => option.value === inv.project_id)].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
   }, [all, organizationToday, projectOptions, search, searchParams, statusFilter]);
 
-  // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
-    if (searchParams.get('overdue') !== 'true') return filtered;
-    return filtered
-      .map((invoice, index) => ({
-        invoice,
-        index,
-        age: overdueAgeDays(
-          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
-          organizationToday,
-        ) ?? 0,
-      }))
-      .sort((a, b) => b.age - a.age || a.index - b.index)
-      .map(({ invoice }) => invoice);
-  }, [filtered, organizationToday, searchParams]);
+    const sortable = filtered.map((invoice) => ({
+      invoice,
+      id: invoice.id,
+      dueDate: deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
+      invoiceDate: invoice.invoice_date,
+    }));
+    return sortSalesInvoiceCollection(sortable, invoiceSort, organizationToday ?? '').map(({ invoice }) => invoice);
+  }, [filtered, invoiceSort, organizationToday]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -668,10 +698,8 @@ const SalesInvoices: React.FC = () => {
     );
   }
 
-  // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
-  // columns. Dates other than Due, and the separate Customer, are export-only below.
+  // The list keeps the invoice's identity, its customer/project context, its collection state, and both balances distinct.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
-  const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: t('financeCopy.invoice', "Invoice #"),
@@ -710,18 +738,27 @@ const SalesInvoices: React.FC = () => {
         </span>
       );
     },
-    secondaryCell: (inv) => {
+    exportValue: (inv) => invoiceNumber(inv) ?? '',
+  };
+  const customerProjectColumn: Column<SalesInvoiceRow> = {
+    key: 'customer_project',
+    header: t('financeCopy.customerProjectContext', 'Customer / project'),
+    kind: 'text',
+    size: 250,
+    cell: (inv) => {
       const project = projectLabelOf(inv);
-      const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
-      if (!customer && !project) return null;
       return (
-        <>
-          {customer && <span className="block truncate" title={customer}>{customer}</span>}
-          {project && <span className="block truncate" title={project}>{project}</span>}
-        </>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="break-words font-medium">{inv.customer_name ?? t('financeCopy.customerUnavailable', 'Customer not available')}</span>
+          {project
+            ? <span className="break-words text-xs text-muted-foreground">{project}</span>
+            : inv.project_id
+              ? <span className="break-words text-xs text-muted-foreground">{t('financeCopy.projectUnavailable', 'Project details unavailable')}</span>
+              : null}
+        </span>
       );
     },
-    exportValue: (inv) => invoiceNumber(inv) ?? '',
+    exportValue: (inv) => inv.customer_name ?? '',
   };
   const referenceColumn: Column<SalesInvoiceRow> = {
     key: 'reference_number',
@@ -840,17 +877,20 @@ const SalesInvoices: React.FC = () => {
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
-  const efakturColumn: Column<SalesInvoiceRow> = {
-    // One cell for the pair (number over a muted date). Shown only when a loaded row carries a value.
-    key: 'efaktur',
-    header: t('efaktur.column', 'e-Faktur'),
-    kind: 'text',
-    size: 150,
-    cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
+  const statusDueColumn: Column<SalesInvoiceRow> = {
+    key: 'status_due',
+    header: t('financeCopy.statusDueContext', 'Status / due'),
+    kind: 'status',
+    size: 200,
+    cell: (inv) => (
+      <span className="flex min-w-0 flex-col items-start gap-1">
+        {statusColumn.cell(inv)}
+        <span className="text-sm">{dueColumn.cell(inv)}</span>
+      </span>
+    ),
   };
   const columns: Column<SalesInvoiceRow>[] = [
-    invoiceColumn, referenceColumn, statusColumn, amountColumn, outstandingColumn, dueColumn,
-    ...(showEfaktur ? [efakturColumn] : []),
+    invoiceColumn, customerProjectColumn, statusDueColumn, outstandingColumn, amountColumn,
   ];
 
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
@@ -961,20 +1001,40 @@ const SalesInvoices: React.FC = () => {
     }
   }
 
+  const clearFilters = () => {
+    setSearch('');
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      for (const key of ['q', 'status', 'customer', 'project', 'attribution', 'overdue', 'sort']) next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
   return (
-    <ListPage
-      title={t('financeCopy.salesInvoices', "Sales Invoices")}
-      description={t('finance:invoices.description', 'Client invoices.')}
-      primaryAction={mode !== undefined && !createRequested && canCreate ? (
-        <Button variant="primary" onClick={openNewInvoice}>
-          <Icon name="plus" />
-          {t('financeCopy.newInvoice', "New Invoice")}</Button>
-      ) : undefined}
-      filters={
-        state !== 'loading' && (
+    <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6">
+      <MoneyInPageHeader
+        title={t('financeCopy.salesInvoices', 'Sales Invoices')}
+        scope={t('finance:invoices.description', 'Client invoices.')}
+      />
+      <div data-testid="money-in-toolbar" className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+        <SearchMini
+          placeholder={t('financeCopy.searchInvoices', 'Search invoices…')}
+          aria-label={t('financeCopy.searchSalesInvoices', 'Search sales invoices')}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            updateListParam('q', e.target.value);
+          }}
+          searchSurface="sales-invoices-list"
+          module="salesInvoices"
+          resultCount={filtered.length}
+          className="min-h-11"
+          containerClassName="min-h-11 w-full md:w-64"
+        />
+        <div className="flex min-w-0 flex-col gap-2 md:flex-1">
           <div
             role="region"
-            aria-label={t('financeCopy.filterByStatus', "Filter by status")}
+            aria-label={t('financeCopy.filterByStatus', 'Filter by status')}
             tabIndex={0}
             className="min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
@@ -985,70 +1045,86 @@ const SalesInvoices: React.FC = () => {
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
-              ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
+              ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
             />
-            <div className="mt-2 flex flex-wrap items-end gap-2">
-              {requestedCustomerId && (
-                <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
-                      {selectedCustomer?.label ?? t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}
-                    </span>
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => updateListParam('customer', '')}
-                  >{t('dashboard.uxs36CustomerFilterClear', 'Clear customer filter')}</Button>
-                </div>
-              )}
-              {contextualProjectId && (
-                <div data-testid="project-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('financeCopy.project', 'Project')}: <span className="font-medium">
-                      {selectedProject?.label ?? t('financeCopy.projectUnavailable', 'Project details unavailable')}
-                    </span>
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => updateListParam('project', '')}>
-                    {t('finance:invoices.clearProject', 'Clear project filter')}
-                  </Button>
-                </div>
-              )}
-              <Button
-                type="button"
-                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
-                aria-pressed={searchParams.get('overdue') === 'true'}
-                disabled={!organizationToday}
-                onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
-              >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
-            </div>
           </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
-            aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              updateListParam('q', e.target.value);
-            }}
-            searchSurface="sales-invoices-list"
-            module="salesInvoices"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="sr-only" htmlFor="invoice-customer-filter">{t('financeCopy.filterByCustomer', 'Filter by customer')}</label>
+            <select
+              id="invoice-customer-filter"
+              aria-label={t('financeCopy.filterByCustomer', 'Filter by customer')}
+              value={requestedCustomerId ?? ''}
+              onChange={(event) => updateListParam('customer', event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="">{t('financeCopy.allCustomers', 'All customers')}</option>
+              {requestedCustomerId && !selectedCustomer && <option value={requestedCustomerId}>{t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</option>}
+              {(customerOptionsQuery.data ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="invoice-project-filter">{t('financeCopy.filterByProject', 'Filter by project')}</label>
+            <select
+              id="invoice-project-filter"
+              aria-label={t('financeCopy.filterByProject', 'Filter by project')}
+              value={searchParams.get('project') ?? ''}
+              onChange={(event) => updateListParam('project', event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="">{t('financeCopy.allProjects', 'All projects')}</option>
+              {searchParams.get('project') && !selectedProject && <option value={searchParams.get('project')!}>{t('financeCopy.projectUnavailable', 'Project details unavailable')}</option>}
+              {(projectOptions ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="invoice-attribution-filter">{t('financeCopy.filterByAttribution', 'Filter by project attribution')}</label>
+            <select
+              id="invoice-attribution-filter"
+              aria-label={t('financeCopy.filterByAttribution', 'Filter by project attribution')}
+              value={searchParams.get('attribution') ?? 'all'}
+              onChange={(event) => updateListParam('attribution', event.target.value === 'all' ? '' : event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="all">{t('financeCopy.allAttribution', 'All project attribution')}</option>
+              <option value="assigned">{t('financeCopy.assignedToProject', 'Assigned to project')}</option>
+              <option value="unassigned">{t('invoiceProject.unassignedFilter', 'Unassigned invoices')}</option>
+            </select>
+          </div>
+          <Button
+            type="button"
+            variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+            aria-pressed={searchParams.get('overdue') === 'true'}
+            disabled={!organizationToday}
+            className="min-h-11 self-start"
+            onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+          >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+        </div>
+        <label className="flex min-h-11 min-w-0 items-center gap-2 md:w-auto">
+          <span className="sr-only">{t('financeCopy.sortInvoices', 'Sort invoices')}</span>
+          <select
+            aria-label={t('financeCopy.sortInvoices', 'Sort invoices')}
+            value={invoiceSort}
+            onChange={(event) => updateListParam('sort', event.target.value)}
+            className="min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:w-auto"
+          >
+            <option value="due-asc">{t('financeCopy.dueSoonest', 'Due soonest')}</option>
+            <option value="overdue-desc">{t('financeCopy.oldestOverdueFirst', 'Oldest overdue first')}</option>
+            <option value="invoice-date-desc">{t('financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
+          </select>
+        </label>
+        <div className="flex min-w-0 flex-col gap-2 sm:flex-row md:ml-auto">
+          <ExportButton
+            rows={sortedInvoices}
+            columns={exportColumns}
+            entity={t('financeCopy.salesInvoices', 'Sales invoices')}
+            label={t('financeCopy.exportInvoices', 'Export invoices')}
+            disabled={state === 'loading' || state === 'error'}
+            className="min-h-11"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
-        )
-      }
-    >
+          {mode !== undefined && !createRequested && canCreate && (
+            <Button variant="primary" onClick={openNewInvoice} className="min-h-11">
+              <Icon name="plus" />
+              {t('financeCopy.newInvoice', 'New Invoice')}
+            </Button>
+          )}
+        </div>
+      </div>
       {/* Body */}
       {contextError && (
         <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm">
@@ -1066,16 +1142,6 @@ const SalesInvoices: React.FC = () => {
               {t('uxs15.retryContext', 'Retry context')}
             </Button>
           )}
-        </div>
-      )}
-      {searchParams.get('attribution') === 'unassigned' && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="rounded-full border border-border bg-secondary px-3 py-1 text-sm">
-            {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
-            {t('financeCopy.clearFilter', 'Clear filter')}
-          </Button>
         </div>
       )}
       {state === 'loading' && (
@@ -1107,16 +1173,31 @@ const SalesInvoices: React.FC = () => {
         />
       )}
 
-      {state === undefined && (
+      {state === undefined && filtered.length === 0 && (
+        <ListState
+          variant="empty"
+          icon="search"
+          title={t('financeCopy.noInvoicesMatchYourFilters', 'No invoices match your filters')}
+          sub={(
+            <div className="flex flex-col items-center gap-2">
+              <span>{t('financeCopy.tryADifferentStatusOrClearTheSearch', 'Try a different status or clear the search.')}</span>
+              <Button variant="ghost" onClick={clearFilters} className="min-h-11">
+                {t('financeCopy.clearFilters', 'Clear filters')}
+              </Button>
+            </div>
+          )}
+        />
+      )}
+
+      {state === undefined && filtered.length > 0 && (
         <DataTable<SalesInvoiceRow>
           rows={sortedInvoices}
           columns={columns}
           rowKey={(inv) => inv.id}
           rowMenu={rowMenu}
-          state={sortedInvoices.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
-          emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
-        tableId="salesinvoices-table" />
+          tableId="salesinvoices-table"
+          accessibleName={t('financeCopy.salesInvoices', 'Sales invoices')}
+        />
       )}
 
       {/* Create / edit modal */}
@@ -1220,7 +1301,7 @@ const SalesInvoices: React.FC = () => {
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
       />
-    </ListPage>
+    </main>
   );
 };
 
