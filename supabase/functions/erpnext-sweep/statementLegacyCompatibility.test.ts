@@ -595,7 +595,9 @@ Deno.test('AC-005: invalid chart does not downgrade an initial full replay or ce
 
 Deno.test('AC-005: unresolved chart references reassert replay without pretending unknown is resolved', async () => {
   const org = orgFor('missing-reference', 16, false);
-  const prior = { ...glSource(org), name: undefined, erp_name: 'GL-UNKNOWN-ACCOUNT', account: 'Unknown - Not In Chart', debit: '50.00', erp_modified: '2026-09-30 10:00:00.000000', modified: '2026-09-30 10:00:00.000000' };
+  // Its own voucher: a prior mirrored row the incremental batch does not re-deliver. Sharing the fetched row's
+  // voucher would make the feed (correctly) replace that voucher with ERPNext's current set, which omits it.
+  const prior = { ...glSource(org), name: undefined, erp_name: 'GL-UNKNOWN-ACCOUNT', voucher_no: `JV-PRIOR-${org.orgId}`, account: 'Unknown - Not In Chart', debit: '50.00', erp_modified: '2026-09-30 10:00:00.000000', modified: '2026-09-30 10:00:00.000000' };
   const harness = makeHarness([{ org, missingReferences: 'computed', seedGl: [prior], seedGlWatermark: '2026-09-30 10:00:00.000000' }]);
   try {
     const cycle = await harness.runCycle();
