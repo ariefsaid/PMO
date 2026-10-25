@@ -16,6 +16,9 @@ import {
 
 export interface AppShellProps {
   rail: React.ReactNode;
+  /** Full-label copy rendered in the phone drawer when the persistent rail is collapsed. */
+  drawerRail?: React.ReactNode;
+  railCollapsed?: boolean;
   header: React.ReactNode;
   children: React.ReactNode;
   /** Routes adopting the content-track breadcrumb and shared page frame. */
@@ -61,6 +64,8 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  */
 export const AppShell: React.FC<AppShellProps> = ({
   rail,
+  drawerRail,
+  railCollapsed = false,
   header,
   children,
   pageFrame,
@@ -218,7 +223,8 @@ export const AppShell: React.FC<AppShellProps> = ({
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
       data-app-shell="root"
-      className="grid h-[100dvh] w-full overflow-hidden"
+      data-rail-collapsed={railCollapsed || undefined}
+      className="app-shell-root grid h-[100dvh] w-full overflow-hidden"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
@@ -360,7 +366,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
 
             {/* Rail nav content — same node as the persistent rail. */}
-            <div className="flex-1 overflow-y-auto">{rail}</div>
+            <div className="flex-1 overflow-y-auto">{drawerRail ?? rail}</div>
           </div>
         </div>
       )}

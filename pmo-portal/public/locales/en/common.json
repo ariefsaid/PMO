@@ -3361,6 +3361,8 @@
       "accountMenu": "Account menu",
       "help": "Help",
       "helpWhatsApp": "Contact support via WhatsApp",
+      "languageError": "Could not save language. Try again.",
+      "languageHeading": "Language / Bahasa",
       "legalAndSupport": "Legal & support",
       "openCommandPalette": "Open command palette",
       "openNavigation": "Open navigation menu",
@@ -3447,6 +3449,8 @@
     },
     "rail": {
       "assistant": "Assistant",
+      "collapse": "Collapse navigation",
+      "expand": "Expand navigation",
       "group": {
         "deliverProjects": "Deliver projects",
         "manageMoney": "Manage money",

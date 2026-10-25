@@ -116,6 +116,8 @@ const NAV_LINK_BASE =
 
 export interface RailProps {
   onNavigate?: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   /** Membership check unavailable for a role that has no ordinary Administration entry. */
   operatorAccessError?: boolean;
   /**
@@ -135,7 +137,7 @@ export interface RailProps {
   assistantPanelOpen?: boolean;
 }
 
-export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
+export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onToggleCollapse, railActiveOverride, onOpenAssistant, assistantPanelOpen, operatorAccessError = false }) => {
   const { t } = useTranslation();
   const location = useLocation();
   const { effectiveRole, realRole } = useEffectiveRole();
@@ -219,35 +221,43 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
   };
   const workspaceSetupLabel = t('shell.rail.group.workspaceSetup', 'Workspace setup');
   const viewsLabel = t('shell.rail.group.views', 'Views');
+  const navItemBase = cn(NAV_LINK_BASE, collapsed && 'justify-center gap-0 px-0');
+  const labelText = (label: string, truncate = false) => (
+    <span className={collapsed ? 'sr-only' : truncate ? 'truncate' : undefined}>{label}</span>
+  );
   const renderLabel = (item: NavItem) => {
     const label = navLabels[item.to] ?? item.text;
     if (item.to === '/approvals') {
       return (
         <>
-          <span>{label}</span>
+          {labelText(label)}
           <ApprovalsNavCount />
         </>
       );
     }
-    return <span>{label}</span>;
+    return labelText(label);
   };
 
   const renderItem = (item: NavItem) => {
     // For the two stage-aware items, when an override is set, drive active from
     // the override instead of NavLink's built-in URL-prefix matching.
     const isStageAware = railActiveOverride === 'projects' && item.to === '/projects';
-    const isCompanyDirectoryLink = item.to === '/companies';
+    const isCompanyDirectoryLink = item.to === '/companies' || item.to === '/companies?type=Vendor';
+    const label = navLabels[item.to] ?? item.text;
 
     if (isCompanyDirectoryLink) {
-      const active = location.pathname === '/companies';
+      const isVendors = item.to === '/companies?type=Vendor';
+      const activeDirectory = new URLSearchParams(location.search).get('type') === 'Vendor';
+      const active = location.pathname === '/companies' && activeDirectory === isVendors;
       return (
         <Link
           key={item.to}
           to={item.to}
           onClick={onNavigate}
+          title={collapsed ? label : undefined}
           aria-current={active ? 'page' : undefined}
           className={cn(
-            NAV_LINK_BASE,
+            navItemBase,
             active ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent',
           )}
         >
@@ -265,10 +275,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           to={item.to}
           end={item.to === '/' || item.to.includes('?')}
           onClick={onNavigate}
+          title={collapsed ? label : undefined}
           // Ignore NavLink's built-in isActive; use the override decision.
           className={() =>
             cn(
-              NAV_LINK_BASE,
+              navItemBase,
               overrideActive
                 ? 'bg-primary/10 font-semibold text-nav-active-text'
                 : 'text-foreground hover:bg-accent',
@@ -287,11 +298,12 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
         to={item.to}
         end={item.to === '/' || item.to.includes('?')}
         onClick={onNavigate}
+        title={collapsed ? label : undefined}
         className={({ isActive }: { isActive: boolean }) => {
           // A child page outside the module's URL (e.g. /erp-purchases under Procurement) lights its parent.
           const active = isActive || RAIL_PARENT_FOR_PATH[location.pathname] === item.to;
           return cn(
-            NAV_LINK_BASE,
+            navItemBase,
             active
               ? 'bg-primary/10 font-semibold text-nav-active-text'
               : 'text-foreground hover:bg-accent',
@@ -306,20 +318,33 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
 
   return (
     <aside
+      data-rail-collapsed={collapsed || undefined}
       className="flex min-h-0 flex-col border-r border-border bg-card"
       style={{ gridArea: 'rail' }}
     >
       <div
-        className="flex flex-shrink-0 items-center gap-2.5 border-b border-border px-4"
+        className={cn('flex min-w-0 flex-shrink-0 items-center border-b border-border', collapsed ? 'gap-1 px-1.5' : 'gap-2.5 px-4')}
         style={{ height: 'var(--header-h)' }}
       >
         <span
-          className="grid size-7 shrink-0 place-items-center rounded-[7px] bg-primary text-sm font-bold text-primary-foreground"
+          className={cn('grid shrink-0 place-items-center bg-primary text-sm font-bold text-primary-foreground', collapsed ? 'size-6 rounded-md' : 'size-7 rounded-[7px]')}
           aria-hidden
         >
           P
         </span>
-        <span className="text-[15px] font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>
+        {!collapsed && <span className="min-w-0 truncate text-[15px] font-bold tracking-[-0.01em]">PMO Portal{/* i18n-exempt: PMO brand name stays verbatim */}</span>}
+        {onToggleCollapse && (
+          <button
+            type="button"
+            aria-label={collapsed ? t('shell.rail.expand', 'Expand navigation') : t('shell.rail.collapse', 'Collapse navigation')}
+            aria-expanded={!collapsed}
+            title={collapsed ? t('shell.rail.expand', 'Expand navigation') : t('shell.rail.collapse', 'Collapse navigation')}
+            onClick={onToggleCollapse}
+            className={cn('touch-target ml-auto grid shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground', collapsed ? 'size-6 [&_svg]:size-3.5' : 'size-8 [&_svg]:size-4')}
+          >
+            <Icon name="chev" className={collapsed ? '' : 'rotate-180'} />
+          </button>
+        )}
       </div>
 
       <nav
@@ -330,7 +355,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           {items.filter((item) => item.to === '/').map(renderItem)}
         </div>
         <section role="group" aria-label={groupLabels['My work']} data-rail-pinned-work className="shrink-0 border-b border-border px-2.5 pb-2.5">
-          <div data-nav-group-heading="My work" className="px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+          <div data-nav-group-heading="My work" className={cn('px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
             {groupLabels['My work']}
           </div>
           {items.filter((item) => item.to === '/approvals').map(renderItem)}
@@ -345,7 +370,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             if (groupItems.length === 0) return null;
             return (
               <section key={group} role="group" aria-label={groupLabels[group]}>
-                <div data-nav-group-heading={group} className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <div data-nav-group-heading={group} className={cn('px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -354,28 +379,30 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           })}
           {showViews && (
             <section role="group" aria-label={viewsLabel}>
-              <div className="px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <div className={cn('px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
                 {viewsLabel}
               </div>
               <NavLink
                 to="/views"
                 onClick={onNavigate}
                 end
+                title={collapsed ? viewsLabel : undefined}
                 className={({ isActive }: { isActive: boolean }) =>
-                  cn(NAV_LINK_BASE, isActive ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent')
+                  cn(navItemBase, isActive ? 'bg-primary/10 font-semibold text-nav-active-text' : 'text-foreground hover:bg-accent')
                 }
               >
                 <Icon name="views" />
-                <span>{viewsLabel}</span>
+                {labelText(viewsLabel)}
               </NavLink>
               {viewsItems.map((view) => (
                 <NavLink
                   key={view.id}
                   to={`/views/${view.id}`}
                   onClick={onNavigate}
+                  title={collapsed ? view.name : undefined}
                   className={({ isActive }: { isActive: boolean }) =>
                     cn(
-                      NAV_LINK_BASE,
+                      navItemBase,
                       isActive
                         ? 'bg-primary/10 font-semibold text-nav-active-text'
                         : 'text-foreground hover:bg-accent',
@@ -383,7 +410,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
                   }
                 >
                   <Icon name="views" />
-                  <span className="truncate">{view.name}</span>
+                  {labelText(view.name, true)}
                 </NavLink>
               ))}
             </section>
@@ -403,25 +430,27 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
               onOpenAssistant?.();
               onNavigate?.();
             }}
-            className={cn(NAV_LINK_BASE, 'w-full text-foreground hover:bg-accent')}
+            title={collapsed ? t('shell.rail.assistant', 'Assistant') : undefined}
+            className={cn(navItemBase, 'w-full text-foreground hover:bg-accent')}
           >
             <Icon name="message" />
-            <span>{t('shell.rail.assistant', 'Assistant')}</span>
+            {labelText(t('shell.rail.assistant', 'Assistant'))}
           </button>
         </div>
       )}
 
       {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
-        <div aria-label={workspaceSetupLabel} className="flex-shrink-0 border-t border-border p-2.5">
-          <div data-nav-group-heading="Workspace setup" className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <div role="group" aria-label={workspaceSetupLabel} className="flex-shrink-0 border-t border-border p-2.5">
+          <div data-nav-group-heading="Workspace setup" className={cn('px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
             {workspaceSetupLabel}
           </div>
           <NavLink
             to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
             onClick={onNavigate}
+            title={collapsed ? t('shell.nav.administration', 'Administration') : undefined}
             className={({ isActive }: { isActive: boolean }) =>
               cn(
-                NAV_LINK_BASE,
+                navItemBase,
                 isActive
                   ? 'bg-primary/10 font-semibold text-nav-active-text'
                   : 'text-foreground hover:bg-accent',
@@ -429,7 +458,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
             }
           >
             <Icon name="admin" />
-            <span>{t('shell.nav.administration', 'Administration')}</span>
+            {labelText(t('shell.nav.administration', 'Administration'))}
           </NavLink>
         </div>
       )}
@@ -438,10 +467,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
           <NavLink
             to="/administration/users"
             onClick={onNavigate}
-            className="touch-target flex min-h-11 items-center gap-2 rounded-md px-2.5 text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            title={collapsed ? t('admin.access.checkEntry', 'Check Administration access') : undefined}
+            className={cn('touch-target flex min-h-11 items-center rounded-md text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', collapsed ? 'justify-center px-0' : 'gap-2 px-2.5')}
           >
             <Icon name="admin" aria-hidden="true" />
-            <span>{t('admin.access.checkEntry', 'Check Administration access')}</span>
+            {labelText(t('admin.access.checkEntry', 'Check Administration access'))}
           </NavLink>
         </div>
       )}
@@ -449,8 +479,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, railActiveOverride, onOp
       {/* Build version — a quiet sidebar footer. Moved here from a fixed bottom-left
           corner overlay that collided with this very nav; in normal flow it sits cleanly
           at the sidebar foot. Always visible, incl. prod (ADR-0042 §4). */}
-      <div className="flex-shrink-0 border-t border-border px-4 py-2">
-        <AppVersion />
+      <div className={cn('flex-shrink-0 border-t border-border py-2', collapsed ? 'overflow-hidden px-1.5 text-center' : 'px-4')}>
+        <AppVersion className={collapsed ? 'max-w-full truncate text-center' : undefined} />
       </div>
     </aside>
   );

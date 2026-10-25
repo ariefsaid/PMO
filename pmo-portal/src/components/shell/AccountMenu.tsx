@@ -10,6 +10,7 @@ import { Icon } from '@/src/components/ui/icons';
 import { HELP_URL } from '@/src/lib/legalConfig';
 import { useTheme } from '@/src/hooks/useTheme';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
+import { profilePreferencesRepository } from '@/src/lib/repositories/profilePreferences';
 
 const IMPERSONATION_ROLES = Object.values(UserRole).filter((r) => r !== UserRole.Admin) as Role[];
 
@@ -55,11 +56,13 @@ const MyIntegrationsItem: React.FC<{ className: string; onSelect: () => void }> 
  * storage; `signOut` is the auth context action. No new fetch, subscription, or persistence.
  */
 export const AccountMenu: React.FC = () => {
-  const { t } = useTranslation();
-  const { currentUser, signOut } = useAuth();
+  const { t, i18n } = useTranslation();
+  const { currentUser, signOut, refreshCurrentUser } = useAuth();
   const { realRole, effectiveRole, canImpersonate, viewAs } = useEffectiveRole();
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
+  const [languageSaving, setLanguageSaving] = useState(false);
+  const [languageError, setLanguageError] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -131,7 +134,29 @@ export const AccountMenu: React.FC = () => {
   }, [open]);
 
   const rowBase =
-    'flex h-8 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors';
+    'touch-target flex min-h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors';
+  const selectedLanguage = currentUser?.locale === 'id' || currentUser?.locale === 'en'
+    ? currentUser.locale
+    : i18n.resolvedLanguage?.startsWith('id') ? 'id' : 'en';
+
+  const changeLanguage = async (locale: 'en' | 'id') => {
+    if (!currentUser || languageSaving || selectedLanguage === locale) return;
+    setLanguageSaving(true);
+    setLanguageError(false);
+    try {
+      await profilePreferencesRepository.setLocalePreferences(currentUser.id, {
+        locale,
+        numberLocale: currentUser.number_locale ?? null,
+        timezone: currentUser.timezone ?? null,
+      });
+      const { error } = await refreshCurrentUser();
+      if (error) throw new Error(error);
+    } catch {
+      setLanguageError(true);
+    } finally {
+      setLanguageSaving(false);
+    }
+  };
 
   return (
     <div ref={rootRef} className="relative flex shrink-0 items-center">
@@ -202,6 +227,37 @@ export const AccountMenu: React.FC = () => {
             {t('shell.nav.profileSettings', 'Profile & preferences')}
           </Link>
           <MyIntegrationsItem className={cn(rowBase, 'text-foreground hover:bg-accent')} onSelect={() => setOpen(false)} />
+
+          <div className="my-1 border-t border-border" />
+
+          <div className="px-2.5 pt-1 pb-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {t('shell.contextBar.languageHeading', 'Language / Bahasa')}
+          </div>
+          <button
+            role="menuitemradio"
+            aria-checked={selectedLanguage === 'en'}
+            type="button"
+            disabled={languageSaving}
+            onClick={() => void changeLanguage('en')}
+            className={cn(rowBase, selectedLanguage === 'en' ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent')}
+          >
+            English
+          </button>
+          <button
+            role="menuitemradio"
+            aria-checked={selectedLanguage === 'id'}
+            type="button"
+            disabled={languageSaving}
+            onClick={() => void changeLanguage('id')}
+            className={cn(rowBase, selectedLanguage === 'id' ? 'bg-primary/10 font-medium text-nav-active-text' : 'text-foreground hover:bg-accent')}
+          >
+            Bahasa Indonesia
+          </button>
+          {languageError && (
+            <p role="alert" className="px-2.5 py-1 text-[12px] text-destructive-text">
+              {t('shell.contextBar.languageError', 'Could not save language. Try again.')}
+            </p>
+          )}
 
           <div className="my-1 border-t border-border" />
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 // useIsOperator is queried by Rail's real-Operator Administration footer; default to false
 // (plain role) unless a specific test overrides it. Avoids a QueryClient in the harness.
@@ -172,6 +172,50 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     renderRail();
     const work = screen.getByRole('group', { name: 'My work' });
     expect(within(work).getAllByRole('link')[0]).toHaveAccessibleName(/Approvals/);
+  });
+
+  it('keeps one current destination when Vendors is opened by its query route', () => {
+    effectiveRole = 'Project Manager';
+    featureOverrides = { crm: false };
+    const { container } = render(
+      <MemoryRouter initialEntries={['/companies?type=Vendor']}>
+        <Rail />
+      </MemoryRouter>,
+    );
+    const current = container.querySelectorAll('nav a[aria-current="page"]');
+    const currentHref = current[0]?.getAttribute('href');
+    featureOverrides = {};
+    expect(current).toHaveLength(1);
+    expect(currentHref).toBe('/companies?type=Vendor');
+  });
+
+  it('collapses to labelled icons and expands without changing the current route or destinations', async () => {
+    const user = userEvent.setup();
+    const CollapseProbe = () => {
+      const [collapsed, setCollapsed] = React.useState(true);
+      const location = useLocation();
+      return (
+        <>
+          <output data-testid="rail-route">{location.pathname}</output>
+          <Rail collapsed={collapsed} onToggleCollapse={() => setCollapsed((value) => !value)} />
+        </>
+      );
+    };
+    const { container } = render(
+      <MemoryRouter initialEntries={['/projects']}>
+        <CollapseProbe />
+      </MemoryRouter>,
+    );
+    const rail = screen.getByRole('complementary');
+    const destinationsBefore = Array.from(rail.querySelectorAll<HTMLAnchorElement>('nav a[href]')).map((link) => link.getAttribute('href'));
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('title', 'Projects');
+    expect(screen.getByRole('button', { name: 'Expand navigation' })).toHaveAttribute('aria-expanded', 'false');
+    await user.click(screen.getByRole('button', { name: 'Expand navigation' }));
+    expect(screen.getByRole('button', { name: 'Collapse navigation' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByTestId('rail-route')).toHaveTextContent('/projects');
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+    expect(Array.from(container.querySelectorAll<HTMLAnchorElement>('nav a[href]')).map((link) => link.getAttribute('href')))
+      .toEqual(destinationsBefore);
   });
 
   // AC-AUTH-003: nav items MUST be anchors (role=link) so e2e getByRole('link') works

@@ -228,6 +228,7 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
@@ -423,14 +424,26 @@ export const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
+        railCollapsed={railCollapsed}
         rail={
           <Rail
             onNavigate={() => setRailOpen(false)}
+            collapsed={railCollapsed}
+            onToggleCollapse={() => setRailCollapsed((value) => !value)}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
             onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
             // A2: thread open state so aria-pressed reflects the actual panel state (WCAG 4.1.2).
+            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
+          />
+        }
+        drawerRail={
+          <Rail
+            onNavigate={() => setRailOpen(false)}
+            railActiveOverride={railActiveOverride}
+            operatorAccessError={needsOperatorRecovery}
+            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
             assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
           />
         }

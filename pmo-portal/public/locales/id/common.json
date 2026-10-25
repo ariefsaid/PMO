@@ -3361,6 +3361,8 @@
       "accountMenu": "Menu akun",
       "help": "Bantuan",
       "helpWhatsApp": "Hubungi dukungan via WhatsApp",
+      "languageError": "Bahasa tidak dapat disimpan. Coba lagi.",
+      "languageHeading": "Bahasa / Language",
       "legalAndSupport": "Legal & dukungan",
       "openCommandPalette": "Buka palet perintah",
       "openNavigation": "Buka menu navigasi",
@@ -3447,6 +3449,8 @@
     },
     "rail": {
       "assistant": "Asisten",
+      "collapse": "Ciutkan navigasi",
+      "expand": "Perluas navigasi",
       "group": {
         "deliverProjects": "Pelaksanaan proyek",
         "manageMoney": "Kelola keuangan",
