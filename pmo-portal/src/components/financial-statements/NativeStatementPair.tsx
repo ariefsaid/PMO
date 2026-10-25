@@ -1,4 +1,5 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, type ReactNode } from 'react';
+import { useSearchParams } from 'react-router';
 import { ListState } from '@/src/components/ui/ListState';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { Icon } from '@/src/components/ui/icons';
@@ -200,7 +201,27 @@ function CollapseAll({ lines, collapsed, setCollapsed, labels }: {
   if (!hasCollapsibleGroups(lines)) return null;
   const groups = collapsibleGroupLines(lines);
   const allCollapsed = groups.every((group) => collapsed.has(group.key));
-  return <button type="button" className="h-8 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</button>;
+  return <button type="button" className="min-h-11 rounded-md px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setCollapsed(() => allCollapsed ? new Set() : new Set(groups.map((group) => group.key)))}>{allCollapsed ? labels.expandAll : labels.collapseAll}</button>;
+}
+
+function useCollapsedQueryState(): [Set<string>, (next: (previous: Set<string>) => Set<string>) => void] {
+  const [params, setParams] = useSearchParams();
+  const collapsed = useMemo(
+    () => new Set((params.get('collapsed') ?? '').split(',').filter(Boolean)),
+    [params],
+  );
+  const setCollapsed = useCallback((update: (previous: Set<string>) => Set<string>) => {
+    setParams((current) => {
+      const previous = new Set((current.get('collapsed') ?? '').split(',').filter(Boolean));
+      const nextCollapsed = update(previous);
+      const next = new URLSearchParams(current);
+      const encoded = [...nextCollapsed].sort().join(',');
+      if (encoded) next.set('collapsed', encoded);
+      else next.delete('collapsed');
+      return next;
+    }, { replace: true });
+  }, [setParams]);
+  return [collapsed, setCollapsed];
 }
 
 function StatementTable({ headingId, lines, account, valueColumns, presentation, notProvided, collapsed, setCollapsed, labels }: {
@@ -253,7 +274,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
                 const next = new Set(previous);
                 if (isCollapsed) next.delete(line.key); else next.add(line.key);
                 return next;
-              })} className="mr-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !isCollapsed && 'rotate-90')} /></button>;
+              })} className="mr-1 inline-flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><Icon name="chev" className={cn('transition-transform', !isCollapsed && 'rotate-90')} /></button>;
             })()}
             {number !== null && <span className="mr-2 font-normal text-muted-foreground tabular">{number}</span>}
             <span>{label}</span>
@@ -323,8 +344,17 @@ const accountHeader = (side: NativeReportColumn) =>
 
 function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
-  const [shown, setShown] = useState<Side>('current');
+  const [collapsed, setCollapsed] = useCollapsedQueryState();
+  const [params, setParams] = useSearchParams();
+  const requestedSide = params.get('tbSide');
+  const shown: Side = requestedSide === 'prior' ? 'prior' : 'current';
+  useEffect(() => {
+    if (requestedSide !== null && requestedSide !== 'current' && requestedSide !== 'prior') {
+      const next = new URLSearchParams(params);
+      next.set('tbSide', 'current');
+      setParams(next, { replace: true });
+    }
+  }, [params, requestedSide, setParams]);
   const side = pair[shown];
   const lines = mergeLines(side.rows, []);
   const valueColumns = moneyColumns(side).map((column) => ({
@@ -350,8 +380,12 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
           ariaLabel={labels.periodShown}
           value={shown}
           onChange={(nextSide) => {
-            setCollapsed(new Set());
-            setShown(nextSide);
+            setParams((current) => {
+              const next = new URLSearchParams(current);
+              next.set('tbSide', nextSide);
+              next.delete('collapsed');
+              return next;
+            }, { replace: true });
           }}
           options={[{ value: 'current', label: labels.current }, { value: 'prior', label: labels.prior }]}
           />
@@ -378,7 +412,7 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
 
 function ComparativeStatement({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [collapsed, setCollapsed] = useCollapsedQueryState();
   const balanceSheet = pair.current.reportName === 'Balance Sheet';
   const lines = mergeLines(pair.current.rows, pair.prior.rows);
   const sideColumns = (side: Side): ValueColumn[] => periodColumns(pair[side]).map((column) => ({

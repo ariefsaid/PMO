@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import { FinancialStatementsSection } from './FinancialStatementsSection';
 import { NativeStatementPair } from './NativeStatementPair';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';
@@ -142,17 +143,32 @@ const labels = {
 
 const presentation = { precision: 2, roundingMethod: 'Commercial Rounding' };
 
-function renderPair(pair: Pick<StatementReportPair, 'current' | 'prior'> = pairWithUnusableAccountUnion(), reportTitle = 'Trial Balance') {
+function CurrentQuery() {
+  const location = useLocation();
+  return <output data-testid="current-query">{location.search}</output>;
+}
+
+function renderPair(
+  pair: Pick<StatementReportPair, 'current' | 'prior'> = pairWithUnusableAccountUnion(),
+  reportTitle = 'Trial Balance',
+  url = '/financial-statements?section=statements',
+  showQuery = false,
+) {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   return render(
-    <NativeStatementPair
-      pair={pair}
-      reportTitle={reportTitle}
-      companyLabel="Sample organization"
-      currency="IDR"
-      presentation={presentation}
-      labels={labels}
-    />,
+    <MemoryRouter initialEntries={[url]}>
+      <>
+        <NativeStatementPair
+          pair={pair}
+          reportTitle={reportTitle}
+          companyLabel="Sample organization"
+          currency="IDR"
+          presentation={presentation}
+          labels={labels}
+        />
+        {showQuery && <CurrentQuery />}
+      </>
+    </MemoryRouter>,
   );
 }
 
@@ -204,6 +220,18 @@ function plPair(reportName: NativeReportColumn['reportName'] = 'Profit and Loss 
 }
 
 describe('NativeStatementPair — statement format (AC-008)', () => {
+  it('restores the selected trial-balance side and collapsed groups from the report URL', () => {
+    renderPair(undefined, 'Trial Balance', '/financial-statements?section=statements&tbSide=prior', true);
+    expect(screen.getByRole('table')).toHaveAccessibleName(/For the period Jan 1, 2024 – Jan 31, 2024/);
+    fireEvent.click(screen.getByRole('button', { name: 'Current period' }));
+    expect(screen.getByTestId('current-query')).toHaveTextContent('tbSide=current');
+
+    cleanup();
+    renderPair(plPair(), 'Profit and Loss Statement', '/financial-statements?section=statements', true);
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
+    expect(screen.getByTestId('current-query')).toHaveTextContent(/collapsed=/);
+  });
+
   it('renders the trial balance as ONE table for the current period with the native money columns', async () => {
     const { container } = renderPair();
     const table = screen.getByRole('table', { name: /Trial Balance/ });
@@ -440,20 +468,22 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
 
   it('composes inside the section without replacing its capture time or delayed note', () => {
     render(
-      <FinancialStatementsSection
-        title="Financial statements"
-        context="Capture window: Jan 31, 2025, 12:00 PM – Jan 31, 2025, 1:00 PM"
-        state={{ kind: 'complete', asOf: '2025-01-31T13:00:00.000Z', hasActivity: true, delayed: true, background: 'idle' }}
-        labels={{
-          unavailable: 'Statements are not available yet', unavailableDescription: 'No complete statement is available.',
-          noActivity: labels.noActivity, noActivityDescription: labels.noActivityDescription,
-          error: 'Statements could not be loaded', errorDescription: 'Try again.', retry: 'Retry',
-          updated: 'Updated', delayed: 'Update delayed', refreshing: 'Refreshing',
-        }}
-        onRetry={vi.fn()}
-      >
-        <NativeStatementPair pair={pairWithUnusableAccountUnion()} reportTitle="Trial Balance" currency="IDR" presentation={presentation} labels={labels} />
-      </FinancialStatementsSection>,
+      <MemoryRouter>
+        <FinancialStatementsSection
+          title="Financial statements"
+          context="Capture window: Jan 31, 2025, 12:00 PM – Jan 31, 2025, 1:00 PM"
+          state={{ kind: 'complete', asOf: '2025-01-31T13:00:00.000Z', hasActivity: true, delayed: true, background: 'idle' }}
+          labels={{
+            unavailable: 'Statements are not available yet', unavailableDescription: 'No complete statement is available.',
+            noActivity: labels.noActivity, noActivityDescription: labels.noActivityDescription,
+            error: 'Statements could not be loaded', errorDescription: 'Try again.', retry: 'Retry',
+            updated: 'Updated', delayed: 'Update delayed', refreshing: 'Refreshing',
+          }}
+          onRetry={vi.fn()}
+        >
+          <NativeStatementPair pair={pairWithUnusableAccountUnion()} reportTitle="Trial Balance" currency="IDR" presentation={presentation} labels={labels} />
+        </FinancialStatementsSection>
+      </MemoryRouter>,
     );
     const section = screen.getByRole('region', { name: 'Financial statements' });
 

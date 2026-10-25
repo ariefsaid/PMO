@@ -3,7 +3,7 @@
  * currency and numeric money cells, or a USD row and an IDR row sum together in a spreadsheet.
  * The page's real columns are captured off DataTable and pushed through the real workbook writer.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -44,11 +44,15 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import RevenueByProject from '../RevenueByProject';
 
+beforeEach(() => {
+  table.props = null;
+});
+
 describe('RevenueByProject export (#831)', () => {
   it('AC-831-2: each exported row names its currency and money cells are numeric', async () => {
     render(
       <ImpersonationProvider realRole="Executive">
-        <MemoryRouter>
+        <MemoryRouter initialEntries={['/financial-statements?section=project-revenue&view=billing&from=2026-01&to=2026-06']}>
           <ToastProvider>
             <RevenueByProject />
           </ToastProvider>
@@ -66,10 +70,27 @@ describe('RevenueByProject export (#831)', () => {
     expect(col('Currency')).toBeGreaterThan(0);
     expect(col('Total Revenue (net of tax)')).toBeGreaterThan(0);
     expect(col('Open AR (gross, tax included)')).toBeGreaterThan(0);
-    expect(ws.getRow(2).getCell(col('Currency')).value).toBe('USD');
-    expect(ws.getRow(3).getCell(col('Currency')).value).toBe('IDR');
-    expect(ws.getRow(2).getCell(col('Total Revenue (net of tax)')).value).toBe(1000);
-    expect(ws.getRow(2).getCell(col('Open AR (gross, tax included)')).value).toBe(250.5);
-    expect(ws.getRow(3).getCell(col('Total Revenue (net of tax)')).value).toBe(2000000);
+    expect(ws.getRow(2).getCell(col('Currency')).value).toBe('IDR');
+    expect(ws.getRow(3).getCell(col('Currency')).value).toBe('USD');
+    expect(ws.getRow(2).getCell(col('Total Revenue (net of tax)')).value).toBe(2000000);
+    expect(ws.getRow(3).getCell(col('Total Revenue (net of tax)')).value).toBe(1000);
+    expect(ws.getRow(3).getCell(col('Open AR (gross, tax included)')).value).toBe(250.5);
+  });
+
+  it('exports only the selected project/currency population with numeric values', () => {
+    render(
+      <ImpersonationProvider realRole="Executive">
+        <MemoryRouter initialEntries={['/financial-statements?section=project-revenue&view=billing&project=p1&currency=IDR&from=2026-01&to=2026-06']}>
+          <ToastProvider><RevenueByProject /></ToastProvider>
+        </MemoryRouter>
+      </ImpersonationProvider>,
+    );
+    expect(table.props).not.toBeNull();
+    expect(table.props!.rows).toHaveLength(1);
+    const { header, body } = buildExportRows(table.props!.rows, table.props!.columns as Column<unknown>[]);
+    expect(header).toContain('Currency');
+    expect(body).toHaveLength(1);
+    expect(body[0]).toContain('IDR');
+    expect(body[0]).toContain(2000000);
   });
 });

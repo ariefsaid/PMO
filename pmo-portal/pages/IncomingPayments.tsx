@@ -312,7 +312,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => (
         <Link
           to={`/incoming-payments/${encodeURIComponent(p.id)}`}
-          className="truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
+          className="inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
           title={receiptNumber(p) ?? ''}
         >
           {receiptNumber(p) ?? '—'}
@@ -430,7 +430,7 @@ const IncomingPayments: React.FC = () => {
               event.preventDefault();
               navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
             }}
-            className="truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
+            className="inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
             title={receiptNumber(p) ?? ''}
           >
             {receiptNumber(p) ?? '—'}
@@ -586,7 +586,7 @@ const IncomingPayments: React.FC = () => {
             searchSurface="incoming-payments-list"
             module="incomingPayments"
             resultCount={filtered.length}
-            containerClassName="w-full min-w-0"
+            containerClassName="w-full min-w-0 min-h-11"
           />
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <label className="sr-only" htmlFor="receipt-customer-filter">{t('financeCopy.filterByCustomer', 'Filter by customer')}</label>
@@ -623,7 +623,7 @@ const IncomingPayments: React.FC = () => {
               <option value="payment-date-desc">{t('uxs06.latestPaymentDate', 'Latest payment date')}</option>
               <option value="payment-date-asc">{t('uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
             </select>
-            <ExportButton rows={filtered} columns={exportColumns} entity={t('uxs06.receipts', 'Receipts')} />
+            <ExportButton rows={filtered} columns={exportColumns} entity={t('uxs06.receipts', 'Receipts')} className="min-h-11" />
           </div>
         </div>
       )}
@@ -809,6 +809,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       error={receivedAmountField.error}
       helper={t('financeCopy.receivedAmountHelper', "The cash actually received.")}
       localeAware
+      className="min-h-11"
     />
   );
 
@@ -895,6 +896,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
         <FormGrid>
           <Combobox
             id={customerField.id}
+            triggerClassName="min-h-11"
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
@@ -906,6 +908,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
           />
           <Combobox
             id={salesInvoiceField.id}
+            triggerClassName="min-h-11"
             label={native ? t('financeCopy.salesInvoiceLabel', 'Sales Invoice') : t('financeCopy.salesInvoiceOptional', "Sales Invoice (optional)")}
             required={native}
             value={salesInvoiceField.value ?? ''}
@@ -944,6 +947,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
               })
               : undefined}
             localeAware
+            className="min-h-11"
           />
           {cashReceivedField}
           <div className="sm:col-span-2">
@@ -983,6 +987,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
                   localeAware
                   error={withheldAmountField.error}
                   helper={t('financeCopy.withheldAmountHelper', "Enter the amount the client withheld; PMO does not calculate income tax. Enter 0 for no withholding.")}
+                  className="min-h-11"
                 />
                 <TextField
                   id={slipField.id}
@@ -993,6 +998,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
                   maxLength={140}
                   error={slipField.error}
                   helper={t('financeCopy.withholdingSlipHelper', "Required when the client withheld tax.")}
+                  className="min-h-11"
                 />
               </FormGrid>
             </div>
@@ -1008,7 +1014,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             required
             error={dateField.error}
             type="date"
-            className="w-48"
+            className="min-h-11 w-48"
           />
         </FormGrid>
       </FormSection>

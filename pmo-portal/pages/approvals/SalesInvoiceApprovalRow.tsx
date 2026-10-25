@@ -158,7 +158,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
         <div id={panelId} className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3">
           <SalesInvoiceApprovalPreview inv={inv} />
           <div className="mt-3 flex justify-end">
-            <Button variant="primary" size="sm" onClick={() => onApprove(inv)}>
+            <Button variant="primary" size="sm" className="min-h-11" onClick={() => onApprove(inv)}>
               <Icon name="check" />
               {t('financeCopy.approve', 'Approve')}
             </Button>

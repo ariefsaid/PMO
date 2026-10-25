@@ -47,6 +47,7 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
+import { LegacyReportRedirect } from './pages/money-in/LegacyReportRedirect';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -90,10 +91,8 @@ const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
-const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
 const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
-const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
-const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
+const MoneyInReportsPage = React.lazy(() => import('./pages/money-in/MoneyInReports'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -175,7 +174,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
+  { path: '/reports', element: <LegacyReportRedirect view="earned" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
@@ -194,9 +193,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
-  { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  { path: '/revenue-by-project', element: <LegacyReportRedirect view="billing" /> },
   { path: '/erp-purchases', element: <ErpPurchasesPage /> },
-  { path: '/financial-statements', element: <FinancialStatementsPage /> },
+  { path: '/financial-statements', element: <MoneyInReportsPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.

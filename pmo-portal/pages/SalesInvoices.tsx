@@ -190,7 +190,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
       ) : evidence.isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
-          <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
+          <Button variant="outline" size="sm" className="min-h-11" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
@@ -274,7 +274,7 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
                     <Link
                       to={`/incoming-payments/${encodeURIComponent(payment.id)}`}
                       state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-                      className="min-h-11 underline underline-offset-2 hover:text-primary-text focus-visible:text-primary-text"
+                      className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-primary-text focus-visible:text-primary-text"
                     >{payment.ip_number ?? payment.reference_number ?? t('uxs17.receiptReferenceUnavailable', 'Receipt reference not recorded')}</Link>
                     {payment.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(payment.date)}</span>}
                   </span>
@@ -777,7 +777,7 @@ const SalesInvoices: React.FC = () => {
           <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'inline-flex min-h-11 items-center truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
@@ -1190,6 +1190,7 @@ const SalesInvoices: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => { void refetchProjectOptions(); void refetchCustomerOptions(); }}
+              className="min-h-11"
             >
               {t('uxs15.retryContext', 'Retry context')}
             </Button>
@@ -1396,7 +1397,7 @@ const ReceivedDateModal: React.FC<{
         onChange={setValue}
         min={invoice.invoice_date ?? undefined}
         error={tooEarly ? t('financeCopy.receivedBeforeInvoiceDate', 'Cannot be before the invoice date') : undefined}
-        className="w-48"
+        className="min-h-11 w-48"
       />
     </EntityFormModal>
   );
@@ -1471,7 +1472,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const projectCurrencyUnavailable = native && Boolean(projectField.value) && !selectedProjectCurrency;
   // I-2: the project's page is where its contract value and VAT rate are recorded.
   const vatRateLink = (projectId: string | null) => projectId ? (
-    <Link to={`/projects/${projectId}`} className="font-medium text-primary-text underline underline-offset-2">
+    <Link to={`/projects/${projectId}`} className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2">
       {t('financeCopy.recordVatRateOnProject', 'Record the VAT rate on the project')}
     </Link>
   ) : null;
@@ -1603,6 +1604,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         <FormGrid>
           <Combobox
             id={customerField.id}
+            triggerClassName="min-h-11"
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
@@ -1620,6 +1622,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           />
           <Combobox
             id={projectField.id}
+            triggerClassName="min-h-11"
             label={t('financeCopy.project', "Project")}
             required={native}
             value={projectField.value ?? ''}
@@ -1651,11 +1654,13 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   onChange={(value) => updateLineItem(index, 'description', value)}
                   maxLength={140}
                   placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
+                  className="min-h-11"
                 />
               )}
               {erpItems.connected ? (
                 <Combobox
                   id={`sales-invoice-line-${index}-item`}
+                  triggerClassName="min-h-11"
                   label={t('financeCopy.erpItem', 'ERP item')}
                   value={item.item_code || null}
                   selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
@@ -1676,7 +1681,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   required={!native}
                   maxLength={native ? 140 : undefined}
                   placeholder={t('financeCopy.iTEM001', "ITEM-001")}
-                  className="flex-1"
+                  className="min-h-11 flex-1"
                 />
               )}
               {!native && erpItems.connected && (
@@ -1687,6 +1692,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   onChange={(value) => updateLineItem(index, 'description', value)}
                   maxLength={native ? 140 : undefined}
                   placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
+                  className="min-h-11"
                 />
               )}
             </div>
@@ -1699,7 +1705,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               min={0}
               step={0.001}
               localeAware
-              className="w-full sm:w-24"
+              className="min-h-11 w-full sm:w-24"
             />
             <NumberField
               id={`sales-invoice-line-${index}-rate`}
@@ -1712,14 +1718,14 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               step={0.01}
               prefix={moneyPrefix}
               helper={projectCurrencyUnavailable ? t('uxs15.currencyUnavailable', 'Project currency unavailable.') : undefined}
-              className="w-full sm:w-32"
+              className="min-h-11 w-full sm:w-32"
             />
             {lineItems.length > 1 && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="self-end mt-5"
+                className="min-h-11 min-w-11 self-end mt-5"
                 onClick={() => removeLineItem(index)}
                 aria-label={t('financeCopy.removeLine', 'Remove line {{line}}', { line: index + 1 })}
               >
@@ -1728,7 +1734,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             )}
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={addLineItem}>
           <Icon name="plus" className="size-4 mr-1.5" />
           {t('financeCopy.addLineItem', "Add line item")}</Button>
       </FormSection>
@@ -1785,7 +1791,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               <p className="mt-3 text-sm text-muted-foreground">
                 {t('uxs16.projectTaxUnavailable', 'Project tax details are unavailable, so tax and final total cannot be previewed yet.')}{' '}
                 {selectedProject && (
-                  <Link to={`/projects/${selectedProject.value}`} className="font-medium text-primary-text underline underline-offset-2">
+                  <Link to={`/projects/${selectedProject.value}`} className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2">
                     {t('uxs16.reviewProjectTax', 'Review project tax settings')}
                   </Link>
                 )}

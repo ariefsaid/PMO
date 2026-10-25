@@ -1,8 +1,8 @@
 import { projectCodedPickerLabel } from '@/src/lib/projectDisplayName';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useAuth } from '@/src/auth/useAuth';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
@@ -11,7 +11,6 @@ import { NativeStatementPair } from '@/src/components/financial-statements/Nativ
 import { StatementPeriodPicker, type StatementPeriodKind } from '@/src/components/financial-statements/StatementPeriodPicker';
 import { Button } from '@/src/components/ui/Button';
 import { FormGrid, SelectField } from '@/src/components/ui/FormFields';
-import { ListPage } from '@/src/components/ui/ListPage';
 import { ListState } from '@/src/components/ui/ListState';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
@@ -22,6 +21,7 @@ import { repositories } from '@/src/lib/repositories';
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
 type Statement = typeof STATEMENTS[number];
 const COMPANY_SCOPE = 'company';
+const PERIOD_KINDS: StatementPeriodKind[] = ['month', 'quarter', 'fiscal_year'];
 
 function latestSuppliedPair(periods: readonly FinancialStatementPair[], kind: StatementPeriodKind): FinancialStatementPair | null {
   const choices = periods.filter((pair) => pair.kind === kind).slice().sort((left, right) => left.currentStart.localeCompare(right.currentStart));
@@ -57,16 +57,43 @@ const FinancialStatements: React.FC = () => {
   const { session, currentUser, loading, profileError } = useAuth();
   const { realRole } = useEffectiveRole();
   const may = usePermission();
+  const [params, setParams] = useSearchParams();
   const identityReady = !loading && profileError === null && session?.user.id === currentUser?.id &&
     currentUser?.status === 'active' && Boolean(currentUser.org_id?.trim()) && realRole === currentUser.role;
   const companyReadAllowed = identityReady && may('view', 'financialStatements');
   const catalogueQuery = useFinancialStatementCatalogue({ kind: 'company' }, companyReadAllowed);
   const catalogue = catalogueQuery.data;
 
-  const [periodKind, setPeriodKind] = useState<StatementPeriodKind>('month');
-  const [periodStart, setPeriodStart] = useState<string | null>(null);
-  const [statement, setStatement] = useState<Statement>('trial_balance');
-  const [selectedScope, setSelectedScope] = useState<string | null>(COMPANY_SCOPE);
+  const requestedPeriodKind = params.get('periodKind');
+  const periodKind: StatementPeriodKind = PERIOD_KINDS.includes(requestedPeriodKind as StatementPeriodKind)
+    ? requestedPeriodKind as StatementPeriodKind
+    : 'month';
+  const periodStart = params.get('periodStart');
+  const requestedStatement = params.get('statement');
+  const statement: Statement = (STATEMENTS as readonly string[]).includes(requestedStatement ?? '')
+    ? requestedStatement as Statement
+    : 'trial_balance';
+  const selectedScope = params.get('scope') ?? COMPANY_SCOPE;
+  const updateStatementParams = (changes: Record<string, string | null>) => {
+    setParams((current) => {
+      const next = new URLSearchParams(current);
+      for (const [key, value] of Object.entries(changes)) {
+        if (value) next.set(key, value);
+        else next.delete(key);
+      }
+      return next;
+    }, { replace: true });
+  };
+
+  useEffect(() => {
+    const invalidKind = requestedPeriodKind !== null && !PERIOD_KINDS.includes(requestedPeriodKind as StatementPeriodKind);
+    const invalidStatement = requestedStatement !== null && !(STATEMENTS as readonly string[]).includes(requestedStatement);
+    if (!invalidKind && !invalidStatement) return;
+    const next = new URLSearchParams(params);
+    if (invalidKind) next.set('periodKind', 'month');
+    if (invalidStatement) next.set('statement', 'trial_balance');
+    setParams(next, { replace: true });
+  }, [params, requestedPeriodKind, requestedStatement, setParams]);
 
   const admittedProjectScopes = useMemo(
     () => (catalogue?.state === 'complete' ? catalogue.scopes : []).filter((scope) =>
@@ -93,12 +120,6 @@ const FinancialStatements: React.FC = () => {
     return [{ value: projectId, label: projectCodedPickerLabel(project) }];
   });
 
-  useEffect(() => {
-    if (selectedScope !== COMPANY_SCOPE && selectedScope !== null && !namedProjectOptions.some((option) => option.value === selectedScope)) {
-      setSelectedScope(null);
-    }
-  }, [namedProjectOptions, selectedScope]);
-
   const kindPeriods = useMemo(
     () => (catalogue?.state === 'complete' ? catalogue.periods : []).filter((pair) => pair.kind === periodKind),
     [catalogue, periodKind],
@@ -110,22 +131,23 @@ const FinancialStatements: React.FC = () => {
   const pickerPeriod = selectedPair?.currentStart ?? null;
 
   const companyScope = catalogue?.scopes.find((scope) => scope.scopeKind === 'company');
-  const selectedProjectScope = selectedScope && selectedScope !== COMPANY_SCOPE
-    ? admittedProjectScopes.find((scope) => scope.projectId === selectedScope)
+  const queryScope = statement === 'profit_and_loss' ? selectedScope : COMPANY_SCOPE;
+  const selectedProjectScope = queryScope !== COMPANY_SCOPE
+    ? admittedProjectScopes.find((scope) => scope.projectId === queryScope)
     : undefined;
-  const selectedProjectHasReadableName = selectedScope === COMPANY_SCOPE ||
-    (selectedScope !== null && namedProjectOptions.some((option) => option.value === selectedScope));
-  const currentScope: FinancialStatementScope | undefined = selectedScope === COMPANY_SCOPE
+  const selectedProjectHasReadableName = queryScope === COMPANY_SCOPE ||
+    namedProjectOptions.some((option) => option.value === queryScope);
+  const currentScope: FinancialStatementScope | undefined = queryScope === COMPANY_SCOPE
     ? companyScope
     : selectedProjectScope;
   const scopeAdmitsStatement = Boolean(selectedProjectHasReadableName && currentScope && currentScope.statements.includes(statement) && currentScope.viewKinds.includes('account_breakdown'));
   const validPeriod = selectedPair !== null && selectedPair.currentStart === pickerPeriod;
-  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && validPeriod && scopeAdmitsStatement && selectedScope !== null
+  const selection: GetFinancialStatementInput | null = catalogue?.state === 'complete' && validPeriod && scopeAdmitsStatement
     ? {
         periodKind,
         periodStart: selectedPair.currentStart,
         statement,
-        ...(selectedScope === COMPANY_SCOPE ? {} : { projectId: selectedScope }),
+        ...(queryScope === COMPANY_SCOPE ? {} : { projectId: queryScope }),
         viewKind: 'account_breakdown',
       }
     : null;
@@ -184,15 +206,15 @@ const FinancialStatements: React.FC = () => {
 
   if (loading || (session !== null && currentUser === null && profileError === null)) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <section className="min-w-0">
         <ListState variant="loading" />
-      </ListPage>
+      </section>
     );
   }
 
   if (!catalogueQuery.eligible) {
     return (
-      <ListPage title={t('shell.nav.financialStatements', 'Financial statements')}>
+      <section className="min-w-0">
         <section className="min-w-0 rounded-lg border border-border bg-card p-4" aria-labelledby="financial-statements-access-title">
           <h2 id="financial-statements-access-title" className="text-base font-semibold text-foreground">
             {t('financialStatements.accessDenied', "You don't have access to financial statements")}
@@ -200,11 +222,11 @@ const FinancialStatements: React.FC = () => {
           <p className="mt-1 text-sm text-muted-foreground">
             {t('financialStatements.accessDeniedDescription', 'Company statements are available to Admin, Finance, and Executive roles.')}
           </p>
-          <Button variant="outline" className="mt-3" onClick={() => navigate('/')}>
+          <Button variant="outline" className="mt-3 min-h-11" onClick={() => navigate('/')}>
             {t('financialStatements.backToDashboard', 'Back to dashboard')}
           </Button>
         </section>
-      </ListPage>
+      </section>
     );
   }
 
@@ -237,11 +259,7 @@ const FinancialStatements: React.FC = () => {
   };
 
   return (
-    <ListPage
-      title={t('shell.nav.financialStatements', 'Financial statements')}
-     
-      className="min-w-0"
-    >
+    <section className="min-w-0">
       {catalogue?.state === 'complete' && (
         <div className="mb-4 flex min-w-0 flex-col gap-4">
           <FormGrid className="min-w-0">
@@ -259,11 +277,14 @@ const FinancialStatements: React.FC = () => {
                 noPeriods: t('financialStatements.noPeriods', 'No periods available'),
               }}
               onKindChange={(nextKind) => {
-                setPeriodKind(nextKind);
-                setPeriodStart(latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? null);
+                updateStatementParams({
+                  periodKind: nextKind,
+                  periodStart: latestSuppliedPair(catalogue.periods, nextKind)?.currentStart ?? null,
+                });
               }}
-              onPeriodChange={setPeriodStart}
+              onPeriodChange={(value) => updateStatementParams({ periodStart: value })}
               disabled={!catalogueQuery.eligible}
+              controlClassName="min-h-11"
             />
             <SelectField
               label={t('financialStatements.statement', 'Statement')}
@@ -272,10 +293,12 @@ const FinancialStatements: React.FC = () => {
               onChange={(value) => {
                 if (!(STATEMENTS as readonly string[]).includes(value)) return;
                 const nextStatement = value as Statement;
-                setStatement(nextStatement);
-                if (nextStatement !== 'profit_and_loss') setSelectedScope(COMPANY_SCOPE);
+                updateStatementParams(nextStatement === 'profit_and_loss'
+                  ? { statement: nextStatement }
+                  : { statement: nextStatement, scope: COMPANY_SCOPE });
               }}
               disabled={!catalogueQuery.eligible}
+              className="min-h-11"
             />
             {statement === 'profit_and_loss' && admittedProjectIds.length > 0 && (
               <SelectField
@@ -284,9 +307,10 @@ const FinancialStatements: React.FC = () => {
                 options={scopeOptions}
                 placeholder={t('financialStatements.chooseScope', 'Choose a scope')}
                 onChange={(value) => {
-                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) setSelectedScope(value);
+                  if (value === COMPANY_SCOPE || namedProjectOptions.some((option) => option.value === value)) updateStatementParams({ scope: value });
                 }}
                 disabled={!catalogueQuery.eligible}
+                className="min-h-11"
               />
             )}
           </FormGrid>
@@ -309,7 +333,7 @@ const FinancialStatements: React.FC = () => {
           />
         )}
       </FinancialStatementsSection>
-    </ListPage>
+    </section>
   );
 };
 
