@@ -1163,7 +1163,8 @@
     "columns": {
       "company": "Perusahaan",
       "email": "Email",
-      "name": "Nama"
+      "name": "Nama",
+      "title": "Jabatan"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
@@ -1173,8 +1174,8 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "description": "Orang di perusahaan yang bekerja sama dengan Anda. Master data yang dibagikan ke seluruh organisasi — catat telepon dan email untuk setiap kontak. Rapat bernotulen ada di",
-    "descriptionMeetingsLink": "modul Rapat",
+    "notRecorded": "Belum dicatat",
+    "scope": "Orang dari perusahaan yang bekerja sama dengan Anda",
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan",
@@ -1222,6 +1223,11 @@
     "search": {
       "ariaLabel": "Cari kontak",
       "placeholder": "Cari kontak…"
+    },
+    "sort": {
+      "label": "Urutkan kontak",
+      "nameAz": "Nama A–Z",
+      "nameZa": "Nama Z–A"
     },
     "states": {
       "emptyAction": "Tambahkan kontak pertama Anda",

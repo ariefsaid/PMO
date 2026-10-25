@@ -1163,7 +1163,8 @@
     "columns": {
       "company": "Company",
       "email": "Email",
-      "name": "Name"
+      "name": "Name",
+      "title": "Title"
     },
     "confirm": {
       "archiveConfirm": "Archive contact",
@@ -1173,8 +1174,8 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "description": "People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the",
-    "descriptionMeetingsLink": "Meetings module",
+    "notRecorded": "Not recorded",
+    "scope": "People across the companies you work with",
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company",
@@ -1222,6 +1223,11 @@
     "search": {
       "ariaLabel": "Search contacts",
       "placeholder": "Search contacts…"
+    },
+    "sort": {
+      "label": "Sort contacts",
+      "nameAz": "Name A–Z",
+      "nameZa": "Name Z–A"
     },
     "states": {
       "emptyAction": "Add your first contact",

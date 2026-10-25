@@ -24,7 +24,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { ImportButton } from '@/src/components/import';
 import { makeContactImportDescriptor } from '@/src/lib/import';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -61,7 +61,7 @@ const makeValidate =
   };
 
 const Contacts: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -78,6 +78,8 @@ const Contacts: React.FC = () => {
   // restores the list's scroll once its rows have loaded (`contentReady`).
   const { workingSet, setWorkingSet, search, setSearch, clearFilters } =
     useListSearchWorkingSet('contacts');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sort = searchParams.get('sort') === 'name-desc' ? 'name-desc' : 'name-asc';
   const { openRecord } = useListReturn({ list: 'contacts', contentReady: !isPending && !isError });
   const companyFilter = workingSet.company;
 
@@ -129,9 +131,24 @@ const Contacts: React.FC = () => {
         (c) =>
           !q ||
           c.full_name.toLowerCase().includes(q) ||
-          (c.email ?? '').toLowerCase().includes(q),
+          (c.email ?? '').toLowerCase().includes(q) ||
+          (companyById.get(c.company_id) ?? '').toLowerCase().includes(q),
       );
-  }, [all, search, companyFilter]);
+  }, [all, search, companyFilter, companyById]);
+
+  const collator = useMemo(
+    () => new Intl.Collator(i18n.resolvedLanguage ?? i18n.language, { sensitivity: 'base', numeric: true }),
+    [i18n.language, i18n.resolvedLanguage],
+  );
+  const sorted = useMemo(
+    () => [...filtered].sort((a, b) => {
+      const nameOrder = collator.compare(a.full_name, b.full_name);
+      const companyOrder = collator.compare(companyById.get(a.company_id) ?? '', companyById.get(b.company_id) ?? '');
+      const stableOrder = nameOrder || companyOrder || a.id.localeCompare(b.id);
+      return sort === 'name-desc' && nameOrder !== 0 ? -nameOrder : stableOrder;
+    }),
+    [filtered, collator, companyById, sort],
+  );
 
   // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
   // `all.length > 0` (the collection-empty case is the page-level `state === 'empty'` below), so a
@@ -178,6 +195,12 @@ const Contacts: React.FC = () => {
         </span>
       ),
       exportValue: (c) => companyById.get(c.company_id) ?? '',
+    },
+    {
+      key: 'title',
+      header: t('contacts.columns.title', 'Title'),
+      cell: (c) => <span className="truncate text-muted-foreground">{c.title || t('contacts.notRecorded', 'Not recorded')}</span>,
+      exportValue: (c) => c.title ?? '',
     },
     {
       key: 'email',
@@ -238,68 +261,54 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
-      description={
-        // DD-MTG-6: the CRM 'Meeting' kind is the lightweight touchpoint log; anything with
-        // attendees and minutes lives in the Meetings module — so this copy no longer promises
-        // "meetings" here, and links across to the module instead (the ruling's actual ask).
-        <>
-          {t(
-            'contacts.description',
-            'People at the companies you work with. Master data shared by the whole organisation — log calls and emails against each contact. Minuted meetings live in the',
-          )}{' '}
-          <Link
-            to="/meetings"
-            className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            {t('contacts.descriptionMeetingsLink', 'Meetings module')}
-          </Link>
-          .
-        </>
-      }
-      primaryAction={
-        canCreate && (
-          <Button variant="primary" onClick={() => setFormTarget({ contact: null })}>
-            <Icon name="plus" />
-            {t('contacts.actions.new', 'New contact')}
-          </Button>
-        )
-      }
-      filters={
-        state !== 'loading' && (
+      description={t('contacts.scope', 'People across your companies')}
+      filters={state !== 'loading' && (
+        <div className="flex w-full flex-wrap items-center gap-2">
+          <SearchMini
+            placeholder={t('contacts.search.placeholder', 'Search contacts…')}
+            aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 max-sm:min-h-11"
+          />
           <SelectField
             label={t('contacts.filters.companyLabel', 'Filter by company')}
             hideLabel
             value={companyFilter}
             onChange={(v) => setWorkingSet((ws) => ({ ...ws, company: v }))}
             options={companyFilterOptions}
+            className="max-sm:min-h-11"
           />
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('contacts.search.placeholder', 'Search contacts…')}
-            aria-label={t('contacts.search.ariaLabel', 'Search contacts')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          <SelectField
+            label={t('contacts.sort.label', 'Sort contacts')}
+            hideLabel
+            value={sort}
+            onChange={(value) => setSearchParams((current) => {
+              const next = new URLSearchParams(current);
+              next.set('sort', value);
+              return next;
+            }, { replace: true })}
+            options={[
+              { value: 'name-asc', label: t('contacts.sort.nameAz', 'Name A–Z') },
+              { value: 'name-desc', label: t('contacts.sort.nameZa', 'Name Z–A') },
+            ]}
+            className="max-sm:min-h-11"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={filtered} columns={columns} entity="Contacts" />
-        )
-      }
-      importAction={
-        state !== 'loading' && (
+          <ExportButton rows={sorted} columns={columns} entity="Contacts" className="max-sm:min-h-11" />
           <ImportButton
             entity="contact"
             descriptor={importDescriptor}
             onImported={() => void refetch()}
+            className="max-sm:min-h-11"
           />
-        )
-      }
+          {canCreate && (
+            <Button variant="primary" className="max-sm:min-h-11" onClick={() => setFormTarget({ contact: null })}>
+              <Icon name="plus" />
+              {t('contacts.actions.new', 'New contact')}
+            </Button>
+          )}
+        </div>
+      )}
     >
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -342,7 +351,7 @@ const Contacts: React.FC = () => {
 
       {state === undefined && (
         <DataTable<ContactRow>
-          rows={filtered}
+          rows={sorted}
           columns={columns}
           rowKey={(c) => c.id}
           // CW-4b: rows now NAVIGATE to the routable `/contacts/:id` record page (the

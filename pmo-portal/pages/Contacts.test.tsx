@@ -46,8 +46,8 @@ const companies = [
 ];
 
 const contacts = [
-  { id: 'ct1', full_name: 'Jane Doe', company_id: '11111111-1111-4111-8111-111111111111', title: 'Buyer', email: 'jane@cascade.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
   { id: 'ct2', full_name: 'Marcus Webb', company_id: '22222222-2222-4222-8222-222222222222', title: 'Procurement Lead', email: 'm@steelforge.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-02-01T00:00:00Z' },
+  { id: 'ct1', full_name: 'Jane Doe', company_id: '11111111-1111-4111-8111-111111111111', title: 'Buyer', email: 'jane@cascade.test', phone: null, notes: null, org_id: 'org-1', archived_at: null, created_at: '2026-01-01T00:00:00Z' },
 ];
 
 // list-working-set-return (#683): reads the REAL router location so tests can assert the URL
@@ -163,6 +163,52 @@ describe('Contacts index — rows + states (AC-CRM-030)', () => {
     await userEvent.selectOptions(screen.getByLabelText(/Filter by company/i), '22222222-2222-4222-8222-222222222222');
     expect(screen.queryByText('Jane Doe')).not.toBeInTheDocument();
     expect(screen.getByText('Marcus Webb')).toBeInTheDocument();
+  });
+
+  it('opens with contacts ordered by name, regardless of repository order', () => {
+    renderPage();
+    const rows = screen.getAllByRole('row');
+    expect(rows.slice(1).map((row) => within(row).getAllByRole('button')[0].getAttribute('aria-label'))).toEqual([
+      'Open Jane Doe',
+      'Open Marcus Webb',
+    ]);
+  });
+
+  it('shows collection controls in search, company, sort, export, import, create order without meeting promotion', () => {
+    renderPage();
+    expect(screen.queryByRole('link', { name: 'Meetings module' })).not.toBeInTheDocument();
+
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const controls = [
+      screen.getByRole('searchbox', { name: /Search contacts/i }),
+      screen.getByLabelText(/Filter by company/i),
+      screen.getByLabelText(/Sort contacts/i),
+      screen.getByRole('button', { name: /Export/i }),
+      screen.getByRole('button', { name: /Import/i }),
+      screen.getByRole('button', { name: /New contact/i }),
+    ];
+    expect(controls.every((control) => toolbar.contains(control))).toBe(true);
+    for (let index = 1; index < controls.length; index += 1) {
+      expect(Boolean(controls[index - 1].compareDocumentPosition(controls[index]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    }
+  });
+
+  it('searches across a person and their company name', async () => {
+    renderPage();
+    await userEvent.type(screen.getByRole('searchbox', { name: /Search contacts/i }), 'Steelforge');
+    expect(screen.getByRole('button', { name: 'Open Marcus Webb' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Jane Doe' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the chosen name sort in the URL and applies it to the rows', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/Sort contacts/i), 'name-desc');
+    expect(screen.getByTestId('location-probe').dataset.search).toContain('sort=name-desc');
+    const rows = screen.getAllByRole('row');
+    expect(rows.slice(1).map((row) => within(row).getAllByRole('button')[0].getAttribute('aria-label'))).toEqual([
+      'Open Marcus Webb',
+      'Open Jane Doe',
+    ]);
   });
 });
 
