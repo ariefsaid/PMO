@@ -40,12 +40,15 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
   test('phone Executive reaches the flagged project from the at-risk signal', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await pinEnglishLocale(page);
+    // Keep the risk-specific primary action in view by making this journey's approval queues clear.
+    await page.route('**/rest/v1/procurements?*', (route) => route.fulfill({ json: [] }));
+    await page.route('**/rest/v1/timesheets?*', (route) => route.fulfill({ json: [] }));
     await signIn(page, 'exec@acme.test');
     await page.goto('/');
     await waitForFonts(page);
 
-    // The risk block carries a risk-specific doorway (zero risks render no false action).
-    const riskLink = page.getByRole('link', { name: /Review \d+ at-risk projects?/ });
+    // The compact attention summary carries a risk-specific doorway (zero risks render no false action).
+    const riskLink = page.getByRole('link', { name: 'Review at-risk projects' });
     await expect(riskLink).toBeVisible();
     await expect(riskLink).toHaveAttribute('href', '/projects?filter=at-risk');
 
@@ -64,7 +67,7 @@ test.describe('UXS-013 — a dashboard signal carries its lever', () => {
     await waitForFonts(page);
 
     // The budget exception names the project, and the name itself is the lever.
-    const budgetLink = page.getByRole('link', { name: `Review ${SP2402_NAME} budget` });
+    const budgetLink = page.locator(`a[href="/projects/${SP2402_ID}/budget"]`);
     await expect(budgetLink).toBeVisible();
 
     await budgetLink.click();

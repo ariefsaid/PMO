@@ -557,7 +557,7 @@ export const FinanceDashboard: React.FC = () => {
         sub={t('dashboard:finance.scope', 'Invoiceable work, vendor payments and customer collections.')}
       />
 
-      <section aria-label={t('dashboard:finance.nextCase', 'Next case')}>
+      <section aria-label={t('dashboard:finance.nextCase', 'Next case')} data-testid="finance-next-case">
         <Card>
           <CardHead>{t('dashboard:finance.nextCase', 'Next case')}</CardHead>
           <div className="p-4">{nextCase}</div>
