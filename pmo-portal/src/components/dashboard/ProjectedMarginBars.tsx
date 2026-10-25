@@ -70,7 +70,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
               <div key={`margin-${row.currency}`} className="flex items-baseline justify-between gap-3">
                 <dt className="text-sm text-muted-foreground">{row.currency}</dt>
                 <dd className="text-sm font-semibold tabular">
-                  {row.forecastMargin === null ? <a href="#executive-data-note">—</a> : `${(row.forecastMargin * 100).toFixed(1)}%`}
+                  {row.forecastMargin === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : `${(row.forecastMargin * 100).toFixed(1)}%`}
                 </dd>
               </div>
             ))}
@@ -86,13 +86,13 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
             <div>
               <dt className="text-xs text-muted-foreground">{t('dashboard:exec.weightedPipeline', 'Weighted pipeline')} · {row.currency}</dt>
               <dd className="mt-0.5 font-semibold tabular">
-                {row.weightedValue === null ? <a href="#executive-data-note">—</a> : formatDashboardMoney(row.weightedValue, row.currency)}
+                {row.weightedValue === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : formatDashboardMoney(row.weightedValue, row.currency)}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('dashboard:exec.grossPipeline', 'Gross pipeline')} · {row.currency}</dt>
               <dd className="mt-0.5 font-semibold tabular">
-                {row.grossValue === null ? <a href="#executive-data-note">—</a> : formatDashboardMoney(row.grossValue, row.currency)}
+                {row.grossValue === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : formatDashboardMoney(row.grossValue, row.currency)}
               </dd>
             </div>
           </React.Fragment>

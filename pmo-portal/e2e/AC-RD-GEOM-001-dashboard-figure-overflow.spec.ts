@@ -158,3 +158,37 @@ test.describe('AC-RD-GEOM-001: dashboard figures stay inside their boxes', () =>
 
 
 });
+
+test.describe('AC-RD-GEOM-001: phone dashboard actions meet the 44px target', () => {
+  for (const route of ROUTES.filter((candidate) => candidate.path === '/')) {
+    test(`AC-RD-GEOM-001: ${route.name} dashboard has no undersized phone targets`, async ({ page }) => {
+      await installIdrDashboardFixture(page);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await signIn(page, route.user);
+      await page.goto(route.path);
+      await expect(route.ready(page).first()).toBeVisible();
+      await page.waitForLoadState('networkidle', { timeout: 8_000 });
+      const undersized = await page.evaluate(() => {
+        const visible = (element: Element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
+        return [...document.querySelectorAll<HTMLElement>('main a[href], main button, main summary, main select, main input, main textarea, main [role="button"], main [role="link"]')]
+          .filter(visible)
+          .map((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              tag: element.tagName.toLowerCase(),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+              label: element.getAttribute('aria-label'),
+              href: element.getAttribute('href'),
+            };
+          })
+          .filter((target) => target.width < 44 || target.height < 44);
+      });
+      expect(undersized, `${route.name}: every main action provides a 44px phone target`).toEqual([]);
+    });
+  }
+});

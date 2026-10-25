@@ -30,7 +30,7 @@ type CurrencyValue = { currency: string; value: number | null };
 
 function currencyValue(value: number | null, currency: string, unavailableLabel: string): React.ReactNode {
   if (value === null || !Number.isFinite(value)) {
-    return <a className="whitespace-nowrap" href="#executive-data-note" aria-label={unavailableLabel}>—</a>;
+    return <a className="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap" href="#executive-data-note" aria-label={unavailableLabel}>—</a>;
   }
   const formatted = formatCurrency(value, currency);
   return <span className="inline-block whitespace-nowrap">{formatted.includes(currency) ? formatted : `${currency} ${formatted}`}</span>;
@@ -190,7 +190,7 @@ const DeliveryBook: React.FC<{
   const incompleteMargin = (data?.on_hand_realized_margin_by_currency ?? []).some((row) => row.unknown_projects > 0)
     || (data?.pipeline_total_value_by_currency ?? []).some((row) => row.forecast_margin === null || row.no_active_budget > 0);
   const mapNote = canManageAccounting
-    ? <Link to="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
+    ? <Link to="/administration/accounting#budget-account-map" className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
     : <span>{t('exec.askAdministrator', 'Ask an administrator to complete missing budget or accounting data.')}</span>;
   const abnormalReasons: string[] = data ? [
       actualIncomplete

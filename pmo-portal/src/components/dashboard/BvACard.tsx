@@ -93,7 +93,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           : null;
         return (
           <div className="min-w-[7rem] space-y-1">
-            {actual === null ? <a className="inline-flex min-h-11 items-center" href="#executive-data-note" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see data note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
+            {actual === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see data note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
             {progress !== null && <ProgressBar value={progress} widthless className="w-full [&>span:first-child]:flex-1" aria-label={t('dashboard:exec.actualOfContract', '{{project}}: {{percent}}% of contract', { project: projectDisplayName(project), percent: progress })} />}
           </div>
         );
