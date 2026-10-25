@@ -185,13 +185,19 @@ describe('ContextBar — unified account menu', () => {
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
 
     const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
+    const english = screen.getByRole('menuitemradio', { name: 'English' });
+    const bahasa = screen.getByRole('menuitemradio', { name: 'Bahasa Indonesia' });
     const light = screen.getByRole('menuitemradio', { name: /^light$/i });
     const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
     expect(profile).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
+    expect(english).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(bahasa).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
     expect(light).toHaveFocus();
     await userEvent.keyboard('{ArrowUp}');
-    expect(profile).toHaveFocus();
+    expect(bahasa).toHaveFocus();
     await userEvent.keyboard('{End}');
     expect(signOutItem).toHaveFocus();
     await userEvent.keyboard('{Home}');

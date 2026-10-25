@@ -166,6 +166,10 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
       ? realRoleValue !== null && i.roles.includes(realRoleValue)
       : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)),
   );
+  const groupOrder = [...GROUP_ORDER[role]];
+  if (!groupOrder.includes('Manage money') && items.some((item) => item.group === 'Manage money' && item.realRoleOnly)) {
+    groupOrder.push('Manage money');
+  }
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
   const showViews = isFeatureEnabled('userViews');
@@ -362,7 +366,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
         </section>
         <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
           {items.filter((item) => item.group === 'My work' && item.to !== '/' && item.to !== '/approvals').map(renderItem)}
-          {GROUP_ORDER[role].map((group) => {
+      {groupOrder.map((group) => {
             if (group === 'My work') return null;
             const groupItems = items.filter((item) =>
               item.group === group && item.to !== '/' && item.to !== '/approvals',
