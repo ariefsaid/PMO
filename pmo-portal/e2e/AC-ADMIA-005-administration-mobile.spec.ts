@@ -54,18 +54,19 @@ const OPERATOR_SECTIONS = [
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
 
 async function openSectionNavigation(page: Page) {
-  const disclosure = page.locator('details').filter({ hasText: 'Administration sections' });
-  if (await disclosure.count() === 0) return;
-  const isOpen = await disclosure.evaluate((element) => (element as HTMLDetailsElement).open);
-  if (!isOpen) await disclosure.locator('summary').click();
+  const navigation = sectionNav(page);
+  if (await navigation.isVisible()) return;
+  const summary = page.getByText('Administration sections', { exact: true });
+  await expect(summary).toBeVisible();
+  await summary.click();
   await expect(sectionNav(page)).toBeVisible();
 }
 
 async function closeSectionNavigation(page: Page) {
-  const disclosure = page.locator('details').filter({ hasText: 'Administration sections' });
-  if (await disclosure.count() === 0) return;
-  const isOpen = await disclosure.evaluate((element) => (element as HTMLDetailsElement).open);
-  if (isOpen) await disclosure.locator('summary').click();
+  if (!(await sectionNav(page).isVisible())) return;
+  const summary = page.getByText('Administration sections', { exact: true });
+  await expect(summary).toBeVisible();
+  await summary.click();
   await expect(sectionNav(page)).not.toBeVisible();
 }
 
