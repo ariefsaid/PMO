@@ -392,7 +392,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         className="min-h-11 md:hidden"
         onClick={() => setFiltersOpen((open) => !open)}
       >
-        {t('filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
+        {t('uxs14.filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
       </Button>
       <div id="earned-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
         <label className="sr-only" htmlFor="earned-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
@@ -432,7 +432,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             aria-controls="earned-collection-more-actions"
             className="min-h-11 flex-1 md:hidden"
             onClick={() => setMoreActionsOpen((open) => !open)}
-          >{t('moreActions', 'More actions')}</Button>
+          >{t('uxs14.moreActions', 'More actions')}</Button>
           <div id="earned-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
             {exportAction}
           </div>

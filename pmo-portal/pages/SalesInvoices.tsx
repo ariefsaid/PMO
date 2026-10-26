@@ -218,7 +218,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
             <div>
               <details className="text-sm">
                 <summary className="min-h-11 cursor-pointer py-2 font-medium">
-                  {t('uxs17.billingContactSummary', 'Billing contact · {{count}} details', {
+                  {t('moneyIn:financeCopy.billingContactSummary', 'Billing contact · {{count}} details', {
                     count: [evidence.data.contact.name, evidence.data.contact.email, evidence.data.contact.phone].filter(Boolean).length,
                   })}
                 </summary>
@@ -1139,7 +1139,7 @@ const SalesInvoices: React.FC = () => {
             className="min-h-11 flex-1"
             onClick={() => setFiltersOpen((open) => !open)}
           >
-            {t('filters', 'Filters')}{appliedFilterCount > 0 ? ` · ${appliedFilterCount}` : ''}
+            {t('uxs14.filters', 'Filters')}{appliedFilterCount > 0 ? ` · ${appliedFilterCount}` : ''}
           </Button>
         </div>
         <div id="invoice-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-col gap-2 md:flex md:flex-1`}>
@@ -1228,7 +1228,7 @@ const SalesInvoices: React.FC = () => {
             aria-controls="invoice-collection-more-actions"
             className="min-h-11 flex-1 md:hidden"
             onClick={() => setMoreActionsOpen((open) => !open)}
-          >{t('moreActions', 'More actions')}</Button>
+          >{t('uxs14.moreActions', 'More actions')}</Button>
           <div id="invoice-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
           <ExportButton
             rows={sortedInvoices}

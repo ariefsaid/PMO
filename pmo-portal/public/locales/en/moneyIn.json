@@ -7,6 +7,7 @@
     "clearFilters": "Clear filters",
     "customerProjectContext": "Customer / project",
     "customerUnavailable": "Customer not available",
+    "billingContactSummary": "Billing contact · {{count}} details",
     "dueSoonest": "Due soonest",
     "exportInvoices": "Export invoices",
     "filterByAttribution": "Filter by project attribution",

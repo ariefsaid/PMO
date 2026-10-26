@@ -7,6 +7,7 @@
     "clearFilters": "Hapus semua filter",
     "customerProjectContext": "Pelanggan / proyek",
     "customerUnavailable": "Pelanggan tidak tersedia",
+    "billingContactSummary": "Kontak penagihan · {{count}} detail",
     "dueSoonest": "Jatuh tempo terdekat",
     "exportInvoices": "Ekspor faktur",
     "filterByAttribution": "Filter penautan proyek",

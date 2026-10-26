@@ -590,7 +590,7 @@ const IncomingPayments: React.FC = () => {
           className="min-h-11 md:hidden"
           onClick={() => setFiltersOpen((open) => !open)}
         >
-          {t('filters', 'Filters')}{statusFilter !== 'All' || customerFilter ? ` · ${Number(statusFilter !== 'All') + Number(Boolean(customerFilter))}` : ''}
+          {t('uxs14.filters', 'Filters')}{statusFilter !== 'All' || customerFilter ? ` · ${Number(statusFilter !== 'All') + Number(Boolean(customerFilter))}` : ''}
         </Button>
         <div id="receipt-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
             <label className="sr-only" htmlFor="receipt-customer-filter">{t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}</label>
@@ -640,7 +640,7 @@ const IncomingPayments: React.FC = () => {
             aria-controls="receipt-collection-more-actions"
             className="min-h-11 flex-1 md:hidden"
             onClick={() => setMoreActionsOpen((open) => !open)}
-          >{t('moreActions', 'More actions')}</Button>
+          >{t('uxs14.moreActions', 'More actions')}</Button>
           <div id="receipt-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
             <ExportButton rows={filtered} columns={exportColumns} entity={t('moneyIn:uxs06.receipts', 'Receipts')} className="min-h-11" disabled={state === 'loading' || state === 'error'} />
           </div>

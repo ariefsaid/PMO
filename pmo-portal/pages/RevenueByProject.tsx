@@ -215,7 +215,7 @@ const RevenueByProject: React.FC = () => {
         className="min-h-11 md:hidden"
         onClick={() => setFiltersOpen((open) => !open)}
       >
-        {t('filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
+        {t('uxs14.filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
       </Button>
       <div id="billing-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
         <label className="sr-only" htmlFor="billing-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
@@ -254,7 +254,7 @@ const RevenueByProject: React.FC = () => {
           aria-controls="billing-collection-more-actions"
           className="min-h-11 flex-1 md:hidden"
           onClick={() => setMoreActionsOpen((open) => !open)}
-        >{t('moreActions', 'More actions')}</Button>
+        >{t('uxs14.moreActions', 'More actions')}</Button>
         <div id="billing-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
           <ExportButton rows={visibleRows} columns={columns} entity={t('moneyIn:uxs42.billingTotals', 'Billing totals')}
             label={t('moneyIn:uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
