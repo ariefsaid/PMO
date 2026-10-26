@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, act, fireEvent } from '@testing-library/react';
 import React from 'react'
+import { MemoryRouter } from 'react-router';
 import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { axeViolations } from '@/src/components/__tests__/axe';
@@ -75,7 +76,7 @@ beforeEach(() => {
 });
 
 function renderPage() {
-  return render(<ProfileSettings />);
+  return render(<MemoryRouter><ProfileSettings /></MemoryRouter>);
 }
 
 function languageSelect() {
@@ -408,7 +409,7 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
     });
     render(
       <I18nextProvider i18n={instance}>
-        <ProfileSettings />
+        <MemoryRouter><ProfileSettings /></MemoryRouter>
       </I18nextProvider>,
     );
     await waitFor(() =>
@@ -432,7 +433,7 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
     });
     render(
       <I18nextProvider i18n={instance}>
-        <ProfileSettings />
+        <MemoryRouter><ProfileSettings /></MemoryRouter>
       </I18nextProvider>,
     );
     await waitFor(() =>
