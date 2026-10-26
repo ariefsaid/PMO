@@ -312,7 +312,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(label).toHaveClass('self-start');
   });
 
-  it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
+  it('numeric columns retain their paired label and tabular figures', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch()!;
@@ -323,7 +323,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     const valueDd = valueDt!.nextElementSibling as HTMLElement;
     expect(valueDd.tagName).toBe('DD');
     expect(valueDd.className).toContain('tabular');
-    expect(valueDd.className).toContain('text-right');
+    expect(valueDd.parentElement).toBe(valueDt!.parentElement);
   });
 
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────

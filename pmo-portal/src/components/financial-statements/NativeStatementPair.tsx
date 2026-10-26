@@ -361,7 +361,7 @@ function StatementHeading({ id, reportTitle, companyLabel, periodLine, amountsLi
 
 const accountHeader = (side: NativeReportColumn, labels: NativeStatementPairProps['labels']) => {
   const column = side.columns.find((item) => item.fieldname.toLocaleLowerCase() === 'account');
-  return column ? localizedColumnLabel(column, labels) : labels.account;
+  return column ? localizedColumnLabel(column, labels) : labels.account ?? 'Account';
 };
 
 function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {

@@ -705,7 +705,7 @@ const SalesInvoices: React.FC = () => {
             </section>
             <section id="invoice-position" data-money-in-section aria-labelledby="invoice-position-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
               <h2 id="invoice-position-heading" className="mb-4 flex flex-col items-start gap-1 type-label text-muted-foreground">
-                <span>{t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}</span>
+                <span>{t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}</span>{' '}
                 <span className="type-section-head tabular text-foreground">
                 {viewTarget.erp_outstanding_amount == null ? (
                   <span title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>
