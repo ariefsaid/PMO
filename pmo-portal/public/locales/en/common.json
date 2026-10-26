@@ -4365,8 +4365,8 @@
   },
   "projectFinances": {
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
-    "settledAgainstInvoices":"Settled against invoices",
-    "settlementNote":"Settled includes cash, withholding and credits; cash received is shown above.",
+    "clearedAgainstInvoices":"Cleared against invoices",
+    "invoiceBalanceClearedNote":"Calculated as invoiced less ERP outstanding; receipt-backed cash is shown separately above.",
     "stillToInvoice":"Still to invoice", "exactRemaining":"Exact remaining",
     "viewInvoices":"View invoices", "invoiceRecordsInBilling":"Invoice records are in the Billing section.",
     "margin":"Margin",

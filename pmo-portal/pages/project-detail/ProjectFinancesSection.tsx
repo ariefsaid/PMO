@@ -138,7 +138,10 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       ? t('uxs01.cashReceivedIncomplete', 'Incomplete — receipt allocation cannot establish cash')
       : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
-  const settlementNote = t('projectFinances.settlementNote', 'Settled includes cash, withholding and credits; cash received is shown above.');
+  const invoiceBalanceNote = t(
+    'projectFinances.invoiceBalanceClearedNote',
+    'Calculated as invoiced less ERP outstanding; receipt-backed cash is shown separately above.',
+  );
   const field = (label: string, value: React.ReactNode, basis?: React.ReactNode, labelTitle?: string) => (
     <div className="min-w-0">
       <dt className="text-xs font-semibold text-muted-foreground" title={labelTitle}>{label}</dt>
@@ -182,7 +185,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
         {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
       </p>}
       {hasInvoices && <>
-        <p className="text-sm text-muted-foreground">{settlementNote}</p>
+        <p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p>
         {data.invoices.map((bucket) => {
         const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
         return (
@@ -194,7 +197,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
             </h4>
             <dl className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.settledAgainstInvoices', 'Settled against invoices'), bucket.missing_outstanding > 0
+              {field(t('projectFinances.clearedAgainstInvoices', 'Cleared against invoices'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
                 : money(bucket.settled, bucket.currency))}
               {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0

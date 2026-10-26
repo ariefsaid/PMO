@@ -133,7 +133,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.getByText('Cash received')).toBeInTheDocument();
   });
 
-  it('S-01/S-03 labels ERP settlement separately when it is not equal to receipt-backed cash', () => {
+  it('S-01/S-03 distinguishes the ERP invoice balance from receipt-backed cash', () => {
     h.query.data = payload({
       remaining_to_invoice: '0.00',
       cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '40.00' }], receipt_count: 1 },
@@ -143,13 +143,13 @@ describe('ProjectFinancesSection reading states', () => {
     render(<ProjectFinancesSection project={project} />);
 
     const billing = within(screen.getByRole('group', { name: 'Billing' }));
-    const settled = billing.getByText('Settled against invoices').parentElement!;
+    const cleared = billing.getByText('Cleared against invoices').parentElement!;
     const outstanding = billing.getByText('Outstanding').parentElement!;
     const cash = screen.getByText('Cash received').parentElement!;
-    expect(within(settled).getByText('100')).toBeInTheDocument();
+    expect(within(cleared).getByText('100')).toBeInTheDocument();
     expect(within(outstanding).getByText('0')).toBeInTheDocument();
     expect(within(cash).getByText('USD 40')).toBeInTheDocument();
-    expect(billing.getByText(/Settled includes cash, withholding and credits/)).toBeInTheDocument();
+    expect(billing.getByText(/Calculated as invoiced less ERP outstanding/)).toBeInTheDocument();
   });
 
   it('AC-PFIN-015 renders the Overview Billing and Spending groups in English and Indonesian without raw keys', async () => {
@@ -212,8 +212,8 @@ describe('ProjectFinancesSection reading states', () => {
     expect(cashValue.querySelector('[title="Unavailable — receipt-backed cash data is not available yet"]'))
       .toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
     expect(cashValue.querySelector('.sr-only')).toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
-    expect(screen.getByText('Settled against invoices')).toBeInTheDocument();
-    expect(screen.getByText(/Settled includes cash, withholding and credits/)).toBeInTheDocument();
+    expect(screen.getByText('Cleared against invoices')).toBeInTheDocument();
+    expect(screen.getByText(/Calculated as invoiced less ERP outstanding/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Margin · USD ·.*Net of tax; advances excluded/ })).toBeInTheDocument();
     expect(screen.queryByText(/Billed-work revenue \(net of tax/)).not.toBeInTheDocument();
     expect(screen.getByTestId('project-invoicing-scope')).toBeInTheDocument();
@@ -604,10 +604,10 @@ describe('ProjectFinancesSection reading states', () => {
         const cashField = screen.getByText(cashLabel, { exact: true }).parentElement!;
         expect(cashField).not.toBeNull();
         expect(cashField).toHaveTextContent(scope);
-        expect(screen.getByText(language === 'en' ? 'Settled against invoices' : localeI18n.t('projectFinances.settledAgainstInvoices'))).toBeInTheDocument();
+        expect(screen.getByText(language === 'en' ? 'Cleared against invoices' : localeI18n.t('projectFinances.clearedAgainstInvoices'))).toBeInTheDocument();
         expect(screen.getByText(language === 'en'
-          ? 'Settled includes cash, withholding and credits; cash received is shown above.'
-          : 'Penyelesaian mencakup kas, potongan pajak, dan kredit; kas diterima ditampilkan di atas.')).toBeInTheDocument();
+          ? 'Calculated as invoiced less ERP outstanding; receipt-backed cash is shown separately above.'
+          : 'Dihitung dari total tagihan dikurangi saldo terutang ERP; kas berbasis kuitansi ditampilkan terpisah di atas.')).toBeInTheDocument();
         expect(screen.getAllByText(formatProjectDetailAmount('120.00', 'USD', language)!)).not.toHaveLength(0);
 
         if (reading.kind === 'zero') {
