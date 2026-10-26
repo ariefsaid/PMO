@@ -182,27 +182,27 @@ const ExpenseClaimNew: React.FC = () => {
             if (file && !lines[0]?.description.trim()) suggestTitle(file.name.replace(/\.[^.]+$/, ''), 'receipt');
             else if (!file && !lines[0]?.description.trim()) suggestTitle('', 'receipt');
           }} />
-          {receipt && <span className="max-w-full truncate text-sm text-muted-foreground" title={receipt.name}>{receipt.name}</span>}
+          {receipt && <span className="max-w-full break-all text-sm text-muted-foreground">{receipt.name}</span>}
         </div>
         {renderLine(lines[0] ?? blankLine(), 0, false)}
+        <TextField label={t('expenses.form.title.label', 'Title')} required value={title} className="min-h-11" onChange={(value) => { setTitle(value); setTitleEdited(true); setTitleSuggestionSource(null); }} fullWidth />
+        {!titleEdited && title && titleSuggestionSource && <p className="text-xs font-semibold text-muted-foreground" role="note">
+          {titleSuggestionSource === 'receipt'
+            ? t('expenseClaims:new.titleFromReceipt', 'Suggested from the receipt filename.')
+            : t('expenseClaims:new.titleFromLine', 'Suggested from the first line description.')}
+        </p>}
       </FormSection>
       <FormSection legend={t('expenseClaims:capture.additionalLines', 'Additional lines')}>
         {lines.slice(1).map((line, index) => renderLine(line, index + 1, true))}
         <Button type="button" variant="outline" className="min-h-11" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
       </FormSection>
       <details className="mb-4 rounded-lg border border-border bg-card">
-        <summary className="flex min-h-11 cursor-pointer items-center px-4 font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <summary className="flex min-h-11 cursor-pointer items-center px-4 text-xs font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           {t('expenseClaims:new.moreDetails', 'More claim details')}
         </summary>
         <div className="border-t border-border p-4">
           <FormSection legend={t('expenses.form.sections.details', 'Claim details')}>
             <FormGrid>
-              <TextField label={t('expenses.form.title.label', 'Title')} required value={title} className="min-h-11" onChange={(value) => { setTitle(value); setTitleEdited(true); setTitleSuggestionSource(null); }} fullWidth />
-              {!titleEdited && title && titleSuggestionSource && <p className="col-span-full text-xs text-muted-foreground" role="note">
-                {titleSuggestionSource === 'receipt'
-                  ? t('expenseClaims:new.titleFromReceipt', 'Suggested from the receipt filename.')
-                  : t('expenseClaims:new.titleFromLine', 'Suggested from the first line description.')}
-              </p>}
               <SelectField label={t('expenses.form.category.label', 'Budget category')} value={category} className="min-h-11" onChange={(value) => { setCategory(value); setCategoryEdited(true); }} options={categories} helper={t('expenses.form.category.helper', "Decides who approves: spend within the project's budget for this category goes to the project's approver.")} />
               {!categoryEdited && categoryPrecedents.get(projectId) && <p className="col-span-full text-xs text-muted-foreground" role="note">{t('uxs29.expenseCapture.categorySource', 'Suggested from your most recent same-project claim: {{title}}.', { title: categoryPrecedents.get(projectId)?.sourceTitle })}</p>}
               <TextField label={t('expenses.form.purpose.label', 'Purpose')} value={purpose} className="min-h-11" onChange={setPurpose} fullWidth />
@@ -213,7 +213,7 @@ const ExpenseClaimNew: React.FC = () => {
       </details>
       <PostingReadinessNote />
       {error && <p role="alert" className="mb-3 text-sm text-destructive-text">{error}</p>}
-      <div className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-background py-3">
+      <div className="mt-8 flex justify-end gap-2 border-t border-border bg-background py-4">
         <Button type="button" variant="outline" className="min-h-11" onClick={returnToExpenses}>{t('expenses.actions.cancel', 'Cancel')}</Button>
         <Button type="submit" variant="primary" className="min-h-11" disabled={saving}>{saving ? t('expenseClaims:new.saving', 'Saving…') : t('expenseClaims:new.saveDraft', 'Save draft')}</Button>
       </div>
