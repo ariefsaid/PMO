@@ -7,7 +7,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatBusinessDate as formatDateOnly } from '@/src/lib/format';
 
 /** SalesInvoices page — due-date column render test (AC-SAR-051 UI proof). */
 
@@ -147,7 +147,7 @@ describe('SalesInvoices — currency (#530 / AC-L10N-020)', () => {
     renderAs('Project Manager');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('IDR');
-    expect(table).toContain('$');
+    expect(table).toContain('USD');
   });
 });
 
@@ -158,7 +158,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('ACC-SINV-2025-00001');
     expect(table).toContain(formatDateOnly('2026-07-31'));
-    expect(table).not.toContain(formatDateOnly('2026-07-01'));
+    expect(screen.queryByRole('columnheader', { name: /^Date$/ })).not.toBeInTheDocument();
   });
 
   it('renders the Due Date column with derived values', () => {
@@ -168,7 +168,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     expect(screen.getByRole('heading', { name: 'Sales Invoices' })).toBeInTheDocument();
 
     // Check that the Due Date column header exists
-    const dueDateHeader = screen.getByText('Due Date');
+    const dueDateHeader = screen.getByRole('columnheader', { name: 'Status / due' });
     expect(dueDateHeader).toBeInTheDocument();
 
     // First invoice: invoice_date 2026-07-01 + 30 days = 2026-07-31 (no ERP due date)
@@ -177,7 +177,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     const tableText = screen.getByRole('table').textContent ?? '';
     expect(tableText).toContain(formatDateOnly('2026-07-31'));
     expect(tableText).toContain(formatDateOnly('2026-09-15'));
-    expect(tableText).not.toContain(formatDateOnly('2026-07-01'));
+    expect(screen.queryByRole('columnheader', { name: /^Date$/ })).not.toBeInTheDocument();
   });
 
   it('shows "—" for invoices with no invoice date', () => {

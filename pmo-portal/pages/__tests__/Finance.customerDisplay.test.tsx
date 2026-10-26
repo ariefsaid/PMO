@@ -197,20 +197,20 @@ describe('AC-FIN-001 — the Finance customer cell/export/search use the company
     expect(await customerExportFor('PAY-0002', 'Payment #')).toBe('Borealis Marine');
   });
 
-  it('AC-FIN-001: a row with no resolved customer shows a dash, not the UUID, in both lists', () => {
+  it('AC-FIN-001: a row with no resolved customer explains the missing identity without exposing the UUID', () => {
     hoisted.invoices = [{ ...invoice, id: 'inv-null', customer_name: null, customer_id: CUST_A }];
     hoisted.payments = [{ ...payment, id: 'ip-null', customer_name: null, customer_id: CUST_A }];
 
     const invView = renderPage(<SalesInvoices />);
     const invTable = screen.getByRole('table').textContent ?? '';
-    expect(invTable).toContain('—');
+    expect(invTable).toContain('Customer not available');
     // The id must never leak into the cell even when the name is null.
     expect(invTable).not.toContain(CUST_A);
     invView.unmount();
 
     renderPage(<IncomingPayments />);
     const payTable = screen.getByRole('table').textContent ?? '';
-    expect(payTable).toContain('—');
+    expect(payTable).toContain('Customer unavailable');
     expect(payTable).not.toContain(CUST_A);
   });
 });

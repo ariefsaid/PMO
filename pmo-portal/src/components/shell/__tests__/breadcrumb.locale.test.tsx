@@ -34,8 +34,8 @@ beforeEach(async () => {
     fallbackLng: 'en',
     defaultNS: 'common',
     resources: {
-      id: { common: idCatalogue },
-      en: { common: enCatalogue },
+      id: { common: idCatalogue, moneyIn: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/moneyIn.json'), 'utf8')) },
+      en: { common: enCatalogue, moneyIn: JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/moneyIn.json'), 'utf8')) },
     },
   });
 });
@@ -88,7 +88,7 @@ describe('FR-L10N — Bahasa Administration breadcrumbs agree with the shell', (
     const cases = [
       ['/sales-invoices', 'Faktur Penjualan'],
       ['/incoming-payments', 'Pembayaran Masuk'],
-      ['/revenue-by-project', 'Pendapatan per Proyek'],
+      ['/revenue-by-project', 'Pendapatan proyek'],
     ] as const;
     for (const [path, bahasa] of cases) {
       const view = renderBreadcrumb(path);

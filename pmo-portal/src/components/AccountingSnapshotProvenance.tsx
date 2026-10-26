@@ -1,6 +1,6 @@
 import React from 'react';
 import { cn } from '@/src/components/ui/cn';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate, formatInstantTimestamp } from '@/src/lib/format';
 
 /**
  * AccountingSnapshotProvenance (Slice 7 task 7.8, ADR-0048): a read-only provenance strip for the
@@ -23,18 +23,21 @@ export interface AccountingSnapshotProvenanceProps {
   reportVersion?: string | null;
   /** Optional localized replacement for the populated snapshot's "As of" prefix. */
   updatedLabel?: string;
+  /** Include the time and named saved timezone for timestamp provenance. */
+  showTime?: boolean;
   className?: string;
 }
 
 /** Formats an ISO timestamp as a readable local date (e.g. "Jul 12, 2026"). Falls back to the raw
  *  string when parsing fails so a non-ISO value is never silently dropped. */
-function formatAsOf(iso: string): string {
+function formatAsOf(iso: string, showTime = false): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return formatInstantDate(iso);
+  if (!showTime) return formatInstantDate(iso);
+  return formatInstantTimestamp(iso);
 }
 
-export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, className }) => {
+export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, showTime, className }) => {
   if (!asOf) {
     return (
       <div data-testid="snapshot-provenance-empty" className={cn('text-[0.6875rem] font-semibold text-muted-foreground', className)}>
@@ -49,7 +52,7 @@ export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenance
       className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.6875rem] font-semibold text-muted-foreground', className)}
     >
       <span>
-        {updatedLabel ?? 'As of'} {formatAsOf(asOf)}
+        {updatedLabel ?? 'As of'} {formatAsOf(asOf, showTime)}
       </span>
       {sourceReport ? (
         <>

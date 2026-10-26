@@ -181,6 +181,37 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getTableBranch()).toHaveTextContent('Manager for Alpha Corp');
   });
 
+  it('keeps the full identity visible and puts secondary facts behind one summary-bearing 44px disclosure', async () => {
+    mockViewport(false);
+    const fullName = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    const longRows = [{ id: 'LONG-1', name: fullName, context: 'Northwind Works International', memo: 'Supporting evidence' }];
+    const longColumns: Column<(typeof longRows)[number]>[] = [
+      { key: 'name', header: 'Project', kind: 'primary', cell: (row) => row.name, primaryTitle: (row) => row.name, secondaryCell: (row) => row.context },
+      { key: 'memo', header: 'Evidence', cell: (row) => row.memo },
+    ];
+    render(
+      <DataTable
+        rows={longRows}
+        columns={longColumns}
+        rowKey={(row) => row.id}
+        mobileDetails={{ columnKeys: ['memo'], summary: (_row, count) => `Other details · ${count}` }}
+      />,
+    );
+
+    expect(screen.getByText(fullName)).toBeInTheDocument();
+    expect(screen.getByText('Northwind Works International')).toBeInTheDocument();
+    const identity = screen.getByText(fullName);
+    expect(identity.className).toContain('break-words');
+    expect(identity.className).not.toMatch(/line-clamp|truncate/);
+    expect(screen.queryByText('Supporting evidence')).not.toBeVisible();
+
+    const disclosure = screen.getByText('Other details · 1').closest('summary');
+    expect(disclosure).toBeInTheDocument();
+    expect(disclosure).toHaveClass('min-h-11');
+    await userEvent.click(disclosure!);
+    expect(screen.getByText('Supporting evidence')).toBeVisible();
+  });
+
   it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
     mockViewport(false);
     const sparse: Column<Row>[] = [
@@ -281,7 +312,28 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(label).toHaveClass('self-start');
   });
 
-  it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
+  it('keeps custom phone rows and their actions without duplicate generic facts', async () => {
+    mockViewport(false);
+    const onOpen = vi.fn();
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        mobileRow={(row) => <button onClick={() => onOpen(row.id)}>Open {row.name}</button>}
+        mobileDetails={{ columnKeys: ['value'], summary: () => 'Other facts' }}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(rows.length);
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Other facts')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open Alpha Corp' }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith('R-1');
+  });
+
+  it('numeric columns retain their paired label and tabular figures', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch()!;
@@ -292,7 +344,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     const valueDd = valueDt!.nextElementSibling as HTMLElement;
     expect(valueDd.tagName).toBe('DD');
     expect(valueDd.className).toContain('tabular');
-    expect(valueDd.className).toContain('text-right');
+    expect(valueDd.parentElement).toBe(valueDt!.parentElement);
   });
 
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────

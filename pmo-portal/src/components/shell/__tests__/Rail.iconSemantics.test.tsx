@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { Rail } from '../Rail';
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [{ id: 'view-1', name: 'Saved view' }] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true, incidents: true, m365_integration: true } }),
@@ -22,7 +22,7 @@ describe('UIP-001/UIP-013: rail destination names and decorative icon semantics'
     const rail = screen.getByRole('complementary');
     const expected = [
       'Dashboard', 'Projects', 'Sales Pipeline', 'Procurement', 'Meetings', 'Incidents',
-      'Sales Invoices', 'Incoming Payments', 'Revenue by Project', 'Management pack',
+      'Sales Invoices', 'Incoming Payments', 'Financial statements',
       'Timesheets', 'Expenses', 'Approvals', 'Companies', 'Contacts', 'Views', 'Saved view',
       'Administration',
     ];

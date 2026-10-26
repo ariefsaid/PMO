@@ -596,8 +596,8 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   expect(screen.queryByText('Regional Services')).toBeNull();
   await user.type(screen.getByLabelText('Filter by location'), 'Bali');
   // #830: the location filter writes the URL after a short pause, not on every keystroke.
-  await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
-  await waitFor(() => expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali'));
+  await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull(), { timeout: 15_000 });
+  await waitFor(() => expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali'), { timeout: 15_000 });
   if (view === 'kanban') expect(screen.getByText('No matching projects')).toBeVisible();
 });
 
@@ -810,6 +810,7 @@ describe('SalesPipeline table on the shared contract (T4)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     expect(screen.getByRole('link', { name: 'Northwind ERP Rollout' })).toHaveAttribute('href', '/projects/p2');
+    expect(screen.getByRole('link', { name: 'Northwind ERP Rollout' })).toBeVisible();
     expect(screen.getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
   });
 

@@ -102,19 +102,20 @@ describe('SalesInvoices project attribution', () => {
 
   it('AC-PFIN-009 opens the shared modal, filters unassigned before search, and sends the existing project context', async () => {
     renderAs('Finance', '/sales-invoices?attribution=unassigned&status=Unpaid&q=SI-unassigned');
-    expect(screen.getByText('Unassigned invoices')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by project attribution' })).toHaveValue('unassigned');
     expect(screen.getByText('SI-unassigned')).toBeInTheDocument();
     expect(screen.queryByText('SI-assigned')).not.toBeInTheDocument();
     await openActions('SI-unassigned');
     await userEvent.click(screen.getByRole('menuitem', { name: 'Assign project' }));
     await userEvent.click(screen.getByRole('combobox', { name: 'Project' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Project One' }));
+    await userEvent.click(within(await screen.findByRole('listbox')).getByRole('option', { name: 'Project One' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save project' }));
     await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
       siId: 'unassigned', projectId: 'project-1', oldProjectId: null,
     }));
     await userEvent.click(screen.getByRole('button', { name: 'Clear filter' }));
-    expect(screen.queryByText('Unassigned invoices')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Filter by project attribution' })).toHaveValue('all');
+    expect(screen.queryByRole('button', { name: 'Clear filter' })).not.toBeInTheDocument();
     expect(screen.getByRole('searchbox', { name: 'Search sales invoices' })).toHaveValue('SI-unassigned');
     expect(screen.getByRole('tab', { name: 'Unpaid' })).toHaveAttribute('aria-selected', 'true');
   });

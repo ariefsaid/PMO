@@ -49,9 +49,10 @@ describe('useOrgCurrency — org currency for rowless figures (FR-L10N-020)', ()
     h.getOrgDefaultCurrency.mockReturnValue(new Promise<string>((r) => { resolve = r; }));
     const { result } = renderHook(() => useOrgCurrencyState(), { wrapper: wrap(freshClient()) });
 
-    expect(result.current).toEqual({ currency: 'USD', isResolved: false, isError: false });
+    expect(result.current).toMatchObject({ currency: 'USD', isResolved: false, isError: false });
+    expect(typeof result.current.refetch).toBe('function');
     resolve('IDR');
-    await waitFor(() => expect(result.current).toEqual({ currency: 'IDR', isResolved: true, isError: false }));
+    await waitFor(() => expect(result.current).toMatchObject({ currency: 'IDR', isResolved: true, isError: false }));
   });
 
   it('AC-802-001: does not mark a failed currency lookup as resolved', async () => {

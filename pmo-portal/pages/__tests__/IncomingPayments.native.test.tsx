@@ -45,7 +45,7 @@ import IncomingPayments from '../IncomingPayments';
 import { FinanceI18nTestProvider } from './financeI18nTestProvider';
 import { financeTestI18n } from './financeI18nTestInstance';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { currencySymbol, formatCurrencyAuto, instantToZonedDatetimeLocal } from '@/src/lib/format';
+import { currencySymbol, instantToZonedDatetimeLocal } from '@/src/lib/format';
 import { AppError } from '@/src/lib/appError';
 
 const TODAY = () => instantToZonedDatetimeLocal(new Date(), 'UTC').slice(0, 10);
@@ -220,7 +220,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await pickInvoice(user);
     expect(screen.getByLabelText(/Amount settled/)).toHaveValue('610,000');
     expect(screen.getByLabelText(/Cash received/)).toHaveValue('610,000');
-    expect(screen.getByText(/Starts at the .*610,000\.00 outstanding/)).toBeInTheDocument();
+    expect(screen.getByText(/Starts at the .*610,000 outstanding/)).toBeInTheDocument();
     // The receipt takes the invoice's currency (0275), so the amount reads in it — not the org default.
     expect(screen.getByLabelText(/Amount settled/).closest('div')).toHaveTextContent(currencySymbol('IDR'));
     await user.click(screen.getByRole('button', { name: 'Record payment' }));
@@ -481,19 +481,20 @@ describe('Receipt page — every allocation (S-06)', () => {
     h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
     renderAt('/incoming-payments/ip-erp');
     const table = screen.getByRole('table', { name: 'Invoices this receipt settled' });
+    expect(screen.getByRole('heading', { name: /Applied · IDR/ })).toBeInTheDocument();
     expect(within(table).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
     expect(within(table).getByRole('link', { name: 'ACC-SINV-B' })).toHaveAttribute('href', '/sales-invoices/si-b');
-    expect(within(table).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
-    expect(within(table).getByText(formatCurrencyAuto(30_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(table).getByText('25,000')).toBeInTheDocument();
+    expect(within(table).getByText('30,000')).toBeInTheDocument();
   });
 
-  it('keeps settled invoice allocations in cards on phones', () => {
+  it('keeps settled invoice links and paired amounts readable on phones', () => {
     h.payments.data = [erpReceipt({ amount: 95_000, received_amount: 95_000, allocation_details: twoInvoices })];
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     renderAt('/incoming-payments/ip-erp');
-    const cards = screen.getByTestId('dt-card-branch');
+    const cards = screen.getByRole('list', { name: 'Invoices this receipt settled' });
     expect(within(cards).getByRole('link', { name: 'ACC-SINV-A' })).toHaveAttribute('href', '/sales-invoices/si-a');
-    expect(within(cards).getByText(formatCurrencyAuto(25_000, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(cards).getByText('25,000')).toBeInTheDocument();
     vi.unstubAllGlobals();
   });
   it('does not assign the receipt currency to an allocation whose currency was not reported', () => {

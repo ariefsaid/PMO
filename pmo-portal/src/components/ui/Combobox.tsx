@@ -67,6 +67,8 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
+  /** Optional trigger sizing for contexts with larger touch targets. */
+  triggerClassName?: string;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -89,6 +91,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   disabled,
   id,
   className,
+  triggerClassName,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -300,6 +303,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
             'flex min-h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] py-1 text-sm text-foreground',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
             error ? 'border-destructive' : 'border-input',
+            triggerClassName,
           )}
         >
           {selected ? (

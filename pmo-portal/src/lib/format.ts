@@ -447,6 +447,14 @@ export function formatDateOnly(iso: string | null | undefined): string {
   return parsed ? dateFormatter().format(parsed) : '—';
 }
 
+/** Day-month-year calendar date for the money-in reading surfaces; no timezone shift. */
+export function formatBusinessDate(iso: string | null | undefined): string {
+  const parsed = parseDateOnly(iso);
+  if (!parsed) return '—';
+  const parts = dateFormatter().formatToParts(parsed);
+  return ['day', 'month', 'year'].map((type) => parts.find((part) => part.type === type)?.value).join(' ');
+}
+
 /** Numeric calendar date stored as `YYYY-MM-DD`; personal timezone never shifts the value. */
 export function formatDateOnlyNumeric(iso: string | null | undefined): string {
   const parsed = parseDateOnly(iso);
@@ -464,6 +472,18 @@ export function formatInstantDate(iso: string | null | undefined): string {
   if (!parsed) return '—';
   const timezone = getActiveLocale().timezone;
   return dateFormatterFor('instantDate', getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
+}
+
+/** Saved-timezone provenance timestamp with unambiguous date and a named timezone. */
+export function formatInstantTimestamp(iso: string): string {
+  const d = parseInstant(iso);
+  if (!d) return iso;
+  const timezone = getActiveLocale().timezone;
+  const parts = dateFormatterFor('instantTimestamp', getDateLocale(), {
+    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone,
+  }).formatToParts(d);
+  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
+  return `${part('day')} ${part('month')} ${part('year')} · ${part('hour')}:${part('minute')} ${timezone}`;
 }
 
 /**

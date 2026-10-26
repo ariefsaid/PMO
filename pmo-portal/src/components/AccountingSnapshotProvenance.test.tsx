@@ -166,3 +166,10 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     expect(screen.queryByText('must-not-appear')).not.toBeInTheDocument();
   });
 });
+
+ it('R-005: timestamps name the saved timezone and keep an unambiguous date', () => {
+   setActiveLocale({ locale: 'en-US', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
+   render(<AccountingSnapshotProvenance asOf="2026-10-26T07:30:00Z" updatedLabel="Updated" showTime />);
+   expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('26 Oct 2026');
+   expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('14:30 Asia/Jakarta');
+ });

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BackBar } from '@/src/components/shell';
 import {
-  ListPage,
   SearchMini,
   ViewToggle,
   ListState,
@@ -17,15 +17,14 @@ import {
   FormSection,
   Button,
   Icon,
-  TaxBasisLabel,
   Badge,
+  TaxBasisLabel,
   useToast,
   type Column,
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
-import { EfakturCell } from '@/src/components/EfakturCell';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -38,7 +37,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatBusinessDate as formatDateOnly, formatInstantTimestamp, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -48,7 +47,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
-import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNet, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
 import { decimalUnits } from '@/src/lib/taxNormalize';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
 import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -57,12 +56,24 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { MoneyInPageHeader } from './money-in/MoneyInPageHeader';
+import { sortSalesInvoiceCollection, type SalesInvoiceCollectionSort } from '@/src/lib/salesInvoiceCollectionSort';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
 const ERP_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Submitted', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
 /** M-7: PMO invoices are never "Submitted" (DD-NAR-3: Draft → Unpaid → Paid); a part-paid one is its own filter. */
 const NATIVE_STATUS_FILTERS: StatusFilter[] = ['All', 'Draft', 'Unpaid', 'PartlyPaid', 'Paid', 'Cancelled'];
+const INVOICE_SORTS: SalesInvoiceCollectionSort[] = ['due-asc', 'overdue-desc', 'invoice-date-desc'];
+
+function isInvoiceSort(value: string | null): value is SalesInvoiceCollectionSort {
+  return INVOICE_SORTS.includes(value as SalesInvoiceCollectionSort);
+}
+
+function invoiceStatusDefaultSort(status: StatusFilter): SalesInvoiceCollectionSort {
+  return status === 'Draft' || status === 'Paid' || status === 'Cancelled' ? 'invoice-date-desc' : 'due-asc';
+}
 
 function salesInvoiceStatusLabel(status: StatusFilter, t: (key: string, fallback: string) => string): string {
   const labels: Record<StatusFilter, string> = {
@@ -171,6 +182,65 @@ const needsVatRate = (project?: InvoiceProjectOption): boolean => Boolean(projec
 const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
   const { t } = useTranslation();
   const evidence = useSalesInvoiceEvidence(invoice.id, !invoice.pmo_native && invoice.erp_docstatus !== null);
+
+  return (
+    <section aria-labelledby="invoice-evidence-heading" className="mb-8 border-b border-border pb-4 md:mb-12">
+      <h2 id="invoice-evidence-heading" className="mb-3 type-section-head text-heading">{t('moneyIn:financeCopy.invoiceEvidenceCurrency', 'Bill evidence · {{currency}}', { currency: invoice.currency })}</h2>
+      {evidence.isPending ? (
+        <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
+      ) : evidence.isError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
+          <Button variant="outline" size="sm" className="min-h-11" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
+          <div>
+            {invoice.pmo_native ? null : evidence.data?.lines != null && evidence.data.lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
+            {invoice.pmo_native ? null : evidence.data?.lines == null ? (
+              <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
+            ) : evidence.data.lines.length === 0 ? null : (
+              <ul className="mt-2 divide-y divide-border/70">
+                {evidence.data.lines.map((line, index) => (
+                  <li key={`${line.item_code ?? 'line'}-${index}`} className="grid min-w-0 grid-cols-1 gap-2 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline">
+                    <span className="min-w-0 break-words">
+                      <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
+                      {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
+                    </span>
+                    <span className="tabular text-muted-foreground sm:text-right">
+                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatNumber(line.rate)}{' = '}
+                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatNumber(line.amount)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {evidence.data?.contact ? (
+            <div>
+              <details className="text-sm">
+                <summary className="min-h-11 cursor-pointer py-2 font-medium">
+                  {t('moneyIn:financeCopy.billingContactSummary', 'Billing contact · {{count}} details', {
+                    count: [evidence.data.contact.name, evidence.data.contact.email, evidence.data.contact.phone].filter(Boolean).length,
+                  })}
+                </summary>
+                <address className="space-y-1 pb-2 not-italic">
+                  {evidence.data.contact.name && <p>{evidence.data.contact.name}</p>}
+                  {evidence.data.contact.email && <p><a className="underline underline-offset-2" href={`mailto:${evidence.data.contact.email}`}>{evidence.data.contact.email}</a></p>}
+                  {evidence.data.contact.phone && <p><a className="underline underline-offset-2" href={`tel:${evidence.data.contact.phone}`}>{evidence.data.contact.phone}</a></p>}
+                </address>
+              </details>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </section>
+  );
+};
+
+const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
+  const { t } = useTranslation();
+  const location = useLocation();
   const payments = useIncomingPayments(undefined, true, invoice.id);
   const paymentEvidence = useMemo(() => {
     const rows = (payments.data ?? []).filter((payment) =>
@@ -191,79 +261,51 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
     };
   }, [invoice.id, invoice.si_number, payments.data]);
 
+  if (payments.isPending && !payments.data) {
+    return (
+      <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
+        <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
+        <p className="text-sm text-muted-foreground">{t('moneyIn:financeCopy.receiptDetailsLoading', 'Loading applied receipt details…')}</p>
+      </section>
+    );
+  }
+
   return (
-    <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
-      {evidence.isPending ? (
-        <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
-      ) : evidence.isError ? (
+    <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
+      <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
+      {payments.isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
-          <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
-        </div>
-      ) : (
-        <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
-          <div>
-            {evidence.data?.lines != null && evidence.data.lines.length === 0 ? null : <h3 className="text-sm font-medium">{t('uxs17.invoiceLines', 'Invoice lines')}</h3>}
-            {evidence.data?.lines == null ? (
-              <p className="mt-1 text-sm text-muted-foreground">{t('uxs17.linesUnknown', 'Line details are not available.')}</p>
-            ) : evidence.data.lines.length === 0 ? null : (
-              <ul className="mt-2 divide-y divide-border/70">
-                {evidence.data.lines.map((line, index) => (
-                  <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                    <span className="min-w-0 flex-1 break-words">
-                      <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
-                      {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
-                    </span>
-                    <span className="tabular text-right text-muted-foreground">
-                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyCents(line.rate, invoice.currency)}{' = '}
-                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyCents(line.amount, invoice.currency)}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {evidence.data?.contact ? (
-            <div>
-              <h3 className="text-sm font-medium">{t('uxs17.billingContact', 'Billing contact')}</h3>
-              <address className="mt-1 space-y-1 text-sm not-italic">
-                {evidence.data.contact.name && <p>{evidence.data.contact.name}</p>}
-                {evidence.data.contact.email && <p><a className="underline underline-offset-2" href={`mailto:${evidence.data.contact.email}`}>{evidence.data.contact.email}</a></p>}
-                {evidence.data.contact.phone && <p><a className="underline underline-offset-2" href={`tel:${evidence.data.contact.phone}`}>{evidence.data.contact.phone}</a></p>}
-              </address>
-            </div>
-          ) : null}
-        </div>
-      )}
-      {(payments.isError || paymentEvidence.allocations.length > 0 || paymentEvidence.hasUnknown) && (
-      <div className="mt-5 border-t border-border/70 pt-3">
-        <h3 className="mb-1 text-sm font-medium">{t('uxs17.appliedReceipts', 'Applied receipts')}</h3>
-        {payments.isError ? (
           <p className="text-sm text-muted-foreground">{t('uxs17.receiptsUnavailable', 'Applied receipt details are unavailable.')}</p>
-        ) : paymentEvidence.allocations.length ? (
-          <>
-            <ul className="divide-y divide-border/70">
-              {paymentEvidence.allocations.map(({ payment, allocation }, index) => {
-                const amount = allocation.amount == null ? null : Number(allocation.amount);
-                return (
-                  <li key={`${payment.id}-${index}`} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                    <span>{payment.ip_number ?? payment.reference_number ?? t('uxs17.receiptReferenceUnavailable', 'Receipt reference not recorded')}
-                      {payment.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(payment.date)}</span>}
-                    </span>
-                    <span className="tabular">{amount == null || !Number.isFinite(amount) || !allocation.currency
-                      ? t('uxs17.allocationAmountUnavailable', 'Applied amount not available')
-                      : formatCurrencyCents(amount, allocation.currency)}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            {paymentEvidence.hasUnknown && <p className="mt-2 text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>
-        )}
-      </div>
+          <Button variant="outline" className="min-h-11" onClick={() => void payments.refetch()}>{t('moneyIn:financeCopy.receiptDetailsRetry', 'Retry receipts')}</Button>
+        </div>
+      ) : paymentEvidence.allocations.length ? (
+        <>
+          <ul className="divide-y divide-border/70">
+            {paymentEvidence.allocations.map(({ payment, allocation }, index) => {
+              const amount = allocation.amount == null ? null : Number(allocation.amount);
+              return (
+                <li key={`${payment.id}-${index}`} className="flex flex-col items-start gap-1 py-3 text-sm">
+                  <span>
+                    <Link
+                      to={`/incoming-payments/${encodeURIComponent(payment.id)}`}
+                      state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
+                      className="inline-flex min-h-11 items-center underline underline-offset-2 hover:text-primary-text focus-visible:text-primary-text"
+                    >{payment.ip_number ?? payment.reference_number ?? t('uxs17.receiptReferenceUnavailable', 'Receipt reference not recorded')}</Link>
+                    {payment.date && <span className="ml-2 text-muted-foreground">{formatDateOnly(payment.date)}</span>}
+                  </span>
+                  <span className="tabular">{amount == null || !Number.isFinite(amount) || !allocation.currency
+                    ? t('uxs17.allocationAmountUnavailable', 'Applied amount not available')
+                    : formatCurrencyAuto(amount, allocation.currency)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          {paymentEvidence.hasUnknown && <p className="mt-2 text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>}
+        </>
+      ) : paymentEvidence.hasUnknown ? (
+        <p className="text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('moneyIn:financeCopy.noAppliedReceipts', 'No receipts have been applied to this invoice.')}</p>
       )}
     </section>
   );
@@ -271,6 +313,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
 const SalesInvoices: React.FC = () => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -279,7 +322,6 @@ const SalesInvoices: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const { day: organizationToday } = useFxOrgDay(true);
-  const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
   const pdfDownload = useInvoicePdfDownload();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
@@ -307,6 +349,10 @@ const SalesInvoices: React.FC = () => {
   const canCancel = may('transition', 'salesInvoice');
   const canRecordReceipt = may('record_received_date', 'salesInvoice');
   const canRecordEfaktur = may('record_efaktur', 'salesInvoice');
+  const canDownloadApprovedPdf = (inv: SalesInvoiceRow) =>
+    inv.erp_docstatus === 1
+    && (inv.status === 'Submitted' || inv.status === 'Unpaid' || inv.status === 'Paid')
+    && may('download_pdf', 'salesInvoice', { record: { status: inv.status, erp_docstatus: inv.erp_docstatus } });
   // One permission oracle for both the row-menu action and its View-modal continuation. The RPC
   // applies the same append-only author-set SoD rule; read-only users may still open invoice details.
   const canApproveDraft = (inv: SalesInvoiceRow) =>
@@ -321,6 +367,8 @@ const SalesInvoices: React.FC = () => {
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -329,6 +377,13 @@ const SalesInvoices: React.FC = () => {
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
     : 'All';
+  const appliedFilterCount = Number(statusFilter !== 'All')
+    + Number(Boolean(requestedCustomerId))
+    + Number(Boolean(searchParams.get('project')))
+    + Number(Boolean(searchParams.get('attribution') && searchParams.get('attribution') !== 'all'))
+    + Number(searchParams.get('overdue') === 'true');
+  const requestedSort = searchParams.get('sort');
+  const invoiceSort = isInvoiceSort(requestedSort) ? requestedSort : invoiceStatusDefaultSort(statusFilter);
   useEffect(() => {
     if (mode === undefined) return;
     const requested = searchParams.get('status');
@@ -339,15 +394,72 @@ const SalesInvoices: React.FC = () => {
       return next;
     }, { replace: true });
   }, [mode, searchParams, setSearchParams, statusFilters]);
+  useEffect(() => {
+    if (requestedSort === null || isInvoiceSort(requestedSort)) return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set('sort', invoiceStatusDefaultSort(statusFilter));
+      return next;
+    }, { replace: true });
+  }, [requestedSort, searchParams, setSearchParams, statusFilter]);
+  useEffect(() => {
+    const attribution = searchParams.get('attribution');
+    if (attribution === null || attribution === 'assigned' || attribution === 'unassigned') return;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('attribution');
+      return next;
+    }, { replace: true });
+  }, [searchParams, setSearchParams]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
+  const invoiceDetailsCount = viewTarget ? 1 + [
+    canDownloadApprovedPdf(viewTarget) && Boolean(viewTarget.received_date),
+    canRecordReceipt && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft',
+    canRecordEfaktur && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft',
+    may('assign_project', 'salesInvoice') && canAttributeInvoice(viewTarget),
+    canCancel && !(Boolean(viewTarget.pmo_native) && !native) && viewTarget.status !== 'Cancelled' && !(viewTarget.pmo_native && viewTarget.status === 'Paid'),
+  ].filter(Boolean).length : 1;
+  const [activeInvoiceSection, setActiveInvoiceSection] = useState('invoice-identity');
+  const invoiceSections = viewTarget ? [
+    { id: 'invoice-identity', label: t('financeCopy.customer', 'Customer') },
+    { id: 'invoice-position', label: t('uxs17.collectionSummary', 'Invoice collection details') },
+    { id: 'invoice-lines', label: t('financeCopy.lineItemsSection', 'Line items') },
+    ...(viewTarget.erp_docstatus === 1 && ['Submitted', 'Unpaid', 'Paid'].includes(viewTarget.status)
+      ? [{ id: 'invoice-delivery', label: t('uxs17.deliverySection', 'Client delivery') }]
+      : []),
+    { id: 'invoice-receipts', label: t('uxs17.appliedReceipts', 'Applied receipts') },
+    { id: 'invoice-details', label: t('financeCopy.invoiceDetails', 'Invoice details') },
+  ] : [];
+  const activeInvoiceSectionLabel = invoiceSections.find((section) => section.id === activeInvoiceSection)?.label
+    ?? invoiceSections[0]?.label
+    ?? '';
+
+  useEffect(() => {
+    if (!invoiceId || typeof IntersectionObserver === 'undefined') return;
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-money-in-section]'));
+    if (sections.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting)
+        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+      if (visible?.target instanceof HTMLElement && visible.target.id) setActiveInvoiceSection(visible.target.id);
+    }, { rootMargin: '-18% 0px -68% 0px' });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [invoiceId, viewTarget?.id]);
 
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
 
-  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
+  const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue' | 'sort', value: string) => {
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       if (!value || (key === 'status' && value === 'All')) next.delete(key);
       else next.set(key, value);
+      if (key === 'status' && !current.has('sort')) {
+        const nextStatus = value as StatusFilter;
+        const defaultSort = invoiceStatusDefaultSort(nextStatus || 'All');
+        if (defaultSort === 'due-asc') next.delete('sort');
+        else next.set('sort', defaultSort);
+      }
       return next;
     }, { replace: true });
   };
@@ -358,6 +470,7 @@ const SalesInvoices: React.FC = () => {
     const context = project || inv.customer_name || t('financeCopy.unnamedInvoice', 'invoice');
     return t('financeCopy.draftInvoiceForProject', 'Draft invoice · {{project}}', { project: context });
   };
+  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
 
   const invoiceEfakturContext = (inv: SalesInvoiceRow): React.ReactNode => {
     if (inv.si_number?.trim()) {
@@ -465,8 +578,9 @@ const SalesInvoices: React.FC = () => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const attribution = searchParams.get('attribution');
     return all
-      .filter((inv) => searchParams.get('attribution') !== 'unassigned' || inv.project_id === null)
+      .filter((inv) => attribution === 'unassigned' ? inv.project_id === null : attribution === 'assigned' ? inv.project_id !== null : true)
       .filter((inv) => matchesStatus(inv, statusFilter))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
       .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
@@ -485,21 +599,15 @@ const SalesInvoices: React.FC = () => {
         || [projectOptions?.find((option) => option.value === inv.project_id)].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
   }, [all, organizationToday, projectOptions, search, searchParams, statusFilter]);
 
-  // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
-    if (searchParams.get('overdue') !== 'true') return filtered;
-    return filtered
-      .map((invoice, index) => ({
-        invoice,
-        index,
-        age: overdueAgeDays(
-          deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
-          organizationToday,
-        ) ?? 0,
-      }))
-      .sort((a, b) => b.age - a.age || a.index - b.index)
-      .map(({ invoice }) => invoice);
-  }, [filtered, organizationToday, searchParams]);
+    const sortable = filtered.map((invoice) => ({
+      invoice,
+      id: invoice.id,
+      dueDate: deriveArDueDate(invoice.invoice_date, invoice.erp_payment_terms_days, invoice.erp_due_date, invoice.received_date),
+      invoiceDate: invoice.invoice_date,
+    }));
+    return sortSalesInvoiceCollection(sortable, invoiceSort, organizationToday ?? '').map(({ invoice }) => invoice);
+  }, [filtered, invoiceSort, organizationToday]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -513,7 +621,7 @@ const SalesInvoices: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
+          <h2 className="type-section-head text-heading">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theSalesInvoicesDirectoryIsAvailableToFinanceProjectManagersAndExecutives', "The sales invoices directory is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
@@ -526,11 +634,8 @@ const SalesInvoices: React.FC = () => {
 
   if (invoiceId) {
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-        <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
-          <Icon name="back" className="size-4" />
-          {t('financeCopy.backToInvoices', 'Back to Sales Invoices')}
-        </Button>
+      <div className="min-w-0">
+        <BackBar label={t('shell.nav.salesInvoices', 'Sales Invoices')} onBack={recordContext.closeRecord} phoneOnly />
         {isPending || mode === undefined ? (
           <ListState variant="loading" rows={3} />
         ) : isError || !data ? (
@@ -542,46 +647,88 @@ const SalesInvoices: React.FC = () => {
           />
         ) : viewTarget ? (
           <>
-            <header className="mb-5 border-b border-border pb-4">
-              <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                {viewTarget.si_number
-                  ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
-                  : invoiceDisplayLabel(viewTarget)}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
-            </header>
-            <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            <MoneyInPageHeader
+              kind="record"
+              title={viewTarget.si_number
+                ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                : invoiceDisplayLabel(viewTarget)}
+              scope={viewTarget.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}
+              status={isPartlyPaid(viewTarget)
+                ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+                : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
+              primaryAction={canDownloadApprovedPdf(viewTarget) && !viewTarget.received_date ? (
+                <Button
+                  variant="primary"
+                  disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
+                  onClick={() => void pdfDownload.download(viewTarget)}
+                  className="min-h-11"
+                >
+                  <Icon name="download" />
+                  {pdfDownload.inFlightIds.has(viewTarget.id)
+                    ? t('uxs17.preparingPdf', 'Preparing PDF…')
+                    : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
+                </Button>
+              ) : undefined}
+            />
+            <div className="sticky top-[var(--header-h)] z-10 -mx-4 mb-4 min-w-0 border-b border-border bg-background px-4 py-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0 break-words text-sm font-medium">
+                  {t('moneyIn:financeCopy.invoiceRecordIdentity', 'Invoice')} · {activeInvoiceSectionLabel}
+                </span>
+                <details className="group relative md:hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    {t('moneyIn:financeCopy.invoiceSections', 'Sections')}
+                  </summary>
+                  <nav aria-label={t('moneyIn:financeCopy.invoiceSections', 'Sections')} className="absolute right-0 top-full z-20 mt-1 grid min-w-48 gap-1 rounded-md border border-border bg-card p-2 shadow-sm">
+                    {invoiceSections.map((section) => (
+                      <a key={section.id} href={`#${section.id}`} aria-current={activeInvoiceSection === section.id ? 'location' : undefined}
+                        onClick={() => setActiveInvoiceSection(section.id)}
+                        className="flex min-h-11 items-center rounded px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {section.label}
+                      </a>
+                    ))}
+                  </nav>
+                </details>
+                <nav aria-label={t('moneyIn:financeCopy.invoiceSections', 'Sections')} className="hidden min-w-0 flex-wrap gap-x-2 md:flex">
+                  {invoiceSections.map((section) => (
+                    <a key={section.id} href={`#${section.id}`} aria-current={activeInvoiceSection === section.id ? 'location' : undefined}
+                      onClick={() => setActiveInvoiceSection(section.id)}
+                      className="inline-flex min-h-11 items-center border-b-2 px-2 text-sm text-muted-foreground aria-[current=location]:border-primary aria-[current=location]:text-foreground">
+                      {section.label}
+                    </a>
+                  ))}
+                </nav>
+              </div>
+            </div>
+            <section id="invoice-identity" data-money-in-section className="scroll-mt-[var(--header-h)]">
+              <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} readableWholeUnits />
+            </section>
+            <section id="invoice-position" data-money-in-section aria-labelledby="invoice-position-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
+              <h2 id="invoice-position-heading" className="mb-4 flex flex-col items-start gap-1 type-label text-muted-foreground">
+                <span>{t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}</span>{' '}
+                <span className="type-section-head tabular text-foreground">
+                {viewTarget.erp_outstanding_amount == null ? (
+                  <span title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>
+                    {t('moneyIn:financeCopy.notAvailableShort', 'Not available')}
+                  </span>
+                ) : (
+                  <>{formatNumber(viewTarget.erp_outstanding_amount)}<FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" /></>
+                )}
+                </span>
+              </h2>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+                {paidToDate(viewTarget) !== null && <div><dt className="type-label text-muted-foreground">{t('financeCopy.statusPaid', 'Paid')}</dt><dd className="mt-1 type-value tabular">{formatNumber(paidToDate(viewTarget)!)}</dd></div>}
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
-                  <dd className="mt-1 text-sm">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
+                  <dt className="type-label text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
+                  <dd className="mt-1 type-value tabular text-foreground">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
-                  <dd className="mt-1 text-sm">
+                  <dt className="type-label text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
+                  <dd className="mt-1 type-value tabular text-foreground">
                     {(() => {
                       const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
                       return dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available');
                     })()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.status', 'Status')}</dt>
-                  <dd className="mt-1">
-                    {isPartlyPaid(viewTarget)
-                      ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-                      : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}</dt>
-                  <dd className="mt-1 text-sm tabular">
-                    {viewTarget.erp_outstanding_amount == null
-                      ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
-                      : <>
-                        {formatCurrencyCents(viewTarget.erp_outstanding_amount, viewTarget.currency)}
-                        <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
-                      </>}
                   </dd>
                 </div>
                 {(() => {
@@ -589,17 +736,27 @@ const SalesInvoices: React.FC = () => {
                   const overdueDays = overdueAgeDays(dueDate, organizationToday);
                   return overdueDays != null && overdueDays > 0 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') ? (
                     <div>
-                      <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
-                      <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
+                      <dt className="type-label text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
+                      <dd className="mt-1 type-value tabular text-foreground">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
                     </div>
                   ) : null;
                 })()}
               </dl>
             </section>
+            {viewTarget.pmo_native ? (
+              <section id="invoice-lines" data-money-in-section className="scroll-mt-[var(--header-h)]">
+                <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} readableWholeUnits />
+              </section>
+            ) : (
+              <section id="invoice-lines" data-money-in-section className="scroll-mt-[var(--header-h)]">
+                <SalesInvoiceEvidenceSection invoice={viewTarget} />
+                <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} showLineItems={false} readableWholeUnits />
+              </section>
+            )}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
-              <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
+              <section id="invoice-delivery" data-money-in-section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
                 <div>
-                  <h2 className="text-base font-semibold">
+                  <h2 className="type-section-head text-heading">
                     {viewTarget.received_date
                       ? t('uxs17.receivedByClient', 'Received by client')
                       : t('uxs17.readyToSend', 'Ready to send')}
@@ -610,35 +767,51 @@ const SalesInvoices: React.FC = () => {
                       : t('uxs17.manualHandoffHelp', 'Download the PDF and send it to your client yourself.')}
                   </p>
                 </div>
-                {!viewTarget.received_date && (
-                  <div className="flex flex-wrap gap-2">
-                    {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
-                      <Button
-                        variant="primary"
-                        disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
-                        onClick={() => void pdfDownload.download(viewTarget)}
-                      >
-                        <Icon name="download" />
-                        {pdfDownload.inFlightIds.has(viewTarget.id)
-                          ? t('uxs17.preparingPdf', 'Preparing PDF…')
-                          : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
-                      </Button>
-                    )}
-                    {canRecordReceipt && (
-                      <Button variant="outline" onClick={() => setReceiptTarget(viewTarget)}>
-                        {t('financeCopy.recordReceivedDate', 'Record received date')}
-                      </Button>
-                    )}
-                  </div>
-                )}
               </section>
             )}
-            <SalesInvoiceEvidenceSection invoice={viewTarget} />
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
+            <SalesInvoiceAppliedReceipts invoice={viewTarget} />
+            <details id="invoice-details" data-money-in-section className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
+              <summary className="min-h-11 cursor-pointer py-2 font-medium">{t('moneyIn:financeCopy.invoiceDetailsSummary', 'Invoice details · {{count}}', { count: invoiceDetailsCount })}</summary>
+              <dl className="grid gap-x-6 gap-y-3 py-2 sm:grid-cols-2">
+                <div>
+                  <dt className="text-xs font-medium text-muted-foreground">{t('efaktur.column', 'e-Faktur')}</dt>
+                  <dd className="mt-1 break-words text-sm">
+                    {[viewTarget.efaktur_number, viewTarget.efaktur_date ? formatDateOnly(viewTarget.efaktur_date) : null].filter(Boolean).join(' · ') || t('uxs06.notReported', 'Not reported')}
+                  </dd>
+                </div>
+              </dl>
+              <div className="flex flex-wrap gap-2">
+                {canDownloadApprovedPdf(viewTarget) && viewTarget.received_date && (
+                  <Button variant="ghost" className="min-h-11" onClick={() => void pdfDownload.download(viewTarget)} disabled={pdfDownload.inFlightIds.has(viewTarget.id)}>
+                    {t('financeCopy.invoicePdf.download', 'Download PDF')}
+                  </Button>
+                )}
+                {canRecordReceipt && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft' && (
+                  <Button variant="ghost" className="min-h-11" onClick={() => setReceiptTarget(viewTarget)}>
+                    {t('financeCopy.recordReceivedDate', 'Record received date')}
+                  </Button>
+                )}
+                {canRecordEfaktur && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft' && (
+                  <Button variant="ghost" className="min-h-11" onClick={() => setEfakturTarget(viewTarget)}>
+                    {t('efaktur.record', 'Record e-Faktur')}
+                  </Button>
+                )}
+                {may('assign_project', 'salesInvoice') && canAttributeInvoice(viewTarget) && (
+                  <Button variant="ghost" className="min-h-11" onClick={() => setProjectTarget(viewTarget)}>
+                    {viewTarget.project_id ? t('invoiceProject.change', 'Change project') : t('invoiceProject.assign', 'Assign project')}
+                  </Button>
+                )}
+                {canCancel && !(Boolean(viewTarget.pmo_native) && !native) && viewTarget.status !== 'Cancelled' && !(viewTarget.pmo_native && viewTarget.status === 'Paid') && (
+                  <Button variant="ghost" className="min-h-11 text-destructive-text" onClick={() => setCancelTarget(viewTarget)}>
+                    {t('financeCopy.cancel', 'Cancel')}
+                  </Button>
+                )}
+              </div>
+            </details>
             {canApproveDraft(viewTarget) && (
               <div className="mt-5 flex justify-end">
-                <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)}>
-                  {t('financeCopy.continueToApprove', 'Continue to approve')}
+                <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)} className="min-h-11">
+                  {t('financeCopy.approveInvoice', 'Approve invoice')}
                 </Button>
               </div>
             )}
@@ -664,19 +837,16 @@ const SalesInvoices: React.FC = () => {
           onConfirm={onSubmitConfirm}
           onCancel={() => setSubmitTarget(null)}
         />
-      </main>
+      </div>
     );
   }
 
-  // FIN-S1 / T4 (AC-RD-TBL-INV-001): one primary cell (number over customer), then at most six more
-  // columns. Dates other than Due, and the separate Customer, are export-only below.
-  const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
-  const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
+  // The list keeps the invoice's identity, its customer/project context, its collection state, and both balances distinct.
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: t('financeCopy.invoice', "Invoice #"),
     kind: 'primary',
-    size: 280,
+    size: 220,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -688,8 +858,8 @@ const SalesInvoices: React.FC = () => {
       // The opening-balance fact rides the Pre-ERP badge (tooltip + screen reader), not a line in the row.
       const preErpDetail = inv.erp_opening_amount != null && inv.erp_opening_at
         ? `${preErp}. ${t('financeCopy.carriedIntoErpOpening', 'Carried into the ERP opening balance: {{amount}} on {{date}}', {
-          amount: formatCurrencyCents(inv.erp_opening_amount, inv.currency),
-          date: formatInstantDate(inv.erp_opening_at),
+          amount: formatCurrencyAuto(inv.erp_opening_amount, inv.currency),
+          date: formatInstantTimestamp(inv.erp_opening_at),
         })}`
         : preErp;
       return (
@@ -697,9 +867,10 @@ const SalesInvoices: React.FC = () => {
           <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'inline-flex min-h-11 items-center break-words text-sm text-foreground underline underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center break-words type-value text-foreground underline underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>
+          <Link to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="inline-flex min-h-11 items-center text-sm underline underline-offset-2">{t('moneyIn:financeCopy.openInvoice', 'Open')}</Link>
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
           {inv.pmo_native && !native && (
             <Badge title={preErpDetail}>
@@ -710,18 +881,28 @@ const SalesInvoices: React.FC = () => {
         </span>
       );
     },
-    secondaryCell: (inv) => {
+    exportValue: (inv) => invoiceNumber(inv) ?? '',
+  };
+  const customerProjectColumn: Column<SalesInvoiceRow> = {
+    key: 'customer_project',
+    header: t('moneyIn:financeCopy.customerProjectContext', 'Customer / project'),
+    kind: 'text',
+    size: 210,
+    cell: (inv) => {
       const project = projectLabelOf(inv);
-      const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
-      if (!customer && !project) return null;
       return (
-        <>
-          {customer && <span className="block truncate" title={customer}>{customer}</span>}
-          {project && <span className="block truncate" title={project}>{project}</span>}
-        </>
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="break-words type-value">{inv.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}</span>
+          {project
+            ? <span className="break-words type-value text-muted-foreground">{project}</span>
+            : inv.project_id
+              ? <span className="break-words type-value text-muted-foreground">{t('financeCopy.projectUnavailable', 'Project details unavailable')}</span>
+              : null}
+          {inv.reference_number && <span className="break-words type-value text-muted-foreground">{inv.reference_number}</span>}
+        </span>
       );
     },
-    exportValue: (inv) => invoiceNumber(inv) ?? '',
+    exportValue: (inv) => inv.customer_name ?? '',
   };
   const referenceColumn: Column<SalesInvoiceRow> = {
     key: 'reference_number',
@@ -729,7 +910,7 @@ const SalesInvoices: React.FC = () => {
     kind: 'text',
     size: 140,
     cell: (inv) => inv.reference_number
-      ? <span className="truncate" title={inv.reference_number}>{inv.reference_number}</span>
+      ? <span className="min-w-0 break-words">{inv.reference_number}</span>
       : <span className="text-muted-foreground">—</span>,
     exportValue: (inv) => inv.reference_number ?? '',
   };
@@ -755,69 +936,35 @@ const SalesInvoices: React.FC = () => {
   };
   const amountColumn: Column<SalesInvoiceRow> = {
     key: 'amount',
-    header: t('financeCopy.amount', "Amount"),
+    header: t('moneyIn:financeCopy.invoiceGross', 'Invoice gross'),
     kind: 'money',
     align: 'num',
-    size: 200,
-    // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
-    // row, so no invoice total may be bare. The basis is the row's own; the org default
-    // pre-selects a form and is never read here.
+    size: 180,
     cell: (inv) => {
-      // The ISO code is shown only when it tells the reader something: the invoice is not in the org currency.
-      const showCode = inv.amount != null && Boolean(inv.currency) && inv.currency !== orgCurrency;
-      return (
-        <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
-          <span className="inline-flex items-baseline justify-end gap-1">
-            <span className="tabular text-right text-[13px]">
-              {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
-            </span>
-            {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
-          </span>
-          {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
-          {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
-          {inv.pmo_native && invoiceGross(inv) != null && (
-            <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
-              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyCents(invoiceGross(inv)!, inv.currency) })}
-              <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
-            </span>
-          )}
-        </span>
-      );
+      const gross = invoiceGross(inv);
+      return <div className="tabular text-right type-value">
+        <span>{inv.currency} {gross === null ? t('moneyIn:financeCopy.notAvailableShort', 'Not available') : formatNumber(gross)}</span>
+        {isDesktop && inv.amount != null && <details className="text-left">
+          <summary className="min-h-11 cursor-pointer py-2 type-label">{t('moneyIn:financeCopy.amountDetails', 'Amount details')}</summary>
+          <p>{t('moneyIn:financeCopy.recordedAmount', 'Recorded amount')} · {inv.currency} {formatNumber(inv.amount)} <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} /></p>
+          {inv.currency === 'USD' && inv.invoice_date && <>
+
+          <p>{t('moneyIn:financeCopy.netEquivalent', 'Net equivalent')}<FxEquivalent amount={invoiceNet(inv)} currency={inv.currency} date={inv.invoice_date} /></p>
+          <p>{t('moneyIn:financeCopy.grossEquivalent', 'Gross equivalent')}<FxEquivalent amount={gross} currency={inv.currency} date={inv.invoice_date} /></p></>}
+        </details>}
+      </div>;
     },
-    // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
-    exportValue: (inv) => inv.amount ?? '',
+    exportValue: (inv) => invoiceGross(inv) ?? '',
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: t('financeCopy.outstanding', "Outstanding"),
+    header: t('moneyIn:financeCopy.outstandingGross', 'Outstanding gross'),
     kind: 'money',
     align: 'num',
-    size: 170,
-    cell: (inv) => {
-      const overpaid = overpaidBy(inv);
-      const paid = paidToDate(inv);
-      return (
-        <span className="flex w-full flex-col items-end gap-0.5 text-right">
-          <span className="tabular text-[13px]">
-            {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
-          </span>
-          {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
-          {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
-          {paid != null && (
-            <span className="text-xs text-muted-foreground">
-              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyCents(paid, inv.currency) })}
-            </span>
-          )}
-          {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
-          {overpaid != null && (
-            <span className="text-xs text-muted-foreground">
-              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
-            </span>
-          )}
-        </span>
-      );
-    },
+    size: 180,
+    cell: (inv) => inv.erp_outstanding_amount != null
+      ? <span className="tabular text-right text-heading font-bold">{inv.currency} {formatNumber(inv.erp_outstanding_amount)}<FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" /></span>
+      : <span className="text-sm text-muted-foreground" title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>{inv.currency} {t('moneyIn:financeCopy.notAvailableShort', 'Not available')}</span>,
     exportValue: (inv) => inv.erp_outstanding_amount ?? '',
   };
   const dueColumn: Column<SalesInvoiceRow> = {
@@ -840,17 +987,22 @@ const SalesInvoices: React.FC = () => {
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
-  const efakturColumn: Column<SalesInvoiceRow> = {
-    // One cell for the pair (number over a muted date). Shown only when a loaded row carries a value.
-    key: 'efaktur',
-    header: t('efaktur.column', 'e-Faktur'),
-    kind: 'text',
-    size: 150,
-    cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
+  const statusDueColumn: Column<SalesInvoiceRow> = {
+    key: 'status_due',
+    header: t('moneyIn:financeCopy.statusDueContext', 'Status / due'),
+    kind: 'status',
+    size: 200,
+    cell: (inv) => {
+      const overpaid = overpaidBy(inv);
+      return <span className="flex min-w-0 flex-col items-start gap-1">
+        {statusColumn.cell(inv)}
+        <span className="text-sm">{dueColumn.cell(inv)}</span>
+        {overpaid != null && <span className="text-sm">{t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyAuto(overpaid, inv.currency) })}</span>}
+      </span>;
+    },
   };
   const columns: Column<SalesInvoiceRow>[] = [
-    invoiceColumn, referenceColumn, statusColumn, amountColumn, outstandingColumn, dueColumn,
-    ...(showEfaktur ? [efakturColumn] : []),
+    invoiceColumn, customerProjectColumn, statusDueColumn, outstandingColumn, amountColumn,
   ];
 
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
@@ -860,7 +1012,9 @@ const SalesInvoices: React.FC = () => {
     referenceColumn,
     { key: 'customer_id', header: t('financeCopy.customer', "Customer"), cell: (inv) => inv.customer_name, exportValue: (inv) => inv.customer_name ?? '' },
     statusColumn,
-    amountColumn,
+    { ...amountColumn, key: 'invoice_gross' },
+    { key: 'amount', header: t('moneyIn:financeCopy.netAmount', 'Net amount'), cell: (inv) => invoiceNet(inv), exportValue: (inv) => invoiceNet(inv) ?? '' },
+    { key: 'recorded_amount', header: t('moneyIn:financeCopy.recordedAmount', 'Recorded amount'), cell: (inv) => inv.amount, exportValue: (inv) => inv.amount ?? '' },
     outstandingColumn,
     { key: 'invoice_date', header: t('financeCopy.date', "Date"), cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
     { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
@@ -961,22 +1115,54 @@ const SalesInvoices: React.FC = () => {
     }
   }
 
+  const clearFilters = () => {
+    setSearch('');
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      for (const key of ['q', 'status', 'customer', 'project', 'attribution', 'overdue', 'sort']) next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+
   return (
-    <ListPage
-      title={t('financeCopy.salesInvoices', "Sales Invoices")}
-      description={t('finance:invoices.description', 'Client invoices.')}
-      primaryAction={mode !== undefined && !createRequested && canCreate ? (
-        <Button variant="primary" onClick={openNewInvoice}>
-          <Icon name="plus" />
-          {t('financeCopy.newInvoice', "New Invoice")}</Button>
-      ) : undefined}
-      filters={
-        state !== 'loading' && (
+    <div className="min-w-0">
+      <MoneyInPageHeader
+        title={t('financeCopy.salesInvoices', 'Sales Invoices')}
+        scope={t('moneyIn:financeCopy.invoiceCollectionScope', 'Client invoices · gross amounts in each invoice currency.')}
+      />
+      <div data-testid="money-in-toolbar" className="mb-4 grid min-w-0 grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-start">
+        <SearchMini
+          placeholder={t('financeCopy.searchInvoices', 'Search invoices…')}
+          aria-label={t('financeCopy.searchSalesInvoices', 'Search sales invoices')}
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            updateListParam('q', e.target.value);
+          }}
+          searchSurface="sales-invoices-list"
+          module="salesInvoices"
+          resultCount={filtered.length}
+          className="min-h-11"
+          containerClassName="col-span-2 min-h-11 w-full md:w-64"
+        />
+        <div className="flex min-w-0 items-center gap-2 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={filtersOpen}
+            aria-controls="invoice-collection-filters"
+            className="min-h-11 flex-1"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            {t('uxs14.filters', 'Filters')}{appliedFilterCount > 0 ? ` · ${appliedFilterCount}` : ''}
+          </Button>
+        </div>
+        <div id="invoice-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} col-span-2 min-w-0 flex-col gap-2 md:flex md:min-w-[min(100%,52rem)] md:flex-1`}>
           <div
             role="region"
-            aria-label={t('financeCopy.filterByStatus', "Filter by status")}
+            aria-label={t('financeCopy.filterByStatus', 'Filter by status')}
             tabIndex={0}
-            className="min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="flex min-w-0 max-w-full flex-wrap items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <ViewToggle<StatusFilter>
               options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
@@ -985,70 +1171,99 @@ const SalesInvoices: React.FC = () => {
                 updateListParam('status', v);
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
-              ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
+              ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
+              className="max-w-full flex-wrap"
             />
-            <div className="mt-2 flex flex-wrap items-end gap-2">
-              {requestedCustomerId && (
-                <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('dashboard.uxs36CustomerFilterLabel', 'Customer')}: <span className="font-medium">
-                      {selectedCustomer?.label ?? t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}
-                    </span>
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => updateListParam('customer', '')}
-                  >{t('dashboard.uxs36CustomerFilterClear', 'Clear customer filter')}</Button>
-                </div>
-              )}
-              {contextualProjectId && (
-                <div data-testid="project-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
-                  <span role="status" className="min-w-0 break-words text-sm">
-                    {t('financeCopy.project', 'Project')}: <span className="font-medium">
-                      {selectedProject?.label ?? t('financeCopy.projectUnavailable', 'Project details unavailable')}
-                    </span>
-                  </span>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => updateListParam('project', '')}>
-                    {t('finance:invoices.clearProject', 'Clear project filter')}
-                  </Button>
-                </div>
-              )}
-              <Button
-                type="button"
-                variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
-                aria-pressed={searchParams.get('overdue') === 'true'}
-                disabled={!organizationToday}
-                onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
-              >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
-            </div>
+          <Button
+            type="button"
+            variant="outline"
+            aria-pressed={searchParams.get('overdue') === 'true'}
+            disabled={!organizationToday}
+            className="min-h-11 self-start"
+            onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
+          ><span aria-hidden="true" className="inline-flex size-4 items-center justify-center rounded-sm border border-input">{searchParams.get('overdue') === 'true' ? '✓' : ''}</span>{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+          {!organizationToday && <p className="type-label text-muted-foreground">{t('moneyIn:financeCopy.overdueDateUnavailable', 'The organization date is unavailable. Refresh to use the overdue filter.')}</p>}
           </div>
-        )
-      }
-      search={
-        state !== 'loading' && (
-          <SearchMini
-            placeholder={t('financeCopy.searchInvoices', "Search invoices…")}
-            aria-label={t('financeCopy.searchSalesInvoices', "Search sales invoices")}
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              updateListParam('q', e.target.value);
-            }}
-            searchSurface="sales-invoices-list"
-            module="salesInvoices"
-            resultCount={filtered.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+          <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
+            <label className="sr-only" htmlFor="invoice-customer-filter">{t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}</label>
+            <select
+              id="invoice-customer-filter"
+              aria-label={t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}
+              value={requestedCustomerId ?? ''}
+              onChange={(event) => updateListParam('customer', event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="">{t('moneyIn:financeCopy.allCustomers', 'All customers')}</option>
+              {requestedCustomerId && !selectedCustomer && <option value={requestedCustomerId}>{t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</option>}
+              {(customerOptionsQuery.data ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="invoice-project-filter">{t('moneyIn:financeCopy.filterByProject', 'Filter by project')}</label>
+            <select
+              id="invoice-project-filter"
+              aria-label={t('moneyIn:financeCopy.filterByProject', 'Filter by project')}
+              value={searchParams.get('project') ?? ''}
+              onChange={(event) => updateListParam('project', event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="">{t('moneyIn:financeCopy.allProjects', 'All projects')}</option>
+              {searchParams.get('project') && !selectedProject && <option value={searchParams.get('project')!}>{t('financeCopy.projectUnavailable', 'Project details unavailable')}</option>}
+              {(projectOptions ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+            <label className="sr-only" htmlFor="invoice-attribution-filter">{t('moneyIn:financeCopy.filterByAttribution', 'Filter by project attribution')}</label>
+            <select
+              id="invoice-attribution-filter"
+              aria-label={t('moneyIn:financeCopy.filterByAttribution', 'Filter by project attribution')}
+              value={searchParams.get('attribution') ?? 'all'}
+              onChange={(event) => updateListParam('attribution', event.target.value === 'all' ? '' : event.target.value)}
+              className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            >
+              <option value="all">{t('moneyIn:financeCopy.allAttribution', 'All project attribution')}</option>
+              <option value="assigned">{t('moneyIn:financeCopy.assignedToProject', 'Assigned to project')}</option>
+              <option value="unassigned">{t('invoiceProject.unassignedFilter', 'Unassigned invoices')}</option>
+            </select>
+          </div>
+
+        </div>
+        <label className="flex min-h-11 min-w-0 items-center gap-2 md:w-auto">
+          <span className="sr-only">{t('moneyIn:financeCopy.sortInvoices', 'Sort invoices')}</span>
+          <select
+            aria-label={t('moneyIn:financeCopy.sortInvoices', 'Sort invoices')}
+            value={invoiceSort}
+            onChange={(event) => updateListParam('sort', event.target.value)}
+            className="min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:w-auto"
+          >
+            <option value="due-asc">{t('moneyIn:financeCopy.dueSoonest', 'Due soonest')}</option>
+            <option value="overdue-desc">{t('moneyIn:financeCopy.oldestOverdueFirst', 'Oldest overdue first')}</option>
+            <option value="invoice-date-desc">{t('moneyIn:financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
+          </select>
+        </label>
+        <div className="col-span-2 flex min-w-0 items-center gap-2 md:ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={moreActionsOpen}
+            aria-controls="invoice-collection-more-actions"
+            className="min-h-11 flex-1 md:hidden"
+            onClick={() => setMoreActionsOpen((open) => !open)}
+          >{t('uxs14.moreActions', 'More actions')}</Button>
+          <div id="invoice-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
+          <ExportButton
+            rows={sortedInvoices}
+            columns={exportColumns}
+            entity={t('financeCopy.salesInvoices', 'Sales Invoices')}
+            label={t('moneyIn:financeCopy.exportInvoices', 'Export invoices')}
+            disabled={state === 'loading' || state === 'error'}
+            className="min-h-11"
           />
-        )
-      }
-      exportAction={
-        state !== 'loading' && (
-          <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
-        )
-      }
-    >
+          </div>
+          {mode !== undefined && !createRequested && canCreate && (
+            <Button variant="primary" onClick={openNewInvoice} className="min-h-11">
+              <Icon name="plus" />
+              {t('financeCopy.newInvoice', 'New Invoice')}
+            </Button>
+          )}
+        </div>
+      </div>
       {/* Body */}
       {contextError && (
         <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-3 py-2.5 text-sm">
@@ -1062,22 +1277,22 @@ const SalesInvoices: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => { void refetchProjectOptions(); void refetchCustomerOptions(); }}
+              className="min-h-11"
             >
               {t('uxs15.retryContext', 'Retry context')}
             </Button>
           )}
         </div>
       )}
-      {searchParams.get('attribution') === 'unassigned' && (
-        <div className="mb-3 flex items-center gap-2">
-          <span className="rounded-full border border-border bg-secondary px-3 py-1 text-sm">
-            {t('invoiceProject.unassignedFilter', 'Unassigned invoices')}
-          </span>
-          <Button variant="ghost" size="sm" onClick={() => updateListParam('attribution', '')}>
-            {t('financeCopy.clearFilter', 'Clear filter')}
-          </Button>
-        </div>
-      )}
+      {searchParams.get('attribution') && <div className="mb-3 flex flex-wrap items-center gap-2 type-value">
+        <span>{searchParams.get('attribution') === 'unassigned' ? t('invoiceProject.unassignedFilter', 'Unassigned invoices') : t('moneyIn:financeCopy.attributionAssigned', 'Assigned invoices')}</span>
+        <Button variant="ghost" className="min-h-11" onClick={() => updateListParam('attribution', '')}>{t('moneyIn:financeCopy.clearAttributionFilter', 'Clear filter')}</Button>
+      </div>}
+      {selectedProject && <p className="mb-3 break-words type-value">{selectedProject.label}</p>}
+      {requestedCustomerId && <div data-testid="customer-filter" className="mb-3 flex flex-wrap items-center gap-2 type-value">
+        <span>{selectedCustomer ? `${t('financeCopy.customer', 'Customer')}: ${selectedCustomer.label}` : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</span>
+        <Button variant="ghost" className="min-h-11" onClick={() => updateListParam('customer', '')}>{t('moneyIn:financeCopy.clearCustomerFilter', 'Clear customer filter')}</Button>
+      </div>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -1107,16 +1322,39 @@ const SalesInvoices: React.FC = () => {
         />
       )}
 
-      {state === undefined && (
+      {state === undefined && filtered.length === 0 && (
+        <ListState
+          variant="empty"
+          icon="search"
+          title={t('financeCopy.noInvoicesMatchYourFilters', 'No invoices match your filters')}
+          sub={(
+            <div className="flex flex-col items-center gap-2">
+              <span>{t('financeCopy.tryADifferentStatusOrClearTheSearch', 'Try a different status or clear the search.')}</span>
+              <Button variant="ghost" onClick={clearFilters} className="min-h-11">
+                {t('moneyIn:financeCopy.clearFilters', 'Clear filters')}
+              </Button>
+            </div>
+          )}
+        />
+      )}
+
+      {state === undefined && sortedInvoices.some((invoice) => invoice.erp_outstanding_amount == null) && (
+        <p role="note" className="mb-3 type-value text-muted-foreground">{t('moneyIn:financeCopy.balanceUnavailableRecovery', 'Some invoice balances are unavailable. Open the invoice to review its source details, then refresh this list.')}</p>
+      )}
+
+      {state === undefined && filtered.length > 0 && (
         <DataTable<SalesInvoiceRow>
           rows={sortedInvoices}
           columns={columns}
           rowKey={(inv) => inv.id}
+          mobileDetails={{
+            columnKeys: ['amount'],
+            summary: (_inv, count) => t('moneyIn:financeCopy.invoiceMoreDetails', 'More invoice details · {{count}}', { count }),
+          }}
           rowMenu={rowMenu}
-          state={sortedInvoices.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
-          emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
-        tableId="salesinvoices-table" />
+          tableId="salesinvoices-table"
+          accessibleName={t('financeCopy.salesInvoices', 'Sales Invoices')}
+        />
       )}
 
       {/* Create / edit modal */}
@@ -1220,7 +1458,7 @@ const SalesInvoices: React.FC = () => {
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
       />
-    </ListPage>
+    </div>
   );
 };
 
@@ -1263,7 +1501,7 @@ const ReceivedDateModal: React.FC<{
         onChange={setValue}
         min={invoice.invoice_date ?? undefined}
         error={tooEarly ? t('financeCopy.receivedBeforeInvoiceDate', 'Cannot be before the invoice date') : undefined}
-        className="w-48"
+        className="min-h-11 w-48"
       />
     </EntityFormModal>
   );
@@ -1338,7 +1576,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
   const projectCurrencyUnavailable = native && Boolean(projectField.value) && !selectedProjectCurrency;
   // I-2: the project's page is where its contract value and VAT rate are recorded.
   const vatRateLink = (projectId: string | null) => projectId ? (
-    <Link to={`/projects/${projectId}`} className="font-medium text-primary-text underline underline-offset-2">
+    <Link to={`/projects/${projectId}`} className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2">
       {t('financeCopy.recordVatRateOnProject', 'Record the VAT rate on the project')}
     </Link>
   ) : null;
@@ -1459,6 +1697,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
+      disabledReasonVisible
       errorSummary={errorSummary}
     >
       {!native && pendingPush.status !== 'idle' && (
@@ -1470,6 +1709,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         <FormGrid>
           <Combobox
             id={customerField.id}
+            triggerClassName="min-h-11"
             label={t('financeCopy.customer', "Customer")}
             required
             value={customerField.value}
@@ -1487,6 +1727,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
           />
           <Combobox
             id={projectField.id}
+            triggerClassName="min-h-11"
             label={t('financeCopy.project', "Project")}
             required={native}
             value={projectField.value ?? ''}
@@ -1518,11 +1759,13 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   onChange={(value) => updateLineItem(index, 'description', value)}
                   maxLength={140}
                   placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
+                  className="min-h-11"
                 />
               )}
               {erpItems.connected ? (
                 <Combobox
                   id={`sales-invoice-line-${index}-item`}
+                  triggerClassName="min-h-11"
                   label={t('financeCopy.erpItem', 'ERP item')}
                   value={item.item_code || null}
                   selectedOption={item.item_code ? { value: item.item_code, label: item.item_code } : null}
@@ -1543,7 +1786,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   required={!native}
                   maxLength={native ? 140 : undefined}
                   placeholder={t('financeCopy.iTEM001', "ITEM-001")}
-                  className="flex-1"
+                  className="min-h-11 flex-1"
                 />
               )}
               {!native && erpItems.connected && (
@@ -1554,6 +1797,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   onChange={(value) => updateLineItem(index, 'description', value)}
                   maxLength={native ? 140 : undefined}
                   placeholder={t('financeCopy.describeWorkOrGoods', 'Describe the work or goods…')}
+                  className="min-h-11"
                 />
               )}
             </div>
@@ -1566,7 +1810,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               min={0}
               step={0.001}
               localeAware
-              className="w-full sm:w-24"
+              className="min-h-11 w-full sm:w-24"
             />
             <NumberField
               id={`sales-invoice-line-${index}-rate`}
@@ -1579,14 +1823,14 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               step={0.01}
               prefix={moneyPrefix}
               helper={projectCurrencyUnavailable ? t('uxs15.currencyUnavailable', 'Project currency unavailable.') : undefined}
-              className="w-full sm:w-32"
+              className="min-h-11 w-full sm:w-32"
             />
             {lineItems.length > 1 && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="self-end mt-5"
+                className="min-h-11 min-w-11 self-end mt-5"
                 onClick={() => removeLineItem(index)}
                 aria-label={t('financeCopy.removeLine', 'Remove line {{line}}', { line: index + 1 })}
               >
@@ -1595,7 +1839,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
             )}
           </div>
         ))}
-        <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+        <Button type="button" variant="outline" size="sm" className="min-h-11" onClick={addLineItem}>
           <Icon name="plus" className="size-4 mr-1.5" />
           {t('financeCopy.addLineItem', "Add line item")}</Button>
       </FormSection>
@@ -1605,7 +1849,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         className="mt-4 border-t border-border pt-4"
         aria-label={t('uxs16.invoiceDraftReview', 'Invoice draft review')}
       >
-        <h3 className="text-sm font-semibold">
+        <h3 className="type-section-head text-heading">
           {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
           {draftReviewCurrency && (
             <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>
@@ -1621,7 +1865,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               <div className="flex min-w-0 items-baseline justify-between gap-4">
                 <dt className="text-muted-foreground">{t('uxs16.subtotal', 'Subtotal')}</dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.subtotal === null ? '—' : formatCurrencyCents(draftPreview.subtotal, draftReviewCurrency)}
+                  {draftPreview.subtotal === null ? '—' : formatCurrencyAuto(draftPreview.subtotal, draftReviewCurrency)}
                 </dd>
               </div>
               {native && (
@@ -1631,13 +1875,13 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
                   <span>{t('uxs16.tax', 'Tax')}</span>
                 </dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.tax === null ? '—' : formatCurrencyCents(draftPreview.tax, draftReviewCurrency)}
+                  {draftPreview.tax === null ? '—' : formatCurrencyAuto(draftPreview.tax, draftReviewCurrency)}
                 </dd>
               </div>
               <div className="flex min-w-0 items-baseline justify-between gap-4 border-t border-border pt-2 font-semibold">
                 <dt>{t('uxs16.total', 'Total')}</dt>
                 <dd className="shrink-0 text-right tabular-nums">
-                  {draftPreview.total === null ? '—' : formatCurrencyCents(draftPreview.total, draftReviewCurrency)}
+                  {draftPreview.total === null ? '—' : formatCurrencyAuto(draftPreview.total, draftReviewCurrency)}
                 </dd>
               </div>
               </>
@@ -1652,7 +1896,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
               <p className="mt-3 text-sm text-muted-foreground">
                 {t('uxs16.projectTaxUnavailable', 'Project tax details are unavailable, so tax and final total cannot be previewed yet.')}{' '}
                 {selectedProject && (
-                  <Link to={`/projects/${selectedProject.value}`} className="font-medium text-primary-text underline underline-offset-2">
+                  <Link to={`/projects/${selectedProject.value}`} className="inline-flex min-h-11 items-center font-medium text-primary-text underline underline-offset-2">
                     {t('uxs16.reviewProjectTax', 'Review project tax settings')}
                   </Link>
                 )}

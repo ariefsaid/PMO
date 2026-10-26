@@ -70,11 +70,6 @@
     "catalogueValue": "Bill"
   },
   {
-    "key": "revenueByProject.subtitle",
-    "defaultValue": "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
-    "catalogueValue": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
-  },
-  {
     "key": "profileSettings.saving",
     "defaultValue": "Saving your preferences…",
     "catalogueValue": "Saving your preference…"

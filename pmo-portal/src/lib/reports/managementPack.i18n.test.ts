@@ -8,11 +8,10 @@ const get = (obj: Record<string, unknown>, path: string): unknown =>
   path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown> | undefined)?.[k], obj);
 
 const KEYS = [
-  'shell.nav.managementPack',
-  'managementPack.title', 'managementPack.description', 'managementPack.from', 'managementPack.asAt',
+  'managementPack.from', 'managementPack.asAt',
   'managementPack.noAccessTitle', 'managementPack.noAccessSub',
-  'managementPack.errorTitle', 'managementPack.errorSub', 'managementPack.invalidRange', 'managementPack.emptyTitle',
-  'managementPack.emptySub', 'managementPack.projectsAsAt', 'managementPack.monthlyTotals', 'managementPack.unassigned',
+  'managementPack.errorSub', 'managementPack.invalidRange', 'managementPack.emptyTitle',
+  'managementPack.unassigned',
   'managementPack.otherCurrency', 'managementPack.recordProgress', 'managementPack.billedAhead', 'managementPack.undated',
   'managementPack.total', 'managementPack.basis.invoiced', 'managementPack.basis.progress', 'managementPack.basis.progressShort',
   'managementPack.col.month', 'managementPack.col.projectNumber', 'managementPack.col.project', 'managementPack.col.client',

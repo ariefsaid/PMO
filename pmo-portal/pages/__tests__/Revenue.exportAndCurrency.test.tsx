@@ -10,7 +10,7 @@
  * asserts `$` is ABSENT, so a still-hardcoded prefix reddens it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -140,8 +140,8 @@ describe('#731 the money lists are exportable', () => {
     expect(btn).toBeEnabled();
     await userEvent.setup().click(btn);
     const { ws, col } = await exportedSheet();
-    const amount = ws.getRow(2).getCell(col('Amount'));
-    const outstanding = ws.getRow(2).getCell(col('Outstanding'));
+    const amount = ws.getRow(2).getCell(col('Net amount'));
+    const outstanding = ws.getRow(2).getCell(col('Outstanding gross'));
     expect(amount.type).toBe(ExcelJS.ValueType.Number);
     expect(amount.value).toBe(1234567.89);
     expect(outstanding.type).toBe(ExcelJS.ValueType.Number);
@@ -181,12 +181,12 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     renderPage(<SalesInvoices />);
     await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
     const { ws, col } = await exportedSheet();
-    expect(col('Currency')).toBe(col('Amount') + 1);
+    expect(col('Currency')).toBe(col('Net amount') + 1);
     const byNumber = (n: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((row) => row.getCell(col('Invoice #')).value === n)!;
     expect(byNumber('SI-USD').getCell(col('Currency')).value).toBe('USD');
     expect(byNumber('SI-IDR').getCell(col('Currency')).value).toBe('IDR');
-    expect(byNumber('SI-IDR').getCell(col('Amount')).value).toBe(2000000);
+    expect(byNumber('SI-IDR').getCell(col('Net amount')).value).toBe(2000000);
   });
 
   it('AC-EFK-004: the merged on-screen e-Faktur cell still exports as two columns (number, date)', async () => {
@@ -200,9 +200,15 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     expect((ws.getRow(2).getCell(col('e-Faktur date')).value as Date).toISOString().slice(0, 10)).toBe('2026-09-28');
   });
 
-  it('AC-L10N-052: the on-screen table gets no extra Currency column (export-only)', () => {
+  it('AC-L10N-052: the mixed-currency table makes each amount’s currency explicit', () => {
+    hoisted.invoices = [
+      { ...invoice, id: 'inv-idr', si_number: 'SI-IDR', amount: 1057500000, tax_amount: 0, erp_outstanding_amount: 1057500000, currency: 'IDR' },
+      { ...invoice, id: 'inv-usd', si_number: 'SI-USD', amount: 100.5, tax_amount: 0, erp_outstanding_amount: 100.5, currency: 'USD' },
+    ];
     renderPage(<SalesInvoices />);
     expect(screen.queryByRole('columnheader', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /SI-IDR/ })).getAllByText('IDR 1,057,500,000')).toHaveLength(2);
+    expect(within(screen.getByRole('row', { name: /SI-USD/ })).getAllByText('USD 100.5')).toHaveLength(2);
   });
 });
 

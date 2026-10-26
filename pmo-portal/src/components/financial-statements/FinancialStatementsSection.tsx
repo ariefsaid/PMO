@@ -1,7 +1,6 @@
 import { useId, type ReactNode } from 'react';
 import { AccountingSnapshotProvenance } from '@/src/components/AccountingSnapshotProvenance';
 import { Button } from '@/src/components/ui/Button';
-import { Card, CardHead, CardPad } from '@/src/components/ui/Card';
 import { ListState } from '@/src/components/ui/ListState';
 import { formatInstantDate } from '@/src/lib/format';
 
@@ -20,6 +19,7 @@ export type FinancialStatementsSectionState =
 export interface FinancialStatementsSectionProps {
   title: string;
   context?: string;
+  showTime?: boolean;
   state: FinancialStatementsSectionState;
   labels: {
     unavailable: string;
@@ -35,16 +35,21 @@ export interface FinancialStatementsSectionProps {
   };
   onRetry: () => void;
   headingClassName?: string;
+  onChooseScope?: () => void;
+  chooseScopeLabel?: string;
   children?: ReactNode;
 }
 
 export function FinancialStatementsSection({
   title,
   context,
+  showTime = false,
   state,
   labels,
   onRetry,
   headingClassName,
+  onChooseScope,
+  chooseScopeLabel,
   children,
 }: FinancialStatementsSectionProps) {
   const headingId = useId();
@@ -65,11 +70,17 @@ export function FinancialStatementsSection({
     content = errorState;
   } else if (state.kind === 'unavailable') {
     content = (
-      <ListState
-        variant="empty"
-        title={labels.unavailable}
-        sub={labels.unavailableDescription}
-      />
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 py-2">
+        <div className="min-w-0">
+          <h3 className="type-section-head text-heading">{labels.unavailable}</h3>
+          <p className="mt-1 break-words text-sm text-muted-foreground">{labels.unavailableDescription}</p>
+        </div>
+        {onChooseScope && (
+          <Button variant="outline" className="min-h-11" onClick={onChooseScope}>
+            {chooseScopeLabel}
+          </Button>
+        )}
+      </div>
     );
   } else if (formatInstantDate(state.asOf) === '—') {
     // AccountingSnapshotProvenance deliberately displays malformed timestamps as their raw input.
@@ -84,7 +95,7 @@ export function FinancialStatementsSection({
     content = (
       <>
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <AccountingSnapshotProvenance asOf={state.asOf} updatedLabel={labels.updated} />
+          <AccountingSnapshotProvenance showTime={showTime} asOf={state.asOf} updatedLabel={labels.updated} />
           {(isDelayed || isRefreshing) && (
             <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-warning-foreground">
               {isDelayed && <span>{labels.delayed}</span>}
@@ -100,11 +111,7 @@ export function FinancialStatementsSection({
         {state.hasActivity ? (
           <div className="min-w-0">{children}</div>
         ) : (
-          <ListState
-            variant="empty"
-            title={labels.noActivity}
-            sub={labels.noActivityDescription}
-          />
+          <div role={isDelayed || isRefreshing ? undefined : 'status'} className="py-4"><p className="type-value text-muted-foreground">{labels.noActivity}</p><p className="sr-only">{labels.noActivityDescription}</p></div>
         )}
       </>
     );
@@ -112,17 +119,13 @@ export function FinancialStatementsSection({
 
   return (
     <section aria-labelledby={headingId} className="min-w-0">
-      <Card className="min-w-0">
-        <CardHead level={2} id={headingId} className={`min-w-0 flex-wrap break-words ${headingClassName ?? ''}`}>
-          {title}
-        </CardHead>
-        <CardPad className="flex min-w-0 flex-col gap-3">
-          {context !== undefined && context !== '' && (
-            <p className="min-w-0 break-words text-xs text-muted-foreground">{context}</p>
-          )}
-          {content}
-        </CardPad>
-      </Card>
+      <div className="mb-4 flex min-w-0 flex-col items-start gap-1">
+        <h2 id={headingId} className={`type-section-head break-words text-heading ${headingClassName ?? ''}`}>{title}</h2>
+        {context !== undefined && context !== '' && (
+          <p className="min-w-0 break-words text-sm text-muted-foreground">{context}</p>
+        )}
+      </div>
+      <div className="min-w-0">{content}</div>
     </section>
   );
 }

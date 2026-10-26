@@ -7,19 +7,12 @@ import { PageFrame } from '@/src/components/shell';
 import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
-type Analytics = typeof import('@/src/lib/analytics');
-const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
 const desktop = vi.hoisted(() => ({ value: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/lib/analytics', async importOriginal => ({
-  ...await importOriginal<Analytics>(),
-  trackComingSoonClicked: analytics.trackComingSoonClicked,
-} satisfies Analytics));
-
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
 const populated = {
   active_projects: 2,
@@ -363,9 +356,11 @@ describe('ExecutiveDashboard design polish', () => {
     expect(warningLink).toHaveAttribute('href', '/projects?filter=at-risk');
   });
 
-  it('DA-3: mobile dashboard renders the Board pack action', () => {
+  it('DA-3: mobile dashboard renders the Project revenue action', () => {
+    desktop.value = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /board pack/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /project revenue/i })).toBeInTheDocument();
+    desktop.value = true;
   });
 });
 
@@ -451,21 +446,6 @@ describe('ExecutiveDashboard scope', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
     expect(screen.getByText('Portfolio · delivery and sales evidence')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Review (requests|at-risk projects)/ })).toHaveLength(1);
-  });
-});
-
-describe('coming_soon_clicked: the "Board pack" deferred export affordance (2026-07-13 wiring plan)', () => {
-  beforeEach(() => {
-    analytics.trackComingSoonClicked.mockClear();
-  });
-
-  it('AC: clicking the disabled Board pack affordance fires trackComingSoonClicked (demand signal)', () => {
-    renderPage();
-    const boardPack = screen.getByRole('button', { name: /board pack \(coming soon\)/i });
-    expect(boardPack).toBeDisabled();
-    // The wrapping span reports the click — a disabled button cannot dispatch one.
-    fireEvent.click(boardPack.parentElement!);
-    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith('board-pack-export', 'dashboard');
   });
 });
 

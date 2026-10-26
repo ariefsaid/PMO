@@ -17,12 +17,22 @@ vi.mock('@/src/hooks/useOrgFeatures', () => ({
 
 const renderRail = () => render(<MemoryRouter><Rail /></MemoryRouter>);
 
-describe('AC-MMP-015 Management pack in the rail', () => {
-  it('AC-MMP-015: Finance sees Management pack linking to /reports when Revenue is on', () => {
+describe('AC-MMP-015 canonical report home in the rail', () => {
+  it('AC-MMP-015: Finance sees one report home and no retired report destinations', () => {
     effectiveRole = 'Finance';
     revenue = true;
     renderRail();
-    expect(screen.getByRole('link', { name: /Management pack/ })).toHaveAttribute('href', '/reports');
+    expect(screen.getByRole('link', { name: 'Financial statements' })).toHaveAttribute('href', '/financial-statements');
+    expect(screen.queryByRole('link', { name: /Management pack/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Revenue by Project/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-MMP-015: PM reaches project revenue through the canonical home', () => {
+    effectiveRole = 'Project Manager';
+    revenue = true;
+    renderRail();
+    expect(screen.getByRole('link', { name: 'Project revenue' })).toHaveAttribute('href', '/financial-statements?section=project-revenue');
+    expect(screen.queryByRole('link', { name: /Management pack|Revenue by Project/ })).not.toBeInTheDocument();
   });
 
   it('AC-MMP-015: Engineers do not, and nobody does when Revenue is off', () => {

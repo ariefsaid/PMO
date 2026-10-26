@@ -170,10 +170,10 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
   });
 
   it.each([
-    ['Admin', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration']],
-    ['Executive', ['/', '/approvals', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration']],
-    ['Finance', ['/', '/approvals', '/my-tasks', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration/exchange-rates']],
-    ['Project Manager', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/reports', '/sales', '/companies', '/contacts', '/views']],
+    ['Admin', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/financial-statements', '/sales', '/companies', '/contacts', '/views', '/administration']],
+    ['Executive', ['/', '/approvals', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/financial-statements', '/sales', '/companies', '/contacts', '/views', '/administration']],
+    ['Finance', ['/', '/approvals', '/my-tasks', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/financial-statements', '/sales', '/companies', '/contacts', '/views', '/administration/exchange-rates']],
+    ['Project Manager', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/financial-statements?section=project-revenue', '/sales', '/companies', '/contacts', '/views']],
     ['Engineer', ['/', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/views']],
   ])('keeps destination order by job and role for %s', (role, expectedHrefs) => {
     effectiveRole = role;

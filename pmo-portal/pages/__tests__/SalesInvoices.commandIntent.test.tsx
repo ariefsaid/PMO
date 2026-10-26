@@ -11,7 +11,7 @@
  * hook runs here — only the repository seam is mocked, so this proves the whole click→hook→seam path.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -79,9 +79,9 @@ const renderPage = () => {
 async function submitAnInvoice(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
   await user.click(screen.getByRole('combobox', { name: 'Customer' }));
-  await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
+  await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /Acme Energy/ }));
   await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-  await user.click(await screen.findByRole('option', { name: /ITEM-001/ }));
+  await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /ITEM-001/ }));
   await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 }
 

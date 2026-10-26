@@ -47,6 +47,7 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
+import { LegacyReportRedirect } from './pages/money-in/LegacyReportRedirect';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -90,10 +91,8 @@ const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
-const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
 const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
-const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
-const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
+const MoneyInReportsPage = React.lazy(() => import('./pages/money-in/MoneyInReports'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -175,7 +174,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
+  { path: '/reports', element: <LegacyReportRedirect view="earned" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
@@ -194,9 +193,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
-  { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  { path: '/revenue-by-project', element: <LegacyReportRedirect view="billing" /> },
   { path: '/erp-purchases', element: <ErpPurchasesPage /> },
-  { path: '/financial-statements', element: <FinancialStatementsPage /> },
+  { path: '/financial-statements', element: <MoneyInReportsPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.
@@ -328,6 +327,22 @@ export const ShellChrome: React.FC = () => {
         { label: t('shell.nav.invoiceRecord', 'Invoice record') },
       ];
     }
+    if (/^\/incoming-payments\/[^/]+$/.test(pathname)) {
+      const sourceUrl = (location.state as { moneyInSource?: { url?: unknown } } | null)?.moneyInSource?.url;
+      const listPath = typeof sourceUrl === 'string' &&
+        (sourceUrl === '/incoming-payments' || sourceUrl.startsWith('/incoming-payments?'))
+        ? sourceUrl
+        : '/incoming-payments';
+      return [
+        {
+          label: t('shell.nav.incomingPayments', 'Incoming Payments'),
+          href: listPath,
+          onClick: () => breadcrumbNavigate(listPath),
+          i18nKey: 'shell.nav.incomingPayments',
+        },
+        { label: t('shell:nav.receiptRecord', 'Receipt record') },
+      ];
+    }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
     // deal is absent from both the open-pipeline cache and the active-projects cache, so it must be
     // unioned in here or its crumb resolves to "Projects > Not found".
@@ -359,6 +374,7 @@ export const ShellChrome: React.FC = () => {
   }, [
     pathname,
     location.search,
+    location.state,
     contextualParent,
     t,
     breadcrumbNavigate,
@@ -374,6 +390,10 @@ export const ShellChrome: React.FC = () => {
   const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
   const administrationRoute = pathname === '/administration' || pathname.startsWith('/administration/');
   const personalIntegrationsRoute = pathname === '/integrations';
+  const salesInvoiceRecordRoute = /^\/sales-invoices\/[^/]+$/u.test(pathname);
+  const incomingPaymentRecordRoute = /^\/incoming-payments\/[^/]+$/u.test(pathname);
+  const moneyInFrameRoute = pathname === '/sales-invoices' || salesInvoiceRecordRoute ||
+    pathname === '/incoming-payments' || incomingPaymentRecordRoute || pathname === '/financial-statements';
   const usesContentPageFrame =
     pathname === '/' ||
     pathname === '/projects' ||
@@ -382,21 +402,27 @@ export const ShellChrome: React.FC = () => {
     pathname === '/approvals' ||
     pathname === '/timesheets' ||
     administrationRoute ||
-    personalIntegrationsRoute;
-  const areaName =
-    pathname === '/'
-      ? t('shell.nav.dashboard', 'Dashboard')
-      : pathname === '/approvals'
-        ? t('shell.nav.approvals', 'Approvals')
-        : pathname === '/timesheets'
-          ? t('shell.nav.timesheets', 'Timesheets')
-          : pathname === '/sales'
-            ? t('shell.nav.sales', 'Sales Pipeline')
-            : administrationRoute
+    personalIntegrationsRoute ||
+    moneyInFrameRoute;
+  const areaName = pathname === '/'
+    ? t('shell.nav.dashboard', 'Dashboard')
+    : pathname === '/approvals'
+      ? t('shell.nav.approvals', 'Approvals')
+      : pathname === '/timesheets'
+        ? t('shell.nav.timesheets', 'Timesheets')
+        : pathname === '/sales'
+          ? t('shell.nav.sales', 'Sales Pipeline')
+          : administrationRoute
             ? t('shell.nav.administration', 'Administration')
             : personalIntegrationsRoute
               ? t('shell.nav.integrations', 'My integrations')
-              : t('shell.nav.projects', 'Projects');
+              : pathname === '/sales-invoices' || salesInvoiceRecordRoute
+                ? t('shell.nav.salesInvoices', 'Sales Invoices')
+                : pathname === '/incoming-payments' || incomingPaymentRecordRoute
+                  ? t('shell.nav.incomingPayments', 'Incoming Payments')
+                  : pathname === '/financial-statements'
+                    ? t('shell.nav.financialStatements', 'Financial statements')
+                    : t('shell.nav.projects', 'Projects');
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -487,6 +513,12 @@ export const ShellChrome: React.FC = () => {
           breadcrumb,
           ...(projectRecordRoute ? {
             returnLabel: t('shell.nav.projects', 'Projects'),
+          } : {}),
+          ...(salesInvoiceRecordRoute ? {
+            returnLabel: t('shell.nav.salesInvoices', 'Sales Invoices'),
+          } : {}),
+          ...(incomingPaymentRecordRoute ? {
+            returnLabel: t('shell.nav.incomingPayments', 'Incoming Payments'),
           } : {}),
         } : undefined}
       >
