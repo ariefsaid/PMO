@@ -507,7 +507,7 @@ const Projects: React.FC = () => {
     },
     {
       key: 'pm',
-      header: t('projects.columns.pmTable', 'Project manager'),
+      header: t('projects:columns.pmTable', 'Project manager'),
       kind: 'meta',
       colClassName: 'whitespace-normal break-words leading-tight',
       size: 124,

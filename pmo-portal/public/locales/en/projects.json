@@ -23,7 +23,7 @@
   },
   "breadcrumb": "Breadcrumb",
   "area": { "delivery": "Delivery" },
-  "identifiers": { "summary": "Project IDs ({{count}})" },
+  "identifiers": { "summary": "Project IDs ({{count}})", "detailsLabel": "Project references" },
   "customerUnavailable": "Customer unavailable",
   "coverage": {
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",

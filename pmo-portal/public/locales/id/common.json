@@ -42,7 +42,6 @@
   "uxs14": {
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "projectReferencesLabel": "Referensi proyek",
     "contractReference": "Referensi kontrak pelanggan"
   },
   "uxs10": {
@@ -3007,7 +3006,6 @@
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "Manajer proyek",
-      "pmTable": "Manajer proyek",
       "project": "Proyek"
     },
     "confirm": {

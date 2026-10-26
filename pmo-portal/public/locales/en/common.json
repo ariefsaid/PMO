@@ -42,7 +42,6 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "projectReferencesLabel": "Project references",
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
@@ -3007,7 +3006,6 @@
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
-      "pmTable": "Project manager",
       "project": "Project"
     },
     "confirm": {

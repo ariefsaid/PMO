@@ -40,8 +40,8 @@ const ProjectNew: React.FC = () => {
     [origin?.path],
   );
   const sourceClient = originQuery.get('client');
-  const initialClient = sourceClient && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(sourceClient)
-    ? { client_id: sourceClient }
+  const initialClientId = sourceClient && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(sourceClient)
+    ? sourceClient
     : undefined;
   const defaultScope = effectiveRole === 'Engineer' ? 'My Projects' : 'All';
   const sourceScope = originQuery.get('filter') ?? defaultScope;
@@ -81,6 +81,7 @@ const ProjectNew: React.FC = () => {
           : effectiveRole === 'Finance'
             ? t('projects:create.financeAccessDeniedReason', 'Finance can review project finances from Projects.')
             : t('projects:create.accessDeniedGeneral', 'Project creation is limited to Admin, Executive, and Project Manager roles.')}
+        children={null}
       >
       </ProjectPageFrame>
     );
@@ -105,7 +106,7 @@ const ProjectNew: React.FC = () => {
     >
       <ProjectFormModal
         variant="page"
-        initial={initialClient}
+        initialClientId={initialClientId}
         onDirtyChange={setDirty}
         onOriginationStageChange={setStage}
         onClose={() => guardLeave(() => returnToList())}

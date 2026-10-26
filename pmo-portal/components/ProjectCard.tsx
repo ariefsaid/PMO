@@ -268,7 +268,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
 
       {referenceRows.length > 0 && (
         <details className="min-w-0" aria-label={t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}>
-          <summary aria-label={`${project.name}: ${t('uxs14.projectReferencesLabel', 'Project references')}`} className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary aria-label={`${project.name}: ${t('projects:identifiers.detailsLabel', 'Project references')}`} className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('projects:identifiers.summary', 'Project IDs ({{count}})', { count: referenceRows.length })}
           </summary>
           <dl className="space-y-1 pt-1 text-xs text-muted-foreground">

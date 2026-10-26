@@ -23,7 +23,7 @@
   },
   "breadcrumb": "Jejak navigasi",
   "area": { "delivery": "Pelaksanaan" },
-  "identifiers": { "summary": "ID Proyek ({{count}})" },
+  "identifiers": { "summary": "ID Proyek ({{count}})", "detailsLabel": "Referensi proyek" },
   "customerUnavailable": "Klien tidak tersedia",
   "coverage": {
     "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",

@@ -168,6 +168,8 @@ export interface ProjectFormModalProps {
   mode?: 'create' | 'editHeader';
   /** The project being edited (required for mode="editHeader"). */
   initial?: ProjectFormInitial;
+  /** Optional client preselection for the create flow. */
+  initialClientId?: string;
   onClose: () => void;
   /** Create handler — receives the full CreateProjectInput (mode="create"). */
   onSubmit?: (input: CreateProjectInput) => Promise<void>;
@@ -188,6 +190,7 @@ export interface ProjectFormModalProps {
 const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   mode = 'create',
   initial,
+  initialClientId,
   onClose,
   onSubmit,
   onSave,
@@ -220,7 +223,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       shortName: initial?.short_name ?? '',
       code: initial?.code ?? '',
       pmoProjectNumber: '',
-      clientId: initial?.client_id ?? null,
+      clientId: initial?.client_id ?? initialClientId ?? null,
       endClientId: initial?.end_client_id ?? null,
       pmId: initial?.project_manager_id ?? null,
       status: 'Leads',
