@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Drawer, cn } from '@/src/components/ui';
+import { projectLabel } from './typography';
 
 export interface ProjectSectionItem<T extends string = string> {
   value: T;
@@ -39,7 +40,7 @@ function SectionLinks<T extends string>({
     <div className="space-y-5">
       {groups.map((group) => (
         <div key={group.label} role="group" aria-label={group.label} className="min-w-0">
-          <h2 className="mb-1 px-2 text-sm font-semibold text-muted-foreground">{group.label}</h2>
+          <h2 className={`mb-1 px-2 ${projectLabel} text-muted-foreground`}>{group.label}</h2>
           <ul className="space-y-1">
             {group.items.map((item) => {
               const active = activeSection === item.value;

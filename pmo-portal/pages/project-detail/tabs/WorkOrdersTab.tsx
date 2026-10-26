@@ -36,6 +36,7 @@ import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
+import { projectSectionHeading } from '../typography';
 import {
   useWorkOrderAcceptanceMutations, useWorkOrderAcceptances, useProjectWorkOrderLines,
 } from '@/src/hooks/useWorkOrderAcceptances';
@@ -681,7 +682,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   const billingPosition = canViewBilling && rows.length > 0 ? (
     <section data-testid="wo-billing-summary" aria-labelledby="wo-billing-summary-heading">
-      <h3 id="wo-billing-summary-heading" className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+      <h3 id="wo-billing-summary-heading" className={`flex flex-wrap items-center gap-2 ${projectSectionHeading}`}>
         {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
         {billing.data && totals.complete && excl}
       </h3>

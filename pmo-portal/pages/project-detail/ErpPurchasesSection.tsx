@@ -8,6 +8,7 @@ import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { AGING_BUCKETS, projectAging, type AgingBucket } from '@/src/lib/erpPurchaseAging';
 import { ErpOrphansSection } from '../procurement/ErpOrphansSection';
+import { projectSectionHeading } from './typography';
 
 /**
  * FR-EPR-008 / FR-PFE-041/042 — the project's ERPNext purchase documents that are not in a purchase yet, below its PMO
@@ -42,7 +43,7 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
     <section className="mt-8" aria-labelledby="erp-purchases-heading">
       <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 id="erp-purchases-heading" className="text-xl font-bold tracking-[-0.01em]">
+          <h2 id="erp-purchases-heading" className={projectSectionHeading}>
             {t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -66,7 +67,7 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
       {aging.length > 0 && (
         // The unpaid position follows the unlinked ERP records and stays separate from their value.
         <section aria-labelledby="erp-aging-heading" className="mt-4">
-          <h3 id="erp-aging-heading" className="mb-2 text-sm font-semibold text-foreground">
+          <h3 id="erp-aging-heading" className={`mb-2 ${projectSectionHeading}`}>
             {t('erpLinks.agingTitle', 'Unpaid ERPNext invoices (incl. linked)')}
           </h3>
           {aging.map((a) => (

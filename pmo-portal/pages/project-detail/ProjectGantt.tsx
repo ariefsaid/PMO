@@ -40,6 +40,7 @@ import { edgePath, arrowHead } from '@/src/lib/gantt/ganttGeometry';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
+import { projectSectionHeading } from './typography';
 
 // Task-status pill comes from the single status registry (`workflowVariant`): In
 // Progress = neutral grey `progress` (NOT the action-blue, per the Freed-Blue Status
@@ -468,7 +469,7 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="cal" className="size-6" strokeWidth={1.75} />
     </span>
-    <h3 className="text-sm font-semibold">
+    <h3 className={projectSectionHeading}>
       {t('projectDetail.gantt.mobileTitle', 'Open on a larger screen')}
     </h3>
     <div className="max-w-[44ch] text-sm text-muted-foreground">
