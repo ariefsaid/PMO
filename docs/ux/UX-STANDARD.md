@@ -35,6 +35,8 @@ Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period
 **N-05** Long records use one named section index and sticky record identity/current section; at 390 one Sections control replaces the desktop index, with anchor clearance and no extra tab strip — *PM reaches Billing from deep in a project and still knows which project is open.*
 **N-06** Default landing scope follows the role: Admin/Executive portfolio exceptions, Finance billing/payables/collections, PM own delivery projects, Engineer own dated hours/status; use the area brief's collection defaults and preserve explicit URL scope — *each persona lands on their work; Engineer's Projects starts task-assigned, the other roles' Projects starts All.*
 
+**N-07** Primary navigation reads as a few labelled groups: every item sits in a labelled group or no group is labelled; one separator form only (label or rule, never both, never a rule inside a group); at most six groups and seven items each, the role's home first and setup last; group labels are the overline role and sit on their first item — *a PM sees "My work" then "Projects" without counting lines.*
+
 ## Actions
 **A-01** Show one filled primary when a next action exists; keep alternatives quieter — *PM's create, Finance's submit or Admin's connect has no competing filled button in the active view.*
 **A-02** Place collection creation in its toolbar and capture/review submission after its evidence; phone action bars must not cover content — *last field/amount and submit remain readable together.*
