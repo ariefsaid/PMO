@@ -1,3 +1,4 @@
+import { approvalStatusLabel } from '../approvals/statusLabel';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -169,7 +170,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
                 <span>{weekLabel(sheet.week_start_date)}</span>
-                <StatusPill variant={workflowVariant(sheet.status)}>{t(`approvals.status.${sheet.status.toLowerCase()}`, sheet.status)}</StatusPill>
+                <StatusPill variant={workflowVariant(sheet.status)}>{approvalStatusLabel(sheet.status, t)}</StatusPill>
               </div>
               <h2 className="break-words text-xl font-bold">{name}</h2>
             </div>
@@ -354,7 +355,7 @@ export const ApprovalsQueue: React.FC = () => {
                   week={weekLabel(sheet.week_start_date)}
                   hours={total}
                   onActivate={() => toggleExpanded(sheet.id)}
-                  status={<StatusPill variant={workflowVariant(sheet.status)}>{t(`approvals.status.${sheet.status.toLowerCase()}`, sheet.status)}</StatusPill>}
+                  status={<StatusPill variant={workflowVariant(sheet.status)}>{approvalStatusLabel(sheet.status, t)}</StatusPill>}
                   disclosure={
                     <Button
                       variant="ghost"

@@ -1,3 +1,4 @@
+import { approvalStatusLabel } from './statusLabel';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 /**
  * AC-IFW-PROC-01 / AC-IFW-PROC-02
@@ -131,7 +132,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               <h2 className="break-words text-xl font-bold">{row.title}</h2>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-                <StatusPill variant={workflowVariant(row.status)}>{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
+                <StatusPill variant={workflowVariant(row.status)}>{approvalStatusLabel(row.status, t)}</StatusPill>
               </div>
             </div>
           </div>
@@ -243,7 +244,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
       ].join(' ')}
     >
       <div className="break-words text-sm font-normal">{row.title}</div>
-      <StatusPill variant={workflowVariant(row.status)} className="mt-1">{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
+      <StatusPill variant={workflowVariant(row.status)} className="mt-1">{approvalStatusLabel(row.status, t)}</StatusPill>
       {!selected && (
         <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
           <span className="text-xs font-semibold text-muted-foreground">{row.currency}</span>

@@ -1,3 +1,4 @@
+import { approvalStatusLabel } from './approvals/statusLabel';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
@@ -115,7 +116,7 @@ function QueueButton({
         <div className="mb-1 text-xs font-semibold text-muted-foreground">{label}</div>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
-          <StatusPill variant={workflowVariant(status)}>{t(`approvals.status.${status.toLowerCase()}`, status)}</StatusPill>
+          <StatusPill variant={workflowVariant(status)}>{approvalStatusLabel(status, t)}</StatusPill>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span className="min-w-0 break-words">{detail}</span>
@@ -148,7 +149,7 @@ function QueueButton({
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
-        <StatusPill variant={workflowVariant(row.status)}>{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
+        <StatusPill variant={workflowVariant(row.status)}>{approvalStatusLabel(row.status, t)}</StatusPill>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
         <span>
