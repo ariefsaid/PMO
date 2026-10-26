@@ -1,6 +1,7 @@
 import React, { useId, useMemo, useState } from 'react';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
+import { ApprovalRow, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { formatCurrencyCents, formatNumber } from '@/src/lib/format';
@@ -27,6 +28,12 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
+  const projectValue = inv.project_id && projectName
+    ? <Link to={`/projects/${encodeURIComponent(inv.project_id)}`} aria-label={`Open ${projectName}`}
+        className="block min-h-11 max-w-full whitespace-normal break-words text-foreground underline-offset-2 [overflow-wrap:anywhere] hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
+        {projectName}
+      </Link>
+    : projectName ?? '—';
   const money = (n: number | null) => (n != null
     ? readableWholeUnits ? formatNumber(n) : formatCurrencyCents(n, inv.currency)
     : '—');
@@ -34,7 +41,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-sm" /> },
+    { label: t('financeCopy.project', 'Project'), value: projectValue },
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
@@ -48,7 +55,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
           {facts.map((f) => (
             <div key={f.label} className="min-w-0 border-b border-border/70 pb-2">
               <dt className="type-label text-muted-foreground">{f.label}</dt>
-              <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="type-value mt-1 break-words">{f.value}</dd>
+              <dd className="type-value mt-1 break-words">{f.value}</dd>
             </div>
           ))}
         </dl>
