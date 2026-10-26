@@ -1,3 +1,4 @@
+import { formatNumberExact } from '@/src/lib/format';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -68,12 +69,12 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
   const plannedToday = model.plannedToDate;
   // ⛔ DD-I18N-7: the percentages are rendered to STRINGS here and interpolated as text.
   // i18next never receives a number, so the message carries no formatting responsibility.
-  const actualText = `${model.actualToDate}%`;
+  const actualText = `${formatNumberExact(model.actualToDate)}%`;
   const summary = plannedToday != null
     ? t(
         'projectDetail.scurve.summaryWithPlan',
         'Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today.',
-        { actual: actualText, planned: `${Math.round(plannedToday)}%` },
+        { actual: actualText, planned: `${formatNumberExact(Math.round(plannedToday))}%` },
       )
     : t('projectDetail.scurve.summary', 'Project S-curve: actual to date {{actual}}.', {
         actual: actualText,
@@ -123,7 +124,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <YAxis
                 domain={[0, 100]}
                 ticks={[0, 25, 50, 75, 100]}
-                tickFormatter={(v: number) => `${v}%`}
+                tickFormatter={(v: number) => `${formatNumberExact(v)}%`}
                 tick={axisTickStyle}
                 tickLine={false}
                 axisLine={{ stroke: chartTheme.grid }}
@@ -133,7 +134,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 contentStyle={tooltipContentStyle}
                 labelStyle={tooltipLabelStyle}
                 labelFormatter={(label) => formatSCurveAxisDate(Number(label))}
-                formatter={(value) => `${Number(value)}%`}
+                formatter={(value) => `${formatNumberExact(Number(value))}%`}
               />
               {/* Planned = dashed One-Blue (the "target"). */}
               <Line
@@ -152,7 +153,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
               <Line
                 type="linear"
                 dataKey="actual"
-                name={t('projectDetail.scurve.seriesActual', 'Actual to date')}
+                name={t('project:projectDetail.scurve.estimatedHistory', 'Estimated historical progress')}
                 stroke={chartTheme.series.primary}
                 strokeWidth={2}
                 dot={hasActualSeries ? false : { r: 4, fill: chartTheme.series.primary }}
@@ -181,8 +182,8 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 className="h-0.5 w-4 shrink-0 rounded-full"
                 style={{ background: chartTheme.series.primary }}
               />
-              {t('projectDetail.scurve.seriesActual', 'Actual to date')}
-              <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
+              {t('project:projectDetail.scurve.estimatedHistory', 'Estimated historical progress')}
+              <span className="tabular font-semibold text-foreground">{formatNumberExact(model.actualToDate)}%</span>
             </span>
           </figcaption>
 

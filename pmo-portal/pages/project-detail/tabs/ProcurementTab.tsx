@@ -1,3 +1,5 @@
+import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
+import { ProjectFilters } from '../ProjectFilters';
 import React, { useMemo, useState } from 'react';
 import {
   Button,
@@ -12,7 +14,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrencyAuto, formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { LEGAL_TRANSITIONS, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -27,7 +29,7 @@ export interface ProcurementTabProps {
 const PROCUREMENT_STATUSES = Object.keys(LEGAL_TRANSITIONS) as ProcurementStatus[];
 
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const statusLabel = useProcurementStatusLabel();
@@ -59,18 +61,13 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       header: t('projectDetail.procurement.column.request', 'Request'),
       cell: (row) => (
         <div className="min-w-0">
-          <div className="truncate font-semibold" title={row.title}>{row.title}</div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
+          <div className="break-words whitespace-normal font-semibold" title={row.title}>{row.title}</div>
+          <div className="break-words font-mono text-[11px] text-muted-foreground">
             {row.code ?? row.id.slice(0, 8)}
           </div>
+          <span className="text-xs font-semibold text-muted-foreground">{row.vendor?.name ?? t('project:projectDetail.procurement.noVendor', 'No vendor selected')}</span>
         </div>
       ),
-    },
-    {
-      key: 'vendor',
-      header: t('project:projectDetail.procurement.column.vendor', 'Vendor'),
-      kind: 'meta',
-      cell: (row) => <span className="text-muted-foreground">{row.vendor?.name ?? '—'}</span>,
     },
     {
       key: 'statusDate',
@@ -87,10 +84,10 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       ),
     },
     {
-      key: 'value',
+      key: 'value', kind: 'money',
       header: t('projectDetail.procurement.column.value', 'Value'),
       align: 'num',
-      cell: (row) => formatCurrencyAuto(row.total_value, row.currency),
+      cell: (row) => formatProjectDetailMoney(row.total_value, row.currency, i18n.language, true),
     },
     {
       key: 'actions',
@@ -126,6 +123,10 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
 
   return (
     <div>
+        <h2 id="project-procurement-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
+          {t('projectDetail.procurement.title', 'Purchase Requests')}
+        </h2>
+
       <Toolbar standalone role="group" aria-label={t('project:projectDetail.procurement.toolbar.label', 'Purchase request tools')}>
         <SearchMini
           placeholder={t('project:projectDetail.procurement.toolbar.searchPlaceholder', 'Search requests by name, code, or vendor…')}
@@ -134,6 +135,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           onChange={(event) => setSearch(event.target.value)}
           containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
         />
+        <ProjectFilters summary={<span>{t('project:projectDetail.filters', 'Filters')} · {statusFilter === 'all' ? t('project:projectDetail.procurement.toolbar.allStatuses', 'All statuses') : statusLabel(statusFilter)} · {sortOrder === 'newest' ? t('project:projectDetail.procurement.toolbar.newest', 'Newest request date') : t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</span>}>
         <select
           aria-label={t('project:projectDetail.procurement.toolbar.statusFilter', 'Status filter')}
           value={statusFilter}
@@ -152,6 +154,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           <option value="newest">{t('project:projectDetail.procurement.toolbar.newest', 'Newest request date')}</option>
           <option value="oldest">{t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</option>
         </select>
+        </ProjectFilters>
         {canCreate && (
           <Button
             variant="primary"
@@ -166,9 +169,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       </Toolbar>
 
       <section aria-labelledby="project-procurement-heading">
-        <h2 id="project-procurement-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
-          {t('projectDetail.procurement.title', 'Purchase Requests')}
-        </h2>
+
         <DataTable<ProcurementWithRefs>
           rows={rows}
           columns={columns}

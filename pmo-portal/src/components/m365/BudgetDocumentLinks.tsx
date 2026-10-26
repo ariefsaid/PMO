@@ -59,7 +59,7 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
           </Button>
         )}
       </div>
-      {!mayMutate && (
+      {!mayMutate && rows.length > 0 && (
         <p className="mt-1 text-[12px] text-muted-foreground">
           {t('m365Documents:budget.readOnly', 'Evidence is read-only on this version.')}
         </p>

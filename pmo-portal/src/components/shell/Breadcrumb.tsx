@@ -92,8 +92,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               <span
                 aria-current="page"
                 title={part.title}
-                // C3: at ≤921px truncate harder (20ch) — only the current crumb
-                // shows; at desktop full width allows 40ch before ellipsis.
+                // Keep the complete record identity readable at both widths.
                 className="min-w-0 break-words whitespace-normal text-sm font-semibold text-foreground"
               >
                 {part.title && part.title !== label ? `${label} · ${part.title}` : label}

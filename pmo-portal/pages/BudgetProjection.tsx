@@ -31,7 +31,6 @@ import {
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
 import { formatProjectDetailAmount } from './project-detail/formatProjectDetailMoney';
-import { projectSectionHeading } from './project-detail/typography';
 
 /**
  * BudgetProjection (P3c slice 6, FR-BUD-151/152/153) — PMO's FORWARD VIEW for a project.
@@ -571,7 +570,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
       key: 'category',
       header: t('financeCopy.category', "Category"),
       kind: 'text',
-      size: 200,
+      size: 125,
       stickyLeft: true,
       cell: (row) => {
         const visibleReason = visibleReasonFor(row);
@@ -587,25 +586,25 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
         );
       },
     },
-    { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 160,
+    { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 125,
       cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency, i18n.language) },
-    { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 160,
+    { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 125,
       cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency, i18n.language) },
-    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 180,
+    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 130,
       cell: (row) => {
         const value = money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency, i18n.language);
         return row.projectedVariance !== null && row.projectedVariance < 0
           ? <span className="text-destructive-text">{value}</span>
           : value;
       } },
-    { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 160,
+    { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 125,
       cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency, i18n.language) },
     {
       key: 'costToFinish',
       header: t('uxs04.costToFinish', 'Cost to finish'),
       kind: 'money',
       align: 'num',
-      size: 160,
+      size: 125,
       cell: (row) => editing ? (
         <div className="flex flex-col items-end gap-1">
           {/* ⚑ I-4 — `NumberField` owns the aria-invalid / describedby wiring, tabular
@@ -630,10 +629,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
         </div>
       ) : money(row.pmoEtc, reasonsFor(row).derivedReason, orgCurrency, i18n.language),
     },
-    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 120,
+    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 100,
       cell: (row) => row.projectedUtilization === null
         ? <Unavailable reason={reasonsFor(row).derivedReason} />
-        : pct(row.projectedUtilization * 100) },
+        : pct(row.pmoBudgetAmount !== null && row.pmoBudgetAmount > 0 && row.projectedFinalCost !== null
+          ? row.projectedFinalCost / row.pmoBudgetAmount * 100
+          : row.projectedUtilization * 100) },
   ];
 
   return (
@@ -641,7 +642,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
       <section aria-label={forecastHeading}>
       <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className={projectSectionHeading}>{forecastHeading}</h2>
+        <h2 data-primary-figure="true" aria-label={forecastHeading}>
+          <span className="project-primary-label">{t('uxs04.forecast', 'Forecast')} · {fiscalYear}</span>
+          <span className="project-primary-value">{compactForecast}</span>
+        </h2>
         <div className="flex flex-wrap items-center gap-3">
           {fiscalYears.length > 0 ? (
             <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -707,10 +711,16 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
         </div>
       ) : (
         <>
-          {/* UX-035/036: the forecast answer leads; the active total appears with the selected version below. */}
+          <p className="text-sm" data-testid="forecast-decision">{summary.remaining === null
+            ? t('project:projectDetail.budget.comparisonUnavailable', 'Budget comparison unavailable')
+            : overrun ? t('project:projectDetail.budget.overBudget', 'Forecast exceeds the active budget')
+              : t('project:projectDetail.budget.withinBudget', 'Forecast is within the active budget')}
+            {' · '}{orgCurrency} · {fiscalYear}
+            {summary.finalCost !== null && summary.remaining !== null && <> · {t('uxs04.budget', 'Budget')} {formatProjectDetailAmount(summary.finalCost + summary.remaining, orgCurrency, i18n.language)}</>}
+          </p>
           <dl
             data-testid="forecast-summary"
-            className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 sm:grid-cols-4"
+            className="project-facts mt-3.5 space-y-2"
           >
             <SummaryFigure
               label={t('uxs04.recordedSpending', 'Recorded spending')}
@@ -734,14 +744,12 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
               label={t('uxs04.forecastFinalCost', 'Forecast final cost')}
               value={summary.finalCost}
               currency={orgCurrency}
-              strong
               incomplete={incompleteNotes.length > 0}
             />
             <SummaryFigure
               label={overrun ? t('uxs04.forecastOverrun', 'Forecast overrun') : t('uxs04.forecastRemaining', 'Forecast remaining')}
               value={summary.remaining === null ? null : Math.abs(summary.remaining)}
               currency={orgCurrency}
-              strong
               alert={overrun}
               incomplete={incompleteNotes.length > 0}
             />
@@ -750,11 +758,13 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
             <p className="mt-2 text-[12px] text-muted-foreground">{t('uxs04.recordedAsOf', 'Recorded spending as of')}{' '}{formatInstantDate(actualsAsOf)}</p>
           )}
           <div className="mt-2">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">{t('project:projectDetail.budget.scrollForecast', 'Category forecast · scroll horizontally for all cost inputs →')}</p>
             <DataTable
               rows={rows}
               columns={columns}
               rowKey={(row) => row.category}
               tableId="budget-projection"
+              className="project-forecast-table"
               accessibleName={forecastHeading}
               mobileTable
             />
@@ -787,12 +797,11 @@ const SummaryFigure: React.FC<{
   label: string;
   value: number | null;
   currency: string;
-  strong?: boolean;
   alert?: boolean;
   incomplete?: boolean;
   noteId?: string;
   note?: React.ReactNode;
-}> = ({ label, value, currency, strong, alert, incomplete, noteId, note }) => {
+}> = ({ label, value, currency, alert, incomplete, noteId, note }) => {
   const { i18n } = useTranslation();
   const exactValue = value === null ? null : formatProjectDetailAmount(value, currency, i18n.language);
   return (
@@ -803,7 +812,7 @@ const SummaryFigure: React.FC<{
           value === null && incomplete ? 'forecast-incomplete' : null,
           noteId && note ? noteId : null,
         ].filter(Boolean).join(' ') || undefined}
-        className={`tabular text-sm ${strong ? 'font-semibold' : 'font-normal'} ${alert ? 'text-destructive-text' : ''}`}
+        className={`whitespace-nowrap tabular text-sm font-normal ${alert ? 'text-destructive-text' : ''}`}
       >
         <span>{exactValue ?? '—'}</span>
         {note && <div id={noteId} className="mt-1 space-y-1">{note}</div>}

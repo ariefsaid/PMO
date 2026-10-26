@@ -35,12 +35,21 @@
           "quantityLines": "Quantity · {{count}} lines",
           "workOrder": "Work order"
         }
-      }
+      },
+      "notAssessed": "Not assessed",
+      "availableToOrder": "Available to order"
     },
     "documents": {
       "column": {
         "revision": "Revision"
-      }
+      },
+      "newestFirst": "Document date newest first",
+      "statusDate": "Status / date",
+      "noDate": "No document date",
+      "noCode": "No code",
+      "notApplicable": "Not applicable",
+      "noRevision": "No revision",
+      "clearSearch": "Clear search"
     },
     "header": {
       "scope": {
@@ -74,7 +83,8 @@
         "newest": "Newest request date",
         "oldest": "Oldest request date",
         "clearSearchAndFilters": "Clear search and filters"
-      }
+      },
+      "noVendor": "No vendor selected"
     },
     "rail": {
       "customerPoDate": "Customer PO date"
@@ -104,7 +114,9 @@
       "stillToInvoice": "Still to invoice",
       "spending": "Spending",
       "title": "Money position",
-      "viewInvoices": "View invoices"
+      "viewInvoices": "View invoices",
+      "settlementDetails": "Cash and non-cash settlement details",
+      "erpOutstanding": "ERP invoice balance outstanding"
     },
     "overview": {
       "budgetUtil": {
@@ -112,7 +124,11 @@
       }
     },
     "budget": {
-      "forecastAnswerUnavailable": "Forecast answer unavailable"
+      "forecastAnswerUnavailable": "Forecast answer unavailable",
+      "comparisonUnavailable": "Budget comparison unavailable",
+      "overBudget": "Forecast exceeds the active budget",
+      "withinBudget": "Forecast is within the active budget",
+      "scrollForecast": "Category forecast · scroll horizontally for all cost inputs →"
     },
     "tasks": {
       "toolbar": {
@@ -128,6 +144,13 @@
         "searchPlaceholder": "Search tasks, assignees, or phases…",
         "sortTasks": "Sort tasks",
         "statusFilter": "Status filter"
+      },
+      "noDueDate": "No due date",
+      "status": {
+        "toDo": "To Do",
+        "inProgress": "In Progress",
+        "done": "Done",
+        "blocked": "Blocked"
       }
     },
     "workOrders": {
@@ -143,7 +166,13 @@
         "searchPlaceholder": "Search by WO number, title, or client PO…",
         "sortOrders": "Sort work orders",
         "statusFilter": "Filter work orders by status"
-      }
+      },
+      "notBillable": "Not billable before issue",
+      "acceptanceLinesUnavailable": "Acceptance quantities are unavailable. Retry the acceptance read."
+    },
+    "filters": "Filters",
+    "scurve": {
+      "estimatedHistory": "Estimated historical progress"
     }
   }
 }

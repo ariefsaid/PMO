@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { getYear, parseISO } from 'date-fns';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -12,7 +11,7 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { pct, formatDayMonth } from '@/src/lib/format';
+import { pct, formatDateOnly } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
@@ -291,7 +290,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({
                     ("Commissioning", ~95px at 12px font-semibold) to never need a mid-word break. */}
                 <div
                   data-testid="milestone-card-grid"
-                  className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+                  className="flex flex-col divide-y divide-border/70"
                 >
                   {all.map((milestone) => (
                     <MilestonePhaseCard
@@ -379,12 +378,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   const overdue = isOverdueMilestone(milestone);
   // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
   const targetLabel = milestone.target_date
-    ? overdue && getYear(parseISO(milestone.target_date)) !== new Date().getFullYear()
-      ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
-          date: formatDayMonth(parseISO(milestone.target_date)),
-          year: getYear(parseISO(milestone.target_date)),
-        })
-      : `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDayMonth(parseISO(milestone.target_date))}`
+    ? `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDateOnly(milestone.target_date)}`
     : null;
 
   return (
@@ -414,7 +408,6 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{pct(milestone.effective_pct)}</span>
           {weightShare != null && (
             <span>
               {t('projectDetail.milestones.weightShare', '{{pct}}% of project', {
@@ -521,7 +514,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   return (
     <section
       aria-current={isCurrent ? 'step' : undefined}
-      className={`relative min-w-0 rounded-md border bg-background/60 p-3 ${
+      className={`relative min-w-0 bg-background py-3 ${
         isCurrent ? 'border-primary/30 ring-1 ring-primary/15' : 'border-border'
       }`}
     >

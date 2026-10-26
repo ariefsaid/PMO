@@ -1,3 +1,4 @@
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
@@ -93,6 +94,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const salesStageLabel = useSalesStageLabel();
   const salesStage = SALES_COLUMNS.find((column) => !column.terminal && column.testId !== 'stage-Won' && column.statuses.includes(project.status));
   const may = usePermission();
+  const statusLabel = useProjectStatusLabel();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
   const { archive, remove, setContractValue } = useProjectMutations();

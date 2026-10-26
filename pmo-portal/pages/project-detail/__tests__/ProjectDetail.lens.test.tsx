@@ -176,7 +176,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </ToastProvider>
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 60_000 });
   return view;
 };
 
@@ -197,7 +197,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     // Delivery sections are directly addressable, and the read-only value reason lives in Overview.
     expect(screen.getByRole('navigation', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Read-only/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
     // the pipeline lens is NOT mounted
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();

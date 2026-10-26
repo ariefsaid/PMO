@@ -1,3 +1,5 @@
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
+import { formatDateOnly } from '@/src/lib/format';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -164,6 +166,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   const [clientUploadErrors, setClientUploadErrors] = useState<Record<string, string>>({});
   const [revisionParent, setRevisionParent] = useState<ProjectDocumentRow | null>(null);
 
+  const isDesktop = useIsDesktop();
   const currentUserId = currentUser?.id ?? null;
   const canCreate = may('create', 'document');
   const canCreateMicrosoftReference = documentLinkPermissions.projectCreate();
@@ -276,7 +279,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             {d.code}
           </span>
         ) : (
-          <span className="text-muted-foreground">{'—'}</span>
+          <span className="text-muted-foreground">{t('project:projectDetail.documents.noCode', 'No code')}</span>
         ),
     },
     {
@@ -285,7 +288,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       size: 112, minSize: 112, maxSize: 112,
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
+        ? <span className="text-muted-foreground">{t('project:projectDetail.documents.notApplicable', 'Not applicable')}</span>
         : <span className="text-sm text-muted-foreground">{d.category}</span>,
     },
     {
@@ -294,7 +297,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       size: 88, minSize: 88, maxSize: 88,
       colClassName: 'hidden md:table-cell w-[88px]',
       cell: (d) => isMicrosoftFolder(d) || !d.revision
-        ? <span className="text-muted-foreground">{'—'}</span>
+        ? <span className="text-muted-foreground">{t('project:projectDetail.documents.noRevision', 'No revision')}</span>
         : <span className="text-sm text-muted-foreground">{`${t('projectDetail.documents.revLabel', 'Rev')} ${d.revision}`}</span>,
     },
     {
@@ -304,7 +307,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'w-[112px] min-w-[112px]',
       // A folder is never issued or approved, so it carries no issue status.
       cell: (d) => isMicrosoftFolder(d)
-        ? <span className="text-muted-foreground">{'—'}</span>
+        ? <span className="text-muted-foreground">{t('project:projectDetail.documents.notApplicable', 'Not applicable')}</span>
         : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
     {
@@ -314,9 +317,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
-          <span className="tabular whitespace-nowrap text-sm text-muted-foreground">{d.doc_date}</span>
+          <span className="tabular whitespace-nowrap text-sm text-muted-foreground">{formatDateOnly(d.doc_date)}</span>
         ) : (
-          <span className="text-muted-foreground">{'—'}</span>
+          <span className="text-muted-foreground">{t('project:projectDetail.documents.noDate', 'No document date')}</span>
         ),
     },
     {
@@ -340,6 +343,27 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         />
       ),
     },
+  ];
+
+  const phoneColumns: Column<ProjectDocumentRow>[] = [
+    {
+      ...columns[0],
+      cell: (doc) => <div className="space-y-1">
+        {columns[0].cell(doc)}
+        <p className="break-words text-xs font-semibold text-muted-foreground">
+          {[doc.code, doc.revision ? `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}` : null, doc.category].filter(Boolean).join(' · ')}
+        </p>
+      </div>,
+    },
+    {
+      key: 'statusDate',
+      header: t('project:projectDetail.documents.statusDate', 'Status / date'),
+      cell: (doc) => <div className="flex flex-wrap items-center gap-2">
+        {columns.find((column) => column.key === 'status')?.cell(doc)}
+        {doc.doc_date ? <time dateTime={doc.doc_date} className="whitespace-nowrap text-sm">{formatDateOnly(doc.doc_date)}</time> : t('project:projectDetail.documents.noDate', 'No document date')}
+      </div>,
+    },
+    columns.find((column) => column.key === 'file_path')!,
   ];
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */
@@ -579,24 +603,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   return (
     <div>
+      <h2 className="mb-3.5 text-xl font-bold tracking-[-0.01em] max-sm:sr-only">
+        {t('projectDetail.documents.heading', 'Document register')}
+      </h2>
+
       <Toolbar standalone className="items-stretch sm:items-center">
-        <div className="order-1 flex w-full min-w-0 flex-col gap-2 sm:order-2 sm:ml-auto sm:w-auto sm:flex-row">
-        {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
-            button was removed — file upload is signposted by the register subtitle copy
-            ("file attachments arrive with Storage"), not a fake disabled control. */}
-          {canCreate && (
-            <Button className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormTarget({ doc: null })}>
-              <Icon name="plus" />
-              {t('projectDetail.documents.addDocument', 'Add document')}
-            </Button>
-          )}
-          {canCreateMicrosoftReference && (
-            <Button variant="outline" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
-              <Icon name="doc" />
-              {t('m365Documents:link', 'Link from Microsoft 365')}
-            </Button>
-          )}
-        </div>
+
         {state !== 'loading' && all.length > 0 && (
 
           <SearchMini
@@ -604,14 +616,30 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            containerClassName="order-2 w-full min-w-0 max-sm:min-h-11 sm:order-1 sm:w-auto sm:min-w-[15rem]"
+            containerClassName="order-1 w-full min-w-0 max-sm:min-h-11 sm:w-auto sm:min-w-[15rem]"
           />
         )}
+        <span className="order-2 text-xs font-semibold text-muted-foreground">{t('project:projectDetail.documents.newestFirst', 'Document date newest first')}</span>
+        <div className="order-3 flex w-full min-w-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
+        {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
+            button was removed — file upload is signposted by the register subtitle copy
+            ("file attachments arrive with Storage"), not a fake disabled control. */}
+          {canCreateMicrosoftReference && (
+            <Button variant="outline" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
+              <Icon name="doc" />
+              {t('m365Documents:link', 'Link from Microsoft 365')}
+            </Button>
+          )}          {canCreate && (
+            <Button className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormTarget({ doc: null })}>
+              <Icon name="plus" />
+              {t('projectDetail.documents.addDocument', 'Add document')}
+            </Button>
+          )}
+
+        </div>
       </Toolbar>
 
-      <h2 className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
-        {t('projectDetail.documents.heading', 'Document register')}
-      </h2>
+
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -646,7 +674,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       {state === undefined && (
         <DataTable<ProjectDocumentRow>
           rows={filtered}
-          columns={columns}
+          columns={isDesktop ? columns : phoneColumns}
           rowKey={(d) => d.id}
           onActivate={(d) => setDrawerDoc(d)}
           rowMenu={anyRowWrite ? rowMenu : undefined}
@@ -658,7 +686,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             'Try a different title, code, or category.',
           )}
           emptyAction={{
-            label: t('ui.search.clearSearch', 'Clear search'),
+            label: t('project:projectDetail.documents.clearSearch', 'Clear search'),
             onClick: () => setSearch(''),
           }}
           cardBelow={576}
@@ -920,7 +948,7 @@ const DocumentTitleCell: React.FC<{
         onClick={() => onViewDocument(doc)}
         className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <span className="block truncate font-semibold" title={doc.title}>
+        <span className="block break-words whitespace-normal font-semibold" title={doc.title}>
           {doc.title}
         </span>
       </button>

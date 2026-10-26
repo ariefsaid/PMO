@@ -86,7 +86,8 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                   </StatusPill>
                   <StatusPill variant={STATUS_VARIANT[a.status]}>{statusLabel(a.status)}</StatusPill>
                 </div>
-                {a.lines.length > 0 && <p className="text-xs tabular text-muted-foreground">{linesText(a)}</p>}
+                {Array.isArray(a.lines) && a.lines.length > 0 && <p className="text-xs tabular text-muted-foreground">{linesText(a)}</p>}
+                {!Array.isArray(a.lines) && <p role="alert" className="text-sm text-muted-foreground">{t('project:projectDetail.workOrders.acceptanceLinesUnavailable', 'Acceptance quantities are unavailable. Retry the acceptance read.')} <Button variant="ghost" size="sm" onClick={onRetry}>{t('projectDetail.loadError.retry', 'Retry')}</Button></p>}
                 <p className="text-xs text-muted-foreground">
                   {document
                     ? t('projectTabs:contractQuantities.workOrders.acceptances.document', 'Signed BAST: {{title}}', { title: document.title })

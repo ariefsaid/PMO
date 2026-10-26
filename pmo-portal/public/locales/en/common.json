@@ -1,5 +1,5 @@
 {
-  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" }, "search": { "clearSearch": "Clear search" } },
+  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
   "uxs07": {
     "organizationScope": "Organization connections are shared; your personal connection is separate. Manage it in ",
     "personalConnections": "My integrations",
@@ -1374,8 +1374,8 @@
         "advance": "Advance",
         "age": "Age (days)",
         "claimant": "Claimant",
-        "outstanding": "Outstanding",
-        "project": "Project"
+        "project": "Project",
+        "outstanding": "Outstanding"
       },
       "errorSub": "The list below is unaffected. Try again.",
       "errorTitle": "Couldn't load outstanding advances",
@@ -2596,7 +2596,6 @@
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load the progress curve",
       "heading": "Progress curve",
-      "seriesActual": "Actual to date",
       "seriesPlanned": "Planned",
       "summary": "Project S-curve: actual to date {{actual}}.",
       "summaryWithPlan": "Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today."
@@ -4354,13 +4353,18 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "invoiced":"Invoiced", "outstanding":"Outstanding",
-    "margin":"Margin",
-    "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
-    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "category":"Category", "unavailable":"Unavailable",
-    "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
-    "mixedTaxBases":"Mixed tax bases"
+    "invoiced": "Invoiced",
+    "margin": "Margin",
+    "differentCurrencies": "Unavailable — different currencies",
+    "workUnavailable": "Billed-work revenue unavailable",
+    "restricted": "Actuals exclude restricted rows",
+    "actualsUnavailable": "Not available yet",
+    "category": "Category",
+    "unavailable": "Unavailable",
+    "loading": "Loading project finances…",
+    "error": "Couldn't load project finances.",
+    "retry": "Retry",
+    "mixedTaxBases": "Mixed tax bases"
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
@@ -4424,8 +4428,7 @@
     }
   },
   "uxs13": {
-    "projectDetailsAndActions": "Project details",
-    "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
+    "projectDetailsAndActions": "Project details"
   },
   "uxs18": {
     "bulk": {

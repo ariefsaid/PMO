@@ -8,6 +8,7 @@ import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repos
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
@@ -137,7 +138,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
-          {formatRelativeTime(ev.createdAt)}
+          {formatRelativeTime(ev.createdAt)} · {absolute} · {getActiveLocale().timezone}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
@@ -184,7 +185,7 @@ const HistoryEventGroup: React.FC<{
         onClick={() => setExpanded((open) => !open)}
         className="inline-flex h-8 max-sm:min-h-11 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
+        <span aria-hidden className="mr-2">{expanded ? '⌄' : '›'}</span>{t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })} · {historyEventSummary(t, events[0])} · {formatInstant(events[0].createdAt)} · {getActiveLocale().timezone}
       </button>
       <ul id={eventsId} hidden={!expanded} className="mt-1 pl-3">
         {events.map((ev) => (

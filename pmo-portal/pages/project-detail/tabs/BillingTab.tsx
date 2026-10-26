@@ -56,9 +56,9 @@ function thisMonth(): string {
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string }> = ({ testId, label, value, note }) => (
-  <div>
-    <dt className="text-xs text-muted-foreground">{label}</dt>
-    <dd className="tabular text-sm font-semibold" data-testid={testId}>{value}</dd>
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+    <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+    <dd className="whitespace-nowrap tabular text-sm font-normal text-right" data-testid={testId}>{value}</dd>
     {note && <dd className="text-[11px] text-muted-foreground">{note}</dd>}
   </div>
 );
@@ -199,13 +199,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
     { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Unit / basis'), align: 'num',
       cell: (row) => row.earning_basis === 'lump_sum'
         ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
-        : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
+        : <span className="tabular">{!hasLines || Number(row.quantity) !== lineFactsById.get(row.id)?.orderedQuantity ? `${formatNumberExact(Number(row.quantity))} ` : ''}{row.unit}</span> },
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return <span className="tabular" data-testid={`boq-ordered-${row.id}`}>{f ? quantityText(row, f.orderedQuantity) : '—'}</span>;
       } },
-      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Not yet ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'balance', header: t('project:projectDetail.billing.availableToOrder', 'Available to order'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-balance-${row.id}`}>
@@ -234,7 +234,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
       const assessed = summary?.assessedByBoqItem[row.id];
       return (
         <span className="tabular" data-testid={`boq-assessed-${row.id}`}>
-          {assessed === undefined ? '—' : row.earning_basis === 'lump_sum' ? percentOfLot(assessed) : formatNumberExact(assessed)}
+          {assessed === undefined ? t('project:projectDetail.billing.notAssessed', 'Not assessed') : row.earning_basis === 'lump_sum' ? percentOfLot(assessed) : formatNumberExact(assessed)}
         </span>
       );
     } },
@@ -293,7 +293,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
           <span className="font-semibold">{c.kind === 'down_payment'
             ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
             : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
-          <span className="max-w-48 truncate text-[11px] text-muted-foreground" title={scope}>{scope}</span>
+          <span className="break-words text-xs text-muted-foreground" title={scope}>{scope}</span>
         </div>
       );
     } },
@@ -323,6 +323,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
       cell: (c) => <span className="tabular">{cents(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span> },
     { key: 'actions', header: t('projectDetail.billing.claims.column.actions', 'Actions'), cell: (c) => {
       const open = !c.withdrawn_at && !c.invoice;
+      if (!open || !canBill) return null;
       return (
         <div className="flex flex-wrap items-center gap-1.5" data-testid={`claim-actions-${c.id}`}>
           {open && canBill && (
@@ -353,11 +354,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
+  const basisLabel = taxTreatment ? <TaxBasisLabel treatment={taxTreatment} showDetails={false} /> : null;
+
   const boqCard = (
     <Card variant="bare">
       <CardHead
         level={2}
-        className={projectSectionHeading}
+        className={`border-0 px-0 py-0 ${projectSectionHeading}`}
         actions={
           <>
             {may('create', 'boqItem') && (
@@ -367,7 +370,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
         }
       >
         {t('projectDetail.billing.boq.title', 'Bill of quantities')} · {currency}
-        {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
+        {taxTreatment && <span> · {basisLabel}</span>}
       </CardHead>
       <CardPad>
         <DataTable<BoqItemRow>
@@ -392,7 +395,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
     <Card variant="bare">
       <CardHead
         level={2}
-        className={projectSectionHeading}
+        className={`border-0 px-0 py-0 ${projectSectionHeading}`}
         actions={
           canBill && !canStartInvoice && (
             <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
@@ -400,7 +403,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
         }
       >
         {t('projectDetail.billing.claims.title', 'Billing claims')} · {currency}
-        {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
+        {taxTreatment && <span> · {basisLabel}</span>}
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
@@ -422,11 +425,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Card variant="bare">
         <CardHead
           level={2}
-          className={projectSectionHeading}
+          className={`border-0 px-0 py-0 ${projectSectionHeading}`}
           actions={
             canStartInvoice ? (
               <ProjectBillingStart
@@ -447,7 +450,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
           }
         >
           {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {currency}
-          {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
+          {taxTreatment && <span> · {basisLabel}</span>}
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -455,7 +458,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
           ) : billing.isError || !summary ? (
             <ListState variant="error" title={t('projectDetail.billing.summary.error', "Couldn't load billing")} onRetry={() => void billing.refetch()} />
           ) : (
-            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <><h3 data-primary-figure="true" aria-label={`${t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} · ${money(summary.remaining)}`}>
+              <span className="project-primary-label">{t('projectDetail.billing.summary.remaining', 'Contract not yet billed')}</span>
+              <span className="project-primary-value">{money(summary.remaining)}</span>
+            </h3>
+            <dl className="project-facts mt-4 space-y-2">
               <Figure testId="billing-contract" label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} />
               <Figure testId="billing-billed" label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} />
               {summary.assessedToDate !== null && summary.assessedToDate !== 0 && (lineProject || summary.assessment) && (
@@ -475,11 +482,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
               {summary.dpHeld !== 0 && (
                 <Figure testId="billing-dp-held" label={t('projectDetail.billing.summary.dpHeld', 'Down payment held')} value={money(summary.dpHeld)} />
               )}
-              <Figure testId="billing-remaining" label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} />
+              <Figure testId="billing-remaining" label={t('project:projectDetail.moneyPosition.exactRemaining', 'Exact remaining')} value={money(summary.remaining)} />
               {summary.notSubmitted !== 0 && (
                 <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
               )}
-            </dl>
+            </dl></>
           )}
           {summary && lineProject && !summary.assessment && (
             <p className="mt-3 text-xs text-muted-foreground" data-testid="billing-unassessed">

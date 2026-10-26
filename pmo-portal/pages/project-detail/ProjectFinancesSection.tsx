@@ -21,9 +21,10 @@ export interface ProjectFinancesSectionProps {
   costSupplement?: React.ReactNode;
   /** Authorized, dated org-currency conversion of the saved contract ceiling. */
   contractContext?: React.ReactNode;
+  deliveryAttention?: React.ReactNode;
 }
 
-export function ProjectFinancesSection({ project, costSupplement, contractContext }: ProjectFinancesSectionProps) {
+export function ProjectFinancesSection({ project, costSupplement, contractContext, deliveryAttention }: ProjectFinancesSectionProps) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -41,6 +42,8 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
 
   if (query.isPending) return (
     <>
+      {contractContext}
+      {deliveryAttention}
       <div role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
         <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')}</h3>
         {costSupplement}
@@ -53,6 +56,8 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
   );
   if (query.isError || !query.data) return (
     <>
+      {contractContext}
+      {deliveryAttention}
       <div role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
         <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')}</h3>
         {costSupplement}
@@ -161,7 +166,7 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
       <dd className="break-words text-sm font-normal tabular-nums">
         {cashKnown && cashValue !== cashInvalid ? cashValue : <UnknownFigure reason={cashValue} />}
       </dd>
-      <dd><span className="text-[11px] font-semibold text-muted-foreground">{cashScope}</span></dd>
+      <dd className="sr-only">{cashScope}</dd>
     </div>
   );
   const hasInvoices = data.invoices.length > 0;
@@ -171,11 +176,11 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
     : formatShortMoney(Number(data.remaining_to_invoice), project.currency, { code: true });
   const primaryContent = (
     <section className="min-w-0 space-y-4" aria-label={t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')}>
-      <h2 className={projectSectionHeading} data-primary-figure="true">
-        {t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')}
-        {remainingCompact ? ` · ${remainingCompact}` : ` · ${project.currency}`}
+      <h2 data-primary-figure="true" aria-label={`${t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')} · ${remainingCompact ?? project.currency}`}>
+        <span className="project-primary-label">{t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')}</span>
+        <span className="project-primary-value">{remainingCompact ?? project.currency}</span>
       </h2>
-      <dl className="grid min-w-0 grid-cols-2 gap-4">
+      <dl className="project-facts min-w-0 space-y-2">
         {field(t('project:projectDetail.moneyPosition.exactRemaining', 'Exact remaining'), remainingExact ?? <UnknownFigure reason={unknown} />)}
         {cashField}
       </dl>
@@ -199,13 +204,13 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
                 ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
                 : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
             </h3>
-            {index === 0 && <p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p>}
-            <dl className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3">
+            {index === 0 && <details><summary className="min-h-11 cursor-pointer text-xs font-semibold">{t('project:projectDetail.moneyPosition.settlementDetails', 'Cash and non-cash settlement details')}</summary><p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p></details>}
+            <dl className="project-facts min-w-0 space-y-2">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
               {field(t('project:projectDetail.moneyPosition.clearedAgainstInvoices', 'Cleared against invoices'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
                 : money(bucket.settled, bucket.currency))}
-              {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0
+              {field(t('project:projectDetail.moneyPosition.erpOutstanding', 'ERP invoice balance outstanding'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
                 : money(bucket.outstanding, bucket.currency))}
             </dl>
@@ -227,7 +232,7 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
     <div className="min-w-0 space-y-2">
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
-        <dl className="grid min-w-0 grid-cols-2 gap-4">
+        <dl className="project-facts min-w-0 space-y-2">
           <div className="min-w-0">
             <dt className="text-xs font-semibold text-muted-foreground">{t('uxs01.recordedSpending', 'Recorded spending')}</dt>
             <dd className="break-words text-sm font-normal tabular-nums">{money(actualPosition.amount, actualPosition.currency, unknown)}</dd>
@@ -335,12 +340,9 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
     return (
       <section key={bucket.currency} className="min-w-0 space-y-4">
         <h3 className={projectSectionHeading}>
-          {t('projectFinances.margin', 'Margin')} · {bucket.currency} · {bucket.tax_basis === 'mixed'
-            ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
-            : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
-          {' · '}{t('project:billedWorkQualifier', 'Net of tax; advances excluded')}
+          {t('projectFinances.margin', 'Margin')} · {bucket.currency} · {t('project:billedWorkQualifier', 'Net of tax; advances excluded')}
         </h3>
-        <dl className="grid min-w-0 grid-cols-2 gap-4">
+        <dl className="project-facts min-w-0 space-y-2">
           {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency, reasons['work-unavailable']))}
           {field(t('projectFinances.margin', 'Margin'), margin.reason
             ? <UnknownFigure reason={reasons[margin.reason]} />
@@ -353,6 +355,7 @@ export function ProjectFinancesSection({ project, costSupplement, contractContex
   return (
     <div className="min-w-0 space-y-8" data-testid="money-position-groups">
       {primaryContent}
+      {deliveryAttention}
       <section role="group" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
         {!hasInvoices && <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>}
         {contractContext}

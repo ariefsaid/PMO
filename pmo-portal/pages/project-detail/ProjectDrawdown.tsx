@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState, ProgressBar, StatusPill } from '@/src/components/ui';
 import { useProjectDrawdown } from '@/src/hooks/useWorkOrders';
 import { UnknownFigure } from './UnknownFigure';
-import { formatProjectDetailMoney } from './formatProjectDetailMoney';
+import { formatProjectDetailAmount, formatProjectDetailMoney } from './formatProjectDetailMoney';
 import { projectSectionHeading, projectSubsectionHeading } from './typography';
 
 /**
@@ -56,13 +56,13 @@ const Figure: React.FC<{
   tone?: string;
 }> = ({ testId, label, value, currency, tone }) => {
   const { t, i18n } = useTranslation();
-  const amount = formatProjectDetailMoney(value, currency, i18n.language);
+  const amount = formatProjectDetailAmount(value, currency, i18n.language);
   return (
-    <div data-testid={testId}>
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+    <div data-testid={testId} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+      <dt className="text-xs font-semibold text-muted-foreground">
         {label}
       </dt>
-      <dd className={`mt-0.5 text-sm font-bold tabular${tone ? ` ${tone}` : ''}`}>
+      <dd className={`whitespace-nowrap text-sm font-normal tabular${tone ? ` ${tone}` : ''}`}>
         {amount ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
       </dd>
     </div>
@@ -156,7 +156,11 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                   </p>
                 )}
 
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+                <h3 data-primary-figure="true" aria-label={`${t('projectDetail.drawdown.headroom', 'Remaining headroom')} · ${currency} ${formatProjectDetailAmount(headroom, currency, i18n.language)}`}>
+                  <span className="project-primary-label">{t('projectDetail.drawdown.headroom', 'Remaining headroom')}</span>
+                  <span className="project-primary-value">{currency} {formatProjectDetailAmount(headroom, currency, i18n.language)}</span>
+                </h3>
+                <dl className="project-facts space-y-2">
                   <Figure
                     testId="drawdown-ceiling"
                     label={t('projectDetail.drawdown.ceiling', 'Contract ceiling')}

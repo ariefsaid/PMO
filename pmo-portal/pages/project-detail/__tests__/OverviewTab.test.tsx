@@ -231,7 +231,7 @@ describe('project invoicing summary', () => {
       expect(screen.getAllByTestId('project-finances')).toHaveLength(1);
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
       expect(section).not.toHaveTextContent('220');
-      expect(section).toHaveTextContent('110');
+      expect(screen.getByRole('region', { name: 'Still to invoice' })).toHaveTextContent('110');
       expect(section).toHaveTextContent('100');
       expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
       expect(screen.getByRole('heading', { name: /Still to invoice ·/ })).toBeInTheDocument();
@@ -265,7 +265,7 @@ describe('project invoicing summary', () => {
 
     const unknownBasis = { ...project, contract_value: 1_000_000, tax_treatment: 'unknown' } as ProjectWithRefs;
     const unknownView = renderTab(unknownBasis);
-    expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('1,000,000');
     expect(unknownView.getByTestId('project-finances')).not.toHaveTextContent('1,000,000');
     unknownView.unmount();
   });
@@ -314,7 +314,7 @@ describe('OverviewTab T14: Procurement summary card', () => {
     renderTab();
     // Committed: r1(50k)+r2(80k)+r4(20k)=150k; r3(Cancelled) excluded
     // $150,000 also appears as Budget snapshot activeTotal — use count >= 1
-    expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/150,000/i).length).toBeGreaterThanOrEqual(1);
     // The procurement amount is total request value, not the separate Committed measure.
     expect(screen.getByText(/Total request value:/i)).toBeInTheDocument();
   });
@@ -365,7 +365,7 @@ describe('OverviewTab T16: Budget snapshot card', () => {
   it('UX-014/023: Actual uses complete mapped project-finances data, not committed spend or stored project.spent', () => {
     // Actual is $320k even when the separate committed-spend prop says $450k.
     renderTab(project, vi.fn(), 450_000);
-    expect(screen.getByText('320,000', { exact: true })).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Spending' })).getAllByText('320,000', { exact: true })[0]).toBeInTheDocument();
     expect(screen.getByTestId('budget-used')).toHaveTextContent('36% of budget');
     expect(screen.queryByText(/50% of budget/)).not.toBeInTheDocument();
   });
@@ -518,6 +518,6 @@ describe('Project detail Overview money position (AC-PD-OV-01)', () => {
   it('RD-020/H-04: omits zero fractions and keeps remaining exact money visible', () => {
     renderTab({ ...project, contract_value: 1_000_000.5 } as ProjectWithRefs);
     expect(screen.getByRole('heading', { name: /Still to invoice ·/ })).toBeInTheDocument();
-    expect(screen.queryByText('1,000,000.5')).not.toBeInTheDocument();
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('1,000,000.5');
   });
 });

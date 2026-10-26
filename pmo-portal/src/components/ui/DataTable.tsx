@@ -832,12 +832,12 @@ export function DataTable<Row>({
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {!mobileRow && restCols.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                  <dl className="flex flex-col gap-2">
                     {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
-                        <React.Fragment key={col.key}>
+                        <div key={col.key} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                           <dt
                             className={cn(
                               'text-xs font-semibold text-muted-foreground self-start',
@@ -858,7 +858,7 @@ export function DataTable<Row>({
                           >
                             {content}
                           </dd>
-                        </React.Fragment>
+                        </div>
                       );
                     })}
                   </dl>

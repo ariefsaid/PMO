@@ -385,7 +385,7 @@ const ProjectDetail: React.FC = () => {
   );
 
   return (
-    <div className="min-w-0">
+    <div className="project-detail-record min-w-0">
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectDetailHeader
         project={project}
@@ -406,6 +406,7 @@ const ProjectDetail: React.FC = () => {
 
       <div className="grid min-w-0 grid-cols-1 gap-5 min-[921px]:grid-cols-[13rem_minmax(0,1fr)] min-[921px]:gap-8">
         <ProjectSectionNavigation
+          recordName={project.name}
           projectId={projectId}
           groups={sectionGroups}
           activeSection={tab}

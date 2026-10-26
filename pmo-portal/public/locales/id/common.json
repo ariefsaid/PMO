@@ -1,5 +1,5 @@
 {
-  "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" }, "search": { "clearSearch": "Hapus pencarian" } },
+  "ui": { "listState": { "loading": "Memuat…", "retry": "Coba lagi" } },
   "uxs07": {
     "organizationScope": "Koneksi organisasi digunakan bersama; koneksi pribadi Anda terpisah. Kelola di ",
     "personalConnections": "Integrasi saya",
@@ -1879,7 +1879,7 @@
     },
     "unknownRequester": "Tidak diketahui",
     "view": {
-      "board": "Board",
+      "board": "Papan",
       "table": "Tabel"
     },
     "viewToggleLabel": "Tampilan pengadaan"
@@ -2596,7 +2596,6 @@
       "errorSub": "Permintaan gagal. Periksa koneksi Anda dan coba lagi.",
       "errorTitle": "Gagal memuat kurva progres",
       "heading": "Kurva progres",
-      "seriesActual": "Realisasi hingga kini",
       "seriesPlanned": "Rencana",
       "summary": "Kurva S proyek: realisasi hingga kini {{actual}}.",
       "summaryWithPlan": "Kurva S proyek: realisasi hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
@@ -2693,9 +2692,9 @@
       "unassigned": "Belum ditugaskan",
       "ungrouped": "Tanpa grup",
       "view": {
-        "board": "Board",
+        "board": "Papan",
         "list": "Daftar",
-        "timeline": "Timeline"
+        "timeline": "Linimasa"
       },
       "viewAriaLabel": "Tampilan tugas"
     },
@@ -3017,7 +3016,7 @@
     },
     "unassigned": "Belum ditugaskan",
     "view": {
-      "board": "Board",
+      "board": "Papan",
       "calendar": "Kalender",
       "cards": "Kartu",
       "table": "Tabel"
@@ -3140,7 +3139,7 @@
       "placeholder": "Cari proyek…"
     },
     "view": {
-      "board": "Board",
+      "board": "Papan",
       "table": "Tabel"
     },
     "viewToggleLabel": "Tampilan pipeline",
@@ -3782,9 +3781,7 @@
     "backToDashboard": "Kembali ke dasbor",
     "invoice": "No. Faktur",
     "customerPO": "PO Pelanggan",
-    "customer": "Pelanggan",
     "status": "Status",
-    "outstanding": "Belum dibayar",
     "date": "Tanggal",
     "dueDate": "Tanggal jatuh tempo",
     "submit": "Ajukan",
@@ -3804,7 +3801,6 @@
     "submitInvoice": "Ajukan faktur",
     "pushingToERPNext": "Mengirim ke ERPNext…",
     "selectOrSearchCustomer": "Pilih atau cari pelanggan…",
-    "project": "Proyek",
     "selectProjectOptional": "Pilih proyek (opsional)…",
     "itemCode": "Kode item",
     "iTEM001": "ITEM-001",
@@ -3883,7 +3879,6 @@
     "statusAll": "Semua",
     "statusSubmitted": "Diajukan",
     "statusUnpaid": "Belum dibayar",
-    "statusPaid": "Dibayar",
     "statusCancelled": "Dibatalkan",
     "customerRequired": "Pelanggan wajib diisi.",
     "invoiceLineRequired": "Minimal satu item baris diperlukan.",
@@ -3977,7 +3972,8 @@
     "invoiceIllegalTransition": "Perubahan itu tidak diizinkan dari status faktur saat ini.",
     "sodSelfApproval": "Anda membuat faktur ini — orang lain harus menyetujuinya",
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
-    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf"
+    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
+    "outstanding": "Belum dibayar"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
@@ -4354,13 +4350,18 @@
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
   },
   "projectFinances": {
-    "invoiced":"Ditagihkan", "outstanding":"Belum dibayar",
-    "margin":"Margin",
-    "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
-    "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
-    "category":"Kategori", "unavailable":"Tidak tersedia",
-    "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
-    "mixedTaxBases":"Dasar pajak berbeda"
+    "invoiced": "Ditagihkan",
+    "margin": "Margin",
+    "differentCurrencies": "Tidak tersedia — mata uang berbeda",
+    "workUnavailable": "Pendapatan pekerjaan ditagihkan belum tersedia",
+    "restricted": "Aktual tidak mencakup baris terbatas",
+    "actualsUnavailable": "Belum tersedia",
+    "category": "Kategori",
+    "unavailable": "Tidak tersedia",
+    "loading": "Memuat keuangan proyek…",
+    "error": "Keuangan proyek tidak dapat dimuat.",
+    "retry": "Coba lagi",
+    "mixedTaxBases": "Dasar pajak berbeda"
   },
   "uxs01": {
     "recordedSpending": "Pengeluaran tercatat",
@@ -4424,8 +4425,7 @@
     }
   },
   "uxs13": {
-    "projectDetailsAndActions": "Detail proyek",
-    "overdueTargetDateWithYear": "Target tanggal {{date}} {{year}}"
+    "projectDetailsAndActions": "Detail proyek"
   },
   "uxs18": {
     "bulk": {

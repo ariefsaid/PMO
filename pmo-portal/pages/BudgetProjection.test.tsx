@@ -157,11 +157,19 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(exact).not.toHaveTextContent(/USD|\$|\.00/);
   });
 
+  it('R-033 computes the forecast percent from the displayed cost and budget', async () => {
+    fetchMock.mockResolvedValue([{ ...ROW, projectedFinalCost: 100000, projectedUtilization: 100 }]);
+    renderPage();
+    const grid = within(await screen.findByRole('table'));
+    expect(await grid.findByText('100%')).toBeInTheDocument();
+    expect(grid.queryByText('10000%')).not.toBeInTheDocument();
+  });
+
   it('AC-CAT-005: localizes Special expenses in the projection without changing its amounts', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
     render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
-    expect(within(screen.getByRole('table')).getByText('100,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('100.000')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ubah biaya hingga selesai' })).toBeInTheDocument();
   });
 
@@ -169,7 +177,7 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     await financeTestI18n.changeLanguage('id');
     renderPage();
     expect(await screen.findByText('Tenaga kerja')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Perkiraan' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Perkiraan · 2025-2026 · USD/ })).toBeInTheDocument();
   });
 
   it('renders the category row: PMO budget, ERP actuals, PMO ETC, projected final, variance, utilization', async () => {
@@ -177,9 +185,9 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     expect(await screen.findByText('Labor')).toBeInTheDocument();
     const grid = within(screen.getByRole('table'));
     expect(grid.getByText('100,000')).toBeInTheDocument(); // pmoBudgetAmount
-    expect(grid.getByText('$40,000')).toBeInTheDocument(); // actualsToDate
+    expect(grid.getByText('40,000')).toBeInTheDocument(); // actualsToDate
     expect(grid.getByText('75,000')).toBeInTheDocument(); // projectedFinalCost
-    expect(grid.getByText('$25,000')).toBeInTheDocument(); // projectedVariance
+    expect(grid.getByText('25,000')).toBeInTheDocument(); // projectedVariance
     expect(grid.getByText('75%')).toBeInTheDocument(); // projectedUtilization
   });
 
@@ -329,7 +337,7 @@ describe('BudgetProjection — an unobtainable figure is never rendered as money
     renderPage();
     const row = (await screen.findByText('Labor')).closest('tr')!;
     // actuals AND projected final are both a real, computed zero here.
-    expect(within(row).getAllByText('$0').length).toBeGreaterThanOrEqual(1);
+    expect(within(row).getAllByText('0').length).toBeGreaterThanOrEqual(1);
     expect(within(row).getByText('0%')).toBeInTheDocument();
   });
 
@@ -751,7 +759,9 @@ describe('BudgetProjection — the push-state banner (FR-BUD-123)', () => {
     pushStatusMock.mockResolvedValue([pushStatus({ pushState: 'failed', pushError })]);
     const { container } = renderPage();
     await findPageAlert(/ERPNext is (?:not enforcing|still enforcing)/i);
-    expect(container.textContent ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
+    // Fiscal-year names legitimately contain hyphens; the exact adapter token must never leak.
+    expect(container.textContent ?? '').not.toContain(pushError);
+    expect(container.textContent?.replaceAll(ERP_FISCAL_YEAR, '') ?? '').not.toMatch(RAW_ADAPTER_TOKEN);
   });
 });
 
@@ -1221,7 +1231,7 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
       expect(within(row).getAllByTitle(/no line for this category/i).length).toBeGreaterThanOrEqual(1),
     );
     expect(within(row).queryAllByTitle(/phase these lines/i)).toHaveLength(0);
-    expect(screen.getByText('-75,000')).toBeInTheDocument(); // the alarm itself is untouched
+    expect(screen.getByText('−75,000')).toBeInTheDocument(); // the alarm itself is untouched
   });
 });
 
@@ -1238,11 +1248,11 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     renderPage();
     const summary = within(await screen.findByTestId('forecast-summary'));
     expect(summary.queryByText('Budget')).not.toBeInTheDocument();
-    expect(summary.getByText('Recorded spending').nextElementSibling).toHaveTextContent('$200,000');
-    expect(summary.getByText('Cost to finish').nextElementSibling).toHaveTextContent('$280,000');
-    expect(summary.getByText('Forecast final cost').nextElementSibling).toHaveTextContent('$480,000');
+    expect(summary.getByText('Recorded spending').nextElementSibling).toHaveTextContent('200,000');
+    expect(summary.getByText('Cost to finish').nextElementSibling).toHaveTextContent('280,000');
+    expect(summary.getByText('Forecast final cost').nextElementSibling).toHaveTextContent('480,000');
     // 500,000 − 480,000 = 20,000 left, so it is "remaining", not an overrun
-    expect(summary.getByText('Forecast remaining').nextElementSibling).toHaveTextContent('$20,000');
+    expect(summary.getByText('Forecast remaining').nextElementSibling).toHaveTextContent('20,000');
   });
 
   it('T5 the grid is a DataTable showing FULL amounts (zero fraction suppressed, non-zero kept)', async () => {

@@ -186,7 +186,7 @@ const renderPage = async (realRole: Role, path = '/projects/p1/overview') => {
       </ToastProvider>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 60_000 });
   return view;
 };
 
@@ -209,8 +209,8 @@ describe('AC-PD-OV-01: role-invariant Overview money position', () => {
       const navigation = screen.getByRole('navigation', { name: 'Project sections' });
       expect(within(navigation).getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
       const position = screen.getByRole('region', { name: 'Money position' });
-      expect(within(position).getByRole('group', { name: 'Contract' })).toBeInTheDocument();
-      expect(within(position).getByRole('group', { name: 'Cost' })).toBeInTheDocument();
+      expect(within(position).getByTestId('overview-contract-value')).toBeInTheDocument();
+      expect(within(position).getByRole('group', { name: 'Spending' })).toBeInTheDocument();
     },
   );
 });

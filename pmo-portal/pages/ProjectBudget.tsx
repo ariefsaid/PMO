@@ -594,7 +594,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
     },
   ];
   return (
-    <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
+    <div data-testid="version-card" className="py-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3">
           <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>

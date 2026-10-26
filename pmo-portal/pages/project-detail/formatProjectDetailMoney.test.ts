@@ -18,6 +18,11 @@ describe('formatProjectDetailMoney', () => {
     expect(formatProjectDetailMoney('1.005', 'USD', 'en-US')).toBeNull();
   });
 
+  it('R-039 names the ISO code for mixed-currency amounts without ambiguous dollar symbols', () => {
+    expect(formatProjectDetailMoney('27000.00', 'USD', 'en-US', true)).toBe('USD 27,000');
+    expect(formatProjectDetailMoney('27000.50', 'USD', 'id-ID', true)).toBe('USD 27.000,5');
+  });
+
   it('formats exact values without a currency mark for currency-named groups', () => {
     expect(formatProjectDetailAmount('100.00', 'USD', 'en-US')).toBe('100');
     expect(formatProjectDetailAmount('100.25', 'USD', 'en-US')).toBe('100.25');

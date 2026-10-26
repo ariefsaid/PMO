@@ -46,7 +46,7 @@ const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
   const showProjection = employsExternalBudget && hasActiveVersion;
   return (
     // The forecast answers first; the selected version's ledger follows before its source disclosure.
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-8">
       {showProjection ? (
         <BudgetProjection
           projectId={projectId}

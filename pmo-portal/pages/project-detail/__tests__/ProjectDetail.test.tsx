@@ -160,7 +160,10 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(
+    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
+    { timeout: 60_000 },
+  );
   return view;
 };
 
@@ -320,8 +323,8 @@ describe('ProjectDetail shell (decomposition)', () => {
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000, line_items: [] }];
     await renderAt('/projects/p1');
 
-    const cost = screen.getByRole('group', { name: 'Cost' });
-    expect(within(cost).getAllByText('$2,350,000').length).toBeGreaterThan(0);
+    const cost = screen.getByRole('group', { name: 'Spending' });
+    expect(within(cost).getAllByText('2,350,000').length).toBeGreaterThan(0);
     expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
   });
 

@@ -696,3 +696,66 @@
   border: 2px solid transparent;
   background-clip: content-box;
 }
+
+/* Project records: nearby labels/values, figure-led answers and contained money matrices. */
+.project-detail-record .project-facts {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.project-detail-record .project-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-start;
+  gap: .25rem .5rem;
+  margin-block: 0;
+}
+.project-detail-record .project-facts > div > dt {
+  font-size: .75rem;
+  font-weight: 600;
+  color: hsl(var(--muted-foreground));
+}
+.project-detail-record .project-facts > div > dd:not(.sr-only) {
+  margin: 0;
+  min-width: 0;
+  text-align: left;
+  font-size: .875rem;
+  font-weight: 400;
+  color: hsl(var(--foreground));
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: normal;
+}
+.project-detail-record .project-facts > div > dd + dd:not(.sr-only) { flex-basis: 100%; }
+.project-detail-record [data-primary-figure] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .5rem;
+}
+.project-detail-record .project-primary-label { font-size: .875rem; font-weight: 400; color: hsl(var(--muted-foreground)); }
+.project-detail-record .project-primary-value { font-size: 1.25rem; font-weight: 700; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
+.project-detail-record [data-testid="overview-budget-position"] { margin-top: 2rem; }
+.project-detail-record [data-dt-cards] .line-clamp-2,
+.project-detail-record [data-dt-cards] .truncate {
+  display: block; overflow: visible; text-overflow: clip; white-space: normal;
+  -webkit-line-clamp: unset; overflow-wrap: anywhere;
+}
+.project-detail-record [data-dt-cards] dl { display: flex; flex-direction: column; gap: .5rem; }
+.project-detail-record [data-dt-cards] dt,
+.project-detail-record [data-dt-cards] dd { width: auto; min-width: 0; max-width: 100%; }
+.project-detail-record [data-dt-cards] dt { font-size: .75rem; font-weight: 600; text-transform: none; letter-spacing: normal; }
+.project-detail-record [data-dt-cards] dd { font-size: .875rem; font-weight: 400; text-align: left; color: hsl(var(--foreground)); }
+.project-detail-record [data-dt-cards] dd.tabular { white-space: nowrap; }
+.project-detail-record .project-forecast-table th { white-space: normal; font-size: .75rem; text-transform: none; letter-spacing: normal; padding-block: .5rem; }
+.project-detail-record .project-forecast-table td { white-space: nowrap; }
+.project-detail-record .project-forecast-table table { table-layout: auto !important; }
+@media (max-width: 640px) {
+  .project-detail-record summary,
+  .project-detail-record button,
+  .project-detail-record select { min-height: 44px; }
+  .project-detail-record button,
+  .project-detail-record select { min-width: 44px; }
+  .project-detail-record [data-dt-cards] > li { padding: .75rem 0; }
+  body:has(.project-detail-record) [role="menu"] button { min-height: 44px; }
+}

@@ -113,7 +113,6 @@ describe('ProjectFinancesSection reading states', () => {
     const billing = screen.getByRole('group', { name: 'Billing' });
     const primary = screen.getByRole('heading', { name: /Still to invoice ·/ });
     expect(primary).toHaveAttribute('data-primary-figure', 'true');
-    expect(primary).toHaveClass('text-xl');
     expect(within(billing).getByRole('heading', { name: /Billing · USD/ })).toBeInTheDocument();
     expect(within(billing).getByText('100')).toBeInTheDocument();
     expect(within(billing).queryByText('$100.00')).not.toBeInTheDocument();
@@ -148,7 +147,7 @@ describe('ProjectFinancesSection reading states', () => {
 
     const billing = within(screen.getByRole('group', { name: 'Billing' }));
     const cleared = billing.getByText('Cleared against invoices').parentElement!;
-    const outstanding = billing.getByText('Outstanding').parentElement!;
+    const outstanding = billing.getByText('ERP invoice balance outstanding').parentElement!;
     const cash = screen.getByText('Cash received').parentElement!;
     expect(screen.queryByRole('heading', { name: 'Billing' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Margin' })).not.toBeInTheDocument();
@@ -291,7 +290,7 @@ describe('ProjectFinancesSection reading states', () => {
     h.commitments.otherCurrencies = [{ currency: 'EUR', amount: 40 }];
     render(<ProjectFinancesSection project={project} />);
     expect(screen.getByText('75')).toBeInTheDocument();
-    expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+    expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: EUR 40');
   });
 
   it('DD-MONEY-1 uses mapped ERP Actual when procurement is ERP-owned, PO Actual for PMO, and withholds on signal error', () => {
@@ -349,7 +348,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(unavailableInvoice).getByTitle('Unavailable')).toBeInTheDocument();
     const unavailableSettlement = eur.getByText('Cleared against invoices').parentElement!;
     expect(within(unavailableSettlement).getByTitle('Invoice balance is not available yet')).toBeInTheDocument();
-    const unavailableOutstanding = eur.getByText('Outstanding').parentElement!;
+    const unavailableOutstanding = eur.getByText('ERP invoice balance outstanding').parentElement!;
     expect(within(unavailableOutstanding).getByTitle('Invoice balance is not available yet')).toBeInTheDocument();
     expect(screen.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
     expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
@@ -390,14 +389,14 @@ describe('ProjectFinancesSection reading states', () => {
       actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: false, categories: [] },
     });
     rerender(<ProjectFinancesSection project={project} />);
-    const usd = within(screen.getByTestId('project-finances-USD'));
+    const usd = within(screen.getByRole('group', { name: 'Margin' }));
     const unavailableBilledWork = usd.getByText('Billed-work revenue').parentElement!;
     expect(within(unavailableBilledWork).getByTitle('Billed-work revenue unavailable')).toBeInTheDocument();
     const unavailableBilledWorkMargin = usd.getByText('Margin').parentElement as HTMLElement;
     expect(within(unavailableBilledWorkMargin).getByTitle('Billed-work revenue unavailable')).toBeInTheDocument();
     const spending = recordedSpendingHeading().parentElement!;
     expect(within(spending).getByTitle('Unavailable')).toBeInTheDocument();
-    expect(within(spending).getByTestId('spending-data-explanation'))
+    expect(within(screen.getByRole('group', { name: 'Spending' })).getByTestId('spending-data-explanation'))
       .toHaveTextContent('No ERP spending update is available for this project yet, and no spending categories are mapped.');
     expect(usd.queryByText('100')).not.toBeInTheDocument();
   });

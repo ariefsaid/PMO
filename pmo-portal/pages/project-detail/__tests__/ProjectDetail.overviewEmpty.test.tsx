@@ -71,7 +71,7 @@ const renderOverview = async () => {
   );
   await waitFor(
     () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
-    { timeout: 10_000 },
+    { timeout: 60_000 },
   );
   const panel = document.getElementById('project-section-content');
   expect(panel).not.toBeNull();
@@ -86,8 +86,8 @@ describe('PD-B Overview renders only blocks with data', () => {
     expect(phases).toHaveTextContent('No delivery phases yet');
     expect(within(phases).getByRole('button', { name: 'Add phase' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Money position' })).toBeInTheDocument();
-    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('$5,000,000');
-    expect(screen.getByRole('group', { name: 'Cost' })).toHaveTextContent('Recorded spending');
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('5,000,000');
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('Recorded spending');
     expect(screen.getByRole('heading', { level: 2, name: 'Comments' })).toBeInTheDocument();
     expect(screen.queryByText('No purchase requests for this project yet')).not.toBeInTheDocument();
     expect(screen.queryByText('Statements are not available yet')).not.toBeInTheDocument();

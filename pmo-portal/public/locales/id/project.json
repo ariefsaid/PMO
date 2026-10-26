@@ -35,12 +35,21 @@
           "quantityLines": "Kuantitas · {{count}} baris",
           "workOrder": "Work order"
         }
-      }
+      },
+      "notAssessed": "Belum dinilai",
+      "availableToOrder": "Tersedia untuk dipesan"
     },
     "documents": {
       "column": {
         "revision": "Revisi"
-      }
+      },
+      "newestFirst": "Tanggal dokumen terbaru dahulu",
+      "statusDate": "Status / tanggal",
+      "noDate": "Tanggal dokumen belum diisi",
+      "noCode": "Kode belum diisi",
+      "notApplicable": "Tidak berlaku",
+      "noRevision": "Belum ada revisi",
+      "clearSearch": "Hapus pencarian"
     },
     "header": {
       "scope": {
@@ -74,7 +83,8 @@
         "newest": "Tanggal permintaan terbaru",
         "oldest": "Tanggal permintaan terlama",
         "clearSearchAndFilters": "Hapus pencarian dan filter"
-      }
+      },
+      "noVendor": "Vendor belum dipilih"
     },
     "rail": {
       "customerPoDate": "Tanggal PO klien"
@@ -104,7 +114,9 @@
       "stillToInvoice": "Belum ditagihkan",
       "spending": "Pengeluaran",
       "title": "Posisi keuangan",
-      "viewInvoices": "Lihat faktur"
+      "viewInvoices": "Lihat faktur",
+      "settlementDetails": "Rincian pelunasan tunai dan nontunai",
+      "erpOutstanding": "Sisa tagihan di ERP"
     },
     "overview": {
       "budgetUtil": {
@@ -112,7 +124,11 @@
       }
     },
     "budget": {
-      "forecastAnswerUnavailable": "Jawaban perkiraan tidak tersedia"
+      "forecastAnswerUnavailable": "Jawaban perkiraan tidak tersedia",
+      "comparisonUnavailable": "Perbandingan anggaran belum tersedia",
+      "overBudget": "Perkiraan melebihi anggaran aktif",
+      "withinBudget": "Perkiraan masih dalam anggaran aktif",
+      "scrollForecast": "Perkiraan per kategori · gulir mendatar untuk seluruh biaya →"
     },
     "tasks": {
       "toolbar": {
@@ -128,6 +144,13 @@
         "searchPlaceholder": "Cari tugas, PIC, atau fase…",
         "sortTasks": "Urutkan tugas",
         "statusFilter": "Filter status"
+      },
+      "noDueDate": "Tanpa tenggat",
+      "status": {
+        "toDo": "Belum dikerjakan",
+        "inProgress": "Sedang dikerjakan",
+        "done": "Selesai",
+        "blocked": "Terhambat"
       }
     },
     "workOrders": {
@@ -143,7 +166,13 @@
         "searchPlaceholder": "Cari nomor WO, judul, atau PO klien…",
         "sortOrders": "Urutkan Work Order",
         "statusFilter": "Filter Work Order berdasarkan status"
-      }
+      },
+      "notBillable": "Belum dapat ditagih sebelum terbit",
+      "acceptanceLinesUnavailable": "Kuantitas penerimaan belum tersedia. Coba muat ulang penerimaan."
+    },
+    "filters": "Filter",
+    "scurve": {
+      "estimatedHistory": "Estimasi progres historis"
     }
   }
 }

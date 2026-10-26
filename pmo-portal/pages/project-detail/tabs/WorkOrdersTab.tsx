@@ -3,9 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
   Button,
-  Card,
-  CardHead,
-  CardPad,
   ConfirmDialog,
   DataTable,
   GateNotice,
@@ -148,7 +145,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
   const displayMoney = (amount: number, currencyCode: string) =>
-    formatProjectDetailMoney(amount, currencyCode, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
+    formatProjectDetailMoney(amount, currencyCode, i18n.language, true) ?? t('projectFinances.unavailable', 'Unavailable');
 
   // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
   //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
@@ -251,7 +248,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         );
       }
       const state = deriveWorkOrderBillingState(row.status, f);
-      if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
+      if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>{t('project:projectDetail.workOrders.notBillable', 'Not billable before issue')}</span>;
       const money = (amount: number) => displayMoney(amount, f.currency);
       const line = 'text-[11px] tabular text-muted-foreground';
       return (
@@ -493,6 +490,72 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
+  const quantityDetails = (row: WorkOrderRow) => {
+    const mine = allocationsByWo.get(row.id) ?? [];
+    const bastList = acceptancesByWo.get(row.id) ?? [];
+    const woLabel = row.wo_number ?? row.title;
+    const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
+    return (
+      <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="min-w-0 py-2">
+        <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
+          <span className="ml-2 font-normal text-muted-foreground">
+            {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
+          </span>
+        </summary>
+        <div className="mt-3 flex flex-col gap-4">
+          <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
+            </h3>
+            {mine.length === 0 ? (
+              <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
+            ) : (
+              <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
+                {mine.map((l) => {
+                  const item = boqRows.find((b) => b.id === l.boq_item_id);
+                  return (
+                    <li key={l.id} className="tabular">
+                      {item ? `${item.item_code} — ${item.description}` : l.boq_item_id}{' '}
+                      <span className="font-semibold">{formatNumberExact(Number(l.quantity))}{item ? ` ${item.unit}` : ''}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            {editableLines && (
+              <div className="mt-2">
+                <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setLinesFor(row)}>
+                  {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
+                </Button>
+              </div>
+            )}
+          </section>
+          <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
+            </h3>
+            <WorkOrderAcceptances
+              workOrder={row}
+              boqItems={boqRows}
+              documents={documents.data ?? []}
+              acceptances={bastList}
+              state={acceptancesQuery.isError ? 'error' : acceptancesQuery.isPending ? 'loading' : 'ready'}
+              onRetry={() => void acceptancesQuery.refetch()}
+              currentUserId={currentUser?.id ?? null}
+              projectManagerId={projectManagerId}
+              hasAllocations={mine.length > 0}
+              onPrepare={() => setBastFor({ row, draft: null })}
+              onEdit={(a) => setBastFor({ row, draft: a })}
+              onWithdraw={setWithdrawFor}
+              onConfirm={(a) => setConfirmFor({ acceptance: a, error: null })}
+            />
+          </section>
+        </div>
+      </details>
+    );
+  };
+
   const columns: Column<WorkOrderRow>[] = [
     {
       key: 'number',
@@ -510,7 +573,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </span>
           {/* The scope rides under the WO number (not its own column) so Billing and Invoice stay in view beside
               the record panel; it wraps to two lines rather than widening the table. */}
-          <span className="line-clamp-2 max-w-56 whitespace-normal" title={row.title}>{row.title}</span>
+          <span className="break-words whitespace-normal" title={row.title}>{row.title}</span>
           {/* Folded status: only while the table is too narrow for the Status column (below), and never on a
               record card (mobile, or a column too narrow for the table), which already lists Status as a field. */}
           <span className="mt-0.5 max-md:hidden @2xl:hidden [[data-dt-cards]_&]:hidden">
@@ -559,6 +622,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       header: t('projectDetail.workOrders.column.orderDate', 'Order date'),
       colClassName: 'hidden @4xl:table-cell',
       cell: (row) => <span>{formatDateOnly(row.order_date)}</span>,
+    },
+    {
+      key: 'acceptanceEvidence',
+      header: t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities'),
+      cell: (row) => showQuantities ? quantityDetails(row) : null,
     },
     {
       key: 'actions',
@@ -611,7 +679,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {issueGateBody}
               </GateNotice>
             ) : isDraft && canTransition ? (
-              <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Issued' })}>
+              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Issued' })}>
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
             ) : null}
@@ -623,7 +691,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             {canInvoice && (() => {
               const f = billingById.get(row.id);
               return f && canInvoiceWorkOrder(row.status, f) ? (
-                <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => {
+                <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => {
                   setCreatedInvoice(null);
                   setInvoiceFor({ row, remaining: f.remaining });
                 }}>
@@ -700,7 +768,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           />
         ) : (
           <>
-            <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+            <dl className="project-facts space-y-2">
               {([
                 ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
                 ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
@@ -710,8 +778,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   : []),
               ] as const).map(([testId, label, value]) => (
                 <div key={testId} data-testid={testId}>
-                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 text-sm font-bold tabular">
+                  <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+                  <dd className="whitespace-nowrap text-sm font-normal tabular">
                     {totals.complete
                       ? displayMoney(value, currency)
                       : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
@@ -831,85 +899,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             tableId="project-detail-tabs-workorderstab-table" />
       </section>
 
-      {showQuantities && rows.length > 0 && (
-        <Card variant="bare" data-testid="wo-quantities">
-          <CardHead level={2} className="text-sm">
-            {t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities')}
-          </CardHead>
-          <CardPad>
-            {lines.isError && (
-              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
-            )}
-            <div className="flex flex-col gap-2">
-              {rows.map((row) => {
-                const mine = allocationsByWo.get(row.id) ?? [];
-                const bastList = acceptancesByWo.get(row.id) ?? [];
-                const woLabel = row.wo_number ?? row.title;
-                const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
-                return (
-                  <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
-                    <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                      {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
-                      <span className="ml-2 font-normal text-muted-foreground">
-                        {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
-                      </span>
-                    </summary>
-                    <div className="mt-3 flex flex-col gap-4">
-                      <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
-                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                          {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
-                        </h3>
-                        {mine.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
-                        ) : (
-                          <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
-                            {mine.map((l) => {
-                              const item = boqRows.find((b) => b.id === l.boq_item_id);
-                              return (
-                                <li key={l.id} className="tabular">
-                                  {item ? `${item.item_code} — ${item.description}` : l.boq_item_id}{' '}
-                                  <span className="font-semibold">{formatNumberExact(Number(l.quantity))}{item ? ` ${item.unit}` : ''}</span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                        {editableLines && (
-                          <div className="mt-2">
-                            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setLinesFor(row)}>
-                              {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
-                            </Button>
-                          </div>
-                        )}
-                      </section>
-                      <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
-                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                          {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
-                        </h3>
-                        <WorkOrderAcceptances
-                          workOrder={row}
-                          boqItems={boqRows}
-                          documents={documents.data ?? []}
-                          acceptances={bastList}
-                          state={acceptancesQuery.isError ? 'error' : acceptancesQuery.isPending ? 'loading' : 'ready'}
-                          onRetry={() => void acceptancesQuery.refetch()}
-                          currentUserId={currentUser?.id ?? null}
-                          projectManagerId={projectManagerId}
-                          hasAllocations={mine.length > 0}
-                          onPrepare={() => setBastFor({ row, draft: null })}
-                          onEdit={(a) => setBastFor({ row, draft: a })}
-                          onWithdraw={setWithdrawFor}
-                          onConfirm={(a) => setConfirmFor({ acceptance: a, error: null })}
-                        />
-                      </section>
-                    </div>
-                  </details>
-                );
-              })}
-            </div>
-          </CardPad>
-        </Card>
-      )}
 
       {formFor !== undefined && (
         <WorkOrderFormModal

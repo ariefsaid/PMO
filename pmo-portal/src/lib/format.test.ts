@@ -10,6 +10,12 @@ import {
 afterEach(() => resetActiveLocale());
 
 describe('formatExactMoney', () => {
+  it('preserves ISO currency display together with meaningful fractional precision across cached formats', () => {
+    expect(formatExactMoney('100.50', 'USD', 'en-US')).toBe('$100.50');
+    expect(formatExactMoney('100.50', 'USD', 'en-US', { currencyDisplay: 'code', trimTrailingFractionZeros: true })).toMatch(/USD\s100\.5$/);
+    expect(formatExactMoney('100.50', 'USD', 'en-US')).toBe('$100.50');
+  });
+
   it('formats exact decimal strings without converting large values through Number', () => {
     expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US')).toBe('$9,007,199,254,740,993.99');
   });

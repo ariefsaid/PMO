@@ -350,7 +350,7 @@ describe('project money position consumer parity', () => {
   it('AC-PMP-003 preserves known zero contract and a negative contract remainder with the minus sign', async () => {
     const zero = renderSurfaces({ includeHeader: false, contractValue: 0 });
     await waitForFinance(zero.client);
-    expect(screen.queryByTestId('overview-contract-value')).not.toBeInTheDocument();
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('0');
     zero.view.unmount();
 
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId, {
@@ -389,7 +389,7 @@ describe('project money position consumer parity', () => {
     const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
     expect(cost).toHaveTextContent('10');
     expect(cost).not.toHaveTextContent('50');
-    expect(within(cost).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+    expect(within(cost).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: EUR 40');
   });
 
   it('AC-PMP-006 keeps pipeline money out of Overview and disables the delivery finance read', async () => {

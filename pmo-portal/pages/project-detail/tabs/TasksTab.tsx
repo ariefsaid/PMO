@@ -1,3 +1,4 @@
+import { ProjectFilters } from '../ProjectFilters';
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Toolbar,
@@ -57,13 +58,14 @@ const SUBTASK_INDENT_PX = 16;
 // `progress` (NOT the action-blue, per the Freed-Blue Status Rule), Done = green
 // `won`, Blocked = red `lost`. The distinct LABEL always rides alongside (never
 // colour-only — DESIGN.md Tinted-Status / color-not-only).
-// ⛔ NOT TRANSLATED, deliberately: these ARE the task_status enum values, and they are used
-// as both the option value and its label. They also render raw next to this control via
-// <StatusPill>{task.status}</StatusPill>, so translating one side alone would show the same
-// status in two languages side by side. Status vocabulary is one cross-cutting decision
-// (it also covers doc status, procurement stages and pipeline stages) -- not this file's.
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
+const taskStatusLabel = (status: string, t: TFunction): string => ({
+  'To Do': t('project:projectDetail.tasks.status.toDo', 'To Do'),
+  'In Progress': t('project:projectDetail.tasks.status.inProgress', 'In Progress'),
+  Done: t('project:projectDetail.tasks.status.done', 'Done'),
+  Blocked: t('project:projectDetail.tasks.status.blocked', 'Blocked'),
+})[status] ?? status;
+const statusOptions = (t: TFunction) => STATUSES.map((value) => ({ value, label: taskStatusLabel(value, t) }));
 
 // OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
 // explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
@@ -317,11 +319,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           value={task.status}
           disabled={updateStatus.isPending}
           onChange={(v) => onStatusChange(task, v as TaskStatus)}
-          options={STATUS_OPTIONS}
+          options={statusOptions(t)}
           className="w-auto min-w-[120px] max-sm:min-h-11"
         />
       ) : (
-        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+        <StatusPill variant={workflowVariant(task.status)}>{taskStatusLabel(task.status, t)}</StatusPill>
       )}
       {/* FR-CUA-070 breadth (review fix #4): the List status cell ORIGINATES a status write, so the
           per-task pending-push badge surfaces here too (not just the Board). Idle renders nothing, so
@@ -339,17 +341,15 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const buildColumns = (depths: Map<string, number>): Column<TaskWithRefs>[] => [
     {
       key: 'name',
+      size: 320, minSize: 240,
       header: t('projectDetail.tasks.column.task', 'Task'),
       cell: (task) => {
         const depth = depths.get(task.id) ?? 0;
         return (
           <span
             id={`task-${task.id}`}
-            /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
-               task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
-               the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
-               the card title wrapper's min-w-0 lets it clip with an ellipsis. */
-            className={`block truncate font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            // Full identity wraps; the separate menu keeps its own hit area.
+            className={`block break-words whitespace-normal font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
             title={task.name}
           >
@@ -365,10 +365,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     },
     {
       key: 'assignee',
+      size: 150,
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
       cell: (task) =>
         task.assignee ? (
-          <span className="truncate text-muted-foreground" title={task.assignee.full_name}>
+          <span className="break-words text-muted-foreground" title={task.assignee.full_name}>
             {task.assignee.full_name}
           </span>
         ) : (
@@ -380,17 +381,19 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     },
     {
       key: 'due',
+      kind: 'date', size: 140, minSize: 140,
       header: t('projectDetail.tasks.column.due', 'Due'),
-      cell: (t) =>
-        t.end_date ? (
-          <span className="tabular text-muted-foreground">{formatDateOnly(t.end_date)}</span>
+      cell: (task) =>
+        task.end_date ? (
+          <span className="tabular text-muted-foreground">{formatDateOnly(task.end_date)}</span>
         ) : (
-          <span className="text-muted-foreground">—</span>
+          <span className="text-muted-foreground">{t('project:projectDetail.tasks.noDueDate', 'No due date')}</span>
         ),
       colClassName: 'hidden md:table-cell',
     },
     {
       key: 'status',
+      kind: 'status', size: 160, minSize: 160,
       header: t('projectDetail.tasks.column.status', 'Status'),
       cell: (task) => <StatusCell task={task} />,
     },
@@ -428,7 +431,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
 
   return (
     <div>
-      <div className="mb-3.5">
+      <div className="mb-3.5 max-sm:sr-only">
         <h2 className="text-xl font-bold tracking-[-0.01em]">
           {t('projectDetail.tasks.heading', 'Tasks')}
         </h2>
@@ -442,6 +445,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           onChange={(event) => setSearch(event.target.value)}
           containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
         />
+        <ProjectFilters summary={<span>{t('project:projectDetail.filters', 'Filters')} · {phaseFilter === 'all' ? t('project:projectDetail.tasks.toolbar.allPhases', 'All phases') : milestoneList.find((phase) => phase.id === phaseFilter)?.name} · {statusFilter === 'all' ? t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses') : taskStatusLabel(statusFilter, t)} · {dueSort === 'soonest' ? t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest') : t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</span>}>
         <select
           aria-label={t('project:projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
           value={phaseFilter}
@@ -461,7 +465,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="all">{t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
-          {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+          {STATUSES.map((status) => <option key={status} value={status}>{taskStatusLabel(status, t)}</option>)}
         </select>
         <select
           aria-label={t('project:projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
@@ -472,6 +476,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           <option value="soonest">{t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
           <option value="latest">{t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
         </select>
+        </ProjectFilters>
         <ViewToggle<ViewMode>
           options={[
             { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
@@ -728,14 +733,14 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-sm font-semibold" title={task.name}>
+                      <span className="break-words whitespace-normal text-sm font-semibold" title={task.name}>
                         {task.name}
                       </span>
                       {externallyOwned && (
                         <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
                       )}
                     </div>
-                    <div className="mt-1 truncate text-[11px] text-muted-foreground">
+                    <div className="mt-1 break-words text-[11px] text-muted-foreground">
                       {task.assignee
                         ? task.assignee.full_name
                         : t('projectDetail.tasks.unassigned', 'Unassigned')}
@@ -748,11 +753,11 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                           value={task.status}
                           disabled={statusBusy}
                           onChange={(v) => onStatusChange(task, v as TaskStatus)}
-                          options={STATUS_OPTIONS}
+                          options={statusOptions(t)}
                           fullWidth
                         />
                       ) : (
-                        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
+                        <StatusPill variant={workflowVariant(task.status)}>{taskStatusLabel(task.status, t)}</StatusPill>
                       )}
                     </div>
                   </div>
@@ -1006,7 +1011,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             value={statusField.value}
             onChange={(v) => statusField.onChange(v as TaskStatus)}
             onBlur={statusField.onBlur}
-            options={STATUS_OPTIONS}
+            options={statusOptions(t)}
           />
           {/* OD-INT-9 — Priority. Nullable column: the leading "No priority" option (value="")
               maps to null and stays selectable so an existing priority can be cleared. */}
@@ -1105,7 +1110,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
                   key={d}
                   className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-sm"
                 >
-                  <span className="min-w-0 flex-1 truncate">{taskName(d)}</span>
+                  <span className="min-w-0 flex-1 break-words whitespace-normal">{taskName(d)}</span>
                   <Button
                     type="button"
                     variant="ghost"

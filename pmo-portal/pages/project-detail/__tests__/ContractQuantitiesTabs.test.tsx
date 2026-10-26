@@ -1,10 +1,12 @@
+import WorkOrderAcceptances from '../WorkOrderAcceptances';
+import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
@@ -57,7 +59,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs
 import BillingTab from '../tabs/BillingTab';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
-const money = (value: number) => formatCurrency(value, 'IDR').replace(/\s+/g, ' ');
+const money = (value: number) => formatProjectDetailAmount(value, 'IDR', 'en')!;
 const boqRow = (id: string, code: string, unit: string, basis: 'unit_rate' | 'lump_sum', quantity: number, rate: number) =>
   ({ id, org_id: 'o', project_id: 'p1', earning_basis: basis, line_no: null, import_key: null, item_code: code, description: `${code} work`, unit, quantity, rate, created_at: '' });
 const lineFacts = (over: Partial<ContractLineFacts> & { boqItemId: string }): ContractLineFacts => ({
@@ -425,4 +427,14 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     renderWorkOrders();
     expect(screen.getByRole('button', { name: 'Invoice' })).toBeInTheDocument();
   });
+});
+
+
+it('GLM R-007 preserves the acceptance identity and names unavailable quantities instead of crashing', () => {
+  const incomplete = { id: 'bast-incomplete', status: 'Confirmed', acceptance_date: '2026-10-21', prepared_at: '2026-10-21T08:00:00Z', lines: undefined } as unknown as WorkOrderAcceptanceWithLines;
+  render(<ToastProvider><WorkOrderAcceptances workOrder={{ id: 'wo1', status: 'Issued' }} boqItems={[]} documents={[]}
+    acceptances={[incomplete]} state="ready" onRetry={vi.fn()} currentUserId="finance" projectManagerId="pm" hasAllocations={false}
+    onPrepare={vi.fn()} onEdit={vi.fn()} onWithdraw={vi.fn()} onConfirm={vi.fn()} /></ToastProvider>);
+  expect(screen.getByTestId('bast-bast-incomplete')).toBeInTheDocument();
+  expect(within(screen.getByTestId('bast-bast-incomplete')).getByRole('alert')).toHaveTextContent('Acceptance quantities are unavailable');
 });

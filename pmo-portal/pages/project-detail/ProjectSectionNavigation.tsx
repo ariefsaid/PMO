@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Drawer, cn } from '@/src/components/ui';
@@ -16,6 +16,7 @@ export interface ProjectSectionGroup<T extends string = string> {
 
 interface ProjectSectionNavigationProps<T extends string> {
   projectId: string;
+  recordName?: string;
   groups: ProjectSectionGroup<T>[];
   activeSection: T;
   search: string;
@@ -79,6 +80,7 @@ function SectionLinks<T extends string>({
 
 export function ProjectSectionNavigation<T extends string>({
   projectId,
+  recordName,
   groups,
   activeSection,
   search,
@@ -88,6 +90,14 @@ export function ProjectSectionNavigation<T extends string>({
 }: ProjectSectionNavigationProps<T>) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [showIdentity, setShowIdentity] = useState(false);
+  useEffect(() => {
+    const header = document.querySelector('[data-testid="record-header"]');
+    if (!header || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => setShowIdentity(!entry.isIntersecting));
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
   const activeLabel = groups.flatMap((group) => group.items).find((item) => item.value === activeSection)?.label ?? '';
   const navigationLabel = t('project:projectDetail.sectionNav.open', 'Project sections');
 
@@ -95,6 +105,7 @@ export function ProjectSectionNavigation<T extends string>({
     <>
       <aside className="hidden min-w-0 min-[921px]:block">
         <nav aria-label={navigationLabel} className="sticky top-4">
+          {showIdentity && <p className="mb-3 break-words text-sm font-semibold">{recordName}</p>}
           <SectionLinks
             projectId={projectId}
             groups={groups}
@@ -107,11 +118,8 @@ export function ProjectSectionNavigation<T extends string>({
         </nav>
       </aside>
 
-      <div className="min-w-0 min-[921px]:hidden">
-        <div className="mb-2 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{activeLabel}</span>
-          <span className="sr-only">{t('project:projectDetail.sectionNav.current', 'Current section')}</span>
-        </div>
+      <div className="sticky top-0 z-20 min-w-0 self-start bg-background py-2 min-[921px]:hidden">
+        {showIdentity && <p className="mb-2 break-words text-sm font-semibold">{recordName}</p>}
         <button
           type="button"
           aria-label={navigationLabel}
@@ -120,7 +128,7 @@ export function ProjectSectionNavigation<T extends string>({
           onClick={() => setOpen(true)}
           className="touch-target flex min-h-11 w-full items-center justify-between rounded-md border border-border bg-card px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <span>{navigationLabel}</span>
+          <span>{activeLabel} · {navigationLabel}</span>
           <span aria-hidden="true">⌄</span>
         </button>
         <Drawer open={open} title={navigationLabel} subtitle={activeLabel} onClose={() => setOpen(false)} width="sm">
