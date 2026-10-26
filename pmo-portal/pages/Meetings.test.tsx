@@ -213,7 +213,7 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
   it('AC-WORK-MTG-01: changing date order is stored in the list URL', async () => {
     renderPage();
     await userEvent.selectOptions(screen.getByLabelText(/Sort meetings/i), 'date-asc');
-    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('sort')).toBe('date-asc');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('sort')).toBe('date-asc');
     const rows = screen.getAllByRole('row').slice(1);
     expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
       'Kickoff with Acme',

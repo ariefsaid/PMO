@@ -93,7 +93,7 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
       },
     ];
     renderMyTasks();
-    const taskRow = screen.getByText('Review design specs').closest('[role="listitem"]')!;
+    const taskRow = screen.getByText('Review design specs').closest<HTMLElement>('[role="listitem"]')!;
     expect(within(taskRow).getByText('Northwind ERP')).toBeInTheDocument();
     // The status select should have the task's current status selected.
     const statusSelect = screen.getByRole('combobox', { name: /change status of review design specs/i });

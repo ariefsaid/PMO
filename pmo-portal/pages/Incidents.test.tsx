@@ -200,7 +200,7 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     renderPage('Admin', '/incidents?q=missing&status=Closed&severity=Critical&sort=date');
     await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
 
-    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search'));
+    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
     expect(params.get('q')).toBeNull();
     expect(params.get('status')).toBeNull();
     expect(params.get('severity')).toBeNull();

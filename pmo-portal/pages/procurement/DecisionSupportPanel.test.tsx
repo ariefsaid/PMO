@@ -257,7 +257,7 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
 
     const figures = screen.getByTestId('budget-impact-figures');
     for (const label of ['This request', 'Reserved', 'Available', 'Project budget', 'Committed']) {
-      const row = screen.getByText(new RegExp(`^${label}`, 'i')).closest('[data-testid="budget-impact-row"]');
+      const row = screen.getByText(new RegExp(`^${label}`, 'i')).closest<HTMLElement>('[data-testid="budget-impact-row"]');
       expect(row).not.toBeNull();
       expect(row).not.toHaveTextContent(/IDR|Rp|\$/);
       expect(figures).toContainElement(row);

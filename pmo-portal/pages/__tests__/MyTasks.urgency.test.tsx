@@ -129,7 +129,7 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
 
     await user.click(screen.getByRole('button', { name: /clear filters/i }));
 
-    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search'));
+    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
     expect(params.get('status')).toBeNull();
     expect(params.get('project')).toBeNull();
     expect(params.get('q')).toBeNull();
@@ -170,11 +170,11 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
     ];
     expect(controls.every((control) => toolbar.contains(control))).toBe(true);
     await user.selectOptions(controls[2], 'p-1');
-    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('project')).toBe('p-1');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('project')).toBe('p-1');
     expect(screen.getByText('Future Task')).toBeInTheDocument();
     expect(screen.queryByText('South task')).not.toBeInTheDocument();
     await user.selectOptions(controls[3], 'due');
-    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('sort')).toBe('due');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('sort')).toBe('due');
   });
 
   it('AC-IFW-TASKS-01: Done task does NOT carry an "Overdue" flag even with past end_date', () => {

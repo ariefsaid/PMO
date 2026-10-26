@@ -85,6 +85,9 @@ export interface ListWorkingSetByName {
   meetings: MeetingsWorkingSet;
 }
 
+/** Lists with a parse/serialize working set. Saved-view routes have a separate URL contract. */
+export type WorkingListName = keyof ListWorkingSetByName;
+
 export interface ListWorkingSetOptions {
   /** Projects defaults to All, while the Engineer list keeps its My Projects default. */
   projectsDefaultFilter?: ProjectFilter;
@@ -297,7 +300,7 @@ function putParam(params: URLSearchParams, key: string, value: string, omit?: st
   params.set(key, value);
 }
 
-interface ListSchema<K extends ListName> {
+interface ListSchema<K extends WorkingListName> {
   parse(params: URLSearchParams, options: ListWorkingSetOptions): ListWorkingSetByName[K];
   serialize(
     params: URLSearchParams,
@@ -306,7 +309,7 @@ interface ListSchema<K extends ListName> {
   ): URLSearchParams;
 }
 
-type Schemas = { [K in ListName]: ListSchema<K> };
+type Schemas = { [K in WorkingListName]: ListSchema<K> };
 
 /**
  * One table of parse/serialize pairs, keyed by list name — six explicit, type-checked codecs,
@@ -456,7 +459,7 @@ const LIST_WORKING_SET_SCHEMAS: Schemas = {
 };
 
 /** Parse the six list-specific URL schemas. Unknown keys are intentionally ignored here. */
-export function parseListWorkingSet<K extends ListName>(
+export function parseListWorkingSet<K extends WorkingListName>(
   list: K,
   search: SearchInput,
   options: ListWorkingSetOptions = {},
@@ -468,7 +471,7 @@ export function parseListWorkingSet<K extends ListName>(
  * Serialize a typed working set while retaining query keys owned by other features. Pass the same
  * `sessionView` the page parses with, so a view that differs from the stored fallback is written.
  */
-export function serializeListWorkingSet<K extends ListName>(
+export function serializeListWorkingSet<K extends WorkingListName>(
   list: K,
   search: SearchInput,
   workingSet: ListWorkingSetByName[K],

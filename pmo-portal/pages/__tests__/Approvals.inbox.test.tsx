@@ -296,7 +296,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const first = renderAs('Project Manager');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
     await user.click(within(queue).getByRole('button', { name: /Anita Rao/i }));
-    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('selected')).toBe('timesheets:s1');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('selected')).toBe('timesheets:s1');
 
     first.unmount();
     renderAs('Project Manager', '/approvals?scope=all&selected=timesheets%3As1');

@@ -5,9 +5,9 @@ import {
   materializeProjectSort,
   parseListWorkingSet,
   serializeListWorkingSet,
-  type ListName,
   type ListWorkingSetByName,
   type ListWorkingSetOptions,
+  type WorkingListName,
 } from '@/src/lib/listWorkingSet';
 
 export interface UseListWorkingSetOptions {
@@ -26,7 +26,7 @@ export interface UseListWorkingSetOptions {
   defaultsReady?: boolean;
 }
 
-export type ListWorkingSetUpdater<K extends ListName> = (
+export type ListWorkingSetUpdater<K extends WorkingListName> = (
   current: ListWorkingSetByName[K],
 ) => ListWorkingSetByName[K];
 
@@ -46,7 +46,7 @@ export type ListWorkingSetUpdater<K extends ListName> = (
  * is visible. That replace carries the existing router state forward unchanged. It never
  * canonicalizes any other key — an explicit drill filter stays exactly as written.
  */
-export function useListWorkingSet<K extends ListName>(
+export function useListWorkingSet<K extends WorkingListName>(
   list: K,
   options: UseListWorkingSetOptions = {},
 ): {

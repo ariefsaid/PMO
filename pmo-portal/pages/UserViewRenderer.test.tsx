@@ -114,7 +114,7 @@ describe('UserViewRenderer — guard states', () => {
       signInWithPassword: vi.fn(),
       signInWithMagicLink: vi.fn(),
       signOut: vi.fn(),
-    } as ReturnType<typeof mockUseAuth>);
+    } as unknown as ReturnType<typeof mockUseAuth>);
     mockUseUserView.mockReturnValue({
       data: { id: 'abc', name: 'Private saved answer', spec: { version: 1, panels: [] }, archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1', description: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
       isPending: false,
