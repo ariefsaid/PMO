@@ -2549,14 +2549,11 @@
       "advanceTo": "Advance to",
       "bookingOnWin": "This contract value is recorded when you confirm the win.",
       "cancel": "Cancel",
-      "contextHeading": "Pipeline context",
       "confirmWon": "Confirm won",
       "contractDateLabel": "Contract date",
       "contractRefLabel": "Customer contract reference",
       "contractRefPlaceholder": "e.g. CPO-2026-0042",
       "dateRequired": "Contract date is required",
-      "decisionContext": "Decision details",
-      "exactValue": "Exact value",
       "journeyAriaLabel": "Project stage journey",
       "journeyHeading": "Project journey",
       "lostConfirm": {
@@ -2640,7 +2637,6 @@
     },
     "tabs": {
       "ariaLabel": "Project sections",
-      "sections": "Sections",
       "billing": "Billing",
       "budget": "Budget",
       "documents": "Documents",

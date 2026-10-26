@@ -69,7 +69,7 @@ const ProjectSectionNavigation: React.FC<{
   value: PTab;
   onChange: (value: PTab) => void;
 }> = ({ items, value, onChange }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('sales');
   const tablistRef = React.useRef<HTMLDivElement>(null);
   const focusSection = (nextValue: PTab) => {
     const button = Array.from(tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
@@ -93,10 +93,10 @@ const ProjectSectionNavigation: React.FC<{
     <>
       <label className="mb-4 flex min-w-0 items-center gap-3 min-[921px]:hidden">
         <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-          {t('projectDetail.tabs.sections', 'Sections')}
+          {t('pipeline.sections', 'Sections')}
         </span>
         <select
-          aria-label={t('projectDetail.tabs.sections', 'Sections')}
+          aria-label={t('pipeline.sections', 'Sections')}
           value={value}
           onChange={(event) => onChange(event.currentTarget.value as PTab)}
           className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"

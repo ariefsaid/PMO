@@ -80,6 +80,7 @@ export interface PipelinePrimaryAction {
  */
 const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onPrimaryActionChange, onReturnToSales }) => {
   const { t } = useTranslation();
+  const { t: salesT } = useTranslation('sales');
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -237,7 +238,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
       </h2>
       <dl className="mt-4 grid min-w-0 grid-cols-1 items-baseline gap-x-4 sm:grid-cols-[max-content_minmax(0,1fr)]">
         <dt className="text-xs font-semibold text-muted-foreground">
-          {t('projectDetail.pipeline.exactValue', 'Exact value')}
+          {salesT('pipeline.exactValue', 'Exact value')}
         </dt>
         <dd className="min-w-0 whitespace-nowrap text-sm text-foreground tabular">
           {formatNumberExact(value)}
@@ -254,8 +255,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
         <section className="mb-8 min-w-0" aria-labelledby="pipeline-context-heading">
           <h2 id="pipeline-context-heading" className="text-xl font-bold leading-tight tracking-[-0.01em]">
             {isTerminal
-              ? t('projectDetail.pipeline.decisionContext', 'Decision details')
-              : `${t('projectDetail.pipeline.contextHeading', 'Pipeline context')} · ${currency}`}
+              ? salesT('pipeline.decisionContext', 'Decision details')
+              : `${salesT('pipeline.contextHeading', 'Pipeline context')} · ${currency}`}
           </h2>
           <dl className="mt-4 grid min-w-0 grid-cols-2 gap-x-4 gap-y-4">
             {isTerminal ? (
