@@ -128,27 +128,27 @@ describe('useListWorkingSet — Projects', () => {
   it('AC-LRC-001: materializes a nondefault session view into the URL with exactly one replace', async () => {
     writeProjectView('calendar');
     expect(readProjectView()).toBe('calendar');
-    renderAt('/projects?filter=at-risk', { sessionView: readProjectView() });
+    renderAt('/projects?filter=at-risk&sort=attention', { sessionView: readProjectView() });
 
     await waitFor(() => expect(currentPath()).toContain('view=calendar'));
     await settle();
-    expect(currentPath()).toBe('/projects?filter=at-risk&view=calendar');
+    expect(currentPath()).toBe('/projects?filter=at-risk&sort=attention&view=calendar');
     expect(workingSet()).toMatchObject({ filter: 'at-risk', view: 'calendar' });
     // Initial entry + the single materializing replace; no loop, no second write.
     expect(seenKeys).toHaveLength(2);
   });
 
   it('AC-LRC-002: an already-settled URL causes no replace at all on mount', async () => {
-    renderAt('/projects?filter=at-risk&q=harbor');
+    renderAt('/projects?filter=at-risk&q=harbor&sort=attention');
     await settle();
-    expect(currentPath()).toBe('/projects?filter=at-risk&q=harbor');
+    expect(currentPath()).toBe('/projects?filter=at-risk&q=harbor&sort=attention');
     expect(seenKeys).toHaveLength(1);
   });
 
   it('AC-LRC-002: keeps an Engineer\'s explicit My Projects drill filter even though it equals the default', async () => {
-    renderAt('/projects?filter=My+Projects', { projectsDefaultFilter: 'My Projects' });
+    renderAt('/projects?filter=My+Projects&sort=attention', { projectsDefaultFilter: 'My Projects' });
     await settle();
-    expect(currentPath()).toBe('/projects?filter=My+Projects');
+    expect(currentPath()).toBe('/projects?filter=My+Projects&sort=attention');
     expect(workingSet()).toMatchObject({ filter: 'My Projects' });
     expect(seenKeys).toHaveLength(1);
   });
@@ -172,27 +172,27 @@ describe('useListWorkingSet — Projects', () => {
     );
     await waitFor(() => expect(currentPath()).toContain('view=calendar'));
     await settle();
-    expect(currentPath()).toBe('/projects?filter=All&view=calendar');
+    expect(currentPath()).toBe('/projects?filter=All&view=calendar&sort=attention');
     expect(workingSet()).toMatchObject({ filter: 'All', view: 'calendar' });
   });
 
   it('AC-LRC-002: does not overwrite an explicit URL view, even an invalid one, with the session view', async () => {
     writeProjectView('calendar');
-    renderAt('/projects?view=map', { sessionView: readProjectView() });
+    renderAt('/projects?view=map&sort=attention', { sessionView: readProjectView() });
     await settle();
-    expect(currentPath()).toBe('/projects?view=map');
+    expect(currentPath()).toBe('/projects?view=map&sort=attention');
     expect(workingSet()).toMatchObject({ view: 'table' });
     expect(seenKeys).toHaveLength(1);
   });
 
   it('AC-LRC-001: choosing the default view over a nondefault session view sticks instead of snapping back', async () => {
     writeProjectView('calendar');
-    renderAt('/projects', { sessionView: readProjectView() });
-    await waitFor(() => expect(currentPath()).toBe('/projects?view=calendar'));
+    renderAt('/projects?sort=attention', { sessionView: readProjectView() });
+    await waitFor(() => expect(currentPath()).toBe('/projects?sort=attention&view=calendar'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Set table view' }));
     await settle();
-    expect(currentPath()).toBe('/projects?view=table');
+    expect(currentPath()).toBe('/projects?sort=attention&view=table');
     expect(workingSet()).toMatchObject({ view: 'table' });
   });
 
@@ -210,7 +210,7 @@ describe('useListWorkingSet — Projects', () => {
         <LocationProbe />
       </MemoryRouter>,
     );
-    await waitFor(() => expect(currentPath()).toBe('/projects?view=calendar'));
+    await waitFor(() => expect(currentPath()).toBe('/projects?view=calendar&sort=attention'));
     const state = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? 'null');
     expect(state).toEqual(restore);
   });
@@ -257,7 +257,7 @@ function renderSearchAt(path: string) {
 
 describe('useUrlSearchInput — search text over the URL working set', () => {
   it('FR-LRC-001: keeps typed text local and writes the URL with one replace after typing pauses', async () => {
-    renderSearchAt('/projects?campaign=spring');
+    renderSearchAt('/projects?campaign=spring&sort=attention');
     const idx0 = (window.history.state as { idx?: number } | null)?.idx;
     const input = screen.getByRole('textbox', { name: 'Search projects' });
 
@@ -266,9 +266,9 @@ describe('useUrlSearchInput — search text over the URL working set', () => {
     }
     // The control shows every keystroke at once; the URL waits for the pause.
     expect(input).toHaveValue('harbor');
-    expect(currentPath()).toBe('/projects?campaign=spring');
+    expect(currentPath()).toBe('/projects?campaign=spring&sort=attention');
 
-    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&q=harbor'));
+    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&sort=attention&q=harbor'));
     await settle();
     expect(input).toHaveValue('harbor');
     // Initial entry + one replacing write for the whole burst; no history entry was added.
@@ -278,12 +278,12 @@ describe('useUrlSearchInput — search text over the URL working set', () => {
     // Typing on after the URL caught up is kept, and written again after the next pause.
     fireEvent.change(input, { target: { value: 'harbor crane' } });
     expect(input).toHaveValue('harbor crane');
-    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&q=harbor+crane'));
+    await waitFor(() => expect(currentPath()).toBe('/projects?campaign=spring&sort=attention&q=harbor+crane'));
     expect(input).toHaveValue('harbor crane');
   });
 
   it('FR-LRC-001: an external URL change replaces the text and cancels a pending write', async () => {
-    renderSearchAt('/projects?q=harbor');
+    renderSearchAt('/projects?q=harbor&sort=attention');
     const input = screen.getByRole('textbox', { name: 'Search projects' });
     expect(input).toHaveValue('harbor');
 
@@ -293,7 +293,7 @@ describe('useUrlSearchInput — search text over the URL working set', () => {
     await waitFor(() => expect(input).toHaveValue(''));
     await settle();
     // The typed text that was still waiting to be written does not come back.
-    expect(currentPath()).toBe('/projects');
+    expect(currentPath()).toBe('/projects?sort=attention');
     expect(input).toHaveValue('');
   });
 });

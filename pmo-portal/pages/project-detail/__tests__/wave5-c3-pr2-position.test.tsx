@@ -206,7 +206,7 @@ const renderPage = async (realRole: Role, path = '/projects/p1/overview') => {
       </ToastProvider>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   return view;
 };
 

@@ -2,110 +2,127 @@
 import { test, expect } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 
-test('AC-TBL-RESIZE-001 AC-TBL-GEOM-001: Projects columns resize and remain in-scroller without page-level horizontal overflow', async ({ page }) => {
+test('AC-TBL-RESIZE-001 AC-TBL-GEOM-001: Projects columns resize, controls remain reachable and phone layout has no page overflow', async ({ page, browser }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'admin@acme.test');
   await page.goto('/projects?view=table');
-  const toolbar = page.getByTestId('list-page-toolbar');
-  await expect(toolbar).toBeVisible();
-  const toolbarBox = await toolbar.boundingBox();
-  expect(toolbarBox).not.toBeNull();
-  // Projects controls may use two compact rows, but must never grow into the old three-row stack.
-  expect(toolbarBox!.height).toBeLessThanOrEqual(120);
-  const toolbarRows = await toolbar.evaluate((element) => new Set(Array.from(element.children)
-    .filter((child) => getComputedStyle(child).gridRowEnd !== 'span 2')
-    .map((child) => Math.round(child.getBoundingClientRect().top))).size);
-  expect(toolbarRows).toBeLessThanOrEqual(2);
-  const toolbarDimensions = await toolbar.evaluate((element) => ({ scrollWidth: element.scrollWidth, clientWidth: element.clientWidth }));
-  expect(toolbarDimensions.scrollWidth).toBeLessThanOrEqual(toolbarDimensions.clientWidth);
-  const desktopStatusScroll = page.getByTestId('status-filter-scroll');
-  const desktopStatusBox = await desktopStatusScroll.boundingBox();
-  const desktopAtRiskBox = await desktopStatusScroll.getByRole('tab', { name: 'At risk', exact: true }).boundingBox();
-  expect(desktopStatusBox).not.toBeNull();
-  expect(desktopAtRiskBox).not.toBeNull();
-  expect(desktopAtRiskBox!.x).toBeGreaterThanOrEqual(desktopStatusBox!.x - 1);
-  expect(desktopAtRiskBox!.x + desktopAtRiskBox!.width).toBeLessThanOrEqual(desktopStatusBox!.x + desktopStatusBox!.width + 1);
 
   const scroller = page.getByTestId('dt-table-branch');
-  const actualHeader = scroller.getByRole('columnheader', { name: /Actual/ });
-  const progressHeader = scroller.getByRole('columnheader', { name: 'Progress', exact: true });
-  const actualText = await actualHeader.evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element.firstChild!);
-    const box = range.getBoundingClientRect();
-    return { left: box.left, right: box.right };
-  });
-  const progressText = await progressHeader.evaluate((element) => {
-    const range = document.createRange();
-    range.selectNodeContents(element.firstChild!);
-    const box = range.getBoundingClientRect();
-    return { left: box.left, right: box.right };
-  });
-  expect(progressText.left - actualText.right).toBeGreaterThanOrEqual(12);
   await expect(scroller).toBeVisible({ timeout: 20_000 });
   await expect(scroller.locator('tbody tr').first()).toBeVisible({ timeout: 20_000 });
   await page.waitForLoadState('networkidle').catch(() => {});
   await waitForFonts(page);
 
-  const scrollerBox = await scroller.boundingBox();
-  expect(scrollerBox).not.toBeNull();
-  const projectHeader = scroller.getByRole('columnheader', { name: 'Project', exact: true });
+  const table = scroller.locator('table');
+  const projectHeader = table.getByRole('columnheader', { name: 'Project', exact: true });
   const handle = page.getByRole('separator', { name: 'Resize Project column' });
-  for (const width of [1440, 1024]) {
-    await page.setViewportSize({ width, height: 900 });
-    const headerBox = await projectHeader.boundingBox();
-    const indicator = handle.locator('.datatable-resize-indicator');
-    const indicatorBox = await indicator.boundingBox();
-    expect(headerBox).not.toBeNull();
-    expect(indicatorBox).not.toBeNull();
-    expect(indicatorBox!.width).toBe(2);
-    expect(Math.abs(indicatorBox!.x + indicatorBox!.width / 2 - (headerBox!.x + headerBox!.width))).toBeLessThanOrEqual(1);
-    await projectHeader.hover();
-    await expect.poll(() => handle.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
-  }
-  await page.setViewportSize({ width: 1440, height: 900 });
-  const projectCell = scroller.locator('tbody tr').first().locator('td').first();
-  for (const element of [projectHeader, projectCell]) {
-    const box = await element.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.x).toBeGreaterThanOrEqual(scrollerBox!.x - 1);
-    expect(box!.x + box!.width).toBeLessThanOrEqual(scrollerBox!.x + scrollerBox!.width + 1);
-  }
-  const rowActions = page.getByRole('button', { name: 'Row actions' }).first();
-  await expect(rowActions).toBeVisible();
-  const actionsBox = await rowActions.boundingBox();
-  expect(actionsBox).not.toBeNull();
-  expect(actionsBox!.x + actionsBox!.width).toBeLessThanOrEqual(scrollerBox!.x + scrollerBox!.width + 1);
-
   await expect(handle).toBeVisible();
-  const before = await scroller.getByRole('columnheader', { name: 'Project', exact: true }).evaluate((el) => el.getBoundingClientRect().width);
+  const before = await projectHeader.evaluate((element) => element.getBoundingClientRect().width);
   const box = await handle.boundingBox();
   expect(box).not.toBeNull();
-  await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+  // The handle extends 12px beyond its header. Start in its overlap with the header so the
+  // browser dispatches mousedown to the separator rather than the next table cell.
+  const dragX = box!.x + 4;
+  const dragY = box!.y + box!.height / 2;
+  const hitLabel = await page.evaluate(({ x, y }) =>
+    document.elementFromPoint(x, y)?.closest('[role="separator"]')?.getAttribute('aria-label'),
+  { x: dragX, y: dragY });
+  expect(hitLabel).toBe('Resize Project column');
+  await page.mouse.move(dragX, dragY);
   await page.mouse.down();
-  await page.mouse.move(box!.x + box!.width / 2 + 64, box!.y + box!.height / 2, { steps: 4 });
+  await page.mouse.move(dragX + 64, dragY, { steps: 4 });
   await page.mouse.up();
-  await expect.poll(() => scroller.getByRole('columnheader', { name: 'Project', exact: true }).evaluate((el) => el.getBoundingClientRect().width)).toBeGreaterThan(before + 40);
+  await expect.poll(() => projectHeader.evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(before + 40);
+
   let dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByTestId('dt-card-branch')).toBeVisible();
-  await expect(page.getByTestId('dt-table-branch')).toHaveCount(0);
-  const mobileToolbar = page.getByTestId('projects-mobile-toolbar');
-  const atRiskTab = mobileToolbar.getByRole('tab', { name: 'At risk', exact: true });
-  const boardTab = mobileToolbar.getByRole('tab', { name: 'Board', exact: true });
-  await atRiskTab.scrollIntoViewIfNeeded();
-  await boardTab.scrollIntoViewIfNeeded();
-  for (const [tab, scrollTestId] of [[atRiskTab, 'status-filter-scroll'], [boardTab, 'projects-mobile-view-scroll']] as const) {
-    const scrollport = mobileToolbar.getByTestId(scrollTestId);
-    const portBox = await scrollport.boundingBox();
-    const tabBox = await tab.boundingBox();
-    expect(portBox).not.toBeNull();
-    expect(tabBox).not.toBeNull();
-    expect(tabBox!.x).toBeGreaterThanOrEqual(portBox!.x - 1);
-    expect(tabBox!.x + tabBox!.width).toBeLessThanOrEqual(portBox!.x + portBox!.width + 1);
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    storageState: await page.context().storageState(),
+  });
+  try {
+    const mobilePage = await mobileContext.newPage();
+    await mobilePage.goto('/projects?view=table');
+    await expect(mobilePage.getByTestId('dt-card-branch')).toBeVisible();
+    await expect(mobilePage.getByTestId('dt-table-branch')).toHaveCount(0);
+    const toolbar = mobilePage.getByTestId('list-page-toolbar');
+    await expect(toolbar.getByRole('searchbox', { name: 'Search projects' })).toBeVisible();
+    await expect(toolbar.getByRole('combobox', { name: 'Scope' })).toBeVisible();
+    await expect(toolbar.getByRole('button', { name: /^Filters/i })).toBeVisible();
+    await expect(toolbar.getByRole('combobox', { name: 'Sort projects' })).toBeVisible();
+    await expect(toolbar.getByRole('combobox', { name: 'View' })).toBeVisible();
+    await expect(toolbar.getByRole('button', { name: /^More actions/i })).toBeVisible();
+    const newProject = mobilePage.getByRole('button', { name: 'New project' });
+    await expect(newProject).toBeVisible();
+
+    const orderedControls = [
+      toolbar.getByRole('searchbox', { name: 'Search projects' }),
+      toolbar.getByRole('combobox', { name: 'Scope' }),
+      toolbar.getByRole('button', { name: /^Filters/i }),
+      toolbar.getByRole('combobox', { name: 'Sort projects' }),
+      toolbar.getByRole('combobox', { name: 'View' }),
+      toolbar.getByRole('button', { name: /^More actions/i }),
+      newProject,
+    ];
+    const visualGroups = [
+      orderedControls[0].locator('xpath=..'),
+      orderedControls[1].locator('xpath=..'),
+      orderedControls[2],
+      orderedControls[3].locator('xpath=..'),
+      orderedControls[4].locator('xpath=..'),
+      orderedControls[5],
+      orderedControls[6],
+    ];
+    const boundsInOrder = [];
+    for (let index = 0; index < orderedControls.length; index += 1) {
+      const control = orderedControls[index];
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      const uses44pxTargetUtility = await control.evaluate((element) => {
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          if (Array.from(node.classList).some((token) => token.includes('touch-target'))) return true;
+          if (node.getAttribute('data-testid') === 'list-page-toolbar') break;
+        }
+        return false;
+      });
+      const targetDescription = await control.evaluate((element) => {
+        const ancestors: string[] = [];
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          ancestors.push(node.getAttribute('class') ?? '');
+          if (node.getAttribute('data-testid') === 'list-page-toolbar') break;
+        }
+        return ancestors.join(' <- ');
+      });
+      expect(bounds!.height >= 44 || uses44pxTargetUtility,
+        `phone controls have a 44px visual target or use the shared 44px touch-target utility: ${targetDescription}`).toBe(true);
+      const visualBounds = await visualGroups[index].boundingBox();
+      expect(visualBounds).not.toBeNull();
+      boundsInOrder.push(visualBounds!);
+      if (index < orderedControls.length - 1) {
+        const element = await control.elementHandle();
+        const nextElement = await orderedControls[index + 1].elementHandle();
+        expect(element).not.toBeNull();
+        expect(nextElement).not.toBeNull();
+        const followsInDom = await element!.evaluate(
+          (current, next) => Boolean(current.compareDocumentPosition(next) & Node.DOCUMENT_POSITION_FOLLOWING),
+          nextElement!,
+        );
+        expect(followsInDom, 'toolbar controls keep the specified DOM order').toBe(true);
+      }
+    }
+    for (let index = 0; index < boundsInOrder.length - 1; index += 1) {
+      const current = boundsInOrder[index];
+      const next = boundsInOrder[index + 1];
+      expect(next.y + 1 >= current.y && (next.y > current.y + 1 || next.x + 1 >= current.x),
+        `toolbar controls keep the specified visual order as they wrap: ${JSON.stringify({ index, current, next })}`).toBe(true);
+    }
+
+    dimensions = await mobilePage.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+  } finally {
+    await mobileContext.close();
   }
-  dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth }));
-  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
 });

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -124,23 +125,20 @@ beforeEach(() => {
 });
 
 describe('Projects page — Engineer default filter (B-11, AC-W2-IXD-009)', () => {
-  it('AC-W2-IXD-009: Engineer sees "My Projects" tab selected by default', () => {
+  it('AC-W2-IXD-009: Engineer sees the "My Projects" scope by default', () => {
     renderAsEngineer();
-    // "My Projects" filter tab should be selected (aria-selected=true or pressed state).
-    const myProjectsTab = screen.getByRole('tab', { name: /my projects/i });
-    expect(myProjectsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('My Projects');
   });
 
-  it('AC-W2-IXD-009: "All" tab is NOT selected by default for Engineer', () => {
+  it('AC-W2-IXD-009: Engineer can change the default scope to All', async () => {
     renderAsEngineer();
-    const allTab = screen.getByRole('tab', { name: /^all$/i });
-    expect(allTab).toHaveAttribute('aria-selected', 'false');
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Scope' }), 'All');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
   });
 
   it('AC-W2-IXD-009: PM defaults to "All" (not "My Projects")', () => {
     renderAsPM();
-    const allTab = screen.getByRole('tab', { name: /^all$/i });
-    expect(allTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
   });
 
   it('AC-W2-IXD-009: Engineer "My Projects" shows projects they are ASSIGNED to (via tasks), not an empty PM-owned set', () => {

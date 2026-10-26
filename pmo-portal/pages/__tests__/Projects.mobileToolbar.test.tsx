@@ -1,12 +1,4 @@
-/**
- * AC-PRJUX-001 through AC-PRJUX-006 — Projects phone-width mobile toolbar.
- *
- * At <768px the ListPage single-renders the mobile node: status (bounded scroll),
- * search, the full view toggle (Table included — DataTable already reflows it into
- * cards), a non-Engineer Filters disclosure, a permission-gated More actions
- * disclosure, and active secondary-filter chips + Clear all. The desktop secondary
- * filters / export / import copies are absent in this branch.
- */
+/** Projects collection controls remain reachable on a phone and preserve behavior contracts. */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -150,35 +142,65 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     roleBox.value = 'Project Manager';
   });
 
-  it('AC-PRJUX-001: status, search, full view toggle, Filters, More actions, New project are reachable; desktop copies absent', () => {
+  it('AC-PRJUX-001: ordered scope, search, sort, view and actions are reachable on a phone', () => {
     renderPage();
-    expect(screen.getByTestId('projects-mobile-toolbar')).toBeInTheDocument();
-
-    // status scroller (bounded) with status tabs
-    expect(screen.getByTestId('status-filter-scroll')).toBeInTheDocument();
-    const statusTabs = screen.getByRole('tablist', { name: /status filter/i });
-    expect(within(statusTabs).getByRole('tab', { name: /^All$/i })).toBeInTheDocument();
-
-    // search
-    expect(screen.getByRole('searchbox', { name: /search projects/i })).toBeInTheDocument();
-
-    // full view toggle — the selected view (Table) AND all four are reachable
-    const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const search = within(toolbar).getByRole('searchbox', { name: /search projects/i });
+    const scope = within(toolbar).getByRole('combobox', { name: 'Scope' });
+    const sort = within(toolbar).getByRole('combobox', { name: 'Sort projects' });
+    const viewToggle = within(toolbar).getByRole('combobox', { name: 'View' });
+    expect(search).toBeInTheDocument();
+    expect(scope).toHaveValue('All');
+    expect(sort).toHaveValue('attention');
     for (const name of ['Table', 'Cards', 'Calendar', 'Board']) {
-      expect(within(viewToggle).getByRole('tab', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
+      expect(within(viewToggle).getByRole('option', { name: new RegExp(`^${name}$`) })).toBeInTheDocument();
     }
-    expect(within(viewToggle).getByRole('tab', { name: /^Table$/i })).toHaveAttribute('aria-selected', 'true');
 
-    // disclosures
-    expect(screen.getByRole('button', { name: /^Filters$/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /^More actions$/i })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: /^Filters/i })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: /^More actions/i })).toBeInTheDocument();
 
     // desktop secondary filters + export/import are NOT present in the mobile branch
     expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Export$/i })).not.toBeInTheDocument();
 
     // header primary action preserved
-    expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument();
+    expect(within(toolbar).getByRole('button', { name: /new project/i })).toBeInTheDocument();
+  });
+
+  it('AC-PRJUX-003: phone rows lead with open identity, status and amount; secondary facts stay in one disclosure', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const open = screen.getByRole('button', { name: 'Open project Innovate Corp HQ Fit-Out' });
+    const row = open.closest('li')!;
+    expect(open).toBeVisible();
+    expect(within(row).getByText('Ongoing Project')).toBeVisible();
+    expect(within(row).getByText('USD 1,000,000')).toBeVisible();
+    expect(within(row).getByRole('button', { name: 'Open' })).toBeVisible();
+    expect(within(row).queryByText('Alice Manager')).not.toBeVisible();
+
+    await user.click(within(row).getByText(/More project details/));
+    expect(within(row).getByText('Alice Manager')).toBeVisible();
+  });
+
+  it('R-009/R-013: the complete scope selector follows search and precedes the ordered narrowing tools', () => {
+    renderPage();
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const search = within(toolbar).getByRole('searchbox', { name: /search projects/i });
+    const scope = within(toolbar).getByRole('combobox', { name: 'Scope' }) as HTMLSelectElement;
+    const filters = within(toolbar).getByRole('button', { name: /^Filters/i });
+    const sort = within(toolbar).getByRole('combobox', { name: 'Sort projects' });
+    const view = within(toolbar).getByRole('combobox', { name: 'View' });
+    const more = within(toolbar).getByRole('button', { name: /^More actions/i });
+    const create = within(toolbar).getByRole('button', { name: /new project/i });
+    const scopeOptions = Array.from(scope.options).map((option) => option.textContent);
+
+    expect(scopeOptions).toEqual(['All', 'My Projects', 'Ongoing', 'Completed', 'At risk']);
+    const orderedControls = [search, scope, filters, sort, view, more, create];
+    orderedControls.slice(0, -1).forEach((earlier, index) => {
+      const later = orderedControls[index + 1];
+      expect(later && Boolean(earlier.compareDocumentPosition(later) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
   });
 });
 
@@ -196,10 +218,10 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
     renderPage();
 
     // no chips initially
-    expect(screen.queryByTestId('active-filter-chips')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('active-filter-summary')).not.toBeInTheDocument();
 
     // open Filters, choose a customer — selecting closes the disclosure and shows a chip
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     await user.selectOptions(screen.getByRole('combobox', { name: /filter by customer/i }), '11111111-1111-1111-1111-111111111111');
     expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     expect(screen.getByText(/Customer: Innovate Corp/)).toBeInTheDocument();
@@ -215,17 +237,17 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
     expect(within(filtersBtn).getByTestId('mobile-toolbar-count')).toHaveTextContent('2');
 
     // remove the customer chip — the manager chip stays
-    await user.click(screen.getByRole('button', { name: /Remove customer filter: Innovate Corp/ }));
+    await user.click(screen.getByRole('button', { name: /Remove filter: Customer: Innovate Corp/ }));
     expect(screen.queryByText(/Customer: Innovate Corp/)).not.toBeInTheDocument();
     expect(screen.getByText(/Project manager: Alice Manager/)).toBeInTheDocument();
     expect(within(filtersBtn).getByTestId('mobile-toolbar-count')).toHaveTextContent('1');
 
     // AC-TAG-002: filter clearing uses the readable text token in both themes.
-    expect(screen.getByRole('button', { name: /Clear all/i })).toHaveClass('text-primary-text');
-    // Clear all clears chips and returns to role-default status (All for PM)
-    await user.click(screen.getByRole('button', { name: /Clear all/i }));
-    expect(screen.queryByTestId('active-filter-chips')).not.toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('button', { name: /Clear filters/i })).toHaveClass('text-primary-text');
+    // Clear filters clears the combined summary and returns to the role-default scope.
+    await user.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.queryByTestId('active-filter-summary')).not.toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
   });
 
   it('AC-PRJUX-002: Clear all for an Engineer restores My Projects', async () => {
@@ -233,17 +255,17 @@ describe('AC-PRJUX-002 — Filters count, chips, remove, Clear all', () => {
     renderPage('Engineer');
     // Search clearing keeps the Engineer's assigned-work default.
     await user.type(screen.getByRole('searchbox', { name: /search projects/i }), 'zzz');
-    await user.click(screen.getByRole('button', { name: /Clear all/i }));
+    await user.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByRole('searchbox', { name: /search projects/i })).toHaveValue('');
-    expect(screen.getByRole('tab', { name: /My Projects/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('My Projects');
   });
 
   it('AC-PRJUX-002: status-only changes expose Clear all and restore the default', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole('tab', { name: /ongoing/i }));
-    await user.click(screen.getByRole('button', { name: /Clear all/i }));
-    expect(screen.getByRole('tab', { name: /^All$/i })).toHaveAttribute('aria-selected', 'true');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Scope' }), 'Ongoing');
+    await user.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
   });
 });
 
@@ -283,7 +305,7 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
   it("AC-PRJUX-003: an Engineer's Filters holds classification only, and More actions is permission-gated (Export only)", async () => {
     const user = userEvent.setup();
     renderPage('Engineer');
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(screen.getByRole('combobox', { name: /filter by service line/i })).toBeInTheDocument();
     expect(screen.queryByRole('combobox', { name: /filter by customer/i })).not.toBeInTheDocument();
     const moreBtn = screen.getByRole('button', { name: /^More actions$/i });
@@ -296,7 +318,7 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
   it('AC-PRJUX-003: opening Filters moves focus into the first field', async () => {
     const user = userEvent.setup();
     renderPage();
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(screen.getByRole('combobox', { name: /filter by customer/i })).toHaveFocus();
   });
 
@@ -307,10 +329,10 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
       { ...seed[0], id: 'p2', name: 'Advisory engagement', service_line: 'Advisory' },
     ];
     renderPage('Engineer');
-    await user.click(screen.getByRole('tab', { name: /^All$/i }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Scope' }), 'All');
     expect(screen.getByText('Advisory engagement')).toBeVisible();
 
-    const classification = screen.getByRole('button', { name: /^Filters$/i });
+    const classification = screen.getByRole('button', { name: /^Filters/i });
     expect(screen.queryByRole('button', { name: /^Classification$/i })).not.toBeInTheDocument();
     await user.click(classification);
     const serviceLine = screen.getByRole('combobox', { name: /filter by service line/i });
@@ -320,12 +342,12 @@ describe('AC-PRJUX-003 — disclosure keyboard, Escape, permission gating', () =
     await user.selectOptions(serviceLine, 'Engineering');
     expect(classification).toHaveFocus();
     expect(classification).toHaveAttribute('aria-expanded', 'false');
-    expect(within(classification).getByTestId('mobile-toolbar-count')).toHaveTextContent('1');
+    expect(within(classification).getByTestId('mobile-toolbar-count')).toHaveTextContent('2');
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
     expect(screen.queryByText('Advisory engagement')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: /Clear all/i }));
-    expect(screen.getByRole('tab', { name: /My Projects/i })).toHaveAttribute('aria-selected', 'true');
+    await user.click(screen.getByRole('button', { name: /Clear filters/i }));
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('My Projects');
     expect(within(classification).queryByTestId('mobile-toolbar-count')).not.toBeInTheDocument();
   });
 });
@@ -344,22 +366,21 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     clientsState.isPending = true;
     clientsState.isSuccess = false;
     renderPage();
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(screen.queryByText(/Loading options/)).not.toBeInTheDocument();
     const select = screen.getByRole('combobox', { name: /filter by customer/i }) as HTMLSelectElement;
     expect(Array.from(select.options).some((o) => o.value === 'All')).toBe(true);
   });
 
-  it('AC-PRJUX-002: customer query error shows translated error + a Retry that refetches', async () => {
+  it('AC-PRJUX-002: customer query error keeps an actionable Retry options path', async () => {
     const user = userEvent.setup();
     clientsState.isPending = false;
     clientsState.isError = true;
     clientsState.isSuccess = false;
     renderPage();
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
-    expect(screen.getByText(/couldn't load options/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(clientsState.refetch).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: /Retry/i }));
+    await user.click(screen.getByRole('button', { name: 'Retry options' }));
     expect(clientsState.refetch).toHaveBeenCalled();
   });
 
@@ -370,7 +391,7 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     clientsState.isError = false;
     clientsState.isSuccess = true;
     renderPage();
-    await user.click(screen.getByRole('button', { name: /^Filters$/i }));
+    await user.click(screen.getByRole('button', { name: /^Filters/i }));
     expect(screen.queryByText(/No options available/)).not.toBeInTheDocument();
     const select = screen.getByRole('combobox', { name: /filter by customer/i }) as HTMLSelectElement;
     const options = Array.from(select.options).map((o) => o.textContent);
@@ -383,7 +404,7 @@ describe('AC-PRJUX-002/005 — option loading/error/empty + no-match keep All an
     renderPage();
     await user.type(screen.getByRole('searchbox', { name: /search projects/i }), 'zzz-no-match');
     expect(screen.getByText(/No projects match/i)).toBeInTheDocument();
-    expect(screen.getByTestId('projects-mobile-toolbar')).toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Clear filters/i })).toBeInTheDocument();
   });
 });
@@ -394,59 +415,54 @@ describe('AC-PRJUX-001 — page states render no incomplete mobile toolbar', () 
     roleBox.value = 'Project Manager';
   });
 
-  it('AC-PRJUX-001: loading state shows the loading shell and no mobile toolbar', () => {
+  it('AC-PRJUX-001: loading state retains the collection frame and toolbar', () => {
     projectsState.isPending = true;
     projectsState.isError = false;
     projectsState.data = [];
     renderPage();
-    expect(screen.getByTestId('projects-loading')).toBeInTheDocument();
-    expect(screen.queryByTestId('projects-mobile-toolbar')).not.toBeInTheDocument();
+    expect(screen.getAllByTestId('data-table-loading-row')).toHaveLength(3);
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
   });
 
-  it('AC-PRJUX-001: error state shows the ListState error and no mobile toolbar', () => {
+  it('AC-PRJUX-001: error state retains the collection toolbar and Retry', () => {
     projectsState.isPending = false;
     projectsState.isError = true;
     projectsState.data = [];
     renderPage();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
-    expect(screen.queryByTestId('projects-mobile-toolbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
   });
 
-  it('AC-PRJUX-001: zero-project state shows the teaching empty state and no mobile toolbar', () => {
+  it('AC-PRJUX-001: zero-project state retains the collection toolbar and one create action', () => {
     projectsState.isPending = false;
     projectsState.isError = false;
     projectsState.data = [];
     renderPage();
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('projects-mobile-toolbar')).not.toBeInTheDocument();
+    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /New project/i })).toHaveLength(1);
   });
 });
 
 describe('AC-PRJUX-006 — English and Bahasa resolve every new label', () => {
   it('AC-PRJUX-006: both catalogues define the new mobile labels and fallbacks', () => {
     const root = resolve(__dirname, '..', '..', 'public', 'locales');
-    const en = JSON.parse(readFileSync(resolve(root, 'en', 'common.json'), 'utf8'));
-    const id = JSON.parse(readFileSync(resolve(root, 'id', 'common.json'), 'utf8'));
-
-    const enMobile = en.projects.mobile;
-    const idMobile = id.projects.mobile;
+    const en = JSON.parse(readFileSync(resolve(root, 'en', 'projects.json'), 'utf8'));
+    const id = JSON.parse(readFileSync(resolve(root, 'id', 'projects.json'), 'utf8'));
     const keyAssertions: Array<[string, unknown, unknown]> = [
-      ['uxs14.filters', en.uxs14.filters, id.uxs14.filters],
-      ['uxs14.moreActions', en.uxs14.moreActions, id.uxs14.moreActions],
-      ['projects.mobile.clearAll', enMobile.clearAll, idMobile.clearAll],
-      ['projects.mobile.removeCustomer', enMobile.removeCustomer, idMobile.removeCustomer],
-      ['projects.mobile.removeManager', enMobile.removeManager, idMobile.removeManager],
-      ['projects.mobile.error', enMobile.error, idMobile.error],
-      ['projects.mobile.retry', enMobile.retry, idMobile.retry],
+      ['projects.create.backToProjects', en.create.backToProjects, id.create.backToProjects],
+      ['projects.create.workspaceScope', en.create.workspaceScope, id.create.workspaceScope],
+      ['projects.create.originScope', en.create.originScope, id.create.originScope],
+      ['projects.create.startsAs', en.create.startsAs, id.create.startsAs],
+      ['projects.create.leadConsequence', en.create.leadConsequence, id.create.leadConsequence],
+      ['projects.create.internalConsequence', en.create.internalConsequence, id.create.internalConsequence],
+      ['projects.create.section.ownershipSchedule', en.create.section.ownershipSchedule, id.create.section.ownershipSchedule],
+      ['projects.create.section.estimateTax', en.create.section.estimateTax, id.create.section.estimateTax],
     ];
     for (const [key, enV, idV] of keyAssertions) {
       expect(`${key}(en)`, key).toSatisfy(() => typeof enV === 'string' && (enV as string).trim().length > 0);
       expect(`${key}(id)`, key).toSatisfy(() => typeof idV === 'string' && (idV as string).trim().length > 0);
     }
-    // PM fallback keys present in both
-    expect(typeof en.projects.unnamedUser).toBe('string');
-    expect(typeof id.projects.unnamedUser).toBe('string');
-    expect(en.projects.unnamedUser.trim().length).toBeGreaterThan(0);
-    expect(id.projects.unnamedUser.trim().length).toBeGreaterThan(0);
   });
 });

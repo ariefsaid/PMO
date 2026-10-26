@@ -160,10 +160,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(
-    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
-    { timeout: 10_000 },
-  );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   return view;
 };
 
@@ -415,6 +412,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(alert).getByText(/Couldn.t load this project/i)).toBeInTheDocument();
     // The escape route stays; and Retry re-runs the by-id read.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    // Keep the recovery action available; its responsive placement belongs to the shared frame.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(projectsState.refetch).toHaveBeenCalledTimes(1);
@@ -431,10 +429,11 @@ describe('ProjectDetail shell (decomposition)', () => {
   it.each([
     ['loading', { data: undefined as unknown as ProjectWithRefs[], isPending: true }],
     ['not-found', { data: [] as ProjectWithRefs[], isPending: false }],
-  ])('#707: the %s state keeps the named return available', async (_n, s) => {
+  ])('#707: the %s state provides a working Back to Projects recovery action', async (_n, s) => {
     Object.assign(projectsState, s);
     await renderAt('/projects/does-not-exist');
-    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith('/projects', { state: {} });
   });
 
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
@@ -462,18 +461,18 @@ describe('ProjectDetail shell (decomposition)', () => {
     );
   });
 
-  it('keeps the record return action beside the content-track ancestry at desktop widths', async () => {
+  it('C-IMP-1 / #735: the loaded record provides the Back action at the shared-frame breakpoint', async () => {
     desktopBox.value = true; // 800px is "desktop" by the 768px hook — the bar must still render
     await renderAt('/projects/p1');
     const back = screen.getByRole('button', { name: /Back to Projects/i });
-    expect(back).toBeInTheDocument();
-    expect(back).toBeInTheDocument();
+    await userEvent.click(back);
+    expect(navigate).toHaveBeenCalledWith('/projects', { state: {} });
   });
 
-  it('keeps the record return action available below 768px', async () => {
+  it('C-IMP-1 / #735: the loaded record provides the Back action on phone', async () => {
     desktopBox.value = false;
     await renderAt('/projects/p1');
-    const back = screen.getByRole('button', { name: /Back to Projects/i });
-    expect(back).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Back to Projects/i }));
+    expect(navigate).toHaveBeenCalledWith('/projects', { state: {} });
   });
 });

@@ -1,5 +1,5 @@
 /**
- * S4 regression tests — AC-2 scrollable status filter + A-MIN-1 hide no-op view toggle on mobile.
+ * S4 regression tests — shared status-filter scrolling and Projects' selectable views.
  *
  * AC-2:  The status-filter segmented control is wrapped in an overflow-x-auto container so that
  *        every segment (including "At risk", "Vendor Invoiced", etc.) is reachable at 390px.
@@ -17,6 +17,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { readProjectView } from '@/src/hooks/useProjectView';
 
 // ── Projects page stubs ──────────────────────────────────────────────────────
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -135,25 +136,9 @@ const renderIncidents = () =>
     <MemoryRouter><ToastProvider><Incidents /></ToastProvider></MemoryRouter>,
   );
 
-// ── AC-2: status filter scroll container ─────────────────────────────────────
+// ── AC-2: shared status filter scroll container ──────────────────────────────
 describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container', () => {
   beforeEach(() => sessionStorage.clear());
-
-  it('Projects: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
-    renderProjects();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    // The tablist must be inside a scrollable wrapper to prevent clipping at 390px.
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
-  });
-
-  it('Projects: the scroll container also carries the scroll-fade-x edge-fade class (AC-2)', () => {
-    renderProjects();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper!.className).toContain('scroll-fade-x');
-  });
 
   it('Procurement: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
     renderProcurement();
@@ -161,6 +146,13 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
     expect(scrollWrapper).toBeInTheDocument();
     expect(scrollWrapper!.className).toContain('overflow-x-auto');
+  });
+
+  it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
+    renderProcurement();
+    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
+    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
+    expect(scrollWrapper!.className).not.toContain('hidden');
   });
 
   it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
@@ -172,37 +164,20 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
   });
 });
 
-// ── AC-MOB-VT: Projects keeps every view reachable below md ──────────────────
-describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
+// ── AC-MOB-VT: Projects keeps all four view choices reachable on a phone ────
+describe('AC-MOB-VT: Projects keeps every view selectable below md', () => {
   beforeEach(() => sessionStorage.clear());
 
-  it('Projects (A-MIN-1 updated, AC-MOB-VT): Table stays visible below md (no hidden wrapper)', () => {
+  it('Projects exposes and persists all four views on a phone', async () => {
     renderProjects();
-    const viewToggle = screen.getByRole('tablist', { name: /projects view/i });
-    // FR-PRJUX-001 (round-3): the Projects phone toolbar exposes ALL four views below md —
-    // Table included (DataTable reflows it into cards). Neither the toggle nor the Table tab
-    // nor any per-option wrapper carries `hidden`.
-    const toggleParent = viewToggle.parentElement;
-    expect(toggleParent).not.toBeNull();
-    expect(toggleParent!.className).not.toContain('hidden');
-
-    const tableTab = Array.from(viewToggle.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.trim() === 'Table',
-    ) as HTMLElement | undefined;
-    expect(tableTab).toBeDefined();
-    expect(tableTab!.className).not.toContain('hidden');
-    // No hidden wrapper between the Table button and the tablist either.
-    const wrapperEl = tableTab!.parentElement;
-    expect(wrapperEl).not.toBeNull();
-    expect(wrapperEl!.className).not.toContain('hidden');
-  });
-
-  it('Projects: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
-    renderProjects();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    // The status filter scroll container must NOT be hidden on mobile.
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper!.className).not.toContain('hidden');
+    const view = screen.getByRole('combobox', { name: 'View' });
+    expect(Array.from((view as HTMLSelectElement).options).map((option) => [option.value, option.textContent]))
+      .toEqual([['table', 'Table'], ['cards', 'Cards'], ['kanban', 'Board'], ['calendar', 'Calendar']]);
+    expect(readProjectView()).toBe('table');
+    for (const choice of ['cards', 'kanban', 'calendar', 'table']) {
+      fireEvent.change(view, { target: { value: choice } });
+      expect(readProjectView()).toBe(choice);
+    }
   });
 
   it('Procurement (A-MIN-1 superseded by #715, AC-PVT-001): the view toggle is present and operable below md (no hidden wrapper)', () => {
@@ -222,10 +197,4 @@ describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
     expect(readProcurementView()).toBe('board');
   });
 
-  it('Procurement: the status-filter tablist wrapper does NOT carry hidden (A-MIN-1 negative)', () => {
-    renderProcurement();
-    const statusFilter = screen.getByRole('tablist', { name: /status filter/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper!.className).not.toContain('hidden');
-  });
 });

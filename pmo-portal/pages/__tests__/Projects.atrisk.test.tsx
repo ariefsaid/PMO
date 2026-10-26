@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -142,7 +142,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     const budgetBar = within(row).getByRole('progressbar', { name: '95% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '95% of Active budget');
     // PL-A: the "x of y" detail is the bar's title, not a second line of text.
-    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$95,000.00 of $100,000.00 Active budget');
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', 'USD 95,000 of USD 100,000 Active budget');
     expect(within(row).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
   });
 
@@ -173,7 +173,8 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     renderPage();
     const card = screen.getByText('At Risk Project').closest('li')!;
     expect(within(card).getAllByText(/^At risk$/i)).toHaveLength(1);
-    expect(within(card).getByRole('progressbar', { name: '95% of Active budget' }).closest('[title]')).toHaveAttribute('title', '$95,000.00 of $100,000.00 Active budget');
+    fireEvent.click(within(card).getByText(/More project details/));
+    expect(within(card).getByRole('progressbar', { name: '95% of Active budget' }).closest('[title]')).toHaveAttribute('title', 'USD 95,000 of USD 100,000 Active budget');
   });
 
   it('AC-W6-IXD-ATRISK: a healthy row still renders Budget used in its own column', () => {
@@ -182,7 +183,7 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     // Seek by aria-label — robust to column count (a rowMenu column was added)
     const budgetBar = within(row).getByRole('progressbar', { name: '50% of Active budget' });
     expect(budgetBar).toHaveAttribute('aria-label', '50% of Active budget');
-    expect(budgetBar.closest('[title]')).toHaveAttribute('title', '$40,000.00 of $80,000.00 Active budget');
+    expect(budgetBar.closest('[title]')).toHaveAttribute('title', 'USD 40,000 of USD 80,000 Active budget');
   });
 
   it('AC-W6-IXD-ATRISK: budget===0 → no caption, no NaN', () => {
@@ -192,6 +193,6 @@ describe('Projects list — at-risk budget co-location (AC-W6-IXD-ATRISK)', () =
     expect(within(row).queryByText(/NaN/i)).not.toBeInTheDocument();
     // A known zero Active budget is not confused with an absent budget.
     expect(within(row).queryByRole('progressbar', { name: /Active budget/i })).toBeNull();
-    expect(within(row).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    expect(within(row).getByText('USD 0 Active budget; usage unavailable')).toBeInTheDocument();
   });
 });

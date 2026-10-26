@@ -42,8 +42,6 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "projectReferences": "More project references",
-    "projectReferencesFor": "More project references for {{name}}",
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
@@ -205,14 +203,12 @@
     "activeBudget": "Active budget",
     "noActiveBudget": "No active budget",
     "zeroActiveBudget": "{{budget}} Active budget; usage unavailable",
-    "riskUnavailableTitle": "Couldn't check project budget risk",
-    "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
     "incompleteCoverage": "Incomplete source coverage",
     "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
-    "currencyMismatch": "Budget currency differs from Actual",
-    "atRisk": "At risk"  },
+    "currencyMismatch": "Budget currency differs from Actual"
+  },
   "fx": {
     "saveRate": "Save rate",
     "saveRates": "Save rates",
@@ -2951,12 +2947,11 @@
       "edit": "Save project"
     },
     "section": {
-      "project": "Project",
-      "schedule": "Schedule"
+      "project": "Project"
     },
     "name": {
       "label": "Project name",
-      "placeholder": "e.g. Harborside Terminal — Civil Works",
+      "placeholder": "e.g. Harbor civil works",
       "required": "Project name is required."
     },
     "client": {
@@ -2987,15 +2982,14 @@
       "noun": "company"
     },
     "clientCode": {
-      "label": "Client Project Code",
-      "placeholder": "Optional code used by your organization"
+      "label": "Client Project Code"
     },
     "projectNumber": {
       "label": "PMO Project Number",
       "helper": "PMO assigns this identifier. You can edit it before creating the project.",
       "duplicate": "That PMO Project Number is already in use. Choose another number.",
       "segmentRequired": "The selected company needs a Client number segment before a PMO Project Number can be proposed.",
-      "proposalError": "A PMO Project Number could not be proposed. Select the client again to retry.",
+      "proposalError": "A PMO Project Number could not be proposed. Change the client and reselect it to try again.",
       "loading": "Proposing a PMO Project Number…"
     }
   },
@@ -3011,28 +3005,24 @@
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
-      "progress": "Progress",
-      "project": "Project",
-      "status": "Status"
+      "project": "Project"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
       "archiveDescription": "It will be hidden from the default project list. Existing references stay intact. You can restore it later.",
       "archiveTitle": "Archive project?"
     },
-    "description": "Pre-win projects live in the Pipeline.",
     "empty": {
       "clearFilters": "Clear filters",
-      "noMatchSub": "Try a different status, customer, PM, or search term.",
-      "noMatchTitle": "No projects match these filters",
-      "nothingAtRiskSub": "No confirmed budget-risk signal is showing. Missing spending or Active budget data can't be assessed.",
-      "nothingAtRiskTitle": "Nothing at risk"
+      "noMatchSub": "Adjust the scope or filters to see more projects.",
+      "noMatchTitle": "No projects match this scope",
+      "nothingAtRiskSub": "Unassessed budget data is not assurance.",
+      "nothingAtRiskTitle": "No confirmed budget-risk signals"
     },
     "filters": {
       "all": "All",
       "allCustomers": "All customers",
       "allManagers": "All managers",
-      "ariaLabel": "Status filter",
       "atRisk": "At risk",
       "completed": "Completed",
       "customerLabel": "Filter by customer",
@@ -3062,7 +3052,6 @@
     },
     "unassigned": "Unassigned",
     "view": {
-      "ariaLabel": "Projects view",
       "board": "Board",
       "calendar": "Calendar",
       "cards": "Cards",
@@ -3074,28 +3063,12 @@
       "goToday": "Go to today",
       "today": "Today",
       "noEventsTitle": "No events this month",
-      "phaseEventLabel": "{{project}} · {{phase}}",
-      "phaseEventAriaLabel": "{{project}} — Phase: {{phase}}",
       "noEventsSub": "No project or phase target dates fall in this month."
     },
     "unnamedUser": "Unnamed user",
     "export": "Export",
     "import": "Import",
-    "mobile": {
-      "activeCount": "Active filters",
-      "customer": "Customer",
-      "manager": "Project manager",
-      "removeCustomer": "Remove customer filter",
-      "removeManager": "Remove project manager filter",
-      "clearAll": "Clear all",
-      "error": "Couldn't load options",
-      "retry": "Retry",
-      "unavailable": "Unavailable selection",
-      "endCustomer": "End customer",
-      "removeEndCustomer": "Remove end customer filter"
-    },
     "card": {
-      "delivery": "Delivery",
       "deliveryPercent": "Delivery {{percent}}%",
       "editProject": "Edit {{name}}"
     },

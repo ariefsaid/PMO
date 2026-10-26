@@ -49,11 +49,17 @@ export interface Column<Row> {
   rowHeader?: boolean;
   /** Optional muted second line for a primary identity cell. */
   secondaryCell?: (row: Row) => React.ReactNode;
+  /** Let a primary cell's secondary context wrap when the row needs several identity facts. */
+  secondaryWrap?: boolean;
+  /** Keep contractual identities fully visible for collection-specific long-name requirements. */
+  primaryClamp?: boolean;
   /** One table-level explanation, referenced by a mark in this column header. */
   caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
+  /** Extra classes for the column heading only. */
+  headerClassName?: string;
   /**
    * Extra Tailwind classes applied to both the `<th>` and each `<td>` in this column.
    * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
@@ -121,6 +127,15 @@ export interface DataTableProps<Row> {
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
   state?: 'loading' | 'empty' | 'error';
+  /** Optional Projects-specific mobile evidence composition. The row menu remains a sibling. */
+  mobileRow?: (row: Row) => React.ReactNode;
+  /** Optional loading skeletons that preserve this collection's visible row geometry. */
+  loadingLayout?: {
+    cell: (column: Column<Row>) => React.ReactNode;
+    mobileRow: React.ReactNode;
+    announcement?: string;
+    rows?: number;
+  };
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
@@ -224,7 +239,8 @@ function alignClass(align?: ColAlign) {
 }
 
 function columnMinSize<Row>(column: Column<Row>): number | undefined {
-  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
+  // Full-wrap identities can use an explicit compact track without losing their text.
+  const contractMin = column.kind === 'primary' ? (column.primaryClamp === false ? column.minSize ?? 240 : 240) : column.kind === 'status' ? 112 : undefined;
   return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
 }
 
@@ -314,6 +330,8 @@ export function DataTable<Row>({
   errorSub,
   onRetry,
   rowMenu,
+  mobileRow,
+  loadingLayout,
   className,
   cardBelow,
   mobileTable = false,
@@ -436,7 +454,12 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} aria-busy={state === 'loading' ? true : undefined} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+      {state === 'loading' && loadingLayout && (
+        <span className="sr-only" role="status" aria-live="polite" aria-label={loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}>
+          {loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}
+        </span>
+      )}
       {isDesktop ? (
       /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
@@ -484,6 +507,7 @@ export function DataTable<Row>({
                       'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
+                      col.headerClassName,
                       col.colClassName
                     )}
                   >
@@ -491,9 +515,9 @@ export function DataTable<Row>({
                       <button
                         type="button"
                         onClick={() => onSort?.(col.sortKey!)}
-                        className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
+                        className="inline-flex min-w-0 flex-wrap items-center gap-1 whitespace-normal text-left uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
-                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="min-w-0 whitespace-normal break-words">{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                         {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
@@ -589,11 +613,18 @@ export function DataTable<Row>({
           </thead>
           <tbody>
             {state ? (
-              <tr>
-                <td colSpan={colSpan} className="p-0">
-                  {listStateNode}
-                </td>
-              </tr>
+              state === 'loading' && loadingLayout ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => (
+                <tr key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70">
+                  {columns.map((column) => <td key={column.key} className="h-[54px] px-3 py-2 align-middle">{loadingLayout.cell(column)}</td>)}
+                  {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={colSpan} className="p-0">
+                    {listStateNode}
+                  </td>
+                </tr>
+              )
             ) : (
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
@@ -737,7 +768,9 @@ export function DataTable<Row>({
         className="divide-y divide-border/70"
       >
         {state ? (
-          <li className="p-0">{listStateNode}</li>
+          state === 'loading' && loadingLayout
+            ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => <li key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70 p-4">{loadingLayout.mobileRow}</li>)
+            : <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
             if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
@@ -762,10 +795,15 @@ export function DataTable<Row>({
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Identity row: first column + rowMenu pinned top-right */}
-                <div className="flex items-start justify-between gap-3">
-                  {/* Canonical identity text wraps in full without hover-only recovery. */}
-                  <div className="min-w-0 flex-1 [&_.truncate]:block">
+                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  {/* Card title — activation button if rowLabel+onActivate supplied.
+                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
+                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
+                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
+                      descendants to block lets them clip with an ellipsis within this min-w-0
+                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -778,7 +816,7 @@ export function DataTable<Row>({
                     ) : (
                       titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
-                  </div>
+                  </div>}
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
                   {hasMenu && menuItems.length > 0 && (
                     <div className="shrink-0">
@@ -790,7 +828,7 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {restCols.length > 0 && (
+                {!mobileRow && restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
                     {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);

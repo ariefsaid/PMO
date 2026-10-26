@@ -264,7 +264,7 @@ describe('AC-LRC-012 — Projects', () => {
     ];
     renderList(Projects);
     await userEvent.type(screen.getByLabelText(/Search projects/i), 'no-such-project');
-    expect(await screen.findByText(/No projects match these filters/i)).toBeInTheDocument();
+    expect(await screen.findByText('No projects match this scope')).toBeInTheDocument();
     const clear = screen.getByRole('button', { name: /Clear filters/i });
     await userEvent.click(clear);
     expect(await screen.findByText('Harbour Upgrade')).toBeInTheDocument();

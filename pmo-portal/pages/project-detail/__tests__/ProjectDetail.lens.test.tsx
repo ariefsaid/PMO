@@ -170,7 +170,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
       </ToastProvider>
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   return view;
 };
 

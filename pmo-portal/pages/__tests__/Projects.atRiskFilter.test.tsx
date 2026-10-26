@@ -173,10 +173,9 @@ beforeEach(() => {
 });
 
 describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
-  it('AC-IXD-DASH-W5-C2A-PROJ-1: ?filter=at-risk selects the at-risk tab on mount', () => {
+  it('AC-IXD-DASH-W5-C2A-PROJ-1: ?filter=at-risk selects the at-risk scope on mount', () => {
     renderWithUrl('/projects?filter=at-risk');
-    const tab = screen.getByRole('tab', { name: /at.?risk/i });
-    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('at-risk');
   });
 
   it('at-risk labels use the exact canonical predicate, not rounded percentages or status-blind values', () => {
@@ -215,7 +214,7 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     projectsState.data = [];
     projectMoneyState.isPending = true;
     renderWithUrl('/projects?filter=at-risk');
-    expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
+    expect(screen.getByText('No projects yet')).toBeInTheDocument();
     expect(screen.queryByTestId('projects-loading')).not.toBeInTheDocument();
   });
 
@@ -223,26 +222,22 @@ describe('Projects page — at-risk URL param (AC-IXD-DASH-W5-C2A)', () => {
     // All projects safe
     projectsState.data = [fixtures[0]]; // only safe project
     renderWithUrl('/projects?filter=at-risk');
-    expect(screen.getByText(/Nothing at risk/i)).toBeInTheDocument();
-    expect(screen.getByText(/no confirmed budget-risk signal is showing/i)).toBeInTheDocument();
-    expect(screen.getByText(/missing spending or active budget data can't be assessed/i)).toBeInTheDocument();
+    expect(screen.getByText('No confirmed budget-risk signals')).toBeInTheDocument();
+    expect(screen.getByText('Unassessed budget data is not assurance.')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-4: backward-compatible — no param keeps default (All for PM)', () => {
     renderWithUrl('/projects');
-    const allTab = screen.getByRole('tab', { name: /^all$/i });
-    expect(allTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-5: ?filter=Ongoing sets Ongoing tab on mount', () => {
     renderWithUrl('/projects?filter=Ongoing');
-    const tab = screen.getByRole('tab', { name: /^ongoing$/i });
-    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('Ongoing');
   });
 
   it('AC-IXD-DASH-W5-C2A-PROJ-6: ?filter=My+Projects sets My Projects tab on mount', () => {
     renderWithUrl('/projects?filter=My+Projects');
-    const tab = screen.getByRole('tab', { name: /^my projects$/i });
-    expect(tab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('My Projects');
   });
 });

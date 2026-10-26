@@ -18,7 +18,7 @@ vi.mock('@/src/hooks/useProjectNumberProposal', () => ({
     : { status: 'idle', number: null, error: null },
 }));
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -26,16 +26,17 @@ import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { AppError } from '@/src/lib/appError';
 
-const { roleBox, createMutation, navigate, returnToList } = vi.hoisted(() => ({
+const { roleBox, createMutation, navigate, returnToList, seededClientId } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
   createMutation: vi.fn(),
   navigate: vi.fn(),
   returnToList: vi.fn(),
+  seededClientId: '40000000-0000-4000-8000-000000000001',
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useCompanies', () => ({ useCompanies: () => ({ data: [], isError: false }) }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useClientCompanies: () => ({ data: [{ id: 'c2', name: 'Innovate Corp', type: 'Client' }] }),
+  useClientCompanies: () => ({ data: [{ id: seededClientId, name: 'Innovate Corp', type: 'Client' }] }),
   useProjectManagers: () => ({ data: [{ id: 'u-alice', full_name: 'Alice Manager' }] }),
   useProjectMutations: () => ({ create: { mutateAsync: createMutation, isPending: false } }),
 }));
@@ -85,15 +86,113 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(createMutation).not.toHaveBeenCalled();
   });
 
+  it('AC-806-CAPTURE: shows origin scope, groups required details before estimate, and keeps classification optional', async () => {
+    renderPage();
+    const frameHeader = screen.getByTestId('list-page-header');
+    expect(within(frameHeader).getByRole('heading', { name: 'New project' })).toBeVisible();
+    const back = screen.getByRole('button', { name: 'Back to Projects' });
+    const pageTitle = within(frameHeader).getByRole('heading', { name: 'New project' });
+    expect(back).toBeVisible();
+    expect(back.compareDocumentPosition(pageTitle) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(screen.getByText('Workspace scope')).toBeVisible();
+    expect(screen.getByText(/Starts as Leads: Leads are tracked in the Pipeline/)).toBeVisible();
+
+    const identity = screen.getByRole('group', { name: 'Project' });
+    const fieldOrder = [
+      screen.getByLabelText(/project name/i),
+      screen.getByRole('combobox', { name: /client company/i }),
+      screen.getByLabelText(/PMO Project Number/i),
+      screen.getByLabelText(/origination stage/i),
+      screen.getByLabelText(/short name/i),
+      screen.getByLabelText(/Client Project Code/i),
+      screen.getByRole('combobox', { name: /end customer/i }),
+    ];
+    for (let index = 0; index < fieldOrder.length - 1; index += 1) {
+      expect(fieldOrder[index]!.compareDocumentPosition(fieldOrder[index + 1]!) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    }
+    const ownership = screen.getByRole('group', { name: 'Ownership & schedule' });
+    const estimate = screen.getByRole('group', { name: /Estimate & tax/ });
+    const classification = screen.getByText('Classification');
+    expect(identity.compareDocumentPosition(ownership) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(ownership.compareDocumentPosition(estimate) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(estimate.compareDocumentPosition(classification) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(classification.closest('details')).not.toHaveAttribute('open');
+
+    await userEvent.selectOptions(screen.getByLabelText(/origination stage/i), 'Internal Project');
+    expect(screen.getByText(/Starts as Internal Project: Internal projects stay in the workspace/)).toBeVisible();
+
+    await userEvent.click(classification);
+    const location = screen.getByLabelText('Location');
+    await userEvent.type(location, 'West Java');
+    await userEvent.click(classification);
+    await userEvent.click(classification);
+    expect(screen.getByLabelText('Location')).toHaveValue('West Java');
+  });
+
+  it('describes a validated source-list scope and view', () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/projects/new', state: { pmoListReturn: { list: 'projects', path: '/projects?filter=Ongoing&view=cards' } } }]}>
+        <ToastProvider><ProjectNew /></ToastProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Projects scope: Ongoing')).toBeVisible();
+    expect(screen.getByText('Cards')).toBeVisible();
+  });
+
+  it('seeds a valid source customer filter into the editable client field and proposes its project number', () => {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/projects/new', state: { pmoListReturn: { list: 'projects', path: `/projects?client=${seededClientId}&view=cards` } } }] }>
+        <ToastProvider><ProjectNew /></ToastProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('combobox', { name: /client company/i })).toHaveTextContent('Innovate Corp');
+    expect(screen.getByLabelText(/PMO Project Number/i)).toHaveValue('PMO-2026-TEST-0001');
+  });
+
+  it('opens Classification and links the invalid field in the submit summary', async () => {
+    renderPage();
+    await fillValid();
+    const summary = screen.getByText('Classification');
+    await userEvent.click(summary);
+    await userEvent.type(screen.getByLabelText('Location'), 'x'.repeat(141));
+    await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
+    const details = summary.closest('details')!;
+    await waitFor(() => expect(details).toHaveAttribute('open'));
+    const errorLink = screen.getByRole('link', { name: 'Use 140 characters or fewer.' });
+    expect(errorLink).toHaveAttribute('href', '#project-classification-location');
+    await waitFor(() => expect(errorLink.closest('[role="alert"]')).toHaveFocus());
+    expect(summary.closest('summary')).not.toHaveTextContent('x'.repeat(141));
+    expect(createMutation).not.toHaveBeenCalled();
+  });
+
+  it('returns from the scope line to the validated Projects list context', async () => {
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Projects' }));
+    expect(returnToList).toHaveBeenCalledTimes(1);
+  });
+
   it('AC-PRJ-003: the origination select offers only Leads + Internal Project (never on-hand)', () => {
     renderPage();
     const select = screen.getByLabelText(/origination stage/i) as HTMLSelectElement;
     expect(Array.from(select.options).map((o) => o.value)).toEqual(['Leads', 'Internal Project']);
   });
 
-  it('gates the page like the old create action: Finance sees no form', () => {
+  it('gates the page: Finance sees a named return instead of the create form', async () => {
     renderPage('Finance');
     expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You can't create projects" })).toBeVisible();
+    expect(screen.getByText('Finance can review project finances from Projects.')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Projects' }));
+    expect(returnToList).toHaveBeenCalledTimes(1);
+  });
+
+  it('gates the page: Engineer sees a named return instead of the create form', async () => {
+    renderPage('Engineer');
+    expect(screen.queryByLabelText(/project name/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You can't create projects" })).toBeVisible();
+    expect(screen.getByText('Engineers can find assigned work from Projects.')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Back to Projects' }));
+    expect(returnToList).toHaveBeenCalledTimes(1);
   });
 
   it('Save creates the project once and REPLACES the URL with its record, keeping list context', async () => {
@@ -102,7 +201,7 @@ describe('ProjectNew — one-step create page (#806)', () => {
     await fillValid();
     await userEvent.click(screen.getByRole('button', { name: /^Create project$/i }));
     await waitFor(() =>
-      expect(createMutation).toHaveBeenCalledWith(expect.objectContaining({ name: 'Harborside Terminal', client_id: 'c2', status: 'Leads' })),
+      expect(createMutation).toHaveBeenCalledWith(expect.objectContaining({ name: 'Harborside Terminal', client_id: seededClientId, status: 'Leads' })),
     );
     expect(createMutation).toHaveBeenCalledTimes(1);
     await waitFor(() =>
@@ -147,10 +246,10 @@ describe('ProjectNew — one-step create page (#806)', () => {
     expect(returnToList).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('dialog');
     expect(dialog).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Stay$/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Keep editing' }));
     expect(returnToList).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    await userEvent.click(await screen.findByRole('button', { name: /^Leave$/i }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard changes' }));
     expect(returnToList).toHaveBeenCalledTimes(1);
     expect(createMutation).not.toHaveBeenCalled();
   });

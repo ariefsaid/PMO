@@ -107,9 +107,7 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
   usePipelineStageConfig: () => ({ data: [], isSuccess: true }),
 }));
 // Switch to cards view helper
-const switchToCards = async () => {
-  await userEvent.click(screen.getByRole('tab', { name: /Cards/i }));
-};
+const switchToCards = async () => userEvent.selectOptions(screen.getByRole('combobox', { name: 'View' }), 'cards');
 
 const renderPage = (role = 'Project Manager') => {
   roleBox.value = role;
@@ -135,18 +133,18 @@ describe('AC-PJ-CM-001: ProjectCard kebab/Edit affordance in Cards view', () => 
   it('AC-PJ-CM-001a: PM sees an "Edit" button on project cards', async () => {
     renderPage('Project Manager');
     await switchToCards();
-    expect(screen.getByTestId('project-card')).toBeInTheDocument();
+    expect(screen.getByRole('article')).toBeInTheDocument();
     // An "Edit" button should appear on the card for roles with can('edit','project')
     expect(screen.getByRole('button', { name: /Edit/i })).toBeInTheDocument();
   });
 
   it('AC-PJ-CM-001b: Engineer does NOT see an "Edit" button on project cards (read-only)', async () => {
+    const user = userEvent.setup();
     renderPage('Engineer');
     await switchToCards();
-    // Engineer defaults to My Projects; need to switch to All to see any cards
-    // The user is in My Projects (Engineer view) which may be empty — that's OK
-    // The key: NO edit button anywhere on any card
-    expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Scope' }), 'All');
+    expect(screen.getByRole('article')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit/i })).not.toBeInTheDocument();
   });
 
   it('AC-PJ-CM-001c: clicking Edit on a card opens the edit-header modal pre-filled with the project', async () => {

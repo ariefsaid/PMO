@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation, useNavigate } from 'react-router';
 import {
   materializeSessionView,
+  materializeProjectSort,
   parseListWorkingSet,
   serializeListWorkingSet,
   type ListName,
@@ -67,8 +68,11 @@ export function useListWorkingSet<K extends ListName>(
     [list, location.search, sessionView, projectsDefaultFilter],
   );
 
+  const materializedView = materializeSessionView(list, location.search, sessionView);
   const targetSearch = defaultsReady
-    ? materializeSessionView(list, location.search, sessionView)
+    ? list === 'projects'
+      ? materializeProjectSort(materializedView)
+      : materializedView
     : location.search;
   useEffect(() => {
     // Equality guard: once the URL already carries the materialized view (or needs nothing), this

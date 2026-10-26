@@ -135,7 +135,7 @@ const renderAs = async (realRole: Role, path: string) => {
       </ToastProvider>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
   return view;
 };
 

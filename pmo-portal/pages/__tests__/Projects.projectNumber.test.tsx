@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -39,7 +39,7 @@ function renderProjects(path = '/projects?view=cards') {
 }
 
 function cardFor(name: string) {
-  const card = screen.getByText(name).closest<HTMLElement>('[data-testid="project-card"]');
+  const card = screen.getByText(name).closest<HTMLElement>('article');
   if (!card) throw new Error(`Missing project card for ${name}`);
   return card;
 }
@@ -67,16 +67,17 @@ describe('AC-CODE-003 active Projects identities', () => {
   it('AC-CODE-003: renders both identifiers as separately labelled values in the project table', () => {
     renderProjects('/projects?view=table');
     const row = screen.getByText('Active site').closest('tr');
-    // PL-A: one mono line carries both identifiers; the PMO number keeps its label for assistive technology.
-    expect(row).toHaveTextContent('PMO Project Number: PMO-26-7711 · CLIENT-81');
-    expect(row).not.toHaveTextContent('Client Project Code:');
+    expect(row).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(row).toHaveTextContent('Client Project Code: CLIENT-81');
   });
 
   it('renders both identities and searches by either without hiding a PMO number when Client Project Code is absent', async () => {
     const user = userEvent.setup();
     renderProjects();
-    expect(cardFor('Active site')).toHaveTextContent('PMO Project Number: PMO-26-7711');
-    expect(cardFor('Active site')).toHaveTextContent('Client Project Code: CLIENT-81');
+    const activeCard = cardFor('Active site');
+    await user.click(activeCard.querySelector('summary')!);
+    expect(activeCard).toHaveTextContent('PMO Project Number: PMO-26-7711');
+    expect(activeCard).toHaveTextContent('Client Project Code: CLIENT-81');
     await user.type(screen.getByPlaceholderText(/Search projects/i), 'PMO-26-7711');
     await waitFor(() => expect(screen.getByText('Active site')).toBeInTheDocument());
     expect(screen.queryByText('Another site')).not.toBeInTheDocument();
@@ -93,23 +94,22 @@ describe('AC-CODE-003 active Projects identities', () => {
     expect(cardFor('Active site')).not.toHaveTextContent('Client Project Code:');
   });
 
-  it('AC-CODE-003: keeps the identifier line readable on a narrow project row', () => {
+  it('AC-CODE-003: a phone card disclosure exposes both labelled project identifiers', async () => {
     mockMobileViewport();
-    renderProjects('/projects?view=table');
-    expect(screen.queryByText('More project references')).not.toBeInTheDocument();
-    const ids = screen.getAllByTitle('PMO-26-7711 · CLIENT-81')[0];
-    expect(ids).toHaveClass('font-mono');
-    expect(ids).toHaveTextContent('PMO-26-7711 · CLIENT-81');
+    const user = userEvent.setup();
+    renderProjects('/projects?view=cards');
+    const activeCard = cardFor('Active site');
+    await user.click(activeCard.querySelector('summary')!);
+    expect(within(activeCard).getByText('PMO-26-7711')).toBeVisible();
+    expect(within(activeCard).getByText('CLIENT-81')).toBeVisible();
   });
 
-  it('AC-CODE-003: uses the AA primary text token for the search Clear all action', async () => {
+  it('AC-CODE-003: clearing a project search restores the full set', async () => {
     mockMobileViewport();
     const user = userEvent.setup();
     renderProjects('/projects?view=table');
     await user.type(screen.getByPlaceholderText(/Search projects/i), 'PMO-26-7711');
-
-    const clearAll = await screen.findByRole('button', { name: 'Clear all' });
-    expect(clearAll).toHaveClass('text-primary-text');
-    expect(clearAll).not.toHaveClass('text-primary');
+    await user.click(await screen.findByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => expect(screen.getByText('Another site')).toBeInTheDocument());
   });
 });

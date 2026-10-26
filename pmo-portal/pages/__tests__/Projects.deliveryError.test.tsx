@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -7,8 +7,7 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 
 /**
  * W2-4g — Projects delivery cells distinguish error from loading.
- * AC-W2-4-07: when useProjectsDeliverySummary errors, cells show "—" not "…"
- *              ("…" must mean loading only, not error).
+ * AC-W2-4-07: a failed read is named, while Loading… is reserved for pending reads.
  */
 
 const projectRow = {
@@ -103,22 +102,26 @@ beforeEach(() => {
 });
 
 describe('Projects — delivery cell error state (AC-W2-4-07)', () => {
-  it('AC-W2-4-07: shows "—" (not "…") in Actual/Progress/Budget-used cells on delivery error', () => {
+  it('AC-W2-4-07: names unavailable delivery on error and keeps Loading… out of the Delivery cell', () => {
     renderPage();
 
-    // "…" must mean loading only — on error it should be "—"
-    // There should be no "…" cells when delivery is in error (not pending)
-    expect(screen.queryByText('…')).toBeNull();
+    const deliveryColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Delivery');
+    const deliveryCell = document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[deliveryColumn];
+    expect(deliveryCell).toHaveTextContent('Unavailable');
+    expect(deliveryCell).not.toHaveTextContent('Loading…');
+    // C-05 keeps the canonical record-open action separate from the unavailable data label.
+    expect(within(document.querySelector('tbody tr')!).getByRole('button', { name: /^(?:Open project )?Test Project$/ })).toBeVisible();
   });
 
-  it('AC-W2-4-07: shows "…" when delivery is pending (loading), not "—"', () => {
+  it('AC-W2-4-07: names Loading… while delivery is pending', () => {
     deliveryState.isError = false;
     deliveryState.isPending = true;
 
     renderPage();
 
-    // Loading state should show "…"
-    const loadingCells = screen.getAllByText('…');
-    expect(loadingCells.length).toBeGreaterThan(0);
+    const deliveryColumn = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Delivery');
+    const deliveryCell = document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[deliveryColumn];
+    expect(deliveryCell).toHaveTextContent('Loading…');
+    expect(deliveryCell).not.toHaveTextContent('Unavailable');
   });
 });
