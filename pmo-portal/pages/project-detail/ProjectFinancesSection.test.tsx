@@ -146,6 +146,9 @@ describe('ProjectFinancesSection reading states', () => {
     const cleared = billing.getByText('Cleared against invoices').parentElement!;
     const outstanding = billing.getByText('Outstanding').parentElement!;
     const cash = screen.getByText('Cash received').parentElement!;
+    expect(screen.queryByRole('heading', { name: 'Billing', exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Margin', exact: true })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Billing · USD ·/ })).toBeInTheDocument();
     expect(within(cleared).getByText('100')).toBeInTheDocument();
     expect(within(outstanding).getByText('0')).toBeInTheDocument();
     expect(within(cash).getByText('USD 40')).toBeInTheDocument();

@@ -185,16 +185,16 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
         {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
       </p>}
       {hasInvoices && <>
-        <p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p>
-        {data.invoices.map((bucket) => {
+        {data.invoices.map((bucket, index) => {
         const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
         return (
           <section key={bucket.currency} className="min-w-0 space-y-4" data-testid={`project-finances-${bucket.currency}`}>
-            <h4 className={projectSectionHeading}>
+            <h3 className={projectSectionHeading}>
               {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {bucket.currency} · {bucket.tax_basis === 'mixed'
                 ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
                 : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
-            </h4>
+            </h3>
+            {index === 0 && <p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p>}
             <dl className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
               {field(t('projectFinances.clearedAgainstInvoices', 'Cleared against invoices'), bucket.missing_outstanding > 0
@@ -329,12 +329,12 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
     };
     return (
       <section key={bucket.currency} className="min-w-0 space-y-4">
-        <h4 className={projectSectionHeading}>
+        <h3 className={projectSectionHeading}>
           {t('projectFinances.margin', 'Margin')} · {bucket.currency} · {bucket.tax_basis === 'mixed'
             ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
             : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
           {' · '}{t('project:billedWorkQualifier', 'Net of tax; advances excluded')}
-        </h4>
+        </h3>
         <dl className="grid min-w-0 grid-cols-2 gap-4">
           {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency, reasons['work-unavailable']))}
           {field(t('projectFinances.margin', 'Margin'), margin.reason
@@ -349,7 +349,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
     <div className="min-w-0 space-y-8" data-testid="money-position-groups">
       {primaryContent}
       <section role="group" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
-        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
+        {!hasInvoices && <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>}
         {billingContent}
         {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
           {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
@@ -362,11 +362,11 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
             ? ` · ${t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}`
             : actualPosition.basis === 'pmo' ? ` · ${t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}` : ''}
         </h3>
-        {costSupplement}
         {spendingContent}
+        {costSupplement}
       </section>
       <section role="group" data-testid="project-finances" aria-label={t('projectFinances.margin', 'Margin')} className="min-w-0 space-y-4">
-        <h3 className={projectSectionHeading}>{t('projectFinances.margin', 'Margin')}</h3>
+        {!hasInvoices && <h3 className={projectSectionHeading}>{t('projectFinances.margin', 'Margin')}</h3>}
         {marginContent}
       </section>
     </div>
