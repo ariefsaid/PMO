@@ -61,8 +61,8 @@ const RevenueByProject: React.FC = () => {
       .filter((row) => !query || `${row.project_name ?? ''} ${row.project_short_name ?? ''} ${row.currency}`.toLocaleLowerCase().includes(query))
       .slice()
       .sort((left, right) => {
-        const leftName = left.project_short_name?.trim() || left.project_name || 'Unassigned';
-        const rightName = right.project_short_name?.trim() || right.project_name || 'Unassigned';
+        const leftName = left.project_name || 'Unassigned';
+        const rightName = right.project_name || 'Unassigned';
         const leftUnassigned = !left.project_id;
         const rightUnassigned = !right.project_id;
         if (leftUnassigned !== rightUnassigned) return leftUnassigned ? 1 : -1;
@@ -78,7 +78,7 @@ const RevenueByProject: React.FC = () => {
   const canView = may('view', 'salesInvoice');
   const canCreateInvoice = may('create', 'salesInvoice');
   const projectOptions = [...new Map(all.filter((row) => row.project_id).map((row) => [row.project_id!, {
-    value: row.project_id!, label: row.project_short_name?.trim() || row.project_name || row.project_id!,
+    value: row.project_id!, label: row.project_name || row.project_id!,
   }])).values()].sort((a, b) => a.label.localeCompare(b.label));
   const currencyOptions = [...new Set(all.map((row) => row.currency))].sort();
 
@@ -106,8 +106,8 @@ const RevenueByProject: React.FC = () => {
     );
   }
 
-  // Screen shows the short name; exports and the contractual title stay `project_name` (AC-003 #1325).
-  const shown = (row: RevenueByProjectRow) => row.project_name ? row.project_short_name?.trim() || row.project_name : null;
+  // The visible identity matches the contractual name in exports; short names never replace it.
+  const shown = (row: RevenueByProjectRow) => row.project_name || null;
 
   const columns: Column<RevenueByProjectRow>[] = [
     {
@@ -121,7 +121,6 @@ const RevenueByProject: React.FC = () => {
         <button
           type="button"
           aria-label={t('moneyIn:uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
-          title={row.project_name !== shown(row) ? row.project_name ?? undefined : undefined}
           className="min-h-11 w-fit max-w-full whitespace-normal break-words text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();

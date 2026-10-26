@@ -396,15 +396,14 @@ describe('Billing — never reports a figure it does not have', () => {
   });
 });
 
-describe('RevenueByProject short names (AC-002 #1325)', () => {
-  it('shows the short name in the project doorway while the contractual title stays on hover', () => {
+describe('RevenueByProject identity (H-09)', () => {
+  it('shows the full contractual name in the project doorway without hover-only recovery', () => {
     revenueState.data = [
       { project_id: 'p1', project_name: 'Contractual Depot Expansion', project_short_name: 'Depot', currency: 'USD', total_amount: 1000, open_ar: 0, invoice_count: 1 },
     ] as never;
     renderPage();
-    const open = screen.getByRole('button', { name: 'Open Depot (USD)' });
-    expect(open).toHaveTextContent('Depot');
-    expect(open).toHaveAttribute('title', 'Contractual Depot Expansion');
-    expect(screen.queryByText('Contractual Depot Expansion')).toBeNull();
+    const open = screen.getByRole('button', { name: 'Open Contractual Depot Expansion (USD)' });
+    expect(open).toHaveTextContent('Contractual Depot Expansion');
+    expect(open).not.toHaveAttribute('title');
   });
 });
