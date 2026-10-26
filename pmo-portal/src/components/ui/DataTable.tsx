@@ -108,8 +108,6 @@ export interface RowMenuItem {
 export interface DataTableProps<Row> {
   rows: Row[];
   columns: Column<Row>[];
-  /** Page-specific phone row anatomy. The desktop table continues to use `columns`. */
-  mobileRow?: (row: Row) => React.ReactNode;
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
   onActivate?: (row: Row) => void;
@@ -131,7 +129,7 @@ export interface DataTableProps<Row> {
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
   state?: 'loading' | 'empty' | 'error';
-  /** Optional Projects-specific mobile evidence composition. The row menu remains a sibling. */
+  /** Page-specific phone evidence. Desktop columns stay intact; the row menu remains a sibling. */
   mobileRow?: (row: Row) => React.ReactNode;
   /** Optional loading skeletons that preserve this collection's visible row geometry. */
   loadingLayout?: {
@@ -321,7 +319,6 @@ function stripHiddenClasses(colClassName?: string): string {
 export function DataTable<Row>({
   rows,
   columns: allColumns,
-  mobileRow,
   rowKey,
   onActivate,
   rowLabel,
