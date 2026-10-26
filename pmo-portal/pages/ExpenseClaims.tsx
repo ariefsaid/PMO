@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, DataTable, Icon, ListState, SearchMini, SelectField, StatusPill, useToast, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -9,7 +9,7 @@ import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpen
 import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyCents, formatInstantDate } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
@@ -102,24 +102,26 @@ const ExpenseClaims: React.FC = () => {
   }));
 
   const columns: Column<ExpenseClaimWithRefs>[] = [
-    { key: 'claim_number', header: t('expenses.columns.number', 'Number'),
-      cell: (r) => <span className="whitespace-nowrap font-medium">{r.claim_number ?? t('expenses.draftNumber', 'Draft')}</span>,
-      exportValue: (r) => r.claim_number ?? '' },
-    { key: 'kind', header: t('expenses.columns.kind', 'Type'), cell: (r) => expenseKindLabel(r.kind, t), exportValue: (r) => r.kind },
-    { key: 'title', header: t('expenses.columns.title', 'Title'),
-      cell: (r) => <span className="truncate" title={r.title}>{r.title}</span>, exportValue: (r) => r.title },
-    { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
-      cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
+    { key: 'claim', header: t('expenses.columns.claim', 'Claim'), kind: 'primary',
+      primaryTitle: (r) => r.title,
+      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="font-medium text-primary-text hover:underline">{r.title}</Link>,
+      secondaryCell: (r) => <span>{r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}</span>,
+      exportValue: (r) => r.claim_number ?? r.title },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
       cell: (r) => r.project ? <span title={r.project.name}>{projectDisplayName(r.project)}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
+    { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
+      cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
-    { key: 'amount', header: t('expenses.columns.amount', 'Amount'), align: 'num',
+    { key: 'statusDate', header: t('expenses.columns.statusDate', 'Status and created date'), kind: 'status',
+      cell: (r) => <div className="flex min-w-0 flex-col items-start gap-1"><StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill><time dateTime={r.created_at} className="text-xs text-muted-foreground">{formatInstantDate(r.created_at)}</time></div>,
+      exportValue: (r) => `${expenseStatusLabel(r.status, t)} · ${r.created_at}` },
+    { key: 'amount', header: t('expenses.columns.amount', 'Amount'), kind: 'money', align: 'num',
       cell: (r) => <span className="tabular-nums">{formatCurrencyCents(Number(r.amount), r.currency)}</span>,
       exportValue: (r) => Number(r.amount) },
-    { key: 'status', header: t('expenses.columns.status', 'Status'),
-      cell: (r) => <StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill>,
-      exportValue: (r) => r.status },
+    { key: 'actions', header: t('expenses.columns.actions', 'Actions'), kind: 'actions',
+      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent">{t('expenseClaims:register.table.open', 'Open')}</Link>,
+      exportValue: () => '' },
   ];
 
   const clearFilters = () => {
@@ -211,7 +213,6 @@ const ExpenseClaims: React.FC = () => {
             columns={columns}
             rowKey={(r) => r.id}
             onActivate={(r) => openRecord(r.id)}
-            rowLabel={(r) => t('expenses.table.rowLabel', 'Open {{title}}', { title: r.title })}
             tableId="expenseclaims-table"
           />
         </>

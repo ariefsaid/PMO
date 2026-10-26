@@ -1474,12 +1474,15 @@
       "receiptsLoading": "Loading receipts…"
     },
     "columns": {
+      "claim": "Claim",
       "amount": "Amount",
       "category": "Budget category",
       "claimant": "Claimant",
       "kind": "Type",
       "number": "Number",
       "project": "Project",
+      "statusDate": "Status and created date",
+      "actions": "Actions",
       "status": "Status",
       "title": "Title"
     },

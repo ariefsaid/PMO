@@ -62,7 +62,9 @@
       "unknownAge": "Unknown payout date"
     },
     "table": {
-      "noMatch": "No expenses match these filters"
+      "noMatch": "No expenses match these filters",
+      "open": "Open",
+      "openClaim": "Open {{title}}"
     }
   },
   "record": {

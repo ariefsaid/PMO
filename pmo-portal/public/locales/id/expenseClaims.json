@@ -62,7 +62,9 @@
       "unknownAge": "Tanggal pencairan tidak diketahui"
     },
     "table": {
-      "noMatch": "Tidak ada biaya yang cocok dengan filter ini"
+      "noMatch": "Tidak ada biaya yang cocok dengan filter ini",
+      "open": "Buka",
+      "openClaim": "Buka {{title}}"
     }
   },
   "record": {

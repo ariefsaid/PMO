@@ -1474,12 +1474,15 @@
       "receiptsLoading": "Memuat bukti…"
     },
     "columns": {
+      "claim": "Klaim",
       "amount": "Jumlah",
       "category": "Kategori anggaran",
       "claimant": "Pengaju",
       "kind": "Jenis",
       "number": "Nomor",
       "project": "Proyek",
+      "statusDate": "Status dan tanggal dibuat",
+      "actions": "Tindakan",
       "status": "Status",
       "title": "Judul"
     },

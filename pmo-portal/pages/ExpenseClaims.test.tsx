@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -49,9 +49,13 @@ vi.mock('@/src/hooks/useExpensePostingReadiness', () => ({ useExpensePostingRead
 
 const ROW = {
   id: 'c1', claim_number: 'EXP-2610060001', kind: 'claim', title: 'Site visit', claimant: { full_name: 'Budi Field' },
-  project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000, currency: 'IDR', status: 'Submitted',
+  project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000, currency: 'IDR', status: 'Submitted', created_at: '2026-10-05T12:00:00.000Z',
 };
-const renderPage = (entry = '/expenses') => render(<MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
+const LocationProbe = () => {
+  const location = useLocation();
+  return <output data-testid="location-probe" data-state={JSON.stringify(location.state ?? {})}>{`${location.pathname}${location.search}`}</output>;
+};
+const renderPage = (entry = '/expenses') => render(<MemoryRouter initialEntries={[entry]}><LocationProbe /><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
 const renderPageInBahasa = (entry = '/expenses') => render(
   <BahasaProvider locale="id"><MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter></BahasaProvider>,
 );
@@ -70,7 +74,7 @@ describe('ExpenseClaims page', () => {
   it('AC-EXP-060 lists records with number, claimant, project, amount and status', () => {
     renderPage();
     const row = screen.getByRole('row', { name: /Site visit/ });
-    expect(within(row).getByText('EXP-2610060001')).toBeInTheDocument();
+    expect(within(row).getByText(/EXP-2610060001/)).toBeInTheDocument();
     expect(within(row).getByText('Budi Field')).toBeInTheDocument();
     expect(within(row).getByText('Harbour Upgrade')).toBeInTheDocument();
     expect(within(row).getByText(money(750000, 'IDR'))).toBeInTheDocument();
@@ -176,6 +180,14 @@ describe('ExpenseClaims page', () => {
       '/expenses/c1?q=client&project=p1&status=Submitted&sort=oldest',
       { state: { recordContext: { listPath: '/expenses?q=client&project=p1&status=Submitted&sort=oldest' } } },
     );
+  });
+
+  it('AC-806 opens a claim from its name link and keeps the return context', async () => {
+    renderPage('/expenses?q=client&project=p1&status=Submitted&sort=oldest');
+    const row = screen.getByRole('row', { name: /Site visit/ });
+    await userEvent.click(within(row).getByText('Site visit'));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/expenses/c1?q=client&project=p1&status=Submitted&sort=oldest');
+    expect(screen.getByTestId('location-probe')).toHaveAttribute('data-state', JSON.stringify({ recordContext: { listPath: '/expenses?q=client&project=p1&status=Submitted&sort=oldest' } }));
   });
 
 
