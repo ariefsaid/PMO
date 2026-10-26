@@ -42,9 +42,7 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "contractReference": "Customer contract reference",
-    "projectReferences": "More project references",
-    "projectReferencesFor": "More project references for {{name}}"
+    "contractReference": "Customer contract reference"
   },
   "uxs10": {
     "mapPrinciple": "One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.",
@@ -209,10 +207,7 @@
     "restrictedRowsExcluded": "Restricted rows excluded",
     "budgetUsed": "{{percent}}% of Active budget",
     "budgetSummary": "{{actual}} of {{budget}} Active budget",
-    "currencyMismatch": "Budget currency differs from Actual",
-    "riskUnavailableTitle": "Couldn't check project budget risk",
-    "riskUnavailableSub": "Project spending and Active budget information could not be checked.",
-    "atRisk": "At risk"
+    "currencyMismatch": "Budget currency differs from Actual"
   },
   "fx": {
     "saveRate": "Save rate",
@@ -748,7 +743,6 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
-    "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
       "action": "Re-open for correction",
@@ -776,7 +770,7 @@
       "invoice": "Customer invoices"
     },
     "timesheets": {
-      "policyHelp": "Policy: a different person approves each timesheet."
+
     },
     "scopeToggleLabel": "Approvals scope",
     "title": "Approvals",
@@ -785,17 +779,12 @@
     "weekOf": "Week of",
     "group": {
       "procurement": {
-        "emptySub": "Purchase requests that need your approval will appear here.",
-        "emptyTitle": "No requests awaiting your decision",
         "title": "Purchase requests"
       },
       "timesheets": {
-        "emptySub": "Submitted timesheets from your reports will appear here for review.",
-        "emptyTitle": "No timesheets awaiting your decision",
-        "title": "Timesheets"
+
       }
-    },
-    "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices."
+    }
   },
   "combobox": {
     "search": {
@@ -990,12 +979,10 @@
       "emailPlaceholder": "name@example.com",
       "fullName": "Full name",
       "fullNamePlaceholder": "e.g. Jane Doe",
-      "name": "Name",
       "notes": "Notes",
       "notesPlaceholder": "Anything worth remembering about this contact",
       "phone": "Phone",
       "phonePlaceholder": "e.g. +1 555 010 0000",
-      "primaryContact": "Primary contact",
       "title": "Title",
       "titlePlaceholder": "e.g. Procurement Lead",
       "type": "Type",
@@ -1145,7 +1132,6 @@
       "title": "Contact not found"
     },
     "pill": "Contact",
-    "sectionTitle": "Contact detail",
     "toast": {
       "activityDeleted": "Activity deleted",
       "activityLogged": "Activity logged",
@@ -1245,8 +1231,7 @@
       "deleted": "Contact deleted",
       "updated": "Contact updated"
     },
-    "description": "People and their company relationships.",
-    "descriptionMeetingsLink": "Meetings module"
+    "description": "People and their company relationships."
   },
   "dashboard": {
     "bva": {
@@ -1679,7 +1664,6 @@
       "unassigned": "Unassigned — assign an owner",
       "editorLabel": "Meeting minutes",
       "empty": "No minutes were recorded for this meeting.",
-      "save": "Save minutes",
       "slash": {
         "actionTitle": "Action item",
         "actionSubtext": "Create a task from this line",
@@ -1711,7 +1695,6 @@
       "actionCreated": "Action item created",
       "archived": "Meeting archived",
       "deleted": "Meeting deleted",
-      "minutesSaved": "Minutes saved",
       "shared": "Meeting shared",
       "updated": "Meeting updated"
     }
@@ -1808,9 +1791,7 @@
     "clearSearch": "Clear search",
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
-    "start": "Start {{date}}",
-    "subtitle": "Your assigned tasks across all projects.",
-    "title": "My Tasks"
+    "start": "Start {{date}}"
   },
   "procurement": {
     "columns": {
@@ -2951,8 +2932,7 @@
       "edit": "Save project"
     },
     "section": {
-      "project": "Project",
-      "schedule": "Schedule"
+      "project": "Project"
     },
     "name": {
       "label": "Project name",
@@ -2987,8 +2967,7 @@
       "noun": "company"
     },
     "clientCode": {
-      "label": "Client Project Code",
-      "placeholder": "Optional code used by your organization"
+      "label": "Client Project Code"
     },
     "projectNumber": {
       "label": "PMO Project Number",
@@ -3011,9 +2990,7 @@
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
-      "project": "Project",
-      "progress": "Progress",
-      "status": "Status"
+      "project": "Project"
     },
     "confirm": {
       "archiveConfirm": "Archive project",
@@ -3038,8 +3015,7 @@
       "ongoing": "Ongoing",
       "pmLabel": "Filter by project manager",
       "allEndCustomers": "All end customers",
-      "endCustomerLabel": "Filter by end customer",
-      "ariaLabel": "Status filter"
+      "endCustomerLabel": "Filter by end customer"
     },
     "importBudgets": "Import budgets",
     "noPhasesYet": "No phases yet",
@@ -3064,8 +3040,7 @@
       "board": "Board",
       "calendar": "Calendar",
       "cards": "Cards",
-      "table": "Table",
-      "ariaLabel": "Projects view"
+      "table": "Table"
     },
     "calendar": {
       "previousMonth": "Previous month",
@@ -3073,17 +3048,14 @@
       "goToday": "Go to today",
       "today": "Today",
       "noEventsTitle": "No events this month",
-      "noEventsSub": "No project or phase target dates fall in this month.",
-      "phaseEventLabel": "{{project}} · {{phase}}",
-      "phaseEventAriaLabel": "{{project}} — Phase: {{phase}}"
+      "noEventsSub": "No project or phase target dates fall in this month."
     },
     "unnamedUser": "Unnamed user",
     "export": "Export",
     "import": "Import",
     "card": {
       "deliveryPercent": "Delivery {{percent}}%",
-      "editProject": "Edit {{name}}",
-      "delivery": "Delivery"
+      "editProject": "Edit {{name}}"
     },
     "kanban": {
       "won": "Won",
@@ -3113,20 +3085,7 @@
       "pmo": "PMO Project Number",
       "client": "Client Project Code"
     },
-    "description": "Pre-win projects live in the Pipeline.",
-    "mobile": {
-      "activeCount": "Active filters",
-      "customer": "Customer",
-      "manager": "Project manager",
-      "removeCustomer": "Remove customer filter",
-      "removeManager": "Remove project manager filter",
-      "clearAll": "Clear all",
-      "error": "Couldn't load options",
-      "retry": "Retry",
-      "unavailable": "Unavailable selection",
-      "endCustomer": "End customer",
-      "removeEndCustomer": "Remove end customer filter"
-    }
+    "mobile": {}
   },
   "revenueByProject": {
     "currencyErrorSub": "Try again to view revenue.",
@@ -3375,8 +3334,7 @@
       "title": "No hours logged this week"
     },
     "emptyEdit": {
-      "sub": "Choose a project above to start recording hours.",
-      "title": "No hours logged this week"
+      "sub": "Choose a project above to start recording hours."
     },
     "enterHoursToSubmit": "Enter hours to submit",
     "error": {
@@ -3440,9 +3398,7 @@
       }
     },
     "unknownProject": "Unknown Project",
-    "weekOf": "Week of",
-    "hoursThisWeek": "{{hours}} hours this week",
-    "subtitle": "Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve."
+    "weekOf": "Week of"
   },
   "integrations": {
     "organization": {
@@ -3619,7 +3575,6 @@
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
-      "effective": "Effective language: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{value}}",
@@ -3630,7 +3585,6 @@
     "number": {
       "label": "Number format",
       "help": "Preview: {{value}}",
-      "effective": "Effective number format: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{value}}",
@@ -3643,7 +3597,6 @@
       "placeholder": "Select a timezone",
       "search": "Search timezones…",
       "noun": "timezone",
-      "effective": "Effective timezone: {{value}}",
       "options": {
         "inherit": "Organization default",
         "inheritWithEffective": "Organization default — {{timezone}}"
@@ -3653,9 +3606,7 @@
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
     "error": "Could not save your preferences. Please try again.",
-    "invalidTimezone": "Choose a valid timezone before saving.",
-    "title": "Profile & preferences",
-    "description": "Choose your language, number format, and timezone for this portal."
+    "invalidTimezone": "Choose a valid timezone before saving."
   },
   "oauthConsent": {
     "allow": "Allow",
@@ -4037,9 +3988,7 @@
     "invoiceIllegalTransition": "That change isn't allowed from the invoice's current status.",
     "sodSelfApproval": "You raised this invoice — a different person must approve it",
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
-    "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
-    "myViews": "My Views",
-    "createYourFirstView": "Create your first view"
+    "nativeDraftsOpen": "Invoices raised in PMO are still in draft"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
