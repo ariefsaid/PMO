@@ -508,7 +508,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
               {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
             </h3>
-            {mine.length === 0 ? (
+            {lines.isPending ? (
+              <ListState variant="loading" rows={2} />
+            ) : lines.isError ? (
+              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
+            ) : mine.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
             ) : (
               <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>

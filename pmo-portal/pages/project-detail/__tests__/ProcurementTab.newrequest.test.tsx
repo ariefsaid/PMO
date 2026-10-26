@@ -204,9 +204,10 @@ describe('Project detail procurement register', () => {
     renderTab();
     const table = screen.getByRole('table');
     const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim());
-    expect(headers).toEqual(['Request', 'Vendor', 'Status / date', 'Value', 'Actions']);
+    expect(headers).toEqual(['Request', 'Status / date', 'Value', 'Actions']);
     const rows = within(table).getAllByRole('row');
     expect(rows[1]).toHaveTextContent('Laptop refresh');
+    expect(within(rows[1]).getAllByRole('cell')[0]).toHaveTextContent('Northwind Supplies');
     expect(rows[2]).toHaveTextContent('Site materials');
     expect(screen.getByRole('combobox', { name: 'Sort requests' })).toHaveValue('newest');
     expect(screen.getByRole('button', { name: 'Open PR-NEW' })).toBeInTheDocument();

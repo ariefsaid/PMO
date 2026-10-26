@@ -180,7 +180,7 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-assessed-b1')).toHaveTextContent('6');
     expect(screen.getByTestId('boq-claimed-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
-    expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
+    expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('Not assessed');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
   });
 

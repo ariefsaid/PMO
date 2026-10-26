@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, TaxBasisLabel, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, useToast, type Column,
 } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -205,7 +205,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
         const f = lineFactsById.get(row.id);
         return <span className="tabular" data-testid={`boq-ordered-${row.id}`}>{f ? quantityText(row, f.orderedQuantity) : '—'}</span>;
       } },
-      { key: 'balance', header: t('project:projectDetail.billing.availableToOrder', 'Available to order'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Available to order'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-balance-${row.id}`}>
@@ -354,7 +354,6 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
-  const basisLabel = taxTreatment ? <TaxBasisLabel treatment={taxTreatment} showDetails={false} /> : null;
 
   const boqCard = (
     <Card variant="bare">
@@ -370,7 +369,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
         }
       >
         {t('projectDetail.billing.boq.title', 'Bill of quantities')} · {currency}
-        {taxTreatment && <span> · {basisLabel}</span>}
+        {taxBasisText ? ` · ${taxBasisText}` : ''}
       </CardHead>
       <CardPad>
         <DataTable<BoqItemRow>
@@ -403,7 +402,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
         }
       >
         {t('projectDetail.billing.claims.title', 'Billing claims')} · {currency}
-        {taxTreatment && <span> · {basisLabel}</span>}
+        {taxBasisText ? ` · ${taxBasisText}` : ''}
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
@@ -450,7 +449,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatme
           }
         >
           {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {currency}
-          {taxTreatment && <span> · {basisLabel}</span>}
+          {taxBasisText ? ` · ${taxBasisText}` : ''}
         </CardHead>
         <CardPad>
           {billing.isPending ? (

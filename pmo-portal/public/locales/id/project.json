@@ -36,8 +36,7 @@
           "workOrder": "Work order"
         }
       },
-      "notAssessed": "Belum dinilai",
-      "availableToOrder": "Tersedia untuk dipesan"
+      "notAssessed": "Belum dinilai"
     },
     "documents": {
       "column": {
@@ -49,7 +48,8 @@
       "noCode": "Kode belum diisi",
       "notApplicable": "Tidak berlaku",
       "noRevision": "Belum ada revisi",
-      "clearSearch": "Hapus pencarian"
+      "clearSearch": "Hapus pencarian",
+      "actions": "Tindakan dokumen"
     },
     "header": {
       "scope": {

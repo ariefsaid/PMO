@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   acceptances: [] as unknown[],
   docs: [] as unknown[],
   accError: false,
+  linesError: false,
+  retryLines: vi.fn(),
   acc: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   wom: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
@@ -51,7 +53,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => ({ data: h.linesError ? undefined : h.lines, isPending: false, isError: h.linesError, refetch: h.retryLines }),
   useWorkOrderAcceptances: () => ({ data: h.accError ? undefined : h.acceptances, isPending: false, isError: h.accError, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => h.acc,
 }));
@@ -74,7 +76,7 @@ const baseFacts = {
 beforeEach(() => {
   vi.clearAllMocks();
   h.role = 'Finance'; h.userId = 'u-fin';
-  h.claims = []; h.workOrders = []; h.woBilling = []; h.lines = []; h.acceptances = []; h.docs = []; h.accError = false;
+  h.claims = []; h.workOrders = []; h.woBilling = []; h.lines = []; h.acceptances = []; h.docs = []; h.accError = false; h.linesError = false;
   const mutation = () => ({ mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false });
   h.acc = Object.fromEntries(['createLine', 'updateLine', 'deleteLine', 'prepare', 'withdraw', 'confirm'].map((n) => [n, mutation()]));
   h.wom = Object.fromEntries(['create', 'update', 'setValue', 'transition'].map((n) => [n, mutation()]));
@@ -202,6 +204,17 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     h.lines = [alloc('l1', 'b1', 1000)];
     h.docs = [SIGNED];
     h.role = 'Project Manager'; h.userId = 'u-pm';
+  });
+
+  it('AC-CQ-015 a failed contract-line read offers retry and never claims no allocations', async () => {
+    h.linesError = true;
+    const user = renderWorkOrders();
+    await user.click(within(disclosure()).getByText(/Contract lines and BAST/));
+    const lines = within(disclosure()).getByRole('region', { name: 'Contract lines' });
+    expect(within(lines).getByText('Couldn’t load the contract lines')).toBeInTheDocument();
+    expect(within(lines).queryByText('No contract lines allocated yet')).toBeNull();
+    await user.click(within(lines).getByRole('button', { name: 'Retry' }));
+    expect(h.retryLines).toHaveBeenCalledOnce();
   });
 
   it('AC-CQ-015 each work order has one disclosure: contract lines first, then BASTs, with statuses in words', async () => {

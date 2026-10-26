@@ -36,8 +36,7 @@
           "workOrder": "Work order"
         }
       },
-      "notAssessed": "Not assessed",
-      "availableToOrder": "Available to order"
+      "notAssessed": "Not assessed"
     },
     "documents": {
       "column": {
@@ -49,7 +48,8 @@
       "noCode": "No code",
       "notApplicable": "Not applicable",
       "noRevision": "No revision",
-      "clearSearch": "Clear search"
+      "clearSearch": "Clear search",
+      "actions": "Document actions"
     },
     "header": {
       "scope": {

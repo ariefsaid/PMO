@@ -620,7 +620,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
           />
         )}
         <span className="order-2 text-xs font-semibold text-muted-foreground">{t('project:projectDetail.documents.newestFirst', 'Document date newest first')}</span>
-        <div className="order-3 flex w-full min-w-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
+        <div role="group" aria-label={t('project:projectDetail.documents.actions', 'Document actions')} className="order-3 flex w-full min-w-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
         {/* D13 (OD-W2-5 honest-affordance): the dead disabled "Attach file (coming soon)"
             button was removed — file upload is signposted by the register subtitle copy
             ("file attachments arrive with Storage"), not a fake disabled control. */}
