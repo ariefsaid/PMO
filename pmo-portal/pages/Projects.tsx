@@ -65,6 +65,7 @@ import { ProjectCollectionLoading } from '@/src/components/projects/ProjectColle
 import { ProjectDataState } from '@/src/components/projects/ProjectDataState';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { Link } from 'react-router';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -80,6 +81,7 @@ const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const statusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
@@ -844,9 +846,10 @@ const Projects: React.FC = () => {
     moneyError ? t('projects:data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
   ].filter((issue): issue is string => Boolean(issue)) : [];
   const abnormalNote = dataIssues.length > 0 ? (
-    <details id={partialCoverageNoteId} data-testid="projects-data-note" className="min-w-0 border-y border-border text-sm text-muted-foreground">
+    <div role="status" id={partialCoverageNoteId} data-testid="projects-data-note" className="min-w-0 border-y border-border text-sm text-muted-foreground">
+      <details className="min-w-0" open={isDesktop}>
       <summary className="touch-target min-h-11 cursor-pointer py-2 text-xs font-semibold text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</summary>
-      <div role="status" className="flex min-w-0 flex-wrap items-center justify-between gap-2 pb-2">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 pb-2">
       <div className="min-w-0 flex-1">
         <p className="break-words">{dataIssues.join(' · ')}</p>
       </div>
@@ -856,7 +859,8 @@ const Projects: React.FC = () => {
         {collectionShowsMoney && moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects:data.retryMoney', 'Retry financial data')}</Button>}
       </div>
       </div>
-    </details>
+      </details>
+    </div>
   ) : null;
   const columnCell = (key: string, project: ProjectWithRefs) => columns.find((column) => column.key === key)?.cell(project);
   const mobileProjectRow = (project: ProjectWithRefs) => {

@@ -710,10 +710,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} primaryClamp={col.primaryClamp} /> : col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} primaryClamp={col.primaryClamp} /> : col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
                         </CellTag>
                       );
@@ -811,10 +811,10 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} primaryClamp={titleCol.primaryClamp} /> : titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} primaryClamp={titleCol.primaryClamp} /> : titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>}
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
@@ -883,11 +883,10 @@ export function DataTable<Row>({
   );
 }
 
-function PrimaryCell({ title, titleText, secondary, primaryClamp = false }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode; secondaryWrap?: boolean; primaryClamp?: boolean }) {
-  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
+function PrimaryCell({ title, secondary }: { title: React.ReactNode; secondary?: React.ReactNode }) {
   return <span className="block min-w-0">
-    <span title={accessibleTitle} className={cn('block whitespace-normal break-words text-sm text-foreground', primaryClamp && 'line-clamp-2')}>{title}</span>
-    {secondary != null && <span className={'block whitespace-normal break-words text-[0.6875rem] font-semibold text-muted-foreground'}>{secondary}</span>}
+    <span className="block whitespace-normal break-words text-sm text-foreground">{title}</span>
+    {secondary != null && <span className="block whitespace-normal break-words text-[0.6875rem] font-semibold text-muted-foreground">{secondary}</span>}
   </span>;
 }
 
