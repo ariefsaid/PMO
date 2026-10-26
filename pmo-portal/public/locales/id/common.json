@@ -2095,6 +2095,8 @@
     },
     "review": {
       "amountsWithCurrency": "Jumlah pengadaan · {{currency}}",
+      "amountsWithPrimary": "Jumlah pengadaan · {{compact}}",
+      "otherAmountsWithCurrency": "Jumlah pengadaan lainnya · {{currency}}",
       "requestAmount": "Jumlah yang diminta",
       "selectedQuote": "Jumlah penawaran terpilih",
       "orderedAmount": "Jumlah pesanan",
@@ -2109,6 +2111,23 @@
     },
     "lifecycleLabel": "Siklus pengadaan",
     "budgetImpactWithCurrency": "Dampak anggaran · {{currency}}",
+    "budget": {
+      "request": "Permintaan ini",
+      "reserved": "Dicadangkan",
+      "reservedSub": "disetujui, belum dipesan",
+      "available": "Tersedia",
+      "projectBudget": "Anggaran proyek",
+      "afterRequest": "Setelah permintaan ini",
+      "headroomRemaining": "{{percent}}% sisa anggaran",
+      "otherCurrencies": "Tidak termasuk dalam anggaran tersedia: {{amounts}}",
+      "overAvailable": "Melebihi anggaran tersedia",
+      "overAvailableSub": "Permintaan ini melebihi anggaran tersedia sebesar",
+      "advisoryOnly": "Persetujuan tetap dapat diberikan — ini hanya pemberitahuan.",
+      "projectOverBudget": "Anggaran proyek terlampaui",
+      "projectOverBudgetSub": "Anggaran proyek terlampaui sebesar",
+      "projectOverBudgetDetail": " dari komitmen dan kebutuhan yang dicadangkan. Ini hanya pemberitahuan.",
+      "openProject": "Buka proyek"
+    },
     "meta": {
       "requestedBy": "diminta oleh"
     },

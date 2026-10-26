@@ -2095,6 +2095,8 @@
     },
     "review": {
       "amountsWithCurrency": "Purchase amounts · {{currency}}",
+      "amountsWithPrimary": "Purchase amount · {{compact}}",
+      "otherAmountsWithCurrency": "Other purchase amounts · {{currency}}",
       "requestAmount": "Requested amount",
       "selectedQuote": "Selected quote amount",
       "orderedAmount": "Ordered amount",
@@ -2114,6 +2116,23 @@
     },
     "lifecycleLabel": "Procurement lifecycle",
     "budgetImpactWithCurrency": "Budget impact · {{currency}}",
+    "budget": {
+      "request": "This request",
+      "reserved": "Reserved",
+      "reservedSub": "approved, not yet ordered",
+      "available": "Available",
+      "projectBudget": "Project budget",
+      "afterRequest": "After this request",
+      "headroomRemaining": "{{percent}}% headroom remaining",
+      "otherCurrencies": "Not included in available budget: {{amounts}}",
+      "overAvailable": "Over available budget",
+      "overAvailableSub": "This request exceeds available budget by",
+      "advisoryOnly": "Approval is still permitted — this is advisory only.",
+      "projectOverBudget": "Project over budget",
+      "projectOverBudgetSub": "This project is over budget by",
+      "projectOverBudgetDetail": " across committed and reserved demand. This is advisory only.",
+      "openProject": "Open project"
+    },
     "meta": {
       "requestedBy": "requested by"
     },

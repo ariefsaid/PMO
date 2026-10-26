@@ -77,12 +77,12 @@ function renderPanel(
   );
 }
 
-/** The value element of the stat tile whose label matches `label` (exact, case-insensitive). */
-function tileValue(label: RegExp): HTMLElement {
-  const labelEl = screen.getByText(label);
-  const tile = labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-  // The value is the sibling div after the label div within the tile.
-  return within(tile).getByText(/^-?[\d,.]+$/);
+/** The value paired with a definition-list label. */
+function factValue(label: RegExp): HTMLElement {
+  const term = screen.getByText(label, { selector: 'dt' });
+  const value = term.nextElementSibling;
+  if (!(value instanceof HTMLElement)) throw new Error(`No value paired with ${label}`);
+  return value;
 }
 
 beforeEach(() => {
@@ -127,16 +127,22 @@ describe('AC-SEC-229 — Engineer purchasing read scope', () => {
 });
 
 describe('AC-806 money hierarchy', () => {
-  it('names the budget currency once and keeps the exact full figures visible', () => {
+  it('names the budget currency once and keeps exact figures without repeating the request amount', () => {
     budgetState.data = 1200000000;
     committedState.data = 300000000;
     reservedState.data = 125000000;
-    renderPanel({ projectId: 'proj-1', totalValue: 56000000, projectName: 'Harbour Upgrade' });
+    renderPanel({ projectId: 'proj-1', totalValue: 56000000, projectName: 'Harbour Upgrade', showRequestValue: false });
     expect(screen.getByRole('heading', { name: 'Budget impact · USD' })).toBeInTheDocument();
-    const tiles = screen.getByTestId('stat-tiles');
-    expect(within(tiles).getByText(formatNumber(56000000))).toBeInTheDocument();
-    expect(within(tiles).getByText(formatNumber(1200000000))).toBeInTheDocument();
-    expect(within(tiles).queryByText(/USD|\$/)).not.toBeInTheDocument();
+    const section = screen.getByRole('heading', { name: 'Budget impact · USD' }).closest('section');
+    expect(section).not.toBeNull();
+    const facts = within((section as HTMLElement).querySelector('dl') as HTMLElement);
+    expect(facts.getByText('Reserved', { selector: 'dt' })).toBeInTheDocument();
+    expect(facts.getByText('Available', { selector: 'dt' })).toBeInTheDocument();
+    expect(facts.getByText('Project budget', { selector: 'dt' })).toBeInTheDocument();
+    expect(facts.getByText('After this request', { selector: 'dt' })).toBeInTheDocument();
+    expect(facts.queryByText('This request', { selector: 'dt' })).not.toBeInTheDocument();
+    expect(facts.getByText(formatNumber(1200000000))).toBeInTheDocument();
+    expect(facts.queryByText(/USD|\$/)).not.toBeInTheDocument();
   });
 });
 
@@ -270,7 +276,8 @@ describe('AC-IXD-PROC-W5-2e — over-budget advisory', () => {
     // Non-blocking advisory: role="status", NOT role="alert"
     const advisory = screen.getByRole('status');
     expect(advisory.textContent).toMatch(/exceeds available budget/i);
-    expect(advisory.textContent).toMatch(/\$20,000/);
+    expect(advisory.textContent).toMatch(/20,000/);
+    expect(screen.getByRole('heading', { name: 'Budget impact · USD' })).toBeInTheDocument();
     expect(advisory.textContent).toMatch(/advisory only/i);
     // It must NOT be an assertive alert (gentler for a non-blocking advisory — M4)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -297,9 +304,12 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(screen.getByRole('heading', { name: /budget impact/i })).toBeInTheDocument();
   });
 
-  it('renders the five budget figures in a five-column strip at sm+ so no empty sixth cell appears', () => {
+  it('keeps five labeled budget facts together in the same section', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByTestId('stat-tiles').className).toContain('sm:grid-cols-5');
+    const section = screen.getByRole('heading', { name: /budget impact/i }).closest('section');
+    expect(section).not.toBeNull();
+    expect(within(section as HTMLElement).getAllByRole('term')).toHaveLength(5);
+    expect(within(section as HTMLElement).getByText('This request', { selector: 'dt' })).toBeInTheDocument();
   });
 
   it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {
@@ -330,9 +340,9 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.data = 300;
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    expect(screen.getByText(/^available$/i)).toBeInTheDocument();
+    expect(screen.getByText(/^available$/i, { selector: 'dt' })).toBeInTheDocument();
     // Scope to the Available tile (After this request also shows $500 here).
-    expect(tileValue(/^available$/i).textContent).toMatch(/^500$/);
+    expect(factValue(/^available$/i).textContent).toMatch(/^500$/);
   });
   it('0373: commitments in other currencies are named under Available, never subtracted as project currency', () => {
     budgetState.data = 1000;
@@ -340,8 +350,8 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.otherCurrencies = [{ currency: 'EUR', amount: 90 }];
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    expect(tileValue(/^available$/i).textContent).toMatch(/^500$/);
-    expect(screen.getByText('Not counting commitments in other currencies: €90')).toBeInTheDocument();
+    expect(factValue(/^available$/i).textContent).toMatch(/^500$/);
+    expect(screen.getByText(/Not included in available budget:.*€90/)).toBeInTheDocument();
   });
   it('0373: no other-currency note when every commitment is in the project currency', () => {
     budgetState.data = 1000;
@@ -355,7 +365,7 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.data = 800;
     reservedState.data = 400; // available = -200
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    const neg = tileValue(/^available$/i);
+    const neg = factValue(/^available$/i);
     expect(neg.textContent).toMatch(/^-?200$/);
     expect(neg.className).toMatch(/destructive/);
   });
@@ -365,11 +375,10 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.data = 300;
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
-    const availableLabel = screen.getByText(/^available$/i);
-    const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
+    const available = factValue(/^available$/i);
     expect(screen.getByRole('heading', { name: 'Budget impact · EUR' })).toBeInTheDocument();
-    expect(within(availableTile).getByText('500')).toBeInTheDocument();
-    expect(within(availableTile).queryByText(/EUR|USD|\$/)).not.toBeInTheDocument();
+    expect(available).toHaveTextContent('500');
+    expect(available).not.toHaveTextContent(/EUR|USD|\$/);
   });
 });
 
@@ -409,7 +418,7 @@ describe('AC-RB-007 — After = Available at Approved (no double-subtract)', () 
     reservedState.data = 100; // available = 500
     renderPanel({ projectId: 'p1', totalValue: 120, projectName: 'X', status: 'Approved' });
     // After this request == Available ($500) — thisRequest (120) is NOT subtracted again.
-    expect(tileValue(/after this request/i).textContent).toMatch(/^500$/);
+    expect(factValue(/after this request/i).textContent).toMatch(/^500$/);
     // The naïve "always subtract thisRequest" answer ($380) must NOT appear anywhere.
     expect(screen.queryByText(/^380$/)).not.toBeInTheDocument();
   });
@@ -485,7 +494,8 @@ describe('AC-RB-013 — over-available advisory at Requested', () => {
     renderPanel({ projectId: 'p1', totalValue: 250, projectName: 'X', status: 'Requested' });
     const advisory = screen.getByRole('status');
     expect(advisory.textContent).toMatch(/exceeds available budget/i);
-    expect(advisory.textContent).toMatch(/\$150\b/);
+    expect(advisory.textContent).toMatch(/150\b/);
+    expect(screen.getByRole('heading', { name: 'Budget impact · USD' })).toBeInTheDocument();
     expect(advisory.textContent).toMatch(/advisory only|still permitted/i);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -506,6 +516,7 @@ describe('AC-RB-014 — already-reserved: no false advisory; over-budget info in
     renderPanel({ projectId: 'p1', totalValue: 50, projectName: 'X', status: 'Approved' });
     const advisory = screen.getByRole('status');
     expect(advisory.textContent).toMatch(/over budget/i);
-    expect(advisory.textContent).toMatch(/\$200\b/);
+    expect(advisory.textContent).toMatch(/200\b/);
+    expect(screen.getByRole('heading', { name: 'Budget impact · USD' })).toBeInTheDocument();
   });
 });

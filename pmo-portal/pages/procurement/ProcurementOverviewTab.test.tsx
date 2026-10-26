@@ -12,7 +12,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 
 import { ProcurementOverviewTab } from './ProcurementOverviewTab';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { formatNumber } from '@/src/lib/format';
+import { formatNumber, formatShortMoney } from '@/src/lib/format';
 
 const renderReview = (projectId: string | null = 'proj-1') => render(
   <ImpersonationProvider realRole="Project Manager">
@@ -38,8 +38,9 @@ describe('Procurement review evidence', () => {
   it('keeps request, selected quote, and ordered amounts distinct while showing line evidence', () => {
     renderReview();
 
-    const amounts = screen.getByRole('region', { name: 'Purchase amounts · USD' });
-    expect(within(amounts).getByRole('heading', { name: 'Purchase amounts · USD' })).toBeInTheDocument();
+    const primary = formatShortMoney(486000, 'USD', { code: true });
+    const amounts = screen.getByRole('region', { name: `Purchase amount · ${primary}` });
+    expect(within(amounts).getByRole('heading', { name: `Purchase amount · ${primary}` })).toBeInTheDocument();
     expect(screen.getByText('Requested amount')).toBeInTheDocument();
     expect(screen.getByText('Selected quote amount')).toBeInTheDocument();
     expect(screen.getByText('Ordered amount')).toBeInTheDocument();
@@ -48,6 +49,14 @@ describe('Procurement review evidence', () => {
     expect(screen.getByText('Desk')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Requested items · USD' })).toBeInTheDocument();
     expect(screen.getByText(/2\s*×\s*100/)).toBeInTheDocument();
+  });
+
+  it('keeps the exact requested amount visible under the compact primary figure', () => {
+    renderReview();
+    const amounts = screen.getByRole('region', {
+      name: `Purchase amount · ${formatShortMoney(486000, 'USD', { code: true })}`,
+    });
+    expect(within(amounts).getByText(formatNumber(486000))).toBeInTheDocument();
   });
 
   it('shows project budget evidence only when a project is linked', () => {
