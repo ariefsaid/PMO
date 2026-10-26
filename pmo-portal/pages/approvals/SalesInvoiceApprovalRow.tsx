@@ -70,15 +70,15 @@ export const SalesInvoiceApprovalPreview: React.FC<{
           </h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
             {lines.map((line, i) => (
-              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-sm">
+              <li key={i} className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
-                <span className="min-w-[12rem] flex-1 break-words">
+                <span className="min-w-0 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
                     <span className="block font-mono type-metadata text-muted-foreground">{line.item_code}</span>
                   )}
                 </span>
-                <span className="ml-auto shrink-0 tabular text-muted-foreground">
+                <span className="tabular text-muted-foreground sm:text-right">
                   {line.qty} × {money(line.rate)} ={' '}
                   <span className="font-medium text-foreground">{money(line.amount)}</span>
                 </span>
