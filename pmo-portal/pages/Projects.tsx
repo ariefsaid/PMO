@@ -873,7 +873,7 @@ const Projects: React.FC = () => {
     <div className="min-w-0 space-y-2">
       <button type="button" onClick={() => onOpen(project)}
         className="touch-target block min-h-11 w-full break-words text-left text-xl font-bold underline underline-offset-2 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        aria-label={t('projects:openProject', 'Open project {{name}}', { name: displayName })}
+        aria-label={t('projects:kanban.openProject', 'Open project {{name}}', { name: displayName })}
         title={project.name}>
         {displayName}
       </button>

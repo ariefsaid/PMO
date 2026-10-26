@@ -181,10 +181,10 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
   const mobileDetailFacts: Array<[string, React.ReactNode]> = [
     ...referenceRows.map(([label, value]) => [label, <span className="break-all font-mono">{value}</span>] as [string, React.ReactNode]),
     [t('projects.columns.pm', 'PM'), pmLabel],
-    [t('projects.columns.delivery', 'Delivery'), mobileDeliveryContent],
+    [t('projects:columns.delivery', 'Delivery'), mobileDeliveryContent],
     [t('uxs02.activeBudget', 'Active budget'), activeBudgetContent],
     ...(combineActualAndBudgetUsed
-      ? [[t('projects.card.actualAndBudgetUsed', 'Actual / Budget used'), combinedUnavailableContent] as [string, React.ReactNode]]
+      ? [[t('projects:card.actualAndBudgetUsed', 'Actual / Budget used'), combinedUnavailableContent] as [string, React.ReactNode]]
       : [[t('projects.columns.actual', 'Actual'), actualContent] as [string, React.ReactNode], [t('projects.columns.budgetUsed', 'Budget used'), mobileBudgetUsedContent] as [string, React.ReactNode]]),
   ];
 
@@ -243,7 +243,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onOpen, deliverySumm
         </div>
         {combineActualAndBudgetUsed ? (
           <div className="col-span-full min-w-0">
-            <dt className="text-xs font-semibold text-muted-foreground">{t('projects.card.actualAndBudgetUsed', 'Actual / Budget used')}</dt>
+            <dt className="text-xs font-semibold text-muted-foreground">{t('projects:card.actualAndBudgetUsed', 'Actual / Budget used')}</dt>
             <dd className="break-words text-sm font-normal tabular">{combinedUnavailableContent}</dd>
           </div>
         ) : <>

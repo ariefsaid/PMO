@@ -42,7 +42,6 @@
   "uxs14": {
     "filters": "Filters",
     "moreActions": "More actions",
-    "projectReferencesFor": "More project references for {{name}}",
     "projectReferencesLabel": "Project references",
     "contractReference": "Customer contract reference"
   },
@@ -2942,6 +2941,7 @@
       "edit": "Edit project"
     },
     "subtitle": {
+      "create": "Enter the required identity and project details.",
       "edit": "Update the project header details"
     },
     "submit": {
@@ -2984,8 +2984,7 @@
       "noun": "company"
     },
     "clientCode": {
-      "label": "Client Project Code",
-      "placeholder": "Optional code used by your organization"
+      "label": "Client Project Code"
     },
     "projectNumber": {
       "label": "PMO Project Number",
@@ -3067,8 +3066,6 @@
       "goToday": "Go to today",
       "today": "Today",
       "noEventsTitle": "No events this month",
-      "phaseEventLabel": "{{project}} · {{phase}}",
-      "phaseEventAriaLabel": "{{project}} — Phase: {{phase}}",
       "noEventsSub": "No project or phase target dates fall in this month."
     },
     "unnamedUser": "Unnamed user",

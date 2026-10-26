@@ -200,7 +200,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
         onStageClick={handleStageClick}
         labelLayout="scroll"
         className="md:flex min-[1200px]:hidden"
-        ariaLabel={t('projects.kanban.stageNavigation', 'Project stages')}
+        ariaLabel={t('projects:kanban.stageNavigation', 'Project stages')}
       />
 
       {/* Board: onScroll attached directly to <Kanban> so it lands on .kanban-scroll.

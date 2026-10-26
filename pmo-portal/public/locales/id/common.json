@@ -42,7 +42,6 @@
   "uxs14": {
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
     "projectReferencesLabel": "Referensi proyek",
     "contractReference": "Referensi kontrak pelanggan"
   },
@@ -2942,6 +2941,7 @@
       "edit": "Edit proyek"
     },
     "subtitle": {
+      "create": "Isi identitas wajib dan detail proyek.",
       "edit": "Perbarui detail header proyek"
     },
     "submit": {
@@ -2984,8 +2984,7 @@
       "noun": "perusahaan"
     },
     "clientCode": {
-      "label": "Kode Proyek Klien",
-      "placeholder": "Kode opsional yang digunakan organisasi Anda"
+      "label": "Kode Proyek Klien"
     },
     "projectNumber": {
       "label": "Nomor Proyek PMO",
@@ -3067,8 +3066,6 @@
       "goToday": "Ke hari ini",
       "today": "Hari ini",
       "noEventsTitle": "Tidak ada acara bulan ini",
-      "phaseEventLabel": "{{project}} · {{phase}}",
-      "phaseEventAriaLabel": "{{project}} — Fase: {{phase}}",
       "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini."
     },
     "unnamedUser": "Pengguna tanpa nama",
