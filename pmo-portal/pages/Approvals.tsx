@@ -24,7 +24,7 @@ import { pendingProcurementApprovals, type ApprovalScope } from '@/src/lib/selec
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrencyCents, formatNumberExact } from '@/src/lib/format';
+import { formatCurrencyAuto, formatNumberExact } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
@@ -97,8 +97,8 @@ function QueueButton({
       ? expense.claimant?.full_name ?? t('approvals.unknownOwner', 'Unknown')
       : invoice?.reference_number ?? invoice?.si_number ?? t('approvals.noInvoiceReference', 'Invoice draft');
     const amount = expense
-      ? formatCurrencyCents(Number(expense.amount), expense.currency)
-      : invoice?.amount != null ? formatCurrencyCents(invoice.amount, invoice.currency) : '—';
+      ? formatCurrencyAuto(Number(expense.amount), expense.currency)
+      : invoice?.amount != null ? formatCurrencyAuto(invoice.amount, invoice.currency) : '—';
     const status = expense?.status ?? invoice?.status ?? 'Submitted';
 
     return (

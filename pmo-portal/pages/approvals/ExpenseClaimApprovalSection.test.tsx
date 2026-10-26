@@ -59,6 +59,14 @@ describe('ExpenseClaimApprovalSection', () => {
     expect(screen.queryByRole('link', { name: 'EXP-1' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'EXP-3' })).toBeNull();
   });
+  it('H-04: expense queue rows omit meaningless zero decimals while retaining currency', () => {
+    h.data = [item('money', 'eng', { route: 'flat', approvers: [] })];
+    render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);
+
+    const row = screen.getByRole('link', { name: 'EXP-money' }).closest('li') as HTMLElement;
+    expect(row).toHaveTextContent(/IDR\s*100/);
+    expect(row).not.toHaveTextContent(/\.00\b/);
+  });
   it('AC-EXP-064 renders nothing when nothing awaits the viewer', () => {
     h.data = [item('1', 'pm', null)];
     const { container } = render(<MemoryRouter><ExpenseClaimApprovalSection /></MemoryRouter>);

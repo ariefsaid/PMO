@@ -199,6 +199,8 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Customer invoices/i })).toHaveTextContent('1');
     expect(within(queue).queryByText('4', { exact: true })).toBeNull();
     expect(within(queue).getByTestId('approval-item-expense-ex1')).toBeInTheDocument();
+    expect(within(queue).getByTestId('approval-item-expense-ex1')).toHaveTextContent(/\$250\b/);
+    expect(within(queue).getByTestId('approval-item-expense-ex1')).not.toHaveTextContent(/\.00\b/);
     expect(within(queue).getByTestId('approval-item-invoice-si1')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /Expense claims/i }));

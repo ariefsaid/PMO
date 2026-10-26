@@ -99,6 +99,11 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
+  it('H-04: invoice queue rows omit meaningless zero decimals', () => {
+    renderSection();
+    expect(region()).not.toHaveTextContent(/\.00\b/);
+  });
+
   it('AC-003 #1325: invoice approval evidence uses the contractual project name, not the picker alias', () => {
     const projectName = 'North Coast Materials Recovery and Logistics Programme';
     h.projectOptions[0].label = 'North Coast Logistics';
@@ -151,9 +156,10 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     await expand(user);
     const panel = document.getElementById(within(region()).getByRole('button', { name: 'Show invoice details for Acme Energy' }).getAttribute('aria-controls')!)!;
     const p = within(panel);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\b/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\b/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\b/);
+    expect(p.getByRole('heading', { name: 'Invoice amounts · IDR' })).toBeInTheDocument();
   });
   it.each([
     { treatment: 'exclusive' as const, amount: 1_000_000, basis: 'excl. PPN' },
@@ -185,9 +191,9 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(invoiceDisclosure).toHaveAttribute('aria-expanded', 'true');
     const panel = document.getElementById(invoiceDisclosure.getAttribute('aria-controls')!)!;
     const p = within(panel);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\b/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\b/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\b/);
     await user.click(p.getByRole('button', { name: 'Approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submit).toHaveBeenCalledWith({ siId: 'si-n1', intent: { id: 'i-1', idempotencyKey: 'k-1' } });
@@ -213,11 +219,14 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     expect(panel).toHaveTextContent('Fina Author');
     const lines = p.getByRole('list', { name: 'Line items' });
     expect(within(lines).getAllByRole('listitem')).toHaveLength(2);
-    expect(lines).toHaveTextContent(/Site survey.*SVC.*2 × .*400,000\.00.*800,000\.00/);
-    expect(lines).toHaveTextContent(/TRV.*1 × .*200,000\.00/);
-    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\.00/);
-    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\.00/);
-    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\.00/);
+    expect(lines).toHaveTextContent(/Site survey.*SVC.*2 × .*400,000.*800,000/);
+    expect(lines).toHaveTextContent(/TRV.*1 × .*200,000/);
+    expect(lines).not.toHaveTextContent(/IDR|USD|\$|\.00\b/);
+    expect(p.getByRole('heading', { name: 'Invoice amounts · IDR' })).toBeInTheDocument();
+    expect(p.getByText('Net (before tax)').closest('div')).toHaveTextContent(/1,000,000\b/);
+    expect(p.getByText('Tax').closest('div')).toHaveTextContent(/110,000\b/);
+    expect(p.getByText('Total due').closest('div')).toHaveTextContent(/1,110,000\b/);
+    expect(panel).not.toHaveTextContent(/\.00\b/);
     expect(p.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
   it('AC-NAR-002 (M-8) the heading is an /approvals section heading with the count', () => {
