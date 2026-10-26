@@ -301,6 +301,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       key: 'manager',
       header: t('admin.users.columns.manager', 'Manager'),
       colClassName: 'hidden md:table-cell',
+      phoneHidden: true,
       // Clicking the manager name jumps to that person's row while preserving the directory.
       cell: (u) => {
         const manager = u.manager_id ? byId.get(u.manager_id) : undefined;

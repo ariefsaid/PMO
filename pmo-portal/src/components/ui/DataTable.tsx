@@ -68,6 +68,8 @@ export interface Column<Row> {
   exportValue?: (row: Row) => string | number | boolean;
   /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
   stickyLeft?: boolean;
+  /** Keep a secondary fact out of phone cards when the same fact is available in a named disclosure. */
+  phoneHidden?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
@@ -709,7 +711,8 @@ export function DataTable<Row>({
        *   - Numeric columns: tabular + text-right on <dd>
        *   - rowMenu ⋯: top-right corner of the card, .touch-target
        * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
-       * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
+       * Columns render in the card regardless of colClassName responsive-hide, unless a secondary
+       * fact is explicitly moved behind a named phone disclosure with phoneHidden.
        *
        * AT scoping: at <768px this card branch is the ONLY structure rendered, so it
        * is fully AT-readable. No aria-hidden is needed (or wanted — it would hide the
@@ -758,7 +761,7 @@ export function DataTable<Row>({
                         type="button"
                         aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
-                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                        className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       >
                         {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
@@ -779,7 +782,7 @@ export function DataTable<Row>({
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-                    {restCols.map((col) => {
+                    {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
