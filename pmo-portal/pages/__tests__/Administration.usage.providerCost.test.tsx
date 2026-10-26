@@ -7,7 +7,7 @@
  * is structurally absent — not merely hidden by data.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AdministrationUsage } from '../AdministrationUsage';
@@ -58,11 +58,12 @@ describe('AdministrationUsage — a null provider cost renders as unknown, not z
    * The generated types hid this by declaring the column non-null — Postgres `RETURNS TABLE`
    * carries no nullability, so the generator over-promises for every set-returning function.
    */
-  it('shows an em-dash, never $0.00, when provider_cost_usd is null', () => {
+  it('shows an em-dash, never a zero, when provider_cost_usd is null', () => {
     const nullCost = { ...operatorRow, provider_cost_usd: null } as OperatorUsageSummaryRow;
     renderUsage(<AdministrationUsage rows={[nullCost]} isPending={false} isError={false} onRetry={vi.fn()} />);
     expect(screen.getByRole('columnheader', { name: /provider cost/i })).toBeInTheDocument();
-    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /credits charged.*USD/i })).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).queryByText('0.00')).not.toBeInTheDocument();
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
     expect(screen.getByText(/provider cost is unavailable for this scope/i)).toBeInTheDocument();
   });
@@ -81,12 +82,16 @@ describe('AdministrationUsage — Provider-cost column is Operator-only (AC-USE-
 });
 
 describe('AdministrationUsage — AC-L10N-021 (FR-L10N-023): platform AI billing stays USD in an IDR org', () => {
-  it('provider cost / credits spent / margin render `$…` even when the org currency is IDR', () => {
+  it('states USD once for the cost group and keeps the exact values when the org currency is IDR', () => {
     const idrOrgRows = [{ ...operatorRow, provider_cost_usd: 0.03, cost: 0.1, margin_usd: 0.07 } as OperatorUsageSummaryRow];
     renderUsage(<AdministrationUsage rows={idrOrgRows} isPending={false} isError={false} onRetry={vi.fn()} />);
-    expect(screen.getByText('$0.03')).toBeInTheDocument();
-    expect(screen.getByText('$0.10')).toBeInTheDocument();
-    expect(screen.getByText('$0.07')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /credits charged.*USD/i })).toBeInTheDocument();
+    const table = within(screen.getByRole('table'));
+    expect(table.getByText('0.03')).toBeInTheDocument();
+    expect(table.getByText('0.10')).toBeInTheDocument();
+    expect(table.getByText('0.07')).toBeInTheDocument();
+    expect(screen.getByTestId('usage-primary-figure')).toHaveTextContent('0.10');
+    expect(screen.queryByText(/\$/)).not.toBeInTheDocument();
     // and never the org currency — an IDR re-denomination is the silent wrong figure
     expect(screen.queryByText(/IDR/)).not.toBeInTheDocument();
   });

@@ -177,6 +177,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     const invite = screen.getByRole('button', { name: 'Invite user' });
     expect(clear.className).toContain('bg-primary');
     expect(invite.className).not.toContain('bg-primary');
+    expect(screen.queryByTestId('admin-users-visible-count')).not.toBeInTheDocument();
   });
 
   it('AC-ADMIA-010: orders identity and manager before role and status with phone details available', async () => {

@@ -164,6 +164,26 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     expect(screen.getByTestId('current-url')).toHaveTextContent('#scope');
   });
 
+  it('H-01: leads with the exact credits-charged total for the selected scope', async () => {
+    const user = userEvent.setup();
+    renderUsage(
+      <AdministrationUsage
+        rows={[
+          { ...baseRow, cost: 0.1 },
+          { ...baseRow, action: 'compose', cost: 0.2 },
+          { ...baseRow, month: '2026-08-01', cost: 0.3 },
+        ]}
+        isPending={false}
+        isError={false}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('usage-primary-figure')).toHaveTextContent('0.60');
+    await user.selectOptions(screen.getByLabelText('Period'), '2026-07-01');
+    expect(screen.getByTestId('usage-primary-figure')).toHaveTextContent('0.30');
+  });
+
   it('#693: the Usage table and disclosed diagnostics are translated in Bahasa', () => {
     renderUsageBahasa(
       <AdministrationUsage
@@ -181,7 +201,8 @@ describe('AdministrationUsage — margin column (AC-USE-003)', () => {
     expect(screen.getByRole('columnheader', { name: 'Bulan' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Token masuk / keluar' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Kredit ditagihkan' })).toBeInTheDocument();
-    expect(screen.getByText(/satuan penagihan USD platform/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Kredit ditagihkan · USD/i })).toBeInTheDocument();
+    expect(screen.getByText(/Biaya penyedia dilaporkan terpisah/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Diagnostik'));
     expect(screen.getByRole('heading', { name: 'Ringkasan biaya agen' })).toBeInTheDocument();

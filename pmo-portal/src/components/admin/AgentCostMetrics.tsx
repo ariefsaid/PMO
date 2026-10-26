@@ -195,22 +195,22 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="mb-1 text-[14px] font-bold tracking-[-0.01em]">
+        <h2 className="mb-1 text-xl font-bold tracking-[-0.01em]">
           {t('administration:admin.usage.metricsOverview', 'Agent cost overview')}
         </h2>
         {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
             single-cohort statistic. */}
-        <p className="mb-3 text-[12px] text-muted-foreground">{scopeText}</p>
+        <p className="mb-3 text-sm text-muted-foreground">{scopeText}</p>
         <StatTiles tiles={tiles} columns={5} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-[13.5px] font-semibold text-muted-foreground">
+        <h3 className="mb-3 text-xl font-bold">
           {t('administration:admin.usage.cacheHitByMonth', 'Cache hit-rate by month')}
         </h3>
         {monthlyCacheHit.length < 2 && (
-          <p role="status" className="mb-2 text-[12px] text-muted-foreground">
+          <p role="status" className="mb-2 text-sm text-muted-foreground">
             {summaryRows.length === 0 && runStatsRows.length === 0
               ? `${t('administration:admin.usage.metricsEmptyTitle', 'No metrics for this selection')} — ${t('administration:admin.usage.metricsEmptyHelp', 'There are no cost or run statistics for the selected period and action.')}`
               : `${t('administration:admin.usage.chartEmptyTitle', 'Not enough data yet')} — ${t('administration:admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}`}
@@ -263,7 +263,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
               </LineChart>
             </ResponsiveContainer>
           </figure>
-          <div role="group" aria-label={chartLegend} className="mt-1 flex items-center justify-center gap-2 text-[12px] text-muted-foreground">
+          <div role="group" aria-label={chartLegend} className="mt-1 flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
             <span aria-hidden="true" className="relative inline-block h-0.5 w-4" style={{ backgroundColor: chartTheme.series.primary }}>
               <span className="absolute -top-[2px] left-1.5 size-1.5 rounded-full border border-background" style={{ backgroundColor: chartTheme.series.primary }} />
             </span>

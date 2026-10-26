@@ -143,7 +143,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
         />
       )}
       {featuresQuery.isFetching && orgFeatures && !featuresQuery.isError && (
-        <p role="status" className="text-[13px] text-muted-foreground">
+        <p role="status" className="text-sm text-muted-foreground">
           {t('administration:admin.features.refreshing', 'Refreshing capabilities…')}
         </p>
       )}
@@ -157,12 +157,12 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
             return (
               <li key={key} className="flex min-h-16 items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="text-[13.5px] font-medium">{label}</p>
-                  <p id={consequenceId} className="mt-0.5 text-[13px] text-muted-foreground">
+                  <p className="text-sm font-medium">{label}</p>
+                  <p id={consequenceId} className="mt-0.5 text-sm text-muted-foreground">
                     {featureConsequences[key] ?? FEATURE_LABELS[key]}
                   </p>
                   {outcome && (
-                    <p role="status" className={outcome === 'error' ? 'mt-1 text-[13px] text-destructive' : 'mt-1 text-[13px] text-muted-foreground'}>
+                    <p role="status" className={outcome === 'error' ? 'mt-1 text-sm text-destructive' : 'mt-1 text-sm text-muted-foreground'}>
                       {outcome === 'saving'
                         ? t('administration:admin.features.saving', 'Saving…')
                         : outcome === 'saved'
@@ -200,7 +200,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
       </section>
 
       <details className="group rounded-lg border border-border bg-card px-4">
-        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
+        <DisclosureSummary className="py-2 text-sm font-semibold">
           {t('administration:admin.features.preview', 'Preview')}
         </DisclosureSummary>
         <ul className="divide-y divide-border border-t border-border">
@@ -208,7 +208,7 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
             const enabled = resolve(key);
             return (
               <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
-                <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
+                <span className="text-sm font-medium">{featureLabel(key)}</span>
                 <StatusPill variant={enabled ? 'won' : 'neutral'}>
                   {enabled
                     ? t('administration:admin.features.previewOn', 'Preview — on')
@@ -221,13 +221,13 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
       </details>
 
       <details className="group rounded-lg border border-border bg-card px-4">
-        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
+        <DisclosureSummary className="py-2 text-sm font-semibold">
           {t('administration:admin.features.alwaysIncluded', 'Always included')}
         </DisclosureSummary>
         <ul className="divide-y divide-border border-t border-border">
           {core.map((key) => (
             <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
-              <span className="text-[13.5px] font-medium">{featureLabel(key)}</span>
+              <span className="text-sm font-medium">{featureLabel(key)}</span>
               <StatusPill variant="neutral">{t('administration:admin.features.alwaysOn', 'Always on')}</StatusPill>
             </li>
           ))}

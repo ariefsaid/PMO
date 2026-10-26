@@ -57,7 +57,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
     <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
-        <h3 className="text-[15px] font-semibold text-foreground">
+        <h3 className="text-xl font-bold tracking-[-0.01em] text-foreground">
           {t('m365Documents:defaultLibrary.heading', 'Default document library')}
         </h3>
       </div>
@@ -76,12 +76,12 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
             onRetry={() => void refetch()}
           />
         ) : defaultLibrary ? (
-          <p className="break-words text-[13px] text-foreground" data-testid="m365-default-library-current">
+          <p className="break-words text-sm text-foreground" data-testid="m365-default-library-current">
             <span className="text-muted-foreground">{t('m365Documents:defaultLibrary.current', 'Current default:')} </span>
             {`${defaultLibrary.site_name} / ${defaultLibrary.drive_name}`}
           </p>
         ) : (
-          <p className="text-[13px] text-muted-foreground">{t('m365Documents:defaultLibrary.none', 'No default library is set.')}</p>
+          <p className="text-sm text-muted-foreground">{t('m365Documents:defaultLibrary.none', 'No default library is set.')}</p>
         )}
       </div>
 
@@ -100,7 +100,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
         </div>
       )}
       {canManage && !connected && !isPending && (
-        <p className="mt-2 text-[12px] text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           {t('m365Documents:defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}
         </p>
       )}
@@ -114,7 +114,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
           <>
             {t('m365Documents:defaultLibrary.clearDescription', 'The document picker will start from the location chooser. Existing links are not changed.')}
             {clearError && (
-              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-[12px] text-destructive-text">
+              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-sm text-destructive-text">
                 <strong className="block">{clearError.headline}</strong>
                 {clearError.detail}
               </span>
@@ -210,7 +210,7 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
         />
       </FormGrid>
       {loadError && (
-        <p role="status" className="mt-2 text-[12px] text-destructive-text">
+        <p role="status" className="mt-2 text-sm text-destructive-text">
           {t('m365Documents:defaultLibrary.browseFailed', 'Microsoft locations could not be loaded. Close this dialog and try again.')}
         </p>
       )}

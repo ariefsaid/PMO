@@ -144,8 +144,8 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
 
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.expenseMap.description',
           'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
@@ -172,7 +172,7 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
         </GateNotice>
       )}
       {isReady && unmappedCount > 0 && (
-        <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
           {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
         </p>
       )}
@@ -181,7 +181,7 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
       {filterActive && visibleKeys.length === 0 ? (
         <div className="mt-3.5 rounded-md border border-border p-4" role="status">
           <p className="text-sm font-medium">{t('administration:admin.postingAccounts.noMatches', 'No posting accounts match these filters')}</p>
-          <p className="mt-1 text-[13px] text-muted-foreground">{t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}</p>
           <Button variant="outline" className="mt-3 min-h-11" onClick={activeFilters.onClear}>{t('administration:admin.postingAccounts.clear', 'Clear filters')}</Button>
         </div>
       ) : <ul className="mt-3.5 flex flex-col">
@@ -191,7 +191,7 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
             <li
               key={key}
               data-testid="expense-account-row"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-sm"
             >
               <span className="font-medium">{label(key)}</span>
               <span

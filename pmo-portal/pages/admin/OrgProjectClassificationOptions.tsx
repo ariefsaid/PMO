@@ -56,7 +56,7 @@ export default function OrgProjectClassificationOptions({ editing: controlledEdi
     else setLocalEditing(false);
   };
   return <section aria-label={t('projectClassification.title', 'Classification')} className="max-w-2xl space-y-4">
-    <h2 className="text-base font-semibold tracking-tight">{t('projectClassification.title', 'Classification options')}</h2>
+    <h2 className="text-xl font-bold tracking-[-0.01em]">{t('projectClassification.title', 'Classification options')}</h2>
     <p className="text-sm text-muted-foreground">{t('projectClassification.setupHelp', 'Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.')}</p>
     {may('manage', 'orgProjectClassification') && !editing ? <>
       <dl className="space-y-4 text-sm">

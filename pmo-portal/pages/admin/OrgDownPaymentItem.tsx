@@ -102,10 +102,10 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
 
   return (
     <section aria-labelledby="down-payment-item-heading">
-      <h2 id="down-payment-item-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+      <h2 id="down-payment-item-heading" tabIndex={-1} className="scroll-mt-4 text-xl font-bold">
         {t('uxs11.downPaymentHeading', 'Down payments')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('uxs11.downPaymentIntro', 'Choose the existing ERPNext item used to bill a customer advance and recover it from billing claims.')}
       </p>
       <div className="mt-3 max-w-md">
@@ -113,7 +113,7 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
           : query.isPending ? <ListState variant="loading" rows={1} />
           : canManage && isEditing ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
             {remoteChanged && (
-              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-sm text-secondary-foreground">
                 <p>{t('uxs11.downPaymentRemoteChanged', 'The saved item changed. Your edit is kept; reload the saved value to discard it.')}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
                   const remote = query.data ?? null;
@@ -137,13 +137,13 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
               searchPlaceholder={t('uxs11.itemSearch', 'Search ERPNext items')}
               disabled={mutation.isPending || !canBrowse}
             />
-            <p className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentUnverified', "Use an item configured to post customer advances to a liability account. Ask your accounting administrator to check the item's account before saving.")}</p>
-            {binding.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
-            {binding.isError && <div role="status" className="space-y-2 text-[13px] text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
-            {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')}</p>}
-            {itemLoadError && <p role="status" className="text-[13px] text-destructive">{t('uxs11.downPaymentItemsError', "Couldn't load ERPNext items. Retry from the item list or ask your accounting administrator to review the item list.")}</p>}
-            {loadedItems?.length === 0 && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentNoItems', 'No ERPNext sales items were returned. Ask your accounting administrator to review the enabled item list; no substitute was selected.')}</p>}
-            {loadedItems && draft && !loadedItems.some((item) => item.value === draft) && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.downPaymentItemUnavailable', 'Saved item is not in the current item list; it remains saved until replaced.')}</p>}
+            <p className="text-sm text-muted-foreground">{t('uxs11.downPaymentUnverified', "Use an item configured to post customer advances to a liability account. Ask your accounting administrator to check the item's account before saving.")}</p>
+            {binding.isPending && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
+            {binding.isError && <div role="status" className="space-y-2 text-sm text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+            {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')}</p>}
+            {itemLoadError && <p role="status" className="text-sm text-destructive">{t('uxs11.downPaymentItemsError', "Couldn't load ERPNext items. Retry from the item list or ask your accounting administrator to review the item list.")}</p>}
+            {loadedItems?.length === 0 && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.downPaymentNoItems', 'No ERPNext sales items were returned. Ask your accounting administrator to review the enabled item list; no substitute was selected.')}</p>}
+            {loadedItems && draft && !loadedItems.some((item) => item.value === draft) && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.downPaymentItemUnavailable', 'Saved item is not in the current item list; it remains saved until replaced.')}</p>}
             {error && <FieldError>{error}</FieldError>}
             <div className="flex flex-wrap gap-2">
               <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}>{t('uxs11.saveDownPaymentItem', 'Save item')}</Button>
@@ -151,10 +151,10 @@ export default function OrgDownPaymentItem({ editing, onEdit, onClose }: OrgDown
             </div>
           </form> : canManage ? (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-[13px] font-medium">{savedValue}</p>
+              <p className="text-sm font-medium">{savedValue}</p>
               <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editDownPaymentItem', 'Edit down payment item')}</Button>
             </div>
-          ) : <p className="text-[13px]">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
+          ) : <p className="text-sm">{savedValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
       </div>
     </section>
   );

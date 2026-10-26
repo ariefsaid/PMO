@@ -262,7 +262,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
             ))}
             {accounts.length === 0 && <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
             {accounts.some((account) => !account.isPushTarget) && (
-              <details className="text-[13px]">
+              <details className="text-sm">
                 <summary className="min-h-11 w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
                   {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
                 </summary>
@@ -301,7 +301,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
         const hasPush = accounts.some((a) => a.isPushTarget);
         return (
           <details className="text-left">
-            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-[13px] text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-sm text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
               {t('uxs10.rowOptions', 'Account options')}
             </summary>
             <div className="mt-2 flex flex-wrap justify-end gap-1">
@@ -324,7 +324,7 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
                     {t('admin.budgetMap.usePush', { defaultValue: 'Use {{account}} for budget push', account: account.erpAccount })}
                   </Button>}
                   {removeBlocked
-                    ? <span className="self-center text-[12px] text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
+                    ? <span className="self-center text-xs text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
                     : <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(account)}>{t('admin.budgetMap.removeAccount', { defaultValue: 'Remove {{account}}', account: account.erpAccount })}</Button>}
                 </React.Fragment>;
               })}
@@ -344,19 +344,19 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
       ref={sectionRef}
       tabIndex={-1}
     >
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.budgetMap.title', 'Budget account map')}
       </h2>
       {categoriesNeedingPosting.length > 0 && (
-        <p role="status" className="mt-2 text-[13px] text-warning-foreground">
+        <p role="status" className="mt-2 text-sm text-warning-foreground">
           {t('admin.budgetMap.description', 'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.')}
         </p>
       )}
       <details className="group mt-2 rounded-md border border-border px-3">
-        <DisclosureSummary className="text-[13px] font-medium">
+        <DisclosureSummary className="text-sm font-medium">
           {t('administration:admin.postingAccounts.guidance', 'How posting accounts work')}
         </DisclosureSummary>
-        <div className="space-y-1 pb-3 text-[13px] text-muted-foreground">
+        <div className="space-y-1 pb-3 text-sm text-muted-foreground">
           <p>{t('uxs10.mapPrinciple', 'One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.')}</p>
           <p>{t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}</p>
         </div>
@@ -365,8 +365,8 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
       {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
-            <p className="mt-1 text-[13px] text-muted-foreground">{t('uxs10.proposalsHelp', 'Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.')}</p>
+            <h3 className="text-xl font-bold tracking-[-0.01em]">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t('uxs10.proposalsHelp', 'Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.')}</p>
           </div>
           {proposals.length > 0 && canManage && (
             <Button variant="primary" onClick={() => setConfirmProposals(true)}>
@@ -374,11 +374,11 @@ const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filte
             </Button>
           )}
         </div>
-        {catalogueQuery.isPending && <p className="mt-2 text-[13px] text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
-        {catalogueQuery.isError && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-[13px] text-destructive-text" role="alert">{t('uxs10.catalogueError', 'The account chart is unavailable. No suggestions were applied.')}</p><Button variant="outline" size="sm" onClick={() => void catalogueQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></div>}
-        {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; these choices come from the current ERP chart.')}</p>}
-        {catalogue && proposals.length === 0 && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
-        {proposalError && <p className="mt-2 text-[13px] text-destructive-text" role="alert">{proposalError}</p>}
+        {catalogueQuery.isPending && <p className="mt-2 text-sm text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
+        {catalogueQuery.isError && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-sm text-destructive-text" role="alert">{t('uxs10.catalogueError', 'The account chart is unavailable. No suggestions were applied.')}</p><Button variant="outline" size="sm" onClick={() => void catalogueQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></div>}
+        {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-sm text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; these choices come from the current ERP chart.')}</p>}
+        {catalogue && proposals.length === 0 && <p className="mt-2 text-sm text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
+        {proposalError && <p className="mt-2 text-sm text-destructive-text" role="alert">{proposalError}</p>}
       </div>}
       <div className="mt-3.5">
         <DataTable
@@ -596,8 +596,8 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRow
             searchPlaceholder={t('uxs10.accountSearch', 'Search account name or number')}
             noun={t('uxs10.accountNoun', 'account')}
           />
-          {isPushTarget && availableAccounts.length === 0 && <p className="text-[13px] text-muted-foreground">{t('uxs10.noPostingAccounts', 'No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.')}</p>}
-          {!isPushTarget && <p className="text-[13px] text-muted-foreground">{t('uxs10.countOnlyHelp', 'This account counts toward actuals for the category; budgets are never posted to it.')}</p>}
+          {isPushTarget && availableAccounts.length === 0 && <p className="text-sm text-muted-foreground">{t('uxs10.noPostingAccounts', 'No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.')}</p>}
+          {!isPushTarget && <p className="text-sm text-muted-foreground">{t('uxs10.countOnlyHelp', 'This account counts toward actuals for the category; budgets are never posted to it.')}</p>}
         </FormGrid>
       </FormSection>
     </EntityFormModal>

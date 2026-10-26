@@ -157,7 +157,11 @@ const AdministrationExchangeRates: React.FC = () => {
       key: 'rate',
       header: t('fx.rate', 'IDR per USD'),
       align: 'num',
-      cell: (row) => <span className="tabular-nums">{formatNumberExact(row.rate)}</span>,
+      cell: (row) => (
+        <span className={row.rate_date === rates.data?.rows[0]?.rate_date ? 'text-xl font-bold tabular-nums' : 'tabular-nums'}>
+          {formatNumberExact(row.rate)}
+        </span>
+      ),
       exportValue: (row) => row.rate,
     },
   ];

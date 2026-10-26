@@ -309,9 +309,11 @@ describe('ERP domain setup actions', () => {
     const card=within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
     const readiness=await card.findByText(/Not ready yet/i);
     expect(readiness).toBeInTheDocument();
-    expect(card.getByText('Connected',{exact:true})).toHaveClass('text-muted-foreground');
     const finish=card.getByRole('link',{name:/Finish setup/i});
     expect(finish.getAttribute('href')).toBe('#erp-setup-company-defaults');
+    expect(card.queryByText('Connected',{exact:true})).not.toBeInTheDocument();
+    expect(card.queryByRole('heading',{name:'Business setup review'})).toBeInTheDocument();
+    expect(card.queryByText('Finish setup', { selector: 'summary' })).not.toBeInTheDocument();
   });
 
   it('AC-UX-072 preserves the last known readiness and offers an operator handoff after a refresh failure', async () => {

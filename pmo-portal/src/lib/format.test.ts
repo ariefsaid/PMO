@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
-  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
+  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberFine, formatNumberMax2,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
 } from './format';
@@ -187,6 +187,15 @@ describe('formatCurrencyFine — sub-$1 agent/provider costs (#477)', () => {
     expect(formatCurrencyFine(0.5, 'USD')).toBe('$0.50');
     expect(formatCurrencyFine(0.0123, 'USD')).toBe('$0.0123');
     expect(formatCurrencyFine(12.3456, 'USD')).toBe('$12.3456');
+  });
+});
+
+describe('formatNumberFine — grouped currency values with a shared unit heading', () => {
+  it('keeps sub-dollar precision and omits unnecessary whole-unit decimals', () => {
+    expect(formatNumberFine(0.1)).toBe('0.10');
+    expect(formatNumberFine(0.0123)).toBe('0.0123');
+    expect(formatNumberFine(1)).toBe('1');
+    expect(formatNumberFine(1234567890)).toBe('1,234,567,890');
   });
 });
 

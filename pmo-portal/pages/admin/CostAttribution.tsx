@@ -228,7 +228,7 @@ const CostAttribution: React.FC = () => {
         aria-label={t('costAttribution:details.title', 'Details for {{name}}', { name: selectedRule.name })}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold">{selectedRule.name}</h2>
+            <h2 className="text-xl font-bold tracking-[-0.01em]">{selectedRule.name}</h2>
             <p className="mt-1 text-sm text-muted-foreground">{selectedRule.targets.map((target) => `${target.project_name} ${target.percent}%`).join(' · ')}</p>
           </div>
           <Button variant="ghost" className="min-h-11" onClick={() => setSelectedRuleKey(null)}>{t('costAttribution:details.close', 'Close details')}</Button>

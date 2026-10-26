@@ -588,6 +588,15 @@ export function formatCurrencyFine(value: number, currency: string): string {
   return currencyFormatterFor('fine', currency, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
 }
 
+/** Plain number twin for a grouped currency column whose unit is stated once in its heading. */
+export function formatNumberFine(value: number): string {
+  const preserveSubunitPrecision = Math.abs(value) < 1 && value !== 0;
+  return numberFormatterFor(preserveSubunitPrecision ? 'fine-plain-subunit' : 'fine-plain-whole', getNumberLocale(), undefined, {
+    minimumFractionDigits: preserveSubunitPrecision ? 2 : 0,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
 // Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().
 export function formatNumber(value: number): string {
   return numberFormatterFor('plain', getNumberLocale(), undefined, {}).format(value);

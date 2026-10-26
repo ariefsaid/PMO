@@ -111,7 +111,7 @@ function avatarHue(id: string): string {
 const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 }) => (
   <span
     aria-hidden
-    className="grid shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
+    className="grid shrink-0 place-items-center rounded-full text-xs font-semibold text-white"
     style={{ width: size, height: size, background: avatarHue(user.id) }}
   >
     {initialsOf(user.full_name)}
@@ -271,10 +271,10 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           <div className="flex min-w-0 items-center gap-2.5">
             <Avatar user={u} />
             <div className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate font-semibold" title={u.full_name}>
+              <span className="break-words font-semibold">
                 {u.full_name}
               </span>
-              <span className="truncate text-sm text-muted-foreground" title={u.email}>
+              <span className="break-all text-sm text-muted-foreground">
                 {u.email}
               </span>
             </div>
@@ -308,7 +308,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
           <button
             type="button"
             onClick={() => scrollToManager(manager.id)}
-            className="touch-target truncate text-left text-[13px] underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="touch-target min-h-11 whitespace-normal break-words text-left text-sm underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             {manager.full_name}
           </button>
@@ -678,7 +678,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
         {/* B-8 (AC-W2-IA-003): the standalone compatibility composition keeps the
             Administration heading aligned with its route and breadcrumb. The route-backed shell
             uses the embedded Users section header above instead. */}
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
+        <h1 className="text-2xl font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
         <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
           {t(
             'admin.users.page.description',
@@ -933,14 +933,14 @@ const ManagerFormModal: React.FC<{
           placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
           searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
-        <p className="mt-1.5 text-[12px] text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
         {managerId && (
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}
-            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
+            className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
             {t('admin.users.managerForm.clear', 'Clear manager')}

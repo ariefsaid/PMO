@@ -349,7 +349,7 @@ export const IntegrationsView: React.FC = () => {
     const domains = domainsByTier[tier] ?? [];
     return (
       <section className="border-t border-border pt-3" data-testid={`service-information-${tier}`}>
-        <h3 className="text-sm font-semibold text-foreground">
+        <h3 className="text-xl font-bold tracking-[-0.01em] text-foreground">
           {t('uxs07.ownershipTitle', 'Information updated automatically')}
         </h3>
         {ownershipQuery?.isPending ? (
@@ -521,7 +521,7 @@ export const IntegrationsView: React.FC = () => {
                   tier name instead of overflowing the card at 390px. */}
               <div className="flex flex-wrap items-center gap-2">
                 <Icon name="plug" />
-                <h2 className="text-[15px] text-foreground font-semibold">{tierLabel(tier)}</h2>
+                <h2 className="text-xl font-bold tracking-[-0.01em] text-foreground">{tierLabel(tier)}</h2>
                 {setupIncomplete
                   ? <StatusPill variant="warn" className="min-w-0 max-w-full shrink whitespace-normal break-words">{t('uxs07.notReady', 'Not ready yet — {{count}} steps left', { count: missingSetupSteps.length })}</StatusPill>
                   : tier === 'erpnext' && isConnected && !isConnectedButNotActivated && !canManageIntegrations
@@ -535,7 +535,6 @@ export const IntegrationsView: React.FC = () => {
 
               {setupIncomplete && (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span className="text-sm text-muted-foreground">{t('integrations.organization.readiness.connected', 'Connected')}</span>
                   <CanWrite entity="integration" action="manage">
                     <a className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground hover:bg-primary/90" href={`#erp-setup-${firstMissingSetupStep}`}>
                       {t('uxs07.finishSetup', 'Finish setup')}
@@ -644,16 +643,18 @@ export const IntegrationsView: React.FC = () => {
               {/* Tier-specific info notes */}
               {tier === 'erpnext' && isConnected && !isConnectedButNotActivated && (
                 <CanWrite entity="integration" action="manage">
-                  <details className="group mt-3 border-t border-border px-0" open={setupIncomplete || erpSetupQuery.isError}>
-                    <DisclosureSummary className="font-medium">
-                      {setupIncomplete
-                        ? t('uxs07.finishSetup', 'Finish setup')
-                        : erpSetupQuery.isError
+                  {setupIncomplete ? (
+                    <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} readinessQuery={erpSetupQuery} />
+                  ) : (
+                    <details className="group mt-3 border-t border-border px-0" open={erpSetupQuery.isError}>
+                      <DisclosureSummary className="font-medium">
+                        {erpSetupQuery.isError
                           ? t('integrations:uxs07.reviewSetupStatus', 'Review setup status')
                           : t('integrations:uxs07.viewConfiguredSetup', 'View configured setup')}
-                    </DisclosureSummary>
-                    <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} />
-                  </details>
+                      </DisclosureSummary>
+                      <ErpSetupChecklist orgId={orgId} onRefreshCompany={() => handleSetCompanyClick('erpnext')} readinessQuery={erpSetupQuery} />
+                    </details>
+                  )}
                 </CanWrite>
               )}
             </Card>
@@ -664,7 +665,7 @@ export const IntegrationsView: React.FC = () => {
         <Card className="min-w-0 p-4" data-testid="m365-organization-service">
           <div className="flex flex-wrap items-center gap-2">
             <Icon name="plug" aria-hidden="true" />
-            <h2 className="text-[15px] font-semibold text-foreground">Microsoft 365</h2>
+            <h2 className="text-xl font-bold tracking-[-0.01em] text-foreground">Microsoft 365</h2>
             <StatusPill variant="neutral">
               {t('integrations:uxs07.m365ApprovalMayBeRequired', 'Organization approval may be required')}
             </StatusPill>
@@ -691,7 +692,7 @@ export const IntegrationsView: React.FC = () => {
         <section className="mt-6" aria-labelledby="clickup-binding-map-title" data-testid="clickup-binding-map">
           <div className="mb-3 flex items-center gap-2">
             <Icon name="plug" aria-hidden="true" />
-            <h2 id="clickup-binding-map-title" className="text-sm font-semibold text-foreground">
+            <h2 id="clickup-binding-map-title" className="text-xl font-bold tracking-[-0.01em] text-foreground">
               {t('integrations.organization.readiness.map.title', 'ClickUp binding map')}
             </h2>
           </div>
@@ -792,7 +793,7 @@ export const IntegrationsView: React.FC = () => {
                     {t('integrations:uxs07.viewConfiguredConnections', 'View configured connections and unused lists')}
                   </DisclosureSummary>
                   <div className="pb-3">
-                    <h3 className="mb-2 text-sm font-semibold text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h3>
+                    <h3 className="mb-2 text-xl font-bold tracking-[-0.01em] text-foreground">{t('integrations.organization.readiness.map.untrackedTitle', 'ClickUp Lists PMO does not track')}</h3>
                     <ul className="rounded-lg border border-border" aria-label={t('integrations.organization.readiness.map.untrackedAria', 'Untracked ClickUp Lists')}>
                       {clickupLists.filter((list) => !boundListIds.has(list.id)).map((list) => (
                         <li key={list.id} className="border-b border-border px-3 py-2 text-sm last:border-b-0">

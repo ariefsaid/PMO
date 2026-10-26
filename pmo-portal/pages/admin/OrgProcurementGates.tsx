@@ -23,7 +23,7 @@ const RuleSwitch: React.FC<{ label: string; help: string; on: boolean; disabled:
   const helpId = useId();
   return (
     <li>
-      <label className={cn('flex min-h-11 items-start gap-3 py-1.5 text-[13px]', disabled ? 'cursor-default' : 'cursor-pointer')}>
+      <label className={cn('flex min-h-11 items-start gap-3 py-1.5 text-sm', disabled ? 'cursor-default' : 'cursor-pointer')}>
         <Switch checked={on} onChange={onToggle} labelledBy={labelId} describedBy={helpId} disabled={disabled} className="mt-0.5" />
         <span className="min-w-0">
           <span id={labelId} className="block font-medium">{label}</span>
@@ -53,10 +53,10 @@ export default function OrgProcurementGates() {
 
   return (
     <section aria-labelledby="procurement-gates-heading">
-      <h2 id="procurement-gates-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+      <h2 id="procurement-gates-heading" tabIndex={-1} className="scroll-mt-4 text-xl font-bold">
         {t('procurement:gates.heading', 'Purchase rules')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('procurement:gates.intro', 'All off: a purchase can start at any step. Turn a rule on only when your accounting needs it.')}
       </p>
       <div className="mt-3 max-w-md">
@@ -76,8 +76,8 @@ export default function OrgProcurementGates() {
               ))}
             </ul>
           )}
-        {!canManage && <p className="mt-2 text-[13px] text-muted-foreground">{t('procurement:gates.onlyAdmin', 'Only an Admin can change this.')}</p>}
-        <p role="status" className="mt-1 min-h-5 text-[13px] text-muted-foreground">
+        {!canManage && <p className="mt-2 text-sm text-muted-foreground">{t('procurement:gates.onlyAdmin', 'Only an Admin can change this.')}</p>}
+        <p role="status" className="mt-1 min-h-5 text-sm text-muted-foreground">
           {mutation.isPending ? t('procurement:gates.saving', 'Saving…') : mutation.isSuccess ? t('procurement:gates.saved', 'Saved') : ''}
         </p>
         {saveError && <FieldError>{saveError.detail || saveError.headline}</FieldError>}

@@ -75,14 +75,14 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
   const preview = (pattern: string) => {
     if (!validateProjectNumberPattern(pattern).valid) return null;
     return previewYear === null ? (
-      <div className="space-y-2 text-[13px] text-muted-foreground" role="status">
+      <div className="space-y-2 text-sm text-muted-foreground" role="status">
         {timezoneReadPending ? <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p> : <>
           <p>{t('uxCorrectness.projectNumberPattern.previewUnavailable', 'Preview unavailable')}</p>
           <Button type="button" variant="outline" onClick={() => void timezoneQuery.refetch()}>{t('uxCorrectness.projectNumberPattern.retryPreview', 'Retry preview')}</Button>
         </>}
       </div>
     ) : (
-      <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
+      <p data-testid="org-project-number-pattern-preview" className="text-sm text-muted-foreground">
         {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
         <span className="font-mono">{previewProjectNumber(pattern, previewYear)}</span>
         <span className="ml-1.5">{t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}</span>
@@ -92,7 +92,7 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
 
   return (
     <section id="org-project-number-pattern" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.projectNumberPattern.title', 'Project number pattern')}>
-      <h2 className="text-base font-semibold tracking-tight">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.projectNumberPattern.title', 'Project number pattern')}
       </h2>
       <div className="mt-3 max-w-md">
@@ -109,15 +109,18 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
         ) : canManage && !editing ? (
           <div className="space-y-3">
             <dl className="space-y-1 text-sm">
-              <div><dt className="text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</dt><dd className="font-mono font-semibold">{current}</dd></div>
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</dt>
+                <dd className="mt-1 break-words font-mono text-xl font-bold tracking-[-0.01em]">{current}</dd>
+              </div>
             </dl>
             {preview(current)}
             <Button type="button" variant="outline" className="min-h-11" onClick={openEditor}>{t('administration:admin.projectNumberPattern.edit', 'Edit numbering')}</Button>
           </div>
         ) : canManage ? (
           <div className="space-y-3">
-            <p className="text-[13px] text-muted-foreground">{t('administration:admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
-            <div className="space-y-1 text-[13px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">{t('administration:admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
+            <div className="space-y-1 text-sm text-muted-foreground">
               <p>
                 {t(
                   'admin.projectNumberPattern.description',
@@ -154,7 +157,10 @@ const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editi
           </div>
         ) : (
           <div data-testid="org-project-number-pattern-readonly" className="space-y-2 text-sm">
-            <p><span className="text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}:</span> <span className="font-mono font-semibold">{current}</span></p>
+            <p className="space-y-1">
+              <span className="block text-xs font-semibold text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</span>
+              <span className="block break-words font-mono text-xl font-bold tracking-[-0.01em]">{current}</span>
+            </p>
             {preview(current)}
             <p className="text-muted-foreground">{t('admin.projectNumberPattern.adminOnly', 'Only an Admin can change this.')}</p>
           </div>

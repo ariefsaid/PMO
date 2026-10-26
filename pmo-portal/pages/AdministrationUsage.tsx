@@ -4,7 +4,7 @@ import { useLocation, useNavigate } from 'react-router';
 import { AgentCostMetrics, type AgentCostRunStatsRow } from '@/src/components/admin/AgentCostMetrics';
 import { DataTable, DisclosureSummary, ListState, SelectField, type Column } from '@/src/components/ui';
 import type { UsageSummaryRow, OperatorUsageSummaryRow } from '@/src/lib/db/usage';
-import { PLATFORM_CURRENCY, formatCurrencyFine, formatNumber } from '@/src/lib/format';
+import { formatNumber, formatNumberFine } from '@/src/lib/format';
 
 /**
  * Administration › Usage section (ops-admin-surface S5, FR-USE-002/003/004/006). Sourced ONLY
@@ -136,6 +136,7 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
   const hasUnavailableProviderCost = hasProviderCost && filteredRows.some(
     (row) => 'provider_cost_usd' in row && row.provider_cost_usd === null,
   );
+  const creditsCharged = filteredRows.reduce((total, row) => total + row.cost, 0);
 
   const columns: Column<UsageRow>[] = [
     { key: 'action', header: t('administration:admin.usage.actionColumn', 'Action'), cell: (r) => r.action },
@@ -152,18 +153,18 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
             key: 'providerCost',
             header: t('administration:admin.usage.providerCostColumn', 'Provider cost'),
             // `in` tests key presence (the org row lacks this column entirely); it does NOT test null.
-            // The RPC returns null when provider pricing is unconfigured, and formatting null
-            // renders $0.00 — a real-looking zero for "unknown". Guard both, as margin does below.
+            // The RPC returns null when provider pricing is unconfigured; guard it explicitly so
+            // an unknown cost never becomes a real-looking zero in this plain-number column.
             cell: (r: UsageRow) =>
               'provider_cost_usd' in r && r.provider_cost_usd !== null
-                ? formatCurrencyFine(r.provider_cost_usd, PLATFORM_CURRENCY)
+                ? formatNumberFine(r.provider_cost_usd)
                 : '—',
           } as Column<UsageRow>,
         ]
       : []),
-    { key: 'cost', header: t('administration:admin.usage.creditsChargedColumn', 'Credits charged'), cell: (r) => formatCurrencyFine(r.cost, PLATFORM_CURRENCY) },
+    { key: 'cost', header: t('administration:admin.usage.creditsChargedColumn', 'Credits charged'), cell: (r) => formatNumberFine(r.cost) },
     ...(hasMargin
-      ? [{ key: 'margin', header: t('administration:admin.usage.marginColumn', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatCurrencyFine(r.margin_usd, PLATFORM_CURRENCY)) } as Column<UsageRow>]
+      ? [{ key: 'margin', header: t('administration:admin.usage.marginColumn', 'Margin'), cell: (r: UsageRow) => (r.margin_usd === null ? '—' : formatNumberFine(r.margin_usd)) } as Column<UsageRow>]
       : []),
   ];
 
@@ -197,36 +198,41 @@ export const AdministrationUsage: React.FC<AdministrationUsageProps> = ({
 
       {noMatches ? (
         <div role="status" className="rounded-lg border border-border bg-card p-4">
-          <p className="text-[13.5px] font-medium">{t('administration:admin.usage.noMatches', 'No usage matches the selected filters.')}</p>
+          <p className="text-sm font-medium">{t('administration:admin.usage.noMatches', 'No usage matches the selected filters.')}</p>
           <button
             type="button"
-            className="mt-2 inline-flex min-h-11 items-center rounded-md px-2 text-[13px] font-medium text-nav-active-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+            className="mt-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-nav-active-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             onClick={clearFilters}
           >
             {t('administration:admin.usage.clearFilters', 'Clear filters')}
           </button>
         </div>
       ) : (
-        <div>
-          <p className="mb-2 text-[12.5px] text-muted-foreground">
-            {t('administration:admin.usage.creditsBasis', 'Credits charged use the platform USD billing unit; provider cost is separate.')}
+        <section aria-labelledby="usage-consumption-heading" className="min-w-0">
+          <h2 id="usage-consumption-heading" className="mb-4 text-xl font-bold tracking-[-0.01em]">
+            {t('administration:admin.usage.creditsChargedColumn', 'Credits charged')} · USD{' '}
+            <span className="tabular" data-testid="usage-primary-figure">{formatNumberFine(creditsCharged)}</span>
+          </h2>
+          <p className="mb-2 text-sm text-muted-foreground">{scopeDescription}</p>
+          <p className="mb-2 text-sm text-muted-foreground">
+            {t('administration:admin.usage.providerCostSeparate', 'Provider cost is reported separately from credits charged.')}
           </p>
           <DataTable<UsageRow> rows={filteredRows} columns={columns} rowKey={(r) => `${r.month}-${r.owner_id}-${r.action}`} tableId="administrationusage-table" />
           {!hasMargin && (
-            <p className="mt-2 text-[12.5px] text-muted-foreground">
-              {t('administration:admin.usage.pricingUnavailable', 'Pricing not yet configured — margin will appear here once a per-credit USD rate is set.')}
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t('administration:admin.usage.pricingUnavailable', 'Pricing not yet configured — margin will appear once a per-credit rate is set.')}
             </p>
           )}
           {hasUnavailableProviderCost && (
-            <p className="mt-2 text-[12.5px] text-muted-foreground">
+            <p className="mt-2 text-sm text-muted-foreground">
               {t('administration:admin.usage.providerCostUnavailable', 'Provider cost is unavailable for this scope. Check provider pricing before comparing it with credits charged.')}
             </p>
           )}
-        </div>
+        </section>
       )}
 
       <details className="group rounded-lg border border-border bg-card px-4">
-        <DisclosureSummary className="py-2 text-[13.5px] font-semibold">
+        <DisclosureSummary className="py-2 text-sm font-semibold">
           {t('administration:admin.usage.diagnostics', 'Diagnostics')}
         </DisclosureSummary>
         <div className="border-t border-border p-4">

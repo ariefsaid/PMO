@@ -75,16 +75,16 @@ const OrgTaxDefault: React.FC<OrgTaxDefaultProps> = ({ editing, onEdit, onClose 
 
   return (
     <section id="org-tax-default" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.taxDefault.title', 'Default tax treatment')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.taxDefault.title', 'Default tax treatment')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.taxDefault.description',
           'The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.',
         )}
       </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.taxDefault.doesNotRestate',
           'Changing this does not restate any existing figure. Every record keeps the tax treatment it was recorded with.',
@@ -121,7 +121,7 @@ const OrgTaxDefault: React.FC<OrgTaxDefaultProps> = ({ editing, onEdit, onClose 
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p data-testid="org-tax-default-readonly" className="text-[13px] font-medium">
+              <p data-testid="org-tax-default-readonly" className="text-sm font-medium">
                 {current === 'inclusive'
                   ? t('admin.taxDefault.value.inclusive', 'Inclusive — the amount already includes tax')
                   : t('admin.taxDefault.value.exclusive', 'Exclusive — tax is on top of the amount')}
@@ -134,7 +134,7 @@ const OrgTaxDefault: React.FC<OrgTaxDefaultProps> = ({ editing, onEdit, onClose 
         ) : (
           // read-only-distinction: a role that cannot change this sees the VALUE, never a dead
           // control. It is org configuration every member's forms already read.
-          <p data-testid="org-tax-default-readonly" className="text-[13px]">
+          <p data-testid="org-tax-default-readonly" className="text-sm">
             <span className="font-semibold">
               {current === 'inclusive'
                 ? t('admin.taxDefault.value.inclusive', 'Inclusive — the amount already includes tax')
