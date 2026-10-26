@@ -42,7 +42,9 @@
   "uxs14": {
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
-    "contractReference": "Referensi kontrak pelanggan"
+    "contractReference": "Referensi kontrak pelanggan",
+    "projectReferences": "Referensi proyek lainnya",
+    "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}"
   },
   "uxs10": {
     "mapPrinciple": "Satu akun biaya langsung menerima anggaran setiap kategori. Akun tambahan yang ditandai ke proyek hanya dapat dihitung dalam realisasi.",
@@ -207,7 +209,10 @@
     "restrictedRowsExcluded": "Baris terbatas dikecualikan",
     "budgetUsed": "{{percent}}% dari anggaran Aktif",
     "budgetSummary": "{{actual}} dari anggaran Aktif {{budget}}",
-    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual"
+    "currencyMismatch": "Mata uang anggaran berbeda dari Aktual",
+    "riskUnavailableTitle": "Risiko anggaran proyek tidak dapat diperiksa",
+    "riskUnavailableSub": "Informasi pengeluaran proyek dan anggaran Aktif tidak dapat diperiksa.",
+    "atRisk": "Berisiko"
   },
   "fx": {
     "saveRate": "Simpan kurs",
@@ -777,7 +782,20 @@
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu"
+    "weekOf": "Minggu",
+    "group": {
+      "procurement": {
+        "emptySub": "Permintaan pembelian yang perlu persetujuan Anda akan muncul di sini.",
+        "emptyTitle": "Tidak ada permintaan yang menunggu keputusan Anda",
+        "title": "Permintaan pembelian"
+      },
+      "timesheets": {
+        "emptySub": "Timesheet yang diajukan oleh bawahan Anda akan muncul di sini untuk ditinjau.",
+        "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
+        "title": "Timesheet"
+      }
+    },
+    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda: permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan."
   },
   "combobox": {
     "search": {
@@ -972,10 +990,12 @@
       "emailPlaceholder": "name@example.com",
       "fullName": "Nama lengkap",
       "fullNamePlaceholder": "mis. Jane Doe",
+      "name": "Nama",
       "notes": "Catatan",
       "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
       "phone": "Telepon",
       "phonePlaceholder": "mis. +1 555 010 0000",
+      "primaryContact": "Kontak utama",
       "title": "Jabatan",
       "titlePlaceholder": "mis. Procurement Lead",
       "type": "Tipe",
@@ -1125,6 +1145,7 @@
       "title": "Kontak tidak ditemukan"
     },
     "pill": "Kontak",
+    "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
       "activityLogged": "Aktivitas dicatat",
@@ -1224,7 +1245,8 @@
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
     },
-    "description": "Orang dan hubungan perusahaan mereka."
+    "description": "Orang dan hubungan perusahaan mereka.",
+    "descriptionMeetingsLink": "modul Rapat"
   },
   "dashboard": {
     "bva": {
@@ -1657,6 +1679,7 @@
       "unassigned": "Belum ditugaskan — pilih penanggung jawab",
       "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
+      "save": "Simpan notulen",
       "slash": {
         "actionTitle": "Action item",
         "actionSubtext": "Buat tugas dari baris ini",
@@ -1688,6 +1711,7 @@
       "actionCreated": "Action item dibuat",
       "archived": "Rapat diarsipkan",
       "deleted": "Rapat dihapus",
+      "minutesSaved": "Notulen disimpan",
       "shared": "Rapat dibagikan",
       "updated": "Rapat diperbarui"
     }
@@ -1784,7 +1808,9 @@
     "clearSearch": "Hapus pencarian",
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
-    "start": "Mulai {{date}}"
+    "start": "Mulai {{date}}",
+    "subtitle": "Tugas yang ditugaskan kepada Anda di semua proyek.",
+    "title": "Tugas Saya"
   },
   "procurement": {
     "columns": {
@@ -2925,7 +2951,8 @@
       "edit": "Simpan proyek"
     },
     "section": {
-      "project": "Proyek"
+      "project": "Proyek",
+      "schedule": "Jadwal"
     },
     "name": {
       "label": "Nama proyek",
@@ -2960,7 +2987,8 @@
       "noun": "perusahaan"
     },
     "clientCode": {
-      "label": "Kode Proyek Klien"
+      "label": "Kode Proyek Klien",
+      "placeholder": "Kode opsional yang digunakan organisasi Anda"
     },
     "projectNumber": {
       "label": "Nomor Proyek PMO",
@@ -2983,7 +3011,9 @@
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
       "pm": "Manajer proyek",
-      "project": "Proyek"
+      "project": "Proyek",
+      "progress": "Progres",
+      "status": "Status"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan proyek",
@@ -3008,7 +3038,8 @@
       "ongoing": "Berjalan",
       "pmLabel": "Filter berdasarkan manajer proyek",
       "allEndCustomers": "Semua pelanggan akhir",
-      "endCustomerLabel": "Saring berdasarkan pelanggan akhir"
+      "endCustomerLabel": "Saring berdasarkan pelanggan akhir",
+      "ariaLabel": "Filter status"
     },
     "importBudgets": "Impor anggaran",
     "noPhasesYet": "Belum ada fase",
@@ -3033,7 +3064,8 @@
       "board": "Board",
       "calendar": "Kalender",
       "cards": "Kartu",
-      "table": "Tabel"
+      "table": "Tabel",
+      "ariaLabel": "Tampilan proyek"
     },
     "calendar": {
       "previousMonth": "Bulan sebelumnya",
@@ -3041,14 +3073,17 @@
       "goToday": "Ke hari ini",
       "today": "Hari ini",
       "noEventsTitle": "Tidak ada acara bulan ini",
-      "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini."
+      "noEventsSub": "Tidak ada tanggal target proyek atau fase pada bulan ini.",
+      "phaseEventLabel": "{{project}} · {{phase}}",
+      "phaseEventAriaLabel": "{{project}} — Fase: {{phase}}"
     },
     "unnamedUser": "Pengguna tanpa nama",
     "export": "Ekspor",
     "import": "Impor",
     "card": {
       "deliveryPercent": "Penyelesaian {{percent}}%",
-      "editProject": "Edit {{name}}"
+      "editProject": "Edit {{name}}",
+      "delivery": "Penyelesaian"
     },
     "kanban": {
       "won": "Menang",
@@ -3077,6 +3112,20 @@
     "identifiers": {
       "pmo": "Nomor Proyek PMO",
       "client": "Kode Proyek Klien"
+    },
+    "description": "Proyek pra-menang ada di Pipeline.",
+    "mobile": {
+      "activeCount": "Filter aktif",
+      "customer": "Klien",
+      "manager": "Manajer proyek",
+      "removeCustomer": "Hapus filter klien",
+      "removeManager": "Hapus filter manajer proyek",
+      "clearAll": "Hapus semua",
+      "error": "Gagal memuat opsi",
+      "retry": "Coba lagi",
+      "unavailable": "Pilihan tidak tersedia",
+      "endCustomer": "Pelanggan akhir",
+      "removeEndCustomer": "Hapus filter pelanggan akhir"
     }
   },
   "revenueByProject": {
@@ -3326,7 +3375,8 @@
       "title": "Belum ada jam tercatat minggu ini"
     },
     "emptyEdit": {
-      "sub": "Pilih proyek di atas untuk mulai mencatat jam."
+      "sub": "Pilih proyek di atas untuk mulai mencatat jam.",
+      "title": "Belum ada jam tercatat minggu ini"
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
     "error": {
@@ -3390,7 +3440,9 @@
       }
     },
     "unknownProject": "Proyek tidak diketahui",
-    "weekOf": "Minggu"
+    "weekOf": "Minggu",
+    "hoursThisWeek": "{{hours}} jam minggu ini",
+    "subtitle": "Minggu {{range}}. Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda."
   },
   "integrations": {
     "organization": {
@@ -3567,6 +3619,7 @@
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
+      "effective": "Bahasa aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi — {{value}}",
@@ -3577,6 +3630,7 @@
     "number": {
       "label": "Format angka",
       "help": "Pratinjau: {{value}}",
+      "effective": "Format angka aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi — {{value}}",
@@ -3589,6 +3643,7 @@
       "placeholder": "Pilih zona waktu",
       "search": "Cari zona waktu…",
       "noun": "zona waktu",
+      "effective": "Zona waktu aktif: {{value}}",
       "options": {
         "inherit": "Default organisasi",
         "inheritWithEffective": "Default organisasi — {{timezone}}"
@@ -3598,7 +3653,9 @@
     "saving": "Menyimpan preferensi Anda…",
     "saved": "Preferensi disimpan",
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
-    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
+    "title": "Profil & preferensi",
+    "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini."
   },
   "oauthConsent": {
     "allow": "Izinkan",
@@ -3980,7 +4037,9 @@
     "invoiceIllegalTransition": "Perubahan itu tidak diizinkan dari status faktur saat ini.",
     "sodSelfApproval": "Anda membuat faktur ini — orang lain harus menyetujuinya",
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
-    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf"
+    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
+    "myViews": "Tampilan Saya",
+    "createYourFirstView": "Buat tampilan pertama Anda"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
