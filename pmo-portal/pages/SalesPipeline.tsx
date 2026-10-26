@@ -274,7 +274,7 @@ const SalesPipeline: React.FC = () => {
 
   const toolbar = (
     <section aria-label={salesT('pipeline.controls', 'Sales pipeline controls')} className="mb-4 flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
-      <div className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-background px-3 md:w-auto md:flex-1">
+      <div className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-background px-3 md:w-auto md:min-w-48 md:flex-1">
         <Icon name="search" />
         <input type="search" aria-label={t('sales.search.label', 'Search projects')} placeholder={t('sales.search.placeholder', 'Search projects…')} value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
       </div>
