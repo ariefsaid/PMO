@@ -52,6 +52,28 @@ describe('CompanyCollections doorway', () => {
     expect(screen.queryByText('AP aging')).not.toBeInTheDocument();
   });
 
+  it('H-03–H-04: groups mixed-currency aging rows and shows whole-unit amounts under one currency head', () => {
+    const idrRow = { ...row, party: 'Customer:Long Synthetic Account One', currency: 'IDR', totalOutstanding: 63_400_000_000 };
+    const usdRow = { ...row, party: 'Customer:Long Synthetic Account Two', currency: 'USD', totalOutstanding: 3_412_800 };
+    h.useCompanyCollections.mockReturnValue(baseResult({
+      byCompany: new Map([['company-1', { state: 'known', positions: [idrRow, usdRow] }]]),
+    }));
+
+    renderPanel();
+
+    const idrHeading = screen.getByRole('heading', { name: 'Customer collections (AR) · IDR' });
+    const usdHeading = screen.getByRole('heading', { name: 'Customer collections (AR) · USD' });
+    expect(idrHeading).toBeInTheDocument();
+    expect(usdHeading).toBeInTheDocument();
+    expect(screen.getByText('63,400,000,000')).toBeInTheDocument();
+    expect(screen.getByText('3,412,800')).toBeInTheDocument();
+
+    const idrRecord = screen.getByText('Customer:Long Synthetic Account One').closest('tr');
+    const usdRecord = screen.getByText('Customer:Long Synthetic Account Two').closest('tr');
+    expect(idrRecord).not.toHaveTextContent(/IDR|USD|Rp|\$/);
+    expect(usdRecord).not.toHaveTextContent(/IDR|USD|Rp|\$/);
+  });
+
   it('shows ambiguous party mappings without assigning their amount to the company', () => {
     h.useCompanyCollections.mockReturnValue(baseResult({
       byCompany: new Map([['company-1', { state: 'ambiguous', positions: [row] }]]),
