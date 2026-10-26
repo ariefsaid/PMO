@@ -260,7 +260,7 @@ const SalesPipeline: React.FC = () => {
     <details data-testid="sales-summary" className="mb-8">
       <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3">
         <span className="text-xl font-bold leading-tight tracking-[-0.01em]">{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span>
-        <span className="text-[11px] font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
+        <span className="text-[0.6875rem] font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
       </summary>
       <div className="mt-4">
         <Funnel stages={summaryStages} />
@@ -361,7 +361,7 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (
-        <div className="min-w-0 [&_table]:text-sm [&_thead_th]:text-[11px] [&_tbody_td]:text-sm [&_li]:text-sm [&_dd]:text-sm">
+        <div className="min-w-0 [&_table]:text-sm [&_thead_th]:text-[0.6875rem] [&_tbody_td]:text-sm [&_li]:text-sm [&_dd]:text-sm">
           <details className="mb-2">
             <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground underline underline-offset-4">{salesT('pipeline.columns', 'Columns')}</summary>
             <label className="ml-3 inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showWeighted} onChange={(event) => setShowWeighted(event.currentTarget.checked)} />{t('sales.column.weighted', 'Weighted')}</label>
