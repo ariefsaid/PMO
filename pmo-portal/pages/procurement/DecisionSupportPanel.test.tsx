@@ -76,12 +76,11 @@ function renderPanel(
   );
 }
 
-/** The value element of the stat tile whose label matches `label` (exact, case-insensitive). */
-function tileValue(label: RegExp): HTMLElement {
+/** The value element of the table row whose label matches `label` (case-insensitive). */
+function factValue(label: RegExp): HTMLElement {
   const labelEl = screen.getByText(label);
-  const tile = labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-  // The value is the sibling div after the label div within the tile.
-  return within(tile).getByText(/\d/);
+  const row = labelEl.closest('[data-testid="budget-impact-row"]') as HTMLElement;
+  return within(row).getByTestId('budget-impact-value');
 }
 
 beforeEach(() => {
@@ -253,15 +252,15 @@ describe('AC-IXD-PROC-W5-2d — four figures rendered (committed basis)', () => 
     const primary = screen.getByTestId('budget-impact-primary');
     expect(primary).toHaveTextContent('After this request');
     expect(primary).toHaveTextContent('2,176,649,000');
-    expect(within(primary).getByText('2,176,649,000').className).toContain('text-[23px]');
+    expect(within(primary).getByText('2,176,649,000').className).toContain('text-xl');
     expect(primary.textContent).not.toMatch(/\.00\b/);
 
     const figures = screen.getByTestId('budget-impact-figures');
-    for (const label of ['This request', 'Reserved', 'Available', 'Project budget']) {
-      const tile = screen.getByText(new RegExp(`^${label}`, 'i')).closest('[data-testid="stat-tile"]');
-      expect(tile).not.toBeNull();
-      expect(tile).not.toHaveTextContent(/IDR|Rp|\$/);
-      expect(figures).toContainElement(tile);
+    for (const label of ['This request', 'Reserved', 'Available', 'Project budget', 'Committed']) {
+      const row = screen.getByText(new RegExp(`^${label}`, 'i')).closest('[data-testid="budget-impact-row"]');
+      expect(row).not.toBeNull();
+      expect(row).not.toHaveTextContent(/IDR|Rp|\$/);
+      expect(figures).toContainElement(row);
     }
     expect(screen.getAllByText(/headroom remaining/i)).toHaveLength(1);
   });
@@ -309,9 +308,10 @@ describe('AC-IXD-PROC-W5-2f — heading + no progress bar', () => {
     expect(screen.getByRole('heading', { name: /budget impact/i })).toBeInTheDocument();
   });
 
-  it('renders four secondary budget figures in a four-column strip at sm+', () => {
+  it('renders five budget facts in a table with no supporting KPI strip', () => {
     renderPanel({ projectId: 'proj-1', totalValue: 48000, projectName: 'HQ Fit-Out' });
-    expect(screen.getByTestId('stat-tiles').className).toContain('sm:grid-cols-4');
+    expect(screen.getAllByTestId('budget-impact-row')).toHaveLength(5);
+    expect(screen.queryByTestId('stat-tiles')).not.toBeInTheDocument();
   });
 
   it('does NOT render a progress bar (uninformative 0% bar removed — I1)', () => {
@@ -343,7 +343,7 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
     expect(screen.getByText(/^available$/i)).toBeInTheDocument();
-    expect(tileValue(/^available$/i).textContent).toMatch(/\b500\b/);
+    expect(factValue(/^available$/i).textContent).toMatch(/\b500\b/);
   });
   it('0373: commitments in other currencies are named under Available, never subtracted as project currency', () => {
     budgetState.data = 1000;
@@ -351,8 +351,8 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     committedState.otherCurrencies = [{ currency: 'EUR', amount: 90 }];
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    expect(tileValue(/^available$/i).textContent).toMatch(/\b500\b/);
-    expect(screen.getByText('Not counting commitments in other currencies: €90')).toBeInTheDocument();
+    expect(factValue(/^available$/i).textContent).toMatch(/\b500\b/);
+    expect(screen.getByText('Not counting commitments in other currencies: EUR 90')).toBeInTheDocument();
   });
   it('0373: no other-currency note when every commitment is in the project currency', () => {
     budgetState.data = 1000;
@@ -361,12 +361,12 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
     expect(screen.queryByText(/other currencies/)).not.toBeInTheDocument();
   });
-  it('AC-RB-004: Available tile uses neg tone when negative', () => {
+  it('AC-RB-004: Available fact names a negative value in text as well as tone', () => {
     budgetState.data = 1000;
     committedState.data = 800;
     reservedState.data = 400; // available = -200
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested' });
-    const neg = tileValue(/^available$/i);
+    const neg = factValue(/^available$/i);
     expect(neg.textContent).toMatch(/-?200/);
     expect(neg.className).toMatch(/destructive/);
   });
@@ -377,10 +377,10 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     reservedState.data = 200;
     renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', status: 'Requested', currency: 'EUR' });
     const availableLabel = screen.getByText(/^available$/i);
-    const availableTile = availableLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
+    const availableRow = availableLabel.closest('[data-testid="budget-impact-row"]') as HTMLElement;
     expect(screen.getByText('Budget impact · EUR')).toBeInTheDocument();
-    expect(within(availableTile).getByText('500')).toBeInTheDocument();
-    expect(within(availableTile).queryByText(/\$|€/)).not.toBeInTheDocument();
+    expect(within(availableRow).getByText('500')).toBeInTheDocument();
+    expect(within(availableRow).queryByText(/\$|€/)).not.toBeInTheDocument();
   });
 });
 
@@ -396,7 +396,7 @@ describe('AC-RB-005 — Reserved tile shows other-reserved, never "encumbered"',
       status: 'Approved',
     });
     expect(screen.getByText(/reserved · approved, not yet ordered/i)).toBeInTheDocument();
-    expect(tileValue(/reserved/i)).toHaveTextContent('150');
+    expect(factValue(/reserved/i)).toHaveTextContent('150');
     expect(container.textContent?.toLowerCase()).not.toMatch(/encumber/);
   });
 });

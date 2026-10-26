@@ -299,7 +299,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         `day-${i}`,
         <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm tabular">{total > 0 ? fmt(total) : '·'}</span>,
       ])),
-      total: <span data-testid="tsgrid-grand-total" className="text-[23px] font-bold tabular">{fmt(grandTotal)}</span>,
+      total: <span data-testid="tsgrid-grand-total" className="text-xl font-bold tabular">{fmt(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
   }];
 
@@ -545,7 +545,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
         </span>
         <span
           data-testid="tsgrid-grand-total"
-          className="text-[23px] font-bold tabular text-foreground"
+          className="text-xl font-bold tabular text-foreground"
         >
           {fmt(grandTotal)}
         </span>

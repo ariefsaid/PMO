@@ -848,7 +848,7 @@ const TimesheetsPage: React.FC = () => {
                 <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
                   {t('timesheets.weekTotalHours', 'Week total · hours')}
                 </span>
-                <span className="text-[23px] font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>
+                <span className="text-xl font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>
               </span>
             )}
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}

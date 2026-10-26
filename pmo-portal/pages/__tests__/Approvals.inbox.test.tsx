@@ -338,7 +338,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
     expect(within(preview).getAllByText('Hours')).toHaveLength(1);
     expect(within(preview).queryByText('8.0 h')).not.toBeInTheDocument();
-    expect(within(preview).getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
+    expect(within(preview).getByTestId('tsgrid-grand-total').className).toContain('text-xl');
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 

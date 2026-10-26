@@ -149,6 +149,17 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     expect(within(footer).getByText(/enter hours to submit/i)).toBeInTheDocument();
   });
 
+  it('H-01/H-07: the empty-week answer uses the section-head figure role', () => {
+    tsState.data = [];
+    tsState.isPending = false;
+    tsState.isError = false;
+    renderPage();
+
+    const total = screen.getByTestId('timesheets-empty-week-total');
+    expect(total).toHaveTextContent('Week total · hours');
+    expect(within(total).getByText('0').className).toContain('text-xl');
+  });
+
   it('AC-IXD-TS-002: Submit is disabled on a Draft week that has NO persisted hours yet', () => {
     // A Draft sheet exists but with zero entries — nothing to submit until hours are saved.
     tsState.data = draftSheet([]);

@@ -44,7 +44,7 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
             <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
               {t('timesheets.weekTotalHours', 'Week total · hours')}
             </span>
-            <span className="text-[23px] font-bold text-foreground">0</span>
+            <span className="text-xl font-bold text-foreground">0</span>
           </p>
         )}
         {showSubmitHint && (

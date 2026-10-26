@@ -29,14 +29,13 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { Card, CardPad } from '@/src/components/ui/Card';
-import { StatTiles } from '@/src/components/ui/StatTiles';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
 import { ProjectNameLink } from '@/src/components/ui/ProjectNameLink';
 import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency, formatNumberWhole } from '@/src/lib/format';
+import { formatNumberWhole } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
@@ -101,7 +100,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
 
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
-      <h3 className="text-[12.5px] font-semibold text-muted-foreground uppercase tracking-[0.06em]">
+      <h3 className="text-xl font-bold text-foreground">
         Budget impact · {currency}
       </h3>
       {showProjectContext && projectName ? (
@@ -109,7 +108,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           projectId={scopedProjectId}
           name={projectName}
           legalName={projectLegalName}
-          className="text-[12.5px] font-medium text-foreground"
+          className="text-sm font-normal text-foreground"
         />
       ) : null}
     </div>
@@ -139,7 +138,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Budget unavailable — budget impact can&apos;t be shown right now.
           </p>
         </CardPad>
@@ -155,7 +154,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <Card variant="bare" className="mb-4">
         <CardPad>
           {heading}
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             No active budget set for this project — budget impact can&apos;t be shown.
           </p>
         </CardPad>
@@ -168,7 +167,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
   const otherCurrencyCommitted = (committed.otherCurrencies ?? [])
-    .map((position) => formatCurrency(position.amount, position.currency)).join(', ');
+    .map((position) => `${position.currency} ${formatNumberWhole(position.amount)}`).join(' · ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
     computeBudgetSignal({
@@ -180,20 +179,13 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
     });
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
-  const tiles = [
-    { label: 'This request', value: formatNumberWhole(totalValue) },
-    {
-      label: 'Reserved · approved, not yet ordered',
-      value: formatNumberWhole(otherReserved),
-    },
-    {
-      label: 'Available',
-      value: formatNumberWhole(available),
-      tone: available < 0 ? ('neg' as const) : undefined,
-    },
-    { label: 'Project budget', value: formatNumberWhole(budgetAmount) },
+  const facts = [
+    ...(showRequestValue ? [{ label: 'This request', value: totalValue }] : []),
+    { label: 'Reserved · approved, not yet ordered', value: otherReserved },
+    { label: 'Available', value: available, negative: available < 0 },
+    { label: 'Project budget', value: budgetAmount },
+    { label: 'Committed', value: committedSpend },
   ];
-  const visibleTiles = showRequestValue ? tiles : tiles.filter((tile) => tile.label !== 'This request');
 
   return (
     <Card variant="bare" className="mb-4">
@@ -205,24 +197,37 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). */}
         {otherCurrencyCommitted && (
-          <p data-testid="budget-impact-other-currencies" className="mb-3 text-[13px] text-muted-foreground">
+            <p data-testid="budget-impact-other-currencies" className="mb-3 text-sm text-muted-foreground">
             Not counting commitments in other currencies: {otherCurrencyCommitted}
           </p>
         )}
-        <div
-          data-testid="budget-impact-primary"
-          className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg border border-border/70 px-3 py-3"
-        >
-          <span className="text-[12px] font-semibold text-muted-foreground">
-            After this request · {afterPct.toFixed(1)}% headroom remaining
-          </span>
-          <span className={`text-[23px] font-bold tracking-[-0.01em] tabular ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
-            {formatNumberWhole(afterRequest)}
-          </span>
-        </div>
-        <div data-testid="budget-impact-figures">
-          <StatTiles tiles={visibleTiles} columns={visibleTiles.length} />
-        </div>
+        <section aria-label="Budget figures" className="mb-4">
+          <div data-testid="budget-impact-primary" className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <span className="text-xs font-semibold text-muted-foreground">
+              After this request · {afterPct.toFixed(1)}% headroom remaining
+            </span>
+            <span className={`text-xl font-bold tabular text-right ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
+              {formatNumberWhole(afterRequest)}
+            </span>
+          </div>
+          <table data-testid="budget-impact-figures" className="w-full border-collapse">
+            <tbody>
+              {facts.map((fact) => (
+                <tr key={fact.label} data-testid="budget-impact-row" className="border-t border-border/60">
+                  <th scope="row" className="py-2 pr-4 text-left text-xs font-semibold text-muted-foreground">
+                    {fact.label}
+                  </th>
+                  <td
+                    data-testid="budget-impact-value"
+                    className={`py-2 text-right text-sm tabular ${'negative' in fact && fact.negative ? 'font-semibold text-destructive-text' : 'text-foreground'}`}
+                  >
+                    {formatNumberWhole(fact.value)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
@@ -263,7 +268,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <div className="mt-3 pt-3 border-t border-border/50">
           <Link
             to={`/projects/${scopedProjectId}`}
-            className="inline-flex items-center gap-1 text-[12px] font-medium text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
+            className="touch-target inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
             Open project
           </Link>

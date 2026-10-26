@@ -62,7 +62,7 @@ describe('TimesheetGrid localized operational copy', () => {
     await renderGrid('id');
     expect(screen.getAllByText('Jam')).toHaveLength(1);
     expect(screen.getByText('Total minggu')).toBeInTheDocument();
-    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
+    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-xl');
     expect(screen.getByText('Total baris')).toBeInTheDocument();
     expect(screen.getByLabelText('Jam North Annex, Sen')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tambahkan catatan untuk North Annex' })).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('TimesheetGrid localized operational copy', () => {
     await renderGrid('en');
     expect(screen.getAllByText('Hours')).toHaveLength(1);
     expect(screen.getByText('Week total')).toBeInTheDocument();
-    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
+    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-xl');
     expect(screen.getByText('Row total')).toBeInTheDocument();
     expect(screen.getByLabelText('North Annex, Mon hours')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add note to North Annex' })).toBeInTheDocument();
