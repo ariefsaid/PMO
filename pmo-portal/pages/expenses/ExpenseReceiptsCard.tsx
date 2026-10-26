@@ -61,7 +61,7 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
             <>
               <input ref={inputRef} type="file" accept={RECEIPT_INPUT_ACCEPT} className="sr-only" tabIndex={-1}
                 aria-label={t('expenses.receipts.attachAria', 'Choose a receipt file')} onChange={onPick} />
-              <Button variant="outline" size="sm" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
+              <Button variant="outline" size="sm" className="min-h-11 text-xs font-semibold" disabled={progress !== null} onClick={() => inputRef.current?.click()}>
                 <Icon name="upload" />
                 {progress !== null
                   ? t('expenses.receipts.uploading', 'Uploading {{percent}}%', { percent: progress })
@@ -85,9 +85,9 @@ export const ExpenseReceiptsCard: React.FC<ExpenseReceiptsCardProps> = ({ claimI
             {files.map((f) => {
               const name = fileName(f.file_path);
               return (
-                <li key={f.id} className="flex items-center gap-2 text-sm">
+                <li key={f.id} className="flex min-w-0 items-start gap-2 text-sm">
                   <Icon name="file" className="size-3.5 shrink-0 text-muted-foreground" />
-                  <span className="truncate" title={name}>{name}</span>
+                  <span className="min-w-0 break-all" title={name}>{name}</span>
                   <span className="ml-auto flex items-center gap-1">
                     <ReceiptPreview
                       fileName={name}

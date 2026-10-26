@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
@@ -19,6 +19,7 @@ const renderCard = (editable: boolean, lines: unknown[] = []) =>
   render(<ToastProvider><ExpenseLinesCard claimId="c1" lines={lines as never} isPending={false} isError={false} currency="IDR" editable={editable} /></ToastProvider>);
 
 beforeEach(() => { h.addLine.mutateAsync.mockReset().mockResolvedValue({ id: 'l2' }); });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('ExpenseLinesCard', () => {
   it('AC-EXP-062 adding a line sends the parsed amount', async () => {
@@ -52,6 +53,20 @@ describe('ExpenseLinesCard', () => {
     expect(within(table).getAllByText(formatNumber(150000))).toHaveLength(1);
     expect(screen.queryByTestId('lines-total')).not.toBeInTheDocument();
     expect(within(table).getByText('Taxi')).toBeInTheDocument();
+  });
+  it('AC-806 phone line rows show full description, date/type, exact value and eligible actions', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const longLine = { ...LINE, description: 'Transport for Pembangunan Gedung Layanan Terpadu Tahap IV Baru', amount: 2226648000 };
+    renderCard(true, [longLine]);
+    const list = screen.getByTestId('dt-card-branch');
+    const item = within(list).getAllByRole('listitem').find((candidate) => within(candidate).queryByText(/Transport for/))!;
+    expect(within(item).getByText('Transport for Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
+    expect(item.querySelector('time')).toHaveAttribute('datetime', '2026-10-01');
+    expect(within(item).getByText('Travel')).toBeInTheDocument();
+    expect(within(item).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(item).getByRole('button', { name: /Edit line Transport for/ })).toHaveClass('min-h-11');
+    expect(within(item).getByRole('button', { name: /Remove line Transport for/ })).toHaveClass('min-h-11');
+    expect(item).not.toHaveTextContent('IDR');
   });
   it('a fixed-width actions column has no resize handle (min = max is inert, #1239)', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({ matches: query.includes('min-width: 768px'), addEventListener: vi.fn(), removeEventListener: vi.fn() })));

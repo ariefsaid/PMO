@@ -111,14 +111,13 @@ const ExpenseClaimDetail: React.FC = () => {
             <span>{expenseKindLabel(claim.kind, t)}</span>
             <span>{claim.claimant?.full_name ?? '—'}</span>
             {claim.project_id ? (
-              <Link to={`/projects/${claim.project_id}`} className="text-primary-text hover:underline" title={claim.project?.name}>{claim.project ? projectDisplayName(claim.project) : '—'}</Link>
+              <Link to={`/projects/${claim.project_id}`} className="break-words text-primary-text hover:underline" title={claim.project?.name}>{claim.project?.name ?? '—'}</Link>
             ) : (
               <span>{t('expenses.overhead', 'Overhead')}</span>
             )}
             {claim.budget_category && <span>{budgetCategoryLabel(claim.budget_category, t)}</span>}
           </span>
         }
-        primaryAction={canEdit ? <Button variant="outline" size="sm" className="min-h-11" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
       />
 
       <section aria-labelledby="expense-evidence-heading" className="mb-8 border-b border-border pb-4">
@@ -153,6 +152,10 @@ const ExpenseClaimDetail: React.FC = () => {
           </p>
         )}
       </section>
+
+      {canEdit && <div className="mb-5 flex justify-end">
+        <Button variant="outline" size="sm" className="min-h-11 text-xs font-semibold" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button>
+      </div>}
 
       {claim.kind === 'claim' && (
         <ExpenseLinesCard claimId={claim.id} lines={linesQuery.data ?? []} isPending={linesQuery.isPending}

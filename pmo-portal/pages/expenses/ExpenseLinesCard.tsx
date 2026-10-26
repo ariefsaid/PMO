@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, SelectField,
+  Button, ConfirmDialog, DataTable, EntityFormModal, FormGrid, FormSection, ListState, SelectField,
   TextField, useEntityForm, useToast, type Column, type SubmitError,
 } from '@/src/components/ui';
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
@@ -46,6 +46,25 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
       </div>,
     }] : []),
   ], [currency, editable, t]);
+  const mobileRow = (line: ExpenseClaimLineRow) => (
+    <div className="grid gap-3 p-3">
+      <div className="min-w-0">
+        <div className="break-words text-sm text-foreground">{line.description}</div>
+        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-muted-foreground">
+          <time dateTime={line.expense_date}>{formatDateOnly(line.expense_date)}</time>
+          <span aria-hidden="true">·</span>
+          <span className="break-words">{expenseTypeLabel(line.expense_type, t)}</span>
+        </div>
+      </div>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <span className="whitespace-nowrap text-sm tabular text-foreground">{formatNumber(Number(line.amount))}</span>
+        {editable && <div className="flex flex-wrap gap-1">
+          <Button variant="ghost" size="sm" className="min-h-11 text-xs font-semibold" onClick={() => setEditing(line)} aria-label={t('expenses.lines.editAria', 'Edit line {{description}}', { description: line.description })}>{t('expenses.lines.edit', 'Edit')}</Button>
+          <Button variant="ghost" size="sm" className="min-h-11 text-xs font-semibold" onClick={() => setRemoveTarget(line)} aria-label={t('expenses.lines.removeAria', 'Remove line {{description}}', { description: line.description })}>{t('expenses.lines.remove', 'Remove')}</Button>
+        </div>}
+      </div>
+    </div>
+  );
 
   const confirmRemove = async () => {
     if (!removeTarget) return;
@@ -59,17 +78,11 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   };
 
   return (
-    <Card variant="bare" className="mb-4">
-      <CardHead
-        actions={
-          editable && (
-            <Button variant="outline" size="sm" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>
-          )
-        }
-      >
-        {t('expenses.lines.titleWithCurrency', 'Lines · {{currency}}', { currency })}
-      </CardHead>
-      <CardPad>
+    <section aria-labelledby="expense-lines-heading" className="mb-6">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="expense-lines-heading" className="text-xl font-bold leading-tight text-foreground">{t('expenses.lines.titleWithCurrency', 'Lines · {{currency}}', { currency })}</h2>
+        {editable && <Button variant="outline" size="sm" className="min-h-11 text-xs font-semibold" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>}
+      </div>
         {isPending ? (
           <ListState variant="loading" rows={2} />
         ) : isError ? (
@@ -80,12 +93,12 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
           <DataTable
             rows={lines}
             columns={columns}
+            mobileRow={mobileRow}
             rowKey={(line) => line.id}
             tableId="expense-lines"
             accessibleName={t('expenses.lines.title', 'Lines')}
           />
         )}
-      </CardPad>
       {editing && (
         <ExpenseLineFormModal
           initial={editing === 'new' ? null : editing}
@@ -107,7 +120,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
         onConfirm={() => void confirmRemove()}
         onCancel={() => setRemoveTarget(null)}
       />
-    </Card>
+    </section>
   );
 };
 
