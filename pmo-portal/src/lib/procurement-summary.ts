@@ -14,25 +14,33 @@ export interface ProcurementSummary {
   open: number;
   completed: number;
   closed: number;
-  /** Sum of the server open commitment (falls back to total_value) for all non-Cancelled/Rejected rows. */
-  committedTotal: number;
+  /** Requested values remain separated by native currency and include closed request history. */
+  requestValueByCurrency: Array<{ currency: string; amount: number }>;
+  /** Open commitments remain separate from request value and are never summed across currencies. */
+  openCommitmentByCurrency: Array<{ currency: string; amount: number }>;
   /** Count of non-Cancelled/Rejected rows. */
   count: number;
+  /** Every request row represented by the three status buckets. */
+  totalCount: number;
 }
 
 /**
  * T3: Aggregates a list of procurement rows into the 3-bucket summary
  * used by the Overview "Procurement summary" card.
  */
-export function summarizeProcurement(rows: ProcurementWithRefs[]): ProcurementSummary {
+export function summarizeProcurement(rows: ProcurementWithRefs[], projectCurrency = 'IDR'): ProcurementSummary {
   let open = 0;
   let completed = 0;
   let closed = 0;
-  let committedTotal = 0;
   let count = 0;
+  const requestValues = new Map<string, number>();
+  const openCommitments = new Map<string, number>();
 
   for (const row of rows) {
     const s = row.status as string;
+    const currency = row.currency || projectCurrency;
+    const requestValue = Number(row.total_value) || 0;
+    requestValues.set(currency, (requestValues.get(currency) ?? 0) + requestValue);
     if (COMPLETED.has(s)) {
       completed++;
     } else if (CLOSED.has(s)) {
@@ -42,12 +50,21 @@ export function summarizeProcurement(rows: ProcurementWithRefs[]): ProcurementSu
     }
 
     if (!CLOSED.has(s)) {
-      committedTotal += Number(row.open_commitment ?? row.total_value) || 0;
+      const commitment = Number(row.open_commitment ?? row.total_value) || 0;
+      openCommitments.set(currency, (openCommitments.get(currency) ?? 0) + commitment);
       count++;
     }
   }
 
-  return { open, completed, closed, committedTotal, count };
+  const asCurrencyRows = (values: Map<string, number>) => [...values.entries()]
+    .sort(([left], [right]) => left === projectCurrency ? -1 : right === projectCurrency ? 1 : left.localeCompare(right))
+    .map(([currency, amount]) => ({ currency, amount }));
+
+  return {
+    open, completed, closed, count, totalCount: rows.length,
+    requestValueByCurrency: asCurrencyRows(requestValues),
+    openCommitmentByCurrency: asCurrencyRows(openCommitments),
+  };
 }
 
 /**

@@ -8,6 +8,7 @@ const makeRow = (
   status: string,
   total_value: number,
   created_at: string,
+  currency = 'IDR',
 ): ProcurementWithRefs =>
   ({
     id,
@@ -15,6 +16,7 @@ const makeRow = (
     code: `PR-${id}`,
     status,
     total_value,
+    currency,
     project_id: 'proj1',
     created_at,
     vendor: null,
@@ -33,9 +35,11 @@ const rows: ProcurementWithRefs[] = [
 ];
 
 describe('T3 — summarizeProcurement', () => {
-  it('FR-PFE-037: uses the server open commitment when present', () => {
+  it('FR-PFE-037 keeps request value separate from open commitment', () => {
     const row = { ...makeRow('g', 'Ordered', 1000, '2026-01-07T00:00:00Z'), open_commitment: 400 };
-    expect(summarizeProcurement([row]).committedTotal).toBe(400);
+    const result = summarizeProcurement([row]);
+    expect(result.requestValueByCurrency).toEqual([{ currency: 'IDR', amount: 1000 }]);
+    expect(result.openCommitmentByCurrency).toEqual([{ currency: 'IDR', amount: 400 }]);
   });
 
   it('counts Open bucket: Draft + Requested + Approved + in-flight non-terminal statuses (T3)', () => {
@@ -54,16 +58,32 @@ describe('T3 — summarizeProcurement', () => {
     expect(result.closed).toBe(2); // Cancelled(d), Rejected(e)
   });
 
-  it('committedTotal excludes Cancelled and Rejected rows (T3)', () => {
+  it('request values include history while open commitments exclude Cancelled and Rejected rows (T3)', () => {
     const result = summarizeProcurement(rows);
+    expect(result.requestValueByCurrency).toEqual([{ currency: 'IDR', amount: 6700 }]);
     // 1000 + 2000 + 3000 + 0 = 6000 (excludes d=500, e=200)
-    expect(result.committedTotal).toBe(6000);
+    expect(result.openCommitmentByCurrency).toEqual([{ currency: 'IDR', amount: 6000 }]);
   });
 
-  it('includes $0 total_value rows in committedTotal count (T3 edge)', () => {
+  it('counts every request status separately from active request count (T3 edge)', () => {
     const result = summarizeProcurement(rows);
     // 4 non-Cancelled/Rejected rows → count = 4
     expect(result.count).toBe(4);
+    expect(result.totalCount).toBe(6);
+  });
+
+  it('keeps request values and commitments separated by native currency', () => {
+    const mixed = [
+      makeRow('idr', 'Ordered', 1_000, '2026-01-01T00:00:00Z', 'IDR'),
+      { ...makeRow('usd', 'Requested', 25, '2026-01-02T00:00:00Z', 'USD'), open_commitment: 20 },
+    ];
+    const result = summarizeProcurement(mixed, 'IDR');
+    expect(result.requestValueByCurrency).toEqual([
+      { currency: 'IDR', amount: 1_000 }, { currency: 'USD', amount: 25 },
+    ]);
+    expect(result.openCommitmentByCurrency).toEqual([
+      { currency: 'IDR', amount: 1_000 }, { currency: 'USD', amount: 20 },
+    ]);
   });
 
   it('returns all zeros for empty rows (T3 edge)', () => {
@@ -71,8 +91,10 @@ describe('T3 — summarizeProcurement', () => {
     expect(result.open).toBe(0);
     expect(result.completed).toBe(0);
     expect(result.closed).toBe(0);
-    expect(result.committedTotal).toBe(0);
+    expect(result.requestValueByCurrency).toEqual([]);
+    expect(result.openCommitmentByCurrency).toEqual([]);
     expect(result.count).toBe(0);
+    expect(result.totalCount).toBe(0);
   });
 });
 

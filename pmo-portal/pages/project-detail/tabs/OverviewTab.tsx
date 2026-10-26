@@ -81,8 +81,11 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
   const projectProc = useMemo(() => projectProcData ?? [], [projectProcData]);
-  const procSummary = useMemo(() => summarizeProcurement(projectProc), [projectProc]);
+  const procSummary = useMemo(() => summarizeProcurement(projectProc, project.currency), [projectProc, project.currency]);
   const top3Proc = useMemo(() => recentRequests(projectProc, 3), [projectProc]);
+  const requestValueSummary = procSummary.requestValueByCurrency
+    .map(({ currency, amount }) => formatCurrency(amount, currency))
+    .join(' · ');
 
   // T16/T17 — Budget snapshot
   const { data: budgetVersions, isPending: budgetPending, isError: budgetError, refetch: budgetRefetch } = useBudgetVersions(project.id);
@@ -201,8 +204,8 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                   i18nKey="uxs01.totalRequestValueAcross"
                   defaults="Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
                   values={{
-                    amount: formatCurrency(procSummary.committedTotal, project.currency),
-                    n: String(procSummary.count),
+                  amount: requestValueSummary,
+                  n: String(procSummary.totalCount),
                     unit:
                       procSummary.count === 1
                         ? t('projectDetail.overview.procSummary.requestOne', 'request')
@@ -238,7 +241,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                           </div>
                         </div>
                         <span className="shrink-0 text-sm font-semibold tabular text-foreground">
-                          {formatCurrency(Number(pr.total_value), project.currency)}
+                          {formatCurrency(Number(pr.total_value), pr.currency || project.currency)}
                         </span>
                       </button>
                     </li>
