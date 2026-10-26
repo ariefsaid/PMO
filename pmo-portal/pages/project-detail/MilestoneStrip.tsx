@@ -27,6 +27,8 @@ export interface MilestoneStripProps {
   compactWhenEmpty?: boolean;
   /** UIP-005: common context only; the full planner belongs to Overview. */
   summary?: boolean;
+  /** Overview already shows the planner's rollup; hide its duplicate in the attention line. */
+  showSummaryRollup?: boolean;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -55,7 +57,9 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
-const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false, summary = false }) => {
+const MilestoneStrip: React.FC<MilestoneStripProps> = ({
+  projectId, compactWhenEmpty = false, summary = false, showSummaryRollup = true,
+}) => {
   const { t } = useTranslation();
   const location = useLocation();
   const may = usePermission();
@@ -138,9 +142,9 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </>
         ) : (
           <>
-            <span className="tabular">
+            {showSummaryRollup && <span className="tabular">
               <span className="sr-only md:not-sr-only">{t('projectDetail.milestones.rollupLabel', 'Project delivery')} </span>{pct(deliveryRollup)}
-            </span>
+            </span>}
             {current && (
               <span className="min-w-0 break-words font-semibold text-foreground">
                 {t('projectDetail.milestones.currentPhase', 'Current: {{name}}', { name: current.name })}

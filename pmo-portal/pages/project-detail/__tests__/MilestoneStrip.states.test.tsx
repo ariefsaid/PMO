@@ -36,11 +36,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import MilestoneStrip from '../MilestoneStrip';
 
-const render$ = (summary = false) =>
+const render$ = (summary = false, showSummaryRollup = true) =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <MilestoneStrip projectId="p1" summary={summary} />
+        <MilestoneStrip projectId="p1" summary={summary} showSummaryRollup={showSummaryRollup} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -93,6 +93,17 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     render$(true);
     expect(screen.getByTestId('milestone-summary')).toHaveTextContent('100%');
     expect(screen.queryByRole('link', { name: 'View blocking tasks' })).not.toBeInTheDocument();
+  });
+
+  it('PA-03: the Overview attention line keeps phase and blocker context without repeating the planner rollup', () => {
+    milestoneState.data = [
+      { id: 'm1', project_id: 'p1', name: 'Installation', sort_order: 0, target_date: '2000-01-01', weight: 1, input_pct: 40, effective_pct: 40, calculated_pct: 40, task_count: 2 },
+    ];
+    render$(true, false);
+    const summary = screen.getByTestId('milestone-summary');
+    expect(summary).toHaveTextContent('Installation');
+    expect(screen.getByRole('link', { name: 'View blocking tasks' })).toHaveAttribute('href', '/projects/p1/tasks');
+    expect(summary).not.toHaveTextContent('%');
   });
 
   it('AC-DEL-014: pending query renders the loading skeleton (testid milestone-strip-loading)', () => {

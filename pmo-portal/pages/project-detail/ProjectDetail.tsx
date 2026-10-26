@@ -339,7 +339,7 @@ const ProjectDetail: React.FC = () => {
               commitmentPending={commitmentPending}
               commitmentError={commitmentError}
               setTab={setTab}
-              phaseSummary={<MilestoneStrip projectId={project.id} summary />}
+              phaseSummary={<MilestoneStrip projectId={project.id} summary showSummaryRollup={false} />}
               phasePlanner={!isPipelineRecord ? <MilestoneStrip projectId={project.id} /> : undefined}
               showMoneyPosition={!isPipeline}
             />

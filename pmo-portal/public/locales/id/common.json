@@ -2511,7 +2511,8 @@
       },
       "budgetUtil": {
         "atRisk": "Berisiko",
-        "ofBudget": "dari anggaran"
+        "ofBudget": "dari anggaran",
+        "variance": "Selisih"
       },
       "finance": {
         "contract": "Kontrak"

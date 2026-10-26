@@ -97,7 +97,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const showProc = procPending || procError || projectProc.length > 0;
   const budgetPositionSupplement = (
     <div data-testid="overview-budget-position" className="min-w-0 space-y-2">
-      <h4 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.activeBudget', 'Active budget')}</h4>
+      <h4 className={projectSubsectionHeading}>{t('uxs01.budgetPosition', 'Budget position')}</h4>
       {budgetPending ? <ListState variant="loading" rows={1} className="min-h-12" /> : budgetError ? (
         <ListState variant="error" title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")} onRetry={() => budgetRefetch()} />
       ) : snapshot ? (
@@ -108,7 +108,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
               <dd className="break-words font-semibold tabular-nums">{exactMoney(snapshot.activeTotal)}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('uxs01.budgetPosition', 'Budget position')}</dt>
+              <dt className="text-xs text-muted-foreground">{t('projectDetail.overview.budgetUtil.variance', 'Variance')}</dt>
               <dd data-testid="budget-variance" className="break-words font-semibold tabular-nums">
                 {snapshot.variance > 0
                   ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: exactMoney(snapshot.variance) })

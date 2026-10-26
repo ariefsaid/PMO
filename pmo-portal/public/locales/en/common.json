@@ -2511,7 +2511,8 @@
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "ofBudget": "of budget"
+        "ofBudget": "of budget",
+        "variance": "Variance"
       },
       "finance": {
         "contract": "Contract"
