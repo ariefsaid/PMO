@@ -5,13 +5,174 @@
     }
   },
   "finishSpendingSetup": "Finish spending setup",
-  "spendingAdminHandoff": "Ask an administrator to finish spending setup.",
+  "spendingAdminHandoff": "Ask Finance or an administrator to finish this project’s spending setup.",
+  "spendingSyncHandoff": "Ask Finance or an administrator to check this project’s ERP link and latest sync.",
+  "spendingNoUpdatePartial": "No ERP spending update is available for this project yet. Coverage is partial: {{mapped}} of {{total}} categories are mapped.",
+  "spendingNoUpdateNoCategories": "No ERP spending update is available for this project yet, and no spending categories are mapped.",
+  "spendingDateUnavailable": "ERP spending is available, but its update date is not reported.",
+  "spendingDateUnavailablePartial": "ERP spending is available, but its update date is not reported. Coverage is partial: {{mapped}} of {{total}} categories are mapped.",
+  "reviewErpSync": "Check ERP project sync",
   "spendingSetupDetails": "Spending setup details",
-  "noSpendingReading": "Spending hasn't been updated yet.",
+  "noSpendingReading": "No ERP spending update is available for this project yet.",
   "categoryNeedsSetup": "Spending setup is not complete for this category.",
   "invoiceBalanceUnavailable": "Invoice balance is not available yet",
   "invoiceScope": "Only invoices linked to this project are included.",
   "noLinkedInvoices": "No invoices linked to this project yet",
   "billedWork": "Billed-work revenue",
-  "billedWorkQualifier": "Net of tax; advances excluded"
+  "billedWorkQualifier": "Net of tax; advances excluded",
+  "projectDetail": {
+    "billing": {
+      "primary": {
+        "createInvoice": "Create invoice"
+      },
+      "claims": {
+        "column": {
+          "invoiceDateEvidence": "Invoice / date / evidence"
+        },
+        "evidenceCount": "{{formattedCount}} evidence",
+        "scope": {
+          "project": "Project scope",
+          "quantityLines": "Quantity · {{count}} lines",
+          "workOrder": "Work order"
+        }
+      },
+      "notAssessed": "Not assessed"
+    },
+    "documents": {
+      "column": {
+        "revision": "Revision"
+      },
+      "newestFirst": "Document date newest first",
+      "statusDate": "Status / date",
+      "noDate": "No document date",
+      "noCode": "No code",
+      "notApplicable": "Not applicable",
+      "noRevision": "No revision",
+      "clearSearch": "Clear search",
+      "actions": "Document actions"
+    },
+    "header": {
+      "scope": {
+        "ariaLabel": "Project scope",
+        "dateRange": "{{start}} – {{end}}",
+        "projectManager": "PM: {{name}}",
+        "startDate": "Starts {{date}}",
+        "unassigned": "Unassigned",
+        "targetEnd": "Target end {{date}}"
+      }
+    },
+    "pipeline": {
+      "earlierStages": "Earlier stages",
+      "laterStages": "Later stages",
+      "backToSalesPipeline": "← Back to Sales Pipeline"
+    },
+    "procurement": {
+      "column": {
+        "vendor": "Vendor",
+        "statusDate": "Status / date"
+      },
+      "empty": {
+        "noMatches": "No requests match these search and filters"
+      },
+      "toolbar": {
+        "label": "Purchase request tools",
+        "searchLabel": "Search purchase requests",
+        "searchPlaceholder": "Search requests by name, code, or vendor…",
+        "statusFilter": "Status filter",
+        "allStatuses": "All statuses",
+        "sortRequests": "Sort requests",
+        "newest": "Newest request date",
+        "oldest": "Oldest request date",
+        "clearSearchAndFilters": "Clear search and filters"
+      },
+      "noVendor": "No vendor selected"
+    },
+    "rail": {
+      "customerPoDate": "Customer PO date"
+    },
+    "sectionNav": {
+      "current": "Current section",
+      "delivery": "Delivery",
+      "evidence": "Evidence",
+      "money": "Money",
+      "open": "Project sections",
+      "overview": "Overview"
+    },
+    "moneyPosition": {
+      "activeBudget": "Active budget",
+      "billing": "Billing",
+      "budgetCategories": "Budget categories",
+      "basisUnavailable": "Basis unavailable",
+      "clearedAgainstInvoices": "Cleared against invoices",
+      "contract": "Contract",
+      "cost": "Cost",
+      "exactRemaining": "Exact remaining",
+      "invoiceBalanceClearedNote": "ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.",
+      "invoiceRecordsInBilling": "Invoice records are in the Billing section.",
+      "erpActuals": "ERP actuals",
+      "noActiveBudget": "No active budget",
+      "stillToInvoice": "Still to invoice",
+      "spending": "Spending",
+      "title": "Money position",
+      "viewInvoices": "View invoices",
+      "settlementDetails": "Cash and non-cash settlement details",
+      "erpOutstanding": "ERP invoice balance outstanding"
+    },
+    "overview": {
+      "budgetUtil": {
+        "variance": "Variance"
+      }
+    },
+    "budget": {
+      "forecastAnswerUnavailable": "Forecast answer unavailable",
+      "comparisonUnavailable": "Budget comparison unavailable",
+      "overBudget": "Forecast exceeds the active budget",
+      "withinBudget": "Forecast is within the active budget",
+      "scrollForecast": "Category forecast · scroll horizontally for all cost inputs →"
+    },
+    "tasks": {
+      "toolbar": {
+        "allPhases": "All phases",
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "dueLatest": "Due latest",
+        "dueSoonest": "Due soonest",
+        "label": "Task tools",
+        "noMatches": "No tasks match these filters",
+        "phaseFilter": "Phase filter",
+        "searchLabel": "Search tasks",
+        "searchPlaceholder": "Search tasks, assignees, or phases…",
+        "sortTasks": "Sort tasks",
+        "statusFilter": "Status filter"
+      },
+      "noDueDate": "No due date",
+      "status": {
+        "toDo": "To Do",
+        "inProgress": "In Progress",
+        "done": "Done",
+        "blocked": "Blocked"
+      }
+    },
+    "workOrders": {
+      "positionTitle": "Contract headroom and billing position",
+      "toolbar": {
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "label": "Work order tools",
+        "newest": "Newest order date",
+        "noMatches": "No work orders match these search and filters",
+        "oldest": "Oldest order date",
+        "searchLabel": "Search work orders",
+        "searchPlaceholder": "Search by WO number, title, or client PO…",
+        "sortOrders": "Sort work orders",
+        "statusFilter": "Filter work orders by status"
+      },
+      "notBillable": "Not billable before issue",
+      "acceptanceLinesUnavailable": "Acceptance quantities are unavailable. Retry the acceptance read."
+    },
+    "filters": "Filters",
+    "scurve": {
+      "estimatedHistory": "Estimated historical progress"
+    }
+  }
 }

@@ -127,7 +127,7 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
 
     const m1Section = screen.getByRole('region', { name: /Engineering design/i });
     expect(within(m1Section).getByText(/Engineering design/i)).toBeInTheDocument();
-    expect(within(m1Section).getByText('Target 15 Aug')).toBeInTheDocument();
+    expect(within(m1Section).getByText('Target Aug 15, 2026')).toBeInTheDocument();
     expect(within(m1Section).queryByText(/50%/i)).toBeNull();
   });
 });

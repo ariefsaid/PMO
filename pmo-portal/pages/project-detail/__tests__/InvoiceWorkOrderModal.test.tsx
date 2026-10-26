@@ -45,7 +45,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     renderModal();
     expect(amountInput()).toHaveValue('80,000');
     expect(screen.getByLabelText('Description')).toHaveValue('WO-1 — Phase 1 fabrication');
-    expect(screen.getByText('Up to $80,000.00 is still to invoice on this work order.')).toBeInTheDocument();
+    expect(screen.getByText('Up to $80,000 is still to invoice on this work order.')).toBeInTheDocument();
   });
 
   it("AC-BWO-004 sends one line linked to the work order, for the project's client", async () => {
@@ -61,7 +61,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
   });
 
   it.each([
-    ['80000.01', 'Only $80,000.00 is still to invoice on this work order.'],
+    ['80000.01', 'Only $80,000 is still to invoice on this work order.'],
     ['0', 'The amount must be more than zero.'],
     ['10.001', 'Enter an amount with no more than 2 decimal places.'],
   ])('AC-BWO-004 refuses %s', async (typed, message) => {
@@ -86,7 +86,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
     await userEvent.type(screen.getByLabelText(/Item code/), 'SVC');
     await submit();
     expect(await screen.findByText('That would invoice past the work order')).toBeInTheDocument();
-    expect(screen.getByText(/This work order had \$80,000\.00 still to invoice when you opened this dialog/)).toBeInTheDocument();
+    expect(screen.getByText(/This work order had \$80,000 still to invoice when you opened this dialog/)).toBeInTheDocument();
     expect(screen.queryByText(/only 0\.00 is still to invoice/)).toBeNull();
     expect(onCreated).not.toHaveBeenCalled();
   });
@@ -105,7 +105,7 @@ describe('InvoiceWorkOrderModal (OD-BILL-1)', () => {
       await userEvent.type(screen.getByLabelText(/Kode item/), 'SVC');
       await userEvent.click(screen.getByRole('button', { name: 'Buat draf faktur' }));
       expect(await screen.findByText('Tagihan ini akan melewati nilai Work Order')).toBeInTheDocument();
-      expect(screen.getByText(/Tidak ada yang ditulis ke ERPNext/)).toHaveTextContent(/Rp\s?80\.000,00/);
+      expect(screen.getByText(/Tidak ada yang ditulis ke ERPNext/)).toHaveTextContent(/Rp\s?80\.000(?!,00)/);
       expect(screen.queryByText(/only 0\.00/)).toBeNull();
     } finally {
       resetActiveLocale();
@@ -265,7 +265,7 @@ describe('InvoiceWorkOrderModal — PMO owns revenue, no ERP (#913, OD-NAR-1 ite
     await submit();
     const region = await screen.findByTestId('entity-modal-save-error');
     expect(region).toHaveTextContent('That would invoice past the work order');
-    expect(screen.getByText(/This work order had \$80,000\.00 still to invoice when you opened this dialog/)).toBeInTheDocument();
+    expect(screen.getByText(/This work order had \$80,000 still to invoice when you opened this dialog/)).toBeInTheDocument();
     expect(region).toHaveTextContent('Nothing was saved.');
     expect(region).not.toHaveTextContent('ERPNext');
     expect(onCreated).not.toHaveBeenCalled();

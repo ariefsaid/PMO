@@ -1,12 +1,8 @@
 // @e2e-isolation: read-only — the work orders, their billing figures and the revenue ownership are answered in the
 // browser (page.route) and the profile's locale is rewritten on READ only; nothing is written to the shared database.
 /**
- * AC-BWO-004 (#785 Discover) — on the project's Work orders tab, beside the record panel, the Invoice action is inside
- * the visible box of the work-order list and nothing scrolls sideways, at 1024 / 1280 / 1440px, in English and Bahasa.
- *
- * WHAT BROKE. At 1024px the record column is ~350px; the four-column table needed ~530px, so it scrolled sideways
- * inside a clipped box — Invoice sat behind a scrollbar nobody saw and the billing words were cut mid-word at the clip.
- * The table now becomes the record cards below 576px (`@xl`) of its OWN width (DataTable `cardBelow`, AC-TBL-CARDS-001).
+ * AC-BWO-004 (#785 Discover) — on the project's Work orders section, Invoice actions stay inside the visible list
+ * and nothing scrolls sideways at 1024 / 1280 / 1440px, in English and Bahasa.
  *
  * ORACLE: geometry measured in the browser — every visible Invoice button lies within the list's box (table scroller
  * or card list), the table scroller (when there is one) has scrollWidth ≤ clientWidth, and the page itself does not
@@ -79,7 +75,7 @@ const CASES = [
   { lang: 'Bahasa Indonesia', bahasa: true, invoice: 'Tagih', widths: [1024, 1440] },
 ] as const;
 
-test.describe('AC-BWO-004 work-order billing geometry beside the record panel (#785)', () => {
+test.describe('AC-BWO-004 work-order billing actions remain reachable within the section (#785)', () => {
   for (const { lang, bahasa, invoice, widths } of CASES) {
     for (const width of widths) {
       test(`AC-BWO-004: ${lang} at ${width}px — Invoice is inside the list's visible box and nothing scrolls sideways`, async ({ page }) => {

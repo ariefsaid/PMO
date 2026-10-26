@@ -8,6 +8,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { PageFrame } from '@/src/components/shell';
+import { breadcrumbForPath } from '@/src/components/shell/routeMatch';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -153,14 +155,18 @@ vi.mock('react-router', async (orig) => {
 // ── render helper ────────────────────────────────────────────────────────────
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const renderAt = async (path: string) => {
+  const pathname = path.split('?')[0];
+  const breadcrumb = breadcrumbForPath(pathname, oppRecord.name, navigate, true);
   const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
-          <Routes>
-            <Route path="/projects/:projectId" element={<ProjectDetail />} />
-            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
-          </Routes>
+          <PageFrame breadcrumb={breadcrumb} returnLabel="Projects">
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectDetail />} />
+              <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
+            </Routes>
+          </PageFrame>
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -187,11 +193,12 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
     expect(screen.queryByRole('button', { name: /Plan delivery phases/i })).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-01 / R-007: the selected Overview section controls its commercial tabpanel', async () => {
+  it('AC-IFW-RECORD-01 / R-007: the selected Overview section controls its commercial section', async () => {
     await renderAt('/projects/opp1');
-    const selected = screen.getByRole('tab', { name: 'Overview', selected: true });
-    const panel = screen.getByRole('tabpanel', { name: 'Overview' });
-    expect(selected).toHaveAttribute('aria-controls', panel.id);
+    const selected = screen.getByRole('link', { name: 'Overview' });
+    const panel = document.getElementById('project-section-content')!;
+    expect(selected).toHaveAttribute('aria-current', 'page');
+    expect(selected).toHaveAttribute('href', '/projects/opp1/overview');
     expect(within(panel).getByLabelText('Project stage journey')).toBeInTheDocument();
   });
 
@@ -207,7 +214,7 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
     expect(screen.queryByText('Classification')).not.toBeInTheDocument();
     const rail = screen.getByTestId('project-detail-rail');
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    expect(rail.querySelector('summary')).toHaveTextContent('Details');
+    expect(rail.querySelector('summary')).toHaveTextContent('Project details');
     expect(within(rail).getByText('Engineering')).toBeInTheDocument();
     // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
     expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
@@ -234,7 +241,7 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
 
   it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
     await renderAt('/projects/opp1');
-    const tabs = within(screen.getByRole('tablist', { name: /Project sections/i })).getAllByRole('tab').map((tab) => tab.textContent);
+    const tabs = within(screen.getByRole('navigation', { name: /Project sections/i })).getAllByRole('link').map((tab) => tab.textContent);
     expect(tabs).not.toContain('Work orders');
     expect(tabs).not.toContain('Billing');
     expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents']));
@@ -242,7 +249,7 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
 
   it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
     await renderAt('/projects/opp1/work-orders');
-    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
     expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
   });

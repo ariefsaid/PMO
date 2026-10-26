@@ -167,8 +167,8 @@ describe('the rows', () => {
       row({ id: 'wo-2', tax_treatment: 'inclusive', order_value: 111_000, wo_number: 'WO-0001', status: 'Issued' }),
     ];
     renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent('$250,000 excl. PPN');
-    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('$111,000 incl. PPN');
+    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent('USD 250,000 excl. PPN');
+    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('USD 111,000 incl. PPN');
   });
 
   it('SUB-C: rate and DPP are shown only when DPP is not 1/1 or the rate is missing', () => {
@@ -178,7 +178,7 @@ describe('the rows', () => {
       row({ id: 'wo-3', tax_rate: null }),
     ];
     renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^\$250,000\s*excl\. PPN$/);
+    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^USD\s250,000\s*excl\. PPN$/);
     expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
     expect(screen.getByTestId('wo-value-wo-3')).toHaveTextContent('rate not recorded');
   });

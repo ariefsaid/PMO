@@ -34,6 +34,7 @@ export interface FinancialStatementsSectionProps {
     refreshing: string;
   };
   onRetry: () => void;
+  headingClassName?: string;
   children?: ReactNode;
 }
 
@@ -43,6 +44,7 @@ export function FinancialStatementsSection({
   state,
   labels,
   onRetry,
+  headingClassName,
   children,
 }: FinancialStatementsSectionProps) {
   const headingId = useId();
@@ -111,7 +113,7 @@ export function FinancialStatementsSection({
   return (
     <section aria-labelledby={headingId} className="min-w-0">
       <Card className="min-w-0">
-        <CardHead level={2} id={headingId} className="min-w-0 flex-wrap break-words">
+        <CardHead level={2} id={headingId} className={`min-w-0 flex-wrap break-words ${headingClassName ?? ''}`}>
           {title}
         </CardHead>
         <CardPad className="flex min-w-0 flex-col gap-3">

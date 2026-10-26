@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
@@ -7,7 +7,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatInstantDate, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -24,6 +24,8 @@ import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
+import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
+import { projectSectionHeading } from '../typography';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -36,6 +38,8 @@ import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 export interface BillingTabProps {
   projectId: string;
   currency: string;
+  /** Saved treatment on this project; financial groups never infer it from organization defaults. */
+  taxTreatment?: string | null;
   /** The project's client — the invoice customer. No client, no billing buttons. */
   clientId: string | null;
   /** Decides who may record progress (#765's rule). */
@@ -52,15 +56,15 @@ function thisMonth(): string {
 /** A lump-sum line is one lot: its progress is a fraction (0.4) shown as a percent (40%). */
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string }> = ({ testId, label, value, note }) => (
-  <div>
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd className="tabular text-[15px] font-semibold" data-testid={testId}>{value}</dd>
+  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
+    <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+    <dd className="whitespace-nowrap tabular text-sm font-normal text-right" data-testid={testId}>{value}</dd>
     {note && <dd className="text-[11px] text-muted-foreground">{note}</dd>}
   </div>
 );
 
-const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId }) => {
-  const { t } = useTranslation();
+const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatment, clientId, projectManagerId }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -87,12 +91,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [withdrawFor, setWithdrawFor] = useState<ProgressClaimWithInvoice | null>(null);
 
   const boqRows = boq.data ?? [];
-  const claimRows = claims.data ?? [];
+  const claimRows = useMemo(() => claims.data ?? [], [claims.data]);
+  const orderedClaimRows = useMemo(() => [...claimRows].sort((left, right) =>
+    right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)), [claimRows]);
+  const workOrderById = useMemo(() => new Map((workOrders.data ?? []).map((row) => [row.id, row] as const)), [workOrders.data]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
-  const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
-  const money = (value: number) => formatCurrencyCents(value, currency);
-  const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
+  const money = (value: number) => formatProjectDetailAmount(value, currency, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
+  const cents = (value: number | string) => formatProjectDetailAmount(value, currency, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
+  const taxBasisText = taxTreatment === 'exclusive'
+    ? t('tax.basis.exclusive', 'excl. PPN')
+    : taxTreatment === 'inclusive' ? t('tax.basis.inclusive', 'incl. PPN') : null;
+  const figureScope = [currency, taxBasisText].filter(Boolean).join(' · ');
 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
@@ -180,24 +190,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const lineProject = Boolean(summary && summary.contractLines.length > 0);
 
   const boqColumns: Column<BoqItemRow>[] = [
-    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
+    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), stickyLeft: true, cell: (row) => (
       <div className="flex flex-col">
         <span className="font-semibold">{row.item_code}</span>
         <span className="text-[11px] text-muted-foreground">{row.description}</span>
       </div>
     ) },
-    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
+    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Unit / basis'), align: 'num',
       cell: (row) => row.earning_basis === 'lump_sum'
         ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
-        : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
-    { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
-      cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
+        : <span className="tabular">{!hasLines || Number(row.quantity) !== lineFactsById.get(row.id)?.orderedQuantity ? `${formatNumberExact(Number(row.quantity))} ` : ''}{row.unit}</span> },
     ...(hasLines ? [
       { key: 'ordered', header: t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return <span className="tabular" data-testid={`boq-ordered-${row.id}`}>{f ? quantityText(row, f.orderedQuantity) : '—'}</span>;
       } },
-      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Not yet ordered'), align: 'num' as const, cell: (row: BoqItemRow) => {
+      { key: 'balance', header: t('projectTabs:contractQuantities.billing.boq.column.balance', 'Available to order'), align: 'num' as const, cell: (row: BoqItemRow) => {
         const f = lineFactsById.get(row.id);
         return (
           <span className="tabular" data-testid={`boq-balance-${row.id}`}>
@@ -226,7 +234,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       const assessed = summary?.assessedByBoqItem[row.id];
       return (
         <span className="tabular" data-testid={`boq-assessed-${row.id}`}>
-          {assessed === undefined ? '—' : row.earning_basis === 'lump_sum' ? percentOfLot(assessed) : formatNumberExact(assessed)}
+          {assessed === undefined ? t('project:projectDetail.billing.notAssessed', 'Not assessed') : row.earning_basis === 'lump_sum' ? percentOfLot(assessed) : formatNumberExact(assessed)}
         </span>
       );
     } },
@@ -255,13 +263,15 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </span>
       );
     } },
+    { key: 'rate', header: t('projectDetail.billing.boq.column.rate', 'Rate'), align: 'num',
+      cell: (row) => <span className="tabular">{cents(row.rate)}</span> },
     { key: 'actions', header: t('projectDetail.billing.boq.column.actions', 'Actions'), cell: (row) => (
       <div className="flex gap-1.5">
         {may('edit', 'boqItem') && (
-          <Button variant="ghost" size="sm" onClick={() => setBoqFormFor(row)}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>
+          <Button variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setBoqFormFor(row)}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>
         )}
         {may('delete', 'boqItem') && (
-          <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+          <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
             onClick={() => setDeleteFor(row)}>{t('projectDetail.billing.boq.delete', 'Delete')}</Button>
         )}
       </div>
@@ -269,10 +279,41 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   ];
 
   const claimColumns: Column<ProgressClaimWithInvoice>[] = [
-    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), cell: (c) => (
-      <span>{c.kind === 'down_payment'
-        ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
-        : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim / scope'), stickyLeft: true, cell: (c) => {
+      const workOrder = c.work_order_id ? workOrderById.get(c.work_order_id) : undefined;
+      const scope = workOrder
+        ? workOrder.wo_number ?? workOrder.title
+        : c.work_order_id
+          ? t('project:projectDetail.billing.claims.scope.workOrder', 'Work order')
+          : c.lines.length > 0
+            ? t('project:projectDetail.billing.claims.scope.quantityLines', 'Quantity · {{count}} lines', { count: c.lines.length })
+            : t('project:projectDetail.billing.claims.scope.project', 'Project scope');
+      return (
+        <div className="flex min-w-0 flex-col">
+          <span className="font-semibold">{c.kind === 'down_payment'
+            ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
+            : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
+          <span className="break-words text-xs text-muted-foreground" title={scope}>{scope}</span>
+        </div>
+      );
+    } },
+    { key: 'invoiceDateEvidence', header: t('project:projectDetail.billing.claims.column.invoiceDateEvidence', 'Invoice / date / evidence'), cell: (c) => (
+      <div className="flex flex-col gap-0.5">
+        <span>{c.withdrawn_at
+          ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
+          : c.invoice
+            ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
+            : t('projectDetail.billing.claims.notRaised', 'Not raised')}</span>
+        <time dateTime={c.created_at} data-testid={`claim-date-${c.id}`} className="text-[11px] text-muted-foreground">
+          {formatInstantDate(c.created_at)}
+        </time>
+        <span className="text-[11px] text-muted-foreground" data-testid={`claim-evidence-${c.id}`}>
+          {t('project:projectDetail.billing.claims.evidenceCount', '{{formattedCount}} evidence', {
+            count: c.evidence.length,
+            formattedCount: formatNumber(c.evidence.length),
+          })}
+        </span>
+      </div>
     ) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Claimed'), align: 'num',
       cell: (c) => <span className="tabular">{cents(c.gross_amount)}</span> },
@@ -280,26 +321,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       cell: (c) => <span className="tabular">{cents(c.dp_recovery_amount)}</span> },
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num',
       cell: (c) => <span className="tabular">{cents(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span> },
-    { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (c) => (
-      <span>{c.withdrawn_at
-        ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
-        : c.invoice
-          ? `${c.invoice.si_number ?? ''} · ${c.invoice.status}`
-          : t('projectDetail.billing.claims.notRaised', 'Not raised')}</span>
-    ) },
-    { key: 'evidence', header: t('projectDetail.billing.claims.column.evidence', 'Evidence'), align: 'num',
-      cell: (c) => <span className="tabular" data-testid={`claim-evidence-${c.id}`}>{formatNumber(c.evidence.length)}</span> },
     { key: 'actions', header: t('projectDetail.billing.claims.column.actions', 'Actions'), cell: (c) => {
       const open = !c.withdrawn_at && !c.invoice;
+      if (!open || !canBill) return null;
       return (
         <div className="flex flex-wrap items-center gap-1.5" data-testid={`claim-actions-${c.id}`}>
           {open && canBill && (
-            <Button variant="outline" size="sm" onClick={() => setEvidenceFor(c.id)}>
+            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setEvidenceFor(c.id)}>
               {t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}
             </Button>
           )}
           {open && canBill && (c.evidence.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
+            <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (
@@ -308,7 +341,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </span>
           ))}
           {open && canBill && (
-            <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+            <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
               onClick={() => setWithdrawFor(c)}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>
           )}
         </div>
@@ -321,25 +354,22 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     && !claims.isPending && !claims.isError && claimRows.length === 0;
   const evidenceClaim = claimRows.find((c) => c.id === evidenceFor);
 
+
   const boqCard = (
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-base"
+        className={`border-0 px-0 py-0 ${projectSectionHeading}`}
         actions={
           <>
-            {canAssess && boqRows.length > 0 && (
-              <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
-                {t('projectDetail.billing.assessment.record', 'Record progress')}
-              </Button>
-            )}
             {may('create', 'boqItem') && (
-              <Button variant="primary" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
             )}
           </>
         }
       >
-        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
+        {t('projectDetail.billing.boq.title', 'Bill of quantities')} · {currency}
+        {taxBasisText ? ` · ${taxBasisText}` : ''}
       </CardHead>
       <CardPad>
         <DataTable<BoqItemRow>
@@ -352,6 +382,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
           errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => boq.refetch()}
+          accessibleName={`${t('projectDetail.billing.boq.title', 'Bill of quantities')} · ${currency}`}
+          mobileTable
+          cardBelow={700}
         tableId="project-detail-tabs-billingtab-1-table" />
       </CardPad>
     </Card>
@@ -361,18 +394,19 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-base"
+        className={`border-0 px-0 py-0 ${projectSectionHeading}`}
         actions={
           canBill && !canStartInvoice && (
-            <Button variant="primary" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >
-        {t('projectDetail.billing.claims.title', 'Billing claims')}
+        {t('projectDetail.billing.claims.title', 'Billing claims')} · {currency}
+        {taxBasisText ? ` · ${taxBasisText}` : ''}
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
-          rows={claimRows}
+          rows={orderedClaimRows}
           columns={claimColumns}
           rowKey={(row) => row.id}
           state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
@@ -381,32 +415,41 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
+          accessibleName={`${t('projectDetail.billing.claims.title', 'Billing claims')} · ${currency}`}
+          mobileTable
+          cardBelow={700}
         tableId="project-detail-tabs-billingtab-2-table" />
       </CardPad>
     </Card>
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <Card variant="bare">
         <CardHead
           level={2}
-          className="text-base"
+          className={`border-0 px-0 py-0 ${projectSectionHeading}`}
           actions={
-            canStartInvoice && (
+            canStartInvoice ? (
               <ProjectBillingStart
                 projectId={projectId}
                 clientId={clientId}
+                triggerLabel={t('project:projectDetail.billing.primary.createInvoice', 'Create invoice')}
+                triggerClassName="max-sm:min-h-11 max-sm:w-full"
                 onWorkOrder={() => {
                   navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
                 }}
                 onQuantity={canBill ? () => setClaimFormOpen(true) : undefined}
               />
-            )
+            ) : canAssess && boqRows.length > 0 ? (
+              <Button variant="primary" size="sm" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setAssessOpen(true)}>
+                {t('projectDetail.billing.assessment.record', 'Record progress')}
+              </Button>
+            ) : undefined
           }
         >
-          {t('projectDetail.billing.summary.title', 'Billing summary')}
-          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{excl}</span>
+          {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {currency}
+          {taxBasisText ? ` · ${taxBasisText}` : ''}
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -414,7 +457,11 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           ) : billing.isError || !summary ? (
             <ListState variant="error" title={t('projectDetail.billing.summary.error', "Couldn't load billing")} onRetry={() => void billing.refetch()} />
           ) : (
-            <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <><h3 data-primary-figure="true" aria-label={`${t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} · ${money(summary.remaining)}`}>
+              <span className="project-primary-label">{t('projectDetail.billing.summary.remaining', 'Contract not yet billed')}</span>
+              <span className="project-primary-value">{money(summary.remaining)}</span>
+            </h3>
+            <dl className="project-facts mt-4 space-y-2">
               <Figure testId="billing-contract" label={t('projectDetail.billing.summary.contract', 'Contract value')} value={money(summary.contractNet)} />
               <Figure testId="billing-billed" label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={money(summary.workBilled)} />
               {summary.assessedToDate !== null && summary.assessedToDate !== 0 && (lineProject || summary.assessment) && (
@@ -434,14 +481,14 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               {summary.dpHeld !== 0 && (
                 <Figure testId="billing-dp-held" label={t('projectDetail.billing.summary.dpHeld', 'Down payment held')} value={money(summary.dpHeld)} />
               )}
-              <Figure testId="billing-remaining" label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={money(summary.remaining)} />
+              <Figure testId="billing-remaining" label={t('project:projectDetail.moneyPosition.exactRemaining', 'Exact remaining')} value={money(summary.remaining)} />
               {summary.notSubmitted !== 0 && (
                 <Figure testId="billing-not-submitted" label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={money(summary.notSubmitted)} />
               )}
-            </dl>
+            </dl></>
           )}
           {summary && lineProject && !summary.assessment && (
-            <p className="mt-3 text-[12px] text-muted-foreground" data-testid="billing-unassessed">
+            <p className="mt-3 text-xs text-muted-foreground" data-testid="billing-unassessed">
               {t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}
             </p>
           )}
@@ -450,18 +497,18 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       {quantityEmpty ? (
         <details className="group">
-          <summary className="cursor-pointer rounded text-base font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('projectTabs:billing.quantity', 'Quantity billing')}
           </summary>
           <div className="mt-3 space-y-6">
-            {boqCard}
             {claimsCard}
+            {boqCard}
           </div>
         </details>
       ) : (
         <>
-          {boqCard}
           {claimsCard}
+          {boqCard}
         </>
       )}
 
@@ -494,7 +541,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             <div className="flex flex-col gap-2">
               <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
               <p data-testid="raise-figures">
-                {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
+                {t('projectDetail.billing.claims.confirmRaise.figures', '{{scope}} · Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}}', {
+                  scope: figureScope,
                   gross: cents(raiseFor.claim.gross_amount),
                   recovery: cents(raiseFor.claim.dp_recovery_amount),
                   net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),

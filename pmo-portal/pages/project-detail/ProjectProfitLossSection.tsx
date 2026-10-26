@@ -8,6 +8,7 @@ import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hoo
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead } from '@/src/lib/financialStatements';
 import { formatDateOnly } from '@/src/lib/format';
+import { projectSectionHeading } from './typography';
 
 export interface ProjectProfitLossSectionProps {
   projectId: string;
@@ -161,6 +162,7 @@ const ProjectProfitLossSection: React.FC<ProjectProfitLossSectionProps> = ({ pro
         state={sectionState}
         labels={sectionLabels}
         onRetry={onRetry}
+        headingClassName={projectSectionHeading}
       >
         {validRead && totalsRead && totalsRead.result.viewKind === 'project_totals' && (
           <ProjectStatementTotals

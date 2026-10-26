@@ -352,7 +352,7 @@ export function ProjectMatchReview({
         </p>
       )}
       {projectId && projectCanReview && canManage && !reviewOpen && (
-        <Button variant='outline' size='sm' onClick={openReview}>
+        <Button variant='outline' size='sm' className='min-h-11' onClick={openReview}>
           {t('uxs09.reviewAction', 'Review project match')}
         </Button>
       )}

@@ -198,7 +198,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
       await expect(page.getByRole('heading', { name: projectName })).toBeVisible();
       await setDiscoverPresentation(page, 'en', 'light');
       await expect(page.getByTestId('record-header').getByText(companyName, { exact: true })).toBeVisible();
-      await page.getByRole('button', { name: localized('Start invoice', 'Mulai membuat faktur') }).click();
+      await page.getByRole('button', { name: localized('Create invoice', 'Buat faktur') }).click();
       const chooser = page.getByRole('dialog', { name: localized('Start invoice', 'Mulai membuat faktur') });
       await expect(chooser).toBeVisible();
       await expect(chooser.getByRole('button', { name: localized('Customer work order', 'Work Order pelanggan') })).toBeVisible();
@@ -232,7 +232,7 @@ test('AC-S15-004 Finance starts a work-order invoice from the project, saves the
     } else {
       await page.goto('/projects/' + projectId + '/billing');
     }
-    await page.getByRole('button', { name: localized('Start invoice', 'Mulai membuat faktur') }).click();
+    await page.getByRole('button', { name: localized('Create invoice', 'Buat faktur') }).click();
     await page.getByRole('button', { name: localized('Customer work order', 'Work Order pelanggan') }).click();
     await expect(page).toHaveURL(new RegExp('/projects/' + projectId + '/work-orders$'));
 

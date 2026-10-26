@@ -6,10 +6,10 @@ import { login, pickComboboxOption, openPipelineCard, waitForFonts, visibleToast
  * AC-CHG-019 — Project change history (record-change-history spec D5), real user journey.
  *
  * A PM creates a project for one client with an expected end date, then edits its CLIENT and END DATE
- * in one save, then moves the end date again, and opens the project's History tab. GOAL ORACLE: the top
+ * in one save, then moves the end date again, and opens the project's History section. GOAL ORACLE: the top
  * entry is the latest save — the PM's name, "just now", `End date: old → new`; the save below it shows
  * `Client: <A> → <B>` and the first date move, both as names / formatted dates (never uuids or ISO).
- * Mobile: the tab never scrolls the page sideways. Cleanup: an Executive archives the project.
+ * Mobile: the section layout never scrolls the page sideways. Cleanup: an Executive archives the project.
  */
 test.setTimeout(150_000);
 
@@ -28,7 +28,7 @@ async function editProject(page: Page, edit: (dialog: Locator) => Promise<void>)
   await expect(dialog).not.toBeVisible({ timeout: 15_000 });
 }
 
-test('AC-CHG-019: a PM edits a project\'s client and end date and the History tab shows who, when and old → new, newest first', async ({ page }) => {
+test('AC-CHG-019: a PM edits a project\'s client and end date and the History section shows who, when and old → new, newest first', async ({ page }) => {
   const name = `E2E-History-${Date.now()}`;
 
   // ── The PM creates a project for client A, ending 30 Nov 2026 ─────────────────────────────────
@@ -57,7 +57,9 @@ test('AC-CHG-019: a PM edits a project\'s client and end date and the History ta
   });
 
   await page.goto(`${projectUrl}/history`);
-  await expect(page.getByRole('tab', { name: 'History', selected: true })).toBeVisible({ timeout: 15_000 });
+  const projectNavigation = page.getByRole('navigation', { name: 'Project sections' });
+  await expect(projectNavigation.getByRole('link', { name: 'History', exact: true }))
+    .toHaveAttribute('aria-current', 'page', { timeout: 15_000 });
   const events = page.getByTestId('history-event');
   await expect(events.first()).toBeVisible({ timeout: 15_000 });
 

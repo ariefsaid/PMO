@@ -1,7 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { attributedSplit, formatExactMoney } from '@/src/lib/projectFinances';
+import { attributedSplit } from '@/src/lib/projectFinances';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
 
 /**
  * #1271 AC-3, budget vs actual: one secondary line naming the part of the project's recorded spending that cost
@@ -14,10 +15,10 @@ export function AttributedSpendingNote({ projectId }: { projectId: string }) {
   const { data } = useProjectFinances(projectId);
   const actuals = data?.actuals;
   const split = actuals?.currency ? attributedSplit({ attributed: actuals.attributed_total }) : null;
-  const amount = split && actuals?.currency ? formatExactMoney(split.attributed, actuals.currency, i18n.language) : null;
+  const amount = split && actuals?.currency ? formatProjectDetailMoney(split.attributed, actuals.currency, i18n.language) : null;
   if (!amount) return null;
   return (
-    <p className="text-[12px] text-muted-foreground" data-testid="budget-attributed-note">
+    <p className="text-xs text-muted-foreground" data-testid="budget-attributed-note">
       {t('costAttribution:split.budget', 'Across all years, {{attributed}} of recorded spending is attributed by cost rules, not tagged to this project in the ERP.', { attributed: amount })}
     </p>
   );

@@ -1,3 +1,4 @@
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -75,6 +76,25 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('AC-PD-HIST-01 labels newest-first order and returns from an empty kind filter to all history', async () => {
+    const allEvents = [
+      ev(2, { entityType: 'project', op: 'insert', changes: {} }),
+      ev(1, { entityType: 'task', op: 'insert', entityId: 't1', changes: {} }),
+    ];
+    repo.recordHistory.list.mockImplementation(async (args: { entityTypes?: string[] | null }) => ({
+      events: args.entityTypes?.includes('task') ? [] : allEvents,
+      nextCursor: null,
+    }));
+    renderIt({ includeChildren: true, kindFilters: true });
+
+    expect(await screen.findByText('Newest first')).toBeVisible();
+    await userEvent.click(await screen.findByRole('button', { name: 'Tasks' }));
+    expect(await screen.findByText('No task changes')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'All kinds' }));
+    expect(await screen.findByText('Project created')).toBeVisible();
+    expect(screen.getAllByTestId('history-event')).toHaveLength(2);
+  });
+
   it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),
@@ -243,8 +263,8 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Load older' }));
     await waitFor(() => expect(screen.getAllByTestId('history-group')).toHaveLength(2));
     const groups = screen.getAllByTestId('history-group');
-    const firstGroup = within(groups[0]).getByRole('button', { name: '2 system events' });
-    const secondGroup = within(groups[1]).getByRole('button', { name: '2 system events' });
+    const firstGroup = within(groups[0]).getByRole('button', { name: /2 system events/ });
+    const secondGroup = within(groups[1]).getByRole('button', { name: /2 system events/ });
     expect(firstGroup).toHaveAttribute('aria-expanded', 'false');
     expect(secondGroup).toHaveAttribute('aria-expanded', 'false');
 
@@ -373,16 +393,16 @@ describe('RecordHistory — formatting (AC-CHG-015)', () => {
     expect(within(row).queryByRole('button', { name: 'View details' })).toBeNull();
   });
 
-  it('SUB-G shows relative time only in the row; the exact minute lives in the tooltip', async () => {
+  it('H-08 shows relative time, the absolute minute and timezone in the row', async () => {
     const at = '2026-10-06T09:41:00Z';
     repo.recordHistory.list.mockResolvedValue({ events: [ev(1, { op: 'insert', createdAt: at })], nextCursor: null });
     renderIt();
     await screen.findByText('Created');
     const time = screen.getByTestId('history-event').querySelector('time')!;
     const expected = formatDateTime(new Date(at));
-    expect(time).toHaveTextContent(/ago$/);
-    expect(time).not.toHaveTextContent(expected);
-    expect(time).not.toHaveTextContent('·');
+    expect(time).toHaveTextContent(/ago/);
+    expect(time).toHaveTextContent(expected);
+    expect(time).toHaveTextContent(getActiveLocale().timezone);
     expect(time).toHaveAttribute('title', expected);
     expect(time).toHaveAttribute('dateTime', at);
   });

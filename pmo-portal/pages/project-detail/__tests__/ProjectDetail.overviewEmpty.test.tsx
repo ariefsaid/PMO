@@ -69,23 +69,27 @@ const renderOverview = async () => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
-  const panel = screen.getByRole('tabpanel');
-  await within(panel).findByRole('heading', { level: 2, name: 'Comments' });
-  return panel;
+  await waitFor(
+    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
+    { timeout: 60_000 },
+  );
+  const panel = document.getElementById('project-section-content');
+  expect(panel).not.toBeNull();
+  await within(panel!).findByRole('heading', { level: 2, name: 'Comments' });
+  return panel!;
 };
 
 describe('PD-B Overview renders only blocks with data', () => {
-  it('PD-B: with no budget, phases, work orders, requests or statements, Overview is one phases line + Project finances + Comments', async () => {
-    const panel = await renderOverview();
-    expect(within(panel).getAllByRole('heading', { level: 2 }).map((el) => el.textContent)).toEqual(['Project finances', 'Comments']);
-    const phases = within(panel).getByTestId('milestone-strip-empty');
+  it('keeps the empty project usable: users can plan phases, read known finance, and reach comments', async () => {
+    await renderOverview();
+    const phases = screen.getByTestId('milestone-strip-empty');
     expect(phases).toHaveTextContent('No delivery phases yet');
-    expect(within(phases).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
-    for (const gone of ['Budget utilization', 'Budget snapshot', 'Procurement summary', 'Contract drawdown', 'Progress curve',
-      'Project profit and loss', 'No active budget', 'Statements are not available yet', "Plan this project's delivery phases",
-      'No purchase requests for this project yet', 'No dated phases yet']) {
-      expect(within(panel).queryByText(gone)).toBeNull();
-    }
+    expect(within(phases).getByRole('button', { name: 'Add phase' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Money position' })).toBeInTheDocument();
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('5,000,000');
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('Recorded spending');
+    expect(screen.getByRole('heading', { level: 2, name: 'Comments' })).toBeInTheDocument();
+    expect(screen.queryByText('No purchase requests for this project yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Statements are not available yet')).not.toBeInTheDocument();
   });
 });

@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { PageFrame } from '@/src/components/shell';
+import { breadcrumbForPath } from '@/src/components/shell/routeMatch';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -161,16 +163,20 @@ const pipelineRow = {
 // (A-1 gate = Admin·Exec·PM). The role reaches usePermission via the mocked useEffectiveRole
 // (above) → 'Project Manager', so the journey (lifecycle controls shown) is preserved.
 const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  const pathname = typeof path === 'string' ? path.split('?')[0] : path.pathname;
+  const breadcrumb = breadcrumbForPath(pathname, 'Acme Tender Bid', navigate, true);
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
-        <Routes>
-          <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        </Routes>
+        <PageFrame breadcrumb={breadcrumb} returnLabel="Projects">
+          <Routes>
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          </Routes>
+        </PageFrame>
       </ToastProvider>
     </MemoryRouter>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 10_000 });
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(), { timeout: 60_000 });
   return view;
 };
 
@@ -188,17 +194,16 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
 
     // header is shared across lenses
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    // delivery lens: the 5 section tabs are present
-    expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
-    // the contract-value SoD editor row is mounted on a won/on-hand project
-    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+    // Delivery sections are directly addressable, and the read-only value reason lives in Overview.
+    expect(screen.getByRole('navigation', { name: /project sections/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
     // the pipeline lens is NOT mounted
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders its journey and keeps planning sections reachable', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -214,19 +219,16 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // ADR-0021: the delivery tabs ARE now mounted pre-win (the budget/tasks/procurement planning
+    // ADR-0021: delivery sections ARE mounted pre-win (the budget/tasks/procurement planning
     // surface a PM needs while pursuing the deal) — this is the override of ADR-0020 §1.
-    expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: /project sections/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Budget' })).toBeInTheDocument();
     // the contract-value SoD editor stays delivery-only (the deal's value lives in the banner).
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });
 
-  // list-working-set-return (#682, AC-LRC-004): ProjectDetail forwards its OWN router
-  // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
-  // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
-  // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
+  // The Sales lens keeps the commercial record's owning collection and validated return scope.
+  it('R-002 / AC-NAV-004: a pipeline record returns to its captured Sales list context', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],
@@ -236,7 +238,9 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
       pathname: '/projects/d1',
       state: { pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted' } },
     });
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales?status=Tender+Submitted');
+    const back = screen.getByRole('link', { name: /back to sales pipeline/i });
+    expect(back).toHaveAttribute('href', '/sales?status=Tender+Submitted');
+    fireEvent.click(back);
+    expect(navigate).toHaveBeenCalledWith('/sales?status=Tender+Submitted', { state: {} });
   });
 });

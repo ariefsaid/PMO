@@ -91,6 +91,29 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(document.querySelector('table')).toBeNull();
   });
 
+  it('renders a keyboard-focusable sticky-identity table at mobile when a dense row has more than four facts', () => {
+    mockViewport(false);
+    const denseColumns: Column<Row>[] = [
+      { ...columns[0], stickyLeft: true },
+      ...columns.slice(1),
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={denseColumns}
+        rowKey={(r) => r.id}
+        accessibleName="Budget category forecast"
+        mobileTable
+      />,
+    );
+    const tableRegion = getTableBranch();
+    expect(tableRegion).toBeInTheDocument();
+    expect(tableRegion).toHaveAttribute('role', 'region');
+    expect(tableRegion).toHaveAttribute('tabindex', '0');
+    expect(getCardBranch()).not.toBeInTheDocument();
+    expect(tableRegion!.querySelector('th.sticky')).toBeInTheDocument();
+  });
+
   it('at desktop (≥768px) renders the table branch and NOT the card branch', () => {
     mockViewport(true);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
@@ -504,5 +527,29 @@ describe('DataTable accessible structure name', () => {
     expect(screen.getByRole('list')).not.toHaveAttribute('aria-label');
     expect(screen.getAllByRole('listitem')).toHaveLength(rows.length);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+});
+
+
+describe('merged project collection and detail table behavior', () => {
+  it('a custom phone row replaces the default fact list instead of duplicating its facts', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id}
+      mobileRow={(row) => <span>{row.name} · custom record</span>} />);
+    expect(screen.getByText('Alpha Corp · custom record')).toBeInTheDocument();
+    expect(screen.queryByText('Value')).toBeNull();
+    expect(screen.queryByText('125000')).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it.each([true, false])('custom loading is busy and announced for desktop=%s without invented records', (desktop) => {
+    mockViewport(desktop);
+    const view = render(<DataTable rows={[]} columns={columns} rowKey={(row) => row.id} state="loading"
+      loadingLayout={{ rows: 2, cell: () => <span>Pending cell</span>, mobileRow: <span>Pending row</span>, announcement: 'Reading projects' }} />);
+    expect(screen.getByRole('status', { name: 'Reading projects' })).toBeInTheDocument();
+    expect(view.container.firstElementChild).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('liststate-loading')).toBeNull();
+    expect(screen.queryByText('Alpha Corp')).toBeNull();
+    expect(screen.getAllByTestId('data-table-loading-row')).toHaveLength(2);
   });
 });

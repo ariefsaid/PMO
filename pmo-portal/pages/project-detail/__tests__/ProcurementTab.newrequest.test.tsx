@@ -7,7 +7,7 @@
  * create route with the project id in the query string.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
@@ -145,12 +145,75 @@ describe('AC-S19-003: project procurement vocabulary', () => {
 
     renderTab('Project Manager');
 
-    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(within(screen.getByText('Network equipment').closest('tr')!).getByText('Approved')).toBeInTheDocument();
     // SUB-E: the per-row "Next:" line is gone from the project tab (the status pill carries the state).
     expect(screen.queryByText(/Next:/)).toBeNull();
     expect(screen.queryByTestId('procurement-next-step')).toBeNull();
     expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /New request/i })).toBeInTheDocument();
+  });
+});
+
+describe('Project detail procurement register', () => {
+  const request = (id: string, title: string, status: string, createdAt: string, vendor: string | null) => ({
+    id,
+    code: id,
+    title,
+    status,
+    total_value: 92000,
+    currency: 'USD',
+    project_id: 'proj-abc',
+    requested_by_id: 'u-1',
+    vendor_id: null,
+    created_at: createdAt,
+    project: { name: 'Test Project', code: 'PRJ-ABC' },
+    vendor: vendor ? { name: vendor } : null,
+    requested_by: { full_name: 'Project Manager' },
+  });
+
+  it('AC-PD-PROC-01 searches request and vendor context, filters status, and clears to the full register', async () => {
+    procState.data = [
+      request('PR-NEW', 'Laptop refresh', 'Approved', '2026-10-20T00:00:00.000Z', 'Northwind Supplies'),
+      request('PR-OLD', 'Site materials', 'Draft', '2026-10-10T00:00:00.000Z', 'Harbor Works'),
+    ];
+    renderTab();
+    const search = screen.getByRole('searchbox', { name: 'Search purchase requests' });
+    await userEvent.type(search, 'Northwind');
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(screen.getByText('Laptop refresh')).toBeInTheDocument();
+    expect(screen.queryByText('Site materials')).not.toBeInTheDocument();
+
+    await userEvent.clear(search);
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Status filter' }), 'Approved');
+    expect(screen.getAllByRole('row')).toHaveLength(2);
+    expect(screen.getByText('Laptop refresh')).toBeInTheDocument();
+    expect(screen.queryByText('Site materials')).not.toBeInTheDocument();
+
+    await userEvent.type(search, 'no match');
+    expect(screen.getByRole('button', { name: 'Clear search and filters' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
+    expect(screen.getAllByRole('row')).toHaveLength(3);
+    expect(screen.getByText('Site materials')).toBeInTheDocument();
+  });
+
+  it('AC-PD-PROC-02 defaults newest first and presents request, vendor, status/date, value, actions', async () => {
+    procState.data = [
+      request('PR-OLD', 'Site materials', 'Draft', '2026-10-10T00:00:00.000Z', 'Harbor Works'),
+      request('PR-NEW', 'Laptop refresh', 'Approved', '2026-10-20T00:00:00.000Z', 'Northwind Supplies'),
+    ];
+    renderTab();
+    const table = screen.getByRole('table');
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim());
+    expect(headers).toEqual(['Request', 'Status / date', 'Value', 'Actions']);
+    const rows = within(table).getAllByRole('row');
+    expect(rows[1]).toHaveTextContent('Laptop refresh');
+    expect(within(rows[1]).getAllByRole('cell')[0]).toHaveTextContent('Northwind Supplies');
+    expect(rows[2]).toHaveTextContent('Site materials');
+    expect(screen.getByRole('combobox', { name: 'Sort requests' })).toHaveValue('newest');
+    expect(screen.getByRole('button', { name: 'Open PR-NEW' })).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort requests' }), 'oldest');
+    expect(within(table).getAllByRole('row')[1]).toHaveTextContent('Site materials');
   });
 });
 

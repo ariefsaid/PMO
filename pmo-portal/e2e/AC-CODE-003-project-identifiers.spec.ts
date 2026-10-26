@@ -26,8 +26,8 @@ test('AC-CODE-003: PMO Project Number and Client Project Code are separately vis
   await expect(page).toHaveURL(/\/projects\/[0-9a-f-]{36}$/u, { timeout: 15_000 });
 
   await expect(page.getByRole('heading', { name: projectName })).toBeVisible({ timeout: 15_000 });
-  // PD-A: the codes live once, in the rail's details disclosure (the header disclosure is gone).
-  await page.getByText('Project details and actions', { exact: true }).click();
+  // The codes live once in the trailing Project details disclosure.
+  await page.getByText('Project details', { exact: true }).click();
   await expect(page.getByText('PMO Project Number', { exact: true }).locator('..')).toContainText(pmoNumber);
   await expect(page.getByText('Client Project Code', { exact: true }).locator('..')).toContainText(clientCode);
 

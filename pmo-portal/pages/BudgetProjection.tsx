@@ -10,12 +10,11 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import {
-  formatCurrency,
-  formatCurrencyAuto,
   formatInstantDate,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
   pct,
+  formatShortMoney,
 } from '@/src/lib/format';
 import {
   fetchBudgetProjection,
@@ -31,6 +30,7 @@ import {
   type BudgetPushStatusRow,
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
+import { formatProjectDetailAmount } from './project-detail/formatProjectDetailMoney';
 
 /**
  * BudgetProjection (P3c slice 6, FR-BUD-151/152/153) — PMO's FORWARD VIEW for a project.
@@ -56,6 +56,10 @@ import {
 
 export interface BudgetProjectionProps {
   projectId: string;
+  /** Project-wide attributed spend, shown with the recorded-spending figure it qualifies. */
+  attributionNote?: React.ReactNode;
+  /** PMO's version selector and line ledger, ordered before the source disclosure. */
+  afterForecast?: React.ReactNode;
 }
 
 /**
@@ -131,8 +135,8 @@ const BUDGET_ATTRIBUTION_STALE =
 const BUDGET_ATTRIBUTION_PARTIAL =
   'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
-const money = (v: number | null, reason: string, currency: string): React.ReactNode =>
-  v === null ? <Unavailable reason={reason} /> : formatCurrencyAuto(v, currency);
+const money = (v: number | null, reason: string, currency: string, locale: string): React.ReactNode =>
+  v === null ? <Unavailable reason={reason} /> : formatProjectDetailAmount(v, currency, locale) ?? <Unavailable reason={reason} />;
 
 // ── C-5: every push state gets its own statement. A state that renders nothing is a defect, not a
 // default — silence is indistinguishable from absence (DESIGN.md §Data & States).
@@ -140,8 +144,8 @@ const QUIET_PUSH_STATES = new Set(['pending', 'pushing', 'pushed']);
 
 const BLOCKED_STATES = new Set(['failed', 'held', 'never-pushed', 'unstamped-activation']);
 
-const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attributionNote, afterForecast }) => {
+  const { t, i18n } = useTranslation();
   const translatedCategory = (category: string) => budgetCategoryLabel(labelFor(category), t);
   const may = usePermission();
   const canEditEtc = may('edit', 'budgetLine');
@@ -411,14 +415,17 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // put a zeroed money screen in front of the user with no sign anything went wrong (H-4).
   if (yearsQuery.isError || isError) {
     return (
-      <ListState
-        variant="error"
-        title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
-        sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
-        onRetry={() => {
-          void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
-        }}
-      />
+      <>
+        <ListState
+          variant="error"
+          title={t('financeCopy.budgetProjectionLoadFailed', "Couldn't load the budget projection")}
+          sub={t('financeCopy.theRequestFailedCheckYourConnectionAndTryAgain', "The request failed. Check your connection and try again.")}
+          onRetry={() => {
+            void (yearsQuery.isError ? yearsQuery.refetch() : refetch());
+          }}
+        />
+        {afterForecast}
+      </>
     );
   }
 
@@ -431,13 +438,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
   // grid behind an explanatory read.
   if (yearsQuery.isPending || isPending || categoryPhasingQuery.isPending) {
     return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={5} testId="budget-projection-loading" />
-      </div>
+      <>
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={5} testId="budget-projection-loading" />
+        </div>
+        {afterForecast}
+      </>
     );
   }
 
-  const rows = data ?? [];
+  const rows = [...(data ?? [])].sort((left, right) =>
+    translatedCategory(left.category).localeCompare(translatedCategory(right.category), i18n.language),
+  );
 
   // ⚑ HIGH-1 — is the PMO budget knowable for the year on screen? `isActivePush` is the SAME predicate
   // the RPC scopes `pmo_budget_amount` by ("the Active version is on record as covering this year"), so
@@ -537,6 +549,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
     summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null,
     summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null,
   ].filter((note): note is string => note !== null);
+  const compactForecast = summary.finalCost === null
+    ? t('project:projectDetail.budget.forecastAnswerUnavailable', 'Forecast answer unavailable')
+    : formatShortMoney(summary.finalCost, orgCurrency, { code: true });
+  const forecastHeading = [
+    t('uxs04.forecast', 'Forecast'),
+    fiscalYear,
+    compactForecast,
+  ].filter(Boolean).join(' · ');
 
   // ⚑ THE MONEY-HONESTY INVARIANT: a figure whose INPUTS are unknown is never rendered as a number, and
   // the cell names WHICH input is missing (three different remedies).
@@ -550,7 +570,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
       key: 'category',
       header: t('financeCopy.category', "Category"),
       kind: 'text',
-      size: 200,
+      size: 125,
+      stickyLeft: true,
       cell: (row) => {
         const visibleReason = visibleReasonFor(row);
         return (
@@ -565,22 +586,25 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         );
       },
     },
-    { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency) },
-    { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency) },
-    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 180,
-      cell: (row) => row.projectedVariance !== null && row.projectedVariance < 0
-        ? <span className="text-destructive-text">{formatCurrencyAuto(row.projectedVariance, orgCurrency)}</span>
-        : money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency) },
-    { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency) },
+    { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 125,
+      cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency, i18n.language) },
+    { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 125,
+      cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency, i18n.language) },
+    { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 130,
+      cell: (row) => {
+        const value = money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency, i18n.language);
+        return row.projectedVariance !== null && row.projectedVariance < 0
+          ? <span className="text-destructive-text">{value}</span>
+          : value;
+      } },
+    { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 125,
+      cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency, i18n.language) },
     {
       key: 'costToFinish',
       header: t('uxs04.costToFinish', 'Cost to finish'),
       kind: 'money',
       align: 'num',
-      size: 160,
+      size: 125,
       cell: (row) => editing ? (
         <div className="flex flex-col items-end gap-1">
           {/* ⚑ I-4 — `NumberField` owns the aria-invalid / describedby wiring, tabular
@@ -603,18 +627,25 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
             className="w-[110px]"
           />
         </div>
-      ) : formatCurrencyAuto(row.pmoEtc, orgCurrency),
+      ) : money(row.pmoEtc, reasonsFor(row).derivedReason, orgCurrency, i18n.language),
     },
-    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 120,
+    { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 100,
       cell: (row) => row.projectedUtilization === null
         ? <Unavailable reason={reasonsFor(row).derivedReason} />
-        : pct(row.projectedUtilization * 100) },
+        : pct(row.pmoBudgetAmount !== null && row.pmoBudgetAmount > 0 && row.projectedFinalCost !== null
+          ? row.projectedFinalCost / row.pmoBudgetAmount * 100
+          : row.projectedUtilization * 100) },
   ];
 
   return (
-    <section aria-label={t('uxs04.forecast', 'Forecast')}>
+    <>
+      <section aria-label={forecastHeading}>
+      <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
+        <h2 data-primary-figure="true" aria-label={forecastHeading}>
+          <span className="project-primary-label">{t('uxs04.forecast', 'Forecast')} · {fiscalYear}</span>
+          <span className="project-primary-value">{compactForecast}</span>
+        </h2>
         <div className="flex flex-wrap items-center gap-3">
           {fiscalYears.length > 0 ? (
             <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -623,7 +654,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
                 value={fiscalYear ?? ''}
                 disabled={editing || saving}
                 onChange={(e) => setPickedYear(e.target.value)}
-                className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="h-8 max-sm:min-h-11 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {fiscalYears.map((y) => (
                   <option key={y.fiscalYear} value={y.fiscalYear}>
@@ -637,15 +668,15 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
           )}
           {/* UX-039: ONE entry to edit every category's cost to finish, one Save. */}
           {rows.length > 0 && canEditEtc && fiscalYear !== null && !editing && (
-            <Button ref={triggerRef} variant="outline" size="sm" onClick={() => openEdit(rows)}>
+            <Button ref={triggerRef} variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => openEdit(rows)}>
               {t('uxs04.editCostToFinish', 'Edit cost to finish')}
             </Button>
           )}
           {editing && (
             <div className="flex gap-1.5">
-              <Button variant="primary" size="sm" loading={saving} onClick={() => void saveAll(rows)}>
+              <Button variant="primary" size="sm" className="max-sm:min-h-11" loading={saving} onClick={() => void saveAll(rows)}>
                 {t('financeCopy.save', "Save")}</Button>
-              <Button variant="ghost" size="sm" disabled={saving} onClick={closeEdit}>
+              <Button variant="ghost" size="sm" className="max-sm:min-h-11" disabled={saving} onClick={closeEdit}>
                 {t('financeCopy.cancel', "Cancel")}</Button>
             </div>
           )}
@@ -680,57 +711,70 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
         </div>
       ) : (
         <>
-          {/* UX-035/036: the answer first. Five figures, each from the SAME rows as the grid below; a
-              figure whose inputs are unknown is a dash AND says which categories are missing. */}
+          <p className="text-sm" data-testid="forecast-decision">{summary.remaining === null
+            ? t('project:projectDetail.budget.comparisonUnavailable', 'Budget comparison unavailable')
+            : overrun ? t('project:projectDetail.budget.overBudget', 'Forecast exceeds the active budget')
+              : t('project:projectDetail.budget.withinBudget', 'Forecast is within the active budget')}
+            {' · '}{orgCurrency} · {fiscalYear}
+            {summary.finalCost !== null && summary.remaining !== null && <> · {t('uxs04.budget', 'Budget')} {formatProjectDetailAmount(summary.finalCost + summary.remaining, orgCurrency, i18n.language)}</>}
+          </p>
           <dl
             data-testid="forecast-summary"
-            className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 rounded-lg border border-border bg-card px-4 py-3 sm:grid-cols-5"
+            className="project-facts mt-3.5 space-y-2"
           >
-            <SummaryFigure
-              label={t('uxs04.budget', 'Budget')}
-              value={summary.budget}
-              currency={orgCurrency}
-            />
             <SummaryFigure
               label={t('uxs04.recordedSpending', 'Recorded spending')}
               value={summary.recorded}
               currency={orgCurrency}
+              incomplete={incompleteNotes.length > 0}
+              noteId={attributionNote || incompleteNotes.length > 0 ? 'forecast-recorded-note' : undefined}
+              note={attributionNote || incompleteNotes.length > 0 ? (
+                <>
+                  {attributionNote}
+                  {incompleteNotes.length > 0 && (
+                    <p id="forecast-incomplete" data-testid="forecast-incomplete" className="text-[12px] text-muted-foreground">
+                      {incompleteNotes.join(' ')}
+                    </p>
+                  )}
+                </>
+              ) : undefined}
             />
-            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} />
+            <SummaryFigure label={t('uxs04.costToFinish', 'Cost to finish')} value={summary.costToFinish} currency={orgCurrency} incomplete={incompleteNotes.length > 0} />
             <SummaryFigure
               label={t('uxs04.forecastFinalCost', 'Forecast final cost')}
               value={summary.finalCost}
               currency={orgCurrency}
-              strong
+              incomplete={incompleteNotes.length > 0}
             />
             <SummaryFigure
               label={overrun ? t('uxs04.forecastOverrun', 'Forecast overrun') : t('uxs04.forecastRemaining', 'Forecast remaining')}
               value={summary.remaining === null ? null : Math.abs(summary.remaining)}
               currency={orgCurrency}
-              strong
               alert={overrun}
+              incomplete={incompleteNotes.length > 0}
             />
           </dl>
-          {incompleteNotes.length > 0 && (
-            <p id="forecast-incomplete" data-testid="forecast-incomplete" className="mt-2 text-[12px] text-muted-foreground">
-              {incompleteNotes.join(' ')}
-            </p>
-          )}
-
           {actualsAsOf && (
             <p className="mt-2 text-[12px] text-muted-foreground">{t('uxs04.recordedAsOf', 'Recorded spending as of')}{' '}{formatInstantDate(actualsAsOf)}</p>
           )}
           <div className="mt-2">
+            <p className="mb-2 text-xs font-semibold text-muted-foreground">{t('project:projectDetail.budget.scrollForecast', 'Category forecast · scroll horizontally for all cost inputs →')}</p>
             <DataTable
               rows={rows}
               columns={columns}
               rowKey={(row) => row.category}
               tableId="budget-projection"
-              accessibleName={t('uxs04.forecast', 'Forecast')}
+              className="project-forecast-table"
+              accessibleName={forecastHeading}
+              mobileTable
             />
           </div>
         </>
       )}
+
+      </div>
+      </section>
+      {afterForecast}
 
       {/* UX-037: where the numbers come from, and the ERP's enforcement state and document, on demand. */}
       {rows.length > 0 && (
@@ -744,7 +788,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId }) => {
           ))}
         </details>
       )}
-    </section>
+    </>
   );
 };
 
@@ -753,19 +797,29 @@ const SummaryFigure: React.FC<{
   label: string;
   value: number | null;
   currency: string;
-  strong?: boolean;
   alert?: boolean;
-}> = ({ label, value, currency, strong, alert }) => (
-  <div className="min-w-0">
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd
-      aria-describedby={value === null ? 'forecast-incomplete' : undefined}
-      className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}
-    >
-      {value === null ? <span>—</span> : formatCurrency(value, currency)}
-    </dd>
-  </div>
-);
+  incomplete?: boolean;
+  noteId?: string;
+  note?: React.ReactNode;
+}> = ({ label, value, currency, alert, incomplete, noteId, note }) => {
+  const { i18n } = useTranslation();
+  const exactValue = value === null ? null : formatProjectDetailAmount(value, currency, i18n.language);
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dd
+        aria-describedby={[
+          value === null && incomplete ? 'forecast-incomplete' : null,
+          noteId && note ? noteId : null,
+        ].filter(Boolean).join(' ') || undefined}
+        className={`whitespace-nowrap tabular text-sm font-normal ${alert ? 'text-destructive-text' : ''}`}
+      >
+        <span>{exactValue ?? '—'}</span>
+        {note && <div id={noteId} className="mt-1 space-y-1">{note}</div>}
+      </dd>
+    </div>
+  );
+};
 
 /**
  * ⚑ AC-BFY-026 — ONE YEAR'S quiet push statement (`pending` / `pushing` / `pushed`).

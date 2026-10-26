@@ -36,11 +36,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import MilestoneStrip from '../MilestoneStrip';
 
-const render$ = (summary = false) =>
+const render$ = (summary = false, showSummaryRollup = true) =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <MilestoneStrip projectId="p1" summary={summary} />
+        <MilestoneStrip projectId="p1" summary={summary} showSummaryRollup={showSummaryRollup} />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -95,20 +95,31 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(screen.queryByRole('link', { name: 'View blocking tasks' })).not.toBeInTheDocument();
   });
 
+  it('PA-03: the Overview attention line keeps phase and blocker context without repeating the planner rollup', () => {
+    milestoneState.data = [
+      { id: 'm1', project_id: 'p1', name: 'Installation', sort_order: 0, target_date: '2000-01-01', weight: 1, input_pct: 40, effective_pct: 40, calculated_pct: 40, task_count: 2 },
+    ];
+    render$(true, false);
+    const summary = screen.getByTestId('milestone-summary');
+    expect(summary).toHaveTextContent('Installation');
+    expect(screen.getByRole('link', { name: 'View blocking tasks' })).toHaveAttribute('href', '/projects/p1/tasks');
+    expect(summary).not.toHaveTextContent('%');
+  });
+
   it('AC-DEL-014: pending query renders the loading skeleton (testid milestone-strip-loading)', () => {
     milestoneState.isPending = true;
     render$();
     expect(screen.getByTestId('milestone-strip-loading')).toBeInTheDocument();
   });
 
-  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders ONE line with the plan-phases CTA (PD-B: no hero, no placeholder bars)', () => {
+  it('AC-DEL-014/FR-DEL-013: empty + PM viewer renders ONE line with the Add phase action (PD-B: no hero, no placeholder bars)', () => {
     milestoneState.data = [];
     milestoneState.isPending = false;
     mockRole = 'Project Manager';
     render$();
     const empty = screen.getByTestId('milestone-strip-empty');
     expect(empty).toHaveTextContent('No delivery phases yet');
-    expect(within(empty).getByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+    expect(within(empty).getByRole('button', { name: 'Add phase' })).toBeInTheDocument();
     expect(screen.queryByText("Plan this project's delivery phases")).not.toBeInTheDocument();
     expect(empty.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0);
   });
@@ -134,9 +145,9 @@ describe('MilestoneStrip states (AC-DEL-014)', () => {
     expect(refetchSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('empty state + clicking "Plan delivery phases" opens CREATE modal (formTarget with null milestone)', () => {
+  it('empty state + clicking "Add phase" opens CREATE modal (formTarget with null milestone)', () => {
     render$();
-    fireEvent.click(screen.getByRole('button', { name: /plan delivery phases/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^Add phase$/i }));
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 

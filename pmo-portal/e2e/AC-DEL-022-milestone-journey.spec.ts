@@ -1,7 +1,7 @@
 // @e2e-isolation: dedicated-row — owns P013; beforeEach resets to empty (retry-safe).
 import { test, expect } from '@playwright/test';
 import { createClient } from '@supabase/supabase-js';
-import { login, requireServiceRoleKey } from './helpers';
+import { login, requireServiceRoleKey, selectProjectSection } from './helpers';
 
 // AC-DEL-022 — PM creates a milestone, adds a task under it, marks it Done.
 //
@@ -13,7 +13,7 @@ import { login, requireServiceRoleKey } from './helpers';
 // Journey (FR-DEL-001 through FR-DEL-017, end-to-end):
 //  1. PM navigates directly to P013 detail page.
 //  2. Phase strip is empty (one line) → PM clicks "Plan delivery phases", fills the phase name + weight, saves.
-//  3. PM navigates to Tasks tab → within "Engineering design" group clicks "Add task",
+//  3. PM navigates to Tasks → within "Engineering design" group clicks "Add task",
 //     creates "Detail drawings" (milestone pre-populated), saves.
 //  4. PM marks "Detail drawings" Done via the status select.
 // GOAL ORACLE:
@@ -86,8 +86,8 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // Wait for the milestone name to appear in the redesigned stepper labels.
   await expect(page.getByText(MILESTONE_NAME).first()).toBeVisible({ timeout: 15_000 });
 
-  // ── Step 3: navigate to Tasks tab, add a task under the milestone group ───────
-  await page.getByRole('tab', { name: /tasks/i }).click();
+  // ── Step 3: navigate to Tasks, add a task under the milestone group ───────────
+  await selectProjectSection(page, 'Tasks');
 
   // Wait for the milestone group to appear (AC-DEL-010).
   const group = page.getByRole('region', { name: MILESTONE_NAME });
@@ -123,10 +123,10 @@ test('AC-DEL-022: a PM creates a milestone, adds a task under it, marks it Done 
   // Wait for the mutation to commit (query re-fetch propagates back to the milestone strip).
   await expect(statusSelect).toHaveValue('Done', { timeout: 10_000 });
 
-  // UIP-005 (#975) deliberately moved the full actionable planner into Overview; other tabs
+  // UIP-005 (#975) deliberately moved the full actionable planner into Overview; other sections
   // retain only its compact summary. Return to Overview after completing the task so the phase
   // card's effective progress remains the goal oracle rather than asserting against the summary.
-  await page.getByRole('tab', { name: /overview/i }).click();
+  await selectProjectSection(page, 'Overview');
 
   // ── GOAL ORACLE part 1: milestone strip effective % = 100% ──────────────────
   // The redesigned stepper removed "From tasks" text; each phase card (<section>) now shows

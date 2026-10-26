@@ -158,6 +158,7 @@ export interface DataTableProps<Row> {
   cardBelow?: number;
   /** Keep a labelled, keyboard-focusable semantic table on phones for dense financial matrices. */
   mobileTable?: boolean;
+
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -335,6 +336,7 @@ export function DataTable<Row>({
   className,
   cardBelow,
   mobileTable = false,
+
   accessibleName,
   tableId,
   groupBy,
@@ -368,7 +370,9 @@ export function DataTable<Row>({
   };
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
-  const isDesktop = (wideViewport || mobileTable) && !narrowTable;
+  const isDesktop = wideViewport && !narrowTable;
+  const renderTable = isDesktop || mobileTable;
+
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,
@@ -460,8 +464,8 @@ export function DataTable<Row>({
           {loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}
         </span>
       )}
-      {isDesktop ? (
-      /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
+      {renderTable ? (
+      /* ── Table branch (desktop by default; dense data may opt into it at phone width) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
       // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
       // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
@@ -469,13 +473,11 @@ export function DataTable<Row>({
         ref={tableBranchRef}
         data-testid="dt-table-branch"
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
-        role={mobileTable ? 'region' : undefined}
-        aria-label={mobileTable ? accessibleName : undefined}
-        tabIndex={mobileTable && !wideViewport ? 0 : undefined}
-        className={cn(
-          'relative overflow-x-auto',
-          mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-        )}
+        role={!isDesktop && mobileTable ? 'region' : undefined}
+        aria-label={!isDesktop && mobileTable ? accessibleName : undefined}
+        tabIndex={!isDesktop && mobileTable ? 0 : undefined}
+        className={cn('relative overflow-x-auto', mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring')}
+
       >
         <table
           ref={tableRef}
@@ -708,7 +710,7 @@ export function DataTable<Row>({
                                 e.stopPropagation();
                                 onActivate(row);
                               }}
-                              className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                              className="block min-h-11 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
                               {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
@@ -810,6 +812,7 @@ export function DataTable<Row>({
                         aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
                         className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+
                       >
                         {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
@@ -829,12 +832,12 @@ export function DataTable<Row>({
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {!mobileRow && restCols.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                  <dl className="flex flex-col gap-2">
                     {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
-                        <React.Fragment key={col.key}>
+                        <div key={col.key} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                           <dt
                             className={cn(
                               'text-xs font-semibold text-muted-foreground self-start',
@@ -855,7 +858,7 @@ export function DataTable<Row>({
                           >
                             {content}
                           </dd>
-                        </React.Fragment>
+                        </div>
                       );
                     })}
                   </dl>
@@ -1049,8 +1052,8 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
         // default so every row's actions are reachable without a hover event. Touch targets ≥44px
         // come from the `.touch-target` utility (coarse-pointer min hit area).
         className={label
-          ? buttonClasses('outline', 'sm', 'touch-target gap-1')
-          : 'touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
+          ? buttonClasses('outline', 'sm', 'touch-target gap-1 max-sm:min-h-11')
+          : 'touch-target grid size-7 max-sm:min-h-11 max-sm:min-w-11 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
       >
         {label ? (
           <>
@@ -1198,7 +1201,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'flex h-8 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'flex h-8 max-sm:min-h-11 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
     >
@@ -1208,7 +1211,8 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          '[@media(pointer:coarse)]:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+          '[@media(pointer:coarse)]:min-h-11 max-sm:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+
           className
         )}
         {...rest}

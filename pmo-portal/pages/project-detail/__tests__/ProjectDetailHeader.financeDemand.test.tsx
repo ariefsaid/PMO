@@ -1,6 +1,6 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -83,9 +83,6 @@ function renderHeader(status: string) {
         <ToastProvider>
           <ProjectDetailHeader
             project={projectForStatus(status)}
-            committedSpend={10}
-            commitmentSource="pmo"
-            ledgerBasis="erp"
           />
         </ToastProvider>
       </MemoryRouter>
@@ -115,30 +112,13 @@ beforeEach(() => {
 });
 
 describe('ProjectDetailHeader finance query demand', () => {
-  it.each(['Leads', 'Loss Tender'])('AC-PMP-004 does not request finance data for a hidden %s header', (status) => {
+  it.each(['Leads', 'Loss Tender', 'Ongoing Project', 'Internal Project'])('AC-PMP-004 keeps finance reads out of the %s identity header', (status) => {
     renderHeader(status);
 
     expect(h.getProjectFinances).not.toHaveBeenCalled();
   });
 
-  it.each(['Admin', 'Executive', 'Finance', 'Project Manager'])(
-    'AC-PMP-004 keeps the visible delivery header finance request for real role %s',
-    async (realRole) => {
-      h.realRole = realRole;
-      renderHeader('Ongoing Project');
-
-      await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(expect.any(String)));
-    },
-  );
-
-  it('AC-PMP-004 gates header placement on the real role during view-as', async () => {
-    h.realRole = 'Admin';
-    renderHeader('Internal Project');
-
-    await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(expect.any(String)));
-  });
-
-  it('AC-PMP-004 leaves a permitted Engineer header hidden even when the shared hook may read', () => {
+  it('AC-PMP-004 keeps finance reads out of the identity header for Engineer too', () => {
     h.realRole = 'Engineer';
     renderHeader('Ongoing Project');
 

@@ -1,9 +1,9 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { tabId, tabPanelId, ListState, useToast, Button, type TabItem } from '@/src/components/ui';
+import { Button, ListState, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
@@ -11,16 +11,16 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
-import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
-import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
+import { trackProjectTabViewed } from '@/src/lib/analytics';
+import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens, { type PipelinePrimaryAction } from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectDetailRail from './ProjectDetailRail';
+import ProjectSectionNavigation, { type ProjectSectionGroup } from './ProjectSectionNavigation';
 import ProjectFormModal from '../../components/ProjectFormModal';
 
 const OverviewTab = React.lazy(() => import('./tabs/OverviewTab'));
@@ -64,91 +64,10 @@ function tabFromParam(param: string | undefined): PTab {
   return 'overview';
 }
 
-const ProjectSectionNavigation: React.FC<{
-  items: TabItem<PTab>[];
-  value: PTab;
-  onChange: (value: PTab) => void;
-  identityName: string;
-  identityVisible: boolean;
-}> = ({ items, value, onChange, identityName, identityVisible }) => {
-  const { t } = useTranslation('sales');
-  const tablistRef = React.useRef<HTMLDivElement>(null);
-  const focusSection = (nextValue: PTab) => {
-    const button = Array.from(tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
-      .find((item) => item.dataset.section === nextValue);
-    button?.focus();
-    onChange(nextValue);
-  };
-  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const key = event.key;
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
-    event.preventDefault();
-    const index = items.findIndex((item) => item.value === value);
-    const next = key === 'Home'
-      ? items[0]
-      : key === 'End'
-        ? items[items.length - 1]
-        : items[(index + (key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
-    focusSection(next.value);
-  };
-  return (
-    <>
-      <label className="sticky top-0 z-20 mb-4 flex min-w-0 flex-wrap items-center gap-3 border-b border-border bg-background py-2 min-[921px]:hidden">
-        {!identityVisible && <span data-testid="project-sticky-identity" className="basis-full min-w-0 break-words text-xs font-semibold text-foreground">{identityName}</span>}
-        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-          {t('pipeline.sections', 'Sections')}
-        </span>
-        <select
-          aria-label={t('pipeline.sections', 'Sections')}
-          value={value}
-          onChange={(event) => onChange(event.currentTarget.value as PTab)}
-          className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          {items.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-        </select>
-      </label>
-      <div
-        className="sticky top-0 z-10 mb-4 hidden min-w-0 self-start bg-background py-2 min-[921px]:flex min-[921px]:flex-col"
-      >
-        {!identityVisible && <div className="mb-3 break-words border-b border-border pb-3 text-xs font-semibold text-foreground">{identityName}</div>}
-        <div
-          ref={tablistRef}
-          role="tablist"
-          aria-label={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-          aria-orientation="vertical"
-          onKeyDown={onTabKeyDown}
-          className="flex min-w-0 flex-col gap-2 border-l border-border pl-3"
-        >
-          {items.map((item) => {
-            const selected = item.value === value;
-            return (
-              <button
-                key={item.value}
-                id={tabId('project-detail', item.value)}
-                type="button"
-                role="tab"
-                data-section={item.value}
-                aria-selected={selected}
-                aria-controls={selected ? tabPanelId('project-detail', item.value) : undefined}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => onChange(item.value)}
-                className={`min-h-11 break-words px-3 py-2 text-left text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selected ? 'border-l-2 border-primary text-primary-text' : 'text-foreground hover:bg-secondary/50'}`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-};
-
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { realRole } = useEffectiveRole();
   const may = usePermission();
   const canSeeBilling = may('view', 'progressClaim');
   const { t } = useTranslation();
@@ -161,39 +80,38 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const isPipeline = isPipelineRecord;
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
-  const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
-  const identityRef = React.useRef<HTMLDivElement>(null);
-  const [identityVisible, setIdentityVisible] = useState(true);
 
-  useEffect(() => {
-    const identity = identityRef.current;
-    const root = document.getElementById('main');
-    if (!identity || typeof IntersectionObserver === 'undefined') return;
-    setIdentityVisible(true);
-    const observer = new IntersectionObserver(([entry]) => setIdentityVisible(entry.isIntersecting), {
-      root,
-      threshold: 0,
-    });
-    observer.observe(identity);
-    return () => observer.disconnect();
-  }, [project?.id, projectId]);
-
-  // Tab labels live here (not at module scope) so they can be translated; the tab
-  // VALUES and their order stay in TAB_VALUES above.
-  const tabItems: TabItem<PTab>[] = useMemo(
+  // Section labels live here so the canonical URL values stay independent of locale.
+  const sectionGroups = useMemo<ProjectSectionGroup<PTab>[]>(
     () => [
-      { value: 'overview', label: t('projectDetail.tabs.overview', 'Overview') },
-      { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
-      { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
-      { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
-      ...(isPipelineRecord ? [] : [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }]),
-      // SUB-A: a pre-win deal has no work orders or billing yet, so those tabs only appear once won.
-      ...(canSeeBilling && !isPipelineRecord ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
-      { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
-      { value: 'history', label: t('projectDetail.tabs.history', 'History') },
+      {
+        label: t('project:projectDetail.sectionNav.overview', 'Overview'),
+        items: [{ value: 'overview', label: t('projectDetail.tabs.overview', 'Overview') }],
+      },
+      {
+        label: t('project:projectDetail.sectionNav.delivery', 'Delivery'),
+        items: [
+          { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
+          ...(!isPipelineRecord ? [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }] : []),
+        ],
+      },
+      {
+        label: t('project:projectDetail.sectionNav.money', 'Money'),
+        items: [
+          { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
+          { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
+          ...(canSeeBilling && !isPipelineRecord ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
+        ],
+      },
+      {
+        label: t('project:projectDetail.sectionNav.evidence', 'Evidence'),
+        items: [
+          { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
+          { value: 'history', label: t('projectDetail.tabs.history', 'History') },
+        ],
+      },
     ],
     [t, canSeeBilling, isPipelineRecord],
   );
@@ -224,19 +142,21 @@ const ProjectDetail: React.FC = () => {
   // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
   // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
   const requestedTab = tabFromParam(tabParam);
-  // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
-  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
-  // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
-  // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
-  // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
-  const isDeliveryForward = !hasFinanceView(realRole);
+  // SUB-A: pre-win records land on Overview for Work orders/Billing; ineligible billing readers
+  // return to the delivery work they can act on.
+  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing')
+    ? 'overview'
+    : requestedTab === 'billing' && !canSeeBilling ? 'tasks' : requestedTab;
+  const showPipelinePrimaryAction = pipelineGroup === 'pipeline' && tab === 'overview' && may('edit', 'project');
+  const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
-    // list-working-set-return (#682): forward the current router state so a captured
-    // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
-    // #879: mark the navigation as an in-page tab switch so AppShell's route-focus
-    // effect keeps focus in the tab bar (WCAG 2.4.3); Tabs moves focus to the new tab.
-    navigate(`/projects/${projectId}/${next}`, {
+    // Preserve collection return context, section-level query state and task/WO anchors.
+    navigate({
+      pathname: `/projects/${projectId}/${next}`,
+      search: location.search,
+      hash: location.hash,
+    }, {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
@@ -252,6 +172,14 @@ const ProjectDetail: React.FC = () => {
     const destination = listReturnNavigation(location.state, 'sales');
     navigate(destination.path, { state: destination.state });
   };
+  const backNavigation = isPipelineRecord ? (
+    <a href={listReturnNavigation(location.state, 'sales').path}
+      onClick={(event) => { event.preventDefault(); returnToSales(); }}
+      className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">
+      {t('project:projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
+    </a>
+  ) : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />;
+
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -271,7 +199,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending) {
       return (
         <>
-          {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
+          {backNavigation}
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -281,7 +209,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
+          {backNavigation}
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
@@ -296,7 +224,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
+        {backNavigation}
         <ListState
           variant="error"
           icon="inbox"
@@ -310,25 +238,26 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
-  // ADR-0021 (supersedes ADR-0020 §1): ONE unified detail page at every stage. The full delivery
-  // layout (header + the five tabs) always renders, so a PM can plan budget/tasks/procurement while
-  // a deal is still in the pipeline (the backend gates those writes on org/role, not project
-  // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
-  // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
-  // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
+  // ADR-0021 (supersedes ADR-0020 §1): one unified detail page at every stage. Pipeline journey
+  // evidence is the first Overview content after named section navigation; the same canonical
+  // sections remain reachable while a deal is open or lost.
+  const isPipeline = isPipelineRecord;
   const tabPanel = (
-    <div
-      role="tabpanel"
-      id={tabPanelId('project-detail', tab)}
-      aria-labelledby={tabId('project-detail', tab)}
-    >
+    <div id="project-section-content" className="min-w-0">
       <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
         {tab === 'overview' && (
           // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
           // nothing, so it leaves no empty slot or stray margin behind.
           <div className="flex min-w-0 flex-col gap-8">
-            {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
+            {isPipelineRecord && (
+              <PipelineLens
+                project={project}
+                locationState={location.state}
+                onReturnToSales={returnToSales}
+                onPrimaryActionChange={showPipelinePrimaryAction ? setPipelinePrimaryAction : undefined}
+              />
+            )}
+            {!isPipeline && <>
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -338,9 +267,9 @@ const ProjectDetail: React.FC = () => {
               commitmentPending={commitmentPending}
               commitmentError={commitmentError}
               setTab={setTab}
-              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-              // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
-              showFinanceSummary={isDeliveryForward && !isPipeline}
+              phaseSummary={<MilestoneStrip projectId={project.id} summary showSummaryRollup={false} />}
+              phasePlanner={!isPipelineRecord ? <MilestoneStrip projectId={project.id} /> : undefined}
+              showMoneyPosition={!isPipeline}
             />
             <React.Suspense fallback={null}>
               <ProjectProfitLossSection projectId={project.id} />
@@ -353,6 +282,7 @@ const ProjectDetail: React.FC = () => {
                 <ProjectSCurve projectId={project.id} />
               </React.Suspense>
             )}
+            </>}
             <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
               <CommentsSection entityType="project" entityId={project.id} />
             </React.Suspense>
@@ -371,7 +301,7 @@ const ProjectDetail: React.FC = () => {
           />
         )}
         {tab === 'billing' && canSeeBilling && (
-          <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+          <BillingTab projectId={project.id} currency={project.currency} taxTreatment={project.tax_treatment} clientId={project.client_id ?? null}
             projectManagerId={project.project_manager_id ?? null} />
         )}
         {tab === 'documents' && <DocumentsTab projectId={project.id} projectCode={project.code} />}
@@ -379,92 +309,43 @@ const ProjectDetail: React.FC = () => {
           <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
         )}
       </React.Suspense>
+      <ProjectDetailRail project={project} />
     </div>
   );
 
   return (
-    <div>
-      {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
-          loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
-          rule as every other record page and this page's loading / not-found states). */}
-      {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
-      {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
-          breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
-          The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
-          at every stage so a record's wayfinding is identical regardless of stage. */}
+    <div className="project-detail-record min-w-0">
+      {backNavigation}
+      <ProjectDetailHeader
+        project={project}
+        onEditProject={openEditProject}
+        isOverview={tab === 'overview'}
+        showPipelinePrimaryAction={showPipelinePrimaryAction}
+        primaryAction={showPipelinePrimaryAction && pipelinePrimaryAction && (
+          <Button
+            variant="primary"
+            disabled={pipelinePrimaryAction.disabled}
+            onClick={pipelinePrimaryAction.activate}
+            className="min-h-11 max-[920px]:w-full"
+          >
+            {pipelinePrimaryAction.label}
+          </Button>
+        )}
+      />
 
-      {/* Both lifecycle lenses keep one section control after record identity and place the
-          selected record's primary evidence immediately after it. */}
-      {isPipeline ? (
-        <>
-          <div ref={identityRef} className="mb-4">
-            <ProjectDetailHeader
-              project={project}
-              committedSpend={committedSpend}
-              committedOtherCurrencies={committedOtherCurrencies}
-              commitmentSource={commitmentSource}
-              ledgerBasis={ledgerBasis}
-              commitmentPending={commitmentPending}
-              commitmentError={commitmentError}
-              onEditProject={openEditProject}
-              primaryAction={pipelinePrimaryAction && (
-                <Button
-                  variant="primary"
-                  disabled={pipelinePrimaryAction.disabled}
-                  onClick={pipelinePrimaryAction.activate}
-                  className="min-h-11 hover:bg-primary max-[920px]:w-full"
-                >
-                  {pipelinePrimaryAction.label}
-                </Button>
-              )}
-            />
-          </div>
-
-          <div className="grid min-w-0 gap-4 min-[921px]:grid-cols-[12rem_minmax(0,1fr)] min-[921px]:gap-8">
-            <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} identityName={project.name} identityVisible={identityVisible} />
-            <div
-              className="min-w-0"
-              role={tab === 'overview' ? 'tabpanel' : undefined}
-              id={tab === 'overview' ? tabPanelId('project-detail', tab) : undefined}
-              aria-labelledby={tab === 'overview' ? tabId('project-detail', tab) : undefined}
-            >
-              {/* The record's decision facts follow its section control and stay above evidence. */}
-              <div className="mb-8">
-                <PipelineLens project={project} locationState={location.state} onPrimaryActionChange={setPipelinePrimaryAction} onReturnToSales={returnToSales} />
-              </div>
-              {/* Classification, codes and the ERP project link live in one closed disclosure. */}
-              <ProjectDetailRail project={project} showActionSection={false} />
-              {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
-              {tab !== 'overview' ? tabPanel : <React.Suspense fallback={null}><CommentsSection entityType="project" entityId={project.id} /></React.Suspense>}
-            </div>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="min-w-0">
-            <div ref={identityRef}>
-              <ProjectDetailHeader
-                project={project}
-                committedSpend={committedSpend}
-                committedOtherCurrencies={committedOtherCurrencies}
-                commitmentSource={commitmentSource}
-                ledgerBasis={ledgerBasis}
-                commitmentPending={commitmentPending}
-                commitmentError={commitmentError}
-                onEditProject={openEditProject}
-              />
-            </div>
-            <div className="grid min-w-0 gap-4 min-[921px]:grid-cols-[12rem_minmax(0,1fr)] min-[921px]:gap-8">
-              <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} identityName={project.name} identityVisible={identityVisible} />
-              <div className="min-w-0">
-                <ProjectDetailRail project={project} onEditProject={openEditProject} />
-                {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
-                {tabPanel}
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+      <div className="grid min-w-0 grid-cols-1 gap-5 min-[921px]:grid-cols-[13rem_minmax(0,1fr)] min-[921px]:gap-8">
+        <ProjectSectionNavigation
+          recordName={project.name}
+          projectId={projectId}
+          groups={sectionGroups}
+          activeSection={tab}
+          search={location.search}
+          hash={location.hash}
+          navigationState={withTabSwitchNavState(location.state)}
+          onNavigate={(next) => trackProjectTabViewed(next)}
+        />
+        {tabPanel}
+      </div>
       {editOpen && (
         <ProjectFormModal
           mode="editHeader"

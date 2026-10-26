@@ -165,7 +165,7 @@ const WorkOrderValueModal: React.FC<WorkOrderValueModalProps> = ({
     >
       <FormSection legend={t('projectDetail.workOrderValue.legend', 'Value and tax basis')}>
         {/* Read-only context, as a labelled figure rather than a value spliced into prose. */}
-        <p data-testid="wo-value-current" className="mb-3 text-[12px] text-muted-foreground">
+        <p data-testid="wo-value-current" className="mb-3 text-xs text-muted-foreground">
           <span className="font-semibold uppercase tracking-[0.06em]">
             {t('projectDetail.workOrderValue.current', 'Current value')}
           </span>

@@ -155,19 +155,19 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
               ? t('projectTabs:contractQuantities.workOrders.acceptances.form.noEligibleDocument', 'Upload and issue the signed BAST in the project register first. It is needed to confirm.')
               : t('projectTabs:contractQuantities.workOrders.acceptances.form.documentHelp', 'From this project’s register: issued or approved, with a file. It is needed to confirm.')} />
         </FormGrid>
-        <label className="mt-3 flex items-center gap-2 text-[13px]">
+        <label className="mt-3 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={isFinal} onChange={(e) => { setIsFinal(e.target.checked); setErrors({}); }} />
           {t('projectTabs:contractQuantities.workOrders.acceptances.form.final', 'This is the final BAST')}
         </label>
         {isFinal && (
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {t('projectTabs:contractQuantities.workOrders.acceptances.form.finalHelp', 'Confirming a final BAST closes the work order at the accepted quantities.')}
           </p>
         )}
       </FormSection>
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.acceptances.form.quantities', 'Accepted to date')}>
         {allocated.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t('projectTabs:contractQuantities.workOrders.acceptances.form.noAllocations', 'Allocate contract lines to this work order first.')}
           </p>
         ) : (
@@ -192,14 +192,14 @@ const WorkOrderAcceptanceModal: React.FC<WorkOrderAcceptanceModalProps> = ({
           const typed = item.earning_basis === 'lump_sum' ? null : parseMoneyInputAtScale((values[item.id] ?? '').trim(), 3);
           if (typed === null || milli(typed) <= milli(Number(row.quantity))) return null;
           return (
-            <p key={item.id} className="mt-1 text-[12px] font-medium text-warning-foreground" data-testid={`bast-over-${item.id}`}>
+            <p key={item.id} className="mt-1 text-xs font-medium text-warning-foreground" data-testid={`bast-over-${item.id}`}>
               {t('projectTabs:contractQuantities.workOrders.acceptances.form.overMeasured', 'More than ordered by {{qty}} {{unit}} ({{item}}).', {
                 qty: formatNumberExact((milli(typed) - milli(Number(row.quantity))) / 1000), unit: item.unit, item: item.item_code,
               })}
             </p>
           );
         })}
-        {errors.lines && <p role="alert" className="mt-1 text-[12px] text-destructive-text">{errors.lines}</p>}
+        {errors.lines && <p role="alert" className="mt-1 text-xs text-destructive-text">{errors.lines}</p>}
       </FormSection>
       <FormSection legend={t('projectTabs:contractQuantities.workOrders.acceptances.form.noteLegend', 'Note')}>
         <TextArea id="bast-note" label={t('projectTabs:contractQuantities.workOrders.acceptances.form.note', 'Note (optional)')}

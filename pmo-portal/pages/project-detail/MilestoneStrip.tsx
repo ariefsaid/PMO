@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { getYear, parseISO } from 'date-fns';
 import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
@@ -12,10 +11,11 @@ import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { usePermission } from '@/src/auth/usePermission';
 import { useMilestones, useMilestoneMutations } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { pct, formatDayMonth } from '@/src/lib/format';
+import { pct, formatDateOnly } from '@/src/lib/format';
 import type { MilestoneWithProgress, MilestoneInput, MilestonePatch } from '@/src/lib/db/milestones';
 import { MilestonePhaseHeader } from '@/src/components/milestones/MilestonePhaseHeader';
 import MilestoneFormModal from './MilestoneFormModal';
+import { projectSectionHeading } from './typography';
 
 export interface MilestoneStripProps {
   projectId: string;
@@ -26,6 +26,8 @@ export interface MilestoneStripProps {
   compactWhenEmpty?: boolean;
   /** UIP-005: common context only; the full planner belongs to Overview. */
   summary?: boolean;
+  /** Overview already shows the planner's rollup; hide its duplicate in the attention line. */
+  showSummaryRollup?: boolean;
 }
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
@@ -54,7 +56,9 @@ const clampPct = (value: number) => Math.max(0, Math.min(100, value));
 
 const percentStyle = (value: number) => `${Number(value.toFixed(2))}%`;
 
-const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenEmpty = false, summary = false }) => {
+const MilestoneStrip: React.FC<MilestoneStripProps> = ({
+  projectId, compactWhenEmpty = false, summary = false, showSummaryRollup = true,
+}) => {
   const { t } = useTranslation();
   const location = useLocation();
   const may = usePermission();
@@ -137,9 +141,9 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </>
         ) : (
           <>
-            <span className="tabular">
+            {showSummaryRollup && <span className="tabular">
               <span className="sr-only md:not-sr-only">{t('projectDetail.milestones.rollupLabel', 'Project delivery')} </span>{pct(deliveryRollup)}
-            </span>
+            </span>}
             {current && (
               <span className="min-w-0 break-words font-semibold text-foreground">
                 {t('projectDetail.milestones.currentPhase', 'Current: {{name}}', { name: current.name })}
@@ -157,7 +161,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </>
         )}
         {!isPending && !isError && hasOverdue && !location.pathname.endsWith('/tasks') && (
-          <Link to={`/projects/${projectId}/tasks`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
+          <Link to={`/projects/${projectId}/tasks`} state={location.state}
+            className="touch-target inline-flex min-h-11 items-center font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
             {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
           </Link>
         )}
@@ -196,25 +201,28 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           data-testid={compactWhenEmpty ? 'prewin-compact-planner' : 'milestone-strip-empty'}
           className="flex items-center gap-2 py-1"
         >
-          <span className="flex-1 text-[13px] text-muted-foreground">
+          <span className="flex-1 text-sm text-muted-foreground">
             {compactWhenEmpty
               ? t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')
               : t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
           </span>
           {canCreate && (
-            <button
-              type="button"
-              className="shrink-0 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+            <Button
+              variant={compactWhenEmpty ? 'outline' : 'primary'}
+              size="sm"
+              className="min-h-11"
               onClick={() => setFormTarget({ milestone: null })}
             >
-              {t('projectDetail.milestones.planPhases', 'Plan delivery phases')}
-            </button>
+              {compactWhenEmpty
+                ? t('projectDetail.milestones.planPhases', 'Plan delivery phases')
+                : t('projectDetail.milestones.addMilestone', 'Add phase')}
+            </Button>
           )}
         </div>
       ) : (
         <div>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-[14px] font-bold tracking-[-0.01em]">
+            <h2 className={projectSectionHeading}>
               {t('projectDetail.milestones.heading', 'Delivery phases')}
             </h2>
             <div
@@ -224,13 +232,13 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 'Project delivery',
               )} ${deliveryRollup}%`}
             >
-              <span className="text-[12px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {t('projectDetail.milestones.rollupLabel', 'Project delivery')}
               </span>
-              <span className="text-[23px] font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
+              <span className="text-sm font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
             </div>
             {canCreate && (
-              <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
+              <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setFormTarget({ milestone: null })}>
                 {t('projectDetail.milestones.addMilestone', 'Add phase')}
               </Button>
             )}
@@ -282,7 +290,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                     ("Commissioning", ~95px at 12px font-semibold) to never need a mid-word break. */}
                 <div
                   data-testid="milestone-card-grid"
-                  className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+                  className="flex flex-col divide-y divide-border/70"
                 >
                   {all.map((milestone) => (
                     <MilestonePhaseCard
@@ -370,12 +378,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
   const overdue = isOverdueMilestone(milestone);
   // The date is formatted by format.ts FIRST; i18next only ever sees the finished string.
   const targetLabel = milestone.target_date
-    ? overdue && getYear(parseISO(milestone.target_date)) !== new Date().getFullYear()
-      ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
-          date: formatDayMonth(parseISO(milestone.target_date)),
-          year: getYear(parseISO(milestone.target_date)),
-        })
-      : `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDayMonth(parseISO(milestone.target_date))}`
+    ? `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDateOnly(milestone.target_date)}`
     : null;
 
   return (
@@ -392,7 +395,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
 
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className={`text-[13px] font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
+          <span className={`text-sm font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
             {milestone.name}
           </span>
           {isCurrent && (
@@ -405,7 +408,6 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
           )}
         </div>
         <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-          <span>{pct(milestone.effective_pct)}</span>
           {weightShare != null && (
             <span>
               {t('projectDetail.milestones.weightShare', '{{pct}}% of project', {
@@ -422,14 +424,14 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <span className="text-[14px] font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
+        <span className="text-sm font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
         {canEdit && (
           <button
             type="button"
             aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', {
               name: milestone.name,
             })}
-            className="touch-target inline-flex min-h-8 items-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
+            className="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
             {t('projectDetail.milestones.edit', 'Edit')}
@@ -512,7 +514,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
   return (
     <section
       aria-current={isCurrent ? 'step' : undefined}
-      className={`relative min-w-0 rounded-md border bg-background/60 p-3 ${
+      className={`relative min-w-0 bg-background py-3 ${
         isCurrent ? 'border-primary/30 ring-1 ring-primary/15' : 'border-border'
       }`}
     >
@@ -536,7 +538,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
-              className="mt-1 inline-block text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="touch-target mt-1 inline-flex min-h-11 items-center rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
             </Link>
@@ -554,14 +556,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => setMenuOpen((open) => !open)}
             >
-              <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>
+              <span aria-hidden="true" className="text-sm leading-none">⋯</span>
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
                 {canEdit && (
                   <button
                     type="button"
-                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm hover:bg-accent"
                     onClick={() => {
                       setMenuOpen(false);
                       onEditDetails();
@@ -573,7 +575,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                 {canDelete && (
                   <button
                     type="button"
-                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm text-destructive hover:bg-accent"
                     aria-label={`${t(
                       'projectDetail.milestones.deleteMilestone',
                       'Delete phase',
@@ -600,7 +602,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               min={0}
               max={100}
               aria-label={t('projectDetail.milestones.editInputPct', 'Edit progress override')}
-              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-sm tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {
                 setInputVal(e.target.value);
@@ -639,7 +641,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               {t('projectDetail.milestones.cancel', 'Cancel')}
             </Button>
           </div>
-          {inputError && <span className="text-[11.5px] text-destructive">{inputError}</span>}
+          {inputError && <span className="text-[11px] text-destructive">{inputError}</span>}
         </div>
       )}
     </section>

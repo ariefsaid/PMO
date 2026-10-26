@@ -1,10 +1,12 @@
+import WorkOrderAcceptances from '../WorkOrderAcceptances';
+import type { WorkOrderAcceptanceWithLines } from '@/src/lib/db/workOrderAcceptances';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
@@ -24,6 +26,8 @@ const h = vi.hoisted(() => ({
   acceptances: [] as unknown[],
   docs: [] as unknown[],
   accError: false,
+  linesError: false,
+  retryLines: vi.fn(),
   acc: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
   wom: {} as Record<string, { mutateAsync: ReturnType<typeof vi.fn>; isPending: boolean }>,
 }));
@@ -49,7 +53,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => ({ data: h.woBilling, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectWorkOrderLines: () => ({ data: h.lines, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectWorkOrderLines: () => ({ data: h.linesError ? undefined : h.lines, isPending: false, isError: h.linesError, refetch: h.retryLines }),
   useWorkOrderAcceptances: () => ({ data: h.accError ? undefined : h.acceptances, isPending: false, isError: h.accError, refetch: vi.fn() }),
   useWorkOrderAcceptanceMutations: () => h.acc,
 }));
@@ -57,7 +61,7 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs
 import BillingTab from '../tabs/BillingTab';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
-const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
+const money = (value: number) => formatProjectDetailAmount(value, 'IDR', 'en')!;
 const boqRow = (id: string, code: string, unit: string, basis: 'unit_rate' | 'lump_sum', quantity: number, rate: number) =>
   ({ id, org_id: 'o', project_id: 'p1', earning_basis: basis, line_no: null, import_key: null, item_code: code, description: `${code} work`, unit, quantity, rate, created_at: '' });
 const lineFacts = (over: Partial<ContractLineFacts> & { boqItemId: string }): ContractLineFacts => ({
@@ -72,7 +76,7 @@ const baseFacts = {
 beforeEach(() => {
   vi.clearAllMocks();
   h.role = 'Finance'; h.userId = 'u-fin';
-  h.claims = []; h.workOrders = []; h.woBilling = []; h.lines = []; h.acceptances = []; h.docs = []; h.accError = false;
+  h.claims = []; h.workOrders = []; h.woBilling = []; h.lines = []; h.acceptances = []; h.docs = []; h.accError = false; h.linesError = false;
   const mutation = () => ({ mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false });
   h.acc = Object.fromEntries(['createLine', 'updateLine', 'deleteLine', 'prepare', 'withdraw', 'confirm'].map((n) => [n, mutation()]));
   h.wom = Object.fromEntries(['create', 'update', 'setValue', 'transition'].map((n) => [n, mutation()]));
@@ -200,6 +204,17 @@ describe('AC-CQ-015 Work orders tab: allocations and BAST list', () => {
     h.lines = [alloc('l1', 'b1', 1000)];
     h.docs = [SIGNED];
     h.role = 'Project Manager'; h.userId = 'u-pm';
+  });
+
+  it('AC-CQ-015 a failed contract-line read offers retry and never claims no allocations', async () => {
+    h.linesError = true;
+    const user = renderWorkOrders();
+    await user.click(within(disclosure()).getByText(/Contract lines and BAST/));
+    const lines = within(disclosure()).getByRole('region', { name: 'Contract lines' });
+    expect(within(lines).getByText('Couldn’t load the contract lines')).toBeInTheDocument();
+    expect(within(lines).queryByText('No contract lines allocated yet')).toBeNull();
+    await user.click(within(lines).getByRole('button', { name: 'Retry' }));
+    expect(h.retryLines).toHaveBeenCalledOnce();
   });
 
   it('AC-CQ-015 each work order has one disclosure: contract lines first, then BASTs, with statuses in words', async () => {
@@ -359,7 +374,9 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     await user.click(confirmButton());
     await user.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Confirm final BAST' }));
     expect(screen.queryByTestId('wo-closing-wo-1')).toBeNull();
-    expect(screen.queryByText('Closed')).toBeNull();
+    const orderRow = screen.getByRole('row', { name: /WO-001/ });
+    expect(within(orderRow).queryByText('Closed')).not.toBeInTheDocument();
+    expect(within(orderRow).getAllByText('Issued').length).toBeGreaterThan(0);
   });
 
   it('AC-CQ-015 a server refusal stays in the dialog with its figures and nothing is closed', async () => {
@@ -423,4 +440,14 @@ describe('AC-CQ-015 Work orders tab: final confirmation and closing value', () =
     renderWorkOrders();
     expect(screen.getByRole('button', { name: 'Invoice' })).toBeInTheDocument();
   });
+});
+
+
+it('GLM R-007 preserves the acceptance identity and names unavailable quantities instead of crashing', () => {
+  const incomplete = { id: 'bast-incomplete', status: 'Confirmed', acceptance_date: '2026-10-21', prepared_at: '2026-10-21T08:00:00Z', lines: undefined } as unknown as WorkOrderAcceptanceWithLines;
+  render(<ToastProvider><WorkOrderAcceptances workOrder={{ id: 'wo1', status: 'Issued' }} boqItems={[]} documents={[]}
+    acceptances={[incomplete]} state="ready" onRetry={vi.fn()} currentUserId="finance" projectManagerId="pm" hasAllocations={false}
+    onPrepare={vi.fn()} onEdit={vi.fn()} onWithdraw={vi.fn()} onConfirm={vi.fn()} /></ToastProvider>);
+  expect(screen.getByTestId('bast-bast-incomplete')).toBeInTheDocument();
+  expect(within(screen.getByTestId('bast-bast-incomplete')).getByRole('alert')).toHaveTextContent('Acceptance quantities are unavailable');
 });

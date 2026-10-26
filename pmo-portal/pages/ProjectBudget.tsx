@@ -7,11 +7,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
-  formatCurrency,
   formatCurrencyAuto,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
+import { formatProjectDetailAmount } from './project-detail/formatProjectDetailMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
@@ -94,7 +94,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -195,8 +195,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   const total = lineItems.reduce((sum, li) => sum + Number(li.budgeted_amount), 0);
+  const orderedLineItems = [...lineItems].sort((left, right) =>
+    budgetCategoryLabel(left.category as Enums<'budget_category'>, t).localeCompare(
+      budgetCategoryLabel(right.category as Enums<'budget_category'>, t),
+      i18n.language,
+    ) || (left.description ?? '').localeCompare(right.description ?? '', i18n.language),
+  );
   const rows: EditorRow[] = [
-    ...lineItems.map((li): EditorRow => ({ kind: 'item', li })),
+    ...orderedLineItems.map((li): EditorRow => ({ kind: 'item', li })),
     ...(adding ? [{ kind: 'new' } as EditorRow] : []),
   ];
 
@@ -374,7 +380,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             />
           </div>
         ) : (
-          <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), currency)}</span>
+          <span className="font-medium">
+            {formatProjectDetailAmount(Number(li.budgeted_amount), currency, i18n.language) ?? '—'}
+          </span>
         );
       },
     },
@@ -395,7 +403,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => void handleAdd()}
-                className="text-primary-text"
+                className="text-primary-text max-sm:min-h-11"
                 loading={createIsPending}
                 disabled={createIsPending}
               >
@@ -422,7 +430,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => void handleSaveEdit(li)}
-              className="text-primary-text"
+              className="text-primary-text max-sm:min-h-11"
               aria-label={t('financeCopy.save', "Save")}
               loading={updateIsPending}
               disabled={updateIsPending}
@@ -440,7 +448,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
+              className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               aria-label={deleteLabel}
               disabled={updateIsPending}
             >
@@ -452,7 +460,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => openEdit(li)}
-              className="text-primary-text hover:bg-primary/10"
+              className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
               aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
             >
               {t('financeCopy.edit', "Edit")}</Button>
@@ -460,7 +468,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
+              className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               aria-label={deleteLabel}
             >
               {t('financeCopy.delete', "Delete")}</Button>
@@ -469,12 +477,14 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       },
     },
   ];
+  const columnOrder = ['description', 'category', 'fiscal_year', 'amount', 'actions'];
+  const orderedColumns = [...columns].sort((left, right) => columnOrder.indexOf(left.key) - columnOrder.indexOf(right.key));
 
   return (
     <div className="relative mt-4">
       <DataTable
         rows={rows}
-        columns={columns}
+        columns={orderedColumns}
         rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
         tableId="budget-line-items-editor"
         accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
@@ -545,17 +555,23 @@ const VersionCard: React.FC<VersionCardProps> = ({
   updateIsPending,
   onLineItemSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
-  const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
+  const orderedLineItems = [...version.line_items].sort((left, right) =>
+    budgetCategoryLabel(left.category as Enums<'budget_category'>, t).localeCompare(
+      budgetCategoryLabel(right.category as Enums<'budget_category'>, t),
+      i18n.language,
+    ) || (left.description ?? '').localeCompare(right.description ?? '', i18n.language),
+  );
+  const showFiscalYear = orderedLineItems.some((li) => li.fiscal_year);
   const readOnlyColumns: Column<BudgetLineItemRow>[] = [
-    {
-      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
-      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
-    },
     {
       key: 'description', header: t('financeCopy.description', "Description"), kind: 'meta', size: 260,
       cell: (li) => <span className="text-muted-foreground">{li.description ?? '—'}</span>,
+    },
+    {
+      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
+      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
     },
     // FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
     // `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
@@ -570,11 +586,15 @@ const VersionCard: React.FC<VersionCardProps> = ({
     }] : []),
     {
       key: 'amount', header: t('financeCopy.budgeted', "Budgeted"), kind: 'money', align: 'num', size: 184,
-      cell: (li) => <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), version.currency)}</span>,
+      cell: (li) => (
+        <span className="font-medium">
+          {formatProjectDetailAmount(Number(li.budgeted_amount), version.currency, i18n.language) ?? '—'}
+        </span>
+      ),
     },
   ];
   return (
-    <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
+    <div data-testid="version-card" className="py-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3">
           <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
@@ -588,7 +608,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
           data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
           className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
         >
-          {formatCurrency(version.total, version.currency)}
+          {formatCurrencyAuto(version.total, version.currency)}
         </span>
       </div>
 
@@ -607,7 +627,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onDeleteDraft(version.id)}
-                className="text-destructive-text hover:bg-destructive/10"
+                className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               >
                 {t('financeCopy.deleteDraft', "Delete draft")}</Button>
               {activateBlockedReason && (
@@ -623,14 +643,14 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onArchive(version.id)}
-                className="text-warning-foreground hover:bg-warning/18"
+                className="text-warning-foreground hover:bg-warning/18 max-sm:min-h-11"
               >
                 {t('financeCopy.archive', "Archive")}</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onClone(version.id)}
-                className="text-primary-text hover:bg-primary/10"
+                className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
               >
                 {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
             </>
@@ -640,7 +660,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onClone(version.id)}
-              className="text-primary-text hover:bg-primary/10"
+              className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
             >
               {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
           )}
@@ -664,7 +684,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
         version.line_items.length > 0 && (
           <div className="relative mt-4">
             <DataTable
-              rows={version.line_items}
+              rows={orderedLineItems}
               columns={readOnlyColumns}
               rowKey={(li) => li.id}
               tableId="budget-version-line-items"
@@ -956,13 +976,13 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           <p className="text-sm text-muted-foreground">
             {t('financeCopy.activeBudget', "Active budget:")}{' '}
             <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
+              {formatCurrencyAuto(derivedTotal, selected?.currency ?? orgCurrency)}
             </span>
           </p>
         ) : null}
       </div>
       {canWrite && (
-        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
+        <Button variant="outline" className="max-sm:min-h-11" onClick={() => setShowNewVersionForm(true)}>
           {t('financeCopy.newVersion', "+ New version")}</Button>
       )}
     </div>
@@ -996,7 +1016,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
 
   // Normal state: version selector + single card (AC-BD-01/04/05)
   const selectFieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+    'h-8 max-sm:min-h-11 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   return (
     <div className="flex flex-col gap-4">

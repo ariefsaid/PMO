@@ -1374,8 +1374,8 @@
         "advance": "Advance",
         "age": "Age (days)",
         "claimant": "Claimant",
-        "outstanding": "Outstanding",
-        "project": "Project"
+        "project": "Project",
+        "outstanding": "Outstanding"
       },
       "errorSub": "The list below is unaffected. Try again.",
       "errorTitle": "Couldn't load outstanding advances",
@@ -2093,7 +2093,7 @@
           "assessed": "Assessed",
           "claimed": "Claimed",
           "item": "Item",
-          "quantity": "Contract",
+          "quantity": "Unit / basis",
           "rate": "Rate",
           "remaining": "Left to claim"
         },
@@ -2160,17 +2160,15 @@
         "attachEvidence": "Attach evidence",
         "column": {
           "actions": "Actions",
-          "claim": "Claim",
-          "evidence": "Evidence",
+          "claim": "Claim / scope",
           "gross": "Claimed",
-          "invoice": "Invoice",
           "net": "Net",
           "recovery": "Down payment recovered"
         },
         "confirmRaise": {
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
+          "figures": "{{scope}} · Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}}",
           "title": "Raise this claim's invoice?"
         },
         "confirmWithdraw": {
@@ -2218,11 +2216,9 @@
         "contract": "Contract value",
         "dpHeld": "Down payment held",
         "error": "Couldn't load billing",
-        "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
         "notSubmitted": "Claims raised, not yet submitted",
-        "remaining": "Contract not yet billed",
-        "title": "Billing summary"
+        "remaining": "Contract not yet billed"
       }
     },
     "documents": {
@@ -2240,7 +2236,7 @@
       "column": {
         "category": "Category",
         "code": "Code",
-        "date": "Date",
+        "date": "Document date",
         "document": "Document",
         "file": "File",
         "status": "Status"
@@ -2415,18 +2411,9 @@
         "title": "Delete {{name}}?"
       },
       "editContractValue": "Edit contract value",
-      "po": "PO {{ref}}",
-      "poWithDate": "PO {{ref}} ({{date}})",
-      "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
-      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
       "taxAmount": "Tax amount",
       "taxTreatment": "Tax treatment",
-      "tile": {
-        "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend"
-      },
       "toast": {
         "archived": "Project archived",
         "contractValueUpdated": "Contract value updated",
@@ -2514,23 +2501,13 @@
     },
     "overview": {
       "budgetSnapshot": {
-        "activeBudget": "Active budget",
-        "actualSpent": "Actual spent",
-        "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
         "error": "Couldn't load budget",
-        "openBudgetTab": "Open Budget tab",
-        "title": "Budget snapshot"
+        "openBudgetTab": "Open Budget tab"
       },
       "budgetUtil": {
         "atRisk": "At risk",
         "ofBudget": "of budget"
-      },
-      "finance": {
-        "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend",
-        "title": "Financial summary"
       },
       "procSummary": {
         "closed": "Closed",
@@ -2544,7 +2521,6 @@
       }
     },
     "pipeline": {
-      "backToSalesPipeline": "← Back to Sales Pipeline",
       "advanceTo": "Advance to",
       "bookingOnWin": "This contract value is recorded when you confirm the win.",
       "cancel": "Cancel",
@@ -2591,7 +2567,6 @@
     "procurement": {
       "column": {
         "request": "Request",
-        "status": "Status",
         "value": "Value"
       },
       "empty": {
@@ -2606,17 +2581,10 @@
       "title": "Purchase Requests"
     },
     "rail": {
-      "actionsAriaLabel": "Project rail actions",
       "ariaLabel": "Project details rail",
-      "customer": "Customer",
       "customerPoRef": "Customer PO ref",
       "detailsHeading": "Details",
       "notSet": "Not set",
-      "projectManager": "Project manager",
-      "recordHeading": "Record",
-      "start": "Start",
-      "targetEnd": "Target end",
-      "unassigned": "Unassigned",
       "endCustomer": "End customer",
       "pmoNumber": "PMO Project Number",
       "clientCode": "Client Project Code"
@@ -2628,13 +2596,11 @@
       "errorSub": "The request failed. Check your connection and try again.",
       "errorTitle": "Couldn't load the progress curve",
       "heading": "Progress curve",
-      "seriesActual": "Actual to date",
       "seriesPlanned": "Planned",
       "summary": "Project S-curve: actual to date {{actual}}.",
       "summaryWithPlan": "Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today."
     },
     "tabs": {
-      "ariaLabel": "Project sections",
       "billing": "Billing",
       "budget": "Budget",
       "documents": "Documents",
@@ -3944,7 +3910,6 @@
     "paymentCancelled": "Payment cancelled",
     "paymentCreated": "Payment created",
     "viewArchived": "View archived",
-    "invoiceCount": "{{count}} invoices",
     "budgetLoadFailed": "Couldn't load budget",
     "createVersion": "Create version",
     "activateVersion": "Activate version",
@@ -3967,8 +3932,6 @@
     "lineItemsSection": "Line items",
     "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
     "paymentDetails": "Payment details",
-    "invoiceCount_one": "{{count}} invoice",
-    "invoiceCount_other": "{{count}} invoices",
     "erpItem": "ERP item",
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
@@ -4390,27 +4353,24 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "title":"Project finances",
-    "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
-    "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
-    "margin":"Margin",
-    "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
-    "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
-    "category":"Category", "unavailable":"Unavailable",
-    "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
-    "mixedTaxBases":"Mixed tax bases",
-    "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
+    "invoiced": "Invoiced",
+    "margin": "Margin",
+    "differentCurrencies": "Unavailable — different currencies",
+    "workUnavailable": "Billed-work revenue unavailable",
+    "restricted": "Actuals exclude restricted rows",
+    "actualsUnavailable": "Not available yet",
+    "category": "Category",
+    "unavailable": "Unavailable",
+    "loading": "Loading project finances…",
+    "error": "Couldn't load project finances.",
+    "retry": "Retry",
+    "mixedTaxBases": "Mixed tax bases"
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
-    "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
-    "actualUnavailable": "Unavailable",
-    "actualLoading": "Loading Actual…",
-    "actualPartial": "Incomplete — see spending details",
-    "completeCoverage": "Complete category coverage",
-    "partialCoverage": "Partial coverage · {{mapped}} of {{total}} categories recorded",
-    "coverageUnavailable": "Spending coverage unavailable",
+    "partialCoverage": "Partial coverage · {{mapped}} of {{total}} spending categories mapped",
+    "coverageUnavailable": "No ERP spending categories are mapped for this project.",
     "updated": "Updated {{date}}",
     "showCategoryDetails": "Show category details",
     "categoryDetails": "Recorded spending by category",
@@ -4468,8 +4428,7 @@
     }
   },
   "uxs13": {
-    "projectDetailsAndActions": "Project details and actions",
-    "overdueTargetDateWithYear": "Target {{date}}, {{year}}"
+    "projectDetailsAndActions": "Project details"
   },
   "uxs18": {
     "bulk": {

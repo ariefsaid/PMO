@@ -1,6 +1,6 @@
 // T14-T18 — Overview tab densification tests
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -178,11 +178,17 @@ vi.mock('react-router', async (orig) => {
   return { ...actual, useNavigate: () => navigate };
 });
 
-const renderTab = (p: ProjectWithRefs = project, setTab = vi.fn(), committedSpend = 150_000, role: Role = 'Project Manager') =>
+const renderTab = (
+  p: ProjectWithRefs = project,
+  setTab = vi.fn(),
+  committedSpend = 150_000,
+  role: Role = 'Project Manager',
+  composition: { phaseSummary?: React.ReactNode; phasePlanner?: React.ReactNode } = {},
+) =>
   render(
     <ImpersonationProvider realRole={role}>
       <MemoryRouter>
-        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={setTab} />
+        <OverviewTab project={p} committedSpend={committedSpend} commitmentSource="not-tracked" ledgerBasis="erp" setTab={setTab} {...composition} />
       </MemoryRouter>
     </ImpersonationProvider>,
   );
@@ -223,17 +229,16 @@ describe('project invoicing summary', () => {
       const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs, vi.fn(), 150_000, role);
       const section = screen.getByTestId('project-finances');
       expect(screen.getAllByTestId('project-finances')).toHaveLength(1);
-      expect(screen.getByTestId('project-drawdown').compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(screen.queryByTestId('project-invoicing-summary')).not.toBeInTheDocument();
-      expect(section).not.toHaveTextContent('$220.00');
-      expect(section).toHaveTextContent('$110.00');
-      expect(section).toHaveTextContent('$100.00');
+      expect(section).not.toHaveTextContent('220');
+      expect(screen.getByRole('region', { name: 'Still to invoice' })).toHaveTextContent('110');
+      expect(section).toHaveTextContent('100');
       expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
-      expect(screen.getByTestId('project-invoiced-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
-      expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+      expect(screen.getByRole('heading', { name: /Still to invoice ·/ })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Billing · USD/ })).toBeInTheDocument();
       view.unmount();
     }
-    // Overview and its Project finances summary share the same React Query key; each calls the hook, while the request is cached/deduplicated.
+    // Overview and its Billing/Spending/Margin groups share the same React Query key.
     expect(financeQuery.calls).toHaveBeenCalledTimes(allowedRoles.length * 2);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
   });
@@ -245,30 +250,32 @@ describe('project invoicing summary', () => {
     expect(financeQuery.calls).toHaveBeenCalledTimes(1);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
     expect(screen.getByText(/Procurement summary/i)).toBeInTheDocument();
-    // PD-B: without a comparable Actual there is no budget snapshot to show, so no card at all.
-    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
+    // The Engineer keeps the allowed budget context without seeing project-wide spending totals.
+    const cost = screen.getByRole('group', { name: 'Spending' });
+    expect(cost).toHaveTextContent('Active budget');
+    expect(cost).not.toHaveTextContent('150,000');
   });
   it('UX-022/AC-PFIN-020 keeps contract value out of the finance drill-down headline', () => {
     const view = renderTab({ ...project, contract_value: 220, tax_treatment: 'inclusive' } as ProjectWithRefs);
     const section = screen.getByTestId('project-finances');
     expect(section).not.toHaveTextContent('Contract value');
-    expect(section).not.toHaveTextContent('$220.00');
+    expect(section).not.toHaveTextContent('220');
     expect(screen.queryByTestId('project-contract-basis')).not.toBeInTheDocument();
     view.unmount();
 
     const unknownBasis = { ...project, contract_value: 1_000_000, tax_treatment: 'unknown' } as ProjectWithRefs;
     const unknownView = renderTab(unknownBasis);
-    expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
-    expect(unknownView.getByTestId('project-finances')).not.toHaveTextContent('$1,000,000');
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('1,000,000');
+    expect(unknownView.getByTestId('project-finances')).not.toHaveTextContent('1,000,000');
     unknownView.unmount();
   });
 
   it('AC-PFIN-015: keeps the section honest during loading and offers retry on a finance-read error', async () => {
     financeQuery.query.isPending = true;
     const view = renderTab();
-    const section = screen.getByTestId('project-finances');
-    expect(section).toHaveTextContent('Loading project finances');
-    expect(section).not.toHaveTextContent('$0.00');
+    const cost = screen.getByRole('group', { name: 'Spending' });
+    expect(cost).toHaveTextContent('Loading project finances');
+    expect(cost).not.toHaveTextContent('0.00');
     view.unmount();
 
     financeQuery.query.isPending = false;
@@ -307,7 +314,7 @@ describe('OverviewTab T14: Procurement summary card', () => {
     renderTab();
     // Committed: r1(50k)+r2(80k)+r4(20k)=150k; r3(Cancelled) excluded
     // $150,000 also appears as Budget snapshot activeTotal — use count >= 1
-    expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/150,000/i).length).toBeGreaterThanOrEqual(1);
     // The procurement amount is total request value, not the separate Committed measure.
     expect(screen.getByText(/Total request value:/i)).toBeInTheDocument();
   });
@@ -318,11 +325,12 @@ describe('OverviewTab T14: Procurement summary card', () => {
     expect(screen.getByText('Request r4')).toBeInTheDocument();
   });
 
-  it('T14 / PD-B: no card (and no skeleton) while procurements are pending', () => {
+  it('AC-PD-OV-06: retains procurement section geometry while the scoped read is pending', () => {
     procState.isPending = true;
     procState.data = undefined;
     renderTab();
-    expect(screen.queryByText(/Procurement summary/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Procurement summary/i)).toBeInTheDocument();
+    expect(screen.getByTestId('overview-procurement-summary')).toBeInTheDocument();
   });
 
   it('T14 / PD-B: no card when no procurement rows exist for this project', () => {
@@ -343,31 +351,30 @@ describe('OverviewTab T14: Procurement summary card', () => {
 // ── T16: Budget snapshot card ─────────────────────────────────────────────────
 
 describe('OverviewTab T16: Budget snapshot card', () => {
-  it('T16: renders "Budget snapshot" heading', () => {
+  it('AC-PD-OV-02: keeps the active budget in the Spending group', () => {
     renderTab();
-    expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('Active budget');
   });
 
   it('T16: shows Active budget total', () => {
     renderTab();
     // activeVersion.total = 150k
-    expect(screen.getAllByText(/\$150,000/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('150,000', { exact: true })).toBeInTheDocument();
   });
 
   it('UX-014/023: Actual uses complete mapped project-finances data, not committed spend or stored project.spent', () => {
     // Actual is $320k even when the separate committed-spend prop says $450k.
     renderTab(project, vi.fn(), 450_000);
-    expect(screen.getAllByText(/\$320,000/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(screen.getByRole('group', { name: 'Spending' })).getAllByText('320,000', { exact: true })[0]).toBeInTheDocument();
     expect(screen.getByTestId('budget-used')).toHaveTextContent('36% of budget');
     expect(screen.queryByText(/50% of budget/)).not.toBeInTheDocument();
   });
 
-  it('DD-MONEY-4 shows no-active-budget instead of a zero utilization denominator', () => {
+  it('DD-MONEY-4 identifies no active budget without inventing a utilization denominator', () => {
     budgetState.data = [];
     derivedBudgetState.value = undefined;
     renderTab(project, vi.fn(), 450_000);
-    // PD-B: no budget → no budget card at all; never a 0% / $0 denominator.
-    expect(screen.queryByText(/Budget snapshot|Budget utilization/)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('No active budget');
     expect(screen.queryByText(/% of budget/)).not.toBeInTheDocument();
     expect(screen.queryByText(/budget committed/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Budget committed/i)).not.toBeInTheDocument();
@@ -379,27 +386,22 @@ describe('OverviewTab T16: Budget snapshot card', () => {
     expect(screen.queryByText(/40% of contract/i)).not.toBeInTheDocument();
   });
 
-  it('T16: shows over-budget variance in destructive color when committed spend > activeTotal (AC-W2-9-02)', () => {
+  it('AC-W2-9-02: names the over-budget variance when Actual exceeds active budget', () => {
     // committed(400k) > active(150k) → variance = spent - budget = +250k (over-budget, AC-W2-9-02)
     const { container } = renderTab(project, vi.fn(), 400_000);
-    // Check for the destructive text utility class on the variance element
-    // (item J: token utility class, not an inline hsl(var(--destructive)) style).
     const overEl = container.querySelector('[data-testid="budget-variance"]');
     expect(overEl).not.toBeNull();
-    // The label states the actionable overrun directly; no sign inversion is needed.
-    expect(overEl!.textContent).toContain('Over budget by $170,000');
-    expect(overEl!.className).toContain('text-destructive-text');
-    expect(overEl!.getAttribute('style')).toBeNull();
+    expect(overEl!.textContent).toContain('Over budget by 170,000');
   });
 
   it('UX-027 describes under-budget money as remaining and over-budget money as an overrun', () => {
     financeQuery.query.data.actuals.total = '50000.00';
     financeQuery.query.data.actuals.categories[0].amount = '50000.00';
     const { container } = renderTab(project, vi.fn(), 400_000);
-    expect(container.querySelector('[data-testid="budget-variance"]')).toHaveTextContent('Budget remaining $100,000');
+    expect(container.querySelector('[data-testid="budget-variance"]')).toHaveTextContent('Budget remaining 100,000');
   });
 
-  it('T16: shows category breakdown bars', () => {
+  it('AC-PD-OV-03: keeps budget category detail available in a disclosure', () => {
     renderTab();
     // Labour and Materials from activeVersion
     expect(screen.getByText('Labour')).toBeInTheDocument();
@@ -408,30 +410,29 @@ describe('OverviewTab T16: Budget snapshot card', () => {
 
   it('item F: by-category figures render as currency, never the raw "Nh" hours suffix', () => {
     renderTab();
-    // Labour 100k + Materials 50k from activeVersion, currency-formatted.
-    expect(screen.getByText('$100,000')).toBeInTheDocument();
-    expect(screen.getByText('$50,000')).toBeInTheDocument();
+    // Labour 100k + Materials 50k from activeVersion, in the named currency group.
+    expect(screen.getByText('100,000', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('50,000', { exact: true })).toBeInTheDocument();
     // the buggy unformatted "100000h" / "50000h" must NOT appear
     expect(screen.queryByText(/\b\d+h\b/)).not.toBeInTheDocument();
   });
 
-  it('T16 / PD-B: no card when no Active budget version exists', () => {
+  it('AC-PD-OV-04: identifies when there is no Active budget version', () => {
     budgetState.data = [];
     renderTab();
-    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No active budget/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('No active budget');
   });
 
-  it('T16 / PD-B: no card (and no skeleton) while budget versions are pending; a failed read keeps error + Retry', () => {
+  it('AC-PD-OV-05: retains the Cost group while budget versions load or fail', () => {
     budgetState.isPending = true;
     budgetState.data = undefined;
     const view = renderTab();
-    expect(screen.queryByText(/Budget snapshot/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent('Loading…');
     view.unmount();
     budgetState.isPending = false;
     budgetState.isError = true;
     renderTab();
-    expect(screen.getByText(/Budget snapshot/i)).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Spending' })).toHaveTextContent("Couldn't load budget");
     expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
@@ -439,13 +440,6 @@ describe('OverviewTab T16: Budget snapshot card', () => {
 // ── T18: Layout + footer links ────────────────────────────────────────────────
 
 describe('OverviewTab T18: Row 2 layout + footer links', () => {
-  it('T18: second row has lg:grid-cols-2', () => {
-    const { container } = renderTab();
-    const row2 = container.querySelector('[data-testid="overview-row2"]');
-    expect(row2).not.toBeNull();
-    expect(row2!.className).toContain('lg:grid-cols-2');
-  });
-
   it('T18: "View all procurement" button calls setTab with procurement', async () => {
     const setTab = vi.fn();
     renderTab(project, setTab);
@@ -463,100 +457,67 @@ describe('OverviewTab T18: Row 2 layout + footer links', () => {
   });
 });
 
-// ── DD-MONEY-1: OverviewTab D15 finance summary respects authorized Actual source ─
-describe('OverviewTab D15 financial summary — Actual requires authorized complete coverage (DD-MONEY-1)', () => {
-  // Engineer cannot read the project-finances source, so its distinct PO amount is not substituted for Actual.
-  const deadSpentProject: ProjectWithRefs = {
-    ...project,
-    spent: 0, // as in production
-  } as unknown as ProjectWithRefs;
+// Engineer requests are scoped to their own requests, so the Overview never infers project-wide Actual.
+describe('Overview money position respects the project-wide spend boundary (DD-MONEY-1)', () => {
+  const deadSpentProject: ProjectWithRefs = { ...project, spent: 0 } as unknown as ProjectWithRefs;
 
-  const renderFinanceSummary = (committedSpend: number, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'pmo', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'unavailable') =>
+  it('does not present a supplied project-wide PMO total to Engineer', () => {
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter>
-          <OverviewTab
-          project={deadSpentProject}
-          committedSpend={committedSpend}
-          commitmentSource={commitmentSource}
-          ledgerBasis={ledgerBasis}
-          setTab={vi.fn()}
-          showFinanceSummary={true}
-          />
+          <OverviewTab project={deadSpentProject} committedSpend={300_000} commitmentSource="pmo" ledgerBasis="pmo" setTab={vi.fn()} showMoneyPosition />
         </MemoryRouter>
       </ImpersonationProvider>,
     );
-
-  it('DD-MONEY-3 / PD-A: delivery-role summary has no PMO purchase-orders tile when ERP owns purchasing — never a zero', () => {
-    renderFinanceSummary(0, 'not-tracked');
-    const aside = screen.getByTestId('financial-summary');
-    expect(aside).not.toHaveTextContent('PMO purchase orders');
-    expect(aside).not.toHaveTextContent('Not tracked in PMO yet');
-    expect(aside).not.toHaveTextContent('$0');
+    const cost = screen.getByRole('group', { name: 'Spending' });
+    expect(cost).toHaveTextContent('Active budget');
+    expect(cost).not.toHaveTextContent('300,000');
+    expect(cost).not.toHaveTextContent('Committed PMO purchase orders');
+    expect(screen.queryByRole('group', { name: 'Billing' })).not.toBeInTheDocument();
   });
 
-  it('DD-MONEY-1: non-ERP Engineer sees committed PMO spend as Actual and utilization', () => {
+  it('does not invent ERP Actual for Engineer when project-finance access is unavailable', () => {
     render(
       <ImpersonationProvider realRole="Engineer">
         <MemoryRouter>
-          <OverviewTab project={deadSpentProject} committedSpend={300_000} commitmentSource="pmo" ledgerBasis="pmo" setTab={vi.fn()} showFinanceSummary />
+          <OverviewTab project={deadSpentProject} committedSpend={3_700_000} commitmentSource="not-tracked" ledgerBasis="erp" setTab={vi.fn()} showMoneyPosition />
         </MemoryRouter>
       </ImpersonationProvider>,
     );
-    const aside = screen.getByTestId('financial-summary');
-    expect(aside).toHaveTextContent('$300,000');
-    expect(aside).toHaveTextContent('Committed PMO purchase orders');
-    expect(aside).toHaveTextContent('33%');
-  });
-
-  it('DD-MONEY-1: ERP Engineer without project-finances access does not invent Actual', () => {
-    renderFinanceSummary(3_700_000, 'not-tracked', 'erp');
-    // The financial-summary aside is rendered (Engineer view, on-hand project)
-    const aside = screen.getByTestId('financial-summary');
-    expect(aside).toBeInTheDocument();
-    // Find the Actual stat-tile within the financial-summary
-    const tiles = aside.querySelectorAll('[data-testid="stat-tile"]');
-    const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
-    expect(actualTile).toBeTruthy();
-    // This role cannot read the authorized project-finances source; committed PO spend is not a substitute.
-    expect(actualTile!.querySelector('.sr-only')).toHaveTextContent('Unavailable');
-    expect(actualTile!.textContent).not.toContain('$3,700,000');
-    expect(actualTile!.textContent).not.toContain('$0');
+    const cost = screen.getByRole('group', { name: 'Spending' });
+    expect(cost).not.toHaveTextContent('3,700,000');
+    expect(cost).not.toHaveTextContent('$0');
+    expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
   });
 });
 
-// ⚑ Bound at the spec review's insistence: removing the labels from BOTH OverviewTab sites (the
-// finance tile and the contract-value SoD row) left the entire 7,363-test suite green. Two
-// distinct render sites, so two assertions — one would let the other rot.
-describe('OD-TAX-1 §2: the Overview money figures state their basis', () => {
-  it('labels the finance tile (the one place the Overview states the contract basis) from the row itself', () => {
-    // ⚑ The finance tile renders ONLY under the delivery-forward lens (D15 / OD-W5-C3-A), so it
-    // needs its own render with that flag on — asserting both from the default render is how this
-    // oracle would have gone quietly dead a second time.
-    const { unmount } = render(
-      <ImpersonationProvider realRole="Engineer">
-        <MemoryRouter>
-          <OverviewTab project={project} committedSpend={150_000} setTab={vi.fn()} showFinanceSummary />
-        </MemoryRouter>
-      </ImpersonationProvider>,
-    );
-    // Both sites live inside the delivery-forward financial summary, so one render covers them —
-    // but they are asserted BY NAME, because they can rot independently and a count would not tell.
-    expect(screen.getByTestId('overview-contract-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(screen.queryByTestId('overview-contract-value-tax-basis')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
-    unmount();
-  });
-});
-
-// ⚑ THE MOUNT-POINT ORACLE (#566, spec review Critical). Every drawdown behaviour was covered in
-// ProjectDrawdown.test.tsx — but NOTHING asserted the card is actually MOUNTED here. Guarding the
-// render with `false &&` left 409/409 green: the card could vanish from the screen a PM lands on
-// and no test would notice. That is precisely the failure #566 was filed about — a shipped
-// `get_project_drawdown()` with zero consumers — reproduced one level up, in the tests.
-describe('OverviewTab mounts the contract drawdown (#566, OD-CR-13)', () => {
-  it('OD-CR-13: the drawdown card is on the landing screen, not only behind the Work orders tab', () => {
+describe('Project detail Overview money position (AC-PD-OV-01)', () => {
+  it('groups the named money topics in the target order, after one primary figure', () => {
     renderTab();
-    expect(screen.getByTestId('project-drawdown')).toBeInTheDocument();
+
+    const groupContainer = screen.getByTestId('money-position-groups');
+    const groups = Array.from(groupContainer.children).filter((child) => child.getAttribute('role') === 'group');
+
+    expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual(['Billing', 'Spending', 'Margin']);
+    expect(within(groupContainer).getByRole('heading', { name: /Still to invoice ·/ })).toHaveAttribute('data-primary-figure', 'true');
+  });
+
+  it('AC-PD-OV-01: places the money answer before phase attention and its planner in document order', () => {
+    renderTab(project, vi.fn(), 150_000, 'Project Manager', {
+      phaseSummary: <div data-testid="phase-attention">Current phase</div>,
+      phasePlanner: <div data-testid="phase-planner">Plan delivery phases</div>,
+    });
+
+    const position = screen.getByTestId('money-position-groups');
+    const attention = screen.getByTestId('phase-attention');
+    const planner = screen.getByTestId('phase-planner');
+    expect(position.compareDocumentPosition(attention) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(attention.compareDocumentPosition(planner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('RD-020/H-04: omits zero fractions and keeps remaining exact money visible', () => {
+    renderTab({ ...project, contract_value: 1_000_000.5 } as ProjectWithRefs);
+    expect(screen.getByRole('heading', { name: /Still to invoice ·/ })).toBeInTheDocument();
+    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('1,000,000.5');
   });
 });

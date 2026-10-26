@@ -74,6 +74,18 @@ function currencyFormatterFor(shape: string, currency: string, opts: Intl.Number
   });
 }
 
+/** The currency's standard fraction width for an explicit viewer locale. */
+export function currencyFractionDigits(currency: string, locale = getNumberLocale()): number | null {
+  try {
+    return numberFormatterFor('currency-fraction-digits', locale, currency, {
+      style: 'currency',
+      currency,
+    }).resolvedOptions().maximumFractionDigits ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
@@ -83,26 +95,65 @@ export function formatExactMoney(
   value: string | null,
   currency: string,
   locale: string,
-  opts: { trimZeroFraction?: boolean; includeCurrency?: boolean; currencyDisplay?: 'code' | 'symbol' } = {},
+  opts: { trimZeroFraction?: boolean; trimTrailingFractionZeros?: boolean; includeCurrency?: boolean; currencyDisplay?: 'code' | 'symbol' } = {},
 ): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  if (opts.includeCurrency === false) return formatExactNumber(value, locale, opts);
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
-    const includeCurrency = opts.includeCurrency !== false;
-    const trim = opts.trimZeroFraction === true && cents === 0n;
-    const parts = numberFormatterFor(
-      `${includeCurrency ? opts.currencyDisplay === 'code' ? 'exact-currency-code' : 'exact-currency' : 'exact-number'}${trim ? '-whole' : ''}`,
-      locale,
-      includeCurrency ? currency : undefined,
-      {
-      ...(includeCurrency ? { style: 'currency' as const, currency, ...(opts.currencyDisplay === 'code' ? { currencyDisplay: 'code' as const } : {}) } : { style: 'decimal' as const }),
-      minimumFractionDigits: trim ? 0 : 2, maximumFractionDigits: trim ? 0 : 2,
-      },
-    ).formatToParts(whole);
-    const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
+    const visibleFraction = opts.trimTrailingFractionZeros === true
+      ? String(cents).padStart(2, '0').replace(/0+$/, '')
+      : String(cents).padStart(2, '0');
+    const digits = opts.trimZeroFraction === true && cents === 0n ? 0 : visibleFraction.length;
+    const code = opts.currencyDisplay === 'code';
+    const parts = numberFormatterFor(`exact-currency-${code ? 'code' : 'symbol'}-${digits}`, locale, currency, {
+      style: 'currency', currency,
+      ...(code ? { currencyDisplay: 'code' as const } : {}),
+      minimumFractionDigits: digits, maximumFractionDigits: digits,
+    }).formatToParts(whole);
+    const localizedFraction = digits === 0 ? '' : numberFormatterFor(`exact-currency-fraction-${digits}`, locale, undefined, {
+      style: 'decimal', useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits,
+    }).formatToParts(Number(cents) / 100).find((part) => part.type === 'fraction')?.value;
+    if (digits > 0 && !localizedFraction) return null;
+    const body = parts.map((part) => part.type === 'fraction' ? localizedFraction : part.value).join('');
+    return negative ? `−${body}` : body;
+  } catch {
+    return null;
+  }
+}
+
+/** Format an exact decimal inside a named currency group without repeating its currency mark. */
+export function formatExactNumber(
+  value: string | null,
+  locale: string,
+  opts: { trimZeroFraction?: boolean; trimTrailingFractionZeros?: boolean } = {},
+): string | null {
+  if (value === null || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  const negative = value.startsWith('-');
+  const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  const whole = BigInt(wholeText);
+  const cents = BigInt(fraction.padEnd(2, '0'));
+  try {
+    const visibleFraction = opts.trimTrailingFractionZeros === true
+      ? String(cents).padStart(2, '0').replace(/0+$/, '')
+      : String(cents).padStart(2, '0');
+    const digits = opts.trimZeroFraction === true && cents === 0n ? 0 : visibleFraction.length;
+    const wholeParts = numberFormatterFor('exact-number-whole', locale, undefined, {
+      style: 'decimal', useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0,
+    }).formatToParts(whole);
+    let body = wholeParts.map((part) => part.value).join('');
+    if (digits > 0) {
+      const fractionParts = numberFormatterFor(`exact-number-fraction-${digits}`, locale, undefined, {
+        style: 'decimal', useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits,
+      }).formatToParts(Number(cents) / 100);
+      const decimal = fractionParts.find((part) => part.type === 'decimal')?.value;
+      const fractionText = fractionParts.find((part) => part.type === 'fraction')?.value;
+      if (!decimal || !fractionText) return null;
+      body += `${decimal}${fractionText}`;
+    }
     return negative ? `−${body}` : body;
   } catch {
     return null;

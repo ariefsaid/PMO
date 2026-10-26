@@ -1,12 +1,12 @@
 // @e2e-isolation: self-isolated — unique document title (Date.now()), admin creates/edits/issues; PM approves (SoD); no seed coupling.
 import { test, expect, type Page } from '@playwright/test';
-import { login } from './helpers';
+import { login, selectProjectSection } from './helpers';
 
 /**
  * AC-DOC-001  Project document register CRUD + status workflow — real user journey
  * (binding BDD authoring principle).
  *
- * The Documents tab on a project detail is the per-project document register (metadata only;
+ * The Documents section on a project detail is the per-project document register (metadata only;
  * Storage is disabled so there is NO file upload — the "Attach file" affordance is a disabled
  * placeholder). Covered here in one sequential journey + two gate assertions:
  *
@@ -31,10 +31,10 @@ test.setTimeout(120_000);
 
 const PROJECT = '40000000-0000-0000-0000-000000000001'; // seeded P001
 
-/** Open the project's Documents tab and wait for the register to settle. */
-async function openDocumentsTab(page: Page) {
+/** Open the project's Documents section and wait for the register to settle. */
+async function openDocumentsSection(page: Page) {
   await page.goto(`/projects/${PROJECT}`);
-  await page.getByRole('tab', { name: 'Documents' }).click();
+  await selectProjectSection(page, 'Documents');
   // The register's loading skeleton (ListState variant="loading") must clear.
   await expect(page.getByTestId('liststate-loading')).toHaveCount(0, { timeout: 20_000 });
 }
@@ -61,7 +61,7 @@ test(
 
     // ── Step 1: AC-DOC-001 — register loads, "Add document" CTA visible for Admin ──
     await login(page, 'admin@acme.test');
-    await openDocumentsTab(page);
+    await openDocumentsSection(page);
     const addBtn = page.getByRole('button', { name: /add document/i }).first();
     await expect(addBtn).toBeVisible({ timeout: 10_000 });
 
@@ -115,7 +115,7 @@ test(
 
     // ── Step 6: AC-DOC-005 — a DIFFERENT reviewer (PM) approves the Issued document ──
     await login(page, 'pm@acme.test');
-    await openDocumentsTab(page);
+    await openDocumentsSection(page);
     const pmRow = docRow(page, docEdited);
     await expect(pmRow).toBeVisible({ timeout: 15_000 });
     await openRowMenu(page, pmRow);
@@ -136,7 +136,7 @@ test(
   'AC-DOC-007 gating: engineer sees a read-only register (no "Add document"); file-upload deferral is signposted by copy, not a dead button (D13)',
   async ({ page }) => {
     await login(page, 'engineer@acme.test');
-    await openDocumentsTab(page);
+    await openDocumentsSection(page);
 
     // GOAL ORACLE: no write affordance for the Engineer.
     await expect(page.getByRole('button', { name: /add document/i })).not.toBeVisible({ timeout: 10_000 });

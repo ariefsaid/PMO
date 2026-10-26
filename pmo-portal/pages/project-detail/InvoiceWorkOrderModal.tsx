@@ -9,9 +9,10 @@ import { useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { invoiceAmountProblem } from '@/src/lib/workOrderBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
 
 /**
  * "Invoice this work order" (OD-BILL-1, FR-BWO-008; #913 also where PMO owns revenue). One Draft for the project's
@@ -49,7 +50,7 @@ function workOrderInvoiceDescription(wo: Pick<WorkOrderRow, 'wo_number' | 'title
 const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   workOrder, projectId, clientId, remaining, onClose, onCreated,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // #913: the query-derived mode must agree with the synced repository route. Stay fail-closed if the cache
   // is not ready or changes while this dialog is open.
   const revenueMode = useRevenueMode();
@@ -58,7 +59,8 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   const erpItems = useErpItemOptions('sales');
   const { create } = useRevenueMutations();
   const intent = useCommandIntent();
-  const remainingText = formatCurrencyCents(remaining, workOrder.currency);
+  const remainingText = formatProjectDetailMoney(remaining, workOrder.currency, i18n.language)
+    ?? t('projectFinances.unavailable', 'Unavailable');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const form = useEntityForm<Values>({
@@ -204,7 +206,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
     >
       {/* DD-BWO-8: the work order's client PO goes on the ERP invoice. Shown, read-only, so the user knows what the client
           will see — never an input (it is the work order's, not this invoice's). */}
-      <p data-testid="invoice-wo-client-po" className="mb-3 text-[12.5px] text-muted-foreground">
+      <p data-testid="invoice-wo-client-po" className="mb-3 text-xs text-muted-foreground">
         {t('projectDetail.workOrders.billing.modal.clientPo', 'Client PO on the invoice')}
         <span className="ml-2 font-semibold tabular text-foreground">
           {workOrder.client_po_number || t('projectDetail.workOrders.billing.modal.clientPoNone', 'None on this work order')}

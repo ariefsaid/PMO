@@ -18,7 +18,7 @@
       "boq": {
         "column": {
           "accepted": "Accepted (BAST)",
-          "balance": "Not yet ordered",
+          "balance": "Available to order",
           "earned": "Earned",
           "ordered": "Ordered"
         },

@@ -1,24 +1,24 @@
-import React, { useMemo } from 'react';
+import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
+import { ProjectFilters } from '../ProjectFilters';
+import React, { useMemo, useState } from 'react';
 import {
-  DataTable,
-  ListState,
-  StatusPill,
   Button,
+  DataTable,
   Icon,
+  SearchMini,
+  StatusPill,
+  Toolbar,
   type Column,
 } from '@/src/components/ui';
 import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
+import { formatInstantDate } from '@/src/lib/format';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import {
-  pillVariantForStatus,
-  openPR,
-} from '../../../components/procurement';
+import { LEGAL_TRANSITIONS, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import { pillVariantForStatus, openPR } from '../../../components/procurement';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
 import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 
@@ -26,118 +26,175 @@ export interface ProcurementTabProps {
   projectId: string;
 }
 
-/**
- * REAL, project-scoped procurement (OQ-5). Reads procurement filtered by
- * `project_id` server-side (`useProjectProcurements`); RLS scopes the org. No drawer, no pie chart, no advisory card. Rows reuse the
- * Procurement surface's row (title + mono PR-id · value · inline lifecycle pips
- * · StatusPill) and drill to `/procurement/:id`. ProcurementStatusBadge retired
- * → StatusPill.
- */
+const PROCUREMENT_STATUSES = Object.keys(LEGAL_TRANSITIONS) as ProcurementStatus[];
+
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const statusLabel = useProcurementStatusLabel();
   const { data, isPending, isError, refetch } = useProjectProcurements(projectId);
   const canCreate = may('create', 'procurement');
-  // Review 8: the empty state points "below" only when ERPNext documents are actually listed there (same cached read).
   const erp = useErpPurchases(projectId, { enabled: may('view', 'procurement') });
-  const erpListedBelow = (erp.data ?? []).some((r) => r.procurementId === null);
+  const erpListedBelow = (erp.data ?? []).some((row) => row.procurementId === null);
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<ProcurementStatus | 'all'>('all');
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
-  const rows = useMemo(
-    () =>
-      [...(data ?? [])]
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-    [data],
-  );
+  const rows = useMemo(() => {
+    const ordered = [...(data ?? [])].sort((left, right) => {
+      const byDate = Date.parse(right.created_at) - Date.parse(left.created_at);
+      return (sortOrder === 'newest' ? byDate : -byDate) || left.id.localeCompare(right.id);
+    });
+    const query = search.trim().toLocaleLowerCase();
+    return ordered.filter((row) => {
+      const matchesStatus = statusFilter === 'all' || row.status === statusFilter;
+      const matchesSearch = !query || [row.title, row.code, row.id, row.vendor?.name]
+        .some((value) => value?.toLocaleLowerCase().includes(query));
+      return matchesStatus && matchesSearch;
+    });
+  }, [data, search, sortOrder, statusFilter]);
 
   const columns: Column<ProcurementWithRefs>[] = [
     {
       key: 'request',
       header: t('projectDetail.procurement.column.request', 'Request'),
-      cell: (r) => (
+      cell: (row) => (
         <div className="min-w-0">
-          <div className="truncate font-semibold" title={r.title}>
-            {r.title}
+          <div className="break-words whitespace-normal font-semibold" title={row.title}>{row.title}</div>
+          <div className="break-words font-mono text-[11px] text-muted-foreground">
+            {row.code ?? row.id.slice(0, 8)}
           </div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
-            {r.code ?? r.id.slice(0, 8)}
-          </div>
+          <span className="text-xs font-semibold text-muted-foreground">{row.vendor?.name ?? t('project:projectDetail.procurement.noVendor', 'No vendor selected')}</span>
         </div>
       ),
     },
     {
-      key: 'value',
-      header: t('projectDetail.procurement.column.value', 'Value'),
-      align: 'num',
-      cell: (r) => formatCurrency(r.total_value, r.currency),
+      key: 'statusDate',
+      header: t('project:projectDetail.procurement.column.statusDate', 'Status / date'),
+      cell: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
+            {statusLabel(row.status as ProcurementStatus)}
+          </StatusPill>
+          <time dateTime={row.created_at} className="text-xs text-muted-foreground">
+            {formatInstantDate(row.created_at)}
+          </time>
+        </div>
+      ),
     },
     {
-      key: 'status',
-      header: t('projectDetail.procurement.column.status', 'Status'),
-      cell: (r) => (
-        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {statusLabel(r.status as ProcurementStatus)}
-        </StatusPill>
+      key: 'value', kind: 'money',
+      header: t('projectDetail.procurement.column.value', 'Value'),
+      align: 'num',
+      cell: (row) => formatProjectDetailMoney(row.total_value, row.currency, i18n.language, true),
+    },
+    {
+      key: 'actions',
+      header: <span className="sr-only">{t('table.actions', 'Actions')}</span>,
+      kind: 'actions',
+      align: 'num',
+      size: 100,
+      minSize: 100,
+      maxSize: 140,
+      cell: (row) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11"
+          aria-label={`${t('projectDetail.procurement.openRow', 'Open')} ${row.code ?? row.id.slice(0, 8)}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            openPR(navigate, row);
+          }}
+        >
+          {t('projectDetail.procurement.openRow', 'Open')}
+        </Button>
       ),
     },
   ];
 
-  if (isPending) {
-    return (
-      <div className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={5} />
-      </div>
-    );
-  }
-
-  if (isError || !data) {
-    return (
-      <ListState
-        variant="error"
-        title={t('projectDetail.procurement.error.title', "Couldn't load procurement")}
-        sub={t(
-          'projectDetail.procurement.error.sub',
-          "Something went wrong fetching this project's purchase requests.",
-        )}
-        onRetry={() => refetch()}
-      />
-    );
-  }
+  const hasActiveFilters = search.trim().length > 0 || statusFilter !== 'all';
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('all');
+  };
+  const listState = isPending ? 'loading' : (isError || !data) ? 'error' : rows.length === 0 ? 'empty' : undefined;
 
   return (
     <div>
-      {/* Header: title + gated "New request" button (T13 — in-context PR creation). */}
-      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('projectDetail.procurement.title', 'Purchase Requests')}
-          </h2>
-        </div>
+        <h2 id="project-procurement-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
+          {t('projectDetail.procurement.title', 'Purchase Requests')}
+        </h2>
+
+      <Toolbar standalone role="group" aria-label={t('project:projectDetail.procurement.toolbar.label', 'Purchase request tools')}>
+        <SearchMini
+          placeholder={t('project:projectDetail.procurement.toolbar.searchPlaceholder', 'Search requests by name, code, or vendor…')}
+          aria-label={t('project:projectDetail.procurement.toolbar.searchLabel', 'Search purchase requests')}
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
+        />
+        <ProjectFilters summary={<span>{t('project:projectDetail.filters', 'Filters')} · {statusFilter === 'all' ? t('project:projectDetail.procurement.toolbar.allStatuses', 'All statuses') : statusLabel(statusFilter)} · {sortOrder === 'newest' ? t('project:projectDetail.procurement.toolbar.newest', 'Newest request date') : t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</span>}>
+        <select
+          aria-label={t('project:projectDetail.procurement.toolbar.statusFilter', 'Status filter')}
+          value={statusFilter}
+          onChange={(event) => setStatusFilter(event.target.value as ProcurementStatus | 'all')}
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <option value="all">{t('project:projectDetail.procurement.toolbar.allStatuses', 'All statuses')}</option>
+          {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
+        </select>
+        <select
+          aria-label={t('project:projectDetail.procurement.toolbar.sortRequests', 'Sort requests')}
+          value={sortOrder}
+          onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        >
+          <option value="newest">{t('project:projectDetail.procurement.toolbar.newest', 'Newest request date')}</option>
+          <option value="oldest">{t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</option>
+        </select>
+        </ProjectFilters>
         {canCreate && (
-          <Button variant="outline" size="sm" onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(projectId)}`)}>
+          <Button
+            variant="primary"
+            size="sm"
+            className="max-sm:min-h-11 max-sm:w-full"
+            onClick={() => navigate(`/procurement/new?project=${encodeURIComponent(projectId)}`)}
+          >
             <Icon name="plus" />
             {t('projectDetail.procurement.newRequest', 'New request')}
           </Button>
         )}
-      </div>
+      </Toolbar>
 
-      <DataTable<ProcurementWithRefs>
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        onActivate={(r) => openPR(navigate, r)}
-        rowLabel={(r) => `${t('projectDetail.procurement.openRow', 'Open')} ${r.title}`}
-        state={rows.length === 0 ? 'empty' : undefined}
-        emptyTitle={t(
-          'projectDetail.procurement.empty.title',
-          'No purchase requests for this project yet',
-        )}
-        emptySub={erpListedBelow ? t(
-          'uxs19.projectEmptyScope',
-          'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
-        ) : undefined}
-      tableId="project-detail-tabs-procurementtab-table" />
+      <section aria-labelledby="project-procurement-heading">
+
+        <DataTable<ProcurementWithRefs>
+          rows={rows}
+          columns={columns}
+          rowKey={(row) => row.id}
+          onActivate={(row) => openPR(navigate, row)}
+          rowLabel={(row) => `${t('projectDetail.procurement.openRow', 'Open')} ${row.title}`}
+          state={listState}
+          errorTitle={t('projectDetail.procurement.error.title', "Couldn't load procurement")}
+          errorSub={t('projectDetail.procurement.error.sub', "Something went wrong fetching this project's purchase requests.")}
+          onRetry={() => void refetch()}
+          emptyTitle={hasActiveFilters
+            ? t('project:projectDetail.procurement.empty.noMatches', 'No requests match these search and filters')
+            : t('projectDetail.procurement.empty.title', 'No purchase requests for this project yet')}
+          emptySub={!hasActiveFilters && erpListedBelow ? t(
+            'uxs19.projectEmptyScope',
+            'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
+          ) : undefined}
+          emptyAction={hasActiveFilters ? {
+            label: t('project:projectDetail.procurement.toolbar.clearSearchAndFilters', 'Clear search and filters'),
+            onClick: clearFilters,
+          } : undefined}
+          cardBelow={700}
+          tableId="project-detail-tabs-procurementtab-table"
+        />
+      </section>
 
       <ErpPurchasesSection projectId={projectId} />
     </div>

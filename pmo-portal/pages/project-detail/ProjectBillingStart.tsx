@@ -9,11 +9,14 @@ export interface ProjectBillingStartProps {
   onWorkOrder: () => void;
   /** The existing quantity-claim path is offered only when its current gate allows it. */
   onQuantity?: () => void;
+  /** The frame's primary action can name the intent while the chooser remains "Start invoice". */
+  triggerLabel?: string;
+  triggerClassName?: string;
 }
 
 const methodClassName = 'flex min-h-12 w-full flex-col items-start justify-center rounded-md border border-input bg-background px-3 py-2.5 text-left transition-colors hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
-const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, clientId, onWorkOrder, onQuantity }) => {
+const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, clientId, onWorkOrder, onQuantity, triggerLabel, triggerClassName }) => {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
@@ -21,8 +24,8 @@ const ProjectBillingStart: React.FC<ProjectBillingStartProps> = ({ projectId, cl
 
   return (
     <>
-      <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
-        {t('uxs15.startInvoice', 'Start invoice')}
+      <Button variant="primary" size="sm" className={triggerClassName} onClick={() => setOpen(true)}>
+        {triggerLabel ?? t('uxs15.startInvoice', 'Start invoice')}
       </Button>
       <Drawer
         open={open}
