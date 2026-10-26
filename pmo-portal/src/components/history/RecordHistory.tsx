@@ -148,7 +148,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((open) => !open)}
-            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="mt-1 inline-flex h-8 max-sm:min-h-11 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
@@ -182,7 +182,7 @@ const HistoryEventGroup: React.FC<{
         aria-expanded={expanded}
         aria-controls={eventsId}
         onClick={() => setExpanded((open) => !open)}
-        className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex h-8 max-sm:min-h-11 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
       </button>
@@ -349,7 +349,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
                 variant="outline"
                 aria-disabled={loadingOlder || undefined}
                 aria-busy={loadingOlder || undefined}
-                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60 max-sm:min-h-11"
                 onClick={() => {
                   if (!loadingOlder) void q.fetchNextPage();
                 }}

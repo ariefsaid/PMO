@@ -149,14 +149,14 @@ const WorkOrderLinesModal: React.FC<WorkOrderLinesModalProps> = ({
                           onChange={(value) => { setValues((current) => ({ ...current, [item.id]: value })); setError(item.id, null); }}
                           localeAware />
                       </div>
-                      <Button type="button" variant="outline" size="sm" loading={busy === item.id} disabled={busy !== null}
+                      <Button type="button" variant="outline" size="sm" className="max-sm:min-h-11" loading={busy === item.id} disabled={busy !== null}
                         aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.saveRow', 'Save {{item}}', { item: item.item_code })}
                         onClick={() => void save(item)}>
                         {t('projectTabs:contractQuantities.workOrders.contractLines.save', 'Save')}
                       </Button>
                       {row && (
                         <Button type="button" variant="ghost" size="sm" disabled={busy !== null}
-                          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                          className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
                           aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.removeRow', 'Remove {{item}}', { item: item.item_code })}
                           onClick={() => setRemoveFor({ item, row })}>
                           {t('projectTabs:contractQuantities.workOrders.contractLines.remove', 'Remove')}

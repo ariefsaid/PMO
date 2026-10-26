@@ -106,17 +106,17 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
                 {(canEdit || canWithdraw || canConfirm) && (
                   <div className="flex flex-wrap gap-1.5">
                     {canConfirm && (
-                      <Button variant="primary" size="sm" onClick={() => onConfirm(a)}>
+                      <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => onConfirm(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.confirm', 'Confirm BAST')}
                       </Button>
                     )}
                     {canEdit && (
-                      <Button variant="outline" size="sm" aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.editLabel', 'Edit draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onEdit(a)}>
+                      <Button variant="outline" size="sm" className="max-sm:min-h-11" aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.editLabel', 'Edit draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onEdit(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.edit', 'Edit')}
                       </Button>
                     )}
                     {canWithdraw && (
-                      <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                      <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
                         aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.withdrawLabel', 'Withdraw draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onWithdraw(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.withdraw', 'Withdraw')}
                       </Button>
@@ -130,7 +130,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       )}
       {canPrepare && (
         <div>
-          <Button variant="primary" size="sm" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
+          <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
         </div>
       )}
     </div>

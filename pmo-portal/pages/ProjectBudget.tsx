@@ -404,7 +404,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 className="text-primary-text max-sm:min-h-11"
                 loading={createIsPending}
                 disabled={createIsPending}
-                className="max-sm:min-h-11"
               >
                 {t('financeCopy.save', "Save")}</Button>
               <Button
@@ -433,7 +432,6 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               aria-label={t('financeCopy.save', "Save")}
               loading={updateIsPending}
               disabled={updateIsPending}
-              className="max-sm:min-h-11"
             >
               {t('financeCopy.save', "Save")}</Button>
             <Button
@@ -623,7 +621,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onDeleteDraft(version.id)}
-                className="text-destructive-text hover:bg-destructive/10"
+                className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               >
                 {t('financeCopy.deleteDraft', "Delete draft")}</Button>
               {activateBlockedReason && (
@@ -639,14 +637,14 @@ const VersionCard: React.FC<VersionCardProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => onArchive(version.id)}
-                className="text-warning-foreground hover:bg-warning/18"
+                className="text-warning-foreground hover:bg-warning/18 max-sm:min-h-11"
               >
                 {t('financeCopy.archive', "Archive")}</Button>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onClone(version.id)}
-                className="text-primary-text hover:bg-primary/10"
+                className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
               >
                 {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
             </>

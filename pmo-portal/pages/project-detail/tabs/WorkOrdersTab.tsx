@@ -594,12 +594,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (
-              <Button variant="ghost" size="sm" onClick={() => setFormFor(row)}>
+              <Button variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setFormFor(row)}>
                 {t('projectDetail.workOrders.action.edit', 'Edit')}
               </Button>
             )}
             {isDraft && canSetValue && (
-              <Button variant="outline" size="sm" onClick={() => setValueFor(row)}>
+              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setValueFor(row)}>
                 {t('projectDetail.workOrders.action.setValue', 'Set value')}
               </Button>
             )}
@@ -608,19 +608,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {issueGateBody}
               </GateNotice>
             ) : isDraft && canTransition ? (
-              <Button variant="primary" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>
+              <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Issued' })}>
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
             ) : null}
             {isIssued && canTransition && !closeByBast(row.id) && (
-              <Button variant="outline" size="sm" onClick={() => setPending({ row, to: 'Closed' })}>
+              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Closed' })}>
                 {t('projectDetail.workOrders.action.close', 'Close')}
               </Button>
             )}
             {canInvoice && (() => {
               const f = billingById.get(row.id);
               return f && canInvoiceWorkOrder(row.status, f) ? (
-                <Button variant="primary" size="sm" onClick={() => {
+                <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => {
                   setCreatedInvoice(null);
                   setInvoiceFor({ row, remaining: f.remaining });
                 }}>
@@ -632,7 +632,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
                 onClick={() => setPending({ row, to: 'Cancelled' })}
               >
                 {t('projectDetail.workOrders.action.cancel', 'Cancel')}
@@ -873,7 +873,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         )}
                         {editableLines && (
                           <div className="mt-2">
-                            <Button variant="outline" size="sm" onClick={() => setLinesFor(row)}>
+                            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setLinesFor(row)}>
                               {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
                             </Button>
                           </div>

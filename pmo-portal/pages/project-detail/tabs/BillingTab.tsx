@@ -261,10 +261,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     { key: 'actions', header: t('projectDetail.billing.boq.column.actions', 'Actions'), cell: (row) => (
       <div className="flex gap-1.5">
         {may('edit', 'boqItem') && (
-          <Button variant="ghost" size="sm" onClick={() => setBoqFormFor(row)}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>
+          <Button variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setBoqFormFor(row)}>{t('projectDetail.billing.boq.edit', 'Edit')}</Button>
         )}
         {may('delete', 'boqItem') && (
-          <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+          <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
             onClick={() => setDeleteFor(row)}>{t('projectDetail.billing.boq.delete', 'Delete')}</Button>
         )}
       </div>
@@ -319,12 +319,12 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       return (
         <div className="flex flex-wrap items-center gap-1.5" data-testid={`claim-actions-${c.id}`}>
           {open && canBill && (
-            <Button variant="outline" size="sm" onClick={() => setEvidenceFor(c.id)}>
+            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setEvidenceFor(c.id)}>
               {t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}
             </Button>
           )}
           {open && canBill && (c.evidence.length > 0 ? (
-            <Button variant="primary" size="sm" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
+            <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => setRaiseFor({ claim: c, idempotencyKey: crypto.randomUUID() })}>
               {t('projectDetail.billing.claims.raise', 'Raise invoice')}
             </Button>
           ) : (
@@ -333,7 +333,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </span>
           ))}
           {open && canBill && (
-            <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+            <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
               onClick={() => setWithdrawFor(c)}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>
           )}
         </div>
@@ -354,7 +354,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         actions={
           <>
             {may('create', 'boqItem') && (
-              <Button variant="outline" size="sm" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
+              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setBoqFormFor(null)}>{t('projectDetail.billing.boq.add', 'Add line')}</Button>
             )}
           </>
         }
@@ -385,7 +385,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         className="text-sm"
         actions={
           canBill && !canStartInvoice && (
-            <Button variant="outline" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
+            <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >

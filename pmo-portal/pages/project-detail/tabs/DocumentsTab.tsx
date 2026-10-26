@@ -918,7 +918,7 @@ const DocumentTitleCell: React.FC<{
         type="button"
         aria-label={`${t('projectDetail.documents.viewDocument', 'View')} ${doc.title}`}
         onClick={() => onViewDocument(doc)}
-        className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <span className="block truncate font-semibold" title={doc.title}>
           {doc.title}
