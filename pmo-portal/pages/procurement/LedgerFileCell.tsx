@@ -19,6 +19,8 @@
  * DESIGN.md tokens only; no raw hex/px. WCAG-AA: buttons have aria-label.
  */
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { formatNumber } from '@/src/lib/format';
 import { Icon, useToast } from '@/src/components/ui';
 import { getSignedDownloadUrl } from '@/src/lib/db/procurementFiles';
 import { useProcurementFiles } from '@/src/hooks/useProcurementFiles';
@@ -79,6 +81,7 @@ interface SingleFileButtonProps {
 }
 
 const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle, label }) => {
+  const { t } = useTranslation('procurement');
   const { toast } = useToast();
   const [busy, setBusy] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
@@ -94,7 +97,7 @@ const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle
       // Non-fatal: seed rows exist with no storage object. Show inline message.
       const { headline } = classifyMutationError(err);
       setInlineError(headline);
-      toast(headline, 'The file could not be opened. It may not have been uploaded yet.', 'warning');
+      toast(headline, t('ledgerFiles.openFailed', 'The file could not be opened. It may not have been uploaded yet.'), 'warning');
     } finally {
       setBusy(false);
     }
@@ -104,11 +107,11 @@ const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle
     return (
       <span
         role="alert"
-        className="inline-flex items-center gap-1 text-sm text-destructive"
+        className="inline-flex min-h-11 min-w-11 min-[768px]:min-h-8 min-[768px]:min-w-0 items-center gap-1 text-sm text-destructive-text"
         title={inlineError}
       >
         <Icon name="file" className="size-3.5 shrink-0" />
-        <span className="truncate max-w-[120px]">{fileTitle}</span>
+        <span className="min-w-0 break-words text-left">{fileTitle}</span>
       </span>
     );
   }
@@ -120,10 +123,10 @@ const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle
       disabled={busy}
       aria-label={label}
       title={fileTitle}
-      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex min-h-11 min-w-11 min-[768px]:min-h-8 min-[768px]:min-w-0 items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="file" className="size-3.5 shrink-0" />
-      <span className="truncate max-w-[120px]">{fileTitle}</span>
+      <span className="min-w-0 break-words text-left">{fileTitle}</span>
     </button>
   );
 };
@@ -145,6 +148,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
   procurementId,
   uploadedById,
 }) => {
+  const { t } = useTranslation('procurement');
   const { toast } = useToast();
   const phase = PHASE_BY_TYPE[type];
   const inputRef = useRef<HTMLInputElement>(null);
@@ -159,7 +163,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
     upload.mutate(
       { file },
       {
-        onSuccess: () => toast('File attached', file.name, 'success'),
+        onSuccess: () => toast(t('ledgerFiles.attached', 'File attached'), file.name, 'success'),
         onError: (err: unknown) => {
           const { headline, detail } = classifyMutationError(err);
           toast(headline, detail, 'warning');
@@ -174,7 +178,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         ref={inputRef}
         type="file"
         accept={FILE_INPUT_ACCEPT}
-        aria-label="Attach a file to this record"
+        aria-label={t('ledgerFiles.attachToRecord', 'Attach a file to this record')}
         className="sr-only"
         onChange={onPick}
       />
@@ -182,15 +186,15 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         type="button"
         onClick={() => inputRef.current?.click()}
         disabled={upload.isPending}
-        aria-label="Attach file"
-        title="Attach file"
-        className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={t('ledgerFiles.attachFile', 'Attach file')}
+        title={t('ledgerFiles.attachFile', 'Attach file')}
+        className="inline-flex min-h-11 min-w-11 min-[768px]:min-h-8 min-[768px]:min-w-0 items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary-text disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5 shrink-0" />
         {upload.isPending ? (
-          <span>Uploading…</span>
+          <span>{t('ledgerFiles.uploading', 'Uploading…')}</span>
         ) : (
-          <span>Attach</span>
+          <span>{t('ledgerFiles.attach', 'Attach')}</span>
         )}
       </button>
     </>
@@ -213,17 +217,18 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   uploadedById,
   onOpenFiles,
 }) => {
+  const { t } = useTranslation('procurement');
   // Multiple files → show "N files" count button; clicks open the files panel if provided
   if (fileCount > 1) {
     return (
       <button
         type="button"
         onClick={onOpenFiles}
-        aria-label={`${fileCount} files for ${systemNumber ?? type} — click to view all`}
-        className="inline-flex items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={t('ledgerFiles.viewAll', '{{count}} files for {{record}} — click to view all', { count: fileCount, record: systemNumber ?? type })}
+        className="inline-flex min-h-11 min-w-11 min-[768px]:min-h-8 min-[768px]:min-w-0 items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="file" className="size-3.5 shrink-0" />
-        <span>{fileCount} files</span>
+        <span>{t('ledgerFiles.count', '{{number}} files', { number: formatNumber(fileCount) })}</span>
       </button>
     );
   }
@@ -234,7 +239,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
       <SingleFileButton
         fileHref={fileHref}
         fileTitle={fileTitle}
-        label={`Open file for ${systemNumber ?? type}`}
+        label={t('ledgerFiles.openFor', 'Open file for {{record}}', { record: systemNumber ?? type })}
       />
     );
   }

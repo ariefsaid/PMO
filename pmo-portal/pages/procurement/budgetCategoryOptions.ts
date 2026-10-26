@@ -7,4 +7,4 @@ export const BUDGET_CATEGORY_OPTIONS = [
 ];
 
 export const BUDGET_CATEGORY_HELPER =
-  "Decides who approves: spend within the project's budget for this category goes to the project approver.";
+  "Decides who approves: spend within the project's budget for this category goes to the project's approver.";

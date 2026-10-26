@@ -51,7 +51,9 @@ describe('AdvanceAgingCard', () => {
     expect(within(item).getByRole('link', { name: 'Open ADV-1' })).toBeInTheDocument();
     expect(within(item).getByText(formatNumber(2226648000))).toBeInTheDocument();
     expect(item.querySelector('time')).toHaveAttribute('datetime', '2026-09-01');
-    expect(within(item).getByText('Details · 2 fields')).toBeInTheDocument();
+    const age = within(item).getByText('Age (days)').closest('div')!;
+    expect(within(age).getByText('10')).toBeInTheDocument();
+    expect(age.closest('details')).toBeNull();
     expect(within(item).getByText('Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
     expect(item.querySelector('details')).not.toHaveAttribute('open');
   });

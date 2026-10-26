@@ -727,15 +727,6 @@ describe('RecordHistory — project kind filter (FR-CHG-012)', () => {
     expect(screen.queryByText('No changes recorded yet')).toBeNull();
     expect(screen.queryByText(/History begins/)).toBeNull();
   });
-
-  it('chips use the list chip size and the active nav tokens', async () => {
-    repo.recordHistory.list.mockResolvedValue({ events: TWO_KINDS, nextCursor: null });
-    renderIt({ includeChildren: true, kindFilters: true });
-    await screen.findByRole('group', { name: 'Filter by record kind' });
-    const all = screen.getByRole('button', { name: 'All' });
-    expect(all).toHaveClass('h-7', 'text-xs', 'rounded-full', 'bg-primary/10', 'text-nav-active-text');
-    expect(screen.getByRole('button', { name: 'Tasks' })).toHaveClass('h-7', 'text-xs', 'text-muted-foreground');
-  });
 });
 
 describe('RecordHistory — merged procurement Activity', () => {

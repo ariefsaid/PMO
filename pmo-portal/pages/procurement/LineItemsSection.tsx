@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import {
   CardPad, Button, Icon, ConfirmDialog, FieldError, Combobox, DataTable,
   useMoneyInputMask,
@@ -16,27 +17,28 @@ import type { ComboboxOption } from '@/src/components/ui/Combobox';
 export interface ItemDraft { name: string; description?: string; quantity: string; rate: string }
 const EMPTY_DRAFT: ItemDraft = { name: '', quantity: '', rate: '' };
 function num(v: string): number { return parseMoneyInputAtScale(v, 2) ?? 0; }
-function describeFormatError(label: string, locale = getNumberLocale()): string {
+function describeFormatError(label: string, t: TFunction<'procurement'>, locale = getNumberLocale()): string {
   const { decimal, group } = numberSymbols(locale);
   const example = formatMoneyInputValue(1234.56, locale);
-  return `${label} must use "${group}" to group thousands and "${decimal}" for decimals — for example ${example}.`;
+  return t('lineItems.validation.format', '{{label}} must use "{{group}}" to group thousands and "{{decimal}}" for decimals — for example {{example}}.', { label, group, decimal, example });
 }
-function validateLineNum(raw: string, label: string): string | undefined {
-  if (!raw.trim()) return `${label} is required.`;
+function validateLineNum(raw: string, label: string, t: TFunction<'procurement'>): string | undefined {
+  if (!raw.trim()) return t('lineItems.validation.required', '{{label}} is required.', { label });
   const n = parseMoneyInputAtScale(raw, 2);
   if (n !== null && n > 0) return undefined;
-  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label);
-  return `${label} must be greater than 0 with no more than 2 decimal places.`;
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label, t);
+  return t('lineItems.validation.positive', '{{label}} must be greater than 0 with no more than 2 decimal places.', { label });
 }
 function parseRate(raw: string): number | null {
   const n = parseMoneyInputAtScale(raw, 2);
   return n !== null && n > 0 ? n : null;
 }
-function validateRate(raw: string): string | undefined {
-  if (!raw.trim()) return 'Unit price is required.';
+function validateRate(raw: string, t: TFunction<'procurement'>): string | undefined {
+  const label = t('lineItems.unitPrice', 'Unit price');
+  if (!raw.trim()) return t('lineItems.validation.required', '{{label}} is required.', { label });
   if (parseRate(raw) !== null) return undefined;
-  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError('Unit price');
-  return 'Unit price must be greater than 0 with no more than 2 decimal places.';
+  if (moneyInputErrorKind(raw, 2) === 'format') return describeFormatError(label, t);
+  return t('lineItems.validation.positive', '{{label}} must be greater than 0 with no more than 2 decimal places.', { label });
 }
 interface LineItemErrors { quantity?: string; rate?: string }
 export interface LineItemsSectionProps {
@@ -52,7 +54,7 @@ export interface LineItemsSectionProps {
 }
 const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boolean }> = ({ numeric, className = '', ...rest }) => (
   <input {...rest} type="text" inputMode={numeric ? 'decimal' : undefined}
-    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
+    className={'h-8 max-[767px]:h-11 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
 export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
@@ -69,8 +71,8 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
 
   const submitAdd = async () => {
     if (!draft.name.trim()) return;
-    const quantityError = validateLineNum(draft.quantity, 'Quantity');
-    const rateError = validateRate(draft.rate);
+    const quantityError = validateLineNum(draft.quantity, t('lineItems.quantityName', 'Quantity'), t);
+    const rateError = validateRate(draft.rate, t);
     const rate = parseRate(draft.rate);
     if (quantityError || rateError || rate === null) { setAddErrors({ quantity: quantityError, rate: rateError }); return; }
     setAddErrors({});
@@ -86,8 +88,8 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
   };
   const submitEdit = async (id: string) => {
     if (!editDraft.name.trim()) return;
-    const quantityError = validateLineNum(editDraft.quantity, 'Quantity');
-    const rateError = validateRate(editDraft.rate);
+    const quantityError = validateLineNum(editDraft.quantity, t('lineItems.quantityName', 'Quantity'), t);
+    const rateError = validateRate(editDraft.rate, t);
     const rate = parseRate(editDraft.rate);
     if (quantityError || rateError || rate === null) { setEditErrors({ quantity: quantityError, rate: rateError }); return; }
     setEditErrors({});
@@ -108,14 +110,14 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', fullIdentity: true, size: 320, minSize: 200,
       cell: (it) => {
         if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
-          <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} />
-          <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
-        </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />;
+          <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun={t('lineItems.erpItem', 'ERP item')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} />
+          <CellInput aria-label={t('lineItems.editDescriptionFor', 'Edit description for {{name}}', { name: it.name })} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
+        </div> : <CellInput aria-label={t('lineItems.editDescriptionFor', 'Edit description for {{name}}', { name: it.name })} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />;
         return <span className="text-sm font-normal">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
-    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
-    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatNumber(Number(it.rate)) },
+    { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={t('lineItems.editQuantityFor', 'Edit quantity for {{name}}', { name: it.name })} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
+    { key: 'rate', header: t('lineItems.unitPrice', 'Unit price'), kind: 'money', align: 'num', size: 150, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={t('lineItems.editUnitPriceFor', 'Edit unit price for {{name}}', { name: it.name })} ref={editRateMask.ref} value={editDraft.rate} onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div> : formatNumber(Number(it.rate)) },
     { key: 'amount', header: t('lineItems.lineTotal', 'Line total'), kind: 'money', align: 'num', size: 150, cell: (it) => {
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
@@ -123,18 +125,18 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       return <span className="text-sm font-normal">{amount === null ? '—' : formatNumber(amount)}</span>;
     } },
   ];
-  if (editable) columns.push({ key: 'actions', header: t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
+  if (editable) columns.push({ key: 'actions', header: t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={t('lineItems.editNamed', 'Edit {{name}}', { name: it.name })} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={t('lineItems.removeNamed', 'Remove {{name}}', { name: it.name })} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
   const columnsTotal = { amount: total === null ? '—' : formatNumber(total) };
   const mobileRow = (it: ProcurementItemRow) => {
     if (editable && editingId === it.id) return (
-      <div className="grid gap-3 p-3">
+      <div className="grid gap-4 p-4">
         {erpItems ? <div className="grid gap-2">
-          <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" />
-          <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
-        </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />}
+          <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun={t('lineItems.erpItem', 'ERP item')} />
+          <CellInput aria-label={t('lineItems.editDescriptionFor', 'Edit description for {{name}}', { name: it.name })} value={editDraft.description ?? ''} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
+        </div> : <CellInput aria-label={t('lineItems.editDescriptionFor', 'Edit description for {{name}}', { name: it.name })} value={editDraft.name} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />}
         <div className="grid min-w-0 grid-cols-2 gap-3">
-          <div className="min-w-0"><label htmlFor={`edit-quantity-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</label><CellInput id={`edit-quantity-${it.id}`} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} className="!h-11" onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div>
-          <div className="min-w-0"><label htmlFor={`edit-rate-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</label><CellInput id={`edit-rate-${it.id}`} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} className="!h-11" onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div>
+          <div className="min-w-0"><label htmlFor={`edit-quantity-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</label><CellInput id={`edit-quantity-${it.id}`} numeric aria-label={t('lineItems.editQuantityFor', 'Edit quantity for {{name}}', { name: it.name })} value={editDraft.quantity} className="!h-11" onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div>
+          <div className="min-w-0"><label htmlFor={`edit-rate-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</label><CellInput id={`edit-rate-${it.id}`} numeric aria-label={t('lineItems.editUnitPriceFor', 'Edit unit price for {{name}}', { name: it.name })} ref={editRateMask.ref} value={editDraft.rate} className="!h-11" onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="ghost" className="min-h-11" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button>
@@ -145,37 +147,37 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
 
     const amount = itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
     return (
-      <div className="grid gap-3 p-3">
+      <div className="grid gap-4 p-4">
         <p className="min-w-0 break-words text-sm text-foreground">{it.name}</p>
         {erpItems && it.description && <p className="min-w-0 break-words text-sm text-muted-foreground">{it.description}</p>}
-        <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3">
-          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</dt><dd className="break-words text-sm tabular text-foreground">{formatNumber(Number(it.quantity))}</dd></div>
-          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</dt><dd className="break-words text-sm tabular text-foreground">{formatNumber(Number(it.rate))}</dd></div>
+        <dl className="grid min-w-0 grid-cols-2 gap-4">
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</dt><dd className="mt-2 break-words text-sm tabular text-foreground">{formatNumber(Number(it.quantity))}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</dt><dd className="mt-2 break-words text-sm tabular text-foreground">{formatNumber(Number(it.rate))}</dd></div>
           <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.lineTotal', 'Line total')}</dt><dd className="whitespace-nowrap text-sm tabular text-foreground">{amount === null ? '—' : formatNumber(amount)}</dd></div>
         </dl>
         {editable && <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="outline" className="min-h-11" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button>
-          <Button variant="ghost" className="min-h-11" aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}>{t('procurement:lineItems.remove', 'Remove')}</Button>
+          <Button variant="outline" className="min-h-11" aria-label={t('lineItems.editNamed', 'Edit {{name}}', { name: it.name })} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button>
+          <Button variant="ghost" className="min-h-11" aria-label={t('lineItems.removeNamed', 'Remove {{name}}', { name: it.name })} onClick={() => setDeleteTarget(it)}>{t('procurement:lineItems.remove', 'Remove')}</Button>
         </div>}
       </div>
     );
   };
 
-  return <section className="mb-6 min-w-0" data-testid="line-items-section">
+  return <section className="mb-8 min-w-0 min-[921px]:mb-12" data-testid="line-items-section">
     <h2 className="mb-4 break-words text-xl font-bold leading-tight text-foreground">{t('lineItems.headingWithCurrency', 'Line items · {{currency}}', { currency })}</h2>
-    <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
+    <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName={t('lineItems.heading', 'Line items')}
       mobileRow={mobileRow}
       state={items.length === 0 ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
     {editable && <CardPad>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(180px,1fr)_100px_150px_auto] sm:items-start" data-testid="line-item-add-row">
-        <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => setDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} /></div> : <CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />}</div>
+        <div>{erpItems ? <div className="space-y-2"><Combobox label={t('lineItems.erpItem', 'ERP item')} value={draft.name || null} selectedOption={draft.name ? { value: draft.name, label: draft.name } : null} onChange={(name) => setDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun={t('lineItems.erpItem', 'ERP item')} placeholder={t('lineItems.selectItem', 'Select or search item…')} searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} required /><CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.describeItem', 'Describe the work or goods…')} value={draft.description ?? ''} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} /></div> : <CellInput aria-label={t('lineItems.newItemDescription', 'New item description')} placeholder={t('lineItems.addItemPlaceholder', 'Add an item…')} value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />}</div>
         <div><CellInput numeric aria-label={t('lineItems.newItemQuantity', 'New item quantity')} placeholder="0" value={draft.quantity} onChange={(e) => { setDraft((d) => ({ ...d, quantity: e.target.value })); setAddErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{addErrors.quantity}</FieldError></div>
         <div><CellInput numeric aria-label={t('lineItems.newItemUnitPrice', 'New item unit price')} placeholder={`0${numberSymbols().decimal}00`} ref={addRateMask.ref} value={draft.rate} onChange={addRateMask.onChange} /><FieldError>{addErrors.rate}</FieldError></div>
-        <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="tabular text-muted-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); return qty !== null && rate !== null ? formatNumber(qty * rate) : '—'; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
+        <div className="flex items-center gap-3"><span aria-label={t('lineItems.newLineTotal', 'New line total')} className="text-sm tabular-nums text-foreground">{(() => { const qty = parseMoneyInputAtScale(draft.quantity, 2); const rate = parseMoneyInputAtScale(draft.rate, 2); return qty !== null && rate !== null ? formatNumber(qty * rate) : '—'; })()}</span><Button size="sm" variant="outline" aria-label={t('lineItems.addLineItem', 'Add line item')} disabled={!draft.name.trim()} loading={busy} onClick={() => void submitAdd()}><Icon name="plus" />{t('lineItems.add', 'Add')}</Button></div>
       </div>
     </CardPad>}
-    <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description={t('lineItems.removeDescription', 'This removes the line item from the request. You can add it again while the request is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
+    <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? t('lineItems.removeNamedTitle', 'Remove {{name}}?', { name: deleteTarget.name }) : t('lineItems.removeTitle', 'Remove line item?')} description={t('lineItems.removeDescription', 'This removes the line item from the request. You can add it again while the request is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
   </section>;
 };
 LineItemsSection.displayName = 'LineItemsSection';

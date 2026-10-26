@@ -210,7 +210,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             <dd className={`mt-2 break-words text-sm font-normal tabular-nums ${fact.tone === 'neg' ? 'text-destructive-text' : 'text-foreground'}`}>
               {fact.value}
             </dd>
-            {'sub' in fact && fact.sub && <p className="mt-2 break-words text-sm text-muted-foreground">{fact.sub}</p>}
+            {'sub' in fact && fact.sub && <dd className="mt-2 break-words text-sm text-muted-foreground">{fact.sub}</dd>}
           </div>
         ))}
       </dl>
@@ -223,7 +223,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {/* Over-available advisory — non-blocking and named in text; approval remains permitted. */}
         {overAvailable && (
           <ErrBanner
-            className="mt-3 mb-0"
+            className="mt-4 mb-0"
             title={t('procurement:detail.budget.overAvailable', 'Over available budget')}
             sub={
               <>
@@ -239,7 +239,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             already counted in Reserved); surface the over-budget condition instead. */}
         {overBudgetReserved && (
           <ErrBanner
-            className="mt-3 mb-0"
+            className="mt-4 mb-0"
             title={t('procurement:detail.budget.projectOverBudget', 'Project over budget')}
             sub={
               <>

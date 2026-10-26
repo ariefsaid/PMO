@@ -171,7 +171,8 @@ describe('AC-JR-W1-05: ProcurementDetails project name links', () => {
     const link = screen.getAllByRole('link', { name: /Open Bridge Alpha/i })[0];
     const meta = link.parentElement!.parentElement!;
     expect(meta.textContent?.trim().startsWith('·')).toBe(false);
-    expect(meta.textContent).toContain('Bridge Alpha · requested by Eng User');
+    expect(meta).toHaveTextContent('Bridge Alpha');
+    expect(meta).toHaveTextContent('requested by Eng User');
   });
 
   it('AC-JR-W1-05: moneyContext in Approve confirm shows project name as a link', async () => {
@@ -242,8 +243,8 @@ describe('AC-002 #1325: ProcurementDetails shows the short name but keeps money 
   it('the header project link shows the short name described by the contractual title', () => {
     detailState.data = { ...baseProcurement, project: { name: 'Bridge Alpha Contractual', short_name: 'Bridge', code: 'PRJ-001' } };
     renderPage();
-    const link = screen.getAllByRole('link', { name: 'Open Bridge' })[0];
-    expect(link).toHaveAccessibleDescription('Bridge Alpha Contractual');
+    const link = screen.getAllByRole('link', { name: 'Open Bridge Alpha Contractual' })[0];
+    expect(link).toHaveTextContent('Bridge Alpha Contractual');
     expect(link.getAttribute('href')).toBe('/projects/proj-1');
   });
 

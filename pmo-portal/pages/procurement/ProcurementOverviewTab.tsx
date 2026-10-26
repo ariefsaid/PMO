@@ -58,7 +58,7 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
   }
 
   return (
-    <div className="min-w-0 space-y-8 pt-8">
+    <div className="min-w-0 space-y-8 min-[921px]:space-y-12 min-[921px]:pt-12">
       {[...amountGroups].map(([groupCurrency, facts]) => (
         <section key={groupCurrency} aria-labelledby={`procurement-review-amounts-${groupCurrency}`}>
           <h2 id={`procurement-review-amounts-${groupCurrency}`} className="mb-4 break-words text-xl font-bold">

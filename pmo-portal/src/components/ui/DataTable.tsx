@@ -637,7 +637,7 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    <th scope="row" className={cn('px-3 text-left text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    <th scope="row" className={cn('px-3 text-left text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" className="min-h-11 min-[768px]:min-h-8" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -781,7 +781,7 @@ export function DataTable<Row>({
             : <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className={cn('bg-secondary/40 px-4 py-2 text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className={cn('bg-secondary/40 px-4 py-2 text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" className="min-h-11 min-[768px]:min-h-8" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
@@ -798,7 +798,7 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  mobileRow ? 'relative transition-colors' : 'relative flex flex-col gap-2 p-4 text-sm',
+                  mobileRow ? 'relative transition-colors' : 'relative flex flex-col gap-4 p-4 text-sm',
                   onActivate && !mobileRow && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
@@ -841,12 +841,12 @@ export function DataTable<Row>({
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {!mobileRow && restCols.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                  <dl className="grid min-w-0 grid-cols-2 gap-4">
                     {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
-                        <React.Fragment key={col.key}>
+                        <div key={col.key} className={cn('min-w-0', col.align === 'num' && 'text-right', col.align === 'center' && 'text-center')}>
                           <dt
                             className={cn(
                               'text-xs font-semibold text-muted-foreground self-start',
@@ -859,7 +859,7 @@ export function DataTable<Row>({
                             className={cn(
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
-                              'min-w-0 break-words text-sm text-foreground',
+                              'mt-2 min-w-0 break-words text-sm text-foreground',
                               col.align === 'num' && 'tabular text-right',
                               col.align === 'center' && 'text-center',
                               stripHiddenClasses(col.colClassName)
@@ -867,7 +867,7 @@ export function DataTable<Row>({
                           >
                             {content}
                           </dd>
-                        </React.Fragment>
+                        </div>
                       );
                     })}
                   </dl>
@@ -879,12 +879,12 @@ export function DataTable<Row>({
           })
         )}
         {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-sm tabular">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+          <dl className="grid min-w-0 grid-cols-2 gap-4">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="text-xs font-semibold text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 text-sm', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <div key={column.key} className={cn('min-w-0', column.align === 'num' && 'text-right')}><dt className="text-xs font-semibold text-muted-foreground">{column.header}</dt><dd className={cn('mt-2 min-w-0 text-sm text-foreground', column.align === 'num' && 'text-right tabular')}>{value}</dd></div>;
             })}
           </dl>
         </li>)}

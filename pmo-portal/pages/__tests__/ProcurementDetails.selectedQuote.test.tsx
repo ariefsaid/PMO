@@ -101,8 +101,8 @@ const selectedQuote = {
   procurement_id: 'proc-001',
   vendor_id: 'v-apex',
   vendor: { name: 'Apex Supply' },
-  total_amount: 48000,
   currency: 'USD',
+  total_amount: 48000,
   vq_number: 'VQ-2606040001',
   is_selected: true,
   reference: 'VQ-2606040001',
@@ -115,6 +115,7 @@ const otherQuote = {
   id: 'q-2',
   vendor_id: 'v-beta',
   vendor: { name: 'Beta Traders' },
+  currency: 'USD',
   total_amount: 52000,
   vq_number: 'VQ-2606040002',
   is_selected: false,
@@ -171,7 +172,8 @@ describe('AC-IXD-PROC-004: Review and Quotes preserve selected quotation evidenc
     detailState.data = { ...base, status: 'Quote Selected' };
     renderPage('overview');
     const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
-    expect(fact).toHaveTextContent('$48,000');
+    expect(fact).toHaveTextContent('48,000');
+    expect(fact.closest('section')).toHaveTextContent('USD');
   });
 
   it('AC-IXD-PROC-004: the selected amount remains distinct through Paid', () => {
@@ -188,7 +190,7 @@ describe('AC-IXD-PROC-004: Review and Quotes preserve selected quotation evidenc
     };
     renderPage('overview');
     const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
-    expect(fact).toHaveTextContent('$48,000');
+    expect(fact).toHaveTextContent('48,000');
   });
 
   it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {
@@ -197,7 +199,7 @@ describe('AC-IXD-PROC-004: Review and Quotes preserve selected quotation evidenc
     // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
     // Both desktop + mobile branches render the pill so at least one match expected.
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(section).getAllByText(/^Selected$/i).length).toBeGreaterThanOrEqual(1);
     // its vq number is shown alongside (may appear in both branches)
     expect(within(section).getAllByText('VQ-2606040001').length).toBeGreaterThanOrEqual(1);
   });

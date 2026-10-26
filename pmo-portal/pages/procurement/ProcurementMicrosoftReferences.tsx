@@ -141,7 +141,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         <span className="break-words text-sm font-normal text-foreground">{row.type}</span>
         <span className="text-sm text-muted-foreground">{t('m365Documents:procurement.legacyNote', 'Plain link, not from Microsoft 365')}</span>
         {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 break-all text-sm text-primary hover:underline">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 break-all text-sm text-primary-text hover:underline">
             <Icon name="eye" className="shrink-0" />
             {t('m365Documents:procurement.openLegacy', 'Open linked document')}
           </a>

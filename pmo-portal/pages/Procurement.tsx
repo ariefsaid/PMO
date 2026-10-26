@@ -389,7 +389,7 @@ const ProcurementPage: React.FC = () => {
                       event.preventDefault();
                       navigateWithReturn('/erp-purchases');
                     }}
-                    className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline"
+                    className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text hover:underline"
                   >
                     {tf('erpLinks.bannerLink', 'ERPNext documents not in a purchase')}
                   </Link>
@@ -416,7 +416,7 @@ const ProcurementPage: React.FC = () => {
                 bleeding off-screen at 390px. The parent needs `w-full min-w-0` or the
                 flex row grows to the strip's intrinsic ~498px and the scroller never
                 gets a bounded width to scroll against. */}
-            <div data-testid="status-filter-scroll" className="min-w-0 flex-1 overflow-x-auto scroll-fade-x">
+            <div data-testid="status-filter-scroll" className="min-w-0 basis-full overflow-x-auto scroll-fade-x min-[768px]:flex-1 min-[768px]:basis-auto">
               <ViewToggle<StatusFilter>
                 options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
                 value={filterValue}
@@ -425,6 +425,7 @@ const ProcurementPage: React.FC = () => {
                   trackFilterApplied('status', FILTERS.length, 'procurement');
                 }}
                 ariaLabel={t('procurement.statusFilterLabel', 'Status filter')}
+                className="max-[767px]:[&_button]:min-h-11"
               />
             </div>
             <SelectField

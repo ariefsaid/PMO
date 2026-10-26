@@ -53,17 +53,17 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
     const href = `/expenses/${row.advanceId}${location.search}`;
     const state = { recordContext: { listPath: returnPath } };
     return (
-      <div className="grid gap-3 p-3">
+      <div className="grid gap-4 p-4">
         <div className="min-w-0">
           <Link to={href} state={state} className="block break-words text-sm text-foreground hover:underline">{row.claimNumber ?? t('expenseClaims:shared.notAvailable', 'Not available')}</Link>
           <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">{row.claimantName ?? t('expenseClaims:shared.notAvailable', 'Not available')}</div>
         </div>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="text-xs font-semibold">{t('expenseClaims:aging.columns.paidOn', 'Paid on')}</span>
-          {row.paidOn ? <time dateTime={row.paidOn}>{formatDateOnly(row.paidOn)}</time> : <span>{t('expenseClaims:aging.unknownPayoutDate', 'Not available')}</span>}
-        </div>
+        <dl className="grid min-w-0 grid-cols-2 gap-4">
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenseClaims:aging.columns.paidOn', 'Paid on')}</dt><dd className="mt-2 text-sm tabular-nums text-foreground">{row.paidOn ? <time dateTime={row.paidOn}>{formatDateOnly(row.paidOn)}</time> : t('expenseClaims:aging.unknownPayoutDate', 'Not available')}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.age', 'Age (days)')}</dt><dd className="mt-2 text-sm tabular-nums text-foreground">{row.ageDays === null ? t('expenseClaims:shared.notAvailable', 'Not available') : formatNumber(row.ageDays)}</dd></div>
+        </dl>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-          <span className="whitespace-nowrap text-sm tabular text-foreground">{formatNumber(row.outstanding)}</span>
+          <div className="min-w-0"><p className="text-sm text-muted-foreground">{t('expenses.aging.columns.outstanding', 'Outstanding')}</p><p className="mt-2 whitespace-nowrap text-xl font-bold tabular-nums text-foreground">{formatNumber(row.outstanding)}</p></div>
           <Link to={href} state={state} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: row.claimNumber ?? row.advanceId })}
             className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {t('expenseClaims:register.table.open', 'Open')}
@@ -71,11 +71,10 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
         </div>
         <details>
           <summary className="flex min-h-11 cursor-pointer items-center break-words text-xs font-semibold text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-            {t('expenseClaims:aging.mobileDetails', 'Details · 2 fields')}
+            {t('expenseClaims:aging.mobileDetails', 'Project details')}
           </summary>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
-            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{row.projectName ?? t('expenses.overhead', 'Overhead')}</dd></div>
-            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.age', 'Age (days)')}</dt><dd className="break-words text-sm text-foreground">{row.ageDays ?? t('expenseClaims:shared.notAvailable', 'Not available')}</dd></div>
+          <dl className="mt-2 grid grid-cols-2 gap-4">
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.project', 'Project')}</dt><dd className="mt-2 break-words text-sm text-foreground">{row.projectName ?? t('expenses.overhead', 'Overhead')}</dd></div>
           </dl>
         </details>
       </div>

@@ -43,7 +43,7 @@ describe('ErpPurchases page', () => {
     renderPage();
     expect(purchasesMock).toHaveBeenCalledWith(undefined, { enabled: true });
     expect(screen.getAllByRole('button', { name: /^Link PUR-ORD-/ })).toHaveLength(2);
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 }).parentElement).toHaveTextContent('2');
   });
 
   it('orders controls as search, project/type filters, visible date sort, then row selection', () => {
@@ -86,13 +86,13 @@ describe('ErpPurchases page', () => {
   it('shows and reverses Latest document date sorting in the URL', async () => {
     purchasesMock.mockReturnValue({ data: [row, { ...row, id: 'r2', name: 'PUR-ORD-10', docDate: '2026-02-05' }] });
     renderPage();
-    let rows = screen.getAllByRole('row').slice(1);
+    let rows = screen.getAllByRole('row').filter((row) => within(row).queryByRole('button', { name: /^Link PUR-ORD-/ }));
     expect(rows[0]).toHaveTextContent('PUR-ORD-10');
     const sort = screen.getByRole('button', { name: /Sort by document date:/i });
     expect(sort).toHaveTextContent('Latest document date');
     await userEvent.click(sort);
     expect(screen.getByTestId('route-query')).toHaveTextContent('sort=reverse');
-    rows = screen.getAllByRole('row').slice(1);
+    rows = screen.getAllByRole('row').filter((row) => within(row).queryByRole('button', { name: /^Link PUR-ORD-/ }));
     expect(rows[0]).toHaveTextContent('PUR-ORD-9');
     expect(screen.getByRole('button', { name: /Sort by document date: Oldest document date/i })).toBeInTheDocument();
   });

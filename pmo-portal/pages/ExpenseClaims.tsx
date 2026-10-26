@@ -103,7 +103,7 @@ const ExpenseClaims: React.FC = () => {
     { key: 'claim', header: t('expenseClaims:register.columns.claim', 'Claim'), kind: 'primary', fullIdentity: true,
       primaryTitle: (r) => r.title,
       cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="text-sm font-normal text-primary-text hover:underline">{r.title}</Link>,
-      secondaryCell: (r) => <span>{r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}</span>,
+      secondaryCell: (r) => <span className="text-xs font-semibold">{r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}</span>,
       exportValue: (r) => r.claim_number ?? r.title },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
       cell: (r) => r.project ? <span className="break-words">{r.project.name}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },

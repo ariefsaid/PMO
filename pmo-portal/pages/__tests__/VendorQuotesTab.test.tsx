@@ -164,8 +164,8 @@ describe('AC-VQ-002: VendorQuotesTab — bid comparison rows', () => {
     // Both rows visible via amount — getAllByText because the component renders
     // both a desktop grid and a mobile dl-card branch (CSS-hidden on the other
     // breakpoint), so each value appears twice in the DOM.
-    expect(screen.getAllByText('$148,000').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('$162,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('162,000').length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-VQ-002: renders VQ number (vendor ID column proxy)', () => {
@@ -209,7 +209,7 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
       />,
     );
     // Both desktop + mobile branches render the pill so ≥1 match is expected
-    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/^Selected$/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-VQ-003: "Selected · best value" pill present for selected; absent for unselected', () => {
@@ -221,7 +221,7 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
         canSelect={false}
       />,
     );
-    expect(screen.getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/^Selected$/i).length).toBeGreaterThanOrEqual(1);
     unmount();
 
     // Not-selected quote does NOT have the pill
@@ -233,7 +233,7 @@ describe('AC-VQ-003: VendorQuotesTab — selected row highlight', () => {
         canSelect={false}
       />,
     );
-    expect(screen.queryByText(/Selected · best value/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Selected$/i)).not.toBeInTheDocument();
   });
 });
 
@@ -356,7 +356,9 @@ describe('FR-L10N-020: currency-aware rendering (not a blind $)', () => {
   it("quote amounts render in the QUOTE's own currency", () => {
     const eurQuote = makeQuote({ id: 'q-eur', total_amount: 148000, currency: 'EUR' });
     render(<VendorQuotesTab {...defaultProps} quotations={[eurQuote]} />);
-    expect(screen.getAllByText('€148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('148,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('row', { name: /^EUR\s*1$/ })).toBeInTheDocument();
+    expect(screen.queryByRole('row', { name: /^USD/ })).toBeNull();
     expect(screen.queryByText('$148,000')).not.toBeInTheDocument();
   });
 
@@ -403,23 +405,6 @@ describe('AC-PLC-009: vendor quote money entry', () => {
   });
 });
 
-describe('coming_soon_clicked: the "Attach file (coming soon)" affordance (2026-07-13 wiring plan)', () => {
-  beforeEach(() => {
-    analytics.trackComingSoonClicked.mockClear();
-  });
-
-  it('AC: clicking the disabled affordance fires trackComingSoonClicked (demand signal)', async () => {
-    render(<VendorQuotesTab {...defaultProps} quotations={[]} canAdd />);
-    await userEvent.click(screen.getByRole('button', { name: /add quotation/i }));
-    const affordance = screen.getByTitle('File upload coming soon');
-    await userEvent.click(affordance);
-    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith(
-      'vendor-quote-file-upload',
-      'procurement',
-    );
-  });
-});
-
 describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', () => {
   it('AC-VQ-008: renders vendor name as primary text in each bid row when vendorMap provided', () => {
     render(
@@ -452,7 +437,7 @@ describe('AC-VQ-008: VendorQuotesTab — vendor name as primary row heading', ()
 describe('review fixes: bid comparison presentation', () => {
   it('OD-MONEY-FMT: preserves non-zero cents in quote amounts', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ total_amount: 148000.5 })]} />);
-    expect(screen.getAllByText('$148,000.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('148,000.5').length).toBeGreaterThanOrEqual(1);
   });
 
   it('keeps each attachment section associated with its quote row', () => {
@@ -463,7 +448,7 @@ describe('review fixes: bid comparison presentation', () => {
 
   it('keeps the best-value indicator outside the clamped vendor identity', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[makeQuote({ reference: 'A long reference value' })]} canSelect />);
-    const pill = screen.getByText('Best value');
+    const pill = screen.getByText('Best in currency');
     expect(pill.closest('.line-clamp-2')).toBeNull();
     const vendorCell = screen.getByText('Apex Supply').closest('td');
     expect(pill.closest('td')).not.toBe(vendorCell);
@@ -489,7 +474,7 @@ describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () =>
         vendorMap={testVendorMap}
       />,
     );
-    expect(screen.getAllByText(/best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Best in currency/i).length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-VQ-009: "Best value" pill absent when canSelect=false (not in decision mode)', () => {
@@ -505,7 +490,7 @@ describe('AC-VQ-009: VendorQuotesTab — best-value pill during decision', () =>
       />,
     );
     // No "Best value" pill when in read-only (past Quote Selected) and no selection
-    expect(screen.queryByText(/best value/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Best in currency/i)).not.toBeInTheDocument();
   });
 });
 

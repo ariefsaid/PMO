@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import React, { useCallback, useEffect } from 'react';
 import {
   Card,
@@ -69,6 +71,7 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
   onClose,
   busy,
 }) => {
+  const { t } = useTranslation(['common', 'procurement', 'finance']);
   const form = useEntityForm<FormValues>({
     initialValues: { title, projectId, vendorId, budgetCategory: budgetCategory ?? '' },
     validate,
@@ -119,25 +122,25 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
 
   return (
     <Card className="mb-4" data-testid="header-edit-card">
-      <CardHead>Edit request details</CardHead>
-      <form onSubmit={handleSubmit}>
+      <CardHead><span className="text-xl font-bold">{t('procurement:headerEdit.heading', 'Edit request details')}</span></CardHead>
+      <form onSubmit={handleSubmit} className="max-[767px]:[&_input]:min-h-11 max-[767px]:[&_select]:min-h-11 max-[767px]:[&_button]:min-h-11">
         <CardPad className="flex flex-col gap-4">
           <FormGrid>
             <TextField
               id={titleField.id}
-              label="Title"
+              label={t('procurement:create.titleField', 'Title')}
               required
               value={titleField.value}
               onChange={titleField.onChange}
               onBlur={titleField.onBlur}
-              error={titleField.error}
+              error={titleField.error ? t('procurement:headerEdit.titleRequired', titleField.error) : undefined}
               fullWidth
-              placeholder="Request title"
+              placeholder={t('procurement:headerEdit.titlePlaceholder', 'Request title')}
             />
             <Combobox
-              label="Project"
-              noun="project"
-              placeholder={projectName ?? 'Select a project…'}
+              label={t('procurement:create.project', 'Project')}
+              noun={t('procurement:create.project', 'Project')}
+              placeholder={projectName ?? t('procurement:create.selectProject', 'Select a project…')}
               value={form.values.projectId}
               selectedOption={
                 form.values.projectId
@@ -149,9 +152,9 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
               loadOptions={loadProjects}
             />
             <Combobox
-              label="Vendor"
-              noun="vendor"
-              placeholder={vendorName ?? 'Optional — select a vendor…'}
+              label={t('procurement:create.vendor', 'Vendor')}
+              noun={t('procurement:create.vendor', 'Vendor')}
+              placeholder={vendorName ?? t('procurement:create.selectVendor', 'Optional — select a vendor…')}
               value={form.values.vendorId}
               selectedOption={
                 form.values.vendorId && vendorName
@@ -163,15 +166,15 @@ export const ProcurementHeaderEdit: React.FC<ProcurementHeaderEditProps> = ({
             />
             <SelectField
               id="pr-header-edit-budget-category"
-              label="Budget category"
+              label={t('procurement:create.budgetCategory', 'Budget category')}
               value={form.values.budgetCategory}
               onChange={(v) => form.setValue('budgetCategory', v)}
-              options={BUDGET_CATEGORY_OPTIONS}
-              helper={BUDGET_CATEGORY_HELPER}
+              options={BUDGET_CATEGORY_OPTIONS.map((option) => ({ ...option, label: option.value ? budgetCategoryLabel(option.value, t) : t('expenses.form.category.none', 'No category') }))}
+              helper={t('expenses.form.category.helper', BUDGET_CATEGORY_HELPER)}
             />
           </FormGrid>
           <FormActions
-            submitLabel="Save request"
+            submitLabel={t('procurement:headerEdit.saveRequest', 'Save request')}
             onCancel={onClose}
             disabled={!form.canSubmit}
             loading={busy || form.isSubmitting}

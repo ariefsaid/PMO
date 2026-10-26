@@ -38,7 +38,7 @@ describe('AC-S29-001 receipt or first expense starts a new claim', () => {
     expect(within(sections[0]).getByLabelText('Description')).toBeInTheDocument();
     expect(within(sections[0]).getByLabelText('Amount')).toBeInTheDocument();
     expect(within(sections[0]).getByLabelText('Choose a receipt file')).toHaveAttribute('type', 'file');
-    expect(sections[1]).toHaveAccessibleName('Details');
+    expect(sections[1]).toHaveAccessibleName('Claim details');
     expect(within(dialog).getByRole('status')).toHaveTextContent("You can still save this in PMO");
   });
 

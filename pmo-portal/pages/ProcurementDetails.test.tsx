@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import i18next from 'i18next';
+import idCommon from '../public/locales/id/common.json';
 
 // OD-TAX-1 (#548): the money forms now PRE-SELECT the org's `default_tax_treatment`, which is a
 // live org read (`useOrgTaxDefault` → react-query + AuthContext). Only the READ is stubbed here —
@@ -11,7 +13,7 @@ vi.mock('@/src/hooks/useOrgTaxDefault', async (orig) => {
   return { ...actual, useOrgTaxDefault: () => orgDefault.value };
 });
 
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
@@ -387,10 +389,24 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     mockEffectiveRole = 'Finance';
   });
 
+  it('L-02: the record status uses the saved Indonesian locale', async () => {
+    detailState.data = { ...baseProcurement, status: 'Requested' };
+    i18next.addResourceBundle('id', 'common', idCommon, true, true);
+    await i18next.changeLanguage('id');
+    try {
+      renderPage();
+      expect(screen.getByTestId('procurement-status-badge')).toHaveTextContent('Permintaan Pembelian');
+    } finally {
+      await act(async () => { await i18next.changeLanguage('en'); });
+    }
+  });
+
   it('AC-804: renders procurement-loading skeleton while pending', () => {
     detailState.isPending = true;
     renderPage();
     expect(screen.getByTestId('procurement-loading')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Procurement' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to procurement' })).toBeInTheDocument();
   });
 
   it('AC-804: renders the no-access state when query resolves with no data', () => {
@@ -484,7 +500,8 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
   it('PROC-004: Review keeps the chosen quote amount as a distinct fact', () => {
     renderPage('proc-001', 'overview');
     const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
-    expect(fact).toHaveTextContent('$148,000');
+    expect(fact).toHaveTextContent('148,000');
+    expect(fact.closest('section')).toHaveTextContent('USD');
   });
 
   it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
@@ -493,8 +510,8 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     const section = screen.getByTestId('vendor-quotes');
     // The chosen $148,000 (VQ-2602050001) row keeps its vendor, amount and selection state.
     expect(within(section).getAllByText('Synergy Systems').length).toBeGreaterThanOrEqual(1);
-    expect(within(section).getAllByText('$148,000').length).toBeGreaterThanOrEqual(1);
-    expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
+    expect(within(section).getAllByText('148,000').length).toBeGreaterThanOrEqual(1);
+    expect(within(section).getAllByText(/^Selected$/i).length).toBeGreaterThanOrEqual(1);
     // The VQ number is present in the section
     expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
   });
@@ -532,7 +549,8 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     renderPage();
     const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
     const requestValue = screen.getByText('Requested amount').parentElement!;
-    expect(requestValue).toHaveTextContent('$50,000');
+    expect(requestValue).toHaveTextContent('50,000');
+    expect(requestValue.closest('section')).toHaveTextContent('USD');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
     expect(budgetEvidence).toBeInTheDocument();
@@ -748,7 +766,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     renderPage();
     // formatCurrency(50000) = "$50,000"
     // The amount remains a formatted financial fact in Review.
-    expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('50,000').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders procurement title in the header', () => {

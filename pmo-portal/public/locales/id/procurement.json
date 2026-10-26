@@ -28,7 +28,20 @@
     "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
     "removeItem": "Hapus item",
     "searchItem": "Cari kode atau nama item…",
-    "remove": "Hapus"
+    "remove": "Hapus",
+    "quantityName": "Jumlah",
+    "editDescriptionFor": "Ubah deskripsi untuk {{name}}",
+    "editQuantityFor": "Ubah jumlah untuk {{name}}",
+    "editUnitPriceFor": "Ubah harga satuan untuk {{name}}",
+    "editNamed": "Ubah {{name}}",
+    "removeNamed": "Hapus {{name}}",
+    "removeNamedTitle": "Hapus {{name}}?",
+    "removeTitle": "Hapus item permintaan?",
+    "validation": {
+      "required": "{{label}} wajib diisi.",
+      "positive": "{{label}} harus lebih dari 0 dengan paling banyak 2 angka desimal.",
+      "format": "{{label}} harus memakai \"{{group}}\" untuk pemisah ribuan dan \"{{decimal}}\" untuk desimal — misalnya {{example}}."
+    }
   },
   "create": {
     "heading": "Permintaan pembelian baru",
@@ -125,6 +138,29 @@
       "needsRequest": "perlu permintaan dulu",
       "needsApproval": "perlu persetujuan dulu",
       "needsReceipt": "perlu penerimaan barang dulu"
+    },
+    "types": {
+      "rfq": "Permintaan penawaran",
+      "quote": "Penawaran",
+      "gr": "Penerimaan barang",
+      "invoice": "Faktur pemasok"
+    },
+    "statuses": {
+      "draft": "Draf",
+      "requested": "Diminta",
+      "approved": "Disetujui",
+      "sent": "Dikirim",
+      "received": "Diterima",
+      "selected": "Dipilih",
+      "ordered": "Dipesan",
+      "complete": "Lengkap",
+      "partial": "Sebagian",
+      "paid": "Dibayar",
+      "unpaid": "Belum dibayar",
+      "pending": "Menunggu",
+      "recorded": "Dicatat",
+      "cancelled": "Dibatalkan",
+      "rejected": "Ditolak"
     }
   },
   "gates": {
@@ -293,5 +329,22 @@
   },
   "actions": {
     "cancel": "Batal"
+  },
+  "headerEdit": {
+    "heading": "Edit detail permintaan",
+    "titlePlaceholder": "Judul permintaan",
+    "titleRequired": "Judul permintaan wajib diisi.",
+    "saveRequest": "Simpan permintaan"
+  },
+  "ledgerFiles": {
+    "openFailed": "Berkas tidak dapat dibuka. Berkas mungkin belum diunggah.",
+    "attached": "Berkas dilampirkan",
+    "attachToRecord": "Lampirkan berkas ke catatan ini",
+    "attachFile": "Lampirkan berkas",
+    "uploading": "Mengunggah…",
+    "attach": "Lampirkan",
+    "viewAll": "{{count}} berkas untuk {{record}} — buka semua berkas",
+    "count": "{{number}} berkas",
+    "openFor": "Buka berkas untuk {{record}}"
   }
 }

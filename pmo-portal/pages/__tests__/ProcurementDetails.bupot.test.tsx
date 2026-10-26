@@ -116,7 +116,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
 
   it('opens the record modal from a paid bill row', () => {
     renderAt('/procurement/proc-001/documents');
-    expect(screen.getAllByText('VI-001')).toHaveLength(2);
+    expect(screen.getAllByText('VI-001')).toHaveLength(1);
     fireEvent.click(screen.getByRole('button', { name: 'Record bukti potong' }));
     expect(screen.getByRole('dialog', { name: 'Record modal' })).toHaveTextContent('invoice-1');
     expect(screen.getByRole('button', { name: 'Save evidence' })).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe('AC-BUPOT-016/018 ProcurementDetails wiring', () => {
     renderAt('/procurement/proc-001?bupot=slip-from-url');
     fireEvent.click(screen.getByRole('button', { name: 'Open bill in case' }));
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/procurement/case-b/documents?bupot=slip-from-url&bupotBill=invoice-2'));
-    expect(screen.getByRole('tab', { name: /^Documents/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('link', { name: /^Documents/ })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByTestId('slip-detail')).toHaveTextContent('Details: slip-from-url');
     expect(screen.getByTestId('slip-detail')).toHaveAttribute('data-suppress-arrival-focus', 'true');
     expect(screen.getByRole('region', { name: 'Bill row' })).toHaveAttribute('data-target-invoice', 'invoice-2');

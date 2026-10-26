@@ -6,6 +6,7 @@ import { Button, Combobox, ConfirmDialog, FormGrid, SelectField, TextField, useT
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { usePermission } from '@/src/auth/usePermission';
+import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -28,7 +29,7 @@ interface DraftLine {
 }
 
 export default function ProcurementCreate() {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement', 'finance']);
   const location = useLocation();
   const navigate = useNavigate();
   const { returnToList } = useListReturn({ list: 'procurement' });
@@ -170,7 +171,7 @@ export default function ProcurementCreate() {
           phoneOnly: true,
         }}
       />
-      <form onSubmit={submit} noValidate>
+      <form onSubmit={submit} noValidate className="max-[767px]:[&_input]:min-h-11 max-[767px]:[&_select]:min-h-11 max-[767px]:[&_button]:min-h-11">
         <section className="mb-6 border-b border-border pb-6" aria-label={t('procurement:create.requestDetails', 'Request details')}>
           <fieldset disabled={Boolean(savedRequestId) || saving}>
           <FormGrid>
@@ -197,8 +198,8 @@ export default function ProcurementCreate() {
               label={t('procurement:create.budgetCategory', 'Budget category')}
               value={budgetCategory}
               onChange={setBudgetCategory}
-              options={BUDGET_CATEGORY_OPTIONS}
-              helper={BUDGET_CATEGORY_HELPER}
+              options={BUDGET_CATEGORY_OPTIONS.map((option) => ({ ...option, label: option.value ? budgetCategoryLabel(option.value, t) : t('expenses.form.category.none', 'No category') }))}
+              helper={t('expenses.form.category.helper', BUDGET_CATEGORY_HELPER)}
             />
           </FormGrid>
           <div className="mt-4">

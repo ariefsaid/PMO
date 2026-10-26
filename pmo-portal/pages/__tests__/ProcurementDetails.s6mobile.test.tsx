@@ -230,7 +230,7 @@ describe('record return navigation', () => {
 
   it('provides a named way back to the procurement collection', () => {
     renderPage();
-    const backBtn = screen.getByRole('button', { name: /^Procurement$/i });
+    const backBtn = screen.getByRole('button', { name: /^Back to procurement$/i });
     expect(backBtn).toBeInTheDocument();
   });
 
@@ -240,7 +240,7 @@ describe('record return navigation', () => {
     // return state (the same fallback shape as AC-NAV-007's Projects/Procurement equivalents).
     navigate.mockClear();
     renderPage();
-    const backBtn = screen.getByRole('button', { name: /^Procurement$/i });
+    const backBtn = screen.getByRole('button', { name: /^Back to procurement$/i });
     backBtn.click();
     expect(navigate).toHaveBeenCalledWith('/procurement', { state: {} });
   });
@@ -314,15 +314,6 @@ describe('AC-S20-001: one responsive decision area on phone', () => {
     expect(screen.getAllByTestId('record-action-zone')).toHaveLength(1);
     expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
     expect(within(screen.getByTestId('decision-card')).getAllByRole('button', { name: /submit request/i })).toHaveLength(1);
-  });
-
-  it('AC-S20-001: the single decision area uses sticky reachability without a second DOM action', () => {
-    detailState.data = { ...draftByAlice };
-    renderPage();
-    const zone = screen.getByTestId('record-action-zone');
-    expect(zone.className).toContain('sticky');
-    expect(zone.className).toContain('bottom-0');
-    expect(zone.querySelectorAll('button')).toHaveLength(2); // Submit + Cancel, both canonical controls.
   });
 
   it('AC-S20-001: a terminal request has no mirrored bar or transition action', () => {

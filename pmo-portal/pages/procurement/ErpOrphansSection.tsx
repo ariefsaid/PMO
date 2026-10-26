@@ -112,7 +112,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     r.projectIds.map((id) => projectNames?.get(id)).filter(Boolean).join(', ') || t('erpPurchases.noProject', 'No project');
   const amountOf = (r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
-    return amount === null || !r.currency ? '—' : `${r.currency} ${formatNumber(amount)}`;
+    return amount === null || !r.currency ? '—' : formatNumber(amount);
   };
 
   const columns: Column<ErpPurchaseRow>[] = [
@@ -167,7 +167,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
   ];
 
   const mobileRow = (r: ErpPurchaseRow) => (
-    <div className="grid gap-3 p-3">
+    <div className="grid gap-4 p-4 [&_button]:min-h-11">
       <div className="flex min-w-0 items-start gap-3">
         {canLink && <Checkbox className="max-[767px]:!size-6" checked={selected.has(r.id)} onChange={() => toggle(r.id)} label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })} />}
         <div className="min-w-0 flex-1">
@@ -179,7 +179,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
         <StatusPill variant="neutral">{r.erpStatus ?? t('finance:shared.notAvailable', 'Not available')}</StatusPill>
-        <time dateTime={r.docDate ?? undefined} className="text-sm text-muted-foreground">{formatDate(r.docDate)}</time>
+        <time dateTime={r.docDate ?? undefined} className="text-sm tabular-nums text-foreground">{formatDate(r.docDate)}</time>
       </div>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
         <span className="whitespace-nowrap text-sm tabular text-foreground">{amountOf(r)}</span>
@@ -189,9 +189,9 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         <summary className="flex min-h-11 cursor-pointer items-center break-words text-xs font-semibold text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           {t('erpLinks.mobileDetails', 'Details · 2 fields')}
         </summary>
-        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
-          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.supplier', 'Supplier')}</dt><dd className="break-words text-sm text-foreground">{r.supplier ?? t('finance:shared.notAvailable', 'Not available')}</dd></div>
-          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{projectLabel(r)}</dd></div>
+        <dl className="mt-2 grid grid-cols-2 gap-4">
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.supplier', 'Supplier')}</dt><dd className="mt-2 break-words text-sm text-foreground">{r.supplier ?? t('finance:shared.notAvailable', 'Not available')}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.project', 'Project')}</dt><dd className="mt-2 break-words text-sm text-foreground">{projectLabel(r)}</dd></div>
         </dl>
       </details>
     </div>
@@ -294,7 +294,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
           {targets.map((id, i) => (
             <React.Fragment key={id}>
               {i > 0 && ', '}
-              <Link to={`/procurement/${id}`} className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline">{targetName(i)}</Link>
+              <Link to={`/procurement/${id}`} className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text hover:underline">{targetName(i)}</Link>
             </React.Fragment>
           ))}
           {refused.length > 0 && '.'}

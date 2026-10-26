@@ -156,10 +156,10 @@ describe('ProcurementDetails — History tab (AC-CHG-018, AC-CHG-023)', () => {
     expect(screen.getByTestId('record-history')).toHaveTextContent('procurement:proc-001:true');
   });
 
-  it('AC-CHG-018: the History tab is keyboard-operable from the tab bar', async () => {
+  it('AC-CHG-018: Activity is keyboard-operable from the section index', async () => {
     renderAt('/procurement/proc-001');
     expect(screen.queryByTestId('record-history')).toBeNull();
-    screen.getByRole('tab', { name: 'History' }).focus();
+    screen.getByRole('link', { name: 'Activity' }).focus();
     await userEvent.keyboard('{Enter}');
     expect(screen.getByTestId('record-history')).toBeInTheDocument();
   });

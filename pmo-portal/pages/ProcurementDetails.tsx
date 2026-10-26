@@ -15,7 +15,6 @@ import {
   ProjectNameLink,
   CompanyNameLink,
 } from '@/src/components/ui';
-import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab } from './procurement/ProcurementOverviewTab';
 import { ProcurementProgressionEvent } from './procurement/ProcurementProgressionTimeline';
 import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
@@ -30,6 +29,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { mayDecideRoutedApproval, approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import { useAuth } from '@/src/auth/useAuth';
+import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { LineItemsSection } from './procurement/LineItemsSection';
 import { VendorQuotesTab } from './procurement/VendorQuotesTab';
@@ -67,7 +67,6 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
 import {
   pillVariantForStatus,
-  stageLabelForStatus,
   selectedQuotation,
   toastStateLabel,
 } from '../components/procurement';
@@ -162,9 +161,9 @@ const ProcurementSectionNavigation: React.FC<{
         </nav>
       </aside>
       <div className="sticky top-0 z-20 -mx-4 min-w-0 border-b border-border bg-background px-4 py-2 min-[921px]:hidden">
-        <p aria-hidden="true" className={showStickyIdentity ? 'mb-2 break-words text-sm text-foreground' : 'sr-only'}>
+        {showStickyIdentity && <p aria-hidden="true" className="mb-2 break-words text-sm text-foreground">
           {recordTitle}
-        </p>
+        </p>}
         <label htmlFor="procurement-section-select" className="mb-1 block text-xs font-semibold text-muted-foreground">
           {selectLabel}
         </label>
@@ -370,6 +369,7 @@ function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean
 
 const ProcurementDetails: React.FC = () => {
   const { t } = useTranslation(['common', 'procurement']);
+  const statusLabel = useProcurementStatusLabel();
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active section from the URL :tab param (deep-linkable, role-invariant default Review).
   const tab = tabFromParam(tabParam);
@@ -477,7 +477,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isPending) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
+        <MoneyOutPageHeader title={t('procurement.title.orgWide', 'Procurement')} returnAction={{ label: t('procurementDetail.backToProcurement', 'Back to procurement'), onReturn: goBack }} />
         <div data-testid="procurement-loading">
           <ListState variant="loading" rows={6} />
         </div>
@@ -502,7 +502,7 @@ const ProcurementDetails: React.FC = () => {
   if (isNoAccess || (!detailQuery.isError && !detailQuery.data)) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
+        <MoneyOutPageHeader title={t('procurement.title.orgWide', 'Procurement')} returnAction={{ label: t('procurementDetail.backToProcurement', 'Back to procurement'), onReturn: goBack }} />
         {/* BackBar above already carries the "Back to Procurement" escape route,
             so the empty state does not repeat it (avoids a duplicate control). */}
         <div data-testid="procurement-no-access">
@@ -524,7 +524,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isError) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
+        <MoneyOutPageHeader title={t('procurement.title.orgWide', 'Procurement')} returnAction={{ label: t('procurementDetail.backToProcurement', 'Back to procurement'), onReturn: goBack }} />
         <ListState
           variant="error"
           title={t('procurementDetail.error.title', "Couldn't load procurement")}
@@ -950,7 +950,7 @@ const ProcurementDetails: React.FC = () => {
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
-              {stageLabelForStatus(p.status)}
+              {statusLabel(p.status)}
             </StatusPill>
           </span>
         }
@@ -998,7 +998,7 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      <div className="grid min-w-0 gap-6 min-[921px]:grid-cols-[14rem_minmax(0,1fr)]">
+      <div className="grid min-w-0 gap-8 min-[921px]:gap-x-6 min-[921px]:grid-cols-[14rem_minmax(0,1fr)]">
         <ProcurementSectionNavigation
           sections={procSections}
           active={tab}

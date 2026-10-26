@@ -94,8 +94,34 @@ const LedgerTypeLabel: React.FC<{ type: LedgerRow['type'] }> = ({ type }) => {
   const { t } = useTranslation();
   const label = type === 'PR' ? t('procurementLedger.types.purchaseRequest', 'Purchase Request')
     : type === 'PO' ? t('procurementLedger.types.purchaseOrder', 'Purchase Order')
-      : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment') : type;
+      : type === 'Payment' ? t('procurementLedger.types.payment', 'Payment')
+        : type === 'RFQ' ? t('procurement:ledger.types.rfq', 'RFQ')
+          : type === 'Quote' ? t('procurement:ledger.types.quote', 'Quote')
+            : type === 'GR' ? t('procurement:ledger.types.gr', 'GR')
+              : t('procurement:ledger.types.invoice', 'Invoice');
   return <>{label}</>;
+};
+
+const LedgerStatusLabel: React.FC<{ status: string }> = ({ status }) => {
+  const { t } = useTranslation('procurement');
+  const labels: Record<string, string> = {
+    Draft: t('procurement:ledger.statuses.draft', 'Draft'),
+    Requested: t('procurement:ledger.statuses.requested', 'Requested'),
+    Approved: t('procurement:ledger.statuses.approved', 'Approved'),
+    Sent: t('procurement:ledger.statuses.sent', 'Sent'),
+    Received: t('procurement:ledger.statuses.received', 'Received'),
+    Selected: t('procurement:ledger.statuses.selected', 'Selected'),
+    Ordered: t('procurement:ledger.statuses.ordered', 'Ordered'),
+    Complete: t('procurement:ledger.statuses.complete', 'Complete'),
+    Partial: t('procurement:ledger.statuses.partial', 'Partial'),
+    Paid: t('procurement:ledger.statuses.paid', 'Paid'),
+    Unpaid: t('procurement:ledger.statuses.unpaid', 'Unpaid'),
+    Pending: t('procurement:ledger.statuses.pending', 'Pending'),
+    Recorded: t('procurement:ledger.statuses.recorded', 'Recorded'),
+    Cancelled: t('procurement:ledger.statuses.cancelled', 'Cancelled'),
+    Rejected: t('procurement:ledger.statuses.rejected', 'Rejected'),
+  };
+  return <>{labels[status] ?? status}</>;
 };
 
 // ---------------------------------------------------------------------------
@@ -175,7 +201,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     key: 'status',
     header: <LedgerHeader translationKey="procurementLedger.status" fallback="Status" />,
     cell: (row) => (
-      <StatusPill variant={row.statusVariant}>{row.status}</StatusPill>
+      <StatusPill variant={row.statusVariant}><LedgerStatusLabel status={row.status} /></StatusPill>
     ),
   },
 ];
@@ -550,7 +576,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
             {t('procurement:ledger.billsHiddenForRole', 'Vendor bills and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
+        <p className="mt-3 text-sm font-semibold text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>

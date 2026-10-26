@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
 /**
@@ -130,13 +131,15 @@ const base = {
   ],
 };
 
-const renderPage = () =>
+const renderPage = (section = '') =>
   render(
-    <MemoryRouter initialEntries={['/procurement/proc-001']}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter initialEntries={[`/procurement/proc-001${section ? `/${section}` : ''}`]}>
       <Routes>
-        <Route path="/procurement/:procurementId" element={<ProcurementDetails />} />
+        <Route path="/procurement/:procurementId/:tab?" element={<ProcurementDetails />} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -157,7 +160,7 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
 
   it('AC-IXD-PROC-005: the already-created GR/VI render as a quiet read-only summary at Paid', () => {
     detailState.data = { ...base, status: 'Paid' };
-    renderPage();
+    renderPage('documents');
     // the GR/VI numbers are still legible (read-only) even though the create
     // affordances are gone — the document trail carries them.
     expect(screen.getAllByText('GR-2606050001').length).toBeGreaterThanOrEqual(1);

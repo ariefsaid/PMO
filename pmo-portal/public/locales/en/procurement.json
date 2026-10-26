@@ -28,7 +28,20 @@
     "removeDescription": "This removes the line item from the request. You can add it again while the request is a draft.",
     "removeItem": "Remove item",
     "searchItem": "Search item code or name…",
-    "remove": "Remove"
+    "remove": "Remove",
+    "quantityName": "Quantity",
+    "editDescriptionFor": "Edit description for {{name}}",
+    "editQuantityFor": "Edit quantity for {{name}}",
+    "editUnitPriceFor": "Edit unit price for {{name}}",
+    "editNamed": "Edit {{name}}",
+    "removeNamed": "Remove {{name}}",
+    "removeNamedTitle": "Remove {{name}}?",
+    "removeTitle": "Remove line item?",
+    "validation": {
+      "required": "{{label}} is required.",
+      "positive": "{{label}} must be greater than 0 with no more than 2 decimal places.",
+      "format": "{{label}} must use \"{{group}}\" to group thousands and \"{{decimal}}\" for decimals — for example {{example}}."
+    }
   },
   "create": {
     "heading": "New purchase request",
@@ -125,6 +138,29 @@
       "needsRequest": "needs a request first",
       "needsApproval": "needs an approval first",
       "needsReceipt": "needs a goods receipt first"
+    },
+    "types": {
+      "rfq": "RFQ",
+      "quote": "Quote",
+      "gr": "GR",
+      "invoice": "Invoice"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "requested": "Requested",
+      "approved": "Approved",
+      "sent": "Sent",
+      "received": "Received",
+      "selected": "Selected",
+      "ordered": "Ordered",
+      "complete": "Complete",
+      "partial": "Partial",
+      "paid": "Paid",
+      "unpaid": "Unpaid",
+      "pending": "Pending",
+      "recorded": "Recorded",
+      "cancelled": "Cancelled",
+      "rejected": "Rejected"
     }
   },
   "gates": {
@@ -293,5 +329,22 @@
   },
   "actions": {
     "cancel": "Cancel"
+  },
+  "headerEdit": {
+    "heading": "Edit request details",
+    "titlePlaceholder": "Request title",
+    "titleRequired": "A request title is required.",
+    "saveRequest": "Save request"
+  },
+  "ledgerFiles": {
+    "openFailed": "The file could not be opened. It may not have been uploaded yet.",
+    "attached": "File attached",
+    "attachToRecord": "Attach a file to this record",
+    "attachFile": "Attach file",
+    "uploading": "Uploading…",
+    "attach": "Attach",
+    "viewAll": "{{count}} files for {{record}} — click to view all",
+    "count": "{{number}} files",
+    "openFor": "Open file for {{record}}"
   }
 }

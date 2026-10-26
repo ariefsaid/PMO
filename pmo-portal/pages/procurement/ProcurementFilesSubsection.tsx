@@ -167,7 +167,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                       onClick={() => void openFile(f, false)}
                       aria-label={t('procurement:files.preview', 'Preview {{name}}', { name })}
                       title={t('procurement:files.previewAction', 'Preview')}
-                      className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     >
                       <Icon name="eye" className="size-4" />
                     </button>
@@ -177,7 +177,7 @@ export const ProcurementFilesSubsection: React.FC<ProcurementFilesSubsectionProp
                     onClick={() => void openFile(f, true)}
                     aria-label={t('procurement:files.download', 'Download {{name}}', { name })}
                     title={t('procurement:files.downloadAction', 'Download')}
-                    className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="touch-target rounded-sm p-0.5 text-muted-foreground hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     <Icon name="download" className="size-4" />
                   </button>

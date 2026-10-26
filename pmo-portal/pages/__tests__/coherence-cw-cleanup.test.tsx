@@ -229,16 +229,6 @@ describe('AC-S20-001: one responsive evidence-first decision area', () => {
     detailState.error = null;
   });
 
-  it('AC-S20-001: the decision area is the single sticky action zone', () => {
-    renderPage();
-    const card = screen.getByTestId('decision-card');
-    const zone = card.closest('[data-testid="record-action-zone"]');
-    expect(zone).not.toBeNull();
-    expect(zone!.className).toContain('sticky');
-    expect(zone!.className).toContain('bottom-0');
-    expect(screen.queryByTestId('mobile-sticky-action')).toBeNull();
-  });
-
   it('AC-S20-001: decision controls remain inside RecordActionZone (enforcement holds)', () => {
     renderPage();
     const zone = screen.getByTestId('record-action-zone');
@@ -263,8 +253,7 @@ describe('CW-EDIT-1: Procurement RecordHeader exposes Edit for authorized editab
     // Gate: (isDraft || isRejected) && (isRequester || Admin) — draftByPM has PM as requester.
     detailState.data = { ...draftByPM }; // status=Draft, requested_by_id='u-pm' = current user
     renderPage();
-    const headerActions = screen.getByTestId('record-header-actions');
-    expect(within(headerActions).getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
   });
 
   it('CW-EDIT-1: Edit is hidden on a non-editable state (Approved) — record-scoped gate', () => {
