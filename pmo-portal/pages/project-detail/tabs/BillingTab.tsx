@@ -189,7 +189,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         <span className="text-[11px] text-muted-foreground">{row.description}</span>
       </div>
     ) },
-    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Contract'), align: 'num',
+    { key: 'quantity', header: t('projectDetail.billing.boq.column.quantity', 'Unit / basis'), align: 'num',
       cell: (row) => row.earning_basis === 'lump_sum'
         ? <span className="tabular">{t('projectTabs:contractQuantities.billing.boq.lumpSum', 'Lump sum')}</span>
         : <span className="tabular">{formatNumberExact(Number(row.quantity))} {row.unit}</span> },
@@ -277,10 +277,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       const scope = workOrder
         ? workOrder.wo_number ?? workOrder.title
         : c.work_order_id
-          ? t('projectDetail.billing.claims.scope.workOrder', 'Work order')
+          ? t('project:projectDetail.billing.claims.scope.workOrder', 'Work order')
           : c.lines.length > 0
-            ? t('projectDetail.billing.claims.scope.quantityLines', 'Quantity · {{count}} lines', { count: c.lines.length })
-            : t('projectDetail.billing.claims.scope.project', 'Project scope');
+            ? t('project:projectDetail.billing.claims.scope.quantityLines', 'Quantity · {{count}} lines', { count: c.lines.length })
+            : t('project:projectDetail.billing.claims.scope.project', 'Project scope');
       return (
         <div className="flex min-w-0 flex-col">
           <span className="font-semibold">{c.kind === 'down_payment'
@@ -290,7 +290,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         </div>
       );
     } },
-    { key: 'invoiceDateEvidence', header: t('projectDetail.billing.claims.column.invoiceDateEvidence', 'Invoice / date / evidence'), cell: (c) => (
+    { key: 'invoiceDateEvidence', header: t('project:projectDetail.billing.claims.column.invoiceDateEvidence', 'Invoice / date / evidence'), cell: (c) => (
       <div className="flex flex-col gap-0.5">
         <span>{c.withdrawn_at
           ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn')
@@ -301,7 +301,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           {formatInstantDate(c.created_at)}
         </time>
         <span className="text-[11px] text-muted-foreground" data-testid={`claim-evidence-${c.id}`}>
-          {t('projectDetail.billing.claims.evidenceCount', '{{formattedCount}} evidence', {
+          {t('project:projectDetail.billing.claims.evidenceCount', '{{formattedCount}} evidence', {
             count: c.evidence.length,
             formattedCount: formatNumber(c.evidence.length),
           })}
@@ -419,7 +419,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               <ProjectBillingStart
                 projectId={projectId}
                 clientId={clientId}
-                triggerLabel={t('projectDetail.billing.primary.createInvoice', 'Create invoice')}
+                triggerLabel={t('project:projectDetail.billing.primary.createInvoice', 'Create invoice')}
                 triggerClassName="max-sm:min-h-11 max-sm:w-full"
                 onWorkOrder={() => {
                   navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);

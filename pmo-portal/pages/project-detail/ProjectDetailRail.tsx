@@ -87,7 +87,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
                 )
               }
             />
-            {project.contract_date && <DetailRow label={t('projectDetail.rail.customerPoDate', 'Customer PO date')} value={formatDateOnly(project.contract_date)} />}
+            {project.contract_date && <DetailRow label={t('project:projectDetail.rail.customerPoDate', 'Customer PO date')} value={formatDateOnly(project.contract_date)} />}
           </dl>
         </section>
         <ProjectErpLink projectId={project.id} />

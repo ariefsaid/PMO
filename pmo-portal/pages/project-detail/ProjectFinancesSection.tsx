@@ -42,28 +42,28 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
 
   if (query.isPending) return (
     <>
-      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
+      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
         {costSupplement}
         <ListState variant="loading" rows={2} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} className="min-h-24" />
       </div>
-      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+      <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
   );
   if (query.isError || !query.data) return (
     <>
-      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
+      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
         {costSupplement}
         <div role="alert" className="flex flex-wrap items-center gap-2">
           {t('projectFinances.error', "Couldn't load project finances.")}
           <Button variant="outline" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
         </div>
       </div>
-      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+      <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
   );
@@ -324,13 +324,13 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
 
   return (
     <>
-      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
+      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
         {costSupplement}
         {spendingContent}
       </div>
-      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+      <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
         {billingContent}
         {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
           {t('project:invoiceScope', 'Only invoices linked to this project are included.')}

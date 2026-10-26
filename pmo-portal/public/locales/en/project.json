@@ -19,5 +19,113 @@
   "invoiceScope": "Only invoices linked to this project are included.",
   "noLinkedInvoices": "No invoices linked to this project yet",
   "billedWork": "Billed-work revenue",
-  "billedWorkQualifier": "Net of tax; advances excluded"
+  "billedWorkQualifier": "Net of tax; advances excluded",
+  "projectDetail": {
+    "billing": {
+      "primary": {
+        "createInvoice": "Create invoice"
+      },
+      "claims": {
+        "column": {
+          "invoiceDateEvidence": "Invoice / date / evidence"
+        },
+        "evidenceCount": "{{formattedCount}} evidence",
+        "scope": {
+          "project": "Project scope",
+          "quantityLines": "Quantity · {{count}} lines",
+          "workOrder": "Work order"
+        }
+      }
+    },
+    "documents": {
+      "column": {
+        "revision": "Revision"
+      }
+    },
+    "header": {
+      "scope": {
+        "ariaLabel": "Project scope",
+        "dateRange": "{{start}} – {{end}}",
+        "projectManager": "PM: {{name}}",
+        "startDate": "Starts {{date}}",
+        "unassigned": "Unassigned",
+        "targetEnd": "Target end {{date}}"
+      }
+    },
+    "pipeline": {
+      "earlierStages": "Earlier stages",
+      "laterStages": "Later stages"
+    },
+    "procurement": {
+      "column": {
+        "vendor": "Vendor",
+        "statusDate": "Status / date"
+      },
+      "empty": {
+        "noMatches": "No requests match these search and filters"
+      },
+      "toolbar": {
+        "label": "Purchase request tools",
+        "searchLabel": "Search purchase requests",
+        "searchPlaceholder": "Search requests by name, code, or vendor…",
+        "statusFilter": "Status filter",
+        "allStatuses": "All statuses",
+        "sortRequests": "Sort requests",
+        "newest": "Newest request date",
+        "oldest": "Oldest request date",
+        "clearSearchAndFilters": "Clear search and filters"
+      }
+    },
+    "rail": {
+      "customerPoDate": "Customer PO date"
+    },
+    "sectionNav": {
+      "current": "Current section",
+      "delivery": "Delivery",
+      "evidence": "Evidence",
+      "money": "Money",
+      "open": "Project sections",
+      "overview": "Overview"
+    },
+    "moneyPosition": {
+      "activeBudget": "Active budget",
+      "billing": "Billing",
+      "budgetCategories": "Budget categories",
+      "contract": "Contract",
+      "cost": "Cost",
+      "noActiveBudget": "No active budget",
+      "title": "Money position"
+    },
+    "tasks": {
+      "toolbar": {
+        "allPhases": "All phases",
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "dueLatest": "Due latest",
+        "dueSoonest": "Due soonest",
+        "label": "Task tools",
+        "noMatches": "No tasks match these filters",
+        "phaseFilter": "Phase filter",
+        "searchLabel": "Search tasks",
+        "searchPlaceholder": "Search tasks, assignees, or phases…",
+        "sortTasks": "Sort tasks",
+        "statusFilter": "Status filter"
+      }
+    },
+    "workOrders": {
+      "positionTitle": "Contract headroom and billing position",
+      "toolbar": {
+        "allStatuses": "All statuses",
+        "clearFilters": "Clear search and filters",
+        "label": "Work order tools",
+        "newest": "Newest order date",
+        "noMatches": "No work orders match these search and filters",
+        "oldest": "Oldest order date",
+        "searchLabel": "Search work orders",
+        "searchPlaceholder": "Search by WO number, title, or client PO…",
+        "sortOrders": "Sort work orders",
+        "statusFilter": "Filter work orders by status"
+      }
+    }
+  }
 }

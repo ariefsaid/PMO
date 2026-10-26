@@ -274,7 +274,7 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(project.id));
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent(t('uxs01.recordedSpending', 'Recorded spending'));
     expect(cost).toHaveTextContent(formatExactMoney('10.10', 'USD', language)!);
     expect(cost).toHaveTextContent(formatSignedExactMoney('89.90', 'USD', language)!);
@@ -307,7 +307,7 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent(t('uxs01.actualUnavailable', 'Unavailable'));
     // Full mapping with an unknown amount remains unknown and never becomes a false zero.
     expect(cost).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
@@ -324,7 +324,7 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent(formatExactMoney('10.10', 'EUR', 'en')!);
     // Cross-currency ratios are withheld by omitting the derived measures.
     expect(cost).not.toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
@@ -343,7 +343,7 @@ describe('project money position consumer parity', () => {
     await waitForFinance(client);
     const contract = screen.getByTestId('overview-contract-value');
     expect(contract).toHaveTextContent(t('uxs01.actualUnavailable', 'Unavailable'));
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).not.toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
   });
 
@@ -358,7 +358,7 @@ describe('project money position consumer parity', () => {
     }));
     const next = renderSurfaces({ includeHeader: false, contractValue: 100 });
     await waitForFinance(next.client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
     expect(screen.getByTestId('contract-after-cost')).toHaveTextContent(formatSignedExactMoney('-50.00', 'USD', 'en')!);
   });
@@ -375,7 +375,7 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent(t('uxs01.pmoCoverage', 'Committed PMO purchase orders'));
     expect(cost).toHaveTextContent(formatExactMoney('0.00', 'USD', 'en')!);
     expect(cost).toHaveTextContent(formatSignedExactMoney('100.00', 'USD', 'en')!);
@@ -386,7 +386,7 @@ describe('project money position consumer parity', () => {
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
     const { client } = renderSurfaces({ ledgerBasis: 'pmo', committedSpend: 10, committedOtherCurrencies: [{ currency: 'EUR', amount: 40 }] });
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') });
+    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') });
     expect(cost).toHaveTextContent('$10');
     expect(cost).not.toHaveTextContent('$50');
     expect(within(cost).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
@@ -395,7 +395,7 @@ describe('project money position consumer parity', () => {
   it('AC-PMP-006 keeps pipeline money out of Overview and disables the delivery finance read', async () => {
     renderSurfaces({ status: 'Leads', realRole: 'Finance' });
 
-    expect(screen.queryByRole('region', { name: t('projectDetail.moneyPosition.title', 'Money position') })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: t('project:projectDetail.moneyPosition.title', 'Money position') })).not.toBeInTheDocument();
     expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
     expect(h.getProjectFinances).not.toHaveBeenCalled();
     expect(screen.queryByText(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
@@ -429,7 +429,7 @@ describe('project money position consumer parity', () => {
       "Couldn't load project finances.",
     ))).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: t('projectFinances.retry', 'Retry') }));
-    await waitFor(() => expect(screen.getByRole('group', { name: t('projectDetail.moneyPosition.cost', 'Cost') })).toHaveTextContent(
+    await waitFor(() => expect(screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.cost', 'Cost') })).toHaveTextContent(
       formatExactMoney('10.10', 'USD', 'en')!,
     ));
     expect(h.getProjectFinances).toHaveBeenCalledTimes(2);

@@ -730,7 +730,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     <div className="space-y-6">
       <ProjectDrawdown
         projectId={projectId}
-        title={t('projectDetail.workOrders.positionTitle', 'Contract headroom and billing position')}
+        title={t('project:projectDetail.workOrders.positionTitle', 'Contract headroom and billing position')}
         alwaysShow={rows.length > 0}
         afterFigures={(
           <>
@@ -747,31 +747,31 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       />
 
       <section aria-labelledby="project-work-orders-heading">
-        <Toolbar standalone role="group" aria-label={t('projectDetail.workOrders.toolbar.label', 'Work order tools')}>
+        <Toolbar standalone role="group" aria-label={t('project:projectDetail.workOrders.toolbar.label', 'Work order tools')}>
           <SearchMini
-            placeholder={t('projectDetail.workOrders.toolbar.searchPlaceholder', 'Search by WO number, title, or client PO…')}
-            aria-label={t('projectDetail.workOrders.toolbar.searchLabel', 'Search work orders')}
+            placeholder={t('project:projectDetail.workOrders.toolbar.searchPlaceholder', 'Search by WO number, title, or client PO…')}
+            aria-label={t('project:projectDetail.workOrders.toolbar.searchLabel', 'Search work orders')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
           />
           <select
-            aria-label={t('projectDetail.workOrders.toolbar.statusFilter', 'Filter work orders by status')}
+            aria-label={t('project:projectDetail.workOrders.toolbar.statusFilter', 'Filter work orders by status')}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
             className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <option value="all">{t('projectDetail.workOrders.toolbar.allStatuses', 'All statuses')}</option>
+            <option value="all">{t('project:projectDetail.workOrders.toolbar.allStatuses', 'All statuses')}</option>
             {WORK_ORDER_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select>
           <select
-            aria-label={t('projectDetail.workOrders.toolbar.sortOrders', 'Sort work orders')}
+            aria-label={t('project:projectDetail.workOrders.toolbar.sortOrders', 'Sort work orders')}
             value={sortOrder}
             onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
             className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
-            <option value="newest">{t('projectDetail.workOrders.toolbar.newest', 'Newest order date')}</option>
-            <option value="oldest">{t('projectDetail.workOrders.toolbar.oldest', 'Oldest order date')}</option>
+            <option value="newest">{t('project:projectDetail.workOrders.toolbar.newest', 'Newest order date')}</option>
+            <option value="oldest">{t('project:projectDetail.workOrders.toolbar.oldest', 'Oldest order date')}</option>
           </select>
           {may('create', 'workOrder') && (
             <Button variant="primary" size="sm" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormFor(null)}>
@@ -807,7 +807,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             selectedKey={focusWorkOrderId ?? undefined}
             state={tableState}
             emptyTitle={hasActiveFilters
-              ? t('projectDetail.workOrders.toolbar.noMatches', 'No work orders match these search and filters')
+              ? t('project:projectDetail.workOrders.toolbar.noMatches', 'No work orders match these search and filters')
               : t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
             emptySub={!hasActiveFilters ? t(
               'projectDetail.workOrders.empty.sub',
@@ -820,7 +820,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             )}
             onRetry={() => refetch()}
             emptyAction={hasActiveFilters ? {
-              label: t('projectDetail.workOrders.toolbar.clearFilters', 'Clear search and filters'),
+              label: t('project:projectDetail.workOrders.toolbar.clearFilters', 'Clear search and filters'),
               onClick: clearFilters,
             } : undefined}
             cardBelow={576}

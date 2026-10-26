@@ -2070,9 +2070,6 @@
   "projectDetail": {
     "backToProjects": "Proyek",
     "billing": {
-      "primary": {
-        "createInvoice": "Buat faktur"
-      },
       "assessment": {
         "errors": {
           "month": "Isi bulan dengan format YYYY-MM",
@@ -2165,7 +2162,6 @@
           "actions": "Aksi",
           "claim": "Tagihan / cakupan",
           "gross": "Ditagih",
-          "invoiceDateEvidence": "Faktur / tanggal / bukti",
           "net": "Neto",
           "recovery": "Uang muka dipulihkan"
         },
@@ -2188,7 +2184,6 @@
           "claimWithdrawn": "Tagihan ini telah ditarik — fakturnya tidak dapat diterbitkan."
         },
         "evidenceNeeded": "Lampirkan bukti sebelum menerbitkan",
-        "evidenceCount": "{{formattedCount}} bukti",
         "kind": {
           "downPayment": "Uang muka",
           "progress": "Progres"
@@ -2196,11 +2191,6 @@
         "new": "Tagihan baru",
         "notRaised": "Belum diterbitkan",
         "raise": "Terbitkan faktur",
-        "scope": {
-          "project": "Cakupan proyek",
-          "quantityLines": "Kuantitas · {{count}} baris",
-          "workOrder": "Work order"
-        },
         "title": "Tagihan",
         "toast": {
           "created": "Tagihan dibuat",
@@ -2251,7 +2241,6 @@
         "date": "Tanggal dokumen",
         "document": "Dokumen",
         "file": "File",
-        "revision": "Revisi",
         "status": "Status"
       },
       "deleteConfirm": {
@@ -2424,24 +2413,11 @@
         "title": "Hapus {{name}}?"
       },
       "editContractValue": "Edit nilai kontrak",
-      "scope": {
-        "ariaLabel": "Cakupan proyek",
-        "dateRange": "{{start}} – {{end}}",
-        "projectManager": "PM: {{name}}",
-        "startDate": "Mulai {{date}}",
-        "unassigned": "Belum ditugaskan",
-        "targetEnd": "Target selesai {{date}}"
-      },
       "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
       "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
-      "tile": {
-        "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran"
-      },
       "toast": {
         "archived": "Proyek diarsipkan",
         "contractValueUpdated": "Nilai kontrak diperbarui",
@@ -2529,23 +2505,16 @@
     },
     "overview": {
       "budgetSnapshot": {
-        "activeBudget": "Anggaran aktif",
-        "actualSpent": "Realisasi pengeluaran",
-        "byCategory": "Per kategori",
         "byCategoryLabel": "Anggaran per kategori",
         "error": "Gagal memuat anggaran",
-        "openBudgetTab": "Buka tab Anggaran",
-        "title": "Ringkasan anggaran"
+        "openBudgetTab": "Buka tab Anggaran"
       },
       "budgetUtil": {
         "atRisk": "Berisiko",
         "ofBudget": "dari anggaran"
       },
       "finance": {
-        "actual": "Realisasi",
-        "contract": "Kontrak",
-        "spend": "Pengeluaran",
-        "title": "Ringkasan keuangan"
+        "contract": "Kontrak"
       },
       "procSummary": {
         "closed": "Ditutup",
@@ -2559,7 +2528,6 @@
       }
     },
     "pipeline": {
-      "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
       "advanceTo": "Lanjutkan ke",
       "bookingOnWin": "Nilai kontrak ini dicatat saat Anda mengonfirmasi kemenangan.",
       "cancel": "Batal",
@@ -2568,10 +2536,8 @@
       "contractRefLabel": "Referensi kontrak klien",
       "contractRefPlaceholder": "mis. CPO-2026-0042",
       "dateRequired": "Tanggal kontrak wajib diisi",
-      "earlierStages": "Tahap sebelumnya",
       "journeyAriaLabel": "Perjalanan tahap proyek",
       "journeyHeading": "Perjalanan proyek",
-      "laterStages": "Tahap berikutnya",
       "lostConfirm": {
         "body": "Ini memindahkan {{project}} ke tahap kalah yang bersifat akhir. Anda masih dapat meninjaunya, tetapi proyek akan keluar dari pipeline aktif.",
         "confirm": "Tandai kalah",
@@ -2608,29 +2574,14 @@
     "procurement": {
       "column": {
         "request": "Permintaan",
-        "vendor": "Vendor",
-        "statusDate": "Status / tanggal",
-        "status": "Status",
         "value": "Nilai"
       },
       "empty": {
-        "noMatches": "Tidak ada permintaan yang cocok dengan pencarian dan filter ini",
         "title": "Belum ada permintaan pembelian untuk proyek ini"
       },
       "error": {
         "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
         "title": "Gagal memuat pengadaan"
-      },
-      "toolbar": {
-        "label": "Alat permintaan pembelian",
-        "searchLabel": "Cari permintaan pembelian",
-        "searchPlaceholder": "Cari berdasarkan nama, kode, atau vendor…",
-        "statusFilter": "Filter status",
-        "allStatuses": "Semua status",
-        "sortRequests": "Urutkan permintaan",
-        "newest": "Tanggal permintaan terbaru",
-        "oldest": "Tanggal permintaan terlama",
-        "clearSearchAndFilters": "Hapus pencarian dan filter"
       },
       "newRequest": "Permintaan baru",
       "openRow": "Buka",
@@ -2639,7 +2590,6 @@
     "rail": {
       "ariaLabel": "Panel detail proyek",
       "customerPoRef": "Ref PO klien",
-      "customerPoDate": "Tanggal PO klien",
       "detailsHeading": "Detail",
       "notSet": "Belum diisi",
       "endCustomer": "Pelanggan akhir",
@@ -2658,25 +2608,7 @@
       "summary": "Kurva S proyek: realisasi hingga kini {{actual}}.",
       "summaryWithPlan": "Kurva S proyek: realisasi hingga kini {{actual}}, rencana diperkirakan {{planned}} per hari ini."
     },
-    "sectionNav": {
-      "current": "Bagian saat ini",
-      "delivery": "Pelaksanaan",
-      "evidence": "Bukti",
-      "money": "Keuangan",
-      "open": "Bagian proyek",
-      "overview": "Ringkasan"
-    },
-    "moneyPosition": {
-      "activeBudget": "Anggaran aktif",
-      "billing": "Penagihan",
-      "budgetCategories": "Kategori anggaran",
-      "contract": "Kontrak",
-      "cost": "Biaya",
-      "noActiveBudget": "Tidak ada anggaran aktif",
-      "title": "Posisi keuangan"
-    },
     "tabs": {
-      "ariaLabel": "Bagian proyek",
       "billing": "Penagihan",
       "budget": "Anggaran",
       "documents": "Dokumen",
@@ -2756,20 +2688,6 @@
       "showArchived": "Tampilkan arsip",
       "statusFor": "Status untuk",
       "subtaskLevel": "Subtugas, level",
-      "toolbar": {
-        "allPhases": "Semua fase",
-        "allStatuses": "Semua status",
-        "clearFilters": "Hapus pencarian dan filter",
-        "dueLatest": "Tenggat paling lama",
-        "dueSoonest": "Tenggat terdekat",
-        "label": "Alat tugas",
-        "noMatches": "Tidak ada tugas yang cocok dengan filter ini",
-        "phaseFilter": "Filter fase",
-        "searchLabel": "Cari tugas",
-        "searchPlaceholder": "Cari tugas, PIC, atau fase…",
-        "sortTasks": "Urutkan tugas",
-        "statusFilter": "Filter status"
-      },
       "toast": {
         "archived": "Tugas diarsipkan",
         "created": "Tugas dibuat",
@@ -2845,19 +2763,6 @@
         "issue": "Terbitkan",
         "new": "Work Order baru",
         "setValue": "Tetapkan nilai"
-      },
-      "positionTitle": "Sisa nilai kontrak dan posisi penagihan",
-      "toolbar": {
-        "allStatuses": "Semua status",
-        "clearFilters": "Hapus pencarian dan filter",
-        "label": "Alat Work Order",
-        "newest": "Tanggal order terbaru",
-        "noMatches": "Tidak ada Work Order yang cocok dengan pencarian dan filter ini",
-        "oldest": "Tanggal order terlama",
-        "searchLabel": "Cari Work Order",
-        "searchPlaceholder": "Cari nomor WO, judul, atau PO klien…",
-        "sortOrders": "Urutkan Work Order",
-        "statusFilter": "Filter Work Order berdasarkan status"
       },
       "billing": {
         "column": "Penagihan",
@@ -4295,8 +4200,6 @@
     "retry": "Coba lagi",
     "error": "Tidak dapat memuat riwayat",
     "filterLabel": "Saring menurut jenis catatan",
-    "newestFirst": "Terbaru terlebih dahulu",
-    "filter": { "allKinds": "Semua jenis" },
     "empty": {
       "title": "Belum ada perubahan tercatat",
       "sub": "Riwayat dimulai {{date}}. Perubahan sebelum tanggal itu dan penghapusan tidak ditampilkan."
@@ -4473,12 +4376,8 @@
   },
   "uxs01": {
     "recordedSpending": "Pengeluaran tercatat",
-    "pmoPurchaseOrders": "Pesanan pembelian PMO",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
     "actualUnavailable": "Tidak tersedia",
-    "actualLoading": "Memuat Aktual…",
-    "actualPartial": "Belum lengkap — lihat rincian pengeluaran",
-    "completeCoverage": "Cakupan kategori lengkap",
     "partialCoverage": "Cakupan sebagian · {{mapped}} dari {{total}} kategori pengeluaran dipetakan",
     "coverageUnavailable": "Belum ada kategori pengeluaran ERP yang dipetakan untuk proyek ini.",
     "updated": "Diperbarui {{date}}",

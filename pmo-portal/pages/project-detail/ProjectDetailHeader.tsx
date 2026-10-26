@@ -142,19 +142,19 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const startDate = project.start_date ? formatDateOnly(project.start_date) : null;
   const endDate = project.end_date ? formatDateOnly(project.end_date) : null;
   const dateScope = startDate && endDate
-    ? t('projectDetail.header.scope.dateRange', '{{start}} – {{end}}', { start: startDate, end: endDate })
+    ? t('project:projectDetail.header.scope.dateRange', '{{start}} – {{end}}', { start: startDate, end: endDate })
     : startDate
-      ? t('projectDetail.header.scope.startDate', 'Starts {{date}}', { date: startDate })
+      ? t('project:projectDetail.header.scope.startDate', 'Starts {{date}}', { date: startDate })
       : endDate
-        ? t('projectDetail.header.scope.targetEnd', 'Target end {{date}}', { date: endDate })
+        ? t('project:projectDetail.header.scope.targetEnd', 'Target end {{date}}', { date: endDate })
         : null;
   const meta = (
-    <div role="group" aria-label={t('projectDetail.header.scope.ariaLabel', 'Project scope')} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <div role="group" aria-label={t('project:projectDetail.header.scope.ariaLabel', 'Project scope')} className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && (project.client_id
         ? <Link to={`/companies/${project.client_id}`} className="touch-target inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline">{customerName}</Link>
         : <span className="font-medium text-foreground">{customerName}</span>)}
-      <span>{t('projectDetail.header.scope.projectManager', 'PM: {{name}}', {
-        name: project.pm?.full_name ?? t('projectDetail.header.scope.unassigned', 'Unassigned'),
+      <span>{t('project:projectDetail.header.scope.projectManager', 'PM: {{name}}', {
+        name: project.pm?.full_name ?? t('project:projectDetail.header.scope.unassigned', 'Unassigned'),
       })}</span>
       {dateScope && <span>{dateScope}</span>}
     </div>
@@ -266,7 +266,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const moreActions = hasMoreActions ? (
     <details className="relative" onToggle={(event) => setMoreActionsOpen(event.currentTarget.open)}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
-        {t('moreActions', 'More actions')}
+        {t('uxs14.moreActions', 'More actions')}
       </summary>
       <div hidden={!moreActionsOpen} className={`absolute right-0 z-30 mt-1 min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 shadow-md ${moreActionsOpen ? 'flex' : 'hidden'}`}>
         {canShowHeaderTransition && !statusIsPrimary && moreActionsOpen && <ProjectStatusControl project={project} />}

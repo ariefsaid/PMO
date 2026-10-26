@@ -19,5 +19,113 @@
   "invoiceScope": "Hanya faktur yang ditautkan ke proyek ini yang disertakan.",
   "noLinkedInvoices": "Belum ada faktur yang ditautkan ke proyek ini",
   "billedWork": "Pendapatan pekerjaan tertagih",
-  "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka"
+  "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
+  "projectDetail": {
+    "billing": {
+      "primary": {
+        "createInvoice": "Buat faktur"
+      },
+      "claims": {
+        "column": {
+          "invoiceDateEvidence": "Faktur / tanggal / bukti"
+        },
+        "evidenceCount": "{{formattedCount}} bukti",
+        "scope": {
+          "project": "Cakupan proyek",
+          "quantityLines": "Kuantitas · {{count}} baris",
+          "workOrder": "Work order"
+        }
+      }
+    },
+    "documents": {
+      "column": {
+        "revision": "Revisi"
+      }
+    },
+    "header": {
+      "scope": {
+        "ariaLabel": "Cakupan proyek",
+        "dateRange": "{{start}} – {{end}}",
+        "projectManager": "PM: {{name}}",
+        "startDate": "Mulai {{date}}",
+        "unassigned": "Belum ditugaskan",
+        "targetEnd": "Target selesai {{date}}"
+      }
+    },
+    "pipeline": {
+      "earlierStages": "Tahap sebelumnya",
+      "laterStages": "Tahap berikutnya"
+    },
+    "procurement": {
+      "column": {
+        "vendor": "Vendor",
+        "statusDate": "Status / tanggal"
+      },
+      "empty": {
+        "noMatches": "Tidak ada permintaan yang cocok dengan pencarian dan filter ini"
+      },
+      "toolbar": {
+        "label": "Alat permintaan pembelian",
+        "searchLabel": "Cari permintaan pembelian",
+        "searchPlaceholder": "Cari berdasarkan nama, kode, atau vendor…",
+        "statusFilter": "Filter status",
+        "allStatuses": "Semua status",
+        "sortRequests": "Urutkan permintaan",
+        "newest": "Tanggal permintaan terbaru",
+        "oldest": "Tanggal permintaan terlama",
+        "clearSearchAndFilters": "Hapus pencarian dan filter"
+      }
+    },
+    "rail": {
+      "customerPoDate": "Tanggal PO klien"
+    },
+    "sectionNav": {
+      "current": "Bagian saat ini",
+      "delivery": "Pelaksanaan",
+      "evidence": "Bukti",
+      "money": "Keuangan",
+      "open": "Bagian proyek",
+      "overview": "Ringkasan"
+    },
+    "moneyPosition": {
+      "activeBudget": "Anggaran aktif",
+      "billing": "Penagihan",
+      "budgetCategories": "Kategori anggaran",
+      "contract": "Kontrak",
+      "cost": "Biaya",
+      "noActiveBudget": "Tidak ada anggaran aktif",
+      "title": "Posisi keuangan"
+    },
+    "tasks": {
+      "toolbar": {
+        "allPhases": "Semua fase",
+        "allStatuses": "Semua status",
+        "clearFilters": "Hapus pencarian dan filter",
+        "dueLatest": "Tenggat paling lama",
+        "dueSoonest": "Tenggat terdekat",
+        "label": "Alat tugas",
+        "noMatches": "Tidak ada tugas yang cocok dengan filter ini",
+        "phaseFilter": "Filter fase",
+        "searchLabel": "Cari tugas",
+        "searchPlaceholder": "Cari tugas, PIC, atau fase…",
+        "sortTasks": "Urutkan tugas",
+        "statusFilter": "Filter status"
+      }
+    },
+    "workOrders": {
+      "positionTitle": "Sisa nilai kontrak dan posisi penagihan",
+      "toolbar": {
+        "allStatuses": "Semua status",
+        "clearFilters": "Hapus pencarian dan filter",
+        "label": "Alat Work Order",
+        "newest": "Tanggal order terbaru",
+        "noMatches": "Tidak ada Work Order yang cocok dengan pencarian dan filter ini",
+        "oldest": "Tanggal order terlama",
+        "searchLabel": "Cari Work Order",
+        "searchPlaceholder": "Cari nomor WO, judul, atau PO klien…",
+        "sortOrders": "Urutkan Work Order",
+        "statusFilter": "Filter Work Order berdasarkan status"
+      }
+    }
+  }
 }

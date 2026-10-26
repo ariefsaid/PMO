@@ -68,13 +68,13 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     },
     {
       key: 'vendor',
-      header: t('projectDetail.procurement.column.vendor', 'Vendor'),
+      header: t('project:projectDetail.procurement.column.vendor', 'Vendor'),
       kind: 'meta',
       cell: (row) => <span className="text-muted-foreground">{row.vendor?.name ?? '—'}</span>,
     },
     {
       key: 'statusDate',
-      header: t('projectDetail.procurement.column.statusDate', 'Status / date'),
+      header: t('project:projectDetail.procurement.column.statusDate', 'Status / date'),
       cell: (row) => (
         <div className="flex flex-col items-start gap-1">
           <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
@@ -126,31 +126,31 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
 
   return (
     <div>
-      <Toolbar standalone role="group" aria-label={t('projectDetail.procurement.toolbar.label', 'Purchase request tools')}>
+      <Toolbar standalone role="group" aria-label={t('project:projectDetail.procurement.toolbar.label', 'Purchase request tools')}>
         <SearchMini
-          placeholder={t('projectDetail.procurement.toolbar.searchPlaceholder', 'Search requests by name, code, or vendor…')}
-          aria-label={t('projectDetail.procurement.toolbar.searchLabel', 'Search purchase requests')}
+          placeholder={t('project:projectDetail.procurement.toolbar.searchPlaceholder', 'Search requests by name, code, or vendor…')}
+          aria-label={t('project:projectDetail.procurement.toolbar.searchLabel', 'Search purchase requests')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
         />
         <select
-          aria-label={t('projectDetail.procurement.toolbar.statusFilter', 'Status filter')}
+          aria-label={t('project:projectDetail.procurement.toolbar.statusFilter', 'Status filter')}
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as ProcurementStatus | 'all')}
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <option value="all">{t('projectDetail.procurement.toolbar.allStatuses', 'All statuses')}</option>
+          <option value="all">{t('project:projectDetail.procurement.toolbar.allStatuses', 'All statuses')}</option>
           {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
         </select>
         <select
-          aria-label={t('projectDetail.procurement.toolbar.sortRequests', 'Sort requests')}
+          aria-label={t('project:projectDetail.procurement.toolbar.sortRequests', 'Sort requests')}
           value={sortOrder}
           onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <option value="newest">{t('projectDetail.procurement.toolbar.newest', 'Newest request date')}</option>
-          <option value="oldest">{t('projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</option>
+          <option value="newest">{t('project:projectDetail.procurement.toolbar.newest', 'Newest request date')}</option>
+          <option value="oldest">{t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</option>
         </select>
         {canCreate && (
           <Button
@@ -180,14 +180,14 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           errorSub={t('projectDetail.procurement.error.sub', "Something went wrong fetching this project's purchase requests.")}
           onRetry={() => void refetch()}
           emptyTitle={hasActiveFilters
-            ? t('projectDetail.procurement.empty.noMatches', 'No requests match these search and filters')
+            ? t('project:projectDetail.procurement.empty.noMatches', 'No requests match these search and filters')
             : t('projectDetail.procurement.empty.title', 'No purchase requests for this project yet')}
           emptySub={!hasActiveFilters && erpListedBelow ? t(
             'uxs19.projectEmptyScope',
             'This list covers PMO requests. Purchases recorded in ERPNext appear below.',
           ) : undefined}
           emptyAction={hasActiveFilters ? {
-            label: t('projectDetail.procurement.toolbar.clearSearchAndFilters', 'Clear search and filters'),
+            label: t('project:projectDetail.procurement.toolbar.clearSearchAndFilters', 'Clear search and filters'),
             onClick: clearFilters,
           } : undefined}
           cardBelow={700}

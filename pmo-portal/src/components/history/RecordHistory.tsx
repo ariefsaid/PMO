@@ -267,7 +267,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     <div className="min-w-0" data-testid="record-history">
       {kindFilters && (
         <p className="mb-2 text-xs text-muted-foreground">
-          {t('history.newestFirst', 'Newest first')}
+          {t('recordHistory:newestFirst', 'Newest first')}
         </p>
       )}
       {showKindChips && (
@@ -305,7 +305,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
           <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
           <div className="flex justify-center">
             <Button variant="outline" className="max-sm:min-h-11" onClick={() => setKind('all')}>
-              {t('history.filter.allKinds', 'All kinds')}
+              {t('recordHistory:filter.allKinds', 'All kinds')}
             </Button>
           </div>
         </div>

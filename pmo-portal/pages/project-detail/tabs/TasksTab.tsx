@@ -434,43 +434,43 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         </h2>
       </div>
 
-      <Toolbar standalone role="group" aria-label={t('projectDetail.tasks.toolbar.label', 'Task tools')}>
+      <Toolbar standalone role="group" aria-label={t('project:projectDetail.tasks.toolbar.label', 'Task tools')}>
         <SearchMini
-          placeholder={t('projectDetail.tasks.toolbar.searchPlaceholder', 'Search tasks, assignees, or phases…')}
-          aria-label={t('projectDetail.tasks.toolbar.searchLabel', 'Search tasks')}
+          placeholder={t('project:projectDetail.tasks.toolbar.searchPlaceholder', 'Search tasks, assignees, or phases…')}
+          aria-label={t('project:projectDetail.tasks.toolbar.searchLabel', 'Search tasks')}
           value={search}
           onChange={(event) => setSearch(event.target.value)}
           containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
         />
         <select
-          aria-label={t('projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
+          aria-label={t('project:projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
           value={phaseFilter}
           onChange={(event) => setPhaseFilter(event.target.value)}
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <option value="all">{t('projectDetail.tasks.toolbar.allPhases', 'All phases')}</option>
+          <option value="all">{t('project:projectDetail.tasks.toolbar.allPhases', 'All phases')}</option>
           {[...milestoneList]
             .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name))
             .map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
           <option value="ungrouped">{t('projectDetail.tasks.ungrouped', 'Ungrouped')}</option>
         </select>
         <select
-          aria-label={t('projectDetail.tasks.toolbar.statusFilter', 'Status filter')}
+          aria-label={t('project:projectDetail.tasks.toolbar.statusFilter', 'Status filter')}
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <option value="all">{t('projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
+          <option value="all">{t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
           {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
         </select>
         <select
-          aria-label={t('projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
+          aria-label={t('project:projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
           value={dueSort}
           onChange={(event) => setDueSort(event.target.value as DueSort)}
           className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <option value="soonest">{t('projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
-          <option value="latest">{t('projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
+          <option value="soonest">{t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
+          <option value="latest">{t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
         </select>
         <ViewToggle<ViewMode>
           options={[
@@ -540,9 +540,9 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         <ListState
           variant="empty"
           icon="search"
-          title={t('projectDetail.tasks.toolbar.noMatches', 'No tasks match these filters')}
+          title={t('project:projectDetail.tasks.toolbar.noMatches', 'No tasks match these filters')}
           action={{
-            label: t('projectDetail.tasks.toolbar.clearFilters', 'Clear search and filters'),
+            label: t('project:projectDetail.tasks.toolbar.clearFilters', 'Clear search and filters'),
             onClick: clearFilters,
           }}
         />

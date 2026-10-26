@@ -290,7 +290,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     },
     {
       key: 'revision',
-      header: t('projectDetail.documents.column.revision', 'Revision'),
+      header: t('project:projectDetail.documents.column.revision', 'Revision'),
       size: 88, minSize: 88, maxSize: 88,
       colClassName: 'hidden md:table-cell w-[88px]',
       cell: (d) => isMicrosoftFolder(d) || !d.revision

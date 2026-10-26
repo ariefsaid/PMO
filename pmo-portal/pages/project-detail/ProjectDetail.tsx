@@ -167,18 +167,18 @@ const ProjectDetail: React.FC = () => {
   const sectionGroups = useMemo<ProjectSectionGroup<PTab>[]>(
     () => [
       {
-        label: t('projectDetail.sectionNav.overview', 'Overview'),
+        label: t('project:projectDetail.sectionNav.overview', 'Overview'),
         items: [{ value: 'overview', label: t('projectDetail.tabs.overview', 'Overview') }],
       },
       {
-        label: t('projectDetail.sectionNav.delivery', 'Delivery'),
+        label: t('project:projectDetail.sectionNav.delivery', 'Delivery'),
         items: [
           { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
           ...(!isPipelineRecord ? [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }] : []),
         ],
       },
       {
-        label: t('projectDetail.sectionNav.money', 'Money'),
+        label: t('project:projectDetail.sectionNav.money', 'Money'),
         items: [
           { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
           { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
@@ -186,7 +186,7 @@ const ProjectDetail: React.FC = () => {
         ],
       },
       {
-        label: t('projectDetail.sectionNav.evidence', 'Evidence'),
+        label: t('project:projectDetail.sectionNav.evidence', 'Evidence'),
         items: [
           { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
           { value: 'history', label: t('projectDetail.tabs.history', 'History') },

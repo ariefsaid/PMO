@@ -2070,9 +2070,6 @@
   "projectDetail": {
     "backToProjects": "Projects",
     "billing": {
-      "primary": {
-        "createInvoice": "Create invoice"
-      },
       "assessment": {
         "errors": {
           "month": "Enter the month as YYYY-MM",
@@ -2165,7 +2162,6 @@
           "actions": "Actions",
           "claim": "Claim / scope",
           "gross": "Claimed",
-          "invoiceDateEvidence": "Invoice / date / evidence",
           "net": "Net",
           "recovery": "Down payment recovered"
         },
@@ -2188,7 +2184,6 @@
           "claimWithdrawn": "This claim was withdrawn — its invoice can't be raised."
         },
         "evidenceNeeded": "Attach evidence before raising",
-        "evidenceCount": "{{formattedCount}} evidence",
         "kind": {
           "downPayment": "Down payment",
           "progress": "Progress"
@@ -2196,11 +2191,6 @@
         "new": "New claim",
         "notRaised": "Not raised",
         "raise": "Raise invoice",
-        "scope": {
-          "project": "Project scope",
-          "quantityLines": "Quantity · {{count}} lines",
-          "workOrder": "Work order"
-        },
         "title": "Billing claims",
         "toast": {
           "created": "Billing claim created",
@@ -2251,7 +2241,6 @@
         "date": "Document date",
         "document": "Document",
         "file": "File",
-        "revision": "Revision",
         "status": "Status"
       },
       "deleteConfirm": {
@@ -2424,24 +2413,11 @@
         "title": "Delete {{name}}?"
       },
       "editContractValue": "Edit contract value",
-      "scope": {
-        "ariaLabel": "Project scope",
-        "dateRange": "{{start}} – {{end}}",
-        "projectManager": "PM: {{name}}",
-        "startDate": "Starts {{date}}",
-        "unassigned": "Unassigned",
-        "targetEnd": "Target end {{date}}"
-      },
       "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
       "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
       "taxAmount": "Tax amount",
       "taxTreatment": "Tax treatment",
-      "tile": {
-        "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend"
-      },
       "toast": {
         "archived": "Project archived",
         "contractValueUpdated": "Contract value updated",
@@ -2529,23 +2505,16 @@
     },
     "overview": {
       "budgetSnapshot": {
-        "activeBudget": "Active budget",
-        "actualSpent": "Actual spent",
-        "byCategory": "By category",
         "byCategoryLabel": "Budget by category",
         "error": "Couldn't load budget",
-        "openBudgetTab": "Open Budget tab",
-        "title": "Budget snapshot"
+        "openBudgetTab": "Open Budget tab"
       },
       "budgetUtil": {
         "atRisk": "At risk",
         "ofBudget": "of budget"
       },
       "finance": {
-        "actual": "Actual",
-        "contract": "Contract",
-        "spend": "Spend",
-        "title": "Financial summary"
+        "contract": "Contract"
       },
       "procSummary": {
         "closed": "Closed",
@@ -2559,7 +2528,6 @@
       }
     },
     "pipeline": {
-      "backToSalesPipeline": "← Back to Sales Pipeline",
       "advanceTo": "Advance to",
       "bookingOnWin": "This contract value is recorded when you confirm the win.",
       "cancel": "Cancel",
@@ -2568,10 +2536,8 @@
       "contractRefLabel": "Customer contract reference",
       "contractRefPlaceholder": "e.g. CPO-2026-0042",
       "dateRequired": "Contract date is required",
-      "earlierStages": "Earlier stages",
       "journeyAriaLabel": "Project stage journey",
       "journeyHeading": "Project journey",
-      "laterStages": "Later stages",
       "lostConfirm": {
         "body": "This moves {{project}} to a terminal lost stage. You can still review it, but it will leave the active pipeline.",
         "confirm": "Mark lost",
@@ -2608,29 +2574,14 @@
     "procurement": {
       "column": {
         "request": "Request",
-        "vendor": "Vendor",
-        "statusDate": "Status / date",
-        "status": "Status",
         "value": "Value"
       },
       "empty": {
-        "noMatches": "No requests match these search and filters",
         "title": "No purchase requests for this project yet"
       },
       "error": {
         "sub": "Something went wrong fetching this project's purchase requests.",
         "title": "Couldn't load procurement"
-      },
-      "toolbar": {
-        "label": "Purchase request tools",
-        "searchLabel": "Search purchase requests",
-        "searchPlaceholder": "Search requests by name, code, or vendor…",
-        "statusFilter": "Status filter",
-        "allStatuses": "All statuses",
-        "sortRequests": "Sort requests",
-        "newest": "Newest request date",
-        "oldest": "Oldest request date",
-        "clearSearchAndFilters": "Clear search and filters"
       },
       "newRequest": "New request",
       "openRow": "Open",
@@ -2639,7 +2590,6 @@
     "rail": {
       "ariaLabel": "Project details rail",
       "customerPoRef": "Customer PO ref",
-      "customerPoDate": "Customer PO date",
       "detailsHeading": "Details",
       "notSet": "Not set",
       "endCustomer": "End customer",
@@ -2658,25 +2608,7 @@
       "summary": "Project S-curve: actual to date {{actual}}.",
       "summaryWithPlan": "Project S-curve: actual to date {{actual}}, plan expected {{planned}} by today."
     },
-    "sectionNav": {
-      "current": "Current section",
-      "delivery": "Delivery",
-      "evidence": "Evidence",
-      "money": "Money",
-      "open": "Project sections",
-      "overview": "Overview"
-    },
-    "moneyPosition": {
-      "activeBudget": "Active budget",
-      "billing": "Billing",
-      "budgetCategories": "Budget categories",
-      "contract": "Contract",
-      "cost": "Cost",
-      "noActiveBudget": "No active budget",
-      "title": "Money position"
-    },
     "tabs": {
-      "ariaLabel": "Project sections",
       "billing": "Billing",
       "budget": "Budget",
       "documents": "Documents",
@@ -2756,20 +2688,6 @@
       "showArchived": "Show archived",
       "statusFor": "Status for",
       "subtaskLevel": "Subtask, level",
-      "toolbar": {
-        "allPhases": "All phases",
-        "allStatuses": "All statuses",
-        "clearFilters": "Clear search and filters",
-        "dueLatest": "Due latest",
-        "dueSoonest": "Due soonest",
-        "label": "Task tools",
-        "noMatches": "No tasks match these filters",
-        "phaseFilter": "Phase filter",
-        "searchLabel": "Search tasks",
-        "searchPlaceholder": "Search tasks, assignees, or phases…",
-        "sortTasks": "Sort tasks",
-        "statusFilter": "Status filter"
-      },
       "toast": {
         "archived": "Task archived",
         "created": "Task created",
@@ -2845,19 +2763,6 @@
         "issue": "Issue",
         "new": "New work order",
         "setValue": "Set value"
-      },
-      "positionTitle": "Contract headroom and billing position",
-      "toolbar": {
-        "allStatuses": "All statuses",
-        "clearFilters": "Clear search and filters",
-        "label": "Work order tools",
-        "newest": "Newest order date",
-        "noMatches": "No work orders match these search and filters",
-        "oldest": "Oldest order date",
-        "searchLabel": "Search work orders",
-        "searchPlaceholder": "Search by WO number, title, or client PO…",
-        "sortOrders": "Sort work orders",
-        "statusFilter": "Filter work orders by status"
       },
       "billing": {
         "column": "Billing",
@@ -4295,8 +4200,6 @@
     "retry": "Retry",
     "error": "Couldn't load history",
     "filterLabel": "Filter by record kind",
-    "newestFirst": "Newest first",
-    "filter": { "allKinds": "All kinds" },
     "empty": {
       "title": "No changes recorded yet",
       "sub": "History begins {{date}}. Edits made before then and deletions are not shown."
@@ -4473,12 +4376,8 @@
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
-    "pmoPurchaseOrders": "PMO purchase orders",
     "pmoCoverage": "Committed PMO purchase orders",
     "actualUnavailable": "Unavailable",
-    "actualLoading": "Loading Actual…",
-    "actualPartial": "Incomplete — see spending details",
-    "completeCoverage": "Complete category coverage",
     "partialCoverage": "Partial coverage · {{mapped}} of {{total}} spending categories mapped",
     "coverageUnavailable": "No ERP spending categories are mapped for this project.",
     "updated": "Updated {{date}}",

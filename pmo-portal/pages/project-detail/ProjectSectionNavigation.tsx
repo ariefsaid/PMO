@@ -88,7 +88,7 @@ export function ProjectSectionNavigation<T extends string>({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const activeLabel = groups.flatMap((group) => group.items).find((item) => item.value === activeSection)?.label ?? '';
-  const navigationLabel = t('projectDetail.sectionNav.open', 'Project sections');
+  const navigationLabel = t('project:projectDetail.sectionNav.open', 'Project sections');
 
   return (
     <>
@@ -109,7 +109,7 @@ export function ProjectSectionNavigation<T extends string>({
       <div className="min-w-0 min-[921px]:hidden">
         <div className="mb-2 text-sm text-muted-foreground">
           <span className="font-medium text-foreground">{activeLabel}</span>
-          <span className="sr-only">{t('projectDetail.sectionNav.current', 'Current section')}</span>
+          <span className="sr-only">{t('project:projectDetail.sectionNav.current', 'Current section')}</span>
         </div>
         <button
           type="button"

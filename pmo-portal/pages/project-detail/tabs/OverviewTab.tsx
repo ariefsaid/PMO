@@ -100,14 +100,14 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const showProc = procPending || procError || projectProc.length > 0;
   const budgetPositionSupplement = (
     <div data-testid="overview-budget-position" className="min-w-0 space-y-2">
-      <h4 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.activeBudget', 'Active budget')}</h4>
+      <h4 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.activeBudget', 'Active budget')}</h4>
       {budgetPending ? <ListState variant="loading" rows={1} className="min-h-12" /> : budgetError ? (
         <ListState variant="error" title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")} onRetry={() => budgetRefetch()} />
       ) : snapshot ? (
         <>
           <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-2">
             <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('projectDetail.moneyPosition.activeBudget', 'Active budget')}</dt>
+              <dt className="text-xs text-muted-foreground">{t('project:projectDetail.moneyPosition.activeBudget', 'Active budget')}</dt>
               <dd className="break-words font-semibold tabular-nums">{exactMoney(snapshot.activeTotal)}</dd>
             </div>
             <div className="min-w-0">
@@ -129,7 +129,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
             </div>}
           </dl>
           {snapshot.byCategory.length > 0 && <details className="min-w-0">
-            <summary className="cursor-pointer text-sm font-medium">{t('projectDetail.moneyPosition.budgetCategories', 'Budget categories')}</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t('project:projectDetail.moneyPosition.budgetCategories', 'Budget categories')}</summary>
             <div role="group" aria-label={t('projectDetail.overview.budgetSnapshot.byCategoryLabel', 'Budget by category')} className="mt-2 flex min-w-0 flex-col gap-1">
               {snapshot.byCategory.map((cat) => <HoursBar
                 key={cat.category}
@@ -147,18 +147,18 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
         </>
       ) : budgetVersions?.some((version) => version.status === 'Active') && activeBudget > 0 ? (
         <p className="break-words font-semibold tabular-nums">{exactMoney(activeBudget)}</p>
-      ) : <p className="text-sm text-muted-foreground">{t('projectDetail.moneyPosition.noActiveBudget', 'No active budget')}</p>}
+      ) : <p className="text-sm text-muted-foreground">{t('project:projectDetail.moneyPosition.noActiveBudget', 'No active budget')}</p>}
     </div>
   );
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
       {isDelivery && <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]">
-        <section role="region" aria-label={t('projectDetail.moneyPosition.title', 'Money position')} className="min-w-0 space-y-4">
-          <h2 className={projectSectionHeading}>{t('projectDetail.moneyPosition.title', 'Money position')}</h2>
+        <section role="region" aria-label={t('project:projectDetail.moneyPosition.title', 'Money position')} className="min-w-0 space-y-4">
+          <h2 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.title', 'Money position')}</h2>
           <div data-testid="money-position-groups" className="grid min-w-0 gap-4 lg:grid-cols-3">
-            <div role="group" aria-label={t('projectDetail.moneyPosition.contract', 'Contract')} className="min-w-0 space-y-3">
-              <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.contract', 'Contract')}</h3>
+            <div role="group" aria-label={t('project:projectDetail.moneyPosition.contract', 'Contract')} className="min-w-0 space-y-3">
+              <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.contract', 'Contract')}</h3>
               <div className="min-w-0">
                 <dt className="text-xs text-muted-foreground">{t('projectDetail.overview.finance.contract', 'Contract')}</dt>
                 <dd data-testid="overview-contract-value" className="break-words font-semibold tabular-nums">
@@ -190,7 +190,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
             </div>
             {may('view', 'salesInvoice')
               ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} />
-              : <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">{budgetPositionSupplement}</div>}
+              : <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">{budgetPositionSupplement}</div>}
           </div>
         </section>
         {phaseSummary && <div className="min-w-0">{phaseSummary}</div>}
