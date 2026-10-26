@@ -139,22 +139,25 @@ beforeEach(() => {
 // ── AC-IFW-PROC-01: compact selectable queue identity ───────────────────────
 
 describe('AC-IFW-PROC-01: queue row identity', () => {
-  it('R-018: selection shows compact request identity without repeating project, requester or amount', async () => {
+  it('R-018: unselected queue rows show their native whole amount for phone triage', async () => {
     renderAs();
     const button = screen.getByRole('button', { name: /Inverter Units/i });
     expect(button).toHaveAttribute('aria-pressed', 'false');
     expect(button).toHaveTextContent(ROW.code);
     expect(button).toHaveTextContent('Requested');
+    expect(within(button).getByText('USD')).toBeInTheDocument();
+    expect(within(button).getByText('50,000')).toBeInTheDocument();
     expect(button).not.toHaveTextContent('Solar Alpha');
     expect(button).not.toHaveTextContent('Diego Ramirez');
-    expect(button).not.toHaveTextContent('$50,000');
     await userEvent.click(button);
     expect(selectMock).toHaveBeenCalledOnce();
   });
 
-  it('marks the selected request in the queue', () => {
+  it('R-018: selected queue identity leaves the authoritative total to the evidence panel', () => {
     renderAs('Project Manager', true);
-    expect(screen.getByRole('button', { name: /Inverter Units/i })).toHaveAttribute('aria-pressed', 'true');
+    const button = screen.getByRole('button', { name: /Inverter Units/i });
+    expect(button).toHaveAttribute('aria-pressed', 'true');
+    expect(button).not.toHaveTextContent('USD');
   });
 });
 
@@ -206,7 +209,8 @@ describe('AC-IFW-PROC-01: selected preview — budget impact + line items + acti
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('Solar Alpha');
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('This request');
     expect(screen.getAllByText(/50,000/)).toHaveLength(1);
-    expect(screen.getByText('10 × 5,000 per unit')).toBeInTheDocument();
+    expect(screen.getByText('10 × 5,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('list', { name: 'Line items' })).queryByText(/per unit/)).not.toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Open Solar Alpha/i })).toHaveLength(1);
     expect(screen.getAllByText('Diego Ramirez')).toHaveLength(1);
 

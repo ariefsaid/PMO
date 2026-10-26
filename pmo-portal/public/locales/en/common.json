@@ -768,7 +768,7 @@
     "decisionTotal": "Decision total",
     "lineItems": "Line items",
     "openRequest": "Open request",
-    "unitRate": "{{quantity}} × {{rate}} per unit",
+    "unitRate": "{{quantity}} × {{rate}}",
     "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {

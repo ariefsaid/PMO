@@ -182,7 +182,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                       >
                         <span className="min-w-0 break-words">{item.name}</span>
                         <span className="shrink-0 tabular text-muted-foreground">
-                          {t('approvals.unitRate', '{{quantity}} × {{rate}} per unit', {
+                          {t('approvals.unitRate', '{{quantity}} × {{rate}}', {
                             quantity: item.quantity,
                             rate: formatNumberWhole(item.rate),
                           })}
@@ -255,6 +255,12 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
       </div>
       <div className="break-words text-sm font-medium">{row.title}</div>
       <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
+      {!selected && (
+        <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
+          <span className="text-xs font-semibold text-muted-foreground">{row.currency}</span>
+          <span className="tabular font-medium text-foreground">{formatNumberWhole(row.total_value)}</span>
+        </div>
+      )}
       <div className="mt-2 break-words font-mono text-[11px] font-semibold text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
     </button>
   );

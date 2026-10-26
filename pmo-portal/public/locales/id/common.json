@@ -768,7 +768,7 @@
     "decisionTotal": "Total keputusan",
     "lineItems": "Rincian item",
     "openRequest": "Buka permintaan",
-    "unitRate": "{{quantity}} × {{rate}} per unit",
+    "unitRate": "{{quantity}} × {{rate}}",
     "queueHint": "Pilih item untuk melihat detail dan kontrol keputusannya.",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
