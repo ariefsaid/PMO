@@ -80,7 +80,7 @@ export function currencyFractionDigits(currency: string, locale = getNumberLocal
     return numberFormatterFor('currency-fraction-digits', locale, currency, {
       style: 'currency',
       currency,
-    }).resolvedOptions().maximumFractionDigits;
+    }).resolvedOptions().maximumFractionDigits ?? null;
   } catch {
     return null;
   }
