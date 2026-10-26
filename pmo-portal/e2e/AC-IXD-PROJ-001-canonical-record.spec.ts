@@ -1,13 +1,13 @@
 // @e2e-isolation: self-isolated — unique deal name (Date.now()), PM creates Leads deal → appears in Pipeline (absent from Projects); opens from Pipeline → canonical /projects/:id with pipeline lens; opens on-hand P003 from Projects → delivery lens; no seed mutation.
 import { test, expect, type Page } from '@playwright/test';
-import { login, pickComboboxOption, openPipelineCard } from './helpers';
+import { login, pickComboboxOption, openPipelineCard, selectProjectSection } from './helpers';
 
 /**
  * Model B — ONE canonical project/opportunity record (ADR-0020).
  *
  * AC-IXD-PROJ-001  (owner-verbatim): a PM creates a project then opens it from EITHER the
  *                  Projects list OR the Sales Pipeline → both resolve to ONE unified detail page at
- *                  the SAME URL (`/projects/:id`) — the delivery tabs (Overview/Budget/…) render at
+ *                  the SAME URL (`/projects/:id`) — the named sections (Overview/Budget/…) render at
  *                  every stage (ADR-0021), with a deal-progression banner added while pre-win and
  *                  the contract-value SoD editor added once on-hand. Invariant: one entity → one URL.
  * AC-IXD-PROJ-001a (corollary): a newly created Leads deal appears in the Pipeline and is ABSENT
@@ -80,11 +80,8 @@ test(
     // CW-1 r2fix-enforce: aria-label "Deal stage journey" → "Project stage journey"
     await expect(page.getByLabel('Project stage journey')).toBeVisible();
     await expect(page.getByRole('button', { name: /Advance to/i })).toBeVisible();
-    // ADR-0021 (owner override of ADR-0020 §1): the delivery tabs ARE shown pre-win — a PM must be
-    // able to plan budget/tasks/procurement while pursuing the deal. The banner sits ABOVE them.
-    await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
-    // the owner's core journey: a Budget tab is reachable on a pipeline deal (was hidden pre-0021).
-    await page.getByRole('tab', { name: 'Budget' }).click();
+    // The named sections are shown pre-win; a PM can reach Budget while pursuing the deal.
+    await selectProjectSection(page, 'Budget');
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+\/budget$/);
     const pipelineUrl = page.url().replace(/\/budget$/, '');
 
@@ -98,15 +95,15 @@ test(
     await projectRow(page, onHandName).getByRole('button', { name: onHandName, exact: true }).click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+/);
     await expect(page.getByRole('heading', { name: onHandName })).toBeVisible({ timeout: 15_000 });
-    // delivery lens markers: section tabs + the explicit contract-value lock control.
-    await expect(page.getByRole('tablist', { name: /project sections/i })).toBeVisible();
-    // #975 / UIP-006 deliberately keeps the idle header to one compact read strip;
-    // update this journey step to follow its lock toggle, not a permanently visible SoD note.
+    // The named Overview section contains the explicit contract-value lock control.
+    await expect(page.getByRole('navigation', { name: 'Project sections' })
+      .getByRole('link', { name: 'Overview', exact: true }))
+      .toHaveAttribute('aria-current', 'page');
     const lockToggle = page.getByRole('button', { name: /Read-only/i });
     await expect(lockToggle).toBeVisible();
-    await expect(lockToggle).toHaveAttribute('aria-controls', 'contract-value-lock-reason');
+    await expect(lockToggle).toHaveAttribute('aria-controls', 'overview-contract-value-lock-reason');
     await lockToggle.click();
-    const lockReason = page.getByTestId('contract-value-lock-reason');
+    const lockReason = page.locator('#overview-contract-value-lock-reason');
     await expect(lockReason).toBeVisible();
     await expect(lockReason).toHaveText(/Once a project is won, the contract value is locked for your role/i);
     // and NOT the pipeline lens
