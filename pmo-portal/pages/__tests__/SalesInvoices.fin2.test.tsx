@@ -135,7 +135,7 @@ describe('FIN-S2: evidence shows only what exists', () => {
     h.evidence.data = { lines: [], contact: { name: 'Dana Reyes', email: 'dana@example.test', phone: null } };
     const user = userEvent.setup();
     renderRecord();
-    const contactDisclosure = screen.getByText('Billing contact');
+    const contactDisclosure = screen.getByText('Billing contact · 2 details');
     expect(contactDisclosure.closest('details')).not.toHaveAttribute('open');
     await user.click(contactDisclosure);
     expect(screen.getByText('Dana Reyes')).toBeInTheDocument();

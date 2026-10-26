@@ -4618,6 +4618,7 @@
     "linesUnknown": "Line details are not available.",
     "lineDescriptionUnavailable": "Description not available",
     "billingContact": "Billing contact",
+    "billingContactSummary": "Billing contact · {{count}} details",
     "appliedReceipts": "Applied receipts",
     "receiptsUnavailable": "Applied receipt details are unavailable.",
     "receiptReferenceUnavailable": "Receipt reference not recorded",

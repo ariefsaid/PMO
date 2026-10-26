@@ -217,7 +217,11 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
           {evidence.data?.contact ? (
             <div>
               <details className="text-sm">
-                <summary className="min-h-11 cursor-pointer py-2 font-medium">{t('uxs17.billingContact', 'Billing contact')}</summary>
+                <summary className="min-h-11 cursor-pointer py-2 font-medium">
+                  {t('uxs17.billingContactSummary', 'Billing contact · {{count}} details', {
+                    count: [evidence.data.contact.name, evidence.data.contact.email, evidence.data.contact.phone].filter(Boolean).length,
+                  })}
+                </summary>
                 <address className="space-y-1 pb-2 not-italic">
                   {evidence.data.contact.name && <p>{evidence.data.contact.name}</p>}
                   {evidence.data.contact.email && <p><a className="underline underline-offset-2" href={`mailto:${evidence.data.contact.email}`}>{evidence.data.contact.email}</a></p>}

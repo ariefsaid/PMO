@@ -4618,6 +4618,7 @@
     "linesUnknown": "Rincian baris tidak tersedia.",
     "lineDescriptionUnavailable": "Deskripsi tidak tersedia",
     "billingContact": "Kontak penagihan",
+    "billingContactSummary": "Kontak penagihan · {{count}} detail",
     "appliedReceipts": "Penerimaan yang dialokasikan",
     "receiptsUnavailable": "Rincian penerimaan yang dialokasikan tidak tersedia.",
     "receiptReferenceUnavailable": "Referensi penerimaan belum dicatat",
