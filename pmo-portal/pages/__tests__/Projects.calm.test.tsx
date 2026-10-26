@@ -117,7 +117,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(note).toHaveAttribute('role', 'status');
     expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
     expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects.');
-    expect(within(note).getByRole('button', { name: 'Review Synthetic project 1' })).toBeVisible();
+    expect(within(note).getByRole('link', { name: 'Review project finances' })).toBeVisible();
 
     const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');

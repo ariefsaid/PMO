@@ -46,7 +46,8 @@ it.each([true, false])('UIP-004 Projects folds classification into its one colla
   expect(trigger).toHaveFocus();
   await user.click(trigger);
   await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
-  expect(screen.getByRole('button', { name: `Open project ${state.data[1].name}` })).toBeVisible();
+  const rowOpenLabel = desktop ? state.data[1].name : `Open project ${state.data[1].name}`;
+  expect(screen.getByRole('button', { name: rowOpenLabel })).toBeVisible();
   expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
 });

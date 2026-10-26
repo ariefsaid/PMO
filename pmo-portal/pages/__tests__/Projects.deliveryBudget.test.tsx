@@ -134,7 +134,7 @@ describe('Projects delivery progress + budget used', () => {
     expect(screen.getByText('Actual is partial on 1 of 25 projects.')).toBeInTheDocument();
     expect(screen.getAllByText('Unavailable')).toHaveLength(2);
     expect(screen.getAllByRole('button', { name: /^(?:Open project )?Synthetic project \d+$/ })).toHaveLength(25);
-    expect(screen.getByText('$1,234,568')).toBeInTheDocument();
+    expect(screen.getByText('USD 1,234,568')).toBeInTheDocument();
     expect(document.querySelectorAll('tbody tr')[1].querySelector('[title*="USD 7,654,321"]')).not.toBeNull();
     expect(screen.queryByText(/\$1\.2M of \$7\.7M/)).not.toBeInTheDocument();
   });
