@@ -497,7 +497,7 @@ describe('Approvals page actions', () => {
     const dialog = screen.getByRole('dialog');
     expect(dialog).toBeInTheDocument();
 
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve timesheet$/i }));
     expect(approveMutation.mutate).toHaveBeenCalledWith(
       { id: 'ts-1' },
       expect.objectContaining({ onSuccess: expect.any(Function), onError: expect.any(Function) }),

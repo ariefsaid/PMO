@@ -50,7 +50,11 @@
     "confirmReject": "Tolak {{request}}?",
     "confirmApproveBody": "Setujui {{request}} — {{amount}}? Permintaan akan dilanjutkan ke tahap pemesanan.",
     "confirmRejectBody": "Tolak {{request}}? Pemohon akan diberi tahu dan dapat merevisi serta mengajukan ulang.",
-    "waitingSince": "Menunggu sejak {{date}}"
+    "waitingSince": "Menunggu sejak {{date}}",
+    "confirmTimesheetApprove": "Setujui minggu kerja {{name}}?",
+    "confirmTimesheetReturn": "Kembalikan lembar waktu {{name}}?",
+    "confirmTimesheetApproveBody": "Ini menyetujui minggu kerja yang diajukan {{name}}.",
+    "confirmTimesheetReturnBody": "Ini mengembalikan minggu kerja {{name}} untuk diperbaiki. Lembar waktu perlu diperbaiki dan diajukan ulang."
   },
   "common": {
     "history": "Riwayat"

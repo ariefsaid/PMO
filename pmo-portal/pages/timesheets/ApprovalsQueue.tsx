@@ -225,15 +225,15 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
           tone={pending.kind === 'approve' ? 'default' : 'destructive'}
           title={
             pending.kind === 'approve'
-              ? `Approve ${pending.name}'s week?`
-              : `Return ${pending.name}'s timesheet?`
+              ? t('work:approvals.confirmTimesheetApprove', 'Approve {{name}}’s week?', { name: pending.name })
+              : t('work:approvals.confirmTimesheetReturn', 'Return {{name}}’s timesheet?', { name: pending.name })
           }
           description={
             pending.kind === 'approve'
-              ? `This approves ${pending.name}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.`
-              : `This sends ${pending.name}'s week back for changes. They'll need to correct and resubmit it.`
+              ? t('work:approvals.confirmTimesheetApproveBody', 'This approves {{name}}’s submitted week.', { name: pending.name })
+              : t('work:approvals.confirmTimesheetReturnBody', 'This sends {{name}}’s week back for changes. They’ll need to correct and resubmit it.', { name: pending.name })
           }
-          confirmLabel={pending.kind === 'approve' ? 'Approve' : 'Return timesheet'}
+          confirmLabel={pending.kind === 'approve' ? t('work:approvals.decision.approveTimesheet', 'Approve timesheet') : t('work:approvals.decision.returnTimesheet', 'Return timesheet')}
           loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
           onCancel={() => setPending(null)}
           onConfirm={commitApproval}
@@ -423,15 +423,15 @@ export const ApprovalsQueue: React.FC = () => {
           tone={pending.kind === 'approve' ? 'default' : 'destructive'}
           title={
             pending.kind === 'approve'
-              ? `Approve ${pending.name}'s week?`
-              : `Return ${pending.name}'s timesheet?`
+              ? t('work:approvals.confirmTimesheetApprove', 'Approve {{name}}’s week?', { name: pending.name })
+              : t('work:approvals.confirmTimesheetReturn', 'Return {{name}}’s timesheet?', { name: pending.name })
           }
           description={
             pending.kind === 'approve'
-              ? `This approves ${pending.name}'s submitted week. You can't approve your own timesheet — separation of duties is enforced.`
-              : `This sends ${pending.name}'s week back for changes. They'll need to correct and resubmit it.`
+              ? t('work:approvals.confirmTimesheetApproveBody', 'This approves {{name}}’s submitted week.', { name: pending.name })
+              : t('work:approvals.confirmTimesheetReturnBody', 'This sends {{name}}’s week back for changes. They’ll need to correct and resubmit it.', { name: pending.name })
           }
-          confirmLabel={pending.kind === 'approve' ? 'Approve' : 'Return timesheet'}
+          confirmLabel={pending.kind === 'approve' ? t('work:approvals.decision.approveTimesheet', 'Approve timesheet') : t('work:approvals.decision.returnTimesheet', 'Return timesheet')}
           loading={pending.kind === 'approve' ? approve.isPending : reject.isPending}
           onCancel={() => setPending(null)}
           onConfirm={commitApproval}

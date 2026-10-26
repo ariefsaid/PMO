@@ -50,7 +50,11 @@
     "confirmReject": "Reject {{request}}?",
     "confirmApproveBody": "Approve {{request}} — {{amount}}? This will advance the request to the ordering stage.",
     "confirmRejectBody": "Reject {{request}}? The requester will be notified and may revise and resubmit.",
-    "waitingSince": "Waiting since {{date}}"
+    "waitingSince": "Waiting since {{date}}",
+    "confirmTimesheetApprove": "Approve {{name}}’s week?",
+    "confirmTimesheetReturn": "Return {{name}}’s timesheet?",
+    "confirmTimesheetApproveBody": "This approves {{name}}’s submitted week.",
+    "confirmTimesheetReturnBody": "This sends {{name}}’s week back for changes. They’ll need to correct and resubmit it."
   },
   "common": {
     "history": "History"
