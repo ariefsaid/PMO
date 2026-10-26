@@ -194,7 +194,11 @@ const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filt
               className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
             >
               <span className="font-medium">{label(key)}</span>
-              <span className="min-w-0 flex-1 break-words" aria-label={t('administration:admin.postingAccounts.account', 'Account')}>
+              <span
+                role="group"
+                className="min-w-0 flex-1 break-words"
+                aria-label={t('administration:admin.postingAccounts.account', 'Account')}
+              >
                 {account ?? <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
               </span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">

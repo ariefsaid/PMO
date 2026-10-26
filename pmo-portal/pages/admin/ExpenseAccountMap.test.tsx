@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -189,7 +189,7 @@ describe('expense posting account list (AC-ADMIA-017)', () => {
     expect(screen.queryByText('Meals - ABC')).not.toBeInTheDocument();
 
     const first = screen.getByText('Travel - ABC').closest('li')!;
-    expect(first.querySelector('[aria-label="Account"]')).toHaveTextContent('Travel - ABC');
+    expect(within(first).getByRole('group', { name: 'Account' })).toHaveTextContent('Travel - ABC');
     expect(first).toHaveTextContent('Configured');
 
     configured.unmount();
