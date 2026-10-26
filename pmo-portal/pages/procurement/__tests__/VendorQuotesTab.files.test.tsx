@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 
@@ -68,5 +68,46 @@ describe('AC-OVERFETCH-003 VendorQuotesTab reuses the files the detail query emb
     expect(screen.getAllByText('doc-1.pdf').length).toBeGreaterThan(0);
     expect(screen.getAllByText('doc-3.pdf').length).toBeGreaterThan(0);
     expect(screen.queryByText('old-1.pdf')).toBeNull();
+  });
+
+  it('AC-806 groups quote values by currency and compares best value only within each group', () => {
+    const qc = new QueryClient();
+    render(
+      <QueryClientProvider client={qc}>
+        <VendorQuotesTab
+          quotations={[
+            { ...quote(1), currency: 'IDR', total_amount: 2226648000, vendor_id: 'idr-best' },
+            { ...quote(2), currency: 'IDR', total_amount: 2500000000, vendor_id: 'idr-next' },
+            { ...quote(3), currency: 'USD', total_amount: 3412800, vendor_id: 'usd-best' },
+            { ...quote(4), currency: 'USD', total_amount: 3500000, vendor_id: 'usd-next' },
+          ] as never}
+          canAdd={false}
+          canSelect
+          onAdd={vi.fn()}
+          onSelect={vi.fn()}
+          onError={vi.fn()}
+          procurementId="proc-1"
+          currency="IDR"
+          canManageFiles={false}
+          currentUserId="u1"
+          vendorMap={{ 'idr-best': 'Indonesian Vendor', 'idr-next': 'Second Indonesian Vendor', 'usd-best': 'Global Vendor', 'usd-next': 'Second Global Vendor' }}
+        />
+      </QueryClientProvider>,
+    );
+
+    const table = screen.getByRole('table', { name: 'Vendor bid comparison' });
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent?.trim());
+    expect(headers).toEqual(['Vendor / reference', 'Selection status', 'Valid until', 'Amount', 'Evidence', 'Select']);
+    expect(within(table).getByRole('button', { name: /IDR.*2/ })).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: /USD.*2/ })).toBeInTheDocument();
+    const idrBest = within(table).getByRole('row', { name: /^Indonesian Vendor/ });
+    const usdBest = within(table).getByRole('row', { name: /^Global Vendor/ });
+    const idrNext = within(table).getByRole('row', { name: /^Second Indonesian Vendor/ });
+    expect(idrBest).toHaveTextContent('2,226,648,000');
+    expect(usdBest).toHaveTextContent('3,412,800');
+    expect(idrBest).toHaveTextContent('Best in currency');
+    expect(usdBest).toHaveTextContent('Best in currency');
+    expect(idrNext).not.toHaveTextContent('Best in currency');
+    expect(idrBest).not.toHaveTextContent('IDR');
   });
 });

@@ -78,8 +78,11 @@
       "selection": "Selection status",
       "amount": "Amount",
       "validUntil": "Valid until",
-      "attachments": "Evidence"
+      "attachments": "Evidence",
+      "select": "Select"
     },
+    "selected": "Selected",
+    "bestValueInCurrency": "Best in currency",
     "selectedBestValue": "Selected · best value",
     "bestValue": "Best value",
     "select": "Select",

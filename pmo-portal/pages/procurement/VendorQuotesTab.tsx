@@ -17,7 +17,7 @@ import {
 } from '@/src/components/ui';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { trackComingSoonClicked } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyAuto, formatDateOnly, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import { ProcurementFilesSubsection, type EmbeddedProcurementFile } from './ProcurementFilesSubsection';
 import { useCommandIntentMap } from '@/src/hooks/useCommandIntent';
@@ -107,11 +107,17 @@ function sortedQuotes(quotes: QuotationRow[], selectedId: string | null | undefi
  * candidate shown WHILE the buyer is deciding, i.e. when canSelect=true).
  * Returns null when there are no quotes.
  */
-function bestValueId(quotes: QuotationRow[]): string | null {
-  if (quotes.length === 0) return null;
-  return quotes.reduce((best, q) =>
-    (q.total_amount ?? 0) < (best.total_amount ?? 0) ? q : best,
-  ).id;
+function bestValueIds(quotes: QuotationRow[]): Set<string> {
+  const minimumByCurrency = new Map<string, number>();
+  for (const quote of quotes) {
+    if (!quote.currency || quote.total_amount == null) continue;
+    const amount = Number(quote.total_amount);
+    const minimum = minimumByCurrency.get(quote.currency);
+    if (minimum === undefined || amount < minimum) minimumByCurrency.set(quote.currency, amount);
+  }
+  return new Set(quotes
+    .filter((quote) => quote.currency && quote.total_amount != null && Number(quote.total_amount) === minimumByCurrency.get(quote.currency))
+    .map((quote) => quote.id));
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -195,10 +201,9 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
 
   const sorted = sortedQuotes(quotations, selectedId);
 
-  // Best-value id: shown as a "Best value" pill while the buyer is deciding
-  // (canSelect=true / Vendor Quoted status). Once a quote is selected, the
-  // "Selected · best value" pill on the chosen row serves the same role.
-  const bestId = canSelect ? bestValueId(quotations) : null;
+  // Different currencies cannot be ranked against one another. Mark every lowest
+  // quote within its own currency group while the buyer is deciding.
+  const bestIds = canSelect ? bestValueIds(quotations) : new Set<string>();
 
   return (
     <Card data-testid="vendor-quotes">
@@ -235,18 +240,18 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: t('procurement:quotes.columns.selection', 'Selection status'), kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">{t('procurement:quotes.selectedBestValue', 'Selected · best value')}</StatusPill> : bestId === q.id ? <StatusPill variant="won">{t('procurement:quotes.bestValue', 'Best value')}</StatusPill> : null },
-          { key: 'amount', header: t('procurement:quotes.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
+          { key: 'valueStatus', header: t('procurement:quotes.columns.selection', 'Selection status'), kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">{t('procurement:quotes.selected', 'Selected')}</StatusPill> : bestIds.has(q.id) ? <StatusPill variant="won">{t('procurement:quotes.bestValueInCurrency', 'Best in currency')}</StatusPill> : null },
           { key: 'validUntil', header: t('procurement:quotes.columns.validUntil', 'Valid until'), kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
+          { key: 'amount', header: t('procurement:quotes.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{q.total_amount == null || !q.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span> },
           { key: 'attachments', header: t('procurement:quotes.columns.attachments', 'Evidence'), kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> },
-          { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
+          { key: 'select', header: t('procurement:quotes.columns.select', 'Select'), kind: 'select', size: 88, minSize: 88, maxSize: 120, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
             const vendor = vendorMap[q.vendor_id] ?? q.vq_number ?? '';
             return selectable ? <Button size="sm" variant="outline" className="min-h-11 min-[921px]:min-h-8" onClick={() => setSelectTarget(q)} aria-label={t('procurement:quotes.selectAria', 'Select quote {{vendor}}', { vendor })}>{t('procurement:quotes.select', 'Select')}</Button> : null;
           } },
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} />
+          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} />
         </>;
       })()}
 

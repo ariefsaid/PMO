@@ -78,8 +78,11 @@
       "selection": "Status pilihan",
       "amount": "Jumlah",
       "validUntil": "Berlaku sampai",
-      "attachments": "Bukti"
+      "attachments": "Bukti",
+      "select": "Pilih"
     },
+    "selected": "Dipilih",
+    "bestValueInCurrency": "Terbaik dalam mata uang",
     "selectedBestValue": "Dipilih · nilai terbaik",
     "bestValue": "Nilai terbaik",
     "select": "Pilih",
