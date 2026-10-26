@@ -239,7 +239,7 @@ describe('project invoicing summary', () => {
       expect(screen.getByTestId('project-remaining-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       view.unmount();
     }
-    // Overview and its Project finances summary share the same React Query key; each calls the hook, while the request is cached/deduplicated.
+    // Overview and its Cost/Billing groups share the same React Query key; each calls the hook, while the request is cached/deduplicated.
     expect(financeQuery.calls).toHaveBeenCalledTimes(allowedRoles.length * 2);
     expect(invoiceQuery.calls).not.toHaveBeenCalled();
   });

@@ -93,17 +93,22 @@ describe('ProjectFinancesSection attributed cost (#1271 AC-3)', () => {
 });
 
 describe('ProjectFinancesSection reading states', () => {
-  it('AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys', async () => {
+  it('AC-PFIN-015 renders the Overview Cost and Billing groups in English and Indonesian without raw keys', async () => {
     await localeI18n.init({
       lng: 'en', fallbackLng: 'en', defaultNS: 'common', ns: ['common', 'project'],
       resources: { en: { common: enCatalogue, project: enProjectCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue } },
       interpolation: { escapeValue: false }, react: { useSuspense: false },
     });
     h.query.data = payload();
-    for (const [language, expectedTitle] of [['en', 'Project finances'], ['id', 'Keuangan proyek']] as const) {
+    for (const [language, expectedCost, expectedBilling] of [
+      ['en', 'Cost', 'Billing'],
+      ['id', 'Biaya', 'Penagihan'],
+    ] as const) {
       await localeI18n.changeLanguage(language);
       const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
-      expect(screen.getByRole('region', { name: expectedTitle })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: expectedCost })).toBeInTheDocument();
+      expect(screen.getByRole('group', { name: expectedBilling })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: /Project finances|Keuangan proyek/i })).not.toBeInTheDocument();
       expect(screen.queryByText(/^(projectFinances|invoiceProject)\./)).not.toBeInTheDocument();
       expect(await axe(view.container)).toHaveNoViolations();
       view.unmount();
@@ -222,7 +227,7 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances')).getAllByText('$120.00')).toHaveLength(2);
+    expect(within(screen.getByRole('group', { name: 'Cost' })).getAllByText('$120.00')).toHaveLength(2);
 
     h.commitments.ledgerBasis = 'pmo';
     rerender(<ProjectFinancesSection project={project} />);

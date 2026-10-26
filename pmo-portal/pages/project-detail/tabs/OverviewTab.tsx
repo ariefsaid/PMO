@@ -189,7 +189,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
               <ProjectDrawdown projectId={project.id} headingLevel={4} />
             </div>
             {may('view', 'salesInvoice')
-              ? <ProjectFinancesSection project={project} grouped costSupplement={budgetPositionSupplement} />
+              ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} />
               : <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">{budgetPositionSupplement}</div>}
           </div>
         </section>

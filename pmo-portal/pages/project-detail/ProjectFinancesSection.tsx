@@ -15,17 +15,15 @@ import { formatInstantDate } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { UnknownFigure } from './UnknownFigure';
 import { formatProjectDetailMoney } from './formatProjectDetailMoney';
-import { projectSectionHeading, projectSubsectionHeading } from './typography';
+import { projectSubsectionHeading } from './typography';
 
 export interface ProjectFinancesSectionProps {
   project: ProjectWithRefs;
-  /** Render the one shared read as sibling Cost and Billing groups on the Overview. */
-  grouped?: boolean;
   /** Budget totals and disclosures belong in the Cost group next to Actual. */
   costSupplement?: React.ReactNode;
 }
 
-export function ProjectFinancesSection({ project, grouped = false, costSupplement }: ProjectFinancesSectionProps) {
+export function ProjectFinancesSection({ project, costSupplement }: ProjectFinancesSectionProps) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -40,11 +38,9 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
     const formatted = currency ? formatProjectDetailMoney(value, currency, i18n.language) : null;
     return formatted ?? <UnknownFigure reason={reason} />;
   };
-  const title = <h2 className={projectSectionHeading}>{t('projectFinances.title', 'Project finances')}</h2>;
-  const nestedHeadingTag = grouped ? 'h4' : 'h3';
-  const NestedHeading = nestedHeadingTag;
+  const NestedHeading = 'h4';
 
-  if (query.isPending) return grouped ? (
+  if (query.isPending) return (
     <>
       <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
         <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
@@ -55,12 +51,8 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
         <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
-  ) : (
-    <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
-      {title}<ListState variant="loading" rows={3} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} className="min-h-24" />
-    </section>
   );
-  if (query.isError || !query.data) return grouped ? (
+  if (query.isError || !query.data) return (
     <>
       <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
         <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
@@ -74,14 +66,6 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
         <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
-  ) : (
-    <section data-testid="project-finances" aria-label={t('projectFinances.title', 'Project finances')}>
-      {title}
-      <div role="alert">
-        {t('projectFinances.error', "Couldn't load project finances.")}
-        <Button variant="outline" onClick={() => void query.refetch()}>{t('projectFinances.retry', 'Retry')}</Button>
-      </div>
-    </section>
   );
 
   const data = query.data;
@@ -178,7 +162,6 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
 
   const billingContent = (
     <>
-      {!grouped && title}
       {/* PD-C: with no invoices, one line replaces Cash received, Invoiced 0, Remaining = contract
           and the scope note. */}
       {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
@@ -339,36 +322,20 @@ export function ProjectFinancesSection({ project, grouped = false, costSupplemen
       </div>
   );
 
-  if (grouped) {
-    return (
-      <>
-        <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-          <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
-          {costSupplement}
-          {spendingContent}
-        </div>
-        <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
-          <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
-          {billingContent}
-          {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
-            {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
-          </p>}
-        </div>
-      </>
-    );
-  }
-
   return (
-    <section
-      className="min-w-0 space-y-4"
-      data-testid="project-finances"
-      aria-label={t('projectFinances.title', 'Project finances')}
-    >
-      {billingContent}
-      {spendingContent}
-      {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
-        {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
-      </p>}
-    </section>
+    <>
+      <div role="group" aria-label={t('projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.cost', 'Cost')}</h3>
+        {costSupplement}
+        {spendingContent}
+      </div>
+      <div role="group" data-testid="project-finances" aria-label={t('projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
+        <h3 className={projectSubsectionHeading}>{t('projectDetail.moneyPosition.billing', 'Billing')}</h3>
+        {billingContent}
+        {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
+          {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
+        </p>}
+      </div>
+    </>
   );
 }
