@@ -60,6 +60,13 @@
     "emptyMatchBody": "Try another search or clear filters.",
     "clearFilters": "Clear filters",
     "columns": "Columns",
-    "table": "Sales projects"
+    "table": "Sales projects",
+    "mixedCurrencies": "Mixed currencies",
+    "missingAggregate": "Stage total unavailable",
+    "oneProject": "1 project · value on row",
+    "opportunityValue": "Opportunity value",
+    "comparisonCount": "Stage comparison · project count",
+    "references": "Project references",
+    "requiredFields": "* Required fields"
   }
 }

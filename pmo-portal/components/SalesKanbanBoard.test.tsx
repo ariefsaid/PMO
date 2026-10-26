@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrencyAuto, formatNumberExact } from '@/src/lib/format';
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
@@ -52,7 +52,7 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     expect(within(card).getByText(/Asset Owner/)).toBeInTheDocument();
     expect(within(card).getByText('Project Manager A')).toBeInTheDocument();
     expect(within(card).getByText('40%')).toBeInTheDocument();
-    expect(within(card).getByText(/excl\. PPN/i)).toBeInTheDocument();
+    expect(within(card.closest('section')!).getByText(/excl\. PPN/i)).toBeInTheDocument();
     expect(within(card).queryByText(/weighted/i)).toBeNull();
   });
 
@@ -79,14 +79,15 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     const fractional = { ...projects[1], contract_value: 1_200_000.25 };
     renderBoard([fractional]);
     const card = screen.getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
-    expect(within(card).getByText(formatCurrencyAuto(1_200_000.25, 'USD'))).toBeInTheDocument();
+    expect(within(card).getByText(formatNumberExact(1_200_000.25))).toBeInTheDocument();
+    expect(within(card.closest('section')!).getByText('USD', { exact: false })).toBeInTheDocument();
   });
 
   it('AC-S24-002: the phone projection is a vertical list with stage once and a real project link', () => {
     render(<MemoryRouter><SalesKanbanBoard projects={[projects[1]]} onOpen={vi.fn()} presentation="list" /></MemoryRouter>);
     const list = screen.getByTestId('sales-phone-stage-list');
     const card = within(list).getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
-    expect(within(card).getByText('Tender Submitted')).toBeInTheDocument();
+    expect(within(card).getByText('Tender')).toBeInTheDocument();
     expect(within(card).getByText('Customer unavailable')).toBeInTheDocument();
     expect(within(card).getByText(formatCurrencyAuto(1_200_000, 'USD'))).toBeInTheDocument();
     expect(list.querySelectorAll('li')).toHaveLength(1);
@@ -115,6 +116,8 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     const normalizeSpacing = (text: string) => text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
     expect(within(card).getByText((text) => normalizeSpacing(text) === normalizeSpacing(formatCurrencyAuto(longDeal.contract_value, 'IDR')))).toBeInTheDocument();
     expect(within(card).getByText('10%')).toBeInTheDocument();
+    expect(within(card).getByText('Example Project Manager')).toBeInTheDocument();
+    expect(within(card).getByText('Activity unavailable')).toBeInTheDocument();
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
   });
 

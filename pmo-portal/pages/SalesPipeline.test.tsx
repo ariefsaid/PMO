@@ -200,7 +200,7 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     expect(screen.queryAllByTestId('funnel-stage-weighted')).toHaveLength(0);
   });
 
-  it('RD-046: preserves fractional precision in the visible row and stage summary', async () => {
+  it('RD-046: preserves fractional precision in the owning row without repeating a one-project total', async () => {
     const exactValue = 2_345_678.25;
     pipelineState.data = {
       stages: seedStages.map((stage) => stage.status === 'Leads'
@@ -214,8 +214,9 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
 
     await userEvent.click(screen.getByText('Pipeline summary'));
     const summary = screen.getByTestId('sales-summary');
-    const leads = within(summary).getByText('Leads · USD').closest('[data-funnel-stage]')!;
-    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent(formatNumberExact(exactValue));
+    const leads = within(summary).getByText('Leads').closest('[data-funnel-stage]')!;
+    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('1 project · value on row');
+    expect(within(row).getByText(formatCurrencyAuto(exactValue, 'USD'))).toBeInTheDocument();
   });
 
   it('AC-SALES-S02: missing stage evidence is unavailable while a confirmed empty stage remains zero', async () => {
@@ -226,8 +227,9 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     renderPage();
     await userEvent.click(screen.getByText('Pipeline summary'));
     const leads = within(screen.getByTestId('sales-summary')).getByText('Leads').closest('[data-funnel-stage]')!;
-    expect(leads.querySelector('[aria-label="Summary unavailable"]')).not.toBeNull();
-    const negotiation = within(screen.getByTestId('sales-summary')).getByText('Negotiation · USD').closest('[data-funnel-stage]')!;
+    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('Not available');
+    expect(leads).toHaveTextContent('Stage total unavailable');
+    const negotiation = within(screen.getByTestId('sales-summary')).getByText('Negotiation').closest('[data-funnel-stage]')!;
     expect(negotiation.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('0');
   });
 });
@@ -595,7 +597,7 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   await user.type(screen.getByLabelText('Filter by location'), 'Bali');
   // #830: the location filter writes the URL after a short pause, not on every keystroke.
   await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
-  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
+  await waitFor(() => expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali'));
   if (view === 'kanban') expect(screen.getByText('No matching projects')).toBeVisible();
 });
 
@@ -694,7 +696,9 @@ describe('SalesPipeline subtraction (SUB-H)', () => {
     await userEvent.click(screen.getByRole('tab', { name: /^Table$/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
     const r = within(row as HTMLElement);
-    expect(r.getByText(/excl\. PPN/i)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /Value.*excl\. PPN/i })).toBeInTheDocument();
+    expect(r.queryByText(/excl\. PPN/i)).toBeNull();
+    expect(r.getByText(formatCurrencyAuto(1200000, 'USD'))).toBeInTheDocument();
     expect(r.queryByText(/11%/)).toBeNull();
   });
 
@@ -743,17 +747,19 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     await openSummary();
     const tender = stageCell('Tender');
     const amount = tender.querySelector('[data-funnel-stage-amount]') as HTMLElement;
-    expect(amount).toHaveTextContent('—');
+    expect(amount).toHaveTextContent('Not available');
+    expect(amount).toHaveTextContent('Mixed currencies');
     expect(amount.textContent).not.toContain('1,200,000');
-    expect(amount.querySelector('[aria-label="Summary unavailable"]')).not.toBeNull();
+    expect(amount.textContent).not.toContain('0');
     expect(screen.getByTestId('sales-summary')).toHaveTextContent(/Some stage totals are unavailable or span mixed currencies/i);
   });
 
-  it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', async () => {
+  it('AC-RD-SALES-002 a single-project stage keeps currency and points to the exact owning row', async () => {
     renderPage();
     await openSummary();
     const preQual = stageCell('Pre-Qual · USD');
-    expect(preQual.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('800,000');
+    expect(preQual.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('1 project · value on row');
+    expect(screen.getByRole('link', { name: 'Regional Services' }).closest('article')).toHaveTextContent(formatNumberExact(800000));
     expect(preQual.querySelector('[data-funnel-stage-amount]')).not.toHaveTextContent(/USD|\$/);
   });
 
@@ -771,9 +777,11 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     };
     renderPage();
     await openSummary();
-    const preQual = stageCell('Pre-Qual · IDR');
+    const preQual = stageCell('Pre-Qual');
+    expect(screen.getByTestId('sales-summary')).toHaveTextContent('project count · IDR');
     const amount = preQual.querySelector('[data-funnel-stage-amount]') as HTMLElement;
-    expect(amount).toHaveTextContent('800,000');
+    expect(amount).toHaveTextContent('1 project · value on row');
+    expect(screen.getByRole('link', { name: 'IDR Deal' }).closest('article')).toHaveTextContent(formatNumberExact(1234));
     expect(amount.textContent).not.toContain('IDR');
     expect(amount.textContent).not.toContain('$');
   });

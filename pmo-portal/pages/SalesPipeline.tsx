@@ -76,7 +76,7 @@ const SalesPipeline: React.FC = () => {
   const contentReady = !isPending && !isError;
   const { openRecord } = useListReturn({ list: 'sales', contentReady });
   const [classificationResetToken, setClassificationResetToken] = useState(0);
-  const [showWeighted, setShowWeighted] = useState(true);
+  const [showWeighted, setShowWeighted] = useState(false);
   const view: PipelineView = isDesktop ? workingSet.view : 'kanban';
   const allProjects = useMemo(() => [...openProjects, ...lostProjects], [openProjects, lostProjects]);
   const selectedStatus = workingSet.status as SalesStage;
@@ -157,10 +157,10 @@ const SalesPipeline: React.FC = () => {
 
   const columns: Column<PipelineProject>[] = [
     {
-      key: 'project', header: t('sales.column.project', 'Project'), kind: 'primary', rowHeader: true, size: 270,
+      key: 'project', header: t('sales.column.project', 'Project'), kind: 'primary', rowHeader: true, size: 250,
       cell: (project) => (
         <Link to={`/projects/${project.id}`} onClick={(event) => { event.preventDefault(); onOpen(project); }}
-          data-list-return-focus={`project-${project.id}`} className="block min-h-11 break-words font-semibold text-primary-text underline-offset-4 hover:underline">
+          data-list-return-focus={`project-${project.id}`} className="block min-h-11 break-words font-normal text-primary-text underline-offset-4 hover:underline">
           {projectDisplayName(project)}
         </Link>
       ),
@@ -169,22 +169,22 @@ const SalesPipeline: React.FC = () => {
       exportValue: (project) => project.name,
     },
     {
-      key: 'customer', header: t('sales.column.customer', 'Customer / end customer'), kind: 'text', size: 180,
+      key: 'customer', header: t('sales.column.customer', 'Customer / end customer'), kind: 'text', size: 160,
       cell: (project) => <span className="block min-w-0 break-words">{project.client_name || '—'}{project.end_client_name && <span className="block text-sm text-muted-foreground">{salesT('pipeline.endCustomerLine', 'for {{name}}', { name: project.end_client_name })}</span>}</span>,
       exportValue: (project) => project.client_name ?? '',
     },
     {
-      key: 'owner', header: t('sales.column.owner', 'Owner'), kind: 'meta', size: 140,
+      key: 'owner', header: t('sales.column.owner', 'Owner'), kind: 'meta', size: 120,
       cell: (project) => project.pm_name || <span className="text-muted-foreground">{salesT('pipeline.ownerUnavailable', 'Owner unavailable')}</span>,
       exportValue: (project) => project.pm_name ?? '',
     },
     {
-      key: 'stage', header: t('sales.column.stage', 'Stage'), kind: 'status', size: 145,
+      key: 'stage', header: t('sales.column.stage', 'Stage'), kind: 'status', size: 115,
       cell: (project) => <StatusPill variant={pillVariantForStatus(project.status)}>{displayStage(project)}</StatusPill>,
       exportValue: (project) => displayStage(project),
     },
     {
-      key: 'last_activity', header: salesT('pipeline.lastActivity', 'Last activity'), size: 145,
+      key: 'last_activity', header: salesT('pipeline.lastActivity', 'Last activity'), size: 115,
       cell: (project) => <StageActivity project={project} />,
       exportValue: (project) => {
         const days = daysSince(project.last_update);
@@ -192,12 +192,12 @@ const SalesPipeline: React.FC = () => {
       },
     },
     {
-      key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 230, align: 'num',
+      key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 185, align: 'num',
       cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 whitespace-normal tabular"><span className="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
       exportValue: (project) => project.contract_value,
     },
     {
-      key: 'win', header: t('sales.column.winPct', 'Win %'), kind: 'percent', size: 90, align: 'num',
+      key: 'win', header: t('sales.column.winPct', 'Win %'), kind: 'percent', size: 75, align: 'num',
       cell: (project) => isTerminal(project) ? salesT('pipeline.notApplicable', 'Not applicable') : formatPercent(project.win_probability),
       exportValue: (project) => isTerminal(project) ? '' : Math.round(project.win_probability * 100),
     },
@@ -220,13 +220,13 @@ const SalesPipeline: React.FC = () => {
     if (column.key === 'value') return [column, currencyColumn];
     return [column];
   });
-  const displayColumns = showWeighted ? columns : columns.filter((column) => column.key !== 'weighted');
+  const sharedBasis = visible.length > 0 && visible.every((project) => project.tax_treatment === visible[0].tax_treatment) ? visible[0] : undefined;
+  const displayColumns = (showWeighted ? columns : columns.filter((column) => column.key !== 'weighted')).map((column) => column.key === 'value' && sharedBasis ? { ...column, header: <span>{t('sales.column.value', 'Value')} · <TaxBasisLabel treatment={sharedBasis.tax_treatment} showDetails={false} className="font-semibold" /></span>, cell: (project: PipelineProject) => <span className="whitespace-nowrap tabular">{formatCurrencyAuto(project.contract_value, project.currency)}</span> } : column);
 
   const pipelineCurrencies = new Set(openProjects.map((project) => project.currency));
-  const stageWeights = OPEN_COLUMNS.map((column) => data?.stages.find((stage) => stage.status === column.statuses[0])?.weighted_value ?? 0);
-  const maxStageWeight = Math.max(0, ...stageWeights);
+  const summarySharedCurrency = pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : undefined;
   let summaryHasUnknown = pipelineCurrencies.size > 1;
-  const summaryStages: FunnelStage[] = OPEN_COLUMNS.map((column, index) => {
+  const summaryStages: FunnelStage[] = OPEN_COLUMNS.map((column) => {
     const aggregate = data?.stages.find((stage) => stage.status === column.statuses[0]);
     const stageRows = openProjects.filter((project) => column.statuses.includes(project.status));
     const currencies = new Set(stageRows.map((project) => project.currency));
@@ -235,16 +235,14 @@ const SalesPipeline: React.FC = () => {
     summaryHasUnknown ||= valueUnavailable || probabilityUnavailable || !Number.isFinite(aggregate?.weighted_value);
     const currency = currencies.size === 1 ? [...currencies][0] : orgCurrency;
     return {
-      name: !valueUnavailable && currencies.size <= 1
+      name: !summarySharedCurrency && !valueUnavailable && currencies.size <= 1
         ? `${stageLabel(column)} · ${currencies.size === 1 ? currency : orgCurrency}`
         : stageLabel(column),
       dotColor: column.dotColor,
       prob: !probabilityUnavailable && aggregate ? formatPercent(aggregate.win_probability) : undefined,
-      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatNumberExact(aggregate?.total_value ?? 0),
+      value: valueUnavailable ? <span>{salesT('pipeline.summaryForecastUnavailable', 'Not available')} · {currencies.size > 1 ? salesT('pipeline.mixedCurrencies', 'Mixed currencies') : salesT('pipeline.missingAggregate', 'Stage total unavailable')}</span> : stageRows.length === 1 ? salesT('pipeline.oneProject', '1 project · value on row') : formatNumberExact(aggregate?.total_value ?? 0),
       weighted: undefined,
-      barPct: valueUnavailable || pipelineCurrencies.size > 1 || maxStageWeight === 0
-        ? undefined
-        : (stageWeights[index] / maxStageWeight) * 100,
+      barPct: (stageRows.length / Math.max(1, ...OPEN_COLUMNS.map((stage) => openProjects.filter((project) => stage.statuses.includes(project.status)).length))) * 100,
     };
   });
   const summaryAggregates = OPEN_COLUMNS.map((column) => data?.stages.find((stage) => stage.status === column.statuses[0]));
@@ -256,12 +254,13 @@ const SalesPipeline: React.FC = () => {
     ? salesT('pipeline.summaryForecastUnavailable', 'Not available')
     : formatCurrency(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
   const summary = (
-    <details data-testid="sales-summary" className="mb-8">
+    <details data-testid="sales-summary" className="mb-4">
       <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3">
-        <span className="text-xl font-bold leading-tight tracking-[-0.01em]">{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span>
+        <span className="text-xl font-bold leading-tight tracking-[-0.01em]"><span aria-hidden>▸ </span><span>{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span> · {formatNumberWhole(openProjects.length)}</span>
         <span className="text-[0.6875rem] font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
       </summary>
       <div className="mt-4">
+        <p className="mb-2 text-xs font-semibold text-muted-foreground">{salesT('pipeline.comparisonCount', 'Stage comparison · project count')}{summarySharedCurrency && ` · ${summarySharedCurrency}`}</p>
         <Funnel stages={summaryStages} />
         <p data-testid="pipeline-weighted-total" className="mt-4 text-sm">
           <span>{salesT('pipeline.summaryForecast', 'Weighted pipeline forecast')}: </span>
@@ -274,7 +273,7 @@ const SalesPipeline: React.FC = () => {
 
   const toolbar = (
     <section aria-label={salesT('pipeline.controls', 'Sales pipeline controls')} className="mb-4 flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-3">
-      <div className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-background px-3 md:w-auto md:min-w-48 md:flex-1">
+      <div className="flex min-h-11 w-full min-w-0 items-center gap-2 rounded-md border border-input bg-background px-3 md:w-72 md:min-w-64 md:flex-none">
         <Icon name="search" />
         <input type="search" aria-label={t('sales.search.label', 'Search projects')} placeholder={t('sales.search.placeholder', 'Search projects…')} value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
       </div>
@@ -292,9 +291,9 @@ const SalesPipeline: React.FC = () => {
         </select>
         {workingSet.scope === 'Lost' && <span className="text-xs">{salesT('pipeline.stageOpenOnly', 'Stage applies to open projects')}</span>}
       </label>
-      <div className="flex min-w-0 items-end gap-2">
+      <div className="contents">
         <ProjectClassificationFilters rows={allProjects} value={workingSet} onChange={(patch) => setWorkingSet((current) => ({ ...current, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
+        <label className="flex min-w-56 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:flex-none">
           <span>{salesT('pipeline.sortLabel', 'Sort')}</span>
           <select aria-label={salesT('pipeline.sortLabel', 'Sort')} value={workingSet.sort} onChange={(event) => setWorkingSet((current) => ({ ...current, sort: event.currentTarget.value as SalesSort }))} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {SORTS.map((sort) => <option key={sort} value={sort}>{sortLabels[sort]}</option>)}
@@ -360,7 +359,7 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (
-        <div className="min-w-0 [&_table]:text-sm [&_thead_th]:text-[0.6875rem] [&_tbody_td]:text-sm [&_li]:text-sm [&_dd]:text-sm">
+        <div className="min-w-0 [&_table]:text-sm [&_thead_th]:text-xs [&_tbody_td]:text-sm [&_li]:text-sm [&_dd]:text-sm [&_table]:!min-w-0 [&_table]:!w-full [&_tbody_.truncate]:!whitespace-normal [&_tbody_.truncate]:!overflow-visible [&_tbody_.truncate]:!text-clip">
           <details className="mb-2">
             <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground underline underline-offset-4">{salesT('pipeline.columns', 'Columns')}</summary>
             <label className="ml-3 inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showWeighted} onChange={(event) => setShowWeighted(event.currentTarget.checked)} />{t('sales.column.weighted', 'Weighted')}</label>

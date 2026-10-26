@@ -1,10 +1,7 @@
 /**
- * AC-IFW-RECORD-01 — Pre-win detail: sales levers (PipelineLens) render ABOVE the delivery
- * planner (MilestoneStrip) and ABOVE the S-curve; and the S-curve is hidden for pre-win records.
- *
- * Lens-D regression invariant: a pre-win record renders the Opportunity-journey stepper and
- * Next-actions (sales levers) BEFORE the delivery phases section AND before the "Progress curve"
- * heading. The empty S-curve is not rendered at all for pre-win records.
+ * AC-IFW-RECORD-01 — Pre-win detail retains the commercial journey and actions.
+ * R-033 deliberately retires pre-win delivery-planner composition; operational planning
+ * and the S-curve belong to the won record.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
@@ -173,7 +170,7 @@ const renderAt = async (path: string) => {
 };
 
 // ── tests ────────────────────────────────────────────────────────────────────
-describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above delivery planner and S-curve', () => {
+describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions without delivery planning', () => {
   beforeEach(() => {
     projectsState.data = [];
     projectsState.isPending = false;
@@ -182,27 +179,12 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
+  it('AC-IFW-RECORD-01 / R-033: pre-win record keeps its journey and excludes delivery planning', async () => {
     await renderAt('/projects/opp1');
-
-    // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
-    const projectJourney = screen.getByLabelText('Project stage journey');
-    // The "Project journey" heading in PipelineLens card (CW-1: "Opportunity journey" → "Project journey")
-    const projectJourneyHeading = screen.getByText('Project journey');
-
-    expect(projectJourney).toBeInTheDocument();
-    expect(projectJourneyHeading).toBeInTheDocument();
-
-    // T1: The prewin-compact-planner affordance is always present (M2 implementation — the compact
-    // one-liner always renders for a pre-win empty planner, making the ordering check unconditional).
-    // The compact div renders AFTER the PipelineLens in document order.
-    const compactPlanner = screen.getByTestId('prewin-compact-planner');
-    expect(compactPlanner).toBeInTheDocument();
-
-    // The compact planner must come AFTER the "Project journey" heading in document order.
-    const pos = projectJourneyHeading.compareDocumentPosition(compactPlanner);
-    // DOCUMENT_POSITION_FOLLOWING (4): compactPlanner comes AFTER projectJourneyHeading
-    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
+    expect(screen.getByText('Project journey')).toBeInTheDocument();
+    expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Plan delivery phases/i })).not.toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', async () => {
@@ -217,7 +199,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText('Classification')).not.toBeInTheDocument();
     const rail = screen.getByTestId('project-detail-rail');
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
+    expect(rail.querySelector('summary')).toHaveTextContent('Details');
     expect(within(rail).getByText('Engineering')).toBeInTheDocument();
     // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
     expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
@@ -232,15 +214,14 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', async () => {
+  it('AC-IFW-RECORD-01 / R-033: pre-win does not offer delivery planning before the win, including the "Plan this project\'s delivery phases" band', async () => {
     // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
     await renderAt('/projects/opp1');
 
     // The full EmptyPlanningPrompt heading must NOT be visible on pre-win
     expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
 
-    // A compact affordance (one-liner) must be present instead
-    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
+    expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
   });
 
   it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
@@ -254,6 +235,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
   it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
     await renderAt('/projects/opp1/work-orders');
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
-    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
+    expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
+    expect(screen.queryByTestId('prewin-compact-planner')).not.toBeInTheDocument();
   });
 });

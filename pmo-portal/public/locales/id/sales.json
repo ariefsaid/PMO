@@ -60,6 +60,13 @@
     "emptyMatchBody": "Coba pencarian lain atau hapus filter.",
     "clearFilters": "Hapus filter",
     "columns": "Kolom",
-    "table": "Proyek penjualan"
+    "table": "Proyek penjualan",
+    "mixedCurrencies": "Mata uang campuran",
+    "missingAggregate": "Total tahap tidak tersedia",
+    "oneProject": "1 proyek · nilai pada baris",
+    "opportunityValue": "Nilai peluang",
+    "comparisonCount": "Perbandingan tahap · jumlah proyek",
+    "references": "Referensi proyek",
+    "requiredFields": "* Wajib diisi"
   }
 }

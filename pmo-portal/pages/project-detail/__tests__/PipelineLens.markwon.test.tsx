@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { formatNumberExact, formatShortMoney } from '@/src/lib/format';
+import { formatNumberExact } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
@@ -107,10 +107,12 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     const refInput = screen.getByLabelText(/Customer contract reference/i);
     expect(refInput).toBeInTheDocument();
     const compactAmount = screen.getAllByRole('heading', { level: 2 }).find((heading) =>
-      heading.textContent?.includes(formatShortMoney(CONTRACT_VALUE, 'USD', { code: true })),
+      heading.textContent?.includes(`USD ${formatNumberExact(CONTRACT_VALUE)}`),
     );
     expect(compactAmount).toBeDefined();
-    expect(screen.getAllByText(formatNumberExact(CONTRACT_VALUE))).toHaveLength(1);
+    expect(screen.getAllByText(`USD ${formatNumberExact(CONTRACT_VALUE)}`)).toHaveLength(1);
+    expect(refInput).toHaveAttribute('aria-required', 'true');
+    expect(screen.getByLabelText(/Contract date/i)).toHaveAttribute('aria-required', 'true');
     expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
     expect(screen.getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
     expect(screen.getByText(/This contract value is recorded when you confirm the win/i)).toBeInTheDocument();
@@ -129,3 +131,9 @@ describe('PipelineLens — a transition refreshes the detail page (AC-OVERFETCH-
     );
   });
 });
+
+ it('R-031: Negotiation never offers an earlier pipeline stage as Advance', () => {
+  render(<ImpersonationProvider realRole="Project Manager"><ToastProvider><PipelineLens project={{ ...dealRow, status: 'Negotiation' }} /></ToastProvider></ImpersonationProvider>);
+  expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
+ });

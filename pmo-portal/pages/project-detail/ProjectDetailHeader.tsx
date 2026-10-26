@@ -50,7 +50,8 @@ import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { SALES_COLUMNS } from '../../components/salesPipeline';
+import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -119,6 +120,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const projectStatusLabel = useProjectStatusLabel();
+  const salesStageLabel = useSalesStageLabel();
+  const salesStage = SALES_COLUMNS.find((column) => !column.terminal && column.testId !== 'stage-Won' && column.statuses.includes(project.status));
   const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -557,7 +560,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         iconColor={projectIconColor()}
         name={<span>{project.name}</span>}
         status={
-          <StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(status)}</StatusPill>
+          <StatusPill variant={pillVariantForProjectStatus(status)}>{salesStage ? salesStageLabel(salesStage) : projectStatusLabel(status)}</StatusPill>
         }
         // Identity, status, scope and primary action share the content-track frame.
         meta={meta}

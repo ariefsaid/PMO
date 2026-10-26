@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { StatusPill, TaxBasisLabel } from '@/src/components/ui';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrencyAuto, formatNumberExact } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import { ATTENTION_THRESHOLD_DAYS, daysSince, pillVariantForStatus, SALES_COLUMNS, formatPercent } from './salesPipeline';
@@ -14,27 +14,19 @@ interface SalesKanbanBoardProps {
   presentation?: 'board' | 'list';
 }
 
-const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void; compact?: boolean }> = ({ project, onOpen, compact = false }) => {
-  const { t } = useTranslation('sales');
+const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void }> = ({ project, onOpen }) => {
   const displayName = projectDisplayName(project);
-  const ids = [project.pmo_project_number, project.code].filter(Boolean).join(' · ');
+
   return (
     <div className="min-w-0">
       <Link
         to={`/projects/${project.id}`}
         onClick={(event) => { event.preventDefault(); onOpen(); }}
         data-list-return-focus={`project-${project.id}`}
-        className="block min-h-11 break-words text-sm font-semibold text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        className="block min-h-11 break-words text-sm font-normal text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >
         {displayName}
       </Link>
-      {displayName !== project.name && <p className="break-words text-sm text-muted-foreground">{project.name}</p>}
-      {!compact && ids && <p className="break-words font-mono text-xs text-muted-foreground">{ids}</p>}
-      {!compact && project.end_client_name && (
-        <p className="break-words text-sm text-muted-foreground">
-          {t('pipeline.endCustomerLine', 'for {{name}}', { name: project.end_client_name })}
-        </p>
-      )}
     </div>
   );
 };
@@ -49,50 +41,47 @@ const Activity: React.FC<{ project: PipelineProject }> = ({ project }) => {
       ? t('pipeline.oneDay', '1 day ago')
       : t('pipeline.daysAgo', '{{days}} days ago', { days });
   return (
-    <span className={days >= ATTENTION_THRESHOLD_DAYS ? 'font-medium text-warning-foreground' : 'text-muted-foreground'}>
+    <span className={days >= ATTENTION_THRESHOLD_DAYS ? 'text-warning-foreground' : 'text-muted-foreground'}>
       {label}
     </span>
   );
 };
 
-const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean; compact?: boolean }> = ({ project, onOpen, grouped, compact = false }) => {
+const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean; sharedMoney?: boolean }> = ({ project, onOpen, grouped, sharedMoney = false }) => {
   const { t } = useTranslation('sales');
   const statusLabel = useProjectStatusLabel();
+  const stageLabel = useSalesStageLabel();
+  const stage = SALES_COLUMNS.find((column) => !column.terminal && column.testId !== 'stage-Won' && column.statuses.includes(project.status));
   const customer = project.client_name || t('pipeline.customerUnavailable', 'Customer unavailable');
   const terminal = project.status === 'Loss Tender' || project.status === 'Declined';
   return (
-    <article className={`min-w-0 rounded-lg border border-border bg-card ${compact ? 'p-2' : 'p-3'}`}>
+    <article className="min-w-0 rounded-lg border border-border bg-card p-2">
+      <h3 className="mb-2 whitespace-nowrap text-xl font-bold tabular">{sharedMoney ? formatNumberExact(project.contract_value) : formatCurrencyAuto(project.contract_value, project.currency)}</h3>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-        <ProjectIdentity project={project} onOpen={onOpen} compact={compact} />
+        <ProjectIdentity project={project} onOpen={onOpen} />
         {(!grouped || terminal) && (
-          <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
+          <StatusPill variant={pillVariantForStatus(project.status)}>{stage ? stageLabel(stage) : statusLabel(project.status)}</StatusPill>
         )}
       </div>
-      <dl className={`mt-4 grid min-w-0 gap-x-4 gap-y-2 text-sm ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
-        <div className={`min-w-0 ${compact ? 'col-span-2' : ''}`}>
-          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.customer', 'Customer')}</dt>
-          <dd className="break-words">{customer}</dd>
-        </div>
-        {!compact && <div className="min-w-0">
-          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.owner', 'Owner')}</dt>
-          <dd className="break-words">{project.pm_name || t('pipeline.ownerUnavailable', 'Owner unavailable')}</dd>
-        </div>}
-        {!compact && <div className="min-w-0">
-          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.lastActivity', 'Last activity')}</dt>
-          <dd><Activity project={project} /></dd>
-        </div>}
-        <div className={`min-w-0 ${compact ? 'col-span-2' : 'sm:col-span-2'}`}>
-          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.value', 'Value')}</dt>
-          <dd className="flex min-w-0 flex-wrap items-center gap-1 tabular">
-            <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span>
-            <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
-          </dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.winProbability', 'Win probability')}</dt>
-          <dd>{terminal ? t('pipeline.notApplicable', 'Not applicable') : formatPercent(project.win_probability)}</dd>
-        </div>
+      <div className="mt-2 flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
+        <span className="text-xs font-semibold text-muted-foreground">{t('pipeline.winProbability', 'Win probability')}: <span>{terminal ? t('pipeline.notApplicable', 'Not applicable') : formatPercent(project.win_probability)}</span></span>
+      </div>
+      <dl className="mt-2 grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 text-sm">
+        <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.lastActivity', 'Last activity')}</dt>
+        <dd className="text-right"><Activity project={project} /></dd>
+        <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.owner', 'Owner')}</dt>
+        <dd className="break-words text-right">{project.pm_name || t('pipeline.ownerUnavailable', 'Owner unavailable')}</dd>
       </dl>
+      {projectDisplayName(project) !== project.name && <p className="mt-2 break-words text-sm text-muted-foreground">{project.name}</p>}
+      <p className="mt-2 break-words text-sm">{customer}</p>
+      <details className="mt-2 text-sm">
+        <summary className="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-semibold">
+          {t('pipeline.references', 'Project references')} · {[project.pmo_project_number, project.code, project.end_client_name].filter(Boolean).length}
+          {!sharedMoney && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} className="font-semibold" />}
+        </summary>
+        <p className="break-words">{[project.pmo_project_number, project.code].filter(Boolean).join(' · ')}</p>
+        {project.end_client_name && <p className="break-words">{project.end_client_name}</p>}
+      </details>
     </article>
   );
 };
@@ -101,8 +90,8 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
   const { t } = useTranslation('sales');
   const stageLabel = useSalesStageLabel();
   const openColumns = SALES_COLUMNS.filter((column) => !column.terminal && column.testId !== 'stage-Won');
-  const renderProject = (project: PipelineProject, grouped: boolean) => (
-    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} compact={presentation === 'list'} />
+  const renderProject = (project: PipelineProject, grouped: boolean, sharedMoney = false) => (
+    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} sharedMoney={sharedMoney} />
   );
 
   if (presentation === 'list') {
@@ -127,19 +116,23 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
   return (
     <div role="region" aria-label={t('pipeline.board', 'Sales pipeline board')} className="max-w-full min-w-0 overflow-x-auto pb-2">
       <div className="grid min-w-[64rem] grid-cols-5 items-start gap-3">
-        {groups.map((group) => (
-          <section key={group.key} data-testid={group.key} aria-label={`${group.name}, ${group.projects.length}`} className="min-w-0 border-l border-border px-3 py-2 first:border-l-0">
+        {groups.map((group) => {
+          const first = group.projects[0];
+          const sharedMoney = !!first && group.projects.every((project) => project.currency === first.currency && project.tax_treatment === first.tax_treatment && project.tax_rate === first.tax_rate && project.tax_base_numerator === first.tax_base_numerator && project.tax_base_denominator === first.tax_base_denominator);
+          return (
+          <section key={group.key} data-testid={group.key} aria-label={`${group.name}, ${group.projects.length}`} className="min-w-0 py-2">
             <h2 className="mb-3 flex min-h-11 items-center justify-between gap-2 border-b border-border pb-2 text-xl font-bold leading-tight tracking-[-0.01em]">
               <span>{group.name}</span>
               <span className="tabular text-muted-foreground">{group.projects.length}</span>
             </h2>
+            {sharedMoney && <p className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">{first.currency} <TaxBasisLabel treatment={first.tax_treatment} showDetails={false} className="font-semibold" /></p>}
             <ul className="grid min-w-0 list-none gap-3 p-0">
               {group.projects.length > 0
-                ? group.projects.map((project) => <li key={project.id} className="min-w-0">{renderProject(project, !group.terminal)}</li>)
+                ? group.projects.map((project) => <li key={project.id} className="min-w-0">{renderProject(project, !group.terminal, sharedMoney)}</li>)
                 : <li className="px-1 py-2 text-sm text-muted-foreground">{t('pipeline.emptyStageGroup', 'No projects in {{stage}}', { stage: group.name })}</li>}
             </ul>
           </section>
-        ))}
+        );})}
       </div>
     </div>
   );

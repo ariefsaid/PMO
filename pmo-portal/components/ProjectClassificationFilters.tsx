@@ -153,12 +153,12 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
       {panel ? panel(panelFields, { open: isOpen, onOpenChange: requestOpen }) : (
         <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
           count={activeClassificationCount(value)} open={isOpen} onOpenChange={requestOpen}
-          className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
+          className={inlineTrigger ? 'contents' : undefined} panelClassName={inlineTrigger ? 'order-1 max-h-40 overflow-y-auto rounded-none border-0 px-0 md:max-h-none md:overflow-visible' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
           {fields}
         </MobileToolbarDisclosure>
       )}
       {!hideAppliedSummary && activeKeys.length > 0 && (
-        <div className="mt-2 flex w-full min-w-0 flex-wrap items-center gap-2">
+        <div className={`mt-2 flex w-full min-w-0 flex-wrap items-center gap-2 ${inlineTrigger ? 'order-2' : ''}`}>
           <ul aria-label={t('projectClassification.applied', 'Applied classifications')} className="flex min-w-0 flex-wrap gap-2">
             {activeKeys.map((key) => {
               const selection = `${labels[key]}: ${classificationValueLabel(t, value[key]!)}`;

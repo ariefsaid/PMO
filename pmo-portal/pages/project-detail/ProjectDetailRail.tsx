@@ -51,7 +51,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
     >
       <details>
         <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
-          {t('uxs13.projectDetailsAndActions', 'Project details and actions')}
+          {showActionSection ? t('uxs13.projectDetailsAndActions', 'Project details and actions') : t('projectDetail.rail.detailsHeading', 'Details')}
         </summary>
         <div className="space-y-8 pt-3">
         {showActionSection && (

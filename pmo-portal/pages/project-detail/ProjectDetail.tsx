@@ -270,7 +270,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -280,7 +280,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
@@ -295,7 +295,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+        {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
         <ListState
           variant="error"
           icon="inbox"
@@ -387,7 +387,7 @@ const ProjectDetail: React.FC = () => {
       {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
           loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
           rule as every other record page and this page's loading / not-found states). */}
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      {isPipeline ? <a href={listReturnNavigation(location.state, 'sales').path} onClick={(event) => { event.preventDefault(); returnToSales(); }} className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">{t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}</a> : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />}
       {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
@@ -412,7 +412,7 @@ const ProjectDetail: React.FC = () => {
                   variant="primary"
                   disabled={pipelinePrimaryAction.disabled}
                   onClick={pipelinePrimaryAction.activate}
-                  className="max-[920px]:w-full"
+                  className="min-h-11 max-[920px]:w-full"
                 >
                   {pipelinePrimaryAction.label}
                 </Button>
@@ -430,7 +430,7 @@ const ProjectDetail: React.FC = () => {
               {/* Classification, codes and the ERP project link live in one closed disclosure. */}
               <ProjectDetailRail project={project} showActionSection={false} />
               {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
-              {tabPanel}
+              {tab !== 'overview' ? tabPanel : <React.Suspense fallback={null}><CommentsSection entityType="project" entityId={project.id} /></React.Suspense>}
             </div>
           </div>
         </>

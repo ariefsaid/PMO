@@ -14,6 +14,7 @@ import {
   ConfirmDialog,
   useToast,
 } from '@/src/components/ui';
+import { useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -26,23 +27,13 @@ import {
   projectStatusGroup,
 } from '@/src/lib/db/projectTransitions';
 import {
+  SALES_COLUMNS,
   weightedValue,
   formatPercent,
   dealJourneySteps,
 } from '../../components/salesPipeline';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { synchronizeErpProject } from '@/src/lib/repositories/projectErpSetup';
-
-// ⛔ NOT TRANSLATED, deliberately: these are pipeline STAGE names -- the same vocabulary
-// class as the raw `project.status` rendered in the StatusPill beside them, and as
-// `dealJourneySteps` in components/salesPipeline. Translating them here alone would put
-// two languages on one screen. Belongs with the cross-cutting status-vocabulary decision.
-const NEXT_PIPELINE_LABEL: Record<string, string> = {
-  Leads: 'Pre-Qual',
-  'PQ Submitted': 'Quotation',
-  'Quotation Submitted': 'Tender',
-  'Tender Submitted': 'Negotiation',
-};
 
 export interface PipelineLensProps {
   /** The canonical project/opportunity row (the active detail record). */
@@ -81,6 +72,7 @@ export interface PipelinePrimaryAction {
 const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onPrimaryActionChange, onReturnToSales }) => {
   const { t } = useTranslation();
   const { t: salesT } = useTranslation('sales');
+  const salesStageLabel = useSalesStageLabel();
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -126,7 +118,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   const canWin = legalTargets.includes('Won, Pending KoM');
   const canLose = legalTargets.includes('Loss Tender');
   const canDecline = legalTargets.includes('Declined');
-  const nextStage = legalTargets.find((t) => PIPELINE_STATUSES.includes(t));
+  const nextStage = legalTargets.find((target) => PIPELINE_STATUSES.indexOf(target) > PIPELINE_STATUSES.indexOf(liveStatus));
+  const nextStageLabel = nextStage ? salesStageLabel(SALES_COLUMNS.find((column) => column.statuses.includes(nextStage)) ?? { title: nextStage, testId: '' }) : '';
   const isTerminal = projectStatusGroup(liveStatus as never) !== 'pipeline';
 
   const value = project.contract_value ?? cached?.contract_value ?? 0;
@@ -204,11 +197,11 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
       return;
     }
     onPrimaryActionChange({
-      label: `${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`,
+      label: `${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${nextStageLabel}`,
       disabled: pending,
       activate: () => { void runTransitionRef.current(nextStage); },
     });
-  }, [canTransition, confirmAction, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, showWonPanel, t]);
+  }, [canTransition, confirmAction, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, nextStageLabel, showWonPanel, t]);
   useEffect(() => () => onPrimaryActionChange?.(null), [onPrimaryActionChange]);
 
   const submitWon = () => {
@@ -230,26 +223,26 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   };
 
   const contractValueBlock = (
-    <section data-testid="pipeline-contract-value" className="mb-8 min-w-0" aria-label={t('projectDetail.pipeline.stat.value', 'Contract value')}>
+    <section data-testid="pipeline-contract-value" className="mb-8 min-w-0" aria-label={salesT('pipeline.opportunityValue', 'Opportunity value')}>
       <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-bold leading-tight tracking-[-0.01em]">
-        <span>{t('projectDetail.pipeline.stat.value', 'Contract value')} ·</span>
-        <span className="tabular">{formatShortMoney(value, currency, { code: true })}</span>
-        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+        <span>{salesT('pipeline.opportunityValue', 'Opportunity value')} ·</span>
+        <span className="tabular">{showWonPanel ? `${currency} ${formatNumberExact(value)}` : formatShortMoney(value, currency, { code: true })}</span>
+        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} className="font-semibold" />
       </h2>
-      <dl className="mt-4 grid min-w-0 grid-cols-1 items-baseline gap-x-4 sm:grid-cols-[max-content_minmax(0,1fr)]">
+      {!showWonPanel && <dl className="mt-4 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4">
         <dt className="text-xs font-semibold text-muted-foreground">
           {salesT('pipeline.exactValue', 'Exact value')}
         </dt>
-        <dd className="min-w-0 whitespace-nowrap text-sm text-foreground tabular">
+        <dd className="min-w-0 whitespace-nowrap text-right text-sm text-foreground tabular">
           {formatNumberExact(value)}
         </dd>
-      </dl>
+      </dl>}
     </section>
   );
 
   return (
     <div>
-      {contractValueBlock}
+      {!showWonPanel && contractValueBlock}
 
       {!showWonPanel && (
         <section className="mb-8 min-w-0" aria-labelledby="pipeline-context-heading">
@@ -258,7 +251,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
               ? salesT('pipeline.decisionContext', 'Decision details')
               : `${salesT('pipeline.contextHeading', 'Pipeline context')} · ${currency}`}
           </h2>
-          <dl className="mt-4 grid min-w-0 grid-cols-2 gap-x-4 gap-y-4">
+          <dl className="mt-4 grid min-w-0 grid-cols-1 gap-y-2 [&>div]:grid [&>div]:grid-cols-[auto_minmax(0,1fr)] [&>div]:items-baseline [&>div]:gap-x-4 [&_dd]:text-right">
             {isTerminal ? (
               <>
                 <div className="min-w-0">
@@ -300,14 +293,15 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
           un-wrapped step row (flex, no wrap, summed children) — forcing the shared single-column
           track to that width and overflowing the viewport at phone width. min-w-0 lets the track
           shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-8">
         {/* Opportunity journey */}
         {!showWonPanel && <Card className="min-w-0">
-          <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
+          <CardHead className="text-xl font-bold">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
           <CardPad>
             <LifecycleStepper
               variant="bar"
-              steps={dealJourneySteps(liveStatus as never)}
+              className="[&_[role=list]]:!grid [&_[role=list]]:grid-cols-3 [&_[role=list]]:gap-4 [&_.jstep]:!min-w-0 [&_[data-testid=stepper-fade]]:hidden"
+              steps={dealJourneySteps(liveStatus as never).map((step, index) => index < 5 ? { ...step, label: salesStageLabel(SALES_COLUMNS[index]) } : step)}
               aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
             />
           </CardPad>
@@ -321,7 +315,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
               programmatically after an Advance/Lost transition so a keyboard/SR user is
               told what changed. tabIndex={-1} keeps it out of the natural tab order. */}
           <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
-            <CardHead>{showWonPanel ? t('projectDetail.pipeline.recordWonHeading', 'Record the won project') : t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
+            <CardHead className="text-xl font-bold">{showWonPanel ? t('projectDetail.pipeline.recordWonHeading', 'Record the won project') : t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
           </div>
           <CardPad className="flex flex-col gap-3">
             {!canTransition ? (
@@ -361,7 +355,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                 {nextStage && !onPrimaryActionChange && (
                   <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
                     {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${
-                      NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage
+                      nextStageLabel
                     }`}
                   </Button>
                 )}
@@ -389,15 +383,19 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
             {/* Inline progressive SoD capture panel (no modal). */}
             {showWonPanel && canWin && (
               <div className="flex flex-col gap-4">
+                <div className="break-words text-sm">{project.name}</div>
+                {contractValueBlock}
                 <div className="text-sm text-muted-foreground">
                   {t('projectDetail.pipeline.bookingOnWin', 'This contract value is recorded when you confirm the win.')}
                 </div>
+                <p className="text-xs font-semibold text-muted-foreground">{salesT('pipeline.requiredFields', '* Required fields')}</p>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-xs font-semibold">
-                    {t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}
+                    {t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')} *
                   </label>
                   <input
                     id="won-ref"
+                    aria-required="true"
                     value={contractRef}
                     onChange={(e) => {
                       setContractRef(e.target.value);
@@ -412,17 +410,18 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     }`}
                   />
                   {refError && (
-                    <span id="won-ref-err" className="text-xs text-destructive">
+                    <span id="won-ref-err" className="text-xs font-semibold text-destructive">
                       {refError}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-date" className="text-xs font-semibold">
-                    {t('projectDetail.pipeline.contractDateLabel', 'Contract date')}
+                    {t('projectDetail.pipeline.contractDateLabel', 'Contract date')} *
                   </label>
                   <input
                     id="won-date"
+                    aria-required="true"
                     type="date"
                     value={contractDate}
                     onChange={(e) => {
@@ -436,16 +435,16 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     }`}
                   />
                   {dateError && (
-                    <span id="won-date-err" className="text-xs text-destructive">
+                    <span id="won-date-err" className="text-xs font-semibold text-destructive">
                       {dateError}
                     </span>
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="primary" size="sm" loading={pending} onClick={submitWon}>
+                  <Button variant="primary" className="min-h-11 min-w-11" loading={pending} onClick={submitWon}>
                     {t('projectDetail.pipeline.confirmWon', 'Confirm won')}
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setShowWonPanel(false)}>
+                  <Button variant="ghost" className="min-h-11 min-w-11" onClick={() => setShowWonPanel(false)}>
                     {t('projectDetail.pipeline.cancel', 'Cancel')}
                   </Button>
                 </div>
@@ -472,13 +471,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                 URL when this project was opened FROM a narrowed Sales Pipeline, otherwise the
                 bare index — `listReturnNavigation` is the single validated resolver, same as
                 the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
-            <a
+            {!onReturnToSales && <a
               href={listReturnNavigation(locationState, 'sales').path}
               onClick={onReturnToSales ? (event) => { event.preventDefault(); onReturnToSales(); } : undefined}
-              className="mt-1 self-start text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="mt-1 inline-flex min-h-11 min-w-11 items-center self-start text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
-            </a>
+            </a>}
           </CardPad>
         </Card>
         </RecordActionZone>
