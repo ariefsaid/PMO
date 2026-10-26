@@ -76,10 +76,27 @@ describe('ErpOrphansSection', () => {
     renderAt(<ErpOrphansSection rows={[row('PINV-1'), row('ACC-PAY-1', { doctype: 'Payment Entry', grandTotal: 777, netTotal: null })]}
       projectId="p1" canLink={false} />);
     expect(screen.getByRole('columnheader', { name: /Amount \(pre-tax\)/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^IDR\s*2$/ })).toBeInTheDocument();
     const invoice = screen.getByRole('row', { name: /PINV-1/ });
     expect(invoice).toHaveTextContent(/1[.,]000/);
     expect(invoice).not.toHaveTextContent(/1[.,]110/);
     expect(screen.getByRole('row', { name: /ACC-PAY-1/ })).toHaveTextContent('777');
+  });
+
+  it('AC-806: mixed ERP amounts are grouped by ISO currency and each row keeps its exact whole-unit value', () => {
+    renderAt(<ErpOrphansSection rows={[
+      row('PINV-IDR', { currency: 'IDR', grandTotal: 2226648000, netTotal: 2000000000 }),
+      row('PINV-USD', { currency: 'USD', grandTotal: 3412800, netTotal: 3412800 }),
+    ]} projectId="p1" canLink={false} />);
+
+    expect(screen.getByRole('row', { name: /^IDR\s*1$/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^USD\s*1$/ })).toBeInTheDocument();
+    const idr = screen.getByRole('row', { name: /PINV-IDR/ });
+    const usd = screen.getByRole('row', { name: /PINV-USD/ });
+    expect(idr).toHaveTextContent('2,000,000,000');
+    expect(usd).toHaveTextContent('3,412,800');
+    expect(within(idr).getAllByRole('cell')[3]).not.toHaveTextContent('IDR');
+    expect(within(usd).getAllByRole('cell')[3]).not.toHaveTextContent('USD');
   });
 
   it('AC-PFE-006: New purchase from this links the document into a new purchase on the project and opens it', async () => {

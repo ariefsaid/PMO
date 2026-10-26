@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Checkbox, DataTable, MenuButton, type Column, type RowMenuItem } from '@/src/components/ui';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatDate, formatNumber } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
 import { useLinkErpDocuments } from '@/src/hooks/useErpPurchaseLinks';
@@ -112,7 +112,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     r.projectIds.map((id) => projectNames?.get(id)).filter(Boolean).join(', ') || t('erpPurchases.noProject', 'No project');
   const amountOf = (r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
-    return amount === null || !r.currency ? '—' : formatCurrency(amount, r.currency);
+    return amount === null || !r.currency ? '—' : formatNumber(amount);
   };
 
   const columns: Column<ErpPurchaseRow>[] = [
@@ -213,6 +213,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         rowKey={(r) => r.id}
         tableId={tableId ?? 'erp-orphans-table'}
         accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
+        groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
       />
       {dialogDocs && (
         <LinkErpDocumentsDialog

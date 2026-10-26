@@ -1,5 +1,5 @@
 /** FR-PFE-031/032 / AC-PFE-015 — the ERPNext documents linked to a purchase, and unlinking one. */
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -36,9 +36,27 @@ describe('LinkedErpDocuments', () => {
     expect(row).toHaveTextContent('From ERPNext');
     expect(row).toHaveTextContent('Supplier invoice');
     expect(row).toHaveTextContent(/4[.,]321[.,]000/);
-    expect(row).toHaveTextContent(/IDR|Rp/);
+    expect(screen.getByRole('row', { name: /^IDR\s*1$/ })).toBeInTheDocument();
+    expect(within(row).getAllByRole('cell')[2]).not.toHaveTextContent(/IDR|Rp/);
     expect(row).toHaveTextContent('Paid');
     expect(row).toHaveTextContent(/2026|Feb/);
+  });
+
+  it('AC-806: groups mixed ERP document amounts by currency and shows whole-unit values once per row', () => {
+    h.query = { data: [
+      invoice,
+      { ...invoice, id: 'd2', name: 'ACC-PINV-0002', currency: 'USD', grandTotal: 3412800, linkId: 'l2' },
+    ], isPending: false, isError: false, refetch: vi.fn() };
+    render(<LinkedErpDocuments procurementId="p" />);
+
+    expect(screen.getByRole('row', { name: /^IDR\s*1$/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^USD\s*1$/ })).toBeInTheDocument();
+    const idr = screen.getByRole('row', { name: /ACC-PINV-0001/ });
+    const usd = screen.getByRole('row', { name: /ACC-PINV-0002/ });
+    expect(idr).toHaveTextContent('4,321,000');
+    expect(usd).toHaveTextContent('3,412,800');
+    expect(within(idr).getAllByRole('cell')[2]).not.toHaveTextContent('IDR');
+    expect(within(usd).getAllByRole('cell')[2]).not.toHaveTextContent('USD');
   });
 
   it('FR-PFE-031: Unlink asks first, then unlinks that document', async () => {

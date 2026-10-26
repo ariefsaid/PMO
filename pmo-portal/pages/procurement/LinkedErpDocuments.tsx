@@ -2,7 +2,7 @@ import React, { useId, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, ConfirmDialog, DataTable, ListState, StatusPill, type Column } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatDate } from '@/src/lib/format';
+import { formatDate, formatNumber } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useLinkedErpDocuments, useUnlinkErpDocument } from '@/src/hooks/useErpPurchaseLinks';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -54,7 +54,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
     { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', cell: (d) => formatDate(d.docDate) },
     {
       key: 'amount', header: t('erpPurchases.column.amount', 'Amount'), kind: 'money', align: 'num',
-      cell: (d) => (d.grandTotal === null || !d.currency ? '—' : formatCurrency(d.grandTotal, d.currency)),
+      cell: (d) => (d.grandTotal === null || !d.currency ? '—' : formatNumber(d.grandTotal)),
     },
     { key: 'status', header: t('erpPurchases.column.erpStatus', 'ERPNext status'), cell: (d) => d.erpStatus ?? '—' },
     ...(canUnlink ? [{
@@ -82,6 +82,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
           rowKey={(d) => d.id}
           tableId="procurement-linked-erp-documents"
           accessibleName={t('erpLinks.linkedTitle', 'Documents from ERPNext')}
+          groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
         />
       )}
       <ConfirmDialog
