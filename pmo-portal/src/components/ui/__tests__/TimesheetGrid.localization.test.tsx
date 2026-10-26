@@ -5,6 +5,8 @@ import i18next from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import en from '../../../../public/locales/en/common.json';
 import id from '../../../../public/locales/id/common.json';
+import enWork from '../../../../public/locales/en/work.json';
+import idWork from '../../../../public/locales/id/work.json';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import { TimesheetGrid, type TimesheetDay } from '../TimesheetGrid';
 
@@ -35,7 +37,16 @@ async function renderGrid(locale: 'en' | 'id') {
   mockMobileViewport();
   setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   const i18n = i18next.createInstance();
-  await i18n.init({ lng: locale, fallbackLng: false, resources: { en: { translation: en }, id: { translation: id } } });
+  await i18n.init({
+    lng: locale,
+    fallbackLng: false,
+    ns: ['translation', 'work'],
+    defaultNS: 'translation',
+    resources: {
+      en: { translation: en, work: enWork },
+      id: { translation: id, work: idWork },
+    },
+  });
   const localizedDays = locale === 'id'
     ? days
     : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((label, index) => ({
