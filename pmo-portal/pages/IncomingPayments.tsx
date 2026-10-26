@@ -293,7 +293,7 @@ const IncomingPayments: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToIncomingPayments', "You don't have access to Incoming Payments")}</h2>
+          <h2 className="type-section-head text-heading">{t('financeCopy.youDonTHaveAccessToIncomingPayments', "You don't have access to Incoming Payments")}</h2>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theIncomingPaymentsListIsAvailableToFinanceProjectManagersAndExecutives', "The incoming payments list is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
@@ -340,7 +340,7 @@ const IncomingPayments: React.FC = () => {
       key: 'reference_number',
       header: t('financeCopy.reference', "Reference"),
       cell: (p) => (
-        <span className="truncate text-muted-foreground" title={p.reference_number ?? ''}>
+        <span className="min-w-0 break-words text-muted-foreground">
           {p.reference_number ?? '—'}
         </span>
       ),
@@ -350,7 +350,7 @@ const IncomingPayments: React.FC = () => {
       key: 'customer_id',
       header: t('financeCopy.customer', "Customer"),
       cell: (p) => (
-        <span className="truncate" title={p.customer_name ?? ''}>
+        <span className="min-w-0 break-words">
           {p.customer_name ?? '—'}
         </span>
       ),

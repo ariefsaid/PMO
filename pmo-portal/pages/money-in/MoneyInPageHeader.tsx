@@ -20,7 +20,13 @@ export function MoneyInPageHeader({
   return (
     <div data-testid="money-in-page-header" className="mb-4 min-w-0">
       {returnAction}
-      <PageHeading kind={kind} title={title} scope={scope} status={status} actions={primaryAction} />
+      <PageHeading
+        kind={kind}
+        title={<span className="type-page-title">{title}</span>}
+        scope={scope ? <span className="type-value">{scope}</span> : undefined}
+        status={status}
+        actions={primaryAction}
+      />
     </div>
   );
 }

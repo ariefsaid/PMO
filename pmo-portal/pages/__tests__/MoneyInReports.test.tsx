@@ -47,6 +47,7 @@ describe('Money in reports home', () => {
     const user = userEvent.setup();
     renderPage('/financial-statements?section=project-revenue&view=earned&from=2026-01&to=2026-06&periodStart=2026-01-01');
     expect(screen.getByText('Earned content')).toBeInTheDocument();
+    expect(screen.getAllByText(/Cumulative project revenue · net of tax · through the selected as-at month/)).toHaveLength(1);
     await user.click(screen.getByRole('link', { name: 'Statements' }));
     expect(screen.getByText('Statements content')).toBeInTheDocument();
     expect(screen.getByTestId('current-url')).toHaveTextContent('section=statements');

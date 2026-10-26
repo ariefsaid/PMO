@@ -17,7 +17,6 @@ import {
   FormSection,
   Button,
   Icon,
-  TaxBasisLabel,
   Badge,
   useToast,
   type Column,
@@ -184,7 +183,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-evidence-heading" className="mb-3 text-heading font-semibold">{t('moneyIn:financeCopy.invoiceEvidenceCurrency', 'Bill evidence · {{currency}}', { currency: invoice.currency })}</h2>
+      <h2 id="invoice-evidence-heading" className="mb-3 type-section-head text-heading">{t('moneyIn:financeCopy.invoiceEvidenceCurrency', 'Bill evidence · {{currency}}', { currency: invoice.currency })}</h2>
       {evidence.isPending ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
       ) : evidence.isError ? (
@@ -256,13 +255,23 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
     };
   }, [invoice.id, invoice.si_number, payments.data]);
 
-  if (!payments.isError && paymentEvidence.allocations.length === 0 && !paymentEvidence.hasUnknown) return null;
+  if (payments.isPending && !payments.data) {
+    return (
+      <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+        <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
+        <p className="text-sm text-muted-foreground">{t('moneyIn:financeCopy.receiptDetailsLoading', 'Loading applied receipt details…')}</p>
+      </section>
+    );
+  }
 
   return (
-    <section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-applied-receipts-heading" className="mb-2 text-heading font-semibold">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
+    <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+      <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
       {payments.isError ? (
-        <p className="text-sm text-muted-foreground">{t('uxs17.receiptsUnavailable', 'Applied receipt details are unavailable.')}</p>
+        <div role="alert" className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">{t('uxs17.receiptsUnavailable', 'Applied receipt details are unavailable.')}</p>
+          <Button variant="outline" className="min-h-11" onClick={() => void payments.refetch()}>{t('moneyIn:financeCopy.receiptDetailsRetry', 'Retry receipts')}</Button>
+        </div>
       ) : paymentEvidence.allocations.length ? (
         <>
           <ul className="divide-y divide-border/70">
@@ -287,8 +296,10 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
           </ul>
           {paymentEvidence.hasUnknown && <p className="mt-2 text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>}
         </>
-      ) : (
+      ) : paymentEvidence.hasUnknown ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.receiptsCoverageUnknown', 'Receipt allocations have not all been reported.')}</p>
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('moneyIn:financeCopy.noAppliedReceipts', 'No receipts have been applied to this invoice.')}</p>
       )}
     </section>
   );
@@ -304,7 +315,6 @@ const SalesInvoices: React.FC = () => {
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const { day: organizationToday } = useFxOrgDay(true);
-  const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
   const pdfDownload = useInvoicePdfDownload();
   // #784: undefined while ownership loads — the page waits rather than flash the wrong mode's copy and actions.
@@ -388,6 +398,40 @@ const SalesInvoices: React.FC = () => {
     }, { replace: true });
   }, [searchParams, setSearchParams]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
+  const invoiceDetailsCount = viewTarget ? 1 + [
+    canDownloadApprovedPdf(viewTarget) && Boolean(viewTarget.received_date),
+    canRecordReceipt && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft',
+    canRecordEfaktur && viewTarget.status !== 'Cancelled' && viewTarget.status !== 'Draft',
+    may('assign_project', 'salesInvoice') && canAttributeInvoice(viewTarget),
+    canCancel && !(Boolean(viewTarget.pmo_native) && !native) && viewTarget.status !== 'Cancelled' && !(viewTarget.pmo_native && viewTarget.status === 'Paid'),
+  ].filter(Boolean).length : 1;
+  const [activeInvoiceSection, setActiveInvoiceSection] = useState('invoice-identity');
+  const invoiceSections = viewTarget ? [
+    { id: 'invoice-identity', label: t('financeCopy.customer', 'Customer') },
+    { id: 'invoice-position', label: t('uxs17.collectionSummary', 'Invoice collection details') },
+    { id: 'invoice-lines', label: t('financeCopy.lineItemsSection', 'Line items') },
+    ...(viewTarget.erp_docstatus === 1 && ['Submitted', 'Unpaid', 'Paid'].includes(viewTarget.status)
+      ? [{ id: 'invoice-delivery', label: t('uxs17.deliverySection', 'Client delivery') }]
+      : []),
+    { id: 'invoice-receipts', label: t('uxs17.appliedReceipts', 'Applied receipts') },
+    { id: 'invoice-details', label: t('financeCopy.invoiceDetails', 'Invoice details') },
+  ] : [];
+  const activeInvoiceSectionLabel = invoiceSections.find((section) => section.id === activeInvoiceSection)?.label
+    ?? invoiceSections[0]?.label
+    ?? '';
+
+  useEffect(() => {
+    if (!invoiceId || typeof IntersectionObserver === 'undefined') return;
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-money-in-section]'));
+    if (sections.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.filter((entry) => entry.isIntersecting)
+        .sort((left, right) => left.boundingClientRect.top - right.boundingClientRect.top)[0];
+      if (visible?.target instanceof HTMLElement && visible.target.id) setActiveInvoiceSection(visible.target.id);
+    }, { rootMargin: '-18% 0px -68% 0px' });
+    sections.forEach((section) => observer.observe(section));
+    return () => observer.disconnect();
+  }, [invoiceId, viewTarget?.id]);
 
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
 
@@ -563,7 +607,7 @@ const SalesInvoices: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
+          <h2 className="type-section-head text-heading">{t('financeCopy.youDonTHaveAccessToSalesInvoices', "You don't have access to Sales Invoices")}</h2>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theSalesInvoicesDirectoryIsAvailableToFinanceProjectManagersAndExecutives', "The sales invoices directory is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
@@ -612,31 +656,62 @@ const SalesInvoices: React.FC = () => {
                 </Button>
               ) : undefined}
             />
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} readableWholeUnits />
-            <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
-              <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="sticky top-[var(--header-h)] z-10 -mx-4 mb-4 min-w-0 border-b border-border bg-background px-4 py-2">
+              <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+                <span className="min-w-0 break-words text-sm font-medium">
+                  {t('moneyIn:financeCopy.invoiceRecordIdentity', 'Invoice')} · {activeInvoiceSectionLabel}
+                </span>
+                <details className="group relative md:hidden">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    {t('moneyIn:financeCopy.invoiceSections', 'Sections')}
+                  </summary>
+                  <nav aria-label={t('moneyIn:financeCopy.invoiceSections', 'Sections')} className="absolute right-0 top-full z-20 mt-1 grid min-w-48 gap-1 rounded-md border border-border bg-card p-2 shadow-sm">
+                    {invoiceSections.map((section) => (
+                      <a key={section.id} href={`#${section.id}`} aria-current={activeInvoiceSection === section.id ? 'location' : undefined}
+                        onClick={() => setActiveInvoiceSection(section.id)}
+                        className="flex min-h-11 items-center rounded px-3 text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        {section.label}
+                      </a>
+                    ))}
+                  </nav>
+                </details>
+                <nav aria-label={t('moneyIn:financeCopy.invoiceSections', 'Sections')} className="hidden min-w-0 flex-wrap gap-x-2 md:flex">
+                  {invoiceSections.map((section) => (
+                    <a key={section.id} href={`#${section.id}`} aria-current={activeInvoiceSection === section.id ? 'location' : undefined}
+                      onClick={() => setActiveInvoiceSection(section.id)}
+                      className="inline-flex min-h-11 items-center border-b-2 px-2 text-sm text-muted-foreground aria-[current=location]:border-primary aria-[current=location]:text-foreground">
+                      {section.label}
+                    </a>
+                  ))}
+                </nav>
+              </div>
+            </div>
+            <section id="invoice-identity" data-money-in-section className="scroll-mt-[var(--header-h)]">
+              <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} readableWholeUnits />
+            </section>
+            <section id="invoice-position" data-money-in-section aria-labelledby="invoice-position-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+              <h2 id="invoice-position-heading" className="mb-3 type-section-head text-heading">
+                {t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}{' '}
+                {viewTarget.erp_outstanding_amount == null ? (
+                  <span title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>
+                    —<span className="sr-only">{t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}</span>
+                  </span>
+                ) : (
+                  <>{formatNumber(viewTarget.erp_outstanding_amount)}<FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" /></>
+                )}
+              </h2>
+              <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
-                  <dd className="mt-1 text-sm">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
+                  <dt className="type-label text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
+                  <dd className="mt-1 type-value">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
                 </div>
                 <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
-                  <dd className="mt-1 text-sm">
+                  <dt className="type-label text-muted-foreground">{t('uxs17.dueDate', 'Due date')}</dt>
+                  <dd className="mt-1 type-value">
                     {(() => {
                       const dueDate = deriveArDueDate(viewTarget.invoice_date, viewTarget.erp_payment_terms_days, viewTarget.erp_due_date, viewTarget.received_date);
                       return dueDate ? formatDateOnly(dueDate) : t('uxs17.dueDateUnavailable', 'Due date not available');
                     })()}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-medium text-muted-foreground">{t('financeCopy.outstanding', 'Outstanding')}</dt>
-                  <dd className="mt-1 text-sm tabular">
-                    {viewTarget.erp_outstanding_amount == null
-                      ? t('uxs17.outstandingUnavailable', 'Outstanding amount not available')
-                      : <>
-                        {formatCurrencyAuto(viewTarget.erp_outstanding_amount, viewTarget.currency)}
-                        <FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" />
-                      </>}
                   </dd>
                 </div>
                 {(() => {
@@ -644,25 +719,27 @@ const SalesInvoices: React.FC = () => {
                   const overdueDays = overdueAgeDays(dueDate, organizationToday);
                   return overdueDays != null && overdueDays > 0 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') ? (
                     <div>
-                      <dt className="text-xs font-medium text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
-                      <dd className="mt-1 text-sm font-medium">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
+                      <dt className="type-label text-muted-foreground">{t('uxs17.overdue', 'Overdue')}</dt>
+                      <dd className="mt-1 type-value">{t('uxs17.daysOverdue', '{{count}} days overdue', { count: overdueDays })}</dd>
                     </div>
                   ) : null;
                 })()}
               </dl>
             </section>
             {viewTarget.pmo_native ? (
-              <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} readableWholeUnits />
+              <section id="invoice-lines" data-money-in-section className="scroll-mt-[var(--header-h)]">
+                <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} readableWholeUnits />
+              </section>
             ) : (
-              <>
+              <section id="invoice-lines" data-money-in-section className="scroll-mt-[var(--header-h)]">
                 <SalesInvoiceEvidenceSection invoice={viewTarget} />
                 <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} showLineItems={false} readableWholeUnits />
-              </>
+              </section>
             )}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
-              <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
+              <section id="invoice-delivery" data-money-in-section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
                 <div>
-                  <h2 className="text-heading font-semibold">
+                  <h2 className="type-section-head text-heading">
                     {viewTarget.received_date
                       ? t('uxs17.receivedByClient', 'Received by client')
                       : t('uxs17.readyToSend', 'Ready to send')}
@@ -676,8 +753,8 @@ const SalesInvoices: React.FC = () => {
               </section>
             )}
             <SalesInvoiceAppliedReceipts invoice={viewTarget} />
-            <details className="mb-5 border-b border-border pb-4">
-              <summary className="min-h-11 cursor-pointer py-2 font-medium">{t('financeCopy.invoiceDetails', 'Invoice details')}</summary>
+            <details id="invoice-details" data-money-in-section className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+              <summary className="min-h-11 cursor-pointer py-2 font-medium">{t('moneyIn:financeCopy.invoiceDetailsSummary', 'Invoice details · {{count}}', { count: invoiceDetailsCount })}</summary>
               <dl className="grid gap-x-6 gap-y-3 py-2 sm:grid-cols-2">
                 <div>
                   <dt className="text-xs font-medium text-muted-foreground">{t('efaktur.column', 'e-Faktur')}</dt>
@@ -687,7 +764,7 @@ const SalesInvoices: React.FC = () => {
                 </div>
               </dl>
               <div className="flex flex-wrap gap-2">
-                {canDownloadApprovedPdf(viewTarget) && (
+                {canDownloadApprovedPdf(viewTarget) && viewTarget.received_date && (
                   <Button variant="ghost" className="min-h-11" onClick={() => void pdfDownload.download(viewTarget)} disabled={pdfDownload.inFlightIds.has(viewTarget.id)}>
                     {t('financeCopy.invoicePdf.download', 'Download PDF')}
                   </Button>
@@ -814,7 +891,7 @@ const SalesInvoices: React.FC = () => {
     kind: 'text',
     size: 140,
     cell: (inv) => inv.reference_number
-      ? <span className="truncate" title={inv.reference_number}>{inv.reference_number}</span>
+      ? <span className="min-w-0 break-words">{inv.reference_number}</span>
       : <span className="text-muted-foreground">—</span>,
     exportValue: (inv) => inv.reference_number ?? '',
   };
@@ -1206,6 +1283,10 @@ const SalesInvoices: React.FC = () => {
           rows={sortedInvoices}
           columns={columns}
           rowKey={(inv) => inv.id}
+          mobileDetails={{
+            columnKeys: ['amount'],
+            summary: (_inv, count) => t('moneyIn:financeCopy.invoiceOtherAmounts', 'Other invoice amounts · {{count}}', { count }),
+          }}
           rowMenu={rowMenu}
           tableId="salesinvoices-table"
           accessibleName={t('financeCopy.salesInvoices', 'Sales Invoices')}
@@ -1703,7 +1784,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
         className="mt-4 border-t border-border pt-4"
         aria-label={t('uxs16.invoiceDraftReview', 'Invoice draft review')}
       >
-        <h3 className="text-sm font-semibold">
+        <h3 className="type-section-head text-heading">
           {t('uxs16.invoiceDraftReview', 'Invoice draft review')}
           {draftReviewCurrency && (
             <span className="ml-2 text-xs font-normal text-muted-foreground">{draftReviewCurrency}</span>

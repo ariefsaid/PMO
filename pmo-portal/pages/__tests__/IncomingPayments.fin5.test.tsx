@@ -157,7 +157,7 @@ describe('FIN-S5: receipt record', () => {
   it('shows only the receipt total when cash equals it and nothing is withheld or unapplied', () => {
     h.payments.data = [receipt({ allocation_details: [{ invoice_id: 'si-1', invoice_number: 'INV-1', amount: '500000.00', currency: 'IDR' }] } as Partial<IncomingPaymentRow>)];
     open();
-    expect(screen.getByText('Receipt total')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Receipt total · IDR 500,000' })).toBeInTheDocument();
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied']) expect(screen.queryByText(gone)).not.toBeInTheDocument();
     expect(screen.queryByText(/Some figures weren/)).not.toBeInTheDocument();
   });

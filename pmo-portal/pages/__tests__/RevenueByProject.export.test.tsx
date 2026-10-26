@@ -13,6 +13,13 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { buildExportRows, toWorkbookBuffer } from '@/src/lib/export';
 
 const table = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
+const download = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
+vi.mock('@/src/components/export', () => ({
+  ExportButton: (props: { rows: unknown[]; columns: unknown[] }) => {
+    download.props = props;
+    return null;
+  },
+}));
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return {
@@ -46,6 +53,7 @@ import RevenueByProject from '../RevenueByProject';
 
 beforeEach(() => {
   table.props = null;
+  download.props = null;
 });
 
 describe('RevenueByProject export (#831)', () => {
@@ -68,13 +76,13 @@ describe('RevenueByProject export (#831)', () => {
     const col = (name: string) => header.indexOf(name) + 1;
 
     expect(col('Currency')).toBeGreaterThan(0);
-    expect(col('Total Revenue (net of tax)')).toBeGreaterThan(0);
-    expect(col('Open AR (gross, tax included)')).toBeGreaterThan(0);
+    expect(col('Net billed')).toBeGreaterThan(0);
+    expect(col('Open receivables')).toBeGreaterThan(0);
     expect(ws.getRow(2).getCell(col('Currency')).value).toBe('IDR');
     expect(ws.getRow(3).getCell(col('Currency')).value).toBe('USD');
-    expect(ws.getRow(2).getCell(col('Total Revenue (net of tax)')).value).toBe(2000000);
-    expect(ws.getRow(3).getCell(col('Total Revenue (net of tax)')).value).toBe(1000);
-    expect(ws.getRow(3).getCell(col('Open AR (gross, tax included)')).value).toBe(250.5);
+    expect(ws.getRow(2).getCell(col('Net billed')).value).toBe(2000000);
+    expect(ws.getRow(3).getCell(col('Net billed')).value).toBe(1000);
+    expect(ws.getRow(3).getCell(col('Open receivables')).value).toBe(250.5);
   });
 
   it('exports only the selected project/currency population with numeric values', () => {
@@ -86,8 +94,9 @@ describe('RevenueByProject export (#831)', () => {
       </ImpersonationProvider>,
     );
     expect(table.props).not.toBeNull();
-    expect(table.props!.rows).toHaveLength(1);
-    const { header, body } = buildExportRows(table.props!.rows, table.props!.columns as Column<unknown>[]);
+    expect(download.props).not.toBeNull();
+    expect(download.props!.rows).toHaveLength(1);
+    const { header, body } = buildExportRows(download.props!.rows, download.props!.columns as Column<unknown>[]);
     expect(header).toContain('Currency');
     expect(body).toHaveLength(1);
     expect(body[0]).toContain('IDR');

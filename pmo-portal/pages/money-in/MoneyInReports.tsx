@@ -89,7 +89,7 @@ export default function MoneyInReports() {
       <div className="min-w-0">
         <MoneyInPageHeader title={t('moneyIn:uxs42.reports', 'Financial reports')} />
         <section className="max-w-2xl rounded-md border border-border bg-card p-4" aria-labelledby="reports-access-title">
-          <h2 id="reports-access-title" className="font-semibold">{t('financialStatements.accessDenied', "You don't have access to financial statements")}</h2>
+          <h2 id="reports-access-title" className="type-section-head text-heading">{t('financialStatements.accessDenied', "You don't have access to financial statements")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{t('moneyIn:uxs42.reportsUnavailable', 'Reports are not available to this role.')}</p>
           <Button variant="outline" className="mt-3 min-h-11" onClick={() => navigate('/')}>{t('financeCopy.backToDashboard', 'Back to dashboard')}</Button>
         </section>

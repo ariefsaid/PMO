@@ -3752,10 +3752,6 @@
     "overdueDays": "Terlambat {{count}} hari",
     "overdueOnly": "Hanya yang terlambat"
   },
-  "uxs37": {
-    "billedWorkTaxBasis": "di luar pajak",
-    "openReceivablesTaxBasis": "bruto, termasuk pajak"
-  },
   "financeCopy": {
     "viewInvoice": "Lihat faktur",
     "invoiceRecordTitle": "Faktur {{number}}",
@@ -3782,7 +3778,6 @@
     "statusPaid": "Dibayar",
     "statusPartlyPaid": "Dibayar sebagian",
     "recordedBeforeErp": "Dicatat di PMO sebelum ERP terhubung",
-    "overpaidBy": "Kelebihan bayar {{amount}}",
     "carriedIntoErpOpening": "Dibawa ke saldo awal ERP: {{amount}} pada {{date}}",
     "nativeIncomingPaymentsDescription": "Penerimaan pelanggan yang dicatat di PMO atas faktur yang telah disetujui.",
     "salesInvoiceLabel": "Faktur Penjualan",
@@ -3929,8 +3924,6 @@
     "youDonTHaveAccessToRevenueByProject": "Anda tidak memiliki akses ke Pendapatan per Proyek",
     "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "Tampilan pendapatan per proyek tersedia untuk Finance, Manajer Proyek, dan Eksekutif.",
     "unassigned": "Belum ditetapkan",
-    "totalRevenue": "Total Pendapatan",
-    "openAR": "Piutang Terbuka",
     "invoices": "Faktur",
     "revenueByProject": "Pendapatan per Proyek",
     "noRevenueDataYet": "Belum ada data pendapatan",
@@ -4036,8 +4029,6 @@
     "currency": "Mata uang",
     "draftInvoiceLabel": "Draf · {{customer}}",
     "preErpBadge": "Pra-ERP",
-    "totalDueAmount": "Total tagihan {{amount}}",
-    "paidToDateAmount": "Dibayar {{amount}}",
     "invoiceLineCodeOrDescription": "Baris {{line}}: Isi kode item atau deskripsi.",
     "vatRateMissing": "Proyek ini belum memiliki tarif PPN yang tercatat",
     "vatRateMissingDetail": "Tarif PPN harus dicatat pada proyek ini sebelum faktur dapat dibuat. Isian Anda tetap tersimpan di formulir.",
@@ -4242,7 +4233,6 @@
     }
   },
   "uxs34": {
-    "cumulativeScope": "Jumlah kumulatif · sejak awal proyek hingga {{month}}",
     "backlogUnavailable": "Belum tersedia",
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
@@ -4621,7 +4611,6 @@
     "outstandingUnavailable": "Jumlah terutang tidak tersedia",
     "overdue": "Terlambat",
     "daysOverdue": "Terlambat {{count}} hari",
-    "billEvidence": "Bukti faktur",
     "evidenceLoading": "Memuat bukti faktur…",
     "evidenceUnavailable": "Bukti faktur sementara tidak tersedia.",
     "evidenceRetry": "Coba lagi memuat bukti faktur",

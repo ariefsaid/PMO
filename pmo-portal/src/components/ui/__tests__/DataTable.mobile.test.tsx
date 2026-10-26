@@ -181,6 +181,37 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getTableBranch()).toHaveTextContent('Manager for Alpha Corp');
   });
 
+  it('keeps the full identity visible and puts secondary facts behind one summary-bearing 44px disclosure', async () => {
+    mockViewport(false);
+    const fullName = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    const longRows = [{ id: 'LONG-1', name: fullName, context: 'Northwind Works International', memo: 'Supporting evidence' }];
+    const longColumns: Column<(typeof longRows)[number]>[] = [
+      { key: 'name', header: 'Project', kind: 'primary', cell: (row) => row.name, primaryTitle: (row) => row.name, secondaryCell: (row) => row.context },
+      { key: 'memo', header: 'Evidence', cell: (row) => row.memo },
+    ];
+    render(
+      <DataTable
+        rows={longRows}
+        columns={longColumns}
+        rowKey={(row) => row.id}
+        mobileDetails={{ columnKeys: ['memo'], summary: (_row, count) => `Other details · ${count}` }}
+      />,
+    );
+
+    expect(screen.getByText(fullName)).toBeInTheDocument();
+    expect(screen.getByText('Northwind Works International')).toBeInTheDocument();
+    const identity = screen.getByText(fullName);
+    expect(identity.className).toContain('break-words');
+    expect(identity.className).not.toMatch(/line-clamp|truncate/);
+    expect(screen.queryByText('Supporting evidence')).not.toBeVisible();
+
+    const disclosure = screen.getByText('Other details · 1').closest('summary');
+    expect(disclosure).toBeInTheDocument();
+    expect(disclosure).toHaveClass('min-h-11');
+    await userEvent.click(disclosure!);
+    expect(screen.getByText('Supporting evidence')).toBeVisible();
+  });
+
   it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
     mockViewport(false);
     const sparse: Column<Row>[] = [

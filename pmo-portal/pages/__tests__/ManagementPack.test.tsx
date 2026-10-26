@@ -154,16 +154,16 @@ describe('earned project revenue query state', () => {
 
   it('restores Monthly history from the URL without changing the as-at evidence', () => {
     renderPage('/financial-statements?section=project-revenue&view=earned&from=2026-03&to=2026-04&history=1');
-    const history = screen.getByText('Monthly history').closest('details');
+    const history = screen.getByText(/^Monthly history · \d+(?: rows)?$/).closest('details');
     expect(history).toHaveProperty('open', true);
     expect(screen.getByText('Projects as at Apr 26')).toBeInTheDocument();
   });
 });
 
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
-  it('RF-035: states the cumulative scope once; the monthly-scope lines are gone (FIN-S8)', () => {
+  it('RF-035: leaves the cumulative scope to the shared report header and omits monthly-scope lines (FIN-S8)', () => {
     renderPage();
-    expect(screen.getByText('Cumulative amounts · since project start through Apr 26')).toBeInTheDocument();
+    expect(screen.queryByText(/Cumulative project revenue/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
   });

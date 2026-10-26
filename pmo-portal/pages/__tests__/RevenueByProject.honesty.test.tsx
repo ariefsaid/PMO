@@ -15,7 +15,7 @@ import { setActiveLocale } from '@/src/lib/locale/activeLocale';
  * Revenue by Project — the no-fabricated-zero rule (read-model audit BLOCK 2).
  *
  * The KPI tiles were rendered unconditionally off `data ?? []`, so a FAILED query (network blip,
- * RLS denial, 5xx) painted a confident "Total Revenue $0 · Open AR $0 · Total Invoices 0" above a
+ * RLS denial, 5xx) painted a confident "Total Revenue 0 · Open AR 0 · Total Invoices 0" above a
  * small error card — an exec glancing at the top reads $0 for an org that may bill millions.
  * `AccountingSnapshotsSection` states this exact rule ("never a fabricated $0.00"); these tests
  * hold this page to it.
@@ -30,6 +30,7 @@ const hoisted = vi.hoisted(() => ({
     isError: false,
   },
   orgCurrencyState: { currency: 'USD', isResolved: true, isError: false, refetch: vi.fn() },
+  isDesktop: true,
 }));
 const revenueState = hoisted.revenueState;
 const orgCurrencyState = hoisted.orgCurrencyState;
@@ -44,6 +45,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({
 vi.mock('@/src/hooks/useRevenue', () => ({
   useRevenuePerProject: () => revenueState,
 }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => hoisted.isDesktop }));
 
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-exec', org_id: 'org-1' }, role: 'Executive' }),
@@ -103,6 +105,7 @@ beforeEach(async () => {
   orgCurrencyState.isResolved = true;
   orgCurrencyState.isError = false;
   orgCurrencyState.refetch = vi.fn();
+  hoisted.isDesktop = true;
 });
 
 describe('Billing — never reports a figure it does not have', () => {
@@ -135,8 +138,8 @@ describe('Billing — never reports a figure it does not have', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('$4,200,000').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText('$250,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('4,200,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('250,000').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole('table').length).toBeGreaterThan(0);
     expect(screen.queryByRole('heading', { name: 'Total Revenue (net of tax)' })).not.toBeInTheDocument();
   });
@@ -205,7 +208,8 @@ describe('Billing — never reports a figure it does not have', () => {
       { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 25, invoice_count: 1 },
     ];
     const { unmount } = renderPage();
-    expect(screen.getAllByRole('columnheader', { name: /Total Revenue \(net of tax\)/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Net billed' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Open receivables' }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
 
     unmount();
@@ -215,8 +219,8 @@ describe('Billing — never reports a figure it does not have', () => {
     await testI18n.changeLanguage('id');
     renderPage();
 
-    expect(screen.getAllByRole('columnheader', { name: 'Total Pendapatan (di luar pajak)' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('columnheader', { name: 'Piutang Terbuka (bruto, termasuk pajak)' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Tagihan neto' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Piutang terbuka' }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/process_gates\.require_project_on_si/)).not.toBeInTheDocument();
   });
 
@@ -243,7 +247,7 @@ describe('Billing — never reports a figure it does not have', () => {
     expect(orgCurrencyState.refetch).toHaveBeenCalledOnce();
   });
 
-  it('AC-802-001: formats resolved organization totals with the org currency', () => {
+  it('AC-802-001: formats whole-unit amounts and names their source currency', () => {
     revenueState.data = [
       { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 4_000, open_ar: 2_500, invoice_count: 2 },
     ];
@@ -251,8 +255,9 @@ describe('Billing — never reports a figure it does not have', () => {
 
     renderPage();
 
-    expect(screen.getAllByText(/IDR[\s\u00a0]?4,000(?:\.00)?/).length).toBeGreaterThan(0);
-    expect(screen.queryAllByText(/^\$4,000(?:\.00)?$/)).toHaveLength(0);
+    expect(screen.getAllByText('4,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('IDR').length).toBeGreaterThan(0);
+    expect(screen.queryAllByText('$4,000')).toHaveLength(0);
   });
 
   it('AC-L10N-B03 formats finance totals with the id-ID number locale', async () => {
@@ -265,8 +270,9 @@ describe('Billing — never reports a figure it does not have', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('Rp\u00a01.234.567', { normalizer: (text) => text }).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Rp\u00a012.345', { normalizer: (text) => text }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('1.234.567', { normalizer: (text) => text }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('12.345', { normalizer: (text) => text }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('IDR').length).toBeGreaterThan(0);
     expect(screen.queryByText('2 faktur')).not.toBeInTheDocument();
   });
 
@@ -276,8 +282,8 @@ describe('Billing — never reports a figure it does not have', () => {
     ];
     renderPage();
     expect(screen.getAllByRole('columnheader', { name: 'Invoices' }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('columnheader', { name: /Total Revenue \(net of tax\)/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole('columnheader', { name: /Open AR \(gross, tax included\)/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Net billed' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Open receivables' }).length).toBeGreaterThan(0);
   });
 
   it('AC-831-2: a project billed in two currencies shows two rows, each labelled with its own currency', () => {
@@ -288,8 +294,29 @@ describe('Billing — never reports a figure it does not have', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('$1,000').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/IDR[\s\u00a0]?2,000,000/).length).toBeGreaterThanOrEqual(1);
+    const usdRow = screen.getByRole('button', { name: 'Open Alpha (USD)' }).closest('tr');
+    const idrRow = screen.getByRole('button', { name: 'Open Alpha (IDR)' }).closest('tr');
+    expect(usdRow).toHaveTextContent('USD');
+    expect(usdRow).toHaveTextContent('1,000');
+    expect(idrRow).toHaveTextContent('IDR');
+    expect(idrRow).toHaveTextContent('2,000,000');
+  });
+
+  it('keeps the phone billing row compact and discloses its secondary facts once', () => {
+    hoisted.isDesktop = false;
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 500, invoice_count: 2 },
+      { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 2_000_000, open_ar: 1_000_000, invoice_count: 1 },
+    ];
+
+    renderPage();
+
+    const project = screen.getByRole('button', { name: 'Open Alpha (USD)' });
+    expect(project).toHaveTextContent('Alpha · USD');
+    const details = screen.getAllByText('Other billing details · 3', { selector: 'summary' });
+    expect(details).toHaveLength(2);
+    for (const summary of details) expect(summary.closest('details')).toHaveProperty('open', false);
+    expect(screen.getByRole('heading', { name: 'Billing · mixed currencies' })).toBeInTheDocument();
   });
 
   it('AC-RF-040: labels net revenue and gross receivables without subtracting guessed VAT', () => {
@@ -299,11 +326,11 @@ describe('Billing — never reports a figure it does not have', () => {
 
     renderPage();
 
-    expect(screen.getAllByText('Total Revenue (net of tax)').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Open AR (gross, tax included)').length).toBeGreaterThan(0);
-    // T10: full amount, zero fraction suppressed.
-    expect(screen.getAllByText('$250').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('$275').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Net billed' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('columnheader', { name: 'Open receivables' }).length).toBeGreaterThan(0);
+    // Currency and tax basis come from the report group heading; values stay whole-unit plain amounts.
+    expect(screen.getAllByText('250').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('275').length).toBeGreaterThan(0);
   });
 
   it('AC-831-3: the org-wide total never adds two currencies into one number', () => {
@@ -316,8 +343,8 @@ describe('Billing — never reports a figure it does not have', () => {
 
     expect(screen.getAllByText('Total · USD').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Total · IDR').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('$1,000').length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/IDR[\s\u00a0]?2,000,000/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('1,000').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('2,000,000').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByText(/2,001,000/)).not.toBeInTheDocument();
   });
 
@@ -333,8 +360,8 @@ describe('Billing — never reports a figure it does not have', () => {
 
     const projectNames = screen.getAllByRole('button', { name: /^Open (?:Gamma|Beta|Unassigned) \(IDR\)$/ });
     expect(projectNames[0]).toHaveAccessibleName('Open Gamma (IDR)');
-    expect(screen.getAllByText(/IDR[\s\u00a0]?300/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/IDR[\s\u00a0]?200/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('300').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('200').length).toBeGreaterThanOrEqual(1);
     expect(screen.queryByRole('button', { name: 'Open Alpha (USD)' })).not.toBeInTheDocument();
 
     await user.selectOptions(screen.getByRole('combobox', { name: 'Sort projects' }), 'project-name-asc');

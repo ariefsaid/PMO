@@ -33,8 +33,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount !== 0;
   const unappliedShown = unapplied !== null && unapplied > 0;
   const someUnreported = receipt.amount == null || receipt.received_amount == null || receipt.withheld_amount == null || unapplied === null;
-  const facts: Array<{ label: string; testId?: string; primary?: boolean; value: React.ReactNode }> = [
-    { label: t('uxs06.receiptTotal', 'Receipt total'), primary: true, value: receipt.amount != null ? money(receipt.amount) : notReported },
+  const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
     ...(cashDiffers ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: money(receipt.received_amount!) }] : []),
     ...(withheldShown ? [{
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
@@ -67,16 +66,22 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       <MoneyInPageHeader
         kind="record"
         title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
-        scope={[receipt.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported'), receipt.currency].join(' · ')}
+        scope={[receipt.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')].join(' · ')}
         status={status}
         returnAction={<BackBar label={t('shell.nav.incomingPayments', 'Incoming Payments')} onBack={onBack} phoneOnly />}
       />
 
+      <h2 className="mb-4 type-section-head text-heading">
+        {t('moneyIn:uxs06.receiptPrimaryFigure', 'Receipt total · {{currency}} {{amount}}', {
+          currency: receipt.currency,
+          amount: receipt.amount != null ? money(receipt.amount) : notReported,
+        })}
+      </h2>
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
-          <div key={f.label} className={f.primary ? 'sm:col-span-2' : undefined}>
-            <dt className="text-xs text-muted-foreground">{f.label}</dt>
-            <dd data-testid={f.testId} className={f.primary ? 'tabular mt-0.5 text-heading font-bold' : 'tabular mt-0.5 text-sm font-medium'}>{f.value}</dd>
+          <div key={f.label}>
+            <dt className="type-label text-muted-foreground">{f.label}</dt>
+            <dd data-testid={f.testId} className="tabular mt-0.5 type-value">{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -84,7 +89,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         <p role="note" className="-mt-3 mb-6 max-w-[80ch] text-sm text-muted-foreground">{abnormalNotes.join(' ')}</p>
       )}
 
-      <h2 className="mb-2 text-heading font-semibold">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
+      <h2 className="mb-2 type-section-head text-heading">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
       {allocations === null ? null : allocations.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
@@ -100,7 +105,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       )}
       {receipt.reference_number && (
         <details className="mt-5 max-w-2xl rounded-md border border-border px-3 py-2">
-          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{t('moneyIn:uxs06.referenceDetails', 'Reference details')}</summary>
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{t('moneyIn:uxs06.referenceDetailsSummary', 'Reference details · {{count}} item', { count: 1 })}</summary>
           <p className="break-words pb-2 text-sm text-muted-foreground">{receipt.reference_number}</p>
         </details>
       )}

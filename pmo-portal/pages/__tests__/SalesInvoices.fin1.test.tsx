@@ -126,10 +126,10 @@ describe('invoice list evidence', () => {
   it('keeps invoice identity, customer context and exact amounts available', () => {
     renderAt('/sales-invoices');
     const cols = headers();
-    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer / project', 'Status / due', 'Outstanding', 'Amount']));
+    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer / project', 'Status / due', 'Currency', 'Outstanding gross', 'Invoice gross']));
     const row = screen.getByRole('row', { name: /INV-001/ });
     expect(within(row).getByText('Northwind Services')).toBeInTheDocument();
-    expect(within(row).getAllByText('$1,250,000.50').length).toBeGreaterThan(0);
+    expect(within(row).getAllByText('1,250,000.5').length).toBeGreaterThan(0);
   });
 
   it('shows a known project name and names an unavailable attributed project', () => {
@@ -152,11 +152,12 @@ describe('invoice list evidence', () => {
     expect(screen.queryByText(/CLIENT-PO-1/)).not.toBeInTheDocument();
   });
 
-  it('shows the currency code only when the invoice is not in the organization currency', () => {
+  it('shows one ISO currency per invoice while money cells remain plain grouped numbers', () => {
     h.invoices.data = [invoice('INV-001'), invoice('INV-002', { currency: 'EUR' })];
     renderAt('/sales-invoices');
-    expect(within(screen.getByRole('row', { name: /INV-001/ })).queryByText('USD')).not.toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /INV-001/ })).getByText('USD')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /INV-002/ })).getByText('EUR')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /INV-001/ })).getAllByText('1,250,000.5')).toHaveLength(2);
   });
 
   it('shows the visible sort and overdue filter without an organization-date loading message', () => {
@@ -208,7 +209,7 @@ describe('invoice list evidence', () => {
 
   it('describes the page in one short line and offers no Browse Projects button to a project manager', () => {
     renderAt('/sales-invoices', 'Project Manager');
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Browse Projects' })).not.toBeInTheDocument();
   });
 });

@@ -148,7 +148,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">
+          <h2 className="type-section-head text-heading">
             {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
           </h2>
           <p className="mt-2 text-muted-foreground">
@@ -442,7 +442,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
       {pack && state === undefined && (
         <>
-          <h2 className="mb-2 text-heading font-semibold">
+          <h2 className="mb-2 type-section-head text-heading">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
           <Card className="overflow-hidden mb-6">
@@ -450,6 +450,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
               rows={visiblePackRows}
               columns={columns}
               rowKey={(row) => row.key}
+              mobileDetails={{
+                columnKeys: ['contract', 'invoicedToDate', 'unbilled', 'backlog', 'basis', 'actions'],
+                summary: (_row, count) => t('moneyIn:uxs42.earnedOtherDetails', 'Other earned details · {{count}} items', { count }),
+              }}
               tableId="managementpack-1-table"
               accessibleName={t('managementPack.col.project', 'Project')}
               totals={projectTotals}
@@ -466,12 +470,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
               }}
             />
           </Card>
-          <details className="mb-6 rounded-md border border-border px-3" open={historyOpen}
+          <details className="mb-6" open={historyOpen}
             onToggle={(event) => updateParam('history', event.currentTarget.open ? '1' : '0')}>
-            <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('moneyIn:uxs42.monthlyHistory', 'Monthly history')}</summary>
-            <Card className="mb-3 overflow-hidden">
-              <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('moneyIn:uxs42.monthlyHistory', 'Monthly history')} />
-            </Card>
+            <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('moneyIn:uxs42.monthlyHistorySummary', 'Monthly history · {{count}} rows', { count: totalsRows.length })}</summary>
+            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('moneyIn:uxs42.monthlyHistory', 'Monthly history')} />
           </details>
           {pack.undatedInvoiceCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">

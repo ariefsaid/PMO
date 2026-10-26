@@ -5,7 +5,6 @@ import {
   ListState,
   DataTable,
   StatusPill,
-  Card,
   Button,
   Icon,
   SearchMini,
@@ -71,6 +70,8 @@ const RevenueByProject: React.FC = () => {
         return byName || left.currency.localeCompare(right.currency);
       });
   }, [all, projectSort, search, selectedCurrency, selectedProject]);
+  const visibleCurrencies = [...new Set(visibleRows.map((row) => row.currency))];
+  const mixedCurrencies = visibleCurrencies.length > 1;
   const revenueTotals = useMemo(() => sumPerCurrency(visibleRows, (row) => row.total_amount), [visibleRows]);
   const openARTotals = useMemo(() => sumPerCurrency(visibleRows, (row) => row.open_ar), [visibleRows]);
 
@@ -94,7 +95,7 @@ const RevenueByProject: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToRevenueByProject', "You don't have access to Revenue by Project")}</h2>
+          <h2 className="type-section-head text-heading">{t('financeCopy.youDonTHaveAccessToRevenueByProject', "You don't have access to Revenue by Project")}</h2>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives', "The revenue per project view is available to Finance, Project Managers, and Executives.")}</p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4 min-h-11">
@@ -121,13 +122,13 @@ const RevenueByProject: React.FC = () => {
           type="button"
           aria-label={t('moneyIn:uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
           title={row.project_name !== shown(row) ? row.project_name ?? undefined : undefined}
-          className="min-h-11 w-fit text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="min-h-11 w-fit max-w-full whitespace-normal break-words text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
             navigate(`/projects/${row.project_id}`);
           }}
         >
-          {shown(row)}
+          {shown(row)}<span className="md:hidden"> · {row.currency}</span>
         </button>
       ) : (
         <button
@@ -275,10 +276,13 @@ const RevenueByProject: React.FC = () => {
       )}
 
       {state === undefined && (
-        <Card className="overflow-hidden">
-          <DataTable
+        <DataTable
             rows={visibleRows}
-            columns={columns}
+            columns={mixedCurrencies ? columns : columns.filter((column) => column.key !== 'currency')}
+            mobileDetails={{
+              columnKeys: ['total_amount', 'invoice_count', ...(mixedCurrencies ? ['currency'] : [])],
+              summary: (_row, count) => t('moneyIn:uxs42.billingOtherDetails', 'Other billing details · {{count}}', { count }),
+            }}
             rowKey={(row) => `${row.project_id ?? 'unassigned'}|${row.currency}`}
             onActivate={(row) => {
               if (row.project_id) navigate(`/projects/${row.project_id}`);
@@ -299,12 +303,21 @@ const RevenueByProject: React.FC = () => {
             accessibleName={t('financeCopy.revenueByProject', "Revenue by Project")}
             totals={totalRows}
           />
-        </Card>
       )}
     </>
   );
 
-  return <section className="min-w-0">{toolbar}{content}</section>;
+  return (
+    <section className="min-w-0">
+      {state === undefined && visibleCurrencies.length === 1 && (
+        <h2 className="mb-3 type-section-head text-heading">{t('moneyIn:uxs42.billingCurrencyScope', 'Billing · {{currency}}', { currency: visibleCurrencies[0] })}</h2>
+      )}
+      {state === undefined && mixedCurrencies && (
+        <h2 className="mb-3 type-section-head text-heading">{t('moneyIn:uxs42.billingMixedCurrencyScope', 'Billing · mixed currencies')}</h2>
+      )}
+      {toolbar}{content}
+    </section>
+  );
 };
 
 export default RevenueByProject;

@@ -122,6 +122,11 @@ export interface DataTableProps<Row> {
   accessibleName?: string;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
+  /** Hide secondary card facts behind one named phone disclosure; desktop columns remain unchanged. */
+  mobileDetails?: {
+    columnKeys: readonly string[];
+    summary: (row: Row, hiddenFactCount: number) => React.ReactNode;
+  };
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
@@ -320,6 +325,7 @@ export function DataTable<Row>({
   onActivate,
   rowLabel,
   rowTarget,
+  mobileDetails,
   selectedKey,
   sort,
   onSort,
@@ -485,7 +491,7 @@ export function DataTable<Row>({
           style={{
             ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
-          className="w-full border-collapse text-sm"
+          className="w-full border-collapse type-value"
         >
           <thead>
             <tr>
@@ -506,7 +512,7 @@ export function DataTable<Row>({
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 type-metadata uppercase text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.headerClassName,
@@ -783,6 +789,11 @@ export function DataTable<Row>({
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
             const [titleCol, ...restCols] = columns;
+            const mobileDetailKeys = new Set(mobileDetails?.columnKeys ?? []);
+            const visibleRestCols = mobileDetails ? restCols.filter((column) => !mobileDetailKeys.has(column.key)) : restCols;
+            const detailCols = mobileDetails ? restCols.filter((column) => mobileDetailKeys.has(column.key)) : [];
+            const detailValues = detailCols.map((column) => ({ column, content: column.cell(row) }))
+              .filter(({ content }) => content != null && content !== false);
             const hasMenu = !!rowMenu;
             const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
@@ -792,21 +803,14 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-2 p-4 text-sm transition-colors',
+                  'relative flex flex-col gap-2 p-4 type-value transition-colors',
                   onActivate && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                {/* Identity row: custom phone composition or the complete primary identity. */}
                 <div className="flex min-w-0 items-start justify-between gap-3">
-                  {/* Card title — activation button if rowLabel+onActivate supplied.
-                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                      descendants to block lets them clip with an ellipsis within this min-w-0
-                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 [&_.truncate]:block">
-                    {onActivate && rowLabel ? (
+                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">                    {onActivate && rowLabel ? (
                       <button
                         type="button"
                         aria-label={accessibleRowLabel(row)}
@@ -831,16 +835,16 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {!mobileRow && restCols.length > 0 && (
-                  <dl className="flex flex-col gap-2">
-                    {restCols.filter((col) => !col.phoneHidden).map((col) => {
+                {!mobileRow && visibleRestCols.length > 0 && (
+                  <dl className={mobileDetails ? 'grid grid-cols-2 gap-x-6 gap-y-4' : 'flex flex-col gap-2'}>
+                    {visibleRestCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
-                        <div key={col.key} className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <div key={col.key} className={mobileDetails ? 'flex min-w-0 flex-col gap-1' : 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1'}>
                           <dt
                             className={cn(
-                              'text-xs font-semibold text-muted-foreground self-start',
+                              'type-label text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -850,7 +854,7 @@ export function DataTable<Row>({
                             className={cn(
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
-                              'min-w-0 break-words text-sm text-foreground',
+                              'min-w-0 break-words type-value text-foreground [&_.truncate]:block',
                               col.align === 'num' && 'tabular text-right',
                               col.align === 'center' && 'text-center',
                               stripHiddenClasses(col.colClassName)
@@ -863,23 +867,42 @@ export function DataTable<Row>({
                     })}
                   </dl>
                 )}
+                {!mobileRow && mobileDetails && detailValues.length > 0 && (
+                  <details className="border-t border-border/70 pt-2">
+                    <summary className="min-h-11 cursor-pointer py-2 type-value focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      {mobileDetails.summary(row, detailValues.length)}
+                    </summary>
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+                      {detailValues.map(({ column: col, content }) => {
+                        return (
+                          <div key={col.key} className="min-w-0">
+                            <dt className="type-label text-muted-foreground">{col.header}</dt>
+                            <dd className={cn('min-w-0 break-words type-value text-foreground [&_.truncate]:block', col.align === 'num' && 'tabular text-right')}>
+                              {content}
+                            </dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  </details>
+                )}
               </li>
             );
           })
         )}
-        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-sm tabular">
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 type-value tabular">
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="text-xs font-semibold text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 text-sm', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="type-label text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 type-value', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>
         </li>)}
       </ul>
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[0.6875rem] font-semibold text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 type-value text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
     </div>
@@ -888,8 +911,8 @@ export function DataTable<Row>({
 
 function PrimaryCell({ title, secondary }: { title: React.ReactNode; secondary?: React.ReactNode }) {
   return <span className="block min-w-0">
-    <span className="block whitespace-normal break-words text-sm text-foreground">{title}</span>
-    {secondary != null && <span className="block whitespace-normal break-words text-[0.6875rem] font-semibold text-muted-foreground">{secondary}</span>}
+    <span className="block whitespace-normal break-words type-value text-foreground">{title}</span>
+    {secondary != null && <span className="block whitespace-normal break-words type-value text-muted-foreground">{secondary}</span>}
   </span>;
 }
 

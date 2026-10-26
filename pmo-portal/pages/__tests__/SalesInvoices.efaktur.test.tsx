@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ToastProvider } from '@/src/components/ui';
@@ -21,6 +22,8 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => ({ data: h.invoices, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesInvoiceEvidence: () => ({ data: { lines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
@@ -67,13 +70,16 @@ function cellOf(siNumber: string, header: string): HTMLElement {
   return within(row).getAllByRole('cell')[col];
 }
 
-function renderAs(role: Role) {
+function renderAs(role: Role, initialEntry = '/sales-invoices') {
   return render(
     // The page's PDF hook (#912) reads the query cache — give it the standard provider.
     <FinanceI18nTestProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ImpersonationProvider realRole={role}>
-          <MemoryRouter><ToastProvider><SalesInvoices /></ToastProvider></MemoryRouter>
+          <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><Routes>
+            <Route path="/sales-invoices" element={<SalesInvoices />} />
+            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+          </Routes></ToastProvider></MemoryRouter>
         </ImpersonationProvider>
       </QueryClientProvider>
     </FinanceI18nTestProvider>,
@@ -91,30 +97,26 @@ beforeEach(async () => {
 });
 
 describe('SalesInvoices e-Faktur details', () => {
-  it('UXS-042 formats invoice amount and outstanding in tabular UI numerals, not the identifier typeface', () => {
+  it('shows whole-unit invoice and outstanding amounts with an explicit currency field', () => {
     renderAs('Finance');
-    for (const header of ['Amount', 'Outstanding']) {
-      const money = within(cellOf('SI-one', header)).getByText(/IDR/, { selector: 'span.tabular' });
-      expect(money).toHaveClass('tabular');
-      expect(money).not.toHaveClass('font-mono');
-    }
+    expect(screen.getAllByRole('columnheader').map((header) => header.textContent?.trim())).toContain('Currency');
+    expect(cellOf('SI-one', 'Invoice gross')).toHaveTextContent('100');
+    expect(cellOf('SI-one', 'Outstanding gross')).toHaveTextContent('100');
+    expect(cellOf('SI-one', 'Invoice gross')).not.toHaveTextContent('.00');
   });
 
-  it('AC-EFK-004 shows number + date in ONE e-Faktur cell after Due Date, and an honest dash when empty', () => {
-    renderAs('Finance');
-    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
-    // one merged column (a second one pushed the row ⋯ trigger out of the 1440 view), placed after Due Date
-    expect(headers).not.toContain('e-Faktur number');
-    expect(headers).not.toContain('e-Faktur date');
-    expect(headers.indexOf('e-Faktur')).toBe(headers.indexOf('Due Date') + 1);
-
-    const cell = cellOf('SI-one', 'e-Faktur');
-    const number = within(cell).getByText('010.001-26.12345678');
-    expect(number).toHaveClass('font-mono'); // machine-ID style, as Invoice #
-    // the e-Faktur date is its own fact (not the 2026-10-01 invoice date), as a muted second line
-    const date = within(cell).getByText(formatDateOnly('2026-09-28'));
-    expect(date).toHaveClass('text-muted-foreground');
-    expect(cellOf('SI-two', 'e-Faktur').textContent?.trim()).toBe('—');
+  it('AC-EFK-004 keeps e-Faktur number and date on the invoice record, not a collection column', async () => {
+    const collection = renderAs('Finance');
+    const currentHeaders = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
+    expect(currentHeaders).not.toContain('e-Faktur');
+    collection.unmount();
+    renderAs('Finance', '/sales-invoices/one');
+    const details = screen.getByText(/^Invoice details · \d+$/, { selector: 'summary' });
+    const user = userEvent.setup();
+    await user.click(details);
+    expect(details.closest('details')).toHaveAttribute('open');
+    const efaktur = screen.getByText(/010\.001-26\.12345678/);
+    expect(efaktur).toHaveTextContent(formatDateOnly('2026-09-28'));
   });
 
   it('AC-EFK-004 FIN-S3 offers Record e-Faktur to Finance/Admin on issued invoices only (not Draft), never PM/Executive', async () => {

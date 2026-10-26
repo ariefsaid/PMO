@@ -79,7 +79,7 @@ beforeEach(() => {
 describe('FIN-S2: invoice record facts', () => {
   it('names the balance "Outstanding" once, not "Collection", and does not repeat the customer or the ERP line-items note', () => {
     renderRecord();
-    expect(screen.getAllByText('Outstanding')).toHaveLength(1);
+    expect(screen.getAllByRole('heading', { name: /^Outstanding · USD 400$/ })).toHaveLength(1);
     expect(screen.queryByText('Collection')).not.toBeInTheDocument();
     expect(screen.getAllByText('Northwind Services')).toHaveLength(1);
     expect(screen.queryByText(/Line items are kept in ERPNext/)).not.toBeInTheDocument();
@@ -121,13 +121,13 @@ describe('FIN-S2: invoice record facts', () => {
 });
 
 describe('FIN-S2: evidence shows only what exists', () => {
-  it('renders none of the three "none returned" sentences or their empty headings', () => {
+  it('keeps absent line/contact evidence out and names the known-empty receipt state', () => {
     renderRecord();
     expect(screen.queryByText(/No line details were returned/)).not.toBeInTheDocument();
     expect(screen.queryByText(/No billing contact details were returned/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/No applied receipts are recorded/)).not.toBeInTheDocument();
+    expect(screen.getByText('No receipts have been applied to this invoice.')).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Billing contact' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Applied receipts' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Applied receipts' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Invoice lines' })).not.toBeInTheDocument();
   });
 
