@@ -6,6 +6,9 @@ import { login } from './helpers';
 test('AC-701 Executive sees real org-scoped KPI values from the RPC', async ({ page }) => {
   await login(page, 'exec@acme.test');
   await page.goto('/');
+  const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
+  await expect(breadcrumb).toContainText('Home');
+  await expect(breadcrumb).toContainText('Dashboard');
   // SP-2401 + SP-2402 + P001 + P003 + P013 = 5 Ongoing projects (rich solar seed, PR-#118 resync)
   // The active-only contract and count remain together in the Delivery book.
   const deliveryBook = page.getByTestId('dashboard-delivery-book');
