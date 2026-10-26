@@ -288,12 +288,14 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     actual_amount: 0, org_id: 'org-1', fiscal_year,
   });
 
-  it('read-only line items are a DataTable with the FULL amount (OD-MONEY-FMT), no phone-clipped table', () => {
+  it('read-only line items keep currency in the version head and show exact amount in the table', () => {
     budgetState.data = 1234.5;
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
-    const table = within(screen.getByTestId('version-card')).getByRole('table');
-    expect(within(table).getByRole('cell', { name: '$1,234.5' })).toBeInTheDocument();
+    const version = within(screen.getByTestId('version-card'));
+    const table = version.getByRole('table');
+    expect(version.getByTestId('derived-budget')).toHaveTextContent('$1,234.5');
+    expect(within(table).getByRole('cell', { name: '1,234.5' })).toBeInTheDocument();
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
   });
 

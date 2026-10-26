@@ -148,11 +148,20 @@ beforeEach(async () => {
 afterEach(() => resetActiveLocale());
 
 describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
+  it('H-01/H-03/H-06 scopes the compact forecast answer and exact amount to one currency/year heading', async () => {
+    renderPage();
+    expect(await screen.findByRole('heading', { name: /Forecast · 2025-2026 · USD/ })).toBeInTheDocument();
+    const summary = within(await screen.findByTestId('forecast-summary'));
+    const exact = summary.getByText('Forecast final cost').nextElementSibling!;
+    expect(exact).toHaveTextContent('75,000');
+    expect(exact).not.toHaveTextContent(/USD|\$|\.00/);
+  });
+
   it('AC-CAT-005: localizes Special expenses in the projection without changing its amounts', async () => {
     fetchMock.mockResolvedValue([{ ...ROW, category: 'Special expenses' }]);
     render(<BahasaProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><ToastProvider><BudgetProjection projectId="proj-1" /></ToastProvider></QueryClientProvider></MemoryRouter></BahasaProvider>);
     expect(await screen.findByText('Biaya khusus')).toBeInTheDocument();
-    expect(within(screen.getByRole('table')).getByText('$100,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('table')).getByText('100,000')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ubah biaya hingga selesai' })).toBeInTheDocument();
   });
 
@@ -167,9 +176,9 @@ describe('BudgetProjection — the forward view (AC-BUD-050/051)', () => {
     renderPage();
     expect(await screen.findByText('Labor')).toBeInTheDocument();
     const grid = within(screen.getByRole('table'));
-    expect(grid.getByText('$100,000')).toBeInTheDocument(); // pmoBudgetAmount
+    expect(grid.getByText('100,000')).toBeInTheDocument(); // pmoBudgetAmount
     expect(grid.getByText('$40,000')).toBeInTheDocument(); // actualsToDate
-    expect(grid.getByText('$75,000')).toBeInTheDocument(); // projectedFinalCost
+    expect(grid.getByText('75,000')).toBeInTheDocument(); // projectedFinalCost
     expect(grid.getByText('$25,000')).toBeInTheDocument(); // projectedVariance
     expect(grid.getByText('75%')).toBeInTheDocument(); // projectedUtilization
   });
@@ -357,7 +366,7 @@ describe('BudgetProjection — an unread ledger is not a zero (NEW-4)', () => {
     expect(within(row).queryByText('$0')).not.toBeInTheDocument();
     expect(within(row).queryByText('0%')).not.toBeInTheDocument();
     // …and the PMO-owned budget is still stated: it never depended on the ledger.
-    expect(within(row).getByText('$100,000')).toBeInTheDocument();
+    expect(within(row).getByText('100,000')).toBeInTheDocument();
   });
 
   it('NEW-4 it says the LEDGER has not been read — not that the category is unmapped (a different fix)', async () => {
@@ -1212,7 +1221,7 @@ describe('BudgetProjection — a NULL budget says WHICH kind of absence it is', 
       expect(within(row).getAllByTitle(/no line for this category/i).length).toBeGreaterThanOrEqual(1),
     );
     expect(within(row).queryAllByTitle(/phase these lines/i)).toHaveLength(0);
-    expect(screen.getByText('-$75,000')).toBeInTheDocument(); // the alarm itself is untouched
+    expect(screen.getByText('-75,000')).toBeInTheDocument(); // the alarm itself is untouched
   });
 });
 
@@ -1242,15 +1251,15 @@ describe('S-04 Forecast — outcome first, plain words, visible reasons, one mul
     await screen.findByText('Labor');
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
     const row = screen.getByText('Labor').closest('tr')!;
-    expect(within(row).getByText('$400,000.5')).toBeInTheDocument();
-    expect(within(row).getByText('$180,000')).toBeInTheDocument();
+    expect(within(row).getByText('400,000.5')).toBeInTheDocument();
+    expect(within(row).getByText('180,000')).toBeInTheDocument();
   });
 
   it('UX-035 an overrun is named an overrun', async () => {
     fetchMock.mockResolvedValue([LABOR]);
     renderPage();
     const summary = within(await screen.findByTestId('forecast-summary'));
-    expect(summary.getByText('Forecast overrun').nextElementSibling).toHaveTextContent('$30,000');
+    expect(summary.getByText('Forecast overrun').nextElementSibling).toHaveTextContent('30,000');
     expect(summary.queryByText('Forecast remaining')).not.toBeInTheDocument();
   });
 

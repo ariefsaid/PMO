@@ -195,15 +195,15 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(header).getByTestId('record-header-actions')).toBeInTheDocument();
   });
 
-  it('PA-04 keeps edit and status transitions in the title More actions disclosure', async () => {
+  it('PA-04 keeps Edit visible in the title action row and status transitions in More actions', async () => {
     renderHeader();
     const more = screen.getByText('More actions').closest('details');
     expect(more).not.toHaveAttribute('open');
-    expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('record-header-actions')).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
     await userEvent.click(screen.getByText('More actions'));
     expect(more).toHaveAttribute('open');
-    expect(screen.getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
+    expect(within(more!).queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Change status' })).toBeInTheDocument();
   });
 
@@ -243,19 +243,20 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', async () => {
     await renderHeaderWithMore('Executive', onHand);
-    expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
+    expect(screen.getByText('Archive', { exact: true }).closest('summary')).toBeInTheDocument();
   });
 
   it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', async () => {
     await renderHeaderWithMore('Project Manager', onHand);
-    expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Archive', { exact: true })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Admin sees the hard-Delete action', async () => {
+  it('AC-PRJ-007: Admin sees hard Delete only after opening the Archive menu', async () => {
     await renderHeaderWithMore('Admin', onHand);
     expect(screen.queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
+    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
+    expect(within(archiveMenu!).getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
   it.each(['Executive', 'Project Manager', 'Finance', 'Engineer'])(
@@ -268,8 +269,9 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
     await renderHeaderWithMore('Admin', onHand);
-    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
+    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
+    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -280,8 +282,9 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
     await renderHeaderWithMore('Admin', onHand);
-    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
-    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
+    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
+    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
+    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
     const toast = await findToastAnnouncement('alert', /Still in use|Archive/i);
@@ -298,17 +301,17 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
         </ToastProvider>
       </MemoryRouter>,
     );
-    await userEvent.click(screen.getByText('More actions'));
     await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
     expect(onEditProject).toHaveBeenCalledTimes(1);
   });
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
     await renderHeaderWithMore('Executive', onHand);
-    await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
+    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
+    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole('button', { name: /^Archive project$/i }));
+    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Archive project$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /Archive project/i }));
     await waitFor(() => expect(projectMutations.archive.mutateAsync).toHaveBeenCalledWith('p1'));

@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatCurrencyAuto, formatInstantDate } from '@/src/lib/format';
 import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { LEGAL_TRANSITIONS, type ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -90,7 +90,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       key: 'value',
       header: t('projectDetail.procurement.column.value', 'Value'),
       align: 'num',
-      cell: (row) => formatCurrency(row.total_value, row.currency),
+      cell: (row) => formatCurrencyAuto(row.total_value, row.currency),
     },
     {
       key: 'actions',

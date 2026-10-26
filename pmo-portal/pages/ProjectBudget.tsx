@@ -7,11 +7,11 @@ import { useAuth } from '@/src/auth/useAuth';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
-  formatCurrency,
   formatCurrencyAuto,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
+import { formatProjectDetailAmount } from './project-detail/formatProjectDetailMoney';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
@@ -380,7 +380,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
             />
           </div>
         ) : (
-          <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), currency)}</span>
+          <span className="font-medium">
+            {formatProjectDetailAmount(Number(li.budgeted_amount), currency, i18n.language) ?? '—'}
+          </span>
         );
       },
     },
@@ -584,7 +586,11 @@ const VersionCard: React.FC<VersionCardProps> = ({
     }] : []),
     {
       key: 'amount', header: t('financeCopy.budgeted', "Budgeted"), kind: 'money', align: 'num', size: 184,
-      cell: (li) => <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), version.currency)}</span>,
+      cell: (li) => (
+        <span className="font-medium">
+          {formatProjectDetailAmount(Number(li.budgeted_amount), version.currency, i18n.language) ?? '—'}
+        </span>
+      ),
     },
   ];
   return (
@@ -602,7 +608,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
           data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
           className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
         >
-          {formatCurrency(version.total, version.currency)}
+          {formatCurrencyAuto(version.total, version.currency)}
         </span>
       </div>
 
@@ -970,7 +976,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
           <p className="text-sm text-muted-foreground">
             {t('financeCopy.activeBudget', "Active budget:")}{' '}
             <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
+              {formatCurrencyAuto(derivedTotal, selected?.currency ?? orgCurrency)}
             </span>
           </p>
         ) : null}

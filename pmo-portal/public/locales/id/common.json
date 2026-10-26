@@ -217,6 +217,7 @@
     "editRate": "Ubah kurs",
     "date": "Tanggal publikasi",
     "rate": "IDR per USD",
+    "equivalent": "Ekuivalen IDR",
     "source": "Sumber",
 
     "denied": "Kurs tersedia bagi Finance dan Admin.",
@@ -2168,7 +2169,7 @@
         "confirmRaise": {
           "body": "Draf faktur penjualan ERP dibuat dari tagihan ini. Pengguna Admin atau Finance lain yang men-submit-nya.",
           "confirm": "Buat faktur ERP",
-          "figures": "Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}} (belum termasuk PPN)",
+          "figures": "{{scope}} · Ditagih {{gross}} · uang muka dipulihkan {{recovery}} · neto {{net}}",
           "title": "Terbitkan faktur tagihan ini?"
         },
         "confirmWithdraw": {
@@ -2216,11 +2217,9 @@
         "contract": "Nilai kontrak",
         "dpHeld": "Uang muka tertahan",
         "error": "Data penagihan tidak dapat dimuat",
-        "exclTax": "belum termasuk PPN",
         "gap": "Pekerjaan selesai, belum ditagih",
         "notSubmitted": "Klaim diterbitkan, belum dikirim",
-        "remaining": "Kontrak belum ditagih",
-        "title": "Ringkasan penagihan"
+        "remaining": "Kontrak belum ditagih"
       }
     },
     "documents": {
@@ -2413,9 +2412,7 @@
         "title": "Hapus {{name}}?"
       },
       "editContractValue": "Edit nilai kontrak",
-      "readOnly": "Hanya lihat",
       "sodEditableNote": "Mengubah nilai pada proyek yang menang adalah tindakan pemisahan tugas dan tercatat.",
-      "sodLockedNote": "Setelah proyek menang, nilai kontrak terkunci untuk role Anda. Hanya Eksekutif atau Keuangan yang dapat mengubahnya, dan perubahan itu tercatat.",
       "taxAmount": "Jumlah pajak",
       "taxTreatment": "Perlakuan pajak",
       "toast": {
@@ -2511,11 +2508,7 @@
       },
       "budgetUtil": {
         "atRisk": "Berisiko",
-        "ofBudget": "dari anggaran",
-        "variance": "Selisih"
-      },
-      "finance": {
-        "contract": "Kontrak"
+        "ofBudget": "dari anggaran"
       },
       "procSummary": {
         "closed": "Ditutup",
@@ -3919,7 +3912,6 @@
     "paymentCancelled": "Pembayaran dibatalkan",
     "paymentCreated": "Pembayaran dibuat",
     "viewArchived": "Tampilan diarsipkan",
-    "invoiceCount": "{{count}} faktur",
     "budgetLoadFailed": "Anggaran tidak dapat dimuat",
     "createVersion": "Buat versi",
     "activateVersion": "Aktifkan versi",
@@ -3942,8 +3934,6 @@
     "lineItemsSection": "Item faktur",
     "erpLineItemsStoredInErpNext": "Rincian item untuk faktur ini disimpan di ERPNext.",
     "paymentDetails": "Detail pembayaran",
-    "invoiceCount_one": "{{count}} faktur",
-    "invoiceCount_other": "{{count}} faktur",
     "erpItem": "Item ERP",
     "selectOrSearchItem": "Pilih atau cari item…",
     "searchItemCodeOrName": "Cari kode atau nama item…",
@@ -4365,23 +4355,17 @@
     "fixFields_other": "Perbaiki {{count}} kolom sebelum menyimpan"
   },
   "projectFinances": {
-    "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
-    "clearedAgainstInvoices":"Terselesaikan menurut saldo tagihan",
-    "invoiceBalanceClearedNote":"Nilai yang dikliringkan ERP dihitung dari tagihan dikurangi saldo terutang ERP; jumlah ini dapat mencakup penyelesaian nonkas. Kas berbasis kuitansi ditampilkan terpisah di atas.",
-    "stillToInvoice":"Belum ditagihkan", "exactRemaining":"Sisa pasti",
-    "viewInvoices":"Lihat faktur", "invoiceRecordsInBilling":"Rincian faktur tersedia pada bagian Penagihan.",
+    "invoiced":"Ditagihkan", "outstanding":"Belum dibayar",
     "margin":"Margin",
     "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
     "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",
     "category":"Kategori", "unavailable":"Tidak tersedia",
     "loading":"Memuat keuangan proyek…", "error":"Keuangan proyek tidak dapat dimuat.", "retry":"Coba lagi",
-    "mixedTaxBases":"Dasar pajak berbeda",
-    "contractInvoiced":"Ditagihkan terhadap kontrak", "remaining":"Sisa untuk ditagihkan"
+    "mixedTaxBases":"Dasar pajak berbeda"
   },
   "uxs01": {
     "recordedSpending": "Pengeluaran tercatat",
     "pmoCoverage": "Pesanan pembelian PMO yang dikomitmenkan",
-    "actualUnavailable": "Tidak tersedia",
     "partialCoverage": "Cakupan sebagian · {{mapped}} dari {{total}} kategori pengeluaran dipetakan",
     "coverageUnavailable": "Belum ada kategori pengeluaran ERP yang dipetakan untuk proyek ini.",
     "updated": "Diperbarui {{date}}",

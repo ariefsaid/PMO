@@ -91,11 +91,27 @@
       "activeBudget": "Anggaran aktif",
       "billing": "Penagihan",
       "budgetCategories": "Kategori anggaran",
+      "basisUnavailable": "Dasar tidak tersedia",
+      "clearedAgainstInvoices": "Terselesaikan menurut saldo tagihan",
       "contract": "Kontrak",
       "cost": "Biaya",
+      "exactRemaining": "Sisa pasti",
+      "invoiceBalanceClearedNote": "Nilai yang dikliringkan ERP dihitung dari tagihan dikurangi saldo terutang ERP; jumlah ini dapat mencakup penyelesaian nonkas. Kas berbasis kuitansi ditampilkan terpisah di atas.",
+      "invoiceRecordsInBilling": "Rincian faktur tersedia pada bagian Penagihan.",
+      "erpActuals": "Aktual ERP",
       "noActiveBudget": "Tidak ada anggaran aktif",
+      "stillToInvoice": "Belum ditagihkan",
       "spending": "Pengeluaran",
-      "title": "Posisi keuangan"
+      "title": "Posisi keuangan",
+      "viewInvoices": "Lihat faktur"
+    },
+    "overview": {
+      "budgetUtil": {
+        "variance": "Selisih"
+      }
+    },
+    "budget": {
+      "forecastAnswerUnavailable": "Jawaban perkiraan tidak tersedia"
     },
     "tasks": {
       "toolbar": {

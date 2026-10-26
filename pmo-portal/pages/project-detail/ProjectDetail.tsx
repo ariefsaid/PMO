@@ -372,7 +372,7 @@ const ProjectDetail: React.FC = () => {
           />
         )}
         {tab === 'billing' && canSeeBilling && (
-          <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+          <BillingTab projectId={project.id} currency={project.currency} taxTreatment={project.tax_treatment} clientId={project.client_id ?? null}
             projectManagerId={project.project_manager_id ?? null} />
         )}
         {tab === 'documents' && <DocumentsTab projectId={project.id} projectCode={project.code} />}

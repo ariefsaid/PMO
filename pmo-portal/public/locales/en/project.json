@@ -91,11 +91,27 @@
       "activeBudget": "Active budget",
       "billing": "Billing",
       "budgetCategories": "Budget categories",
+      "basisUnavailable": "Basis unavailable",
+      "clearedAgainstInvoices": "Cleared against invoices",
       "contract": "Contract",
       "cost": "Cost",
+      "exactRemaining": "Exact remaining",
+      "invoiceBalanceClearedNote": "ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.",
+      "invoiceRecordsInBilling": "Invoice records are in the Billing section.",
+      "erpActuals": "ERP actuals",
       "noActiveBudget": "No active budget",
+      "stillToInvoice": "Still to invoice",
       "spending": "Spending",
-      "title": "Money position"
+      "title": "Money position",
+      "viewInvoices": "View invoices"
+    },
+    "overview": {
+      "budgetUtil": {
+        "variance": "Variance"
+      }
+    },
+    "budget": {
+      "forecastAnswerUnavailable": "Forecast answer unavailable"
     },
     "tasks": {
       "toolbar": {

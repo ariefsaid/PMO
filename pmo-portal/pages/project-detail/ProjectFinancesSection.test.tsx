@@ -46,7 +46,8 @@ const inMoneyPosition = (content: React.ReactNode) => (
     {content}
   </section>
 );
-const recordedSpendingHeading = () => screen.getByText('Recorded spending', { exact: true });
+const recordedSpendingHeading = () => within(screen.getByRole('group', { name: 'Spending' }))
+  .getAllByText('Recorded spending', { exact: true })[0];
 
 const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
 const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
@@ -116,8 +117,11 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(billing).getByRole('heading', { name: /Billing · USD/ })).toBeInTheDocument();
     expect(within(billing).getByText('100')).toBeInTheDocument();
     expect(within(billing).queryByText('$100.00')).not.toBeInTheDocument();
-    expect(within(billing).getByText('Settled against invoices')).toBeInTheDocument();
-    expect(within(billing).getByText(/Settled includes cash, withholding and credits/)).toBeInTheDocument();
+    expect(within(billing).getByText('Cleared against invoices')).toBeInTheDocument();
+    expect(within(billing).getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
+    const cash = screen.getByText('Cash received').parentElement!;
+    expect(within(cash).getByText('7')).toBeInTheDocument();
+    expect(cash).not.toHaveTextContent('USD');
   });
 
   it('H-01 keeps receipt-backed cash beside the single Still to invoice primary', () => {
@@ -146,12 +150,12 @@ describe('ProjectFinancesSection reading states', () => {
     const cleared = billing.getByText('Cleared against invoices').parentElement!;
     const outstanding = billing.getByText('Outstanding').parentElement!;
     const cash = screen.getByText('Cash received').parentElement!;
-    expect(screen.queryByRole('heading', { name: 'Billing', exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Margin', exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Billing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Margin' })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Billing · USD ·/ })).toBeInTheDocument();
     expect(within(cleared).getByText('100')).toBeInTheDocument();
     expect(within(outstanding).getByText('0')).toBeInTheDocument();
-    expect(within(cash).getByText('USD 40')).toBeInTheDocument();
+    expect(within(cash).getByText('40')).toBeInTheDocument();
     expect(billing.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
   });
 
@@ -216,7 +220,7 @@ describe('ProjectFinancesSection reading states', () => {
       .toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
     expect(cashValue.querySelector('.sr-only')).toHaveTextContent('Unavailable — receipt-backed cash data is not available yet');
     expect(screen.getByText('Cleared against invoices')).toBeInTheDocument();
-    expect(screen.getByText(/Calculated as invoiced less ERP outstanding/)).toBeInTheDocument();
+    expect(screen.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Margin · USD ·.*Net of tax; advances excluded/ })).toBeInTheDocument();
     expect(screen.queryByText(/Billed-work revenue \(net of tax/)).not.toBeInTheDocument();
     expect(screen.getByTestId('project-invoicing-scope')).toBeInTheDocument();
@@ -294,12 +298,14 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
+    expect(screen.getByRole('heading', { name: /Spending · USD · ERP actuals · Updated Oct 16, 2026/ })).toBeInTheDocument();
     expect(within(screen.getByRole('group', { name: 'Spending' })).getAllByText('120')).toHaveLength(2);
 
     h.commitments.ledgerBasis = 'pmo';
     rerender(<ProjectFinancesSection project={project} />);
+    expect(screen.getByRole('heading', { name: /Spending · USD · Committed PMO purchase orders/ })).toBeInTheDocument();
     expect(screen.getByText('75')).toBeInTheDocument();
-    expect(screen.getByText('Committed PMO purchase orders')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Spending · USD · Committed PMO purchase orders/ })).toBeInTheDocument();
 
     h.commitments.ledgerBasis = 'unavailable';
     rerender(<ProjectFinancesSection project={project} />);
@@ -338,14 +344,14 @@ describe('ProjectFinancesSection reading states', () => {
     expect(usd.getByText('100')).toBeInTheDocument();
     expect(usd.queryByText('$100.00')).not.toBeInTheDocument();
     expect(idr.getAllByText('Invoice balance is not available yet')).toHaveLength(2);
-    expect(idr.getByText('Mixed tax bases')).toBeInTheDocument();
+    expect(idr.getByRole('heading', { name: /Billing · IDR · Mixed tax bases/ })).toBeInTheDocument();
     const unavailableInvoice = eur.getByText('Invoiced').parentElement!;
     expect(within(unavailableInvoice).getByTitle('Unavailable')).toBeInTheDocument();
-    const unavailableSettlement = eur.getByText('Settled against invoices').parentElement!;
+    const unavailableSettlement = eur.getByText('Cleared against invoices').parentElement!;
     expect(within(unavailableSettlement).getByTitle('Invoice balance is not available yet')).toBeInTheDocument();
     const unavailableOutstanding = eur.getByText('Outstanding').parentElement!;
     expect(within(unavailableOutstanding).getByTitle('Invoice balance is not available yet')).toBeInTheDocument();
-    expect(screen.getByText(/Settled includes cash, withholding and credits/)).toBeInTheDocument();
+    expect(screen.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
     expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
   });
 
@@ -359,9 +365,9 @@ describe('ProjectFinancesSection reading states', () => {
       actuals: { currency: 'USD', as_of: '2026-10-14T00:00:00Z', total: '50.00', excludes_restricted_rows: false, categories: [{ category: 'labor', mapped: true, amount: '50.00' }] },
     });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances-USD')).getByText('80')).toBeInTheDocument();
-    const idr = screen.getByTestId('project-finances-IDR');
-    const unavailableMargin = idr.querySelector('[title="Unavailable — different currencies"]')!;
+    expect(within(screen.getByRole('group', { name: 'Margin' })).getByText('80')).toBeInTheDocument();
+    const margin = screen.getByRole('group', { name: 'Margin' });
+    const unavailableMargin = margin.querySelector('[title="Unavailable — different currencies"]')!;
     expect(unavailableMargin.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
     expect(unavailableMargin.querySelector('.sr-only')).toHaveTextContent('Unavailable — different currencies');
     expect(screen.queryByText('Contract value')).not.toBeInTheDocument();
@@ -376,7 +382,7 @@ describe('ProjectFinancesSection reading states', () => {
       actuals: { currency: 'USD', as_of: null, total: '50.00', excludes_restricted_rows: true, categories: [] },
     });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances-USD')).getByText('Actuals exclude restricted rows')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: 'Spending' })).getByText('Actuals exclude restricted rows')).toBeInTheDocument();
     expect(screen.queryByText('Budget')).not.toBeInTheDocument();
 
     h.query.data = payload({
@@ -535,7 +541,7 @@ describe('ProjectFinancesSection reading states', () => {
     });
     render(<ProjectFinancesSection project={project} />);
 
-    expect(screen.getByText('Recorded spending')).toBeInTheDocument();
+    expect(recordedSpendingHeading()).toBeInTheDocument();
     expect(screen.getByText('Partial coverage · 1 of 3 spending categories mapped')).toBeInTheDocument();
     expect(screen.getByText(/Updated Oct 14, 2026/)).toBeInTheDocument();
     // PD-C: no invoices → one line instead of cash/invoiced/remaining.
@@ -560,18 +566,18 @@ describe('ProjectFinancesSection reading states', () => {
     expect(screen.queryByText('Ask Finance or an administrator to finish this project’s spending setup.')).not.toBeInTheDocument();
   });
 
-  it('UX-032 explains settlement only when at least one settlement is known', () => {
+  it('UX-032 names ERP-cleared settlement separately from receipt cash', () => {
     h.query.data = payload({ invoices: [
       { currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '0.00', outstanding: '100.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 },
     ] });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('Settled against invoices')).toBeInTheDocument();
+    expect(screen.getByText('Cleared against invoices')).toBeInTheDocument();
 
     h.query.data = payload({ invoices: [
       { currency: 'USD', invoice_count: 1, invoiced: '100.00', settled: '40.00', outstanding: '60.00', missing_amount: 0, missing_outstanding: 0, tax_basis: 'inclusive', work_revenue: '100.00', missing_work: 0 },
     ] });
     rerender(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText(/Settled includes cash, withholding and credits/)).toBeInTheDocument();
+    expect(screen.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
     expect(screen.getByText('Cash received')).toBeInTheDocument();
   });
 
@@ -607,14 +613,15 @@ describe('ProjectFinancesSection reading states', () => {
         const cashField = screen.getByText(cashLabel, { exact: true }).parentElement!;
         expect(cashField).not.toBeNull();
         expect(cashField).toHaveTextContent(scope);
-        expect(screen.getByText(language === 'en' ? 'Cleared against invoices' : localeI18n.t('projectFinances.clearedAgainstInvoices'))).toBeInTheDocument();
+        expect(screen.getByText(language === 'en' ? 'Cleared against invoices' : localeI18n.t('project:projectDetail.moneyPosition.clearedAgainstInvoices'))).toBeInTheDocument();
         expect(screen.getByText(language === 'en'
           ? 'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.'
           : 'Nilai yang dikliringkan ERP dihitung dari tagihan dikurangi saldo terutang ERP; jumlah ini dapat mencakup penyelesaian nonkas. Kas berbasis kuitansi ditampilkan terpisah di atas.')).toBeInTheDocument();
         expect(screen.getAllByText(formatProjectDetailAmount('120.00', 'USD', language)!)).not.toHaveLength(0);
 
         if (reading.kind === 'zero') {
-          expect(cashField).toHaveTextContent('USD 0');
+          expect(cashField).toHaveTextContent('0');
+          expect(cashField).not.toHaveTextContent('USD');
         } else if (reading.kind === 'multi') {
           expect(cashField).toHaveTextContent(`USD ${formatProjectDetailAmount('30.00', 'USD', language)}`);
           expect(cashField).toHaveTextContent(`IDR ${formatProjectDetailAmount('7.00', 'IDR', language)}`);

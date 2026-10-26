@@ -91,6 +91,29 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(document.querySelector('table')).toBeNull();
   });
 
+  it('renders a keyboard-focusable sticky-identity table at mobile when a dense row has more than four facts', () => {
+    mockViewport(false);
+    const denseColumns: Column<Row>[] = [
+      { ...columns[0], stickyLeft: true },
+      ...columns.slice(1),
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={denseColumns}
+        rowKey={(r) => r.id}
+        accessibleName="Budget category forecast"
+        mobileTable
+      />,
+    );
+    const tableRegion = getTableBranch();
+    expect(tableRegion).toBeInTheDocument();
+    expect(tableRegion).toHaveAttribute('role', 'region');
+    expect(tableRegion).toHaveAttribute('tabindex', '0');
+    expect(getCardBranch()).not.toBeInTheDocument();
+    expect(tableRegion!.querySelector('th.sticky')).toBeInTheDocument();
+  });
+
   it('at desktop (≥768px) renders the table branch and NOT the card branch', () => {
     mockViewport(true);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);

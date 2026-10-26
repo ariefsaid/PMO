@@ -9,9 +9,10 @@ import { useRevenueMutations } from '@/src/hooks/useRevenue';
 import { useCommandIntent } from '@/src/hooks/useCommandIntent';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
-import { currencySymbol, formatCurrencyCents, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
 import { invoiceAmountProblem } from '@/src/lib/workOrderBilling';
 import type { WorkOrderRow } from '@/src/lib/db/workOrders';
+import { formatProjectDetailMoney } from './formatProjectDetailMoney';
 
 /**
  * "Invoice this work order" (OD-BILL-1, FR-BWO-008; #913 also where PMO owns revenue). One Draft for the project's
@@ -49,7 +50,7 @@ function workOrderInvoiceDescription(wo: Pick<WorkOrderRow, 'wo_number' | 'title
 const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   workOrder, projectId, clientId, remaining, onClose, onCreated,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // #913: the query-derived mode must agree with the synced repository route. Stay fail-closed if the cache
   // is not ready or changes while this dialog is open.
   const revenueMode = useRevenueMode();
@@ -58,7 +59,8 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
   const erpItems = useErpItemOptions('sales');
   const { create } = useRevenueMutations();
   const intent = useCommandIntent();
-  const remainingText = formatCurrencyCents(remaining, workOrder.currency);
+  const remainingText = formatProjectDetailMoney(remaining, workOrder.currency, i18n.language)
+    ?? t('projectFinances.unavailable', 'Unavailable');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 
   const form = useEntityForm<Values>({

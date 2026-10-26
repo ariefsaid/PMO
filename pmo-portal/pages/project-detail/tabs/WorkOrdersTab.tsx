@@ -20,7 +20,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
+import { formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -29,6 +29,7 @@ import {
   isLegalWorkOrderTransition,
 } from '@/src/lib/db/workOrders';
 import { useProjectWorkOrders, useWorkOrderMutations } from '@/src/hooks/useWorkOrders';
+import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
 import ProjectDrawdown from '../ProjectDrawdown';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
@@ -126,7 +127,7 @@ interface PendingTransition {
 }
 
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -146,6 +147,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
+  const displayMoney = (amount: number, currencyCode: string) =>
+    formatProjectDetailMoney(amount, currencyCode, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
 
   // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
   //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
@@ -249,7 +252,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       }
       const state = deriveWorkOrderBillingState(row.status, f);
       if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
-      const money = (amount: number) => formatCurrencyCents(amount, f.currency);
+      const money = (amount: number) => displayMoney(amount, f.currency);
       const line = 'text-[11px] tabular text-muted-foreground';
       return (
         <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
@@ -379,7 +382,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     if (row.tax_rate != null && numerator === denominator) return treatmentLabel(row.tax_treatment);
     return `${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? `\u00a0${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP\u00a0${numerator}/${denominator}`;
   };
-  const valueWithBasis = (row: WorkOrderRow): string => `${formatCurrency(row.order_value, row.currency)} ${basisNote(row)}`;
+  const valueWithBasis = (row: WorkOrderRow): string => `${displayMoney(row.order_value, row.currency)} ${basisNote(row)}`;
 
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
@@ -402,7 +405,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     await setValue.mutateAsync(input);
     toast(
       t('projectDetail.workOrders.toast.valueSet', 'Work order value set'),
-      formatCurrency(input.value, currency),
+      displayMoney(input.value, currency),
       'success',
     );
     setValueFor(null);
@@ -477,7 +480,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       toast(
         result && result.closingValue !== null
           ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
-            amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false },
+            amount: displayMoney(result.closingValue, currency), interpolation: { escapeValue: false },
           })
           : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
@@ -527,12 +530,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       align: 'num',
       cell: (row) => (
         <span className="flex flex-col items-end tabular" data-testid={`wo-value-${row.id}`}>
-          <span>{formatCurrency(row.order_value, row.currency)}</span>{' '}
+          <span>{displayMoney(row.order_value, row.currency)}</span>{' '}
           <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
           {row.closing_value != null && (
             <span className="mt-0.5 whitespace-normal text-[11px] font-semibold" data-testid={`wo-closing-${row.id}`}>
               {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
-                amount: formatCurrency(Number(row.closing_value), row.currency),
+                amount: displayMoney(Number(row.closing_value), row.currency),
                 interpolation: { escapeValue: false },
               })}
             </span>
@@ -710,7 +713,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
                   <dd className="mt-0.5 text-sm font-bold tabular">
                     {totals.complete
-                      ? formatCurrencyCents(value, currency)
+                      ? displayMoney(value, currency)
                       : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
                   </dd>
                 </div>
@@ -740,7 +743,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
                 {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
                   '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
-                  { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
+                  { amount: displayMoney(dpNotice, currency), interpolation: { escapeValue: false } })}
               </div>
             )}
           </>

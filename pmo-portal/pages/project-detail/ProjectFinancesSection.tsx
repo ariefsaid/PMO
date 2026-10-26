@@ -19,9 +19,11 @@ export interface ProjectFinancesSectionProps {
   project: ProjectWithRefs;
   /** Budget totals and disclosures belong in the Cost group next to Actual. */
   costSupplement?: React.ReactNode;
+  /** Authorized, dated org-currency conversion of the saved contract ceiling. */
+  contractContext?: React.ReactNode;
 }
 
-export function ProjectFinancesSection({ project, costSupplement }: ProjectFinancesSectionProps) {
+export function ProjectFinancesSection({ project, costSupplement, contractContext }: ProjectFinancesSectionProps) {
   const { t, i18n } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -126,11 +128,14 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
   const cashKnown = cashReading.state === 'known';
   const cashValue = cashReading.state === 'known'
     ? cashReading.buckets.length === 0
-      ? `${project.currency} ${formatProjectDetailAmount('0.00', project.currency, i18n.language) ?? cashInvalid}`
+      ? formatProjectDetailAmount('0.00', project.currency, i18n.language) ?? cashInvalid
       : (() => {
         const amounts = cashReading.buckets.map(({ amount, currency }) => {
           const formatted = formatProjectDetailAmount(amount, currency, i18n.language);
-          return formatted === null ? null : `${currency} ${formatted}`;
+          if (formatted === null) return null;
+          return cashReading.buckets.length === 1 && currency === project.currency
+            ? formatted
+            : `${currency} ${formatted}`;
         });
         return amounts.every((amount): amount is string => amount !== null) ? amounts.join(' · ') : cashInvalid;
       })()
@@ -139,7 +144,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
   const invoiceBalanceNote = t(
-    'projectFinances.invoiceBalanceClearedNote',
+    'project:projectDetail.moneyPosition.invoiceBalanceClearedNote',
     'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.',
   );
   const field = (label: string, value: React.ReactNode, basis?: React.ReactNode, labelTitle?: string) => (
@@ -165,13 +170,13 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
     ? null
     : formatShortMoney(Number(data.remaining_to_invoice), project.currency, { code: true });
   const primaryContent = (
-    <section className="min-w-0 space-y-4" aria-label={t('projectFinances.stillToInvoice', 'Still to invoice')}>
+    <section className="min-w-0 space-y-4" aria-label={t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')}>
       <h2 className={projectSectionHeading} data-primary-figure="true">
-        {t('projectFinances.stillToInvoice', 'Still to invoice')}
+        {t('project:projectDetail.moneyPosition.stillToInvoice', 'Still to invoice')}
         {remainingCompact ? ` · ${remainingCompact}` : ` · ${project.currency}`}
       </h2>
       <dl className="grid min-w-0 grid-cols-2 gap-4">
-        {field(t('projectFinances.exactRemaining', 'Exact remaining'), remainingExact ?? <UnknownFigure reason={unknown} />)}
+        {field(t('project:projectDetail.moneyPosition.exactRemaining', 'Exact remaining'), remainingExact ?? <UnknownFigure reason={unknown} />)}
         {cashField}
       </dl>
     </section>
@@ -197,7 +202,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
             {index === 0 && <p className="text-sm text-muted-foreground">{invoiceBalanceNote}</p>}
             <dl className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.clearedAgainstInvoices', 'Cleared against invoices'), bucket.missing_outstanding > 0
+              {field(t('project:projectDetail.moneyPosition.clearedAgainstInvoices', 'Cleared against invoices'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
                 : money(bucket.settled, bucket.currency))}
               {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0
@@ -206,10 +211,10 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
             </dl>
             <details className="min-w-0">
               <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                {t('projectFinances.viewInvoices', 'View invoices')} · {bucket.invoice_count}
+                {t('project:projectDetail.moneyPosition.viewInvoices', 'View invoices')} · {bucket.invoice_count}
               </summary>
               <p className="text-sm text-muted-foreground">
-                {t('projectFinances.invoiceRecordsInBilling', 'Invoice records are in the Billing section.')}
+                {t('project:projectDetail.moneyPosition.invoiceRecordsInBilling', 'Invoice records are in the Billing section.')}
               </p>
             </details>
           </section>
@@ -350,6 +355,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       {primaryContent}
       <section role="group" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
         {!hasInvoices && <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>}
+        {contractContext}
         {billingContent}
         {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
           {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
@@ -358,9 +364,11 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       <section role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
         <h3 className={projectSectionHeading}>
           {t('project:projectDetail.moneyPosition.spending', 'Spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
+          {actualPosition.basis === 'erp' && ` · ${t('project:projectDetail.moneyPosition.erpActuals', 'ERP actuals')}`}
           {actualPosition.basis === 'erp' && actualPosition.asOf
             ? ` · ${t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}`
             : actualPosition.basis === 'pmo' ? ` · ${t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}` : ''}
+          {actualPosition.basis === 'unavailable' && ` · ${t('project:projectDetail.moneyPosition.basisUnavailable', 'Basis unavailable')}`}
         </h3>
         {spendingContent}
         {costSupplement}

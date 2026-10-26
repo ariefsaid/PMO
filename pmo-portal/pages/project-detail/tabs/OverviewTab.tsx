@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, TaxBasisLabel } from '@/src/components/ui';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { ProjectFinancesSection } from '../ProjectFinancesSection';
@@ -17,6 +17,7 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectSectionHeading, projectSubsectionHeading } from '../typography';
 import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -77,6 +78,26 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   }) ? budgetUtilPctValue : null;
   const exactMoney = (value: number) => formatProjectDetailAmount(value, project.currency, i18n.language)
     ?? t('projectFinances.unavailable', 'Unavailable');
+  const contractContext = project.contract_value == null ? null : (
+    <section className="min-w-0 space-y-2" aria-label={t('projectDetail.overview.finance.contract', 'Contract')}>
+      <h3 className={projectSubsectionHeading}>
+        {t('projectDetail.overview.finance.contract', 'Contract')} · {project.currency} ·{' '}
+        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
+          taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
+          showDetails={false} testId="overview-contract-tax-basis" />
+      </h3>
+      <dl className="grid min-w-0 grid-cols-2 gap-4">
+        <div className="min-w-0">
+          <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.overview.finance.contractValue', 'Contract value')}</dt>
+          <dd data-testid="overview-contract-value" className="break-words text-sm font-normal tabular-nums">{exactMoney(project.contract_value)}</dd>
+          <dd className="text-xs text-muted-foreground">
+            <span>{t('fx.equivalent', 'IDR equivalent')}: </span>
+            <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
+          </dd>
+        </div>
+      </dl>
+    </section>
+  );
 
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
@@ -84,7 +105,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const procSummary = useMemo(() => summarizeProcurement(projectProc, project.currency), [projectProc, project.currency]);
   const top3Proc = useMemo(() => recentRequests(projectProc, 3), [projectProc]);
   const requestValueSummary = procSummary.requestValueByCurrency
-    .map(({ currency, amount }) => formatCurrency(amount, currency))
+    .map(({ currency, amount }) => formatCurrencyAuto(amount, currency))
     .join(' · ');
 
   // T16/T17 — Budget snapshot
@@ -108,7 +129,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
               <dd className="break-words font-semibold tabular-nums">{exactMoney(snapshot.activeTotal)}</dd>
             </div>
             <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('projectDetail.overview.budgetUtil.variance', 'Variance')}</dt>
+              <dt className="text-xs text-muted-foreground">{t('project:projectDetail.overview.budgetUtil.variance', 'Variance')}</dt>
               <dd data-testid="budget-variance" className="break-words font-semibold tabular-nums">
                 {snapshot.variance > 0
                   ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: exactMoney(snapshot.variance) })
@@ -151,7 +172,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   return (
     <div className="flex min-w-0 flex-col gap-8">
       {isDelivery && (may('view', 'salesInvoice')
-        ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} />
+        ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} contractContext={contractContext} />
         : <section role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
           <h2 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')} · {project.currency}</h2>
           {budgetPositionSupplement}
@@ -241,7 +262,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                           </div>
                         </div>
                         <span className="shrink-0 text-sm font-semibold tabular text-foreground">
-                          {formatCurrency(Number(pr.total_value), pr.currency || project.currency)}
+                          {formatCurrencyAuto(Number(pr.total_value), pr.currency || project.currency)}
                         </span>
                       </button>
                     </li>

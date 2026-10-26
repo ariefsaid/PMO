@@ -2,12 +2,12 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, TaxBasisLabel, useToast, type Column,
 } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatInstantDate, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatInstantDate, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -24,6 +24,8 @@ import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import ProjectBillingStart from '../ProjectBillingStart';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
+import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
+import { projectSectionHeading } from '../typography';
 
 /**
  * The project's Billing tab (#766). Three things on one page, kept visibly apart (DD-PBL-2):
@@ -36,6 +38,8 @@ import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
 export interface BillingTabProps {
   projectId: string;
   currency: string;
+  /** Saved treatment on this project; financial groups never infer it from organization defaults. */
+  taxTreatment?: string | null;
   /** The project's client — the invoice customer. No client, no billing buttons. */
   clientId: string | null;
   /** Decides who may record progress (#765's rule). */
@@ -59,8 +63,8 @@ const Figure: React.FC<{ testId: string; label: string; value: string; note?: st
   </div>
 );
 
-const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId }) => {
-  const { t } = useTranslation();
+const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, taxTreatment, clientId, projectManagerId }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -92,10 +96,13 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)), [claimRows]);
   const workOrderById = useMemo(() => new Map((workOrders.data ?? []).map((row) => [row.id, row] as const)), [workOrders.data]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
-  const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
-  const money = (value: number) => formatCurrencyCents(value, currency);
-  const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
+  const money = (value: number) => formatProjectDetailAmount(value, currency, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
+  const cents = (value: number | string) => formatProjectDetailAmount(value, currency, i18n.language) ?? t('projectFinances.unavailable', 'Unavailable');
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
+  const taxBasisText = taxTreatment === 'exclusive'
+    ? t('tax.basis.exclusive', 'excl. PPN')
+    : taxTreatment === 'inclusive' ? t('tax.basis.inclusive', 'incl. PPN') : null;
+  const figureScope = [currency, taxBasisText].filter(Boolean).join(' · ');
 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
@@ -183,7 +190,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const lineProject = Boolean(summary && summary.contractLines.length > 0);
 
   const boqColumns: Column<BoqItemRow>[] = [
-    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), cell: (row) => (
+    { key: 'item', header: t('projectDetail.billing.boq.column.item', 'Item'), stickyLeft: true, cell: (row) => (
       <div className="flex flex-col">
         <span className="font-semibold">{row.item_code}</span>
         <span className="text-[11px] text-muted-foreground">{row.description}</span>
@@ -272,7 +279,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   ];
 
   const claimColumns: Column<ProgressClaimWithInvoice>[] = [
-    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim / scope'), cell: (c) => {
+    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim / scope'), stickyLeft: true, cell: (c) => {
       const workOrder = c.work_order_id ? workOrderById.get(c.work_order_id) : undefined;
       const scope = workOrder
         ? workOrder.wo_number ?? workOrder.title
@@ -350,7 +357,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-sm"
+        className={projectSectionHeading}
         actions={
           <>
             {may('create', 'boqItem') && (
@@ -359,7 +366,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           </>
         }
       >
-        {t('projectDetail.billing.boq.title', 'Bill of quantities')}
+        {t('projectDetail.billing.boq.title', 'Bill of quantities')} · {currency}
+        {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
       </CardHead>
       <CardPad>
         <DataTable<BoqItemRow>
@@ -372,6 +380,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.boq.error', 'Couldn’t load the bill of quantities')}
           errorSub={t('projectDetail.billing.boq.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => boq.refetch()}
+          accessibleName={`${t('projectDetail.billing.boq.title', 'Bill of quantities')} · ${currency}`}
+          mobileTable
           cardBelow={700}
         tableId="project-detail-tabs-billingtab-1-table" />
       </CardPad>
@@ -382,14 +392,15 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-sm"
+        className={projectSectionHeading}
         actions={
           canBill && !canStartInvoice && (
             <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
           )
         }
       >
-        {t('projectDetail.billing.claims.title', 'Billing claims')}
+        {t('projectDetail.billing.claims.title', 'Billing claims')} · {currency}
+        {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
@@ -402,6 +413,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
+          accessibleName={`${t('projectDetail.billing.claims.title', 'Billing claims')} · ${currency}`}
+          mobileTable
           cardBelow={700}
         tableId="project-detail-tabs-billingtab-2-table" />
       </CardPad>
@@ -413,7 +426,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <Card variant="bare">
         <CardHead
           level={2}
-          className="text-sm"
+          className={projectSectionHeading}
           actions={
             canStartInvoice ? (
               <ProjectBillingStart
@@ -433,8 +446,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             ) : undefined
           }
         >
-          {t('projectDetail.billing.summary.title', 'Billing summary')}
-          <span className="ml-2 text-xs font-normal text-muted-foreground">{excl}</span>
+          {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {currency}
+          {taxTreatment && <> · <TaxBasisLabel treatment={taxTreatment} showDetails={false} /></>}
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -522,7 +535,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             <div className="flex flex-col gap-2">
               <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
               <p data-testid="raise-figures">
-                {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
+                {t('projectDetail.billing.claims.confirmRaise.figures', '{{scope}} · Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}}', {
+                  scope: figureScope,
                   gross: cents(raiseFor.claim.gross_amount),
                   recovery: cents(raiseFor.claim.dp_recovery_amount),
                   net: cents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount))),

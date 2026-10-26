@@ -158,6 +158,7 @@ export interface DataTableProps<Row> {
   cardBelow?: number;
   /** Keep a labelled, keyboard-focusable semantic table on phones for dense financial matrices. */
   mobileTable?: boolean;
+
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -335,6 +336,7 @@ export function DataTable<Row>({
   className,
   cardBelow,
   mobileTable = false,
+
   accessibleName,
   tableId,
   groupBy,
@@ -368,7 +370,9 @@ export function DataTable<Row>({
   };
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
-  const isDesktop = (wideViewport || mobileTable) && !narrowTable;
+  const isDesktop = wideViewport && !narrowTable;
+  const renderTable = isDesktop || mobileTable;
+
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,
@@ -460,8 +464,8 @@ export function DataTable<Row>({
           {loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}
         </span>
       )}
-      {isDesktop ? (
-      /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
+      {renderTable ? (
+      /* ── Table branch (desktop by default; dense data may opt into it at phone width) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
       // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
       // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
@@ -469,13 +473,11 @@ export function DataTable<Row>({
         ref={tableBranchRef}
         data-testid="dt-table-branch"
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
-        role={mobileTable ? 'region' : undefined}
-        aria-label={mobileTable ? accessibleName : undefined}
-        tabIndex={mobileTable && !wideViewport ? 0 : undefined}
-        className={cn(
-          'relative overflow-x-auto',
-          mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
-        )}
+        role={!isDesktop && mobileTable ? 'region' : undefined}
+        aria-label={!isDesktop && mobileTable ? accessibleName : undefined}
+        tabIndex={!isDesktop && mobileTable ? 0 : undefined}
+        className={cn('relative overflow-x-auto', mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring')}
+
       >
         <table
           ref={tableRef}

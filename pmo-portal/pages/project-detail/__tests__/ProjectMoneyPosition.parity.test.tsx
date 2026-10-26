@@ -282,12 +282,12 @@ describe('project money position consumer parity', () => {
     const cashField = screen.getByText(t('uxs01.cashReceived', 'Cash received'), { exact: true }).parentElement!;
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(`USD ${formatProjectDetailAmount('0.00', 'USD', language)}`);
     expect(normalizeSpacing(cashField.textContent ?? '')).toContain(`IDR ${formatProjectDetailAmount('7.50', 'IDR', language)}`);
-    expect(screen.getByText(t('projectFinances.settlementNote', 'Settled includes cash, withholding and credits; cash received is shown above.'))).toBeInTheDocument();
-    expect(screen.getByText(t('projectFinances.settledAgainstInvoices', 'Settled against invoices'))).toBeInTheDocument();
+    expect(screen.getByText(t('project:projectDetail.moneyPosition.invoiceBalanceClearedNote', 'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.'))).toBeInTheDocument();
+    expect(screen.getByText(t('project:projectDetail.moneyPosition.clearedAgainstInvoices', 'Cleared against invoices'))).toBeInTheDocument();
     /* The semantic distinction is visible beside the ERP settlement balance. */
     expect(screen.getByText(t(
-      'projectFinances.settlementNote',
-      'Settled includes cash, withholding and credits; cash received is shown above.',
+      'project:projectDetail.moneyPosition.invoiceBalanceClearedNote',
+      'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.',
     ))).toBeInTheDocument();
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
       actuals: financeReading(project.id, {

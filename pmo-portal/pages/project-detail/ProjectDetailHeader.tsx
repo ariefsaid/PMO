@@ -24,7 +24,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { projectVatRefusal } from '@/src/lib/projectVatRefusal';
 import {
   currencySymbol,
-  formatCurrency,
+  formatCurrencyAuto,
   formatDateOnly,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
@@ -100,6 +100,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [archiveMenuOpen, setArchiveMenuOpen] = useState(false);
   const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
@@ -210,7 +211,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       await setContractValue.mutateAsync({ id: project.id, ...next });
       toast(
         t('projectDetail.header.toast.contractValueUpdated', 'Contract value updated'),
-        formatCurrency(next.value, project.currency),
+        formatCurrencyAuto(next.value, project.currency),
         'success',
       );
       setValueEditing(false);
@@ -262,7 +263,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     }
   };
 
-  const hasMoreActions = (canShowHeaderTransition && !statusIsPrimary) || canEdit || canArchive || canDelete || (isDelivery && canEditValue && isFinanceForward);
+  const hasMoreActions = (canShowHeaderTransition && !statusIsPrimary) || (isDelivery && canEditValue && isFinanceForward);
   const moreActions = hasMoreActions ? (
     <details className="relative" onToggle={(event) => setMoreActionsOpen(event.currentTarget.open)}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
@@ -271,42 +272,44 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       <div hidden={!moreActionsOpen} className={`absolute right-0 z-30 mt-1 min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 shadow-md ${moreActionsOpen ? 'flex' : 'hidden'}`}>
         {canShowHeaderTransition && !statusIsPrimary && moreActionsOpen && <ProjectStatusControl project={project} />}
         {isDelivery && canEditValue && isFinanceForward && !valueEditing && (
-          <Button variant="outline" size="sm" className="justify-start" onClick={beginValueEdit}>
+          <Button variant="outline" size="sm" className="min-h-11 justify-start" onClick={beginValueEdit}>
             {t('projectDetail.header.editContractValue', 'Edit contract value')}
           </Button>
-        )}
-        {canEdit && (
-          <Button variant="outline" size="sm" className="justify-start" onClick={onEditProject}>
-            {t('projectDetail.header.action.edit', 'Edit')}
-          </Button>
-        )}
-        {(canArchive || canDelete) && (
-          <details className="min-w-0">
-            <summary className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm font-medium hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              {t('projectDetail.header.action.archive', 'Archive')}
-            </summary>
-            <div className="flex flex-col gap-1 pl-3">
-              {canArchive && <Button variant="ghost" size="sm" className="min-h-11 justify-start" onClick={() => setArchiveOpen(true)}>
-                {t('projectDetail.header.archiveConfirm.confirm', 'Archive project')}
-              </Button>}
-              {canDelete && <Button
-                variant="ghost"
-                size="sm"
-                className="min-h-11 justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-                onClick={() => setDeleteOpen(true)}
-              >
-                {t('projectDetail.header.action.delete', 'Delete')}
-              </Button>}
-            </div>
-          </details>
         )}
       </div>
     </details>
   ) : null;
-  const actions = primaryAction || statusIsPrimary || moreActions ? (
+  const editAction = canEdit ? (
+    <Button variant="outline" size="sm" className="min-h-11" onClick={onEditProject}>
+      {t('projectDetail.header.action.edit', 'Edit')}
+    </Button>
+  ) : null;
+  const archiveMenu = canArchive || canDelete ? (
+    <details className="relative" onToggle={(event) => setArchiveMenuOpen(event.currentTarget.open)}>
+      <summary className="flex min-h-11 cursor-pointer list-none items-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+        {t('projectDetail.header.action.archive', 'Archive')}
+      </summary>
+      <div hidden={!archiveMenuOpen} className={`absolute right-0 z-30 mt-1 min-w-48 flex-col gap-1 rounded-md border border-border bg-popover p-2 shadow-md ${archiveMenuOpen ? 'flex' : 'hidden'}`}>
+        {canArchive && <Button variant="ghost" size="sm" className="min-h-11 justify-start" onClick={() => setArchiveOpen(true)}>
+          {t('projectDetail.header.archiveConfirm.confirm', 'Archive project')}
+        </Button>}
+        {canDelete && <Button
+          variant="ghost"
+          size="sm"
+          className="min-h-11 justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+          onClick={() => setDeleteOpen(true)}
+        >
+          {t('projectDetail.header.action.delete', 'Delete')}
+        </Button>}
+      </div>
+    </details>
+  ) : null;
+  const actions = primaryAction || statusIsPrimary || editAction || archiveMenu || moreActions ? (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
       {primaryAction}
       {statusIsPrimary && <ProjectStatusControl project={project} triggerVariant="primary" />}
+      {editAction}
+      {archiveMenu}
       {moreActions}
     </div>
   ) : undefined;
@@ -505,9 +508,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 i18nKey="projectDetail.header.contractValueConfirm.body"
                 defaults="You are changing the contract value of a won project from <1>{{from}}</1> to <3>{{to}}</3>, stated as <5></5> of <7>{{tax}}</7> tax."
                 values={{
-                  from: formatCurrency(contract, project.currency),
-                  to: formatCurrency(pendingValue.value, project.currency),
-                  tax: formatCurrency(pendingValue.taxAmount, project.currency),
+                  from: formatCurrencyAuto(contract, project.currency),
+                  to: formatCurrencyAuto(pendingValue.value, project.currency),
+                  tax: formatCurrencyAuto(pendingValue.taxAmount, project.currency),
                 }}
                 components={{
                   1: <b className="tabular text-foreground" />,

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { AGING_BUCKETS, projectAging, type AgingBucket } from '@/src/lib/erpPurchaseAging';
 import { ErpOrphansSection } from '../procurement/ErpOrphansSection';
@@ -76,12 +76,12 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
               {AGING_BUCKETS.map((b) => (
                 <div key={b}>
                   <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
-                  <dd className="tabular-nums">{formatCurrency(a.buckets[b], a.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrencyAuto(a.buckets[b], a.currency)}</dd>
                 </div>
               ))}
               <div>
                 <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
-                <dd className="font-semibold tabular-nums">{formatCurrency(a.total, a.currency)}</dd>
+                <dd className="font-semibold tabular-nums">{formatCurrencyAuto(a.total, a.currency)}</dd>
               </div>
             </dl>
           ))}

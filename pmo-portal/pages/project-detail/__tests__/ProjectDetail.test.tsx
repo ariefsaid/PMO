@@ -281,7 +281,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     const rail = screen.getByTestId('project-detail-rail');
     await userEvent.click(within(rail).getByText('Project details'));
     expect(within(rail).queryByRole('button', { name: /edit project/i })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText('More actions'));
+    expect(screen.getByTestId('record-header-actions')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
 
     await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
@@ -321,7 +321,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     await renderAt('/projects/p1');
 
     const cost = screen.getByRole('group', { name: 'Cost' });
-    expect(within(cost).getAllByText('$2,350,000.00').length).toBeGreaterThan(0);
+    expect(within(cost).getAllByText('$2,350,000').length).toBeGreaterThan(0);
     expect(screen.getByTestId('budget-used')).toHaveTextContent('50% of budget');
   });
 
@@ -335,7 +335,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     // project's requests: the project-wide read is not issued and nothing derived from it shows.
     expect(screen.getByTestId('overview-contract-value')).toBeInTheDocument();
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
-    expect(screen.queryByText('$2,350,000.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('$2,350,000')).not.toBeInTheDocument();
     expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
     expect(committedSpendHook).toHaveBeenCalled();
     for (const [projectId] of committedSpendHook.mock.calls) expect(projectId).toBeNull();

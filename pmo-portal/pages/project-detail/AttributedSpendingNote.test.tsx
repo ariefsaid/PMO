@@ -17,7 +17,7 @@ describe('AttributedSpendingNote (#1271 AC-3, budget vs actual)', () => {
   it('AC-CAT-016 names attributed spending apart from tagged spending when there is some', () => {
     h.data = actuals('50.00');
     render(<AttributedSpendingNote projectId="p1" />);
-    expect(screen.getByTestId('budget-attributed-note')).toHaveTextContent('$50.00 of recorded spending is attributed by cost rules');
+    expect(screen.getByTestId('budget-attributed-note')).toHaveTextContent('$50 of recorded spending is attributed by cost rules');
   });
 
   it.each([['0.00'], [null], [undefined]])('AC-CAT-016 renders nothing when attributed is %s', (attributed) => {

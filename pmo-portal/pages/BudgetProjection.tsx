@@ -10,12 +10,11 @@ import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { describePushError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import {
-  formatCurrency,
-  formatCurrencyAuto,
   formatInstantDate,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
   pct,
+  formatShortMoney,
 } from '@/src/lib/format';
 import {
   fetchBudgetProjection,
@@ -31,6 +30,8 @@ import {
   type BudgetPushStatusRow,
   type BudgetCategory,
 } from '@/src/lib/repositories/budgetProjection';
+import { formatProjectDetailAmount } from './project-detail/formatProjectDetailMoney';
+import { projectSectionHeading } from './project-detail/typography';
 
 /**
  * BudgetProjection (P3c slice 6, FR-BUD-151/152/153) — PMO's FORWARD VIEW for a project.
@@ -135,8 +136,8 @@ const BUDGET_ATTRIBUTION_STALE =
 const BUDGET_ATTRIBUTION_PARTIAL =
   'Not available: some of this category’s budget lines are not phased to a fiscal year and PMO cannot place them in this one, so the category’s total for this year cannot be stated. Phase these lines to their fiscal years to restore the figure.';
 
-const money = (v: number | null, reason: string, currency: string): React.ReactNode =>
-  v === null ? <Unavailable reason={reason} /> : formatCurrencyAuto(v, currency);
+const money = (v: number | null, reason: string, currency: string, locale: string): React.ReactNode =>
+  v === null ? <Unavailable reason={reason} /> : formatProjectDetailAmount(v, currency, locale) ?? <Unavailable reason={reason} />;
 
 // ── C-5: every push state gets its own statement. A state that renders nothing is a defect, not a
 // default — silence is indistinguishable from absence (DESIGN.md §Data & States).
@@ -549,6 +550,14 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
     summary.unknownRecorded.length ? t('uxs04.incompleteRecorded', 'Not complete: spending unavailable for {{categories}}', { categories: missingNames(summary.unknownRecorded) }) : null,
     summary.unknownBudget.length ? t('uxs04.incompleteBudget', 'Not complete: budget unknown for {{categories}}', { categories: missingNames(summary.unknownBudget) }) : null,
   ].filter((note): note is string => note !== null);
+  const compactForecast = summary.finalCost === null
+    ? t('project:projectDetail.budget.forecastAnswerUnavailable', 'Forecast answer unavailable')
+    : formatShortMoney(summary.finalCost, orgCurrency, { code: true });
+  const forecastHeading = [
+    t('uxs04.forecast', 'Forecast'),
+    fiscalYear,
+    compactForecast,
+  ].filter(Boolean).join(' · ');
 
   // ⚑ THE MONEY-HONESTY INVARIANT: a figure whose INPUTS are unknown is never rendered as a number, and
   // the cell names WHICH input is missing (three different remedies).
@@ -563,6 +572,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
       header: t('financeCopy.category', "Category"),
       kind: 'text',
       size: 200,
+      stickyLeft: true,
       cell: (row) => {
         const visibleReason = visibleReasonFor(row);
         return (
@@ -578,15 +588,18 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
       },
     },
     { key: 'budget', header: t('uxs04.budget', 'Budget'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency) },
+      cell: (row) => money(row.pmoBudgetAmount, reasonsFor(row).budgetReason, orgCurrency, i18n.language) },
     { key: 'finalCost', header: t('uxs04.forecastFinalCost', 'Forecast final cost'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency) },
+      cell: (row) => money(row.projectedFinalCost, reasonsFor(row).derivedReason, orgCurrency, i18n.language) },
     { key: 'remaining', header: t('uxs04.forecastRemainingOver', 'Forecast remaining / (overrun)'), kind: 'money', align: 'num', size: 180,
-      cell: (row) => row.projectedVariance !== null && row.projectedVariance < 0
-        ? <span className="text-destructive-text">{formatCurrencyAuto(row.projectedVariance, orgCurrency)}</span>
-        : money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency) },
+      cell: (row) => {
+        const value = money(row.projectedVariance, reasonsFor(row).derivedReason, orgCurrency, i18n.language);
+        return row.projectedVariance !== null && row.projectedVariance < 0
+          ? <span className="text-destructive-text">{value}</span>
+          : value;
+      } },
     { key: 'recorded', header: t('uxs04.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num', size: 160,
-      cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency) },
+      cell: (row) => money(row.actualsToDate, reasonsFor(row).actualsReason, orgCurrency, i18n.language) },
     {
       key: 'costToFinish',
       header: t('uxs04.costToFinish', 'Cost to finish'),
@@ -615,7 +628,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
             className="w-[110px]"
           />
         </div>
-      ) : formatCurrencyAuto(row.pmoEtc, orgCurrency),
+      ) : money(row.pmoEtc, reasonsFor(row).derivedReason, orgCurrency, i18n.language),
     },
     { key: 'used', header: t('uxs04.forecastBudgetUsed', 'Forecast budget used'), kind: 'percent', align: 'num', size: 120,
       cell: (row) => row.projectedUtilization === null
@@ -625,10 +638,10 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
 
   return (
     <>
-      <section aria-label={t('uxs04.forecast', 'Forecast')}>
+      <section aria-label={forecastHeading}>
       <div className="flex flex-col gap-3.5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('uxs04.forecast', 'Forecast')}</h2>
+        <h2 className={projectSectionHeading}>{forecastHeading}</h2>
         <div className="flex flex-wrap items-center gap-3">
           {fiscalYears.length > 0 ? (
             <label className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -742,7 +755,8 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
               columns={columns}
               rowKey={(row) => row.category}
               tableId="budget-projection"
-              accessibleName={t('uxs04.forecast', 'Forecast')}
+              accessibleName={forecastHeading}
+              mobileTable
             />
           </div>
         </>
@@ -778,21 +792,25 @@ const SummaryFigure: React.FC<{
   incomplete?: boolean;
   noteId?: string;
   note?: React.ReactNode;
-}> = ({ label, value, currency, strong, alert, incomplete, noteId, note }) => (
-  <div className="min-w-0">
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd
-      aria-describedby={[
-        value === null && incomplete ? 'forecast-incomplete' : null,
-        noteId && note ? noteId : null,
-      ].filter(Boolean).join(' ') || undefined}
-      className={`tabular ${strong ? 'text-[16px] font-semibold' : 'text-[14px] font-medium'} ${alert ? 'text-destructive-text' : ''}`}
-    >
-      <span>{value === null ? '—' : formatCurrency(value, currency)}</span>
-      {note && <div id={noteId} className="mt-1 space-y-1">{note}</div>}
-    </dd>
-  </div>
-);
+}> = ({ label, value, currency, strong, alert, incomplete, noteId, note }) => {
+  const { i18n } = useTranslation();
+  const exactValue = value === null ? null : formatProjectDetailAmount(value, currency, i18n.language);
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dd
+        aria-describedby={[
+          value === null && incomplete ? 'forecast-incomplete' : null,
+          noteId && note ? noteId : null,
+        ].filter(Boolean).join(' ') || undefined}
+        className={`tabular text-sm ${strong ? 'font-semibold' : 'font-normal'} ${alert ? 'text-destructive-text' : ''}`}
+      >
+        <span>{exactValue ?? '—'}</span>
+        {note && <div id={noteId} className="mt-1 space-y-1">{note}</div>}
+      </dd>
+    </div>
+  );
+};
 
 /**
  * ⚑ AC-BFY-026 — ONE YEAR'S quiet push statement (`pending` / `pushing` / `pushed`).

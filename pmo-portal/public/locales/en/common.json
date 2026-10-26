@@ -217,6 +217,7 @@
     "editRate": "Edit rate",
     "date": "Publication date",
     "rate": "IDR per USD",
+    "equivalent": "IDR equivalent",
     "source": "Source",
 
     "denied": "Exchange rates are available to Finance and Admin.",
@@ -2168,7 +2169,7 @@
         "confirmRaise": {
           "body": "An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.",
           "confirm": "Create ERP invoice",
-          "figures": "Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)",
+          "figures": "{{scope}} · Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}}",
           "title": "Raise this claim's invoice?"
         },
         "confirmWithdraw": {
@@ -2216,11 +2217,9 @@
         "contract": "Contract value",
         "dpHeld": "Down payment held",
         "error": "Couldn't load billing",
-        "exclTax": "excl. PPN",
         "gap": "Work done, not yet billed",
         "notSubmitted": "Claims raised, not yet submitted",
-        "remaining": "Contract not yet billed",
-        "title": "Billing summary"
+        "remaining": "Contract not yet billed"
       }
     },
     "documents": {
@@ -2413,9 +2412,7 @@
         "title": "Delete {{name}}?"
       },
       "editContractValue": "Edit contract value",
-      "readOnly": "Read-only",
       "sodEditableNote": "Changing the value on a won project is a segregation-of-duties action and is recorded.",
-      "sodLockedNote": "Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.",
       "taxAmount": "Tax amount",
       "taxTreatment": "Tax treatment",
       "toast": {
@@ -2511,11 +2508,7 @@
       },
       "budgetUtil": {
         "atRisk": "At risk",
-        "ofBudget": "of budget",
-        "variance": "Variance"
-      },
-      "finance": {
-        "contract": "Contract"
+        "ofBudget": "of budget"
       },
       "procSummary": {
         "closed": "Closed",
@@ -3919,7 +3912,6 @@
     "paymentCancelled": "Payment cancelled",
     "paymentCreated": "Payment created",
     "viewArchived": "View archived",
-    "invoiceCount": "{{count}} invoices",
     "budgetLoadFailed": "Couldn't load budget",
     "createVersion": "Create version",
     "activateVersion": "Activate version",
@@ -3942,8 +3934,6 @@
     "lineItemsSection": "Line items",
     "erpLineItemsStoredInErpNext": "Line items are kept in ERPNext for this invoice.",
     "paymentDetails": "Payment details",
-    "invoiceCount_one": "{{count}} invoice",
-    "invoiceCount_other": "{{count}} invoices",
     "erpItem": "ERP item",
     "selectOrSearchItem": "Select or search item…",
     "searchItemCodeOrName": "Search item code or name…",
@@ -4365,23 +4355,17 @@
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {
-    "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
-    "clearedAgainstInvoices":"Cleared against invoices",
-    "invoiceBalanceClearedNote":"ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.",
-    "stillToInvoice":"Still to invoice", "exactRemaining":"Exact remaining",
-    "viewInvoices":"View invoices", "invoiceRecordsInBilling":"Invoice records are in the Billing section.",
+    "invoiced":"Invoiced", "outstanding":"Outstanding",
     "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",
     "category":"Category", "unavailable":"Unavailable",
     "loading":"Loading project finances…", "error":"Couldn't load project finances.", "retry":"Retry",
-    "mixedTaxBases":"Mixed tax bases",
-    "contractInvoiced":"Invoiced against contract", "remaining":"Remaining to invoice"
+    "mixedTaxBases":"Mixed tax bases"
   },
   "uxs01": {
     "recordedSpending": "Recorded spending",
     "pmoCoverage": "Committed PMO purchase orders",
-    "actualUnavailable": "Unavailable",
     "partialCoverage": "Partial coverage · {{mapped}} of {{total}} spending categories mapped",
     "coverageUnavailable": "No ERP spending categories are mapped for this project.",
     "updated": "Updated {{date}}",
