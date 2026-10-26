@@ -1,7 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { formatCurrency } from '@/src/lib/format';
 import { PageFrame } from '@/src/components/shell';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';

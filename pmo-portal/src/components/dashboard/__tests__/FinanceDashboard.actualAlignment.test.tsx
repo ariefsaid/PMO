@@ -11,7 +11,6 @@ import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
 import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
 import { FinanceDashboard } from '../FinanceDashboard';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
-import { formatCurrency } from '@/src/lib/format';
 
 const dashboard = {
   active_projects: 0,

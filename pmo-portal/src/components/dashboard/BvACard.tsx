@@ -36,7 +36,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
       grouped.set(projectCurrency, group);
     }
     return [...grouped.entries()];
-  }, [rows]);
+  }, [rows, currency]);
   const money = (value: number | null, rowCurrency: string, groupCurrency: string) => {
     if (value === null || !Number.isFinite(value)) return null;
     const code = rowCurrency || groupCurrency || currency;
