@@ -136,7 +136,7 @@ test('AC-ADMIA-001: Credits → Exchange rates; browser Back restores Credits', 
   await navigateAndRestore(page, ORGANIZATION_SECTIONS[4], ORGANIZATION_SECTIONS[5]);
 });
 
-test('Shell frame: My integrations uses the personal shell label and breadcrumb', async ({ page }) => {
+test('Shell frame: My integrations uses the shared page frame and personal shell label', async ({ page }) => {
   await signIn(page, ADMIN);
   await page.goto('/integrations');
 
