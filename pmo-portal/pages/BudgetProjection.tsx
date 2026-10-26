@@ -637,7 +637,7 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
                 value={fiscalYear ?? ''}
                 disabled={editing || saving}
                 onChange={(e) => setPickedYear(e.target.value)}
-                className="h-8 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="h-8 max-sm:min-h-11 rounded-md border border-input bg-background px-2 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {fiscalYears.map((y) => (
                   <option key={y.fiscalYear} value={y.fiscalYear}>
@@ -651,15 +651,15 @@ const BudgetProjection: React.FC<BudgetProjectionProps> = ({ projectId, attribut
           )}
           {/* UX-039: ONE entry to edit every category's cost to finish, one Save. */}
           {rows.length > 0 && canEditEtc && fiscalYear !== null && !editing && (
-            <Button ref={triggerRef} variant="outline" size="sm" onClick={() => openEdit(rows)}>
+            <Button ref={triggerRef} variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => openEdit(rows)}>
               {t('uxs04.editCostToFinish', 'Edit cost to finish')}
             </Button>
           )}
           {editing && (
             <div className="flex gap-1.5">
-              <Button variant="primary" size="sm" loading={saving} onClick={() => void saveAll(rows)}>
+              <Button variant="primary" size="sm" className="max-sm:min-h-11" loading={saving} onClick={() => void saveAll(rows)}>
                 {t('financeCopy.save', "Save")}</Button>
-              <Button variant="ghost" size="sm" disabled={saving} onClick={closeEdit}>
+              <Button variant="ghost" size="sm" className="max-sm:min-h-11" disabled={saving} onClick={closeEdit}>
                 {t('financeCopy.cancel', "Cancel")}</Button>
             </div>
           )}

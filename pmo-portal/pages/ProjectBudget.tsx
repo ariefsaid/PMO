@@ -401,9 +401,10 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 variant="ghost"
                 size="sm"
                 onClick={() => void handleAdd()}
-                className="text-primary-text"
+                className="text-primary-text max-sm:min-h-11"
                 loading={createIsPending}
                 disabled={createIsPending}
+                className="max-sm:min-h-11"
               >
                 {t('financeCopy.save', "Save")}</Button>
               <Button
@@ -428,10 +429,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => void handleSaveEdit(li)}
-              className="text-primary-text"
+              className="text-primary-text max-sm:min-h-11"
               aria-label={t('financeCopy.save', "Save")}
               loading={updateIsPending}
               disabled={updateIsPending}
+              className="max-sm:min-h-11"
             >
               {t('financeCopy.save', "Save")}</Button>
             <Button
@@ -446,7 +448,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
+              className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               aria-label={deleteLabel}
               disabled={updateIsPending}
             >
@@ -458,7 +460,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => openEdit(li)}
-              className="text-primary-text hover:bg-primary/10"
+              className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
               aria-label={t('financeCopy.editBudgetLineItemNamed', 'Edit line item {{category}}', { category: budgetCategoryLabel(li.category, t) })}
             >
               {t('financeCopy.edit', "Edit")}</Button>
@@ -466,7 +468,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onDeleteLineItem(li.id)}
-              className="text-destructive-text hover:bg-destructive/10"
+              className="text-destructive-text hover:bg-destructive/10 max-sm:min-h-11"
               aria-label={deleteLabel}
             >
               {t('financeCopy.delete', "Delete")}</Button>
@@ -654,7 +656,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
               variant="ghost"
               size="sm"
               onClick={() => onClone(version.id)}
-              className="text-primary-text hover:bg-primary/10"
+              className="text-primary-text hover:bg-primary/10 max-sm:min-h-11"
             >
               {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
           )}
@@ -976,7 +978,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
         ) : null}
       </div>
       {canWrite && (
-        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
+        <Button variant="outline" className="max-sm:min-h-11" onClick={() => setShowNewVersionForm(true)}>
           {t('financeCopy.newVersion', "+ New version")}</Button>
       )}
     </div>
@@ -1010,7 +1012,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
 
   // Normal state: version selector + single card (AC-BD-01/04/05)
   const selectFieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+    'h-8 max-sm:min-h-11 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
   return (
     <div className="flex flex-col gap-4">

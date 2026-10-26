@@ -318,7 +318,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           disabled={updateStatus.isPending}
           onChange={(v) => onStatusChange(task, v as TaskStatus)}
           options={STATUS_OPTIONS}
-          className="w-auto min-w-[120px]"
+          className="w-auto min-w-[120px] max-sm:min-h-11"
         />
       ) : (
         <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
@@ -1230,7 +1230,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="ml-auto"
+              className="ml-auto max-sm:min-h-11"
               onClick={() => onAddTask(ms?.id ?? null)}
             >
               <Icon name="plus" />

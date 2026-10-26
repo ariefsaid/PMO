@@ -708,7 +708,7 @@ export function DataTable<Row>({
                                 e.stopPropagation();
                                 onActivate(row);
                               }}
-                              className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                              className="block min-h-11 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
                               {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
@@ -810,6 +810,7 @@ export function DataTable<Row>({
                         aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
                         className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+
                       >
                         {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
@@ -1049,8 +1050,8 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
         // default so every row's actions are reachable without a hover event. Touch targets ≥44px
         // come from the `.touch-target` utility (coarse-pointer min hit area).
         className={label
-          ? buttonClasses('outline', 'sm', 'touch-target gap-1')
-          : 'touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
+          ? buttonClasses('outline', 'sm', 'touch-target gap-1 max-sm:min-h-11')
+          : 'touch-target grid size-7 max-sm:min-h-11 max-sm:min-w-11 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
       >
         {label ? (
           <>
@@ -1198,7 +1199,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'flex h-8 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'flex h-8 max-sm:min-h-11 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
     >
@@ -1208,7 +1209,8 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          '[@media(pointer:coarse)]:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+          '[@media(pointer:coarse)]:min-h-11 max-sm:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+
           className
         )}
         {...rest}
