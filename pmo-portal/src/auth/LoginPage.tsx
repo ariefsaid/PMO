@@ -182,18 +182,18 @@ const LoginPage: React.FC = () => {
           <div className="mb-4 inline-flex items-center gap-2">
             <span
               aria-hidden="true"
-              className="flex size-8 items-center justify-center rounded-md bg-primary text-[15px] font-bold text-primary-foreground"
+              className="flex size-8 items-center justify-center rounded-md bg-primary text-sm font-bold text-primary-foreground"
             >
               P
             </span>
-            <span className="text-[15px] font-semibold tracking-[-0.01em] text-foreground">
+            <span className="text-sm font-semibold tracking-[-0.01em] text-foreground">
               PMO Portal
             </span>
           </div>
-          <h1 className="text-[24px] font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
+          <h1 className="text-2xl font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
             Sign in to your account
           </h1>
-          <p className="mt-1.5 text-[13px] text-muted-foreground">
+          <p className="mt-1.5 text-sm text-muted-foreground">
             Welcome back. Use your work account or email to continue.
           </p>
         </div>
@@ -211,11 +211,11 @@ const LoginPage: React.FC = () => {
                 sign-in with "email not confirmed" (prod only — unreachable in dev by construction). */}
             {confirmRequired ? (
               <div className="space-y-4">
-                <p className="text-[13.5px] text-foreground">
+                <p className="text-sm text-foreground">
                   Confirm your email to finish signing in. We can resend the confirmation link.
                 </p>
                 {rateLimited && (
-                  <p className="text-[12.5px] text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Too many requests — please try again in a minute.
                   </p>
                 )}
@@ -250,7 +250,7 @@ const LoginPage: React.FC = () => {
             {/* Divider — names the alternative rather than a bare "or" */}
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+              <span className="text-[11px] font-semibold text-muted-foreground">
                 or continue with email
               </span>
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
@@ -281,7 +281,7 @@ const LoginPage: React.FC = () => {
                 <div className="flex justify-end">
                   <Link
                     to="/reset-password"
-                    className="inline-flex min-h-11 items-center text-[12px] font-semibold text-primary-text hover:underline"
+                    className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -302,7 +302,7 @@ const LoginPage: React.FC = () => {
 
             {/* TERTIARY — passwordless magic link. A quiet text button under the form, not a
                 third full-width bar competing with the two real actions above. */}
-            <p className="text-center text-[12.5px] text-muted-foreground">
+            <p className="text-center text-sm text-muted-foreground">
               No password?{' '}
               <button
                 type="button"
@@ -318,10 +318,10 @@ const LoginPage: React.FC = () => {
                 Lists all 5 role personas; click any to one-click fill credentials. */}
             {showDemoLogin && (
               <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
-                <p className="text-center text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                <p className="text-center text-xs font-semibold text-muted-foreground">
                   Demo login
                 </p>
-                <p className="text-center font-mono text-[11px] text-muted-foreground">
+                <p className="text-center font-mono text-[11px] font-semibold text-muted-foreground">
                   password: {DEMO_PASSWORD}
                 </p>
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
@@ -337,7 +337,7 @@ const LoginPage: React.FC = () => {
                         setError(null);
                       }}
                       disabled={busy}
-                      className="min-h-11 px-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="min-h-11 px-2 text-xs font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {label}
                     </button>
@@ -353,7 +353,7 @@ const LoginPage: React.FC = () => {
         {/* Footer — Terms · Privacy · Help (FR-LEG-023, AC-LEG-021).
             Help opens the wa.me URL in a new tab; omitted entirely when HELP_WHATSAPP
             is unset so no broken link renders (FR-LEG-010). */}
-        <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[12px] text-muted-foreground">
+        <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs font-semibold text-muted-foreground">
           <Link to="/terms" className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
             Terms
           </Link>

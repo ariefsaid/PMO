@@ -200,15 +200,17 @@ describe('AC-IFW-PROC-01: selected preview — budget impact + line items + acti
   it('R-018: selected request facts appear once and decision actions follow the evidence', () => {
     renderPreview();
 
-    expect(screen.getByRole('heading', { name: 'Decision total' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Decision total · USD' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Line items · USD per unit' })).toBeInTheDocument();
     expect(screen.queryByText('Request details')).not.toBeInTheDocument();
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('Solar Alpha');
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('This request');
     expect(screen.getAllByText(/50,000/)).toHaveLength(1);
+    expect(screen.getByText('10 × 5,000 per unit')).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /Open Solar Alpha/i })).toHaveLength(1);
     expect(screen.getAllByText('Diego Ramirez')).toHaveLength(1);
 
-    const evidence = screen.getByRole('heading', { name: 'Decision total' });
+    const evidence = screen.getByRole('heading', { name: 'Decision total · USD' });
     const approve = screen.getByRole('button', { name: /^Approve request/i });
     expect(Boolean(evidence.compareDocumentPosition(approve) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });

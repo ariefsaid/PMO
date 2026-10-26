@@ -29,7 +29,7 @@ import {
   useProcurementMutations,
 } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberWhole } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
@@ -250,7 +250,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
       ].join(' ')}
     >
-      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+      <div className="mb-1 text-xs font-semibold text-muted-foreground">
         {t('approvals.group.procurement.title', 'Purchase requests')}
       </div>
       <div className="break-words text-sm font-medium">{row.title}</div>

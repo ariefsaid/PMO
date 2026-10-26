@@ -15,7 +15,7 @@ export const SuccessNotice: React.FC<{ children: React.ReactNode }> = ({ childre
   <div
     role="status"
     aria-live="polite"
-    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-[13px]"
+    className="flex items-start gap-2 rounded-md border border-success/30 bg-success/[0.07] px-3 py-2.5 text-sm"
   >
     <Icon name="check" className="mt-px size-4 shrink-0 text-success" aria-hidden="true" />
     <span className="text-success-text">{children}</span>
@@ -27,7 +27,7 @@ export const ErrorBanner: React.FC<{ message: string }> = ({ message }) => (
   <div
     role="alert"
     aria-live="assertive"
-    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-[13px]"
+    className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3 py-2.5 text-sm"
   >
     <Icon name="alert" className="mt-px size-4 shrink-0 text-destructive" aria-hidden="true" />
     <span className="text-destructive-text">{message}</span>
@@ -56,7 +56,7 @@ export const AuthInput: React.FC<{
   <div className="flex flex-col gap-1.5">
     <label
       htmlFor={id}
-      className="text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+      className="text-xs font-semibold text-muted-foreground"
     >
       {label}
     </label>
@@ -71,7 +71,7 @@ export const AuthInput: React.FC<{
       disabled={disabled}
       aria-describedby={errorId}
       className={cn(
-        'h-11 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] text-foreground',
+        'h-11 w-full rounded-md border border-input bg-background px-2.5 text-sm text-foreground',
         'placeholder:text-muted-foreground',
         'transition-[border-color,box-shadow] duration-100',
         'disabled:cursor-not-allowed disabled:opacity-45',

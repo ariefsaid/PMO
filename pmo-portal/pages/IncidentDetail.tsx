@@ -265,7 +265,7 @@ const IncidentDetail: React.FC = () => {
 /** A labelled read-only field (definition-list row) — body field primitive for the record page. */
 const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
   <div className="flex flex-col gap-0.5">
-    <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
+    <dt className="text-xs font-semibold text-muted-foreground">
       {label}
     </dt>
     <dd className="text-sm text-foreground">{value}</dd>

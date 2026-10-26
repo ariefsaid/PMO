@@ -112,7 +112,7 @@ function QueueButton({
           selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
         ].join(' ')}
       >
-        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">{label}</div>
+        <div className="mb-1 text-xs font-semibold text-muted-foreground">{label}</div>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
           <StatusPill variant={workflowVariant(status)}>{status}</StatusPill>
@@ -139,7 +139,7 @@ function QueueButton({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+          <div className="mb-1 text-xs font-semibold text-muted-foreground">
             {t('approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
           </div>
           <div className="break-words text-sm font-medium">
