@@ -1,4 +1,4 @@
-import { formatExactMoney } from '@/src/lib/format';
+import { currencyFractionDigits, formatExactMoney } from '@/src/lib/format';
 
 /** Preserve cents and use the currency's standard fraction width in project-detail figures. */
 export function formatProjectDetailMoney(
@@ -12,12 +12,8 @@ export function formatProjectDetailMoney(
     : value;
   if (amount === null) return null;
   const normalized = /^-?0(?:\.0{1,2})?$/.test(amount) ? '0' : amount;
-  let trimZeroFraction = false;
-  try {
-    trimZeroFraction = new Intl.NumberFormat(locale, { style: 'currency', currency })
-      .resolvedOptions().maximumFractionDigits === 0;
-  } catch {
-    return null;
-  }
+  const fractionDigits = currencyFractionDigits(currency, locale);
+  if (fractionDigits === null) return null;
+  const trimZeroFraction = fractionDigits === 0;
   return formatExactMoney(normalized, currency, locale, { trimZeroFraction });
 }

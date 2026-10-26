@@ -74,6 +74,18 @@ function currencyFormatterFor(shape: string, currency: string, opts: Intl.Number
   });
 }
 
+/** The currency's standard fraction width for an explicit viewer locale. */
+export function currencyFractionDigits(currency: string, locale = getNumberLocale()): number | null {
+  try {
+    return numberFormatterFor('currency-fraction-digits', locale, currency, {
+      style: 'currency',
+      currency,
+    }).resolvedOptions().maximumFractionDigits;
+  } catch {
+    return null;
+  }
+}
+
 export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
