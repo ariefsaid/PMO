@@ -648,7 +648,6 @@
     "salesInvoices": {
       "label": "Faktur pelanggan yang menunggu Anda",
       "heading": "Faktur pelanggan yang menunggu Anda ({{count}})",
-      "previewHeading": "Tinjau faktur pelanggan",
       "errorTitle": "Gagal memuat faktur yang menunggu Anda",
       "errorSub": "Item persetujuan lainnya tetap tersedia.",
       "raisedBy": "Dibuat oleh",
@@ -724,26 +723,9 @@
     },
     "entryOne": "entri",
     "entryOther": "entri",
-    "group": {
-      "expense": { "title": "Klaim biaya" },
-      "invoice": { "title": "Faktur pelanggan" },
-      "procurement": {
-        "emptySub": "Permintaan pembelian yang perlu persetujuan Anda akan muncul di sini.",
-        "emptyTitle": "Tidak ada permintaan yang menunggu keputusan Anda",
-        "title": "Permintaan pembelian"
-      },
-      "timesheets": {
-        "emptySub": "Timesheet yang diajukan oleh bawahan Anda akan muncul di sini untuk ditinjau.",
-        "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
-        "title": "Timesheet",
-        "hoursTitle": "Timesheet · jam"
-      }
-    },
+
     "noProjectLinked": "Tidak ada proyek tertaut",
-    "noInvoiceReference": "Draf faktur",
-    "unknownCustomer": "Pelanggan tidak diketahui",
-    "oldestFirst": "Paling lama dahulu",
-    "backToQueue": "Kembali ke antrean",
+
     "previewEmpty": {
       "sub": "Saat ada permintaan yang menunggu, pratinjau dan tindakannya muncul di sini.",
       "title": "Pilih item persetujuan"
@@ -763,12 +745,7 @@
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
     "queueHeading": "Antrean persetujuan",
-    "queueEmptyScopeTitle": "Tidak ada {{scope}} yang menunggu keputusan Anda",
-    "showAllPending": "Tampilkan semua yang menunggu",
-    "decisionTotal": "Total keputusan",
-    "lineItems": "Rincian item",
-    "openRequest": "Buka permintaan",
-    "unitRate": "{{quantity}} × {{rate}}",
+
     "queueHint": "Pilih item untuk melihat detail dan kontrol keputusannya.",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
@@ -800,7 +777,6 @@
       "policyHelp": "Aturan: timesheet disetujui oleh orang yang berbeda."
     },
     "scopeToggleLabel": "Cakupan persetujuan",
-    "subtitle": "Perlu persetujuan saya — semua yang menunggu keputusan Anda: permintaan pembelian, timesheet, klaim biaya, dan faktur pelanggan.",
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
@@ -832,7 +808,7 @@
       "archive": "Arsipkan",
       "delete": "Hapus",
       "edit": "Edit",
-      "more": "Lainnya",
+
       "new": "Perusahaan baru"
     },
     "columns": {
@@ -856,11 +832,7 @@
       "all": "Semua",
       "ariaLabel": "Filter berdasarkan tipe"
     },
-    "sort": {
-      "label": "Urutkan perusahaan",
-      "nameAsc": "Nama A–Z",
-      "nameDesc": "Nama Z–A"
-    },
+
     "form": {
       "editSubmit": "Simpan perusahaan",
       "editSubtitle": "Perbarui data perusahaan ini",
@@ -1005,7 +977,6 @@
       "emailPlaceholder": "name@example.com",
       "fullName": "Nama lengkap",
       "fullNamePlaceholder": "mis. Jane Doe",
-      "name": "Nama",
       "notes": "Catatan",
       "notesPlaceholder": "Hal yang perlu diingat tentang kontak ini",
       "phone": "Telepon",
@@ -1159,7 +1130,6 @@
       "title": "Kontak tidak ditemukan"
     },
     "pill": "Kontak",
-    "sectionTitle": "Detail kontak",
     "toast": {
       "activityDeleted": "Aktivitas dihapus",
       "activityLogged": "Aktivitas dicatat",
@@ -1182,8 +1152,7 @@
     "columns": {
       "company": "Perusahaan",
       "email": "Email",
-      "name": "Nama",
-      "title": "Jabatan"
+      "name": "Nama"
     },
     "confirm": {
       "archiveConfirm": "Arsipkan kontak",
@@ -1193,8 +1162,7 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-    "notRecorded": "Belum dicatat",
-    "scope": "Orang dari perusahaan yang bekerja sama dengan Anda",
+
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan",
@@ -1243,11 +1211,7 @@
       "ariaLabel": "Cari kontak",
       "placeholder": "Cari kontak…"
     },
-    "sort": {
-      "label": "Urutkan kontak",
-      "nameAz": "Nama A–Z",
-      "nameZa": "Nama Z–A"
-    },
+
     "states": {
       "emptyAction": "Tambahkan kontak pertama Anda",
       "emptySub": "Tambahkan kontak pertama Anda untuk mulai mencatat telepon dan email dengan orang yang bekerja sama dengan Anda.",
@@ -1266,7 +1230,8 @@
       "created": "Kontak dibuat",
       "deleted": "Kontak dihapus",
       "updated": "Kontak diperbarui"
-    }
+    },
+    "description": "Orang dan hubungan perusahaan mereka."
   },
   "dashboard": {
     "bva": {
@@ -1412,7 +1377,7 @@
       "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
       "heading": "Klaim biaya menunggu Anda ({{count}})",
       "label": "Klaim biaya menunggu Anda",
-      "previewHeading": "Tinjau klaim biaya",
+
       "noReceipts": "Tidak ada bukti terlampir.",
       "previewEvidence": "Pratinjau bukti klaim",
       "receiptsError": "Gagal memuat bukti.",
@@ -1664,7 +1629,7 @@
     },
     "delete": "Hapus",
     "edit": "Edit rapat",
-    "editing": "Sedang mengedit rapat",
+
     "error": {
       "sub": "Terjadi kesalahan saat mengambil rapat ini.",
       "title": "Gagal memuat rapat"
@@ -1701,7 +1666,6 @@
       "unassigned": "Belum ditugaskan — pilih penanggung jawab",
       "editorLabel": "Notulen rapat",
       "empty": "Tidak ada notulen yang tercatat untuk rapat ini.",
-      "save": "Simpan notulen",
       "slash": {
         "actionTitle": "Action item",
         "actionSubtext": "Buat tugas dari baris ini",
@@ -1733,7 +1697,6 @@
       "actionCreated": "Action item dibuat",
       "archived": "Rapat diarsipkan",
       "deleted": "Rapat dihapus",
-      "minutesSaved": "Notulen disimpan",
       "shared": "Rapat dibagikan",
       "updated": "Rapat diperbarui"
     }
@@ -1789,11 +1752,7 @@
       "ariaLabel": "Cari rapat",
       "placeholder": "Cari notulen dan judul…"
     },
-    "sort": {
-      "label": "Urutkan rapat",
-      "latest": "Tanggal rapat terbaru",
-      "oldest": "Tanggal rapat terlama"
-    },
+
     "states": {
       "emptySub": "Buat notulen rapat pertama Anda untuk mencatat catatan, peserta, dan action item di satu tempat.",
       "emptyTitle": "Belum ada rapat",
@@ -1814,8 +1773,7 @@
     }
   },
   "myTasks": {
-    "allProjects": "Semua proyek",
-    "clearFilters": "Hapus filter",
+
     "changeStatusOf": "Ubah status",
     "due": "Tenggat {{date}}",
     "empty": {
@@ -1827,15 +1785,11 @@
       "title": "Gagal memuat tugas Anda"
     },
     "logTime": "Catat jam",
-    "listLabel": "Tugas yang ditugaskan",
+
     "noProjectGroup": "Tanpa proyek",
     "overdue": "Terlambat",
     "openTasks": "Tugas aktif",
-    "projectFilter": "Filter berdasarkan proyek",
-    "projectUnknown": "Proyek",
-    "sortDue": "Tanggal tenggat",
-    "sortLabel": "Urutkan tugas",
-    "sortUrgency": "Urgensi",
+
     "completed": "Selesai",
     "queueLabel": "Status tugas",
     "searchLabel": "Cari tugas Anda",
@@ -1843,95 +1797,9 @@
     "clearSearch": "Hapus pencarian",
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
-    "start": "Mulai {{date}}",
-    "subtitle": "Tugas yang ditugaskan kepada Anda di semua proyek.",
-    "title": "Tugas Saya"
+    "start": "Mulai {{date}}"
   },
-  "incidents": {
-    "actions": { "file": "Laporkan insiden", "edit": "Ubah", "delete": "Hapus" },
-    "form": {
-      "title": { "create": "Laporkan insiden", "edit": "Ubah insiden" },
-      "subtitle": {
-        "create": "Catat kejadian yang terjadi. Nama Anda akan dicatat sebagai pelapor.",
-        "edit": "Perbarui laporan insiden ini"
-      },
-      "section": "Kejadian",
-      "dateRequired": "Tanggal insiden wajib diisi.",
-      "typeRequired": "Jenis insiden wajib diisi.",
-      "type": "Jenis",
-      "typePlaceholder": "mis. Nyaris celaka, Kerusakan peralatan, Tumpahan",
-      "locationPlaceholder": "mis. Kantor atau lokasi kerja",
-      "projectNoun": "proyek",
-      "projectPlaceholder": "Opsional — tautkan proyek…",
-      "description": "Deskripsi",
-      "descriptionPlaceholder": "Apa yang terjadi, siapa yang terlibat, dan tindakan awal yang sudah dilakukan.",
-      "save": "Simpan insiden",
-      "submit": "Laporkan insiden"
-    },
-    "detail": {
-      "title": "Insiden",
-      "scope": "Laporan insiden",
-      "loadErrorTitle": "Tidak dapat memuat insiden",
-      "loadErrorSub": "Terjadi kesalahan saat memuat laporan insiden.",
-      "notFoundTitle": "Insiden tidak ditemukan",
-      "notFoundSub": "Insiden ini tidak ada atau tidak terlihat oleh Anda. Kembali ke daftar untuk menemukannya.",
-      "reported": "Dilaporkan {{date}}",
-      "evidence": "Bukti insiden",
-      "description": "Deskripsi",
-      "noDescription": "Tidak ada deskripsi yang dicatat.",
-      "nextAction": "Tindakan berikutnya",
-      "confirmFallbackTitle": "Lanjutkan status insiden?",
-      "transition": {
-        "investigating": {
-          "menu": "Mulai penyelidikan",
-          "title": "Mulai menyelidiki {{type}}?",
-          "body": "Status insiden akan berubah menjadi Diselidiki agar tim dapat mencatat temuan. Anda dapat menutupnya setelah penyelidikan selesai.",
-          "confirm": "Mulai penyelidikan"
-        },
-        "closed": {
-          "menu": "Tutup insiden",
-          "title": "Tutup {{type}}?",
-          "body": "Insiden akan ditandai Ditutup. Status Ditutup adalah status akhir; ajukan tindak lanjut jika ada informasi baru.",
-          "confirm": "Tutup insiden"
-        }
-      },
-      "toast": {
-        "closed": "Insiden ditutup",
-        "investigating": "Penyelidikan dimulai",
-        "updated": "Insiden diperbarui",
-        "deleted": "Insiden dihapus",
-        "filed": "Insiden dilaporkan"
-      },
-      "rowOpen": "Buka {{type}}",
-      "deleteTitle": "Hapus {{type}}?",
-      "deleteFallbackTitle": "Hapus insiden?",
-      "deleteDescription": "Laporan insiden akan dihapus permanen dan tidak dapat dipulihkan. Pertimbangkan untuk menutupnya agar riwayat tetap tersimpan.",
-      "deleteConfirm": "Hapus insiden"
-    },
-    "columns": {
-      "incident": "Insiden", "project": "Proyek", "severity": "Keparahan",
-      "status": "Status", "date": "Tanggal", "location": "Lokasi"
-    },
-    "description": "Daftar organisasi untuk melaporkan, menyelidiki, dan menutup insiden.",
-    "filters": { "status": "Filter status", "severity": "Filter keparahan", "sort": "Urutkan insiden" },
-    "search": { "ariaLabel": "Cari insiden", "placeholder": "Cari insiden…" },
-    "sort": { "priority": "Keparahan dahulu", "date": "Terbaru dahulu" },
-    "status": { "all": "Semua", "open": "Terbuka", "investigating": "Diselidiki", "closed": "Ditutup" },
-    "severity": { "all": "Semua keparahan", "critical": "Kritis", "high": "Tinggi", "medium": "Sedang", "low": "Rendah" },
-    "states": {
-      "errorTitle": "Tidak dapat memuat insiden",
-      "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
-      "emptyTitle": "Belum ada insiden",
-      "emptySub": "Laporkan masalah pada proyek atau lokasi di sini agar dapat diselidiki dan diselesaikan."
-    },
-    "table": {
-      "emptyTitle": "Tidak ada insiden yang cocok",
-      "emptySub": "Coba keparahan, status, atau pencarian lain.",
-      "clearFilters": "Hapus filter"
-    },
-    "notRecorded": "Belum dicatat",
-    "title": "Insiden", "unlinked": "Belum ditautkan", "viewProject": "Lihat proyek"
-  },
+
   "procurement": {
     "columns": {
       "request": "Permintaan",
@@ -3472,22 +3340,19 @@
       "title": "Belum ada jam tercatat minggu ini"
     },
     "emptyEdit": {
-      "sub": "Pilih proyek di atas untuk mulai mencatat jam.",
-      "title": "Belum ada jam tercatat minggu ini"
+      "sub": "Pilih proyek di atas untuk mulai mencatat jam."
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil jam Anda.",
       "title": "Gagal memuat timesheet"
     },
-    "hoursThisWeek": "{{hours}} jam minggu ini",
     "saveDraft": "Simpan draf",
     "note": "Catatan",
     "addNotePlaceholder": "Tambahkan catatan",
     "submitWeek": "Ajukan minggu ini",
     "weekTotal": "Total minggu",
-    "weekTotalHours": "Total minggu · jam",
-    "hoursGroup": "Jam",
+
     "dailyTotal": "Total harian",
     "rowTotal": "Total baris",
     "projectColumn": "Proyek",
@@ -3522,7 +3387,6 @@
       "description": "Ini mengirim seluruh minggu ke atasan Anda. Anda tidak dapat mengubahnya lagi sampai dikembalikan.",
       "title": "Ajukan minggu ini untuk persetujuan?"
     },
-    "subtitle": "Minggu {{range}}. Isi jam per proyek per hari, lalu ajukan seluruh minggu untuk disetujui atasan Anda.",
     "title": "Timesheet",
     "toast": {
       "deleteFailed": "Gagal menghapus",
@@ -3715,8 +3579,6 @@
   },
   "profileSettings": {
     "loading": "Memuat profil…",
-    "title": "Profil & preferensi",
-    "description": "Pilih bahasa, format angka, dan zona waktu untuk portal ini.",
     "language": {
       "label": "Bahasa antarmuka",
       "help": "Disimpan ke profil Anda dan diterapkan di semua perangkat.",
@@ -3753,40 +3615,22 @@
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
     "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
   },
-  "workPageHeading": {
-    "approvals": "Persetujuan",
-    "approvalsScope": "Keputusan saya",
-    "company": "Perusahaan",
-    "companyScope": "Catatan akun",
-    "contact": "Kontak",
-    "contactScope": "Catatan orang",
-    "incident": "Insiden",
-    "incidentScope": "Laporan insiden",
-    "meeting": "Rapat",
-    "meetingScope": "Catatan rapat",
-    "profile": "Profil & preferensi",
-    "profileScope": "Preferensi pribadi",
-    "tasks": "Tugas saya",
-    "tasksScope": "Tugas yang diberikan kepada Anda di semua proyek",
-    "timesheets": "Waktu saya",
-    "timesheetsScope": "Jam kerja Anda · {{week}} · {{status}}",
-    "views": "Tampilan saya"
-  },
+
   "oauthConsent": {
     "allow": "Izinkan",
     "brand": "PMO Portal",
     "decideError": "Jawaban Anda tidak dapat dikirim.",
     "deny": "Tolak",
-    "errorTitle": "Permintaan masuk tidak tersedia",
+
     "explain": "{{client}} akan dapat membaca dan mengubah catatan PMO atas nama Anda, dengan izin yang sama persis dengan izin Anda. Aplikasi ini tidak dapat melakukan apa pun yang tidak dapat Anda lakukan sendiri.",
     "loadError": "Permintaan masuk ini tidak dapat dimuat.",
     "loading": "Memuat permintaan masuk…",
-    "loadingTitle": "Permintaan masuk",
+
     "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
     "missingRequest": "Permintaan masuk ini tidak lengkap.",
     "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
     "returning": "Mengembalikan Anda ke aplikasi…",
-    "returningTitle": "Kembali ke aplikasi",
+
     "signedInAs": "Masuk sebagai {{email}}",
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
@@ -4019,29 +3863,13 @@
     "invoicesWithAmountsWillAppearHere": "Faktur dengan jumlah akan muncul di sini.",
     "name": "Nama",
     "updated": "Diperbarui",
-    "myViews": "Tampilan Saya",
-    "savedViews": "Tampilan tersimpan",
-    "savedViewsScope": "Jawaban yang dapat digunakan kembali — milik saya dan yang dibagikan kepada saya",
-    "mineAndShared": "Milik saya + dibagikan",
-    "mine": "Milik saya",
-    "sharedWithMe": "Dibagikan kepada saya",
-    "viewScope": "Cakupan tampilan tersimpan",
-    "searchViews": "Cari tampilan tersimpan…",
-    "sortViews": "Urutkan tampilan tersimpan",
-    "nameAsc": "Nama A–Z",
-    "nameDesc": "Nama Z–A",
-    "scope": "Cakupan",
-    "noViewsYetSub": "Simpan tampilan jika Anda ingin menggunakan kembali jawaban dengan cakupan yang sama.",
-    "noViewsMatch": "Tidak ada tampilan tersimpan yang cocok dengan filter ini",
-    "noViewsMatchSub": "Coba pencarian atau cakupan lain, atau hapus filter.",
-    "openSavedView": "Buka {{name}}",
+
     "composeViewWithAI": "Buat tampilan dengan AI",
     "composeWithAI": "Buat dengan AI",
     "newView": "Tampilan baru",
     "couldNotLoadViews": "Tampilan tidak dapat dimuat.",
     "aNetworkOrServerErrorOccurred": "Terjadi kesalahan jaringan atau server.",
     "noViewsYet": "Belum ada tampilan.",
-    "createYourFirstView": "Buat tampilan pertama Anda",
     "archiveThisView": "Arsipkan tampilan ini?",
     "keep": "Pertahankan",
     "budgetCategoryLabor": "Tenaga kerja",
@@ -4183,17 +4011,10 @@
     "viewNotFound": "Tampilan tidak ditemukan.",
     "viewNotFoundDescription": "Tampilan ini mungkin telah diarsipkan atau Anda tidak memiliki akses.",
     "goToMyViews": "Buka Tampilan Saya",
-    "editUnavailable": "Tampilan hanya dapat dibaca",
-    "editUnavailableDescription": "Hanya pemilik atau administrator yang dapat mengedit tampilan tersimpan ini.",
+
     "newView": "Tampilan baru",
     "editView": "Edit tampilan",
-    "backToViews": "Kembali ke tampilan tersimpan",
-    "nameRequiredToSave": "Masukkan nama tampilan untuk menyimpan.",
-    "saving": "Menyimpan…",
-    "composedToast": "Tampilan disusun",
-    "composedToastDetail": "Tinjau dan simpan saat siap",
-    "createdToast": "Tampilan dibuat",
-    "updatedToast": "Tampilan diperbarui",
+
     "aiDraftReview": "Draf buatan AI — tinjau sebelum disimpan",
     "composeWithAi": "Susun tampilan dengan AI",
     "cancel": "Batal",
@@ -4266,28 +4087,7 @@
     "none": "— tidak ada —",
     "select": "— pilih —"
   },
-  "viewRenderer": {
-    "backToViews": "Kembali ke tampilan tersimpan",
-    "checkingAccessTitle": "Memeriksa akses ke tampilan tersimpan",
-    "checkingAccessDescription": "Memastikan akses Anda sebelum membuka jawaban tersimpan ini…",
-    "savedViewTitle": "Tampilan tersimpan",
-    "loadingTitle": "Membuka tampilan tersimpan",
-    "loadingDescription": "Memuat jawaban tersimpan dan panelnya…",
-    "loadErrorTitle": "Tampilan tersimpan tidak dapat dimuat",
-    "loadErrorDescription": "Jawaban tersimpan tidak dimuat. Coba lagi atau kembali ke tampilan tersimpan.",
-    "notFoundTitle": "Tampilan tidak ditemukan",
-    "notFoundDescription": "Jawaban tersimpan ini tidak tersedia. Mungkin telah diarsipkan atau Anda tidak memiliki akses.",
-    "invalidTitle": "Tampilan tersimpan ini tidak dapat ditampilkan",
-    "invalidDescription": "Definisi tersimpannya tidak dapat dibaca.",
-    "developerDetail": "Detail pengembang (tersembunyi di produksi)",
-    "maximumPanels": "Tampilan ini memiliki lebih dari {{count}} panel.",
-    "privateScope": "Pribadi",
-    "sharedScope": "Dibagikan dengan organisasi Anda",
-    "editView": "Edit tampilan",
-    "emptyTitle": "Tampilan tersimpan ini belum memiliki panel",
-    "emptyOwnerDescription": "Tambahkan panel untuk menentukan jawaban yang disimpan oleh tampilan ini.",
-    "emptyReaderDescription": "Minta pemilik untuk menambahkan panel ke jawaban tersimpan ini."
-  },
+
   "projectClassification": {
     "tooLong": "Gunakan maksimal {{max}} karakter.",
     "title": "Klasifikasi",

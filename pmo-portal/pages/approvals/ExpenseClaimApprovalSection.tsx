@@ -60,7 +60,7 @@ export const ExpenseClaimApprovalSection: React.FC<{ selectedClaimId?: string }>
     return (
       <div className="mb-4">
         <ListState variant="error" title={t('expenses.approvals.errorTitle', "Couldn't load expense claims awaiting you")}
-          sub={t('expenses.approvals.errorSub', 'Purchase requests and timesheets below are unaffected.')} onRetry={() => void refetch()} />
+          sub={t('expenses.approvals.errorSub', 'Other approval items remain available.')} onRetry={() => void refetch()} />
       </div>
     );
   }
@@ -68,7 +68,7 @@ export const ExpenseClaimApprovalSection: React.FC<{ selectedClaimId?: string }>
   return (
     <section aria-label={t('expenses.approvals.label', 'Expense claims awaiting you')} className="mb-4">
       <Card seam>
-        <CardHead className="rounded-t-lg">{selectedClaimId ? t('expenses.approvals.previewHeading', 'Review expense claim') : t('expenses.approvals.heading', 'Expense claims awaiting you ({{count}})', { count: rows.length })}</CardHead>
+        <CardHead className="rounded-t-lg">{selectedClaimId ? t('work:expenses.approvals.previewHeading', 'Review expense claim') : t('expenses.approvals.heading', 'Expense claims awaiting you ({{count}})', { count: rows.length })}</CardHead>
         <ul className="divide-y divide-border rounded-b-lg border-t border-border">
           {rows.map(({ claim }) => (
             <li key={claim.id} className="px-4 py-2.5 text-sm">

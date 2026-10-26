@@ -58,7 +58,7 @@ const SavedViewHeader: React.FC<{
     <header className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
         <Button variant="ghost" className="mb-2 min-h-11 px-2" onClick={onBack}>
-          {t('viewRenderer.backToViews', 'Back to saved views')}
+          {t('work:viewRenderer.backToViews', 'Back to saved views')}
         </Button>
         <h1 className="text-2xl font-bold leading-tight tracking-[-0.02em]">{title}</h1>
         {(scope || description) && (
@@ -101,8 +101,8 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   const { data: view, isPending, isError, refetch } = useUserView(viewId);
   const canManageView = Boolean(view && (view.user_id === currentUser?.id || realRole === 'Admin'));
   const scopeLabel = view?.scope === 'shared_org'
-    ? t('viewRenderer.sharedScope', 'Shared with your organisation')
-    : t('viewRenderer.privateScope', 'Private');
+    ? t('work:viewRenderer.sharedScope', 'Shared with your organisation')
+    : t('work:viewRenderer.privateScope', 'Private');
 
   // Per-panel query state (FR-VR-036..038, FR-VR-042)
   const [panelStates, setPanelStates] = useState<PanelState[]>([]);
@@ -198,8 +198,8 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     return (
       <div className="flex flex-col gap-6 p-6">
         <SavedViewHeader
-          title={t('viewRenderer.loadingTitle', 'Opening saved view')}
-          description={t('viewRenderer.loadingDescription', 'Loading the saved answer and its panels…')}
+          title={t('work:viewRenderer.loadingTitle', 'Opening saved view')}
+          description={t('work:viewRenderer.loadingDescription', 'Loading the saved answer and its panels…')}
           onBack={backToViews}
         />
         <div aria-hidden="true" className="flex flex-col gap-1">
@@ -220,13 +220,13 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     return (
       <div className="flex flex-col gap-4 p-6">
         <SavedViewHeader
-          title={t('viewRenderer.savedViewTitle', 'Saved view')}
+          title={t('work:viewRenderer.savedViewTitle', 'Saved view')}
           onBack={backToViews}
         />
         <ListState
           variant="error"
-          title={t('viewRenderer.loadErrorTitle', 'Could not load saved view')}
-          sub={t('viewRenderer.loadErrorDescription', 'The saved answer did not load. Retry or return to saved views.')}
+          title={t('work:viewRenderer.loadErrorTitle', 'Could not load saved view')}
+          sub={t('work:viewRenderer.loadErrorDescription', 'The saved answer did not load. Retry or return to saved views.')}
           onRetry={() => void refetch()}
         />
       </div>
@@ -240,8 +240,8 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     return (
       <div className="flex flex-col gap-6 p-6">
         <SavedViewHeader
-          title={t('viewRenderer.checkingAccessTitle', 'Checking access to saved view')}
-          description={t('viewRenderer.checkingAccessDescription', 'Confirming your access before opening this saved answer…')}
+          title={t('work:viewRenderer.checkingAccessTitle', 'Checking access to saved view')}
+          description={t('work:viewRenderer.checkingAccessDescription', 'Confirming your access before opening this saved answer…')}
           onBack={backToViews}
         />
         <DashGrid>
@@ -255,11 +255,11 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   if (view === null || view === undefined || (view && view.archived_at !== null)) {
     return (
       <div className="flex flex-col gap-4 p-6">
-        <SavedViewHeader title={t('viewRenderer.savedViewTitle', 'Saved view')} onBack={backToViews} />
+        <SavedViewHeader title={t('work:viewRenderer.savedViewTitle', 'Saved view')} onBack={backToViews} />
         <ListState
           variant="empty"
-          title={t('viewRenderer.notFoundTitle', 'View not found')}
-          sub={t('viewRenderer.notFoundDescription', 'This saved answer is unavailable. It may have been archived or you may not have access.')}
+          title={t('work:viewRenderer.notFoundTitle', 'View not found')}
+          sub={t('work:viewRenderer.notFoundDescription', 'This saved answer is unavailable. It may have been archived or you may not have access.')}
         />
       </div>
     );
@@ -273,14 +273,14 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
         <SavedViewHeader title={view.name} description={view.description} scope={scopeLabel} onBack={backToViews} />
         <ListState
           variant="error"
-          title={t('viewRenderer.invalidTitle', 'This saved view cannot be shown')}
-          sub={t('viewRenderer.invalidDescription', 'Its saved definition could not be interpreted.')}
+          title={t('work:viewRenderer.invalidTitle', 'This saved view cannot be shown')}
+          sub={t('work:viewRenderer.invalidDescription', 'Its saved definition could not be interpreted.')}
         />
         {/* OD-2: dev/non-prod disclosure — VITE_APP_ENV=prod in production (docs/environments.md §3) */}
         {import.meta.env.VITE_APP_ENV !== 'prod' && isValidationError && (
           <details className="rounded border border-border p-3 text-sm">
             <summary className="touch-target flex min-h-11 cursor-pointer items-center text-xs font-semibold text-muted-foreground">
-              {t('viewRenderer.developerDetail', 'Developer detail (hidden in production)')}
+              {t('work:viewRenderer.developerDetail', 'Developer detail (hidden in production)')}
             </summary>
             <pre className="mt-2 overflow-auto">
               {`code: ${(specError as ValidationError).code}\ndetail: ${(specError as ValidationError).detail ?? '—'}\nmessage: ${specError.message}`}
@@ -288,7 +288,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           </details>
         )}
         {specError.message.includes(`maximum of ${MAX_PANELS_PER_VIEW}`) && (
-          <p className="text-sm text-muted-foreground">{t('viewRenderer.maximumPanels', 'This view has more than {{count}} panels.', { count: MAX_PANELS_PER_VIEW })}</p>
+          <p className="text-sm text-muted-foreground">{t('work:viewRenderer.maximumPanels', 'This view has more than {{count}} panels.', { count: MAX_PANELS_PER_VIEW })}</p>
         )}
       </div>
     );
@@ -305,16 +305,16 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           onBack={backToViews}
           actions={canManageView ? (
             <Button variant="primary" className="min-h-11" onClick={() => navigate(`/views/${view.id}/edit`)}>
-              {t('viewRenderer.editView', 'Edit view')}
+              {t('work:viewRenderer.editView', 'Edit view')}
             </Button>
           ) : undefined}
         />
         <ListState
           variant="empty"
-          title={t('viewRenderer.emptyTitle', 'This saved view has no panels yet')}
+          title={t('work:viewRenderer.emptyTitle', 'This saved view has no panels yet')}
           sub={canManageView
-            ? t('viewRenderer.emptyOwnerDescription', 'Add a panel to define the answer this view should save.')
-            : t('viewRenderer.emptyReaderDescription', 'Ask the owner to add panels to this saved answer.')}
+            ? t('work:viewRenderer.emptyOwnerDescription', 'Add a panel to define the answer this view should save.')
+            : t('work:viewRenderer.emptyReaderDescription', 'Ask the owner to add panels to this saved answer.')}
         />
       </div>
     );
@@ -350,7 +350,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
         onBack={backToViews}
         actions={canManageView ? (
           <Button variant="outline" className="min-h-11" onClick={() => navigate(`/views/${view.id}/edit`)}>
-            {t('viewRenderer.editView', 'Edit view')}
+            {t('work:viewRenderer.editView', 'Edit view')}
           </Button>
         ) : undefined}
       />

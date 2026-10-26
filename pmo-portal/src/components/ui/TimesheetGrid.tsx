@@ -120,7 +120,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     return (
       <div className="min-w-0">
         <h2 data-testid="tsgrid-hours-group" className="mb-2 text-xl font-bold text-foreground">
-          {t('timesheets.hoursGroup', 'Hours')}
+          {t('work:timesheets.hoursGroup', 'Hours')}
         </h2>
         <MobileTimesheetStack
           days={days}
@@ -318,7 +318,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     // signals "more to scroll". CSS-only (mask-image, compositor); the sibling overlay carries the testid.
     <div className={cn('relative', className)} data-testid="tsgrid-table">
       <h2 data-testid="tsgrid-hours-group" className="mb-2 px-3.5 text-xl font-bold text-foreground">
-        {t('timesheets.hoursGroup', 'Hours')}
+        {t('work:timesheets.hoursGroup', 'Hours')}
       </h2>
       <div
         data-testid="tsgrid-scroll"

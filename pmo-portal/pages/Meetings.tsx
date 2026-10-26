@@ -254,7 +254,7 @@ const Meetings: React.FC = () => {
               className="min-h-11 min-w-[170px]"
             />
             <SelectField
-              label={t('meetings.sort.label', 'Sort meetings')}
+              label={t('work:meetings.sort.label', 'Sort meetings')}
               hideLabel
               value={sort}
               onChange={(value) => {
@@ -264,8 +264,8 @@ const Meetings: React.FC = () => {
                 setSearchParams(next, { replace: true });
               }}
               options={[
-                { value: 'date-desc', label: t('meetings.sort.latest', 'Latest meeting date') },
-                { value: 'date-asc', label: t('meetings.sort.oldest', 'Oldest meeting date') },
+                { value: 'date-desc', label: t('work:meetings.sort.latest', 'Latest meeting date') },
+                { value: 'date-asc', label: t('work:meetings.sort.oldest', 'Oldest meeting date') },
               ]}
               className="min-h-11 min-w-[190px]"
             />

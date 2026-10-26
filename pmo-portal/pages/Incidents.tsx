@@ -113,17 +113,17 @@ const Incidents: React.FC = () => {
   }, [all, search, filter, severity]);
 
   const statusLabels: Record<StatusFilter, string> = {
-    All: t('incidents.status.all', 'All'),
-    Open: t('incidents.status.open', 'Open'),
-    Investigating: t('incidents.status.investigating', 'Investigating'),
-    Closed: t('incidents.status.closed', 'Closed'),
+    All: t('work:incidents.status.all', 'All'),
+    Open: t('work:incidents.status.open', 'Open'),
+    Investigating: t('work:incidents.status.investigating', 'Investigating'),
+    Closed: t('work:incidents.status.closed', 'Closed'),
   };
   const severityLabels: Record<SeverityFilter, string> = {
-    All: t('incidents.severity.all', 'All severities'),
-    Critical: t('incidents.severity.critical', 'Critical'),
-    High: t('incidents.severity.high', 'High'),
-    Medium: t('incidents.severity.medium', 'Medium'),
-    Low: t('incidents.severity.low', 'Low'),
+    All: t('work:incidents.severity.all', 'All severities'),
+    Critical: t('work:incidents.severity.critical', 'Critical'),
+    High: t('work:incidents.severity.high', 'High'),
+    Medium: t('work:incidents.severity.medium', 'Medium'),
+    Low: t('work:incidents.severity.low', 'Low'),
   };
   const transitionCopyFor = (to: AdvanceStatus, type: string) => {
     const key = to === 'Closed' ? 'closed' : 'investigating';
@@ -171,7 +171,7 @@ const Incidents: React.FC = () => {
   const columns: Column<IncidentRow>[] = [
     {
       key: 'type',
-      header: t('incidents.columns.incident', 'Incident'),
+      header: t('work:incidents.columns.incident', 'Incident'),
       cell: (i) => (
         <span className="break-words font-semibold">
           {i.type}
@@ -181,36 +181,36 @@ const Incidents: React.FC = () => {
     },
     {
       key: 'project',
-      header: t('incidents.columns.project', 'Project'),
+      header: t('work:incidents.columns.project', 'Project'),
       cell: (i) => i.project_id
-        ? <ProjectNameLink projectId={i.project_id} name={t('incidents.viewProject', 'View project')} />
-        : <span className="text-muted-foreground">{t('incidents.unlinked', 'Unlinked')}</span>,
+        ? <ProjectNameLink projectId={i.project_id} name={t('work:incidents.viewProject', 'View project')} />
+        : <span className="text-muted-foreground">{t('work:incidents.unlinked', 'Unlinked')}</span>,
       exportValue: (i) => i.project_id ?? '',
     },
     {
       key: 'severity',
-      header: t('incidents.columns.severity', 'Severity'),
+      header: t('work:incidents.columns.severity', 'Severity'),
       cell: (i) => <StatusPill variant={severityVariant(i.severity)}>{severityLabels[i.severity]}</StatusPill>,
       exportValue: (i) => i.severity,
     },
     {
       key: 'status',
-      header: t('incidents.columns.status', 'Status'),
+      header: t('work:incidents.columns.status', 'Status'),
       cell: (i) => <StatusPill variant={workflowVariant(i.status)}>{statusLabels[i.status]}</StatusPill>,
       exportValue: (i) => i.status,
     },
     {
       key: 'incident_date',
-      header: t('incidents.columns.date', 'Date'),
+      header: t('work:incidents.columns.date', 'Date'),
       cell: (i) => <span className="tabular text-muted-foreground">{formatDateOnly(i.incident_date)}</span>,
       exportValue: (i) => i.incident_date,
     },
     {
       key: 'location',
-      header: t('incidents.columns.location', 'Location'),
+      header: t('work:incidents.columns.location', 'Location'),
       cell: (i) => (
         <span className="break-words text-muted-foreground">
-          {i.location || t('incidents.notRecorded', 'Not recorded')}
+          {i.location || t('work:incidents.notRecorded', 'Not recorded')}
         </span>
       ),
       exportValue: (i) => i.location ?? '',
@@ -227,8 +227,8 @@ const Incidents: React.FC = () => {
         onClick: () => setTransitionTarget({ incident: i, to: next }),
       });
     }
-    if (canEdit) items.push({ label: t('incidents.actions.edit', 'Edit'), onClick: () => setFormTarget({ incident: i }) });
-    if (canDelete) items.push({ label: t('incidents.actions.delete', 'Delete'), onClick: () => setDeleteTarget(i), danger: true });
+    if (canEdit) items.push({ label: t('work:incidents.actions.edit', 'Edit'), onClick: () => setFormTarget({ incident: i }) });
+    if (canDelete) items.push({ label: t('work:incidents.actions.delete', 'Delete'), onClick: () => setDeleteTarget(i), danger: true });
     return items;
   };
 
@@ -246,8 +246,8 @@ const Incidents: React.FC = () => {
       await transition.mutateAsync({ id: incident.id, status: to });
       toast(
         to === 'Closed'
-          ? t('incidents.detail.toast.closed', 'Incident closed')
-          : t('incidents.detail.toast.investigating', 'Investigation started'),
+          ? t('work:incidents.detail.toast.closed', 'Incident closed')
+          : t('work:incidents.detail.toast.investigating', 'Investigation started'),
         incident.type,
         'success',
       );
@@ -263,7 +263,7 @@ const Incidents: React.FC = () => {
     const target = deleteTarget;
     try {
       await remove.mutateAsync(target.id);
-      toast(t('incidents.detail.toast.deleted', 'Incident deleted'), target.type, 'success');
+      toast(t('work:incidents.detail.toast.deleted', 'Incident deleted'), target.type, 'success');
       setDeleteTarget(null);
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
@@ -276,14 +276,14 @@ const Incidents: React.FC = () => {
 
   return (
     <ListPage
-      title={t('incidents.title', 'Incidents')}
-      description={t('incidents.description', 'Organization incident register for reporting, investigation and closure.')}
+      title={t('work:incidents.title', 'Incidents')}
+      description={t('work:incidents.description', 'Organization incident register for reporting, investigation and closure.')}
       filters={
         state !== 'loading' && (
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <SearchMini
-              placeholder={t('incidents.search.placeholder', 'Search incidents…')}
-              aria-label={t('incidents.search.ariaLabel', 'Search incidents')}
+              placeholder={t('work:incidents.search.placeholder', 'Search incidents…')}
+              aria-label={t('work:incidents.search.ariaLabel', 'Search incidents')}
               value={search}
               onChange={(e) => setFilterParam('q', e.target.value, '')}
               searchSurface="incidents-list"
@@ -301,11 +301,11 @@ const Incidents: React.FC = () => {
                   setFilterParam('status', value, 'All');
                   trackFilterApplied('status', STATUS_FILTERS.length, 'incidents');
                 }}
-                ariaLabel={t('incidents.filters.status', 'Filter by status')}
+                ariaLabel={t('work:incidents.filters.status', 'Filter by status')}
               />
             </div>
             <SelectField
-              label={t('incidents.filters.severity', 'Filter by severity')}
+              label={t('work:incidents.filters.severity', 'Filter by severity')}
               hideLabel
               value={severity}
               onChange={(value) => setFilterParam('severity', value, 'All')}
@@ -313,13 +313,13 @@ const Incidents: React.FC = () => {
             className="min-h-11 min-w-[150px] sm:min-h-8"
             />
             <SelectField
-              label={t('incidents.filters.sort', 'Sort incidents')}
+              label={t('work:incidents.filters.sort', 'Sort incidents')}
               hideLabel
               value={sort}
               onChange={(value) => setFilterParam('sort', value, 'priority')}
               options={[
-                { value: 'priority', label: t('incidents.sort.priority', 'Severity first') },
-                { value: 'date', label: t('incidents.sort.date', 'Newest first') },
+                { value: 'priority', label: t('work:incidents.sort.priority', 'Severity first') },
+                { value: 'date', label: t('work:incidents.sort.date', 'Newest first') },
               ]}
               className="min-h-11 min-w-[150px] sm:min-h-8"
             />
@@ -331,7 +331,7 @@ const Incidents: React.FC = () => {
                 onClick={() => setFormTarget({ incident: null })}
               >
                 <Icon name="plus" />
-                {t('incidents.actions.file', 'File incident')}
+                {t('work:incidents.actions.file', 'File incident')}
               </Button>
             )}
           </div>
@@ -348,8 +348,8 @@ const Incidents: React.FC = () => {
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('incidents.states.errorTitle', "Couldn't load incidents")}
-          sub={t('incidents.states.errorSub', 'The request failed. Check your connection and try again.')}
+          title={t('work:incidents.states.errorTitle', "Couldn't load incidents")}
+          sub={t('work:incidents.states.errorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => refetch()}
         />
       )}
@@ -358,14 +358,14 @@ const Incidents: React.FC = () => {
         <ListState
           variant="empty"
           icon="alert"
-          title={t('incidents.states.emptyTitle', 'No incidents reported')}
-          sub={t('incidents.states.emptySub', 'When something goes wrong on a project or site, file it here so it can be investigated and closed out.')}
+          title={t('work:incidents.states.emptyTitle', 'No incidents reported')}
+          sub={t('work:incidents.states.emptySub', 'When something goes wrong on a project or site, file it here so it can be investigated and closed out.')}
           stateId="incidents-empty"
           role={realRole ?? undefined}
           module="incidents"
           action={
             canCreate
-              ? { label: t('incidents.actions.file', 'File incident'), onClick: () => setFormTarget({ incident: null }) }
+              ? { label: t('work:incidents.actions.file', 'File incident'), onClick: () => setFormTarget({ incident: null }) }
               : undefined
           }
         />
@@ -380,12 +380,12 @@ const Incidents: React.FC = () => {
           // functional dead-end). Create/edit-in-modal are unchanged; only the row-open behavior
           // is added. RLS scopes which records the detail page can read.
           onActivate={(i) => navigate(`/incidents/${i.id}`)}
-          rowLabel={(i) => t('incidents.detail.rowOpen', 'Open {{type}}', { type: i.type })}
+          rowLabel={(i) => t('work:incidents.detail.rowOpen', 'Open {{type}}', { type: i.type })}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
           state={sorted.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('incidents.table.emptyTitle', 'No incidents match')}
-          emptySub={t('incidents.table.emptySub', 'Try a different severity, status or search.')}
-          emptyAction={{ label: t('incidents.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          emptyTitle={t('work:incidents.table.emptyTitle', 'No incidents match')}
+          emptySub={t('work:incidents.table.emptySub', 'Try a different severity, status or search.')}
+          emptyAction={{ label: t('work:incidents.table.clearFilters', 'Clear filters'), onClick: clearFilters }}
         tableId="incidents-table" />
       )}
 
@@ -396,12 +396,12 @@ const Incidents: React.FC = () => {
           onClose={() => setFormTarget(null)}
           onCreate={async (input) => {
             await create.mutateAsync(input);
-            toast(t('incidents.detail.toast.filed', 'Incident filed'), input.type, 'success');
+            toast(t('work:incidents.detail.toast.filed', 'Incident filed'), input.type, 'success');
             setFormTarget(null);
           }}
           onUpdate={async (id, input) => {
             await update.mutateAsync({ id, input });
-            toast(t('incidents.detail.toast.updated', 'Incident updated'), input.type, 'success');
+            toast(t('work:incidents.detail.toast.updated', 'Incident updated'), input.type, 'success');
             setFormTarget(null);
           }}
           onError={(err) => {
@@ -418,7 +418,7 @@ const Incidents: React.FC = () => {
         title={
           transitionTarget && transitionCopy
             ? transitionCopy.title
-            : t('incidents.detail.confirmFallbackTitle', 'Advance incident?')
+            : t('work:incidents.detail.confirmFallbackTitle', 'Advance incident?')
         }
         description={transitionCopy?.body ?? ''}
         confirmLabel={transitionCopy?.confirm ?? 'Confirm'}
@@ -432,10 +432,10 @@ const Incidents: React.FC = () => {
         open={!!deleteTarget}
         tone="destructive"
         title={deleteTarget
-          ? t('incidents.detail.deleteTitle', 'Delete {{type}}?', { type: deleteTarget.type })
-          : t('incidents.detail.deleteFallbackTitle', 'Delete incident?')}
-        description={t('incidents.detail.deleteDescription', "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.")}
-        confirmLabel={t('incidents.detail.deleteConfirm', 'Delete incident')}
+          ? t('work:incidents.detail.deleteTitle', 'Delete {{type}}?', { type: deleteTarget.type })
+          : t('work:incidents.detail.deleteFallbackTitle', 'Delete incident?')}
+        description={t('work:incidents.detail.deleteDescription', "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.")}
+        confirmLabel={t('work:incidents.detail.deleteConfirm', 'Delete incident')}
         loading={remove.isPending}
         onConfirm={onDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}

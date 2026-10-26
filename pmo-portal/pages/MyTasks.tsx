@@ -107,12 +107,12 @@ const MyTasks: React.FC = () => {
       if (task.project_id && !projects.has(task.project_id)) {
         projects.set(task.project_id, {
           value: task.project_id,
-          label: String(task.project_name ?? t('myTasks.projectUnknown', 'Project')),
+          label: String(task.project_name ?? t('work:myTasks.projectUnknown', 'Project')),
         });
       }
     }
     return [
-      { value: 'all', label: t('myTasks.allProjects', 'All projects') },
+      { value: 'all', label: t('work:myTasks.allProjects', 'All projects') },
       { value: 'none', label: t('myTasks.noProjectGroup', 'No project') },
       ...[...projects.values()].sort((a, b) => a.label.localeCompare(b.label)),
     ];
@@ -139,8 +139,8 @@ const MyTasks: React.FC = () => {
   return (
     <div>
       <WorkPageHeading
-        title={t('workPageHeading.tasks', 'My tasks')}
-        scope={t('workPageHeading.tasksScope', 'Assigned to you across projects')}
+        title={t('work:workPageHeading.tasks', 'My tasks')}
+        scope={t('work:workPageHeading.tasksScope', 'Assigned to you across projects')}
       />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
@@ -180,7 +180,7 @@ const MyTasks: React.FC = () => {
             ]}
           />
           <SelectField
-            label={t('myTasks.projectFilter', 'Filter by project')}
+            label={t('work:myTasks.projectFilter', 'Filter by project')}
             hideLabel
             value={projectFilter}
             onChange={(value) => setFilterParam('project', value, 'all')}
@@ -188,13 +188,13 @@ const MyTasks: React.FC = () => {
             className="min-h-11 min-w-[150px]"
           />
           <SelectField
-            label={t('myTasks.sortLabel', 'Sort tasks')}
+            label={t('work:myTasks.sortLabel', 'Sort tasks')}
             hideLabel
             value={sort}
             onChange={(value) => setFilterParam('sort', value, 'urgency')}
             options={[
-              { value: 'urgency', label: t('myTasks.sortUrgency', 'Urgency') },
-              { value: 'due', label: t('myTasks.sortDue', 'Due date') },
+              { value: 'urgency', label: t('work:myTasks.sortUrgency', 'Urgency') },
+              { value: 'due', label: t('work:myTasks.sortDue', 'Due date') },
             ]}
             className="min-h-11 min-w-[130px]"
           />
@@ -236,13 +236,13 @@ const MyTasks: React.FC = () => {
             onClick={clearFilters}
             className="touch-target mt-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {t('myTasks.clearFilters', 'Clear filters')}
+            {t('work:myTasks.clearFilters', 'Clear filters')}
           </button>
         </div>
       )}
 
       {!isPending && !isError && orderedTasks.length > 0 && (
-        <div role="list" aria-label={t('myTasks.listLabel', 'Assigned tasks')} className="divide-y divide-border rounded-xl border border-border bg-card">
+        <div role="list" aria-label={t('work:myTasks.listLabel', 'Assigned tasks')} className="divide-y divide-border rounded-xl border border-border bg-card">
           {orderedTasks.map((task) => (
             <div
               key={task.id}
@@ -271,7 +271,7 @@ const MyTasks: React.FC = () => {
                       title={task.project_contractual_name && task.project_contractual_name !== task.project_name ? task.project_contractual_name : undefined}
                       className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      {task.project_name ?? t('myTasks.projectUnknown', 'Project')}
+                      {task.project_name ?? t('work:myTasks.projectUnknown', 'Project')}
                     </Link>
                   ) : (
                     <span>{t('myTasks.noProjectGroup', 'No project')}</span>

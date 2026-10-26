@@ -178,7 +178,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
+        <WorkPageHeading title={t('work:workPageHeading.meeting', 'Meeting')} scope={t('work:workPageHeading.meetingScope', 'Meeting record')} />
         <div data-testid="meeting-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -190,7 +190,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
+        <WorkPageHeading title={t('work:workPageHeading.meeting', 'Meeting')} scope={t('work:workPageHeading.meetingScope', 'Meeting record')} />
         <ListState
           variant="error"
           title={t('meetingDetail.error.title', "Couldn't load meeting")}
@@ -205,7 +205,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
+        <WorkPageHeading title={t('work:workPageHeading.meeting', 'Meeting')} scope={t('work:workPageHeading.meetingScope', 'Meeting record')} />
         <div data-testid="meeting-not-found">
           <ListState
             variant="empty"
@@ -434,7 +434,7 @@ const MeetingDetail: React.FC = () => {
       <Card variant="bare" className="mb-4">
         <CardHead
           actions={
-            isEditing && <span className="text-xs font-semibold text-muted-foreground">{t('meetingDetail.editing', 'Editing meeting')}</span>
+            isEditing && <span className="text-xs font-semibold text-muted-foreground">{t('work:meetingDetail.editing', 'Editing meeting')}</span>
           }
         >
           {t('meetingDetail.minutes.title', 'Minutes')}

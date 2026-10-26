@@ -167,7 +167,7 @@ const Companies: React.FC = () => {
   if (!canView) {
     return (
       <>
-        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Accounts and project partners.')} />
+        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Companies and partner accounts used across your projects.')} />
         <AccessDenied
           title={t('companies.accessDenied.title', "You don't have access to Companies")}
           sub={t(
@@ -306,14 +306,14 @@ const Companies: React.FC = () => {
           </div>
           <SelectField
             id="companies-sort"
-            label={t('companies.sort.label', 'Sort companies')}
+            label={t('work:companies.sort.label', 'Sort companies')}
             hideLabel
             value={sort}
             onChange={(value) => setSort(value as 'name-asc' | 'name-desc')}
             className="min-h-11 w-full sm:w-auto"
             options={[
-              { value: 'name-asc', label: t('companies.sort.nameAsc', 'Name A–Z') },
-              { value: 'name-desc', label: t('companies.sort.nameDesc', 'Name Z–A') },
+              { value: 'name-asc', label: t('work:companies.sort.nameAsc', 'Name A–Z') },
+              { value: 'name-desc', label: t('work:companies.sort.nameDesc', 'Name Z–A') },
             ]}
           />
           <div className="hidden items-center gap-2 sm:flex">
@@ -321,7 +321,7 @@ const Companies: React.FC = () => {
             <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
           </div>
           <details className="relative sm:hidden">
-            <summary className="touch-target flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-xs font-semibold">{t('companies.actions.more', 'More')}</summary>
+            <summary className="touch-target flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-xs font-semibold">{t('work:companies.actions.more', 'More')}</summary>
             <div className="absolute right-0 z-10 mt-1 flex min-w-40 flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-md">
               <ExportButton rows={filtered} columns={columns} entity="Companies" />
               <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />

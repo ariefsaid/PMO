@@ -43,9 +43,9 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
         ))}
       </dl>
 
-      <section aria-label={t('approvals.salesInvoices.amountsHeading', 'Invoice amounts · {{currency}}', { currency: inv.currency })}>
+      <section aria-label={t('work:approvals.salesInvoices.amountsHeading', 'Invoice amounts · {{currency}}', { currency: inv.currency })}>
         <h3 className="mb-3 text-xl font-bold tracking-[-0.01em]">
-          {t('approvals.salesInvoices.amountsHeading', 'Invoice amounts · {{currency}}', { currency: inv.currency })}
+          {t('work:approvals.salesInvoices.amountsHeading', 'Invoice amounts · {{currency}}', { currency: inv.currency })}
         </h3>
       {inv.pmo_native ? (
         <section>

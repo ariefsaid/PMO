@@ -178,7 +178,7 @@ const MeetingCreate: React.FC = () => {
   };
 
   if (!may('create', 'meeting')) return <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
-    <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
+    <WorkPageHeading title={t('work:workPageHeading.meeting', 'Meeting')} scope={t('work:workPageHeading.meetingScope', 'Meeting record')} />
     <ListState variant="empty" title={tCreate('denied', 'You do not have permission to create meetings.')} />
   </main>;
 
@@ -236,9 +236,9 @@ const MeetingCreate: React.FC = () => {
         projectName={selectedProject ? projectDisplayName(selectedProject) : null}
         onClose={() => setActionLine(null)}
         onCreate={onCreateActionItem}
-        onError={(error: unknown) => notifyError(error, t('meetingDetail.action.createFailed', 'Action item could not be created.'))}
+        onError={(error: unknown) => notifyError(error, t('work:meetingDetail.action.createFailed', 'Action item could not be created.'))}
       />}
-      <ConfirmDialog open={pendingLeave !== null} tone="default" title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved meeting changes')} description={t('meetingDetail.confirm.unsavedMinutes.description', 'Your meeting details, minutes or attendees have not been saved. Leave and discard them?')} confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')} cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
+      <ConfirmDialog open={pendingLeave !== null} tone="default" title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved meeting changes')} description={t('meetingDetail.confirm.unsavedMinutes.description', 'Your meeting changes have not been saved. Leave and discard them?')} confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')} cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')} onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }} onCancel={() => setPendingLeave(null)} />
     </form>
   </main>;
 };

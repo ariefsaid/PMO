@@ -148,7 +148,7 @@ const CompanyDetail: React.FC = () => {
   if (!canView) {
     return (
       <>
-        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Accounts and project partners.')} />
+        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Companies and partner accounts used across your projects.')} />
         <AccessDenied
           title={t('companyDetail.accessDenied.title', "You don't have access to Companies")}
           sub={t(
@@ -166,7 +166,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
+        <WorkPageHeading title={t('work:workPageHeading.company', 'Company')} scope={t('work:workPageHeading.companyScope', 'Account record')} />
         <div data-testid="company-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -179,7 +179,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
+        <WorkPageHeading title={t('work:workPageHeading.company', 'Company')} scope={t('work:workPageHeading.companyScope', 'Account record')} />
         <ListState
           variant="error"
           title={t('companyDetail.error.title', "Couldn't load company")}
@@ -196,7 +196,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
+        <WorkPageHeading title={t('work:workPageHeading.company', 'Company')} scope={t('work:workPageHeading.companyScope', 'Account record')} />
         <div data-testid="company-not-found">
           <ListState
             variant="empty"
@@ -234,17 +234,17 @@ const CompanyDetail: React.FC = () => {
   const hasActions = canEdit || canArchive;
   const sections = [
     { id: 'company-contacts', label: t('companyDetail.contacts.title', 'Contacts') },
-    { id: 'company-projects', label: t('companyDetail.relatedProjects.title', 'Projects') },
-    { id: 'company-procurement', label: t('companyDetail.relatedProcurement.title', 'Purchasing') },
+    { id: 'company-projects', label: t('work:companyDetail.relatedProjects.title', 'Projects') },
+    { id: 'company-procurement', label: t('work:companyDetail.relatedProcurement.title', 'Purchasing') },
     ...(company.type === 'Client' && canViewSalesInvoices
-      ? [{ id: 'company-collections', label: t('companyCollections.title', 'Collections') }]
+      ? [{ id: 'company-collections', label: t('work:companyCollections.title', 'Collections') }]
       : []),
     { id: 'company-activity', label: t('companyDetail.activity.title', 'Activity') },
-    { id: 'company-details', label: t('companyDetail.sectionTitle', 'Details') },
+    { id: 'company-details', label: t('companyDetail.sectionTitle', 'Company detail') },
     ...(company.type === 'Vendor'
-      ? [{ id: 'company-tax-defaults', label: t('companyDetail.taxDefaults.title', 'Tax defaults') }]
+      ? [{ id: 'company-tax-defaults', label: t('work:companyDetail.taxDefaults.title', 'Tax defaults') }]
       : []),
-    { id: 'company-history', label: t('common.history', 'History') },
+    { id: 'company-history', label: t('work:common.history', 'History') },
   ];
 
   return (
@@ -319,11 +319,11 @@ const CompanyDetail: React.FC = () => {
       {/* Account configuration is secondary to its people, projects and activity. */}
       <details id="company-details" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
         <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold text-foreground">
-          {t('companyDetail.sectionTitle', 'Details')}
+          {t('companyDetail.sectionTitle', 'Company detail')}
         </summary>
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 pb-4 sm:grid-cols-2">
           {company.name !== companyDisplayName(company) && (
-            <Field label={t('companyDetail.field.legalName', 'Legal name')} value={company.name} />
+            <Field label={t('work:companyDetail.field.legalName', 'Legal name')} value={company.name} />
           )}
           {company.client_number_segment && (
             <Field
@@ -338,7 +338,7 @@ const CompanyDetail: React.FC = () => {
       {company.type === 'Vendor' && (
         <details id="company-tax-defaults" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
           <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold text-foreground">
-            {t('companyDetail.taxDefaults.title', 'Tax defaults')}
+            {t('work:companyDetail.taxDefaults.title', 'Tax defaults')}
           </summary>
           <div className="pb-4">
             <VendorTaxDefaultsCard company={company} />

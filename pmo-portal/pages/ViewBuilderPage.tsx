@@ -222,7 +222,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     setPanels(composedSpec.panels);
     setAIDraft(true);
     setAIComposerOpen(false);
-    toast(t('viewBuilder.composedToast', 'View composed'), t('viewBuilder.composedToastDetail', 'Review and save when ready'), 'success');
+    toast(t('work:viewBuilder.composedToast', 'View composed'), t('work:viewBuilder.composedToastDetail', 'Review and save when ready'), 'success');
   };
 
   // ── Compile-before-save + save (FR-VB-040/041) ───────────────────────────
@@ -260,12 +260,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       if (mode === 'create') {
         const row = await create.mutateAsync(input);
         setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
-        toast(t('viewBuilder.createdToast', 'View created'), name, 'success');
+        toast(t('work:viewBuilder.createdToast', 'View created'), name, 'success');
         navigate(`/views/${row.id}`);
       } else if (mode === 'edit' && viewId) {
         await update.mutateAsync({ id: viewId, input });
         setAIDraft(false); // clear draft indicator before navigation (AC-AS-016)
-        toast(t('viewBuilder.updatedToast', 'View updated'), name, 'success');
+        toast(t('work:viewBuilder.updatedToast', 'View updated'), name, 'success');
         navigate(`/views/${viewId}`);
       }
     } catch (err) {
@@ -297,12 +297,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   if (mode === 'edit' && !viewLoading && (!existingView || existingView.archived_at !== null)) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6">
-        <BuilderPageIntro title={t('viewBuilder.viewNotFound', 'View not found')} />
+        <BuilderPageIntro title={t('viewBuilder.viewNotFound', 'View not found.')} />
         <ListState
           variant="empty"
           title={t('viewBuilder.viewNotFound', 'View not found.')}
           sub={t('viewBuilder.viewNotFoundDescription', "This view may have been archived or you don't have access.")}
-          action={{ label: t('viewBuilder.goToMyViews', 'Go to saved views'), onClick: () => navigate('/views') }}
+          action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
         />
       </div>
     );
@@ -314,12 +314,12 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
   if (mode === 'edit' && existingView && !canManageExisting) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-6">
-        <BuilderPageIntro title={t('viewBuilder.editUnavailable', 'View is read-only')} />
+        <BuilderPageIntro title={t('work:viewBuilder.editUnavailable', 'View is read-only')} />
         <ListState
           variant="empty"
-          title={t('viewBuilder.editUnavailable', 'View is read-only')}
-          sub={t('viewBuilder.editUnavailableDescription', 'Only the owner or an administrator can edit this saved view.')}
-          action={{ label: t('viewBuilder.goToMyViews', 'Go to saved views'), onClick: () => navigate('/views') }}
+          title={t('work:viewBuilder.editUnavailable', 'View is read-only')}
+          sub={t('work:viewBuilder.editUnavailableDescription', 'Only the owner or an administrator can edit this saved view.')}
+          action={{ label: t('viewBuilder.goToMyViews', 'Go to My Views'), onClick: () => navigate('/views') }}
         />
       </div>
     );
@@ -340,7 +340,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
     <div className="mx-auto max-w-5xl px-4 py-6 [&_input]:min-h-11 [&_select]:min-h-11 [&_textarea]:min-h-11">
       <div className="mb-3">
         <Button variant="ghost" className="min-h-11 px-2" onClick={leaveBuilder}>
-          {t('viewBuilder.backToViews', 'Back to saved views')}
+          {t('work:viewBuilder.backToViews', 'Back to saved views')}
         </Button>
       </div>
       <BuilderPageIntro
@@ -434,10 +434,10 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         {saveDisabled && (
           <p className="mr-auto self-center text-sm text-muted-foreground" role="status">
             {nameIsEmpty
-              ? t('viewBuilder.nameRequiredToSave', 'Enter a view name to save.')
+              ? t('work:viewBuilder.nameRequiredToSave', 'Enter a view name to save.')
               : noPanel
                 ? t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')
-                : t('viewBuilder.saving', 'Saving…')}
+                : t('work:viewBuilder.saving', 'Saving…')}
           </p>
         )}
         <Button type="button" variant="ghost" className="min-h-11" onClick={leaveBuilder}>

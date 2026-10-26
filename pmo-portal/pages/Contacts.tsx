@@ -202,8 +202,8 @@ const Contacts: React.FC = () => {
     },
     {
       key: 'title',
-      header: t('contacts.columns.title', 'Title'),
-      cell: (c) => <span className="break-words text-muted-foreground">{c.title || t('contacts.notRecorded', 'Not recorded')}</span>,
+      header: t('work:contacts.columns.title', 'Title'),
+      cell: (c) => <span className="break-words text-muted-foreground">{c.title || t('work:contacts.notRecorded', 'Not recorded')}</span>,
       exportValue: (c) => c.title ?? '',
     },
     {
@@ -265,7 +265,7 @@ const Contacts: React.FC = () => {
   return (
     <ListPage
       title={t('contacts.title', 'Contacts')}
-      description={t('contacts.scope', 'People across your companies')}
+      description={t('work:contacts.scope', 'People across the companies you work with')}
       filters={state !== 'loading' && (
         <div className="flex w-full flex-wrap items-center gap-2">
           <SearchMini
@@ -284,7 +284,7 @@ const Contacts: React.FC = () => {
             className="max-sm:min-h-11"
           />
           <SelectField
-            label={t('contacts.sort.label', 'Sort contacts')}
+            label={t('work:contacts.sort.label', 'Sort contacts')}
             hideLabel
             value={sort}
             onChange={(value) => setSearchParams((current) => {
@@ -293,8 +293,8 @@ const Contacts: React.FC = () => {
               return next;
             }, { replace: true })}
             options={[
-              { value: 'name-asc', label: t('contacts.sort.nameAz', 'Name A–Z') },
-              { value: 'name-desc', label: t('contacts.sort.nameZa', 'Name Z–A') },
+              { value: 'name-asc', label: t('work:contacts.sort.nameAz', 'Name A–Z') },
+              { value: 'name-desc', label: t('work:contacts.sort.nameZa', 'Name Z–A') },
             ]}
             className="max-sm:min-h-11"
           />

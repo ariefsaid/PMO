@@ -82,8 +82,8 @@ const MyViewsPage: React.FC = () => {
     }), [data, search, sort]);
 
   const scopeLabel = (row: UserViewRow) => row.user_id === currentUser?.id
-    ? t('financeCopy.mine', 'Mine')
-    : t('financeCopy.sharedWithMe', 'Shared with me');
+    ? t('work:financeCopy.mine', 'Mine')
+    : t('work:financeCopy.sharedWithMe', 'Shared with me');
 
   const columns: Column<UserViewRow>[] = [
     {
@@ -105,7 +105,7 @@ const MyViewsPage: React.FC = () => {
     },
     {
       key: 'scope',
-      header: t('financeCopy.scope', 'Scope'),
+      header: t('work:financeCopy.scope', 'Scope'),
       cell: (row) => <span className="text-muted-foreground">{scopeLabel(row)}</span>,
     },
     {
@@ -153,13 +153,13 @@ const MyViewsPage: React.FC = () => {
 
   return (
     <ListPage
-      title={t('financeCopy.savedViews', 'Saved views')}
-      description={t('financeCopy.savedViewsScope', 'Mine and shared with me')}
+      title={t('work:financeCopy.savedViews', 'Saved views')}
+      description={t('work:financeCopy.savedViewsScope', 'Your reusable answers — mine and shared with me')}
       search={
         <div data-testid="views-toolbar" className="flex w-full flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <SearchMini
-            placeholder={t('financeCopy.searchViews', 'Search saved views…')}
-            aria-label={t('financeCopy.searchViews', 'Search saved views')}
+            placeholder={t('work:financeCopy.searchViews', 'Search saved views…')}
+            aria-label={t('work:financeCopy.searchViews', 'Search saved views…')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             searchSurface="views-list"
@@ -169,14 +169,14 @@ const MyViewsPage: React.FC = () => {
           />
           <SelectField
             id="views-sort"
-            label={t('financeCopy.sortViews', 'Sort saved views')}
+            label={t('work:financeCopy.sortViews', 'Sort saved views')}
             hideLabel
             value={sort}
             onChange={updateSort}
             className="min-h-11 w-full sm:w-auto"
             options={[
-              { value: 'name-asc', label: t('financeCopy.nameAsc', 'Name A–Z') },
-              { value: 'name-desc', label: t('financeCopy.nameDesc', 'Name Z–A') },
+              { value: 'name-asc', label: t('work:financeCopy.nameAsc', 'Name A–Z') },
+              { value: 'name-desc', label: t('work:financeCopy.nameDesc', 'Name Z–A') },
             ]}
           />
           {showAIComposer && (
@@ -205,8 +205,8 @@ const MyViewsPage: React.FC = () => {
       ) : (data ?? []).length === 0 ? (
         <ListState
           variant="empty"
-          title={t('financeCopy.noViewsYet', 'No saved views yet')}
-          sub={t('financeCopy.noViewsYetSub', 'Save a view when you need the same scoped answer again.')}
+          title={t('financeCopy.noViewsYet', 'No views yet.')}
+          sub={t('work:financeCopy.noViewsYetSub', 'Save a view when you need the same scoped answer again.')}
         />
       ) : (
         <DataTable
@@ -214,11 +214,11 @@ const MyViewsPage: React.FC = () => {
           rows={rows}
           rowKey={(r) => r.id}
           rowMenu={rowMenu}
-          rowLabel={(row) => t('financeCopy.openSavedView', 'Open {{name}}', { name: row.name })}
+          rowLabel={(row) => t('work:financeCopy.openSavedView', 'Open {{name}}', { name: row.name })}
           state={rows.length === 0 ? 'empty' : undefined}
-          emptyTitle={t('financeCopy.noViewsMatch', 'No saved views match these filters')}
-          emptySub={t('financeCopy.noViewsMatchSub', 'Try a different search or scope, or clear the filters.')}
-          emptyAction={{ label: t('financeCopy.clearFilters', 'Clear filters'), onClick: clearFilters }}
+          emptyTitle={t('work:financeCopy.noViewsMatch', 'No saved views match these filters')}
+          emptySub={t('work:financeCopy.noViewsMatchSub', 'Try a different search or scope, or clear the filters.')}
+          emptyAction={{ label: t('work:financeCopy.clearFilters', 'Clear filters'), onClick: clearFilters }}
         tableId="myviewspage-2-table" />
       )}
 

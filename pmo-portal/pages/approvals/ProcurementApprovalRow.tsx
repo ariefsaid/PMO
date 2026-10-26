@@ -172,7 +172,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               {detail.data.items.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-xl font-bold text-foreground">
-                    {t('approvals.lineItems', 'Line items')} · {row.currency} {t('approvals.unitBasis', 'per unit')}
+                    {t('work:approvals.lineItems', 'Line items')} · {row.currency} {t('approvals.unitBasis', 'per unit')}
                   </h3>
                   <ul className="space-y-1.5" aria-label="Line items">
                     {detail.data.items.map((item) => (
@@ -182,7 +182,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                       >
                         <span className="min-w-0 break-words">{item.name}</span>
                         <span className="shrink-0 tabular text-muted-foreground">
-                          {t('approvals.unitRate', '{{quantity}} × {{rate}}', {
+                          {t('work:approvals.unitRate', '{{quantity}} × {{rate}}', {
                             quantity: item.quantity,
                             rate: formatNumberWhole(item.rate),
                           })}
@@ -195,7 +195,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
 
               <section className="flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-3">
                 <h3 className="text-xl font-bold text-foreground">
-                  {t('approvals.decisionTotal', 'Decision total')} · {detail.data.currency}
+                  {t('work:approvals.decisionTotal', 'Decision total')} · {detail.data.currency}
                 </h3>
                 <p className="text-right text-sm tabular text-foreground">
                   {formatNumberWhole(detail.data.total_value)}
@@ -211,7 +211,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
             aria-label="Open request"
             className="touch-target inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
-            {t('approvals.openRequest', 'Open request')}
+            {t('work:approvals.openRequest', 'Open request')}
           </Link>
           {actionCluster}
         </div>

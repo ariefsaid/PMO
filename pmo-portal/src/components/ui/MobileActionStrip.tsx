@@ -42,7 +42,7 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
         {showEmptyWeekTotal && (
           <p data-testid="timesheets-empty-week-total" className="flex items-baseline justify-center gap-3 text-center tabular">
             <span className="text-xs font-semibold text-muted-foreground">
-              {t('timesheets.weekTotalHours', 'Week total · hours')}
+              {t('work:timesheets.weekTotalHours', 'Week total · hours')}
             </span>
             <span className="text-xl font-bold text-foreground">0</span>
           </p>

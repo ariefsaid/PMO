@@ -93,7 +93,7 @@ export const ProfileSettings: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
-        <WorkPageHeading title={t('workPageHeading.profile', 'Profile & preferences')} scope={t('workPageHeading.profileScope', 'Personal preferences')} />
+        <WorkPageHeading title={t('work:workPageHeading.profile', 'Profile & preferences')} scope={t('work:workPageHeading.profileScope', 'Personal preferences')} />
         <p className="text-sm text-muted-foreground">
           {t('profileSettings.loading', 'Loading profile…')}
         </p>
@@ -174,8 +174,8 @@ export const ProfileSettings: React.FC = () => {
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
       <WorkPageHeading
-        title={t('workPageHeading.profile', 'Profile & preferences')}
-        scope={t('workPageHeading.profileScope', 'Personal preferences')}
+        title={t('work:workPageHeading.profile', 'Profile & preferences')}
+        scope={t('work:workPageHeading.profileScope', 'Personal preferences')}
       />
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">

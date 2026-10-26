@@ -1,0 +1,291 @@
+{
+  "approvals": {
+    "backToQueue": "Back to queue",
+    "decisionTotal": "Decision total",
+    "group": {
+      "expense": {
+        "title": "Expense claims"
+      },
+      "invoice": {
+        "title": "Customer invoices"
+      },
+      "timesheets": {
+        "hoursTitle": "Timesheets · hours"
+      }
+    },
+    "lineItems": "Line items",
+    "noInvoiceReference": "Invoice draft",
+    "oldestFirst": "Oldest first",
+    "openRequest": "Open request",
+    "queueEmptyScopeTitle": "No {{scope}} awaiting your decision",
+    "queueEmptyTitle": "No requests awaiting your decision",
+    "queueItemsTitle": "Pending work",
+    "queuePartialError": "Some approval items could not be loaded.",
+    "queueRetry": "Retry",
+    "salesInvoices": {
+      "amountsHeading": "Invoice amounts · {{currency}}"
+    },
+    "showAllPending": "Show all pending",
+    "unitRate": "{{quantity}} × {{rate}}",
+    "unknownCustomer": "Unknown customer"
+  },
+  "common": {
+    "history": "History"
+  },
+  "companies": {
+    "actions": {
+      "more": "More"
+    },
+    "sort": {
+      "label": "Sort companies",
+      "nameAsc": "Name A–Z",
+      "nameDesc": "Name Z–A"
+    }
+  },
+  "companyCollections": {
+    "title": "Collections"
+  },
+  "companyDetail": {
+    "field": {
+      "legalName": "Legal name"
+    },
+    "relatedProcurement": {
+      "title": "Purchasing"
+    },
+    "relatedProjects": {
+      "title": "Projects"
+    },
+    "taxDefaults": {
+      "title": "Tax defaults"
+    }
+  },
+  "contactDetail": {
+    "field": {
+      "noNotes": "No notes recorded."
+    },
+    "methods": {
+      "title": "Contact methods"
+    }
+  },
+  "contacts": {
+    "columns": {
+      "title": "Title"
+    },
+    "notRecorded": "Not recorded",
+    "scope": "People across the companies you work with",
+    "sort": {
+      "label": "Sort contacts",
+      "nameAz": "Name A–Z",
+      "nameZa": "Name Z–A"
+    }
+  },
+  "expenses": {
+    "approvals": {
+      "previewHeading": "Review expense claim"
+    }
+  },
+  "financeCopy": {
+    "clearFilters": "Clear filters",
+    "mine": "Mine",
+    "nameAsc": "Name A–Z",
+    "nameDesc": "Name Z–A",
+    "noViewsMatch": "No saved views match these filters",
+    "noViewsMatchSub": "Try a different search or scope, or clear the filters.",
+    "noViewsYetSub": "Save a view when you need the same scoped answer again.",
+    "openSavedView": "Open {{name}}",
+    "savedViews": "Saved views",
+    "savedViewsScope": "Your reusable answers — mine and shared with me",
+    "scope": "Scope",
+    "searchViews": "Search saved views…",
+    "sharedWithMe": "Shared with me",
+    "sortViews": "Sort saved views"
+  },
+  "incidents": {
+    "actions": {
+      "delete": "Delete",
+      "edit": "Edit",
+      "file": "File incident"
+    },
+    "columns": {
+      "date": "Date",
+      "incident": "Incident",
+      "location": "Location",
+      "project": "Project",
+      "severity": "Severity",
+      "status": "Status"
+    },
+    "description": "Organization incident register for reporting, investigation and closure.",
+    "detail": {
+      "confirmFallbackTitle": "Advance incident?",
+      "deleteConfirm": "Delete incident",
+      "deleteDescription": "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.",
+      "deleteFallbackTitle": "Delete incident?",
+      "deleteTitle": "Delete {{type}}?",
+      "description": "Description",
+      "evidence": "Incident evidence",
+      "loadErrorSub": "Something went wrong fetching the incident report.",
+      "loadErrorTitle": "Couldn't load incident",
+      "nextAction": "Next action",
+      "noDescription": "No description was recorded.",
+      "notFoundSub": "This incident either doesn't exist or isn't visible to you. Return to the register to find it.",
+      "notFoundTitle": "Incident not found",
+      "reported": "Reported {{date}}",
+      "rowOpen": "Open {{type}}",
+      "scope": "Incident report",
+      "title": "Incident",
+      "toast": {
+        "closed": "Incident closed",
+        "deleted": "Incident deleted",
+        "filed": "Incident filed",
+        "investigating": "Investigation started",
+        "updated": "Incident updated"
+      }
+    },
+    "filters": {
+      "severity": "Filter by severity",
+      "sort": "Sort incidents",
+      "status": "Filter by status"
+    },
+    "form": {
+      "dateRequired": "Incident date is required.",
+      "description": "Description",
+      "descriptionPlaceholder": "What happened, who was involved, and any immediate action taken.",
+      "locationPlaceholder": "e.g. Office or work site",
+      "projectNoun": "project",
+      "projectPlaceholder": "Optional — link a project…",
+      "save": "Save incident",
+      "section": "What happened",
+      "submit": "File incident",
+      "subtitle": {
+        "create": "Record what happened. You will be recorded as the reporter.",
+        "edit": "Update this incident report"
+      },
+      "title": {
+        "create": "File incident",
+        "edit": "Edit incident"
+      },
+      "type": "Type",
+      "typePlaceholder": "e.g. Near Miss, Equipment Damage, Spill",
+      "typeRequired": "Incident type is required."
+    },
+    "notRecorded": "Not recorded",
+    "search": {
+      "ariaLabel": "Search incidents",
+      "placeholder": "Search incidents…"
+    },
+    "severity": {
+      "all": "All severities",
+      "critical": "Critical",
+      "high": "High",
+      "low": "Low",
+      "medium": "Medium"
+    },
+    "sort": {
+      "date": "Newest first",
+      "priority": "Severity first"
+    },
+    "states": {
+      "emptySub": "When something goes wrong on a project or site, file it here so it can be investigated and closed out.",
+      "emptyTitle": "No incidents reported",
+      "errorSub": "The request failed. Check your connection and try again.",
+      "errorTitle": "Couldn't load incidents"
+    },
+    "status": {
+      "all": "All",
+      "closed": "Closed",
+      "investigating": "Investigating",
+      "open": "Open"
+    },
+    "table": {
+      "clearFilters": "Clear filters",
+      "emptySub": "Try a different severity, status or search.",
+      "emptyTitle": "No incidents match"
+    },
+    "title": "Incidents",
+    "unlinked": "Unlinked",
+    "viewProject": "View project"
+  },
+  "meetingDetail": {
+    "action": {
+      "createFailed": "Action item could not be created."
+    },
+    "editing": "Editing meeting"
+  },
+  "meetings": {
+    "sort": {
+      "label": "Sort meetings",
+      "latest": "Latest meeting date",
+      "oldest": "Oldest meeting date"
+    }
+  },
+  "myTasks": {
+    "allProjects": "All projects",
+    "clearFilters": "Clear filters",
+    "listLabel": "Assigned tasks",
+    "projectFilter": "Filter by project",
+    "projectUnknown": "Project",
+    "sortDue": "Due date",
+    "sortLabel": "Sort tasks",
+    "sortUrgency": "Urgency"
+  },
+  "oauthConsent": {
+    "errorTitle": "Sign-in request unavailable",
+    "loadingTitle": "Sign-in request",
+    "returningTitle": "Returning to the application"
+  },
+  "timesheets": {
+    "hoursGroup": "Hours",
+    "weekTotalHours": "Week total · hours"
+  },
+  "viewBuilder": {
+    "backToViews": "Back to saved views",
+    "composedToast": "View composed",
+    "composedToastDetail": "Review and save when ready",
+    "createdToast": "View created",
+    "editUnavailable": "View is read-only",
+    "editUnavailableDescription": "Only the owner or an administrator can edit this saved view.",
+    "nameRequiredToSave": "Enter a view name to save.",
+    "saving": "Saving…",
+    "updatedToast": "View updated"
+  },
+  "viewRenderer": {
+    "backToViews": "Back to saved views",
+    "checkingAccessDescription": "Confirming your access before opening this saved answer…",
+    "checkingAccessTitle": "Checking access to saved view",
+    "developerDetail": "Developer detail (hidden in production)",
+    "editView": "Edit view",
+    "emptyOwnerDescription": "Add a panel to define the answer this view should save.",
+    "emptyReaderDescription": "Ask the owner to add panels to this saved answer.",
+    "emptyTitle": "This saved view has no panels yet",
+    "invalidDescription": "Its saved definition could not be interpreted.",
+    "invalidTitle": "This saved view cannot be shown",
+    "loadErrorDescription": "The saved answer did not load. Retry or return to saved views.",
+    "loadErrorTitle": "Could not load saved view",
+    "loadingDescription": "Loading the saved answer and its panels…",
+    "loadingTitle": "Opening saved view",
+    "maximumPanels": "This view has more than {{count}} panels.",
+    "notFoundDescription": "This saved answer is unavailable. It may have been archived or you may not have access.",
+    "notFoundTitle": "View not found",
+    "privateScope": "Private",
+    "savedViewTitle": "Saved view",
+    "sharedScope": "Shared with your organisation"
+  },
+  "workPageHeading": {
+    "approvals": "Approvals",
+    "approvalsScope": "My decisions",
+    "company": "Company",
+    "companyScope": "Account record",
+    "contact": "Contact",
+    "contactScope": "Person record",
+    "meeting": "Meeting",
+    "meetingScope": "Meeting record",
+    "profile": "Profile & preferences",
+    "profileScope": "Personal preferences",
+    "tasks": "My tasks",
+    "tasksScope": "Assigned to you across projects",
+    "timesheets": "My time",
+    "timesheetsDeniedScope": "Your hours for one week",
+    "timesheetsScope": "Your hours · {{week}} · {{status}}",
+    "views": "My views"
+  }
+}

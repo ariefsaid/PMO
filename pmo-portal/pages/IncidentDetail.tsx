@@ -64,8 +64,8 @@ const IncidentDetail: React.FC = () => {
   if (query.isPending) {
     return (
       <>
-        <BackBar label={t('incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('incidents.detail.title', 'Incident')} scope={t('incidents.detail.scope', 'Incident report')} />
+        <BackBar label={t('work:incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('work:incidents.detail.title', 'Incident')} scope={t('work:incidents.detail.scope', 'Incident report')} />
         <div data-testid="incident-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -77,12 +77,12 @@ const IncidentDetail: React.FC = () => {
   if (query.isError) {
     return (
       <>
-        <BackBar label={t('incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('incidents.detail.title', 'Incident')} scope={t('incidents.detail.scope', 'Incident report')} />
+        <BackBar label={t('work:incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('work:incidents.detail.title', 'Incident')} scope={t('work:incidents.detail.scope', 'Incident report')} />
         <ListState
           variant="error"
-          title={t('incidents.detail.loadErrorTitle', "Couldn't load incident")}
-          sub={t('incidents.detail.loadErrorSub', 'Something went wrong fetching the incident report.')}
+          title={t('work:incidents.detail.loadErrorTitle', "Couldn't load incident")}
+          sub={t('work:incidents.detail.loadErrorSub', 'Something went wrong fetching the incident report.')}
           onRetry={() => query.refetch()}
         />
       </>
@@ -94,14 +94,14 @@ const IncidentDetail: React.FC = () => {
   if (!incident) {
     return (
       <>
-        <BackBar label={t('incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('incidents.detail.title', 'Incident')} scope={t('incidents.detail.scope', 'Incident report')} />
+        <BackBar label={t('work:incidents.title', 'Incidents')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('work:incidents.detail.title', 'Incident')} scope={t('work:incidents.detail.scope', 'Incident report')} />
         <div data-testid="incident-not-found">
           <ListState
             variant="empty"
             icon="alert"
-            title={t('incidents.detail.notFoundTitle', 'Incident not found')}
-            sub={t('incidents.detail.notFoundSub', "This incident either doesn't exist or isn't visible to you. Return to the register to find it.")}
+            title={t('work:incidents.detail.notFoundTitle', 'Incident not found')}
+            sub={t('work:incidents.detail.notFoundSub', "This incident either doesn't exist or isn't visible to you. Return to the register to find it.")}
           />
         </div>
       </>
@@ -122,18 +122,18 @@ const IncidentDetail: React.FC = () => {
   // Resolve the linked project's name from the cached FK options (falls back to a generic
   // label until the list loads — the link still targets the correct /projects/:id).
   const linkedProjectName = incident.project_id
-    ? projectOptions?.find((o) => o.value === incident.project_id)?.label ?? t('incidents.viewProject', 'View project')
+    ? projectOptions?.find((o) => o.value === incident.project_id)?.label ?? t('work:incidents.viewProject', 'View project')
     : null;
   const severityLabels = {
-    Critical: t('incidents.severity.critical', 'Critical'),
-    High: t('incidents.severity.high', 'High'),
-    Medium: t('incidents.severity.medium', 'Medium'),
-    Low: t('incidents.severity.low', 'Low'),
+    Critical: t('work:incidents.severity.critical', 'Critical'),
+    High: t('work:incidents.severity.high', 'High'),
+    Medium: t('work:incidents.severity.medium', 'Medium'),
+    Low: t('work:incidents.severity.low', 'Low'),
   };
   const statusLabels = {
-    Open: t('incidents.status.open', 'Open'),
-    Investigating: t('incidents.status.investigating', 'Investigating'),
-    Closed: t('incidents.status.closed', 'Closed'),
+    Open: t('work:incidents.status.open', 'Open'),
+    Investigating: t('work:incidents.status.investigating', 'Investigating'),
+    Closed: t('work:incidents.status.closed', 'Closed'),
   };
 
   const onMutationError = (err: unknown) => {
@@ -147,8 +147,8 @@ const IncidentDetail: React.FC = () => {
       await transition.mutateAsync({ id: incident.id, status: transitionTo });
       toast(
         transitionTo === 'Closed'
-          ? t('incidents.detail.toast.closed', 'Incident closed')
-          : t('incidents.detail.toast.investigating', 'Investigation started'),
+          ? t('work:incidents.detail.toast.closed', 'Incident closed')
+          : t('work:incidents.detail.toast.investigating', 'Investigation started'),
         incident.type,
         'success',
       );
@@ -163,7 +163,7 @@ const IncidentDetail: React.FC = () => {
       {/* Mobile escape route — the top-bar breadcrumb owns desktop wayfinding, the rail
           collapses ≤920px so the BackBar is the only in-content escape there. */}
       <div data-testid="mobile-back-bar" className="hidden max-[920px]:block">
-        <BackBar label={t('incidents.title', 'Incidents')} onBack={goBack} />
+        <BackBar label={t('work:incidents.title', 'Incidents')} onBack={goBack} />
       </div>
 
       {/* Identity, date and project scope sit together above the incident evidence. */}
@@ -180,17 +180,17 @@ const IncidentDetail: React.FC = () => {
         }
         meta={
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular">
-            <span>{t('incidents.detail.reported', 'Reported {{date}}', { date: formatDateOnly(incident.incident_date) })}</span>
+            <span>{t('work:incidents.detail.reported', 'Reported {{date}}', { date: formatDateOnly(incident.incident_date) })}</span>
             <span aria-hidden="true">·</span>
             {incident.project_id && (
               <ProjectNameLink projectId={incident.project_id} name={linkedProjectName} />
-            ) || <span>{t('incidents.unlinked', 'Unlinked')}</span>}
+            ) || <span>{t('work:incidents.unlinked', 'Unlinked')}</span>}
           </span>
         }
         actions={
           canEdit ? (
             <Button variant="outline" size="sm" data-testid="incident-edit" onClick={() => setEditOpen(true)}>
-              {t('incidents.actions.edit', 'Edit')}
+              {t('work:incidents.actions.edit', 'Edit')}
             </Button>
           ) : undefined
         }
@@ -198,17 +198,17 @@ const IncidentDetail: React.FC = () => {
 
       {/* Location and reported description are the evidence before a lifecycle action. */}
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('incidents.detail.evidence', 'Incident evidence')}</CardHead>
+        <CardHead>{t('work:incidents.detail.evidence', 'Incident evidence')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label={t('incidents.columns.location', 'Location')} value={incident.location || t('incidents.notRecorded', 'Not recorded')} />
+            <Field label={t('work:incidents.columns.location', 'Location')} value={incident.location || t('work:incidents.notRecorded', 'Not recorded')} />
           </dl>
           <div className="mt-4 border-t border-border pt-4">
-            <h2 className="text-xl font-bold text-foreground">{t('incidents.detail.description', 'Description')}</h2>
+            <h2 className="text-xl font-bold text-foreground">{t('work:incidents.detail.description', 'Description')}</h2>
           {incident.description ? (
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{incident.description}</p>
           ) : (
-            <p className="text-sm text-muted-foreground">{t('incidents.detail.noDescription', 'No description was recorded.')}</p>
+            <p className="text-sm text-muted-foreground">{t('work:incidents.detail.noDescription', 'No description was recorded.')}</p>
           )}
           </div>
         </CardPad>
@@ -217,7 +217,7 @@ const IncidentDetail: React.FC = () => {
       {canTransition && next && (
         <RecordActionZone>
           <div className="flex flex-col gap-2 py-3">
-            <div className="text-xs font-semibold text-muted-foreground">{t('incidents.detail.nextAction', 'Next action')}</div>
+            <div className="text-xs font-semibold text-muted-foreground">{t('work:incidents.detail.nextAction', 'Next action')}</div>
             <Button
               variant="primary"
               size="sm"
@@ -240,7 +240,7 @@ const IncidentDetail: React.FC = () => {
           onCreate={async () => {}}
           onUpdate={async (id, input: IncidentInput) => {
             await update.mutateAsync({ id, input });
-            toast(t('incidents.detail.toast.updated', 'Incident updated'), input.type, 'success');
+            toast(t('work:incidents.detail.toast.updated', 'Incident updated'), input.type, 'success');
             setEditOpen(false);
           }}
           onError={onMutationError}
@@ -251,7 +251,7 @@ const IncidentDetail: React.FC = () => {
       <ConfirmDialog
         open={transitionTo !== null}
         tone="default"
-        title={transitionCopy?.title ?? t('incidents.detail.confirmFallbackTitle', 'Advance incident?')}
+        title={transitionCopy?.title ?? t('work:incidents.detail.confirmFallbackTitle', 'Advance incident?')}
         description={transitionCopy?.body ?? ''}
         confirmLabel={transitionCopy?.confirm ?? 'Confirm'}
         loading={transition.isPending}

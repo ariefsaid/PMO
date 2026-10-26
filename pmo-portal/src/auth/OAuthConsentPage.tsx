@@ -158,10 +158,10 @@ const OAuthConsentPage: React.FC = () => {
   const title = view.kind === 'consent'
     ? t('oauthConsent.title', 'Allow {{client}} to access your PMO account?', { client: view.request.clientName })
     : view.kind === 'loading'
-      ? t('oauthConsent.loadingTitle', 'Sign-in request')
+      ? t('work:oauthConsent.loadingTitle', 'Sign-in request')
       : view.kind === 'leaving'
-        ? t('oauthConsent.returningTitle', 'Returning to the application')
-        : t('oauthConsent.errorTitle', 'Sign-in request unavailable');
+        ? t('work:oauthConsent.returningTitle', 'Returning to the application')
+        : t('work:oauthConsent.errorTitle', 'Sign-in request unavailable');
 
   return (
     <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">

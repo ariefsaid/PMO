@@ -88,14 +88,14 @@ function QueueButton({
     const expense = item.kind === 'expense' ? item.row.claim : null;
     const invoice = item.kind === 'invoice' ? item.row : null;
     const label = item.kind === 'expense'
-      ? t('approvals.group.expense.title', 'Expense claims')
-      : t('approvals.group.invoice.title', 'Customer invoices');
+      ? t('work:approvals.group.expense.title', 'Expense claims')
+      : t('work:approvals.group.invoice.title', 'Customer invoices');
     const identity = expense
       ? expense.claim_number ?? expense.title
-      : invoice?.customer_name ?? t('approvals.unknownCustomer', 'Unknown customer');
+      : invoice?.customer_name ?? t('work:approvals.unknownCustomer', 'Unknown customer');
     const detail = expense
       ? expense.claimant?.full_name ?? t('approvals.unknownOwner', 'Unknown')
-      : invoice?.reference_number ?? invoice?.si_number ?? t('approvals.noInvoiceReference', 'Invoice draft');
+      : invoice?.reference_number ?? invoice?.si_number ?? t('work:approvals.noInvoiceReference', 'Invoice draft');
     const amount = expense
       ? formatCurrencyAuto(Number(expense.amount), expense.currency)
       : invoice?.amount != null ? formatCurrencyAuto(invoice.amount, invoice.currency) : '—';
@@ -140,7 +140,7 @@ function QueueButton({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-1 text-xs font-semibold text-muted-foreground">
-            {t('approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
+            {t('work:approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
           </div>
           <div className="break-words text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
@@ -812,16 +812,16 @@ const ApprovalsPage: React.FC = () => {
     invoice: pendingInv,
   }[scope as Exclude<Scope, 'all'>]);
   const emptyQueueTitle = activeScope && activeScope !== 'all'
-    ? t('approvals.queueEmptyScopeTitle', 'No {{scope}} awaiting your decision', { scope: scopeLabels[activeScope].toLowerCase() })
-    : t('approvals.queueEmptyTitle', 'No requests awaiting your decision');
+    ? t('work:approvals.queueEmptyScopeTitle', 'No {{scope}} awaiting your decision', { scope: scopeLabels[activeScope].toLowerCase() })
+    : t('work:approvals.queueEmptyTitle', 'No requests awaiting your decision');
   const emptyQueueAction = activeScope !== 'all' && availableScopes.includes('all')
-    ? { label: t('approvals.showAllPending', 'Show all pending'), onClick: () => selectScope('all') }
+    ? { label: t('work:approvals.showAllPending', 'Show all pending'), onClick: () => selectScope('all') }
     : undefined;
 
   if (!canApproveProcurement && !canApproveTimesheets && !canApproveExpenses && !canApproveInvoices) {
     return (
       <>
-        <WorkPageHeading title={t('workPageHeading.approvals', 'Approvals')} scope={t('workPageHeading.approvalsScope', 'My decisions')} />
+        <WorkPageHeading title={t('work:workPageHeading.approvals', 'Approvals')} scope={t('work:workPageHeading.approvalsScope', 'My decisions')} />
         <AccessDenied
           title={t('approvals.accessDenied.title', "You don't have access to approvals")}
           sub={t(
@@ -873,7 +873,7 @@ const ApprovalsPage: React.FC = () => {
     <div>
       <WorkPageHeading
         title={t('approvals.title', 'Approvals')}
-        scope={t('workPageHeading.approvalsScope', 'My decisions')}
+        scope={t('work:workPageHeading.approvalsScope', 'My decisions')}
         kind="review"
       />
 
@@ -916,7 +916,7 @@ const ApprovalsPage: React.FC = () => {
         <>
         {!isLargeScreen && selectedItem ? (
           <div className="space-y-3">
-            <Button variant="outline" size="sm" onClick={() => setSelectedKey(null)}>{t('approvals.backToQueue', 'Back to queue')}</Button>
+            <Button variant="outline" size="sm" onClick={() => setSelectedKey(null)}>{t('work:approvals.backToQueue', 'Back to queue')}</Button>
             <Card variant="bare" role="region" aria-label={t('approvals.previewRegionLabel', 'Approval preview')} id="approvals-preview" data-testid="approvals-preview-region" className="min-w-0">
               {selectedPreview}
             </Card>
@@ -941,7 +941,7 @@ const ApprovalsPage: React.FC = () => {
                     'Select an item to preview its details and decision controls.',
                   )}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">{t('approvals.oldestFirst', 'Oldest first')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('work:approvals.oldestFirst', 'Oldest first')}</p>
               </div>
               <div className="flex items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
@@ -957,7 +957,7 @@ const ApprovalsPage: React.FC = () => {
 
             <div className="space-y-3">
               <QueueGroup
-                title={t('approvals.queueItemsTitle', 'Pending work')}
+                title={t('work:approvals.queueItemsTitle', 'Pending work')}
                 items={queueItems}
                 selectedKey={selectedKey}
                 onSelect={pickItem}
@@ -970,9 +970,9 @@ const ApprovalsPage: React.FC = () => {
               />
               {activeScopeError && queueItems.length > 0 && (
                 <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm">
-                  <span>{t('approvals.queuePartialError', 'Some approval items could not be loaded.')}</span>
+                  <span>{t('work:approvals.queuePartialError', 'Some approval items could not be loaded.')}</span>
                   <Button variant="outline" size="sm" onClick={retryActiveScope}>
-                    {t('approvals.queueRetry', 'Retry')}
+                    {t('work:approvals.queueRetry', 'Retry')}
                   </Button>
                 </div>
               )}

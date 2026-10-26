@@ -122,7 +122,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
+        <WorkPageHeading title={t('work:workPageHeading.contact', 'Contact')} scope={t('work:workPageHeading.contactScope', 'Person record')} />
         <div data-testid="contact-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -135,7 +135,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
+        <WorkPageHeading title={t('work:workPageHeading.contact', 'Contact')} scope={t('work:workPageHeading.contactScope', 'Person record')} />
         <ListState
           variant="error"
           title={t('contactDetail.error.title', "Couldn't load contact")}
@@ -152,7 +152,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
-        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
+        <WorkPageHeading title={t('work:workPageHeading.contact', 'Contact')} scope={t('work:workPageHeading.contactScope', 'Person record')} />
         <div data-testid="contact-not-found">
           <ListState
             variant="empty"
@@ -189,10 +189,10 @@ const ContactDetail: React.FC = () => {
 
   const hasActions = canEdit || canArchive;
   const sections = [
-    { id: 'contact-methods', label: t('contactDetail.methods.title', 'Contact methods') },
+    { id: 'contact-methods', label: t('work:contactDetail.methods.title', 'Contact methods') },
     { id: 'contact-notes', label: t('contactDetail.field.notes', 'Notes') },
     { id: 'contact-activity', label: t('contactDetail.activity.title', 'Activity') },
-    { id: 'contact-history', label: t('common.history', 'History') },
+    { id: 'contact-history', label: t('work:common.history', 'History') },
   ];
 
   return (
@@ -245,7 +245,7 @@ const ContactDetail: React.FC = () => {
       {/* Contact methods are the first useful evidence after identity. */}
       <section id="contact-methods" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('contactDetail.methods.title', 'Contact methods')}</CardHead>
+        <CardHead>{t('work:contactDetail.methods.title', 'Contact methods')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
             <Field
@@ -288,7 +288,7 @@ const ContactDetail: React.FC = () => {
           {t('contactDetail.field.notes', 'Notes')}
         </summary>
         <p className="pb-4 text-sm text-foreground">
-          {contact.notes || t('contactDetail.field.noNotes', 'No notes recorded.')}
+          {contact.notes || t('work:contactDetail.field.noNotes', 'No notes recorded.')}
         </p>
       </details>
 

@@ -453,7 +453,7 @@ const TimesheetsPage: React.FC = () => {
   const headingStatus = currentTimesheet?.status
     ? t(`timesheets.status.${currentTimesheet.status}`, currentTimesheet.status)
     : t('timesheets.status.draftNotSubmitted', 'Draft — not submitted');
-  const headingScope = t('workPageHeading.timesheetsScope', 'Your hours · {{week}} · {{status}}', {
+  const headingScope = t('work:workPageHeading.timesheetsScope', 'Your hours · {{week}} · {{status}}', {
     week: weekRangeLabel,
     status: headingStatus,
   });
@@ -581,7 +581,7 @@ const TimesheetsPage: React.FC = () => {
   if (!canEnterTimesheet) {
     return (
       <>
-        <WorkPageHeading title={t('workPageHeading.timesheets', 'My time')} scope={t('workPageHeading.timesheetsScope', 'Your hours for one week')} />
+        <WorkPageHeading title={t('work:workPageHeading.timesheets', 'My time')} scope={t('work:workPageHeading.timesheetsDeniedScope', 'Your hours for one week')} />
         <AccessDenied
           title={t('timesheets.accessDenied.title', "You don't have access to Timesheets")}
           sub={t(
@@ -597,7 +597,7 @@ const TimesheetsPage: React.FC = () => {
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (
     <>
-      <WorkPageHeading title={t('workPageHeading.timesheets', 'My time')} scope={headingScope} kind="review" />
+      <WorkPageHeading title={t('work:workPageHeading.timesheets', 'My time')} scope={headingScope} kind="review" />
 
       <Toolbar standalone>
         {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
@@ -846,7 +846,7 @@ const TimesheetsPage: React.FC = () => {
             {editGridRows.length === 0 && (
               <span data-testid="timesheets-empty-week-total" className="mr-auto flex items-baseline gap-3 tabular">
                 <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
-                  {t('timesheets.weekTotalHours', 'Week total · hours')}
+                  {t('work:timesheets.weekTotalHours', 'Week total · hours')}
                 </span>
                 <span className="text-xl font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>
               </span>

@@ -382,7 +382,7 @@ export const ShellChrome: React.FC = () => {
     ['/companies', t('shell.nav.companies', 'Companies')],
     ['/contacts', t('shell.nav.contacts', 'Contacts')],
     ['/incidents', t('shell.nav.incidents', 'Incidents')],
-    ['/views', t('workPageHeading.views', 'My views')],
+    ['/views', t('work:workPageHeading.views', 'My views')],
     ['/settings/profile', t('shell.nav.profileSettings', 'Profile & preferences')],
   ];
   const workArea = workAreas.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));

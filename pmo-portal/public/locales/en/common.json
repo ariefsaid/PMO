@@ -648,7 +648,6 @@
     "salesInvoices": {
       "label": "Customer invoices awaiting you",
       "heading": "Customer invoices awaiting you ({{count}})",
-      "previewHeading": "Review customer invoice",
       "errorTitle": "Couldn't load invoices awaiting you",
       "errorSub": "Other approval items remain available.",
       "raisedBy": "Raised by",
@@ -724,26 +723,9 @@
     },
     "entryOne": "entry",
     "entryOther": "entries",
-    "group": {
-      "expense": { "title": "Expense claims" },
-      "invoice": { "title": "Customer invoices" },
-      "procurement": {
-        "emptySub": "Purchase requests that need your approval will appear here.",
-        "emptyTitle": "No requests awaiting your decision",
-        "title": "Purchase requests"
-      },
-      "timesheets": {
-        "emptySub": "Submitted timesheets from your reports will appear here for review.",
-        "emptyTitle": "No timesheets awaiting your decision",
-        "title": "Timesheets",
-        "hoursTitle": "Timesheets · hours"
-      }
-    },
+
     "noProjectLinked": "No project linked",
-    "noInvoiceReference": "Invoice draft",
-    "unknownCustomer": "Unknown customer",
-    "oldestFirst": "Oldest first",
-    "backToQueue": "Back to queue",
+
     "previewEmpty": {
       "sub": "When a pending request is available, its preview and actions appear here.",
       "title": "Select an approval item"
@@ -763,12 +745,7 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
-    "queueEmptyScopeTitle": "No {{scope}} awaiting your decision",
-    "showAllPending": "Show all pending",
-    "decisionTotal": "Decision total",
-    "lineItems": "Line items",
-    "openRequest": "Open request",
-    "unitRate": "{{quantity}} × {{rate}}",
+
     "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
@@ -800,7 +777,6 @@
       "policyHelp": "Policy: a different person approves each timesheet."
     },
     "scopeToggleLabel": "Approvals scope",
-    "subtitle": "Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.",
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
@@ -832,7 +808,7 @@
       "archive": "Archive",
       "delete": "Delete",
       "edit": "Edit",
-      "more": "More",
+
       "new": "New company"
     },
     "columns": {
@@ -856,11 +832,7 @@
       "all": "All",
       "ariaLabel": "Filter by type"
     },
-    "sort": {
-      "label": "Sort companies",
-      "nameAsc": "Name A–Z",
-      "nameDesc": "Name Z–A"
-    },
+
     "form": {
       "editSubmit": "Save company",
       "editSubtitle": "Update this company record",
@@ -1005,7 +977,6 @@
       "emailPlaceholder": "name@example.com",
       "fullName": "Full name",
       "fullNamePlaceholder": "e.g. Jane Doe",
-      "name": "Name",
       "notes": "Notes",
       "notesPlaceholder": "Anything worth remembering about this contact",
       "phone": "Phone",
@@ -1159,7 +1130,6 @@
       "title": "Contact not found"
     },
     "pill": "Contact",
-    "sectionTitle": "Contact detail",
     "toast": {
       "activityDeleted": "Activity deleted",
       "activityLogged": "Activity logged",
@@ -1182,8 +1152,7 @@
     "columns": {
       "company": "Company",
       "email": "Email",
-      "name": "Name",
-      "title": "Title"
+      "name": "Name"
     },
     "confirm": {
       "archiveConfirm": "Archive contact",
@@ -1193,8 +1162,7 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-    "notRecorded": "Not recorded",
-    "scope": "People across the companies you work with",
+
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company",
@@ -1243,11 +1211,7 @@
       "ariaLabel": "Search contacts",
       "placeholder": "Search contacts…"
     },
-    "sort": {
-      "label": "Sort contacts",
-      "nameAz": "Name A–Z",
-      "nameZa": "Name Z–A"
-    },
+
     "states": {
       "emptyAction": "Add your first contact",
       "emptySub": "Add your first contact to start logging calls and emails against the people you work with.",
@@ -1266,7 +1230,8 @@
       "created": "Contact created",
       "deleted": "Contact deleted",
       "updated": "Contact updated"
-    }
+    },
+    "description": "People and their company relationships."
   },
   "dashboard": {
     "bva": {
@@ -1412,7 +1377,7 @@
       "errorTitle": "Couldn't load expense claims awaiting you",
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
-      "previewHeading": "Review expense claim",
+
       "noReceipts": "No receipts attached.",
       "previewEvidence": "Preview claim evidence",
       "receiptsError": "Couldn't load receipts.",
@@ -1664,7 +1629,7 @@
     },
     "delete": "Delete",
     "edit": "Edit meeting",
-    "editing": "Editing meeting",
+
     "error": {
       "sub": "Something went wrong fetching this meeting.",
       "title": "Couldn't load meeting"
@@ -1701,7 +1666,6 @@
       "unassigned": "Unassigned — assign an owner",
       "editorLabel": "Meeting minutes",
       "empty": "No minutes were recorded for this meeting.",
-      "save": "Save minutes",
       "slash": {
         "actionTitle": "Action item",
         "actionSubtext": "Create a task from this line",
@@ -1733,7 +1697,6 @@
       "actionCreated": "Action item created",
       "archived": "Meeting archived",
       "deleted": "Meeting deleted",
-      "minutesSaved": "Minutes saved",
       "shared": "Meeting shared",
       "updated": "Meeting updated"
     }
@@ -1789,11 +1752,7 @@
       "ariaLabel": "Search meetings",
       "placeholder": "Search notes and titles…"
     },
-    "sort": {
-      "label": "Sort meetings",
-      "latest": "Latest meeting date",
-      "oldest": "Oldest meeting date"
-    },
+
     "states": {
       "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
       "emptyTitle": "No meetings yet",
@@ -1814,8 +1773,7 @@
     }
   },
   "myTasks": {
-    "allProjects": "All projects",
-    "clearFilters": "Clear filters",
+
     "changeStatusOf": "Change status of",
     "due": "Due {{date}}",
     "empty": {
@@ -1827,15 +1785,11 @@
       "title": "Couldn't load your tasks"
     },
     "logTime": "Log time",
-    "listLabel": "Assigned tasks",
+
     "noProjectGroup": "No project",
     "overdue": "Overdue",
     "openTasks": "Open tasks",
-    "projectFilter": "Filter by project",
-    "projectUnknown": "Project",
-    "sortDue": "Due date",
-    "sortLabel": "Sort tasks",
-    "sortUrgency": "Urgency",
+
     "completed": "Completed",
     "queueLabel": "Task status",
     "searchLabel": "Search your tasks",
@@ -1843,95 +1797,9 @@
     "clearSearch": "Clear search",
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
-    "start": "Start {{date}}",
-    "subtitle": "Your assigned tasks across all projects.",
-    "title": "My Tasks"
+    "start": "Start {{date}}"
   },
-  "incidents": {
-    "actions": { "file": "File incident", "edit": "Edit", "delete": "Delete" },
-    "form": {
-      "title": { "create": "File incident", "edit": "Edit incident" },
-      "subtitle": {
-        "create": "Record what happened. You will be recorded as the reporter.",
-        "edit": "Update this incident report"
-      },
-      "section": "What happened",
-      "dateRequired": "Incident date is required.",
-      "typeRequired": "Incident type is required.",
-      "type": "Type",
-      "typePlaceholder": "e.g. Near Miss, Equipment Damage, Spill",
-      "locationPlaceholder": "e.g. Office or work site",
-      "projectNoun": "project",
-      "projectPlaceholder": "Optional — link a project…",
-      "description": "Description",
-      "descriptionPlaceholder": "What happened, who was involved, and any immediate action taken.",
-      "save": "Save incident",
-      "submit": "File incident"
-    },
-    "detail": {
-      "title": "Incident",
-      "scope": "Incident report",
-      "loadErrorTitle": "Couldn't load incident",
-      "loadErrorSub": "Something went wrong fetching the incident report.",
-      "notFoundTitle": "Incident not found",
-      "notFoundSub": "This incident either doesn't exist or isn't visible to you. Return to the register to find it.",
-      "reported": "Reported {{date}}",
-      "evidence": "Incident evidence",
-      "description": "Description",
-      "noDescription": "No description was recorded.",
-      "nextAction": "Next action",
-      "confirmFallbackTitle": "Advance incident?",
-      "transition": {
-        "investigating": {
-          "menu": "Start investigating",
-          "title": "Start investigating {{type}}?",
-          "body": "This moves the incident to Investigating so the team can record findings. You can close it once the investigation is complete.",
-          "confirm": "Start investigating"
-        },
-        "closed": {
-          "menu": "Close incident",
-          "title": "Close {{type}}?",
-          "body": "This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges.",
-          "confirm": "Close incident"
-        }
-      },
-      "toast": {
-        "closed": "Incident closed",
-        "investigating": "Investigation started",
-        "updated": "Incident updated",
-        "deleted": "Incident deleted",
-        "filed": "Incident filed"
-      },
-      "rowOpen": "Open {{type}}",
-      "deleteTitle": "Delete {{type}}?",
-      "deleteFallbackTitle": "Delete incident?",
-      "deleteDescription": "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.",
-      "deleteConfirm": "Delete incident"
-    },
-    "columns": {
-      "incident": "Incident", "project": "Project", "severity": "Severity",
-      "status": "Status", "date": "Date", "location": "Location"
-    },
-    "description": "Organization incident register for reporting, investigation and closure.",
-    "filters": { "status": "Filter by status", "severity": "Filter by severity", "sort": "Sort incidents" },
-    "search": { "ariaLabel": "Search incidents", "placeholder": "Search incidents…" },
-    "sort": { "priority": "Severity first", "date": "Newest first" },
-    "status": { "all": "All", "open": "Open", "investigating": "Investigating", "closed": "Closed" },
-    "severity": { "all": "All severities", "critical": "Critical", "high": "High", "medium": "Medium", "low": "Low" },
-    "states": {
-      "errorTitle": "Couldn't load incidents",
-      "errorSub": "The request failed. Check your connection and try again.",
-      "emptyTitle": "No incidents reported",
-      "emptySub": "When something goes wrong on a project or site, file it here so it can be investigated and closed out."
-    },
-    "table": {
-      "emptyTitle": "No incidents match",
-      "emptySub": "Try a different severity, status or search.",
-      "clearFilters": "Clear filters"
-    },
-    "notRecorded": "Not recorded",
-    "title": "Incidents", "unlinked": "Unlinked", "viewProject": "View project"
-  },
+
   "procurement": {
     "columns": {
       "request": "Request",
@@ -3472,22 +3340,19 @@
       "title": "No hours logged this week"
     },
     "emptyEdit": {
-      "sub": "Choose a project above to start recording hours.",
-      "title": "No hours logged this week"
+      "sub": "Choose a project above to start recording hours."
     },
     "enterHoursToSubmit": "Enter hours to submit",
     "error": {
       "sub": "Something went wrong fetching your hours.",
       "title": "Couldn't load timesheets"
     },
-    "hoursThisWeek": "{{hours}} hours this week",
     "saveDraft": "Save draft",
     "note": "Note",
     "addNotePlaceholder": "Add a note",
     "submitWeek": "Submit week",
     "weekTotal": "Week total",
-    "weekTotalHours": "Week total · hours",
-    "hoursGroup": "Hours",
+
     "dailyTotal": "Daily total",
     "rowTotal": "Row total",
     "projectColumn": "Project",
@@ -3522,7 +3387,6 @@
       "description": "This sends the whole week to your line manager. You can't edit it again until it's returned.",
       "title": "Submit this week for approval?"
     },
-    "subtitle": "Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.",
     "title": "Timesheets",
     "toast": {
       "deleteFailed": "Delete failed",
@@ -3715,8 +3579,6 @@
   },
   "profileSettings": {
     "loading": "Loading profile…",
-    "title": "Profile & preferences",
-    "description": "Choose your language, number format, and timezone for this portal.",
     "language": {
       "label": "Interface language",
       "help": "Saved to your profile and applied across devices.",
@@ -3753,40 +3615,22 @@
     "error": "Could not save your preferences. Please try again.",
     "invalidTimezone": "Choose a valid timezone before saving."
   },
-  "workPageHeading": {
-    "approvals": "Approvals",
-    "approvalsScope": "My decisions",
-    "company": "Company",
-    "companyScope": "Account record",
-    "contact": "Contact",
-    "contactScope": "Person record",
-    "incident": "Incident",
-    "incidentScope": "Incident report",
-    "meeting": "Meeting",
-    "meetingScope": "Meeting record",
-    "profile": "Profile & preferences",
-    "profileScope": "Personal preferences",
-    "tasks": "My tasks",
-    "tasksScope": "Assigned to you across projects",
-    "timesheets": "My time",
-    "timesheetsScope": "Your hours · {{week}} · {{status}}",
-    "views": "My views"
-  },
+
   "oauthConsent": {
     "allow": "Allow",
     "brand": "PMO Portal",
     "decideError": "Your answer could not be sent.",
     "deny": "Deny",
-    "errorTitle": "Sign-in request unavailable",
+
     "explain": "{{client}} will be able to read and change PMO records as you, with exactly your permissions. It can do nothing you cannot do yourself.",
     "loadError": "This sign-in request could not be loaded.",
     "loading": "Loading the sign-in request…",
-    "loadingTitle": "Sign-in request",
+
     "loopback": "After you answer, you return to a program on this computer.",
     "missingRequest": "This sign-in request is incomplete.",
     "restart": "Start the sign-in again from the application that sent you here.",
     "returning": "Returning you to the application…",
-    "returningTitle": "Returning to the application",
+
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
@@ -4019,29 +3863,13 @@
     "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
     "updated": "Updated",
-    "myViews": "My Views",
-    "savedViews": "Saved views",
-    "savedViewsScope": "Your reusable answers — mine and shared with me",
-    "mineAndShared": "Mine + shared",
-    "mine": "Mine",
-    "sharedWithMe": "Shared with me",
-    "viewScope": "Saved view scope",
-    "searchViews": "Search saved views…",
-    "sortViews": "Sort saved views",
-    "nameAsc": "Name A–Z",
-    "nameDesc": "Name Z–A",
-    "scope": "Scope",
-    "noViewsYetSub": "Save a view when you need the same scoped answer again.",
-    "noViewsMatch": "No saved views match these filters",
-    "noViewsMatchSub": "Try a different search or scope, or clear the filters.",
-    "openSavedView": "Open {{name}}",
+
     "composeViewWithAI": "Compose view with AI",
     "composeWithAI": "Compose with AI",
     "newView": "New view",
     "couldNotLoadViews": "Could not load views.",
     "aNetworkOrServerErrorOccurred": "A network or server error occurred.",
     "noViewsYet": "No views yet.",
-    "createYourFirstView": "Create your first view",
     "archiveThisView": "Archive this view?",
     "keep": "Keep",
     "budgetCategoryLabor": "Labor",
@@ -4183,17 +4011,10 @@
     "viewNotFound": "View not found.",
     "viewNotFoundDescription": "This view may have been archived or you don't have access.",
     "goToMyViews": "Go to My Views",
-    "editUnavailable": "View is read-only",
-    "editUnavailableDescription": "Only the owner or an administrator can edit this saved view.",
+
     "newView": "New view",
     "editView": "Edit view",
-    "backToViews": "Back to saved views",
-    "nameRequiredToSave": "Enter a view name to save.",
-    "saving": "Saving…",
-    "composedToast": "View composed",
-    "composedToastDetail": "Review and save when ready",
-    "createdToast": "View created",
-    "updatedToast": "View updated",
+
     "aiDraftReview": "AI-composed draft — review before saving",
     "composeWithAi": "Compose view with AI",
     "cancel": "Cancel",
@@ -4266,28 +4087,7 @@
     "generating": "Generating…",
     "generate": "Generate"
   },
-  "viewRenderer": {
-    "backToViews": "Back to saved views",
-    "checkingAccessTitle": "Checking access to saved view",
-    "checkingAccessDescription": "Confirming your access before opening this saved answer…",
-    "savedViewTitle": "Saved view",
-    "loadingTitle": "Opening saved view",
-    "loadingDescription": "Loading the saved answer and its panels…",
-    "loadErrorTitle": "Could not load saved view",
-    "loadErrorDescription": "The saved answer did not load. Retry or return to saved views.",
-    "notFoundTitle": "View not found",
-    "notFoundDescription": "This saved answer is unavailable. It may have been archived or you may not have access.",
-    "invalidTitle": "This saved view cannot be shown",
-    "invalidDescription": "Its saved definition could not be interpreted.",
-    "developerDetail": "Developer detail (hidden in production)",
-    "maximumPanels": "This view has more than {{count}} panels.",
-    "privateScope": "Private",
-    "sharedScope": "Shared with your organisation",
-    "editView": "Edit view",
-    "emptyTitle": "This saved view has no panels yet",
-    "emptyOwnerDescription": "Add a panel to define the answer this view should save.",
-    "emptyReaderDescription": "Ask the owner to add panels to this saved answer."
-  },
+
   "projectClassification": {
     "tooLong": "Use {{max}} characters or fewer.",
     "title": "Classification",
