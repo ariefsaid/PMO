@@ -911,6 +911,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
+      disabledReasonVisible
       errorSummary={errorSummary}
     >
       {!native && pendingPush.status !== 'idle' && (

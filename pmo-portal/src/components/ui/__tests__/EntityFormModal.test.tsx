@@ -106,6 +106,16 @@ describe('EntityFormModal: disabled submit while invalid + loading', () => {
     expect(screen.getByRole('button', { name: 'Create deal' })).toBeDisabled();
   });
 
+  it('shows an opt-in disabled-submit reason beside the footer actions', () => {
+    render(
+      <EntityFormModal {...baseProps} submitDisabled disabledReasonVisible disabledReason="Choose a project first." >
+        <TextField label="Name" value="" onChange={() => {}} />
+      </EntityFormModal>,
+    );
+
+    expect(screen.getByText('Choose a project first.')).toBeVisible();
+  });
+
   it('loading => spinner + aria-busy and the Esc/scrim close is blocked', async () => {
     const onClose = vi.fn();
     render(

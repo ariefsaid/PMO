@@ -124,7 +124,8 @@ async function openForm(user: ReturnType<typeof userEvent.setup>) {
 /** Picks `label` in the named picker. */
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
-  const option = await screen.findByRole('option', { name: new RegExp(label) });
+  const listbox = await screen.findByRole('listbox');
+  const option = within(listbox).getByRole('option', { name: new RegExp(label) });
   await user.click(option);
 }
 
@@ -368,7 +369,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await pick(user, 'Customer', 'Acme Energy');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
     await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
-    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('Description'), 'Monthly support');
     await user.clear(screen.getByLabelText(/Rate/));
     await user.type(screen.getByLabelText(/Rate/), '100');
@@ -551,7 +552,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await pick(user, 'Project', 'Alpha Platform');
     await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
     await user.type(screen.getByRole('searchbox', { name: /ERP items/i }), 'Test service');
-    await user.click(await screen.findByRole('option', { name: /ITEM-TEST/ }));
+    await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /ITEM-TEST/ }));
     await user.type(screen.getByLabelText('Description'), 'Inspection of test unit');
     await user.clear(screen.getByLabelText(/Rate/));
     await user.type(screen.getByLabelText(/Rate/), '100');
@@ -599,7 +600,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     await user.click(screen.getByRole('combobox', { name: 'Project' }));
 
-    expect(await screen.findByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
+    expect(within(await screen.findByRole('listbox')).getByRole('option', { name: /Alpha Platform/ })).toBeInTheDocument();
   });
 
   it('enables "Create invoice" once a customer and project are chosen (it was permanently disabled)', async () => {
@@ -609,6 +610,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const submit = screen.getByRole('button', { name: 'Create invoice' });
     expect(submit).toBeDisabled();
+    expect(screen.getByText('Complete all required fields (marked with an asterisk) to save.')).toBeVisible();
 
     await pick(user, 'Customer', 'Acme Energy');
 

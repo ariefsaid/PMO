@@ -73,6 +73,8 @@ export interface EntityFormModalProps {
    * pass your own when the submit is disabled for another reason (e.g. an invalid value).
    */
   disabledReason?: string;
+  /** Show the disabled-submit explanation beside the footer actions as well as to assistive technology. */
+  disabledReasonVisible?: boolean;
   /** Translated/specific copy for the dirty-discard confirm (default: English generic). */
   discardCopy?: DiscardCopy;
   /** Mutation in flight: footer spinner + Esc/scrim lockout. */
@@ -113,6 +115,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onClose,
   submitDisabled,
   disabledReason,
+  disabledReasonVisible = false,
   discardCopy,
   loading = false,
   dirty = false,
@@ -395,7 +398,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             {/* Sticky footer */}
             <div className="border-t border-border px-[18px] py-3.5">
               {submitDisabled && (
-                <span id={disabledReasonId} className="sr-only">
+                <span id={disabledReasonId} className={disabledReasonVisible ? 'mb-2 block max-w-[60ch] type-metadata text-muted-foreground' : 'sr-only'}>
                   {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
               )}

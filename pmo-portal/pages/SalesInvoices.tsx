@@ -1667,6 +1667,7 @@ const SalesInvoiceFormModal: React.FC<SalesInvoiceFormModalProps> = ({
       loading={form.isSubmitting}
       dirty={form.isDirty}
       submitDisabled={!form.isComplete}
+      disabledReasonVisible
       errorSummary={errorSummary}
     >
       {!native && pendingPush.status !== 'idle' && (
