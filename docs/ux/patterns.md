@@ -176,4 +176,4 @@ State keys: D default; Hov hover; F focus; X disabled; Sk loading skeleton (same
 7. Phone tile grid, paired facts/sticky-identity table and identity/status/amount/Open rows, never a tall label/value stack?
 8. One disclosure per topic, summary in toggle, default collapse named, prerequisites/errors visible?
 9. Every molecule's D/Hov/F/X/Sk/Err/Ø/Long/ID states evidenced or passive non-applicability explicit; 44px targets?
-10. Real-shaped 390/1440 EN/ID light/dark captures: IDR 2,226,648,000, mixed currencies, N48, 80+ notifications, 20+ rows?
+I. Proximity and pairing: inside-group gap ≤ half the between-group gap, no orphan section labels, every label within one eye-span of its value, values outrank labels (H-10/H-11/H-12)?

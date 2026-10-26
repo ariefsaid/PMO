@@ -23,6 +23,10 @@ Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period
 **H-08** Format counts, percentages, quantities and dates with the saved locale/number/timezone preferences; omit meaningless zero fractions, retain meaningful precision, label signs/units, use unambiguous dates (26 Oct 2026 / 26 Okt 2026), name timestamp timezone and keep date-only business dates unchanged — *Finance distinguishes -12.5% from an amount and reads the same due day in EN/ID.*
 **H-09** Identity never truncates: wrap full project/customer/record names and references at both widths; never require hover to distinguish records — *PM can identify the complete 48-character project on a phone.*
 
+**H-10** Group by proximity, not by lines: the gap inside a group is at most half the gap between groups (8/16 px inside, 48 px between at 1440; 32 px at 390); a label sits directly on its value or rows (≤ 8 px), and a section label never stands alone between two dividers — *an Executive sees four groups on the dashboard before reading a word.*
+**H-11** A label and its value share one eye-span: stacked, or side by side within about 160 px; never a label at the left edge and its value at the right edge of a wide track, and never two label/value columns interleaved across one row — *Finance pairs "Known Actual" with 8,980,000 without tracing a line.*
+**H-12** Within a figure block the value outranks its label: the value is foreground, tabular and at least one role above its label (primary figures use the heading role); labels are muted and small; a measured answer such as "7 requests need a decision" is set as a figure, not as a body sentence — *the number is the first thing the eye lands on in every block.*
+
 ## Navigation
 **N-01** Show where the user is with a named current area and record/project identity — *active navigation, heading and breadcrumb agree in the PM's project capture.*
 **N-02** Provide a named way back that preserves the working list's filters and sort — *Finance's invoice → back pair restores the same collection, scope and ordering.*
