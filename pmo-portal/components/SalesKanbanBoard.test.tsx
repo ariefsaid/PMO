@@ -91,6 +91,8 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     expect(within(card).getByText('Customer unavailable')).toBeInTheDocument();
     expect(within(card).getByText(formatCurrencyAuto(1_200_000, 'USD'))).toBeInTheDocument();
     expect(list.querySelectorAll('li')).toHaveLength(1);
+    // With no stage heading in the phone list, each deal follows the page h1 directly.
+    expect(within(card).getByRole('heading', { level: 2 })).toHaveTextContent(formatCurrencyAuto(1_200_000, 'USD'));
   });
 
   it('AC-S24-002: the compact phone row keeps a long contractual identity, customer and exact 13-digit IDR value', () => {

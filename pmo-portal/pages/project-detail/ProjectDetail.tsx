@@ -412,7 +412,7 @@ const ProjectDetail: React.FC = () => {
                   variant="primary"
                   disabled={pipelinePrimaryAction.disabled}
                   onClick={pipelinePrimaryAction.activate}
-                  className="min-h-11 max-[920px]:w-full"
+                  className="min-h-11 hover:bg-primary max-[920px]:w-full"
                 >
                   {pipelinePrimaryAction.label}
                 </Button>
@@ -422,7 +422,12 @@ const ProjectDetail: React.FC = () => {
 
           <div className="grid min-w-0 gap-4 min-[921px]:grid-cols-[12rem_minmax(0,1fr)] min-[921px]:gap-8">
             <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} identityName={project.name} identityVisible={identityVisible} />
-            <div className="min-w-0">
+            <div
+              className="min-w-0"
+              role={tab === 'overview' ? 'tabpanel' : undefined}
+              id={tab === 'overview' ? tabPanelId('project-detail', tab) : undefined}
+              aria-labelledby={tab === 'overview' ? tabId('project-detail', tab) : undefined}
+            >
               {/* The record's decision facts follow its section control and stay above evidence. */}
               <div className="mb-8">
                 <PipelineLens project={project} locationState={location.state} onPrimaryActionChange={setPipelinePrimaryAction} onReturnToSales={returnToSales} />

@@ -441,7 +441,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                   )}
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="primary" className="min-h-11 min-w-11" loading={pending} onClick={submitWon}>
+                  <Button variant="primary" className="min-h-11 min-w-11 hover:bg-primary" loading={pending} onClick={submitWon}>
                     {t('projectDetail.pipeline.confirmWon', 'Confirm won')}
                   </Button>
                   <Button variant="ghost" className="min-h-11 min-w-11" onClick={() => setShowWonPanel(false)}>

@@ -6,10 +6,10 @@ import type { ProjectClassificationFilters as FilterValues } from '@/src/lib/pro
 
 const rows = [{ service_line: 'Engineering', sector: 'Energy' }];
 
-function setup(initial: FilterValues = {}) {
+function setup(initial: FilterValues = {}, hideAppliedSummary = false) {
   const onChange = vi.fn();
   const ui = (value: FilterValues) => (
-    <ProjectClassificationFilters rows={rows} value={value} onChange={onChange} panel={(fields) => fields} />
+    <ProjectClassificationFilters rows={rows} value={value} onChange={onChange} hideAppliedSummary={hideAppliedSummary} panel={(fields) => fields} />
   );
   const view = render(ui(initial));
   return { onChange, rerenderWith: (value: FilterValues) => view.rerender(ui(value)) };
@@ -50,6 +50,19 @@ describe('ProjectClassificationFilters location box', () => {
     fireEvent.change(box, { target: { value: 'West Java' } });
     act(() => rerenderWith({ location: 'West' }));
     expect(box).toHaveValue('West Java');
+  });
+
+  it('AC-TAG-002 retains location focus when its first URL update adds the clear control', () => {
+    // Projects hosts a combined applied summary outside this panel.
+    const { rerenderWith } = setup({}, true);
+    const box = screen.getByLabelText('Filter by location');
+    box.focus();
+    fireEvent.change(box, { target: { value: 'Bali' } });
+    act(() => { vi.advanceTimersByTime(300); });
+    act(() => rerenderWith({ location: 'Bali' }));
+    expect(screen.getByLabelText('Filter by location')).toHaveValue('Bali');
+    expect(screen.getByLabelText('Filter by location')).toHaveFocus();
+    expect(screen.getByRole('button', { name: 'Clear classifications' })).toBeInTheDocument();
   });
 
   it('AC-TAG-002 a resetToken bump cancels a pending location even when value.location never moves', () => {

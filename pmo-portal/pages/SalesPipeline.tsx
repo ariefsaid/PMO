@@ -277,13 +277,13 @@ const SalesPipeline: React.FC = () => {
         <Icon name="search" />
         <input type="search" aria-label={t('sales.search.label', 'Search projects')} placeholder={t('sales.search.placeholder', 'Search projects…')} value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
       </div>
-      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:flex-none">
+      <label className="flex min-w-28 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:min-w-0 md:flex-none">
         <span>{salesT('pipeline.scopeLabel', 'Project scope')}</span>
         <select aria-label={salesT('pipeline.scopeLabel', 'Project scope')} value={workingSet.scope} onChange={(event) => updateScope(event.currentTarget.value as SalesScope)} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
           {SCOPES.map((scope) => <option key={scope} value={scope}>{scopeLabels[scope]}</option>)}
         </select>
       </label>
-      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:flex-none">
+      <label className="flex min-w-28 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:min-w-0 md:flex-none">
         <span>{salesT('pipeline.stageLabel', 'Stage')}</span>
         <select aria-label={salesT('pipeline.stageLabel', 'Stage')} value={selectedStatus} disabled={workingSet.scope === 'Lost'} onChange={(event) => updateStage(event.currentTarget.value as SalesStage)} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-70">
           <option value="">{salesT('pipeline.allStages', 'All stages')}</option>
@@ -355,7 +355,7 @@ const SalesPipeline: React.FC = () => {
       {state === 'loading' && <ListState variant="loading" rows={5} />}
       {state === 'error' && <ListState variant="error" title={t('sales.error.title', "Couldn't load the sales pipeline")} sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')} onRetry={() => refetch()} />}
       {state === 'empty' && !hasActiveFilters && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{canCreate ? t('sales.empty.sub', 'Add a project to start tracking the pipeline.') : salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}</p></div>}
-      {(state === undefined || state === 'empty' && hasActiveFilters) && showEmpty && <ListState variant="empty" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
+      {(state === undefined || state === 'empty' && hasActiveFilters) && showEmpty && <ListState variant="empty" className="[&_button:hover]:bg-primary" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (

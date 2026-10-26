@@ -187,6 +187,14 @@ describe('AC-IFW-RECORD-01: pre-win detail — commercial evidence and actions w
     expect(screen.queryByRole('button', { name: /Plan delivery phases/i })).not.toBeInTheDocument();
   });
 
+  it('AC-IFW-RECORD-01 / R-007: the selected Overview section controls its commercial tabpanel', async () => {
+    await renderAt('/projects/opp1');
+    const selected = screen.getByRole('tab', { name: 'Overview', selected: true });
+    const panel = screen.getByRole('tabpanel', { name: 'Overview' });
+    expect(selected).toHaveAttribute('aria-controls', panel.id);
+    expect(within(panel).getByLabelText('Project stage journey')).toBeInTheDocument();
+  });
+
   it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', async () => {
     await renderAt('/projects/opp1');
 

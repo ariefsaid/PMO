@@ -145,10 +145,10 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     if (!next && pointerGesture.current) closeAfterClick.current = true;
     else commitOpen(next);
   };
-  const panelFields = panel && activeKeys.length > 0 ? (
+  const panelFields = panel ? (
     <div className="grid min-w-0 gap-3">
       {fields}
-      <Button variant="ghost" className="touch-target w-fit text-primary-text" onClick={() => {
+      {activeKeys.length > 0 && <Button variant="ghost" className="touch-target w-fit text-primary-text" onClick={() => {
         focusTrigger();
         clearTimeout(timer.current);
         lastLocation.current = '';
@@ -157,7 +157,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
         requestOpen(false);
       }}>
         {t('projectClassification.clear', 'Clear classifications')}
-      </Button>
+      </Button>}
     </div>
   ) : fields;
   return (

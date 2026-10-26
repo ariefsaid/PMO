@@ -47,16 +47,17 @@ const Activity: React.FC<{ project: PipelineProject }> = ({ project }) => {
   );
 };
 
-const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean; sharedMoney?: boolean }> = ({ project, onOpen, grouped, sharedMoney = false }) => {
+const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean; sharedMoney?: boolean; headingLevel: 2 | 3 }> = ({ project, onOpen, grouped, sharedMoney = false, headingLevel }) => {
   const { t } = useTranslation('sales');
   const statusLabel = useProjectStatusLabel();
   const stageLabel = useSalesStageLabel();
   const stage = SALES_COLUMNS.find((column) => !column.terminal && column.testId !== 'stage-Won' && column.statuses.includes(project.status));
   const customer = project.client_name || t('pipeline.customerUnavailable', 'Customer unavailable');
   const terminal = project.status === 'Loss Tender' || project.status === 'Declined';
+  const Heading = headingLevel === 2 ? 'h2' : 'h3';
   return (
     <article className="min-w-0 rounded-lg border border-border bg-card p-2">
-      <h3 className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-bold tabular"><span className="whitespace-nowrap">{sharedMoney ? formatNumberExact(project.contract_value) : formatCurrencyAuto(project.contract_value, project.currency)}</span>{!sharedMoney && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} className="font-semibold" />}</h3>
+      <Heading className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-xl font-bold tabular"><span className="whitespace-nowrap">{sharedMoney ? formatNumberExact(project.contract_value) : formatCurrencyAuto(project.contract_value, project.currency)}</span>{!sharedMoney && <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} className="font-semibold" />}</Heading>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
         <ProjectIdentity project={project} onOpen={onOpen} />
         {(!grouped || terminal) && (
@@ -90,7 +91,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
   const stageLabel = useSalesStageLabel();
   const openColumns = SALES_COLUMNS.filter((column) => !column.terminal && column.testId !== 'stage-Won');
   const renderProject = (project: PipelineProject, grouped: boolean, sharedMoney = false) => (
-    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} sharedMoney={sharedMoney} />
+    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} sharedMoney={sharedMoney} headingLevel={presentation === 'list' ? 2 : 3} />
   );
 
   if (presentation === 'list') {
