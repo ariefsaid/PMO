@@ -9,3 +9,5 @@ Detector (59 rules, `.claude/skills/impeccable/scripts/impeccable detect`) runs 
 | Rendered review (Sol first, Argon fallback, GLM backup) | detector both viewports, `/audit` (a11y, theming, overflow), `/critique` on the shots, `/distill` check (each fact once), taste lenses | the unknown-unknown net on pixels; **one pass, exhaustive**: every route, state, width, theme; numbered findings with counts, never a top-N (impeccable's prioritise-the-few guidance is overridden) |
 | Any step, when the task warrants | `/polish` after every fix round, `/harden`, `/clarify`, `/adapt`, `/optimize` (slow route), `/animate` only for state feedback, `/quieter` when a screen shouts | the step column is the minimum, not the ceiling; name the command used in the PR or review |
 | Never in this lane | `/colorize`, `/bolder`, `/typeset`, `/overdrive`, `/delight`, `/document` | ADR-0068 look is fixed; OD-REDESIGN-SCOPE |
+
+Data-dense pages (records, dashboards, statements, tables) additionally run `/distill` and `/layout` before capture, and the rendered review names, per persona, the primary figure and counts distinct text styles per block (H-01..H-06).

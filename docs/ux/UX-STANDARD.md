@@ -10,6 +10,14 @@ Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period
 **PA-03** Put decision evidence together: PM sees phase/task context; Finance sees amount and invoice; approver sees request and evidence — *no intervening unrelated tiles or repeated summary boxes.*
 **PA-04** Each fact appears once per page and content fills the content track: no block repeats a figure or caveat, no card or band only holds whitespace or a single caption, and no empty band wider than 25% sits beside content at 1440px; the Executive dashboard and project Overview must avoid scattered facts and whitespace without deliberate intent — *reviewer counts each figure once and finds no near-empty container.*
 
+## Hierarchy and data shape
+**H-01** Each page names one primary figure or fact per persona (the PA-00 answer) and sets it apart by size and position; everything else is secondary or tertiary — *a PM opening a project reads remaining-to-invoice and cash received before any other amount.*
+**H-02** Use at most three text levels per block (section head · label · value) with distinct size or weight; a group head never looks like a label, a label never like a value — *Finance can tell "8 invoices" (head) from "Outstanding" (label) without reading.*
+**H-03** Group related facts under one named head with shared unit, currency and caveat stated once in the head, not per line; order groups by the persona's decision (money in → billed → spending → margin) — *no "IDR", "excl. PPN" or "Updated …" repeated down a column.*
+**H-04** Format large amounts for reading: whole units by default (IDR 2,226,648,000, never .00), compact forms (IDR 2.23 bn) in heads and tiles with the exact value visible on the row or in the title; align numbers right in columns — *a thirteen-digit amount fits a 390px line without wrapping.*
+**H-05** One navigation layer per record: title → identity → primary action → sections; never stack an action row, collapsed summaries and tabs that all describe the same content — *a record's finances live in one place, not in a collapsed "summary" and an open "finances".*
+**H-06** Every capture renders real-shaped data: IDR-scale amounts (10–13 digits), mixed IDR/USD, long project and customer names, high counts (80+ notifications, 20+ rows); the dataset in `docs/ux/2026-10-19-real-data-design-pass.md` is the minimum — *a layout that only passes on the seed org has not passed.*
+
 ## Navigation
 **N-01** Show where the user is with a named current area and record/project identity — *active navigation, heading and breadcrumb agree in the PM's project capture.*
 **N-02** Provide a named way back that preserves the working list's filters and sort — *Finance's invoice → back pair restores the same collection, scope and ordering.*
