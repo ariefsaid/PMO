@@ -529,3 +529,27 @@ describe('DataTable accessible structure name', () => {
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });
+
+
+describe('merged project collection and detail table behavior', () => {
+  it('a custom phone row replaces the default fact list instead of duplicating its facts', () => {
+    mockViewport(false);
+    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id}
+      mobileRow={(row) => <span>{row.name} · custom record</span>} />);
+    expect(screen.getByText('Alpha Corp · custom record')).toBeInTheDocument();
+    expect(screen.queryByText('Value')).toBeNull();
+    expect(screen.queryByText('125000')).toBeNull();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it.each([true, false])('custom loading is busy and announced for desktop=%s without invented records', (desktop) => {
+    mockViewport(desktop);
+    const view = render(<DataTable rows={[]} columns={columns} rowKey={(row) => row.id} state="loading"
+      loadingLayout={{ rows: 2, cell: () => <span>Pending cell</span>, mobileRow: <span>Pending row</span>, announcement: 'Reading projects' }} />);
+    expect(screen.getByRole('status', { name: 'Reading projects' })).toBeInTheDocument();
+    expect(view.container.firstElementChild).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByTestId('liststate-loading')).toBeNull();
+    expect(screen.queryByText('Alpha Corp')).toBeNull();
+    expect(screen.getAllByTestId('data-table-loading-row')).toHaveLength(2);
+  });
+});
