@@ -1601,6 +1601,7 @@
       "save": "Save line",
       "sectionLegend": "Expense",
       "title": "Lines",
+      "titleWithCurrency": "Lines · {{currency}}",
       "type": "Type"
     },
     "overhead": "Overhead",
@@ -2092,6 +2093,15 @@
       "requestedBy": "Requested by",
       "vendor": "Vendor"
     },
+    "review": {
+      "amountsWithCurrency": "Purchase amounts · {{currency}}",
+      "requestAmount": "Requested amount",
+      "selectedQuote": "Selected quote amount",
+      "orderedAmount": "Ordered amount",
+      "itemsWithCurrency": "Requested items · {{currency}}",
+      "noItems": "No items have been recorded on this request yet.",
+      "amountUnavailable": "Not available"
+    },
     "editHeader": "Edit",
     "error": {
       "sub": "Something went wrong fetching the procurement details.",
@@ -2103,6 +2113,7 @@
       "placeholder": "e.g. PRQ-0026100001"
     },
     "lifecycleLabel": "Procurement lifecycle",
+    "budgetImpactWithCurrency": "Budget impact · {{currency}}",
     "meta": {
       "requestedBy": "requested by"
     },

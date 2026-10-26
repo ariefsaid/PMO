@@ -7,7 +7,7 @@ import {
 import { useExpenseClaimMutations } from '@/src/hooks/useExpenseClaims';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatCurrencyAuto, formatDateOnly, formatMoneyInputValue, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatDateOnly, formatMoneyInputValue, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { ExpenseClaimLineRow, ExpenseLineInput, ExpenseType } from '@/src/lib/db/expenseClaims';
 import { expenseTypeLabel } from './expenseLabels';
 
@@ -31,7 +31,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
     { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
     { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
     { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
-    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatCurrencyAuto(Number(line.amount), currency) },
+    { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatNumber(Number(line.amount)) },
     ...(editable ? [{
       key: 'actions', header: t('table.actions', 'Actions'), kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
       cell: (line: ExpenseClaimLineRow) => <div className="flex justify-end gap-1">
@@ -67,7 +67,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
           )
         }
       >
-        {t('expenses.lines.title', 'Lines')}
+        {t('expenses.lines.titleWithCurrency', 'Lines · {{currency}}', { currency })}
       </CardHead>
       <CardPad>
         {isPending ? (

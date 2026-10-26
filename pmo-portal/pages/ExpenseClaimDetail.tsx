@@ -14,7 +14,7 @@ import {
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
@@ -78,6 +78,15 @@ const ExpenseClaimDetail: React.FC = () => {
     && claim.claimant_id !== userId && !actions.includes('approve');
   const amount = Number(claim.amount);
   const paidSplit = settlementPreview(amount, Number(claim.advance_applied));
+  const outstandingIsPrimary = claim.kind === 'advance' && claim.status === 'Paid';
+  const amountFacts = [
+    ...(outstandingIsPrimary ? [{ label: t('expenses.detail.outstanding', 'Outstanding'), value: outstanding, primary: true }] : []),
+    { label: t('expenses.detail.amount', 'Amount'), value: amount, primary: !outstandingIsPrimary },
+    ...(claim.kind === 'claim' && claim.status === 'Paid' ? [
+      { label: t('expenses.detail.advanceApplied', 'Advance applied'), value: paidSplit.applied, primary: false },
+      { label: t('expenses.detail.cashPaid', 'Cash paid'), value: paidSplit.cash, primary: false },
+    ] : []),
+  ];
 
   return (
     <div>
@@ -106,30 +115,16 @@ const ExpenseClaimDetail: React.FC = () => {
       />
 
       <section aria-labelledby="expense-evidence-heading" className="mb-4 border-b border-border pb-4">
-        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenseClaims:record.purposeAndAmount', 'Purpose and amount')}</h2>
+        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenseClaims:record.purposeAndAmount', 'Purpose and amount · {{currency}}', { currency: claim.currency })}</h2>
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-          <div>
-            <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
-            <dd className="font-semibold tabular-nums" data-testid="expense-amount">{formatCurrencyCents(amount, claim.currency)}</dd>
-          </div>
-          {claim.kind === 'claim' && claim.status === 'Paid' && (
-            <>
-              <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.advanceApplied', 'Advance applied')}</dt>
-                <dd className="tabular-nums">{formatCurrencyCents(paidSplit.applied, claim.currency)}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">{t('expenses.detail.cashPaid', 'Cash paid')}</dt>
-                <dd className="tabular-nums">{formatCurrencyCents(paidSplit.cash, claim.currency)}</dd>
-              </div>
-            </>
-          )}
-          {claim.kind === 'advance' && claim.status === 'Paid' && (
-            <div>
-              <dt className="text-xs text-muted-foreground">{t('expenses.detail.outstanding', 'Outstanding')}</dt>
-              <dd className="tabular-nums">{outstanding === null ? '—' : formatCurrencyCents(outstanding, claim.currency)}</dd>
+          {amountFacts.map((fact, index) => (
+            <div key={`${fact.label}-${index}`}>
+              <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+              <dd className={fact.primary ? 'break-words text-2xl font-bold tabular-nums' : 'break-words font-medium tabular-nums'} data-testid={fact.label === t('expenses.detail.amount', 'Amount') ? 'expense-amount' : undefined}>
+                {fact.value === null ? t('expenseClaims:record.outstandingUnavailable', 'Not available — refresh this record to check again.') : formatNumber(fact.value)}
+              </dd>
             </div>
-          )}
+          ))}
           {claim.payment_reference && (
             <div>
               <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>

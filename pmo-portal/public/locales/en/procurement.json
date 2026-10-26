@@ -13,6 +13,7 @@
     "cancel": "Cancel",
     "edit": "Edit",
     "heading": "Line items",
+    "headingWithCurrency": "Line items · {{currency}}",
     "formula": "qty × unit price → line total",
     "estimatedTotal": "Estimated total",
     "selectItem": "Select or search item…",

@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, DataTable, ListState, type Column } from '@/src/components/ui';
 import { useExpenseAdvanceAging } from '@/src/hooks/useExpenseClaims';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 import { AGING_LIMIT, type ExpenseAdvanceAgingRow } from '@/src/lib/db/expenseClaims';
 
 export interface AdvanceAgingCardProps {
@@ -45,7 +45,7 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
     { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}${location.search}`} state={{ recordContext: { listPath: returnPath } }} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
     { key: 'claimant', header: t('expenses.aging.columns.claimant', 'Claimant'), kind: 'text', cell: (row) => row.claimantName ?? '—' },
     { key: 'project', header: t('expenses.aging.columns.project', 'Project'), kind: 'text', cell: (row) => row.projectName ?? t('expenses.overhead', 'Overhead') },
-    { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatCurrencyAuto(row.outstanding, row.currency) },
+    { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatNumber(row.outstanding) },
     { key: 'age', header: t('expenses.aging.columns.age', 'Age (days)'), kind: 'number', align: 'num', cell: (row) => row.ageDays ?? '—' },
   ], [location.search, returnPath, t]);
   if (!active) return null;
@@ -65,7 +65,7 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
       <Card variant="bare">
         <CardHead>{t('expenses.aging.title', 'Outstanding advances')}</CardHead>
         <CardPad>
-          <DataTable rows={rows} columns={columns} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Advances outstanding')} />
+          <DataTable rows={rows} columns={columns} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Advances outstanding')} groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')} />
           {data.truncated && (
             <p role="status" className="mt-2 text-sm text-muted-foreground">
               {t('expenses.aging.truncated', 'Showing up to {{count}} advances from the bounded outstanding list. Search and filters apply within this set.', { count: AGING_LIMIT })}

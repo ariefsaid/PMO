@@ -13,6 +13,7 @@
     "cancel": "Batal",
     "edit": "Ubah",
     "heading": "Item permintaan",
+    "headingWithCurrency": "Item permintaan · {{currency}}",
     "formula": "jumlah × harga satuan → total baris",
     "estimatedTotal": "Perkiraan total",
     "selectItem": "Pilih atau cari item…",

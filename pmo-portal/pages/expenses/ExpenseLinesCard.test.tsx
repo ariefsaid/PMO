@@ -3,7 +3,7 @@ import { render, screen, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 
 const h = vi.hoisted(() => ({
   addLine: { mutateAsync: vi.fn(), isPending: false },
@@ -48,7 +48,8 @@ describe('ExpenseLinesCard', () => {
     renderCard(false, [LINE]);
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Description' })).toBeInTheDocument();
-    expect(within(table).getAllByText(formatCurrencyAuto(150000, 'IDR').replace(/\u00a0/g, ' '))).toHaveLength(1);
+    expect(screen.getByRole('heading', { name: 'Lines · IDR' })).toBeInTheDocument();
+    expect(within(table).getAllByText(formatNumber(150000))).toHaveLength(1);
     expect(screen.queryByTestId('lines-total')).not.toBeInTheDocument();
     expect(within(table).getByText('Taxi')).toBeInTheDocument();
   });

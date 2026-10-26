@@ -5,6 +5,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { formatNumber } from '@/src/lib/format';
 import { LineItemsSection } from './LineItemsSection';
 import type { ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import enProcurement from '@/public/locales/en/procurement.json';
@@ -92,21 +93,21 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
   it('AC-PROC-003: renders rows with a derived line total + footer total (tabular)', () => {
     renderSection();
     expect(screen.getByText('MIG welding wire')).toBeInTheDocument();
-    // Line total + footer total both render the formatted amount (USD, no fraction digits).
-    expect(screen.getAllByText(/\$2,064/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('heading', { name: /^Line items · USD/ })).toBeInTheDocument();
+    expect(screen.getAllByText(formatNumber(2064)).length).toBeGreaterThanOrEqual(1);
     const table = screen.getByRole('table', { name: 'Line items' });
     expect(table).toHaveTextContent('Estimated total');
   });
 
   it('OD-MONEY-FMT: preserves non-zero cents in line-item amounts and estimated total', () => {
     renderSection({ items: [{ ...items[0], quantity: 2, rate: 1032.25, amount: 2064.5 }] });
-    expect(screen.getAllByText('$2,064.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(formatNumber(2064.5)).length).toBeGreaterThanOrEqual(1);
   });
 
   it('FR-L10N-020: rows and the footer total render in the PROCUREMENT currency, not USD', () => {
     renderSection({ currency: 'EUR' });
-    expect(screen.getAllByText(/€2,064/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.queryByText(/\$2,064/)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Line items · EUR/ })).toBeInTheDocument();
+    expect(screen.getAllByText(formatNumber(2064)).length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-PROC-003: empty line totals remain unknown instead of displaying zero', () => {
@@ -125,7 +126,7 @@ describe('AC-PROC-003 LineItemsSection (editable line-items table)', () => {
 
   it('AC-PROC-003: derives exact line and section totals from quantity × rate', () => {
     renderSection({ items: [{ ...items[0], quantity: 3, rate: 0.1, amount: 0.3 }] });
-    expect(screen.getAllByText('$0.3').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(formatNumber(0.3)).length).toBeGreaterThanOrEqual(1);
   });
 
   it('AC-PROC-003: the inline add-row creates an item with parsed qty × rate', async () => {

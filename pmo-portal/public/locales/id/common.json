@@ -1601,6 +1601,7 @@
       "save": "Simpan rincian",
       "sectionLegend": "Pengeluaran",
       "title": "Rincian",
+      "titleWithCurrency": "Rincian · {{currency}}",
       "type": "Jenis"
     },
     "overhead": "Overhead",
@@ -2092,12 +2093,22 @@
       "requestedBy": "Diminta oleh",
       "vendor": "Vendor"
     },
+    "review": {
+      "amountsWithCurrency": "Jumlah pengadaan · {{currency}}",
+      "requestAmount": "Jumlah yang diminta",
+      "selectedQuote": "Jumlah penawaran terpilih",
+      "orderedAmount": "Jumlah pesanan",
+      "itemsWithCurrency": "Item yang diminta · {{currency}}",
+      "noItems": "Belum ada item yang tercatat pada permintaan ini.",
+      "amountUnavailable": "Tidak tersedia"
+    },
     "editHeader": "Edit",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil detail pengadaan.",
       "title": "Gagal memuat pengadaan"
     },
     "lifecycleLabel": "Siklus pengadaan",
+    "budgetImpactWithCurrency": "Dampak anggaran · {{currency}}",
     "meta": {
       "requestedBy": "diminta oleh"
     },

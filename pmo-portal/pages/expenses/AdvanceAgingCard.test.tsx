@@ -3,7 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 
 const h = vi.hoisted(() => ({
   aging: { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() },
@@ -34,7 +34,7 @@ describe('AdvanceAgingCard', () => {
     renderCard();
     const table = screen.getByRole('table');
     expect(within(table).getByRole('columnheader', { name: 'Outstanding' })).toBeInTheDocument();
-    expect(within(table).getByText(formatCurrencyAuto(200.5, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(table).getByText(formatNumber(200.5))).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'ADV-2' })).toHaveAttribute('href', '/expenses/a2');
     const links = within(table).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual(['ADV-1', 'ADV-2', 'ADV-3']);
@@ -46,8 +46,21 @@ describe('AdvanceAgingCard', () => {
     renderCard();
     const cards = screen.getByTestId('dt-card-branch');
     expect(within(cards).getByRole('link', { name: 'ADV-1' })).toHaveAttribute('href', '/expenses/a1');
-    expect(within(cards).getByText(formatCurrencyAuto(100, 'IDR').replace(/\u00a0/g, ' '))).toBeInTheDocument();
+    expect(within(cards).getByText(formatNumber(100))).toBeInTheDocument();
     vi.unstubAllGlobals();
+  });
+  it('AC-806 groups outstanding advance balances by currency without adding currency totals', () => {
+    h.aging.data = { rows: [
+      row({ advanceId: 'idr-1', claimNumber: 'ADV-IDR-1', outstanding: 2226648000 }),
+      row({ advanceId: 'idr-2', claimNumber: 'ADV-IDR-2', outstanding: 1500000 }),
+      row({ advanceId: 'usd-1', claimNumber: 'ADV-USD-1', outstanding: 3412800, currency: 'USD' }),
+    ], truncated: false };
+    renderCard();
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('button', { name: /IDR.*2/ })).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: /USD.*1/ })).toBeInTheDocument();
+    expect(within(table).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(table).getByText('3,412,800')).toBeInTheDocument();
   });
   it('AC-EXP-063 renders nothing when no advance is outstanding', () => {
     h.aging.data = { rows: [], truncated: false };

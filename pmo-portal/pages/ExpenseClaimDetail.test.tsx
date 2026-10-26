@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents, formatMoneyInputValue } from '@/src/lib/format';
+import { formatCurrencyCents, formatMoneyInputValue, formatNumber } from '@/src/lib/format';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
 const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
@@ -101,11 +101,20 @@ describe('ExpenseClaimDetail', () => {
     expect(screen.getAllByTestId('expense-amount')).toHaveLength(1);
     expect(screen.queryByRole('heading', { name: 'Summary' })).not.toBeInTheDocument();
 
-    const lines = screen.getByRole('heading', { name: 'Lines' });
+    const lines = screen.getByRole('heading', { name: 'Lines · IDR' });
     const receipts = screen.getByRole('heading', { name: 'Receipts' });
     const decision = screen.getByRole('button', { name: 'Submit for approval' });
     expect(lines.compareDocumentPosition(receipts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(receipts.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-806 states the claim currency once in the amount group and keeps the exact whole-unit value visible', () => {
+    h.claim = { ...base, amount: 2226648000 };
+    as('eng', 'Engineer');
+    renderAt();
+    const evidence = screen.getByRole('region', { name: 'Purpose and amount · IDR' });
+    expect(within(evidence).getByTestId('expense-amount')).toHaveTextContent(formatNumber(2226648000));
+    expect(within(evidence).getAllByText(/IDR/)).toHaveLength(1);
   });
 
   it('AC-EXP-061 returns to the exact list URL that opened the record', async () => {

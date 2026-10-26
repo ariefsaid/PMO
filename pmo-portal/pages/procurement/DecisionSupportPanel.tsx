@@ -36,7 +36,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumber } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
@@ -103,7 +103,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
       <h3 className="text-[12.5px] font-semibold text-muted-foreground">
-        {t('procurementDetail.budgetImpact', 'Budget impact')}
+        {t('procurementDetail.budgetImpactWithCurrency', 'Budget impact · {{currency}}', { currency })}
       </h3>
       {showProjectName && projectName ? (
         <ProjectNameLink
@@ -182,23 +182,23 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    ...(showRequestValue ? [{ label: t('procurementDetail.budget.request', 'This request'), value: formatCurrency(totalValue, currency) }] : []),
+    ...(showRequestValue ? [{ label: t('procurementDetail.budget.request', 'This request'), value: formatNumber(totalValue) }] : []),
     {
       label: t('procurementDetail.budget.reserved', 'Reserved'),
-      value: formatCurrency(otherReserved, currency),
+      value: formatNumber(otherReserved),
       sub: t('procurementDetail.budget.reservedSub', 'approved, not yet ordered'),
     },
     {
       label: t('procurementDetail.budget.available', 'Available'),
-      value: formatCurrency(available, currency),
+      value: formatNumber(available),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
       ...(otherCurrencyCommitted ? { sub: t('procurementDetail.budget.otherCurrencies', 'Not counting commitments in other currencies: {{amounts}}', { amounts: otherCurrencyCommitted }) } : {}),
     },
-    { label: t('procurementDetail.budget.projectBudget', 'Project budget'), value: formatCurrency(budgetAmount, currency) },
+    { label: t('procurementDetail.budget.projectBudget', 'Project budget'), value: formatNumber(budgetAmount) },
     {
       label: t('procurementDetail.budget.afterRequest', 'After this request'),
-      value: formatCurrency(afterRequest, currency),
+      value: formatNumber(afterRequest),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
       sub: t('procurementDetail.budget.headroomRemaining', '{{percent}}% headroom remaining', { percent: afterPct.toFixed(1) }),

@@ -69,7 +69,8 @@
   },
   "record": {
     "backToRegister": "Kembali ke pengeluaran",
-    "purposeAndAmount": "Tujuan dan jumlah"
+    "purposeAndAmount": "Tujuan dan jumlah · {{currency}}",
+    "outstandingUnavailable": "Tidak tersedia — muat ulang data ini untuk memeriksa kembali."
   },
   "capture": {
     "projectScope": "Cakupan proyek",

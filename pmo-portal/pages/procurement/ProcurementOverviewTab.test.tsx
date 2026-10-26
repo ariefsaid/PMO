@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 
 vi.mock('@/src/hooks/useBudget', () => ({
@@ -12,6 +12,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({
 
 import { ProcurementOverviewTab } from './ProcurementOverviewTab';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
+import { formatNumber } from '@/src/lib/format';
 
 const renderReview = (projectId: string | null = 'proj-1') => render(
   <ImpersonationProvider realRole="Project Manager">
@@ -37,14 +38,16 @@ describe('Procurement review evidence', () => {
   it('keeps request, selected quote, and ordered amounts distinct while showing line evidence', () => {
     renderReview();
 
-    expect(screen.getByRole('heading', { name: 'Purchase amounts' })).toBeInTheDocument();
+    const amounts = screen.getByRole('region', { name: 'Purchase amounts · USD' });
+    expect(within(amounts).getByRole('heading', { name: 'Purchase amounts · USD' })).toBeInTheDocument();
     expect(screen.getByText('Requested amount')).toBeInTheDocument();
     expect(screen.getByText('Selected quote amount')).toBeInTheDocument();
     expect(screen.getByText('Ordered amount')).toBeInTheDocument();
-    expect(screen.getAllByText('$486,000')).toHaveLength(1);
-    expect(screen.getAllByText('$478,500')).toHaveLength(2);
+    expect(within(amounts).getByText(formatNumber(486000))).toBeInTheDocument();
+    expect(within(amounts).getAllByText(formatNumber(478500))).toHaveLength(2);
     expect(screen.getByText('Desk')).toBeInTheDocument();
-    expect(screen.getByText(/2\s*×\s*\$100/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Requested items · USD' })).toBeInTheDocument();
+    expect(screen.getByText(/2\s*×\s*100/)).toBeInTheDocument();
   });
 
   it('shows project budget evidence only when a project is linked', () => {

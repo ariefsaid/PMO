@@ -69,7 +69,8 @@
   },
   "record": {
     "backToRegister": "Back to expenses",
-    "purposeAndAmount": "Purpose and amount"
+    "purposeAndAmount": "Purpose and amount · {{currency}}",
+    "outstandingUnavailable": "Not available — refresh this record to check again."
   },
   "capture": {
     "projectScope": "Project scope",
