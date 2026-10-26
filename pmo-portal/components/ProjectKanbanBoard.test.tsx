@@ -85,18 +85,20 @@ const renderBoard = (
 describe('ProjectKanbanBoard', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('AC-002 #1325: delivery kanban shows a short alias with the contractual title', () => {
+  it('H-09: kanban opening control visibly shows the full contractual project identity', () => {
     renderBoard([mkProject({ id: 'alias', name: 'Contractual delivery project', short_name: 'North Terminal', status: 'Ongoing Project' })]);
-    const card = screen.getByRole('button', { name: /Open project North Terminal/ });
-    expect(within(card).getByText('North Terminal')).toBeVisible();
-    expect(card).toHaveAccessibleDescription('Contractual delivery project');
+    const card = screen.getByRole('button', { name: /Open project Contractual delivery project/ });
+    expect(within(card).getByText('Contractual delivery project')).toBeVisible();
   });
 
-  it('AC-CODE-003: Kanban card keeps both project identifiers visibly labelled', () => {
+  it('AC-CODE-003: Kanban card keeps both project identifiers visibly labelled', async () => {
     renderBoard([mkProject({ id: 'pn', name: 'Numbered', status: 'Ongoing Project', pmo_project_number: 'PMO-26-0071', code: 'CLIENT-71' })]);
-    const card = screen.getByRole('button', { name: /Open project Numbered/ });
-    expect(card).toHaveTextContent('PMO Project Number: PMO-26-0071');
-    expect(card).toHaveTextContent('Client Project Code: CLIENT-71');
+    const card = screen.getByRole('article');
+    await userEvent.click(within(card).getByText('Project IDs (2)'));
+    expect(within(card).getByText(/PMO Project Number:/)).toBeVisible();
+    expect(within(card).getByText('PMO-26-0071')).toBeVisible();
+    expect(within(card).getByText(/Client Project Code:/)).toBeVisible();
+    expect(within(card).getByText('CLIENT-71')).toBeVisible();
   });
 
   it('AC-PK-001: renders the five lifecycle columns in DOM order (Won → Ongoing → On Hold → Close Out → Internal)', () => {
@@ -168,22 +170,22 @@ describe('ProjectKanbanBoard', () => {
     expect(navigate).toHaveBeenCalledWith('/projects/p2');
   });
 
-  it('AC-PK-009: each card shows the project name, customer name, and PM name', () => {
+  it('AC-PK-009: each card shows the project name and customer, with the PM available in its disclosure', async () => {
     renderBoard();
     const ongoingCol = screen.getByTestId('kanban-col-ongoing');
     expect(within(ongoingCol).getByText('Beta Deploy')).toBeInTheDocument();
     expect(within(ongoingCol).getByText('Beta LLC')).toBeInTheDocument();
-    expect(within(ongoingCol).getByText(/PM: Bob PM/)).toBeInTheDocument();
+    expect(within(ongoingCol).getByText('PM: Bob PM')).toBeVisible();
   });
 
-  it('FR-PRJUX-004/005: Kanban keeps the unnamed-assigned vs unassigned polarity distinct', () => {
+  it('FR-PRJUX-004/005: Kanban keeps the unnamed-assigned vs unassigned polarity distinct', async () => {
     const polarity = [
       mkProject({ id: 'pa', name: 'Blank PM Card', status: 'Won, Pending KoM', project_manager_id: 'aaaaaaaa-bbbb', pm: { full_name: '   ' } }),
       mkProject({ id: 'pb', name: 'No PM Card', status: 'Ongoing Project', project_manager_id: null }),
     ];
     renderBoard(polarity);
     const won = screen.getByTestId('kanban-col-won');
-    expect(within(won).getByText(/PM: Unnamed user · aaaaaaaa/)).toBeInTheDocument();
+    expect(within(won).getByText(/PM: Unnamed user · aaaaaaaa/)).toBeVisible();
     const ongoing = screen.getByTestId('kanban-col-ongoing');
     expect(within(ongoing).getByText(/PM: Unassigned/)).toBeVisible();
     // The assigned-blank card must NOT read as unassigned.
@@ -204,12 +206,18 @@ describe('ProjectKanbanBoard', () => {
     expect(screen.getByText('No projects in Ongoing')).toBeInTheDocument();
   });
 
-  it('the card is the single activation target — no nested inner button (a11y)', () => {
-    renderBoard();
-    // Exactly one role=button per project card (the KanbanCard). The project name is
-    // plain text, NOT a nested <button> (which would be a button-in-role=button).
-    const card = screen.getByRole('button', { name: /Alpha Build/i });
-    expect(within(card).queryByRole('button')).toBeNull();
+  it('the project name opens the record and secondary references stay in a separate disclosure', () => {
+    const alpha = { ...projects[0], pmo_project_number: 'PMO-26-7711', code: 'CLIENT-71' } as ProjectWithRefs;
+    renderBoard([alpha, ...projects.slice(1)]);
+    const open = screen.getByRole('button', { name: 'Open project Alpha Build' });
+    expect(open).toHaveTextContent('Alpha Build');
+    const card = open.closest('article')!;
+    const disclosure = within(card).getByText('Project IDs (2)').closest('summary');
+    expect(disclosure).toBeInTheDocument();
+    expect(open).not.toContainElement(disclosure);
+    fireEvent.click(disclosure!);
+    expect(within(card).getByText('PMO-26-7711')).toBeVisible();
+    expect(within(card).getByText('CLIENT-71')).toBeVisible();
   });
 
   it('fires the onScroll handler without throwing (scroll tracking path)', () => {
@@ -223,7 +231,7 @@ describe('ProjectKanbanBoard', () => {
 
   it('stage indicator renders stage names for mobile navigation', () => {
     renderBoard();
-    const stageNav = screen.getByRole('navigation', { name: /pipeline stage navigation/i });
+    const stageNav = screen.getByRole('navigation', { name: 'Project stages' });
     expect(stageNav).toBeInTheDocument();
     expect(within(stageNav).getByRole('button', { name: /Won/i })).toBeInTheDocument();
     expect(within(stageNav).getByRole('button', { name: /Ongoing/i })).toBeInTheDocument();
@@ -236,7 +244,7 @@ describe('ProjectKanbanBoard', () => {
     Element.prototype.scrollTo = scrollToMock as typeof Element.prototype.scrollTo;
 
     renderBoard();
-    const stageNav = screen.getByRole('navigation', { name: /pipeline stage navigation/i });
+    const stageNav = screen.getByRole('navigation', { name: 'Project stages' });
     const ongoingBtn = within(stageNav).getByRole('button', { name: 'Ongoing' });
     await userEvent.click(ongoingBtn);
     expect(screen.getByTestId('project-kanban-board')).toBeInTheDocument();
@@ -247,7 +255,7 @@ describe('ProjectKanbanBoard', () => {
   it('contract value appears on each card', () => {
     renderBoard();
     const wonCol = screen.getByTestId('kanban-col-won');
-    expect(within(wonCol).getByText('$1,000,000')).toBeInTheDocument();
+    expect(within(wonCol).getByText('USD 1,000,000')).toBeInTheDocument();
   });
 
   it('AC-PK-COLOR-001: "Close Out" column dot color is distinct from "Won" — no shared green (DESIGN.md token differentiation)', () => {

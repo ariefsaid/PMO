@@ -7,6 +7,7 @@ import ProjectCardShell from './ProjectCardShell';
 /** Shared Sales card shell behavior remains covered while Projects uses page-specific cards. */
 describe('ProjectCardShell', () => {
   const baseProps = {
+    initial: 'I',
     name: 'Innovate Corp HQ Fit-Out',
     client: 'Innovate Corp',
     code: 'PRJ-001',

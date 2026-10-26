@@ -505,4 +505,3 @@ export function materializeProjectSort(search: string): string {
   params.set('sort', DEFAULT_PROJECT_SORT);
   return `?${params.toString()}`;
 }
-

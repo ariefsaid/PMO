@@ -51,6 +51,8 @@ export interface Column<Row> {
   secondaryCell?: (row: Row) => React.ReactNode;
   /** Let a primary cell's secondary context wrap when the row needs several identity facts. */
   secondaryWrap?: boolean;
+  /** Keep contractual identities fully visible for collection-specific long-name requirements. */
+  primaryClamp?: boolean;
   /** One table-level explanation, referenced by a mark in this column header. */
   caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;
@@ -123,6 +125,15 @@ export interface DataTableProps<Row> {
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
   state?: 'loading' | 'empty' | 'error';
+  /** Optional Projects-specific mobile evidence composition. The row menu remains a sibling. */
+  mobileRow?: (row: Row) => React.ReactNode;
+  /** Optional loading skeletons that preserve this collection's visible row geometry. */
+  loadingLayout?: {
+    cell: (column: Column<Row>) => React.ReactNode;
+    mobileRow: React.ReactNode;
+    announcement?: string;
+    rows?: number;
+  };
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
@@ -316,6 +327,8 @@ export function DataTable<Row>({
   errorSub,
   onRetry,
   rowMenu,
+  mobileRow,
+  loadingLayout,
   className,
   cardBelow,
   mobileTable = false,
@@ -438,7 +451,12 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+    <div ref={rootRef} aria-busy={state === 'loading' ? true : undefined} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+      {state === 'loading' && loadingLayout && (
+        <span className="sr-only" role="status" aria-live="polite" aria-label={loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}>
+          {loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}
+        </span>
+      )}
       {isDesktop ? (
       /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
@@ -591,11 +609,18 @@ export function DataTable<Row>({
           </thead>
           <tbody>
             {state ? (
-              <tr>
-                <td colSpan={colSpan} className="p-0">
-                  {listStateNode}
-                </td>
-              </tr>
+              state === 'loading' && loadingLayout ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => (
+                <tr key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70">
+                  {columns.map((column) => <td key={column.key} className="h-[54px] px-3 py-2 align-middle">{loadingLayout.cell(column)}</td>)}
+                  {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={colSpan} className="p-0">
+                    {listStateNode}
+                  </td>
+                </tr>
+              )
             ) : (
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
@@ -681,10 +706,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} /> : col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} primaryClamp={col.primaryClamp} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} /> : col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} secondaryWrap={col.secondaryWrap} primaryClamp={col.primaryClamp} /> : col.cell(row)
                           )}
                         </CellTag>
                       );
@@ -739,7 +764,9 @@ export function DataTable<Row>({
         className="divide-y divide-border/70"
       >
         {state ? (
-          <li className="p-0">{listStateNode}</li>
+          state === 'loading' && loadingLayout
+            ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => <li key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70 p-4">{loadingLayout.mobileRow}</li>)
+            : <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
             if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
@@ -764,10 +791,15 @@ export function DataTable<Row>({
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Identity row: first column + rowMenu pinned top-right */}
-                <div className="flex items-start justify-between gap-3">
-                  {/* Canonical identity text wraps in full without hover-only recovery. */}
-                  <div className="min-w-0 flex-1 [&_.truncate]:block">
+                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                <div className="flex min-w-0 items-start justify-between gap-3">
+                  {/* Card title — activation button if rowLabel+onActivate supplied.
+                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
+                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
+                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
+                      descendants to block lets them clip with an ellipsis within this min-w-0
+                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -775,12 +807,12 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} /> : titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} primaryClamp={titleCol.primaryClamp} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} /> : titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} secondaryWrap={titleCol.secondaryWrap} primaryClamp={titleCol.primaryClamp} /> : titleCol.cell(row)
                     )}
-                  </div>
+                  </div>}
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
                   {hasMenu && menuItems.length > 0 && (
                     <div className="shrink-0">
@@ -792,7 +824,7 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {restCols.length > 0 && (
+                {!mobileRow && restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
                     {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
@@ -847,11 +879,11 @@ export function DataTable<Row>({
   );
 }
 
-function PrimaryCell({ title, titleText, secondary, secondaryWrap = false }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode; secondaryWrap?: boolean }) {
+function PrimaryCell({ title, titleText, secondary, secondaryWrap = false, primaryClamp = true }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode; secondaryWrap?: boolean; primaryClamp?: boolean }) {
   const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
   return <span className="block min-w-0">
-    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
-    {secondary != null && <span className={cn('block text-[12px] font-normal text-muted-foreground', secondaryWrap ? 'whitespace-normal break-words' : 'truncate')}>{secondary}</span>}
+    <span title={accessibleTitle} className={cn('block break-words font-semibold text-foreground', primaryClamp && 'line-clamp-2')}>{title}</span>
+    {secondary != null && <span className={cn('block text-sm font-normal text-muted-foreground', secondaryWrap ? 'whitespace-normal break-words' : 'truncate')}>{secondary}</span>}
   </span>;
 }
 

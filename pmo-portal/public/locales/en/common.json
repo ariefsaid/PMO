@@ -43,6 +43,7 @@
     "filters": "Filters",
     "moreActions": "More actions",
     "projectReferencesFor": "More project references for {{name}}",
+    "projectReferencesLabel": "Project references",
     "contractReference": "Customer contract reference"
   },
   "uxs10": {
@@ -2952,7 +2953,7 @@
     },
     "name": {
       "label": "Project name",
-      "placeholder": "e.g. Harborside Terminal — Civil Works",
+      "placeholder": "e.g. Harbor civil works",
       "required": "Project name is required."
     },
     "client": {
@@ -2991,7 +2992,7 @@
       "helper": "PMO assigns this identifier. You can edit it before creating the project.",
       "duplicate": "That PMO Project Number is already in use. Choose another number.",
       "segmentRequired": "The selected company needs a Client number segment before a PMO Project Number can be proposed.",
-      "proposalError": "A PMO Project Number could not be proposed. Select the client again to retry.",
+      "proposalError": "A PMO Project Number could not be proposed. Change the client and reselect it to try again.",
       "loading": "Proposing a PMO Project Number…"
     }
   },
@@ -3007,6 +3008,7 @@
       "budgetUsed": "Budget used",
       "contract": "Contract",
       "pm": "PM",
+      "pmTable": "Project manager",
       "project": "Project"
     },
     "confirm": {

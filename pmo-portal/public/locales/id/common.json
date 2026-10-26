@@ -43,6 +43,7 @@
     "filters": "Filter",
     "moreActions": "Tindakan lainnya",
     "projectReferencesFor": "Referensi proyek lainnya untuk {{name}}",
+    "projectReferencesLabel": "Referensi proyek",
     "contractReference": "Referensi kontrak pelanggan"
   },
   "uxs10": {
@@ -2952,7 +2953,7 @@
     },
     "name": {
       "label": "Nama proyek",
-      "placeholder": "mis. Terminal Pelabuhan — Pekerjaan Sipil",
+      "placeholder": "mis. Pekerjaan sipil pelabuhan",
       "required": "Nama proyek wajib diisi."
     },
     "client": {
@@ -2970,7 +2971,7 @@
     "code": {},
     "stage": {
       "label": "Tahap awal",
-      "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di pipeline, tidak pernah dibuat langsung."
+      "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di Pipeline Penjualan, tidak pernah dibuat langsung."
     },
     "estimatedValue": "Nilai estimasi",
     "expectedStart": "Perkiraan mulai",
@@ -2991,7 +2992,7 @@
       "helper": "PMO menetapkan identitas ini. Anda dapat mengubahnya sebelum membuat proyek.",
       "duplicate": "Nomor Proyek PMO tersebut sudah digunakan. Pilih nomor lain.",
       "segmentRequired": "Perusahaan yang dipilih memerlukan segmen nomor klien sebelum Nomor Proyek PMO dapat dibuat.",
-      "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Pilih klien lagi untuk mencoba ulang.",
+      "proposalError": "Nomor Proyek PMO tidak dapat diusulkan. Ubah klien lalu pilih kembali untuk mencoba lagi.",
       "loading": "Mengusulkan Nomor Proyek PMO…"
     }
   },
@@ -3006,7 +3007,8 @@
       "actual": "Realisasi",
       "budgetUsed": "Anggaran terpakai",
       "contract": "Kontrak",
-      "pm": "PM",
+      "pm": "Manajer proyek",
+      "pmTable": "Manajer proyek",
       "project": "Proyek"
     },
     "confirm": {
@@ -3370,8 +3372,8 @@
     },
     "treatment": {
       "choose": "— pilih —",
-      "exclusive": "Exclusive — pajak ditambahkan di atas jumlahnya",
-      "inclusive": "Inclusive — jumlahnya sudah termasuk pajak"
+      "exclusive": "Eksklusif — pajak ditambahkan di luar jumlah",
+      "inclusive": "Inklusif — jumlah sudah termasuk pajak"
     },
     "details": {
       "unknownRate": "tarif belum dicatat",

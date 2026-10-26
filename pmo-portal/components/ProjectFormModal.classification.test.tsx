@@ -26,6 +26,7 @@ it('AC-TAG-002 project creation states all five optional classifications through
   await user.type(screen.getByLabelText(/^Project name/), 'Classified project');
   await user.click(screen.getByRole('combobox', { name: /Client company/ }));
   await user.click(await screen.findByRole('option', { name: /Synthetic Client/ }));
+  await user.click(screen.getByText('Show classification'));
   await user.selectOptions(screen.getByLabelText('Service line'), 'Engineering');
   await user.selectOptions(screen.getByLabelText('Sector'), 'Energy');
   await user.type(screen.getByLabelText('Location'), 'West Java');
@@ -41,6 +42,7 @@ it('AC-TAG-002 header editing retains a retired org option and allows explicit c
   const initial = { id: 'p1', name: 'Classified project', code: null, client_id: 'c1', project_manager_id: null,
     service_line: 'Retired practice', sector: 'Energy', location: 'West Java', award_type: 'tender', bidding_entity: 'consortium' };
   const { container } = render(<ToastProvider><ProjectFormModal mode="editHeader" initial={initial} onClose={vi.fn()} onSave={onSave} onError={vi.fn()} /></ToastProvider>);
+  await user.click(screen.getByText('Show classification'));
   expect(screen.getByLabelText('Service line')).toHaveValue('Retired practice');
   expect(screen.getByLabelText('Location')).toHaveValue('West Java');
   await user.selectOptions(screen.getByLabelText('Sector'), '');
@@ -54,6 +56,7 @@ it('AC-TAG-002 a location over 140 characters is refused inline and not submitte
   await user.type(screen.getByLabelText(/^Project name/), 'Long location');
   await user.click(screen.getByRole('combobox', { name: /Client company/ }));
   await user.click(await screen.findByRole('option', { name: /Synthetic Client/ }));
+  await user.click(screen.getByText('Show classification'));
   await user.click(screen.getByLabelText('Location'));
   await user.paste('x'.repeat(141));
   await user.click(screen.getByRole('button', { name: 'Create project' }));

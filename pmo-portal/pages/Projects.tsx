@@ -1,8 +1,6 @@
 import ProjectClassificationFilters from '../components/ProjectClassificationFilters';
 import { activeClassificationCount, CLASSIFICATION_FILTER_KEYS, classificationValueLabel, matchesProjectClassification, pickClassification } from '@/src/lib/projectClassification';
 import type { ProjectClassificationFilters as ClassificationFilterValues } from '@/src/lib/projectClassification';
-import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   SearchMini,
@@ -48,7 +46,7 @@ import { useProjectsDeliverySummary } from '@/src/hooks/useProjectsDelivery';
 import { useProjectsMoneyCollection } from '@/src/hooks/useProjectsMoneyCollection';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackProjectDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { formatCurrency, formatDateOnly, formatInstantDate } from '@/src/lib/format';
+import { formatDateOnly, formatInstantDate } from '@/src/lib/format';
 import { deriveActualPosition, formatExactMoney, isActualComplete } from '@/src/lib/projectFinances';
 import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -63,6 +61,7 @@ import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/proje
 import { sortProjectRows } from '@/src/lib/projects/projectSorting';
 import type { ProjectSort } from '@/src/lib/projects/projectSorting';
 import { ProjectPageFrame } from '@/src/components/projects/ProjectPageFrame';
+import { ProjectCollectionLoading } from '@/src/components/projects/ProjectCollectionLoading';
 import { ProjectDataState } from '@/src/components/projects/ProjectDataState';
 import type { ProjectMoneyRead } from '@/src/lib/db/projectMoney';
 import { Link } from 'react-router';
@@ -262,13 +261,18 @@ const Projects: React.FC = () => {
     'expected-end': t('projects:sort.expectedEnd', 'Expected end (soonest first)'),
     name: t('projects:sort.name', 'Project name (A to Z)'),
   };
+  const sortControlLabels: Record<ProjectSort, string> = {
+    attention: t('projects:sort.attentionShort', 'Risk → end date'),
+    'expected-end': t('projects:sort.expectedEndShort', 'Soonest end'),
+    name: t('projects:sort.nameShort', 'Name A–Z'),
+  };
 
   // Filter-select option lists (the tokened SelectField consumes {value,label});
   // the leading "All …" sentinel value is the cleared state.
   const customerFilterOptions = useMemo(
     () => [
       { value: 'All', label: t('projects.filters.allCustomers', 'All customers') },
-      ...clientCompanies.map((c) => ({ value: c.id, label: companyDisplayName(c) })),
+      ...clientCompanies.map((c) => ({ value: c.id, label: c.name })),
     ],
     [clientCompanies, t],
   );
@@ -285,7 +289,7 @@ const Projects: React.FC = () => {
     }
     return [
       { value: 'All', label: t('projects.filters.allEndCustomers', 'All end customers') },
-      ...[...associated].map(([id, company]) => ({ value: id, label: companyDisplayName(company) })),
+      ...[...associated].map(([id, company]) => ({ value: id, label: company.name })),
     ];
   }, [all, allCompanies, filterEndCustomer, t]);
   const importDescriptor = useMemo(
@@ -401,13 +405,20 @@ const Projects: React.FC = () => {
   };
 
   // ONE table-level coverage note (AC-RD-TBL-PROJ-001): the count of ERP rows with an unmapped or
-  // amount-less category, and the newest ERP update among the visible rows.
+  // amount-less category, and the newest ERP update among the visible rows. Restricted rows keep
+  // their own distinct explanation instead of being folded into this shared condition.
   const partialRows = filtered.filter((project) => {
     const money = projectMoney?.[project.id];
     const basis = money?.ledgerBasis ?? 'erp';
-    return basis === 'erp' && Boolean(money && money.actuals.categories.some((category) => !category.mapped || category.amount == null));
+    return basis === 'erp' && Boolean(money && !money.actuals.excludesRestrictedRows
+      && !isActualComplete({ basis, readSucceeded: !moneyError, complete: money.actuals.complete, categories: money.actuals.categories }));
   });
-  const coverageAsOf = filtered.reduce<string | null>((latest, project) => {
+  const partialProjectIds = new Set(partialRows.map((project) => project.id));
+  const partialCoverageNoteId = 'projects-data-note';
+  const partialUnavailable = (
+    <span aria-describedby={partialCoverageNoteId}>{t('uxs02.unavailable', 'Unavailable')}</span>
+  );
+  const coverageAsOf = partialRows.reduce<string | null>((latest, project) => {
     const asOf = projectMoney?.[project.id]?.ledgerBasis === 'erp' ? projectMoney?.[project.id]?.actuals.asOf ?? null : null;
     return asOf && (!latest || asOf > latest) ? asOf : latest;
   }, null);
@@ -417,7 +428,7 @@ const Projects: React.FC = () => {
   const actualStateLabel = (money?: ProjectMoneyRead) => {
     if (moneyError || !money) return t('uxs02.unavailable', 'Unavailable');
     if (money.actuals.excludesRestrictedRows) return t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded');
-    if ((money.ledgerBasis ?? 'erp') === 'erp' && money.actuals.categories.some((category) => !category.mapped || category.amount == null)) {
+    if ((money.ledgerBasis ?? 'erp') === 'erp' && !isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: !moneyError, complete: money.actuals.complete, categories: money.actuals.categories })) {
       return t('uxs02.incompleteCoverage', 'Incomplete source coverage');
     }
     return t('uxs02.unavailable', 'Unavailable');
@@ -434,30 +445,37 @@ const Projects: React.FC = () => {
       align="end"
     />
   );
+  const projectReferences = (project: ProjectWithRefs): Array<[string, string]> => [
+    project.pmo_project_number && [t('projects.identifiers.pmo', 'PMO Project Number'), project.pmo_project_number],
+    project.code && [t('projects.identifiers.client', 'Client Project Code'), project.code],
+    project.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), project.customer_contract_ref],
+  ].filter((value): value is [string, string] => Boolean(value));
   const columns: Column<ProjectWithRefs>[] = [
     {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 320,
-      minSize: 300,
+      size: 248,
+      minSize: 240,
       maxSize: 520,
+      primaryClamp: false,
       secondaryWrap: true,
       exportValue: (p) => p.name,
       primaryTitle: (p) => p.name,
       secondaryCell: (p) => {
-        const references = [
-          p.pmo_project_number && [t('projects.identifiers.pmo', 'PMO Project Number'), p.pmo_project_number],
-          p.code && [t('projects.identifiers.client', 'Client Project Code'), p.code],
-          p.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), p.customer_contract_ref],
-        ].filter((value): value is [string, string] => Boolean(value));
+        const references = projectReferences(p);
         return (
           <span data-testid="projects-identity-secondary" className="block min-w-0 space-y-1" onClick={(event) => event.stopPropagation()}>
-            {p.client && <CompanyNameLink companyId={p.client_id} name={companyDisplayName(p.client)} className="touch-target block max-w-full break-words text-xs" />}
-            {p.end_client && <span className="block break-words text-xs text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {companyDisplayName(p.end_client)}</span>}
-            {references.length > 0 && <span className="block min-w-0 space-y-0.5 text-xs text-muted-foreground">
-              {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words">{label}: <span className="break-all font-mono text-foreground">{value}</span></span>)}
-            </span>}
+            {p.client && <CompanyNameLink companyId={p.client_id} name={p.client.name} className="touch-target block max-w-full break-words text-sm" />}
+            {p.end_client && <span className="block break-words text-sm text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {p.end_client.name}</span>}
+            {references.length > 0 && <details className="min-w-0" aria-label={t('projects:mobile.detailsFor', 'Details for {{name}}', { name: p.name })}>
+              <summary aria-label={`${p.name}: ${t('projects:identifiers.summary', 'Project IDs ({{count}})', { count: references.length })}`} className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold underline-offset-2 hover:underline">
+                {t('projects:identifiers.summary', 'Project IDs ({{count}})', { count: references.length })}
+              </summary>
+              <span className="block min-w-0 space-y-0.5 pt-1 text-xs text-muted-foreground">
+                {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words">{label}: <span className="break-all font-mono text-foreground">{value}</span></span>)}
+              </span>
+            </details>}
           </span>
         );
       },
@@ -473,13 +491,11 @@ const Projects: React.FC = () => {
                     e.stopPropagation();
                     onOpen(p);
                   }}
-                  className="block w-full whitespace-normal break-words text-left font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:line-clamp-2"
+                  className="touch-target block min-h-11 w-full whitespace-normal break-words text-left text-xl font-bold underline underline-offset-2 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   title={p.name}
-                  aria-describedby={projectDisplayName(p) !== p.name ? `project-legal-${p.id}` : undefined}
                 >
-                  {projectDisplayName(p)}
+                  {p.name}
                 </button>
-                {projectDisplayName(p) !== p.name && <span id={`project-legal-${p.id}`} className="sr-only">{p.name}</span>}
                 {/* AC-IXD-DASH-W5-C2C N18/I3: text+dot pill (not color-only). */}
                 {atRisk && (
                   <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>
@@ -491,11 +507,12 @@ const Projects: React.FC = () => {
     },
     {
       key: 'pm',
-      header: t('projects.columns.pm', 'PM'),
+      header: t('projects.columns.pmTable', 'Project manager'),
       kind: 'meta',
-      size: 176,
-      minSize: 160,
-      maxSize: 280,
+      colClassName: 'whitespace-normal break-words leading-tight',
+      size: 124,
+      minSize: 112,
+      maxSize: 220,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
       exportValue: (p) =>
@@ -517,16 +534,17 @@ const Projects: React.FC = () => {
     },
     {
       key: 'status',
-      header: t('projects:columns.statusAndEnd', 'Status / expected end'),
+      header: t('projects:columns.statusAndEndTable', 'Status / end date'),
       kind: 'status',
-      size: 180,
-      minSize: 176,
-      maxSize: 260,
+      size: 144,
+      minSize: 128,
+      maxSize: 196,
+      colClassName: 'whitespace-normal break-words leading-tight',
       exportValue: (p) => String(p.status),
       cell: (p) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
           <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{statusLabel(p.status as string)}</StatusPill>
-          <span className="text-[12px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {p.end_date ? formatDateOnly(p.end_date) : t('projects:dates.noExpectedEnd', 'No expected end')}
           </span>
         </div>
@@ -536,10 +554,11 @@ const Projects: React.FC = () => {
       key: 'contract',
       header: t('projects.columns.contract', 'Contract'),
       kind: 'money',
-      size: 160,
-      minSize: 152,
-      maxSize: 320,
+      size: 152,
+      minSize: 144,
+      maxSize: 260,
       align: 'num',
+      colClassName: 'whitespace-normal',
       exportValue: (p) => p.contract_value,
       // FR-L10N-020: each row is one project, so the currency is that project's own (0187's
       // per-record column) — an org default would be wrong the moment two currencies coexist.
@@ -551,7 +570,7 @@ const Projects: React.FC = () => {
         const detailsId = `contract-tax-details-${p.id}`;
         return (
           <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-            <span>{formatCurrency(p.contract_value, p.currency)}</span>
+            <span>{p.currency} {formatExactMoney(String(p.contract_value), p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}</span>
             <TaxBasisLabel
               treatment={p.tax_treatment}
               showDetails={false}
@@ -575,16 +594,16 @@ const Projects: React.FC = () => {
       key: 'actual',
       header: t('projects.columns.actual', 'Actual'),
       kind: 'money',
-      size: 160,
-      minSize: 152,
-      maxSize: 320,
+      size: 152,
+      minSize: 144,
+      maxSize: 260,
       align: 'num',
-      colClassName: 'xl:pr-4',
+      colClassName: 'xl:pr-4 whitespace-normal',
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
-        if (moneyError || !money) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'));
+        if (moneyError || !money) return <span>{t('uxs02.unavailable', 'Unavailable')}</span>;
         const actualPosition = deriveActualPosition({
           ledgerBasis: money.ledgerBasis,
           committedSpend: money.ledgerBasis === 'pmo' && money.actuals.total != null ? Number(money.actuals.total) : undefined,
@@ -600,33 +619,35 @@ const Projects: React.FC = () => {
           },
         });
         const actual = actualPosition.amount;
+        if (partialProjectIds.has(p.id)) return partialUnavailable;
         if (actual == null) {
-          // Unknown is never 0. Partial coverage is explained once, by the table note; only a row that
-          // excludes restricted rows is marked on its own (its cause is not a coverage gap).
+          // Unknown is never 0. The common partial-source condition is named once above the table;
+          // the row value points to that note instead of repeating its explanation and action.
+          if (partialProjectIds.has(p.id)) return partialUnavailable;
           return linkedDataState(p, actualStateLabel(money));
         }
-        const formattedActual = formatExactMoney(actual, actualPosition.currency || p.currency, getNumberLocale());
-        return formattedActual == null ? linkedDataState(p, t('uxs02.unavailable', 'Unavailable')) : <span className="text-muted-foreground">{formattedActual}</span>;
+        const actualCurrency = actualPosition.currency || p.currency;
+        const formattedActual = formatExactMoney(actual, actualCurrency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false });
+        return formattedActual == null ? linkedDataState(p, t('uxs02.unavailable', 'Unavailable')) : <span className="text-muted-foreground">{actualCurrency} {formattedActual}</span>;
       },
     },
     {
       key: 'progress',
       header: t('projects:columns.delivery', 'Delivery'),
       kind: 'percent',
-      size: 120,
-      minSize: 96,
-      maxSize: 160,
+      size: 96,
+      minSize: 88,
+      maxSize: 140,
       colClassName: 'xl:pl-4',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
-        if (deliveryError) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'), 'delivery');
+        if (deliveryError) return <span>{t('uxs02.unavailable', 'Unavailable')}</span>;
         if (deliveryPending) {
           return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         }
         const summary = deliverySummary?.[p.id];
         if (summary?.deliveryPct == null) {
-          const noPhases = t('projects.noPhasesYet', 'No phases yet');
-          return linkedDataState(p, noPhases, 'delivery');
+          return <span>{t('projects.noPhasesYet', 'No phases yet')}</span>;
         }
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
@@ -640,24 +661,28 @@ const Projects: React.FC = () => {
       key: 'budget-used',
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',
-      size: 160,
-      minSize: 152,
-      maxSize: 320,
+      size: 132,
+      minSize: 120,
+      maxSize: 220,
+      colClassName: 'whitespace-normal break-words leading-tight',
       cell: (p) => {
         if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
         const actual = money?.actuals.total == null ? null : Number(money.actuals.total);
         const activeBudget = money?.hasActiveBudget && money.activeBudgetAmount != null ? Number(money.activeBudgetAmount) : null;
-        if (moneyError || !money) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'));
+        if (moneyError || !money) return <span>{t('uxs02.unavailable', 'Unavailable')}</span>;
         if (!money.hasActiveBudget) {
           return linkedDataState(p, t('uxs02.noActiveBudget', 'No active budget'), 'budget');
         }
         if (activeBudget == null) return linkedDataState(p, t('uxs02.unavailable', 'Unavailable'), 'budget');
         if (activeBudget === 0) {
-          const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: formatCurrency(activeBudget, money.activeBudgetCurrency ?? p.currency) });
+          const budgetCurrency = money.activeBudgetCurrency ?? p.currency;
+          const amount = formatExactMoney(money.activeBudgetAmount, budgetCurrency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false });
+          const reason = t('uxs02.zeroActiveBudget', '{{budget}} Active budget; usage unavailable', { budget: amount == null ? t('uxs02.unavailable', 'Unavailable') : `${budgetCurrency} ${amount}` });
           return linkedDataState(p, reason, 'budget');
         }
         if (actual == null) {
+          if (partialProjectIds.has(p.id)) return partialUnavailable;
           return linkedDataState(p, actualStateLabel(money));
         }
         if (money.activeBudgetCurrency !== money.actuals.currency || money.actuals.currency !== p.currency) {
@@ -666,13 +691,14 @@ const Projects: React.FC = () => {
         const completeCoverage = isActualComplete({ basis: money.ledgerBasis ?? 'erp', readSucceeded: true, complete: money.actuals.complete,
           categories: money.actuals.categories, excludesRestrictedRows: money.actuals.excludesRestrictedRows });
         if (!completeCoverage) {
+          if (partialProjectIds.has(p.id)) return partialUnavailable;
           const reason = money.actuals.excludesRestrictedRows ? t('uxs02.restrictedRowsExcluded', 'Restricted rows excluded') : t('uxs02.incompleteCoverage', 'Incomplete source coverage');
           return linkedDataState(p, reason);
         }
         const percent = Math.round((actual / activeBudget) * 100);
         const atRisk = isAtRiskActual(p);
         return (
-          <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale()), budget: formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale()) })}>
+          <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: `${money.actuals.currency || p.currency} ${formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}`, budget: `${money.activeBudgetCurrency ?? p.currency} ${formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}` })}>
             <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
           </div>
         );
@@ -691,28 +717,28 @@ const Projects: React.FC = () => {
     classificationCount;
   const optionRetry = (result: { isPending: boolean; isError: boolean; refetch?: () => unknown }) =>
     !result.isPending && result.isError ? (
-      <button type="button" onClick={() => result.refetch?.()} className="touch-target text-[12px] font-semibold text-primary-text underline-offset-2 hover:underline">
+      <button type="button" onClick={() => result.refetch?.()} className="touch-target text-xs font-semibold text-primary-text underline-offset-2 hover:underline">
         {t('projects:filters.retryOptions', 'Retry options')}
       </button>
     ) : null;
   const toolbar = (
-    <>
+    <div className="grid w-full min-w-0 grid-cols-2 items-end gap-x-2 gap-y-2 md:contents">
       <SearchMini id="projects-search" placeholder={t('projects.search.placeholder', 'Search projects…')}
         aria-label={t('projects.search.ariaLabel', 'Search projects')} value={search}
         onChange={(event) => setSearch(event.target.value)} searchSurface="projects-list" module="projects"
         resultCount={filtered.length} className="h-full touch-target"
-        containerClassName="h-11 min-w-0 w-full md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
-      <div className="flex min-w-0 w-full flex-wrap items-end gap-2 md:w-auto">
-        <div className="min-w-[144px] flex-1 md:flex-none">
-          <SelectField label={t('projects:filters.scopeLabel', 'Scope')} value={filter}
+        containerClassName="col-span-2 h-11 min-w-0 w-full md:col-auto md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
+      <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:col-auto md:flex md:w-auto">
+        <div className="min-w-0 md:min-w-[144px] md:flex-1 md:flex-none">
+        <SelectField label={t('projects:filters.scopeLabel', 'Scope')} hideLabel value={filter}
             onChange={(value) => { setWorkingSet((ws) => ({ ...ws, filter: value as StatusFilter })); trackFilterApplied('status', FILTERS.length, 'projects'); }}
             options={FILTERS.map((value) => ({ value, label: filterLabels[value] }))} className="touch-target min-w-0" />
         </div>
         <ProjectClassificationFilters {...classificationFilterProps} hideAppliedSummary
           panel={(fields, disclosure) => (
             <MobileToolbarDisclosure label={t('uxs14.filters', 'Filters')} count={filtersCount}
-              className="[&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
-              open={disclosure.open} closeOnSelectChange
+              className="min-w-0 [&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
+              open={disclosure.open} closeOnSelectChange mobileOverlay mobileOverlayAlign="start"
               onOpenChange={(next) => { disclosure.onOpenChange(next); if (next) setMoreOpen(false); }}>
               <div className="grid w-full min-w-0 gap-3">
                 {!isEngineer && <>
@@ -740,14 +766,17 @@ const Projects: React.FC = () => {
             </MobileToolbarDisclosure>
           )} />
       </div>
-      <div className="min-w-[205px] flex-1 md:flex-none">
-        <SelectField label={t('projects:sort.label', 'Sort projects')} value={workingSet.sort}
+      <div className="min-w-0 w-full md:min-w-[184px] md:w-auto md:flex-none">
+        <SelectField id="projects-sort-select" label={t('projects:sort.label', 'Sort projects')} hideLabel value={workingSet.sort}
           onChange={(value) => setWorkingSet((ws) => ({ ...ws, sort: value as ProjectSort }))}
-          options={(Object.keys(sortLabels) as ProjectSort[]).map((value) => ({ value, label: sortLabels[value] }))}
+          aria-describedby="projects-sort-description"
+          title={sortLabels[workingSet.sort]}
+          options={(Object.keys(sortControlLabels) as ProjectSort[]).map((value) => ({ value, label: sortControlLabels[value] }))}
           className="touch-target min-w-0" />
+        <span id="projects-sort-description" className="sr-only">{sortLabels[workingSet.sort]}</span>
       </div>
-      <div data-testid="list-page-view" className="min-w-[138px] flex-1 md:flex-none">
-        <SelectField label={t('projects:view.label', 'View')} value={view}
+      <div data-testid="list-page-view" className="min-w-0 w-full self-start md:min-w-[138px] md:w-auto md:flex-none md:self-auto">
+        <SelectField label={t('projects:view.label', 'View')} hideLabel value={view}
           onChange={(value) => onViewChange(value as ProjectView)}
           options={[
             { value: 'table', label: t('projects.view.table', 'Table') },
@@ -757,7 +786,8 @@ const Projects: React.FC = () => {
           ]} className="touch-target min-w-0" />
       </div>
       <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen}
-        className="[&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
+        className="min-w-0 [&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
+        mobileOverlay mobileOverlayAlign="end"
         onOpenChange={(next) => { setMoreOpen(next); if (next) setFiltersOpen(false); }}>
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <ExportButton rows={filtered} columns={exportColumns} entity="Projects" label={t('projects.export', 'Export')} onExport={() => setMoreOpen(false)} />
@@ -765,7 +795,8 @@ const Projects: React.FC = () => {
           <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
         </div>
       </MobileToolbarDisclosure>
-    </>
+      <div className="flex min-w-0 justify-end md:contents">{primaryAction}</div>
+    </div>
   );
   const activeChips: Array<{ label: string; remove: () => void }> = [];
   if (filter !== roleDefault) activeChips.push({ label: t('projects:filters.scopeChip', 'Scope: {{scope}}', { scope: filterLabels[filter] }), remove: () => setWorkingSet((ws) => ({ ...ws, filter: roleDefault })) });
@@ -790,35 +821,96 @@ const Projects: React.FC = () => {
     const value = workingSet[key];
     if (value) activeChips.push({ label: classificationLabels[key] + ': ' + classificationValueLabel(t, value), remove: () => setWorkingSet((ws) => ({ ...ws, [key]: undefined })) });
   }
-  if (search.trim()) activeChips.push({ label: t('projects:filters.searchChip', 'Search: {{value}}', { value: search.trim() }), remove: () => setSearch('') });
   const activeFilterSummary = filtersActive ? (
     <div data-testid="active-filter-summary" aria-label={t('projects:filters.active', 'Applied filters')} className="flex min-w-0 flex-wrap items-center gap-2">
       {activeChips.map((chip) => <button key={chip.label} type="button"
-        className="touch-target inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-1 pl-2.5 pr-1.5 text-left text-[12px] text-muted-foreground hover:text-foreground"
+        className="touch-target inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-secondary/60 py-1 pl-2.5 pr-1.5 text-left text-xs font-semibold text-muted-foreground hover:text-foreground"
         aria-label={t('projects:filters.removeFilter', 'Remove filter: {{filter}}', { filter: chip.label })} onClick={chip.remove}>
         <span className="min-w-0 break-words">{chip.label}</span><Icon name="x" className="size-3 shrink-0" />
       </button>)}
       <Button variant="ghost" size="sm" className="touch-target text-primary-text" onClick={clearFilters}>{t('projects.empty.clearFilters', 'Clear filters')}</Button>
     </div>
   ) : null;
-  const dataIssues = [
+  const collectionShowsMoney = view === 'table' || view === 'cards';
+  const dataIssues = collectionShowsMoney ? [
     coverageReason,
     deliveryError ? t('projects:data.deliveryUnavailable', 'Delivery progress is unavailable.') : null,
     moneyError ? t('projects:data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
-  ].filter((issue): issue is string => Boolean(issue));
+  ].filter((issue): issue is string => Boolean(issue)) : [];
   const abnormalNote = dataIssues.length > 0 ? (
-    <aside role="status" data-testid="projects-data-note" className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2 text-[12px] text-muted-foreground">
-      <div className="min-w-0 space-y-0.5"><p className="font-semibold text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</p>{dataIssues.map((issue) => <p key={issue}>{issue}</p>)}</div>
-      <div className="flex flex-wrap gap-2">
-        {deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects:data.retryDelivery', 'Retry delivery')}</Button>}
-        {moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects:data.retryMoney', 'Retry financial data')}</Button>}
+    <div role="status" id={partialCoverageNoteId} data-testid="projects-data-note" className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-y border-border py-2 text-sm text-muted-foreground">
+      <div className="min-w-0 flex-1">
+        <p className="break-words text-xs font-semibold leading-4 text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</p>
+        <p className="break-words">{dataIssues.join(' · ')}</p>
       </div>
-    </aside>
+      <div className="flex flex-wrap gap-2">
+        {partialRows[0] && <Link to={`/projects/${partialRows[0].id}/overview`} className="touch-target inline-flex min-h-11 max-w-full items-center break-words rounded-sm text-left text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects:actions.reviewFinances', 'Review project finances')}</Link>}
+      {collectionShowsMoney && deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects:data.retryDelivery', 'Retry delivery')}</Button>}
+        {collectionShowsMoney && moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects:data.retryMoney', 'Retry financial data')}</Button>}
+      </div>
+    </div>
   ) : null;
+  const columnCell = (key: string, project: ProjectWithRefs) => columns.find((column) => column.key === key)?.cell(project);
+  const mobileProjectRow = (project: ProjectWithRefs) => {
+    const money = projectMoney?.[project.id];
+    const displayName = project.name;
+    const activeBudgetSummary = moneyError || !money
+      ? t('uxs02.unavailable', 'Unavailable')
+      : !money.hasActiveBudget
+        ? t('uxs02.noActiveBudget', 'No active budget')
+        : money.activeBudgetAmount == null
+          ? t('uxs02.unavailable', 'Unavailable')
+          : `${money.activeBudgetCurrency ?? project.currency} ${formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? project.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}`;
+    const detailFacts: Array<[string, React.ReactNode]> = [
+      ...projectReferences(project).map(([label, value]) => [label, <span className="break-all font-mono">{value}</span>] as [string, React.ReactNode]),
+      [t('projects:columns.pm', 'PM'), columnCell('pm', project)],
+      [t('projects:columns.delivery', 'Delivery'), columnCell('progress', project)],
+      [t('projects:columns.actual', 'Actual'), columnCell('actual', project)],
+      [t('uxs02.activeBudget', 'Active budget'), activeBudgetSummary],
+      [t('projects:columns.budgetUsed', 'Budget used'), columnCell('budget-used', project)],
+    ];
+    return (
+    <div className="min-w-0 space-y-2">
+      <button type="button" onClick={() => onOpen(project)}
+        className="touch-target block min-h-11 w-full break-words text-left text-xl font-bold underline underline-offset-2 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        aria-label={t('projects:openProject', 'Open project {{name}}', { name: displayName })}
+        title={project.name}>
+        {displayName}
+      </button>
+      <div className="min-w-0 space-y-0.5 text-sm text-muted-foreground">
+        <p className="break-words">{project.client?.name ?? t('projects:customerUnavailable', 'Customer unavailable')}</p>
+        {project.end_client && <p className="break-words">{t('projects:endCustomer', 'End customer')}: {project.end_client.name}</p>}
+      </div>
+      <div className="min-w-0 text-sm">{columnCell('status', project)}</div>
+      <dl className="grid min-w-0 grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-border pt-2">
+        <dt className="text-xs font-semibold text-muted-foreground">{t('projects:columns.contract', 'Contract')}</dt>
+        <dd className="min-w-0 break-words text-sm font-normal tabular">{columnCell('contract', project)}</dd>
+      </dl>
+      <details className="min-w-0" aria-label={t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}>
+        <summary className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('projects:mobile.moreDetailsSummary', 'More project details · {{count}}', { count: detailFacts.length })}
+        </summary>
+        <table className="mt-2 w-full table-fixed border-t border-border text-sm">
+          <caption className="sr-only">{t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}</caption>
+          <tbody>{detailFacts.map(([label, value]) => <tr key={label} className="border-b border-border/70 last:border-b-0">
+            <th scope="row" className="w-1/3 py-2 pr-3 text-left align-top text-xs font-semibold text-muted-foreground">{label}</th>
+            <td className="min-w-0 break-words py-2 align-top text-sm font-normal tabular">{value}</td>
+          </tr>)}</tbody>
+        </table>
+      </details>
+    </div>
+    );
+  };
+  const tableLoadingLayout = {
+    announcement: t('projects:scope.loading', 'Loading projects'),
+    cell: () => <span className="block h-3 w-3/4 animate-pulse rounded bg-muted" />,
+    mobileRow: <div className="min-w-0 space-y-3"><span className="block h-4 w-2/3 animate-pulse rounded bg-muted" /><span className="block h-3 w-1/2 animate-pulse rounded bg-muted" /><div className="flex justify-between border-t border-border pt-2"><span className="h-3 w-1/4 animate-pulse rounded bg-muted" /><span className="h-3 w-1/3 animate-pulse rounded bg-muted" /></div></div>,
+    rows: 3,
+  };
   const loadingContent = view === 'table' ? (
-    <DataTable<ProjectWithRefs> rows={[]} columns={columns} rowKey={(project) => project.id} tableId="projects-list"
-      rowMenu={canRowWrite ? rowMenu : undefined} state="loading" />
-  ) : <div data-testid="projects-loading" className="min-w-0 rounded-lg border border-border bg-card p-3"><ListState variant="loading" rows={view === 'cards' ? 3 : 5} /></div>;
+    <DataTable<ProjectWithRefs> rows={[]} columns={columns} rowKey={(project) => project.id} tableId="projects-list-loading"
+      rowMenu={canRowWrite ? rowMenu : undefined} state="loading" loadingLayout={tableLoadingLayout} mobileRow={mobileProjectRow} />
+  ) : <ProjectCollectionLoading view={view} label={t('projects:scope.loading', 'Loading projects')} />;
 
   let content: React.ReactNode;
   if (isPending) content = loadingContent;
@@ -837,34 +929,59 @@ const Projects: React.FC = () => {
       title={filter === 'at-risk' ? t('projects.empty.nothingAtRiskTitle', 'No confirmed budget-risk signals') : t('projects.empty.noMatchTitle', 'No projects match this scope')}
       sub={filter === 'at-risk' ? t('projects.empty.nothingAtRiskSub', 'Unassessed budget data is not assurance.') : t('projects.empty.noMatchSub', 'Adjust the scope or filters to see more projects.')} />
   );
-  else if (view === 'kanban') content = <ProjectKanbanBoard projects={filtered} onOpen={(project) => onOpen(project, 'card')} />;
+  else if (view === 'kanban') content = <ProjectKanbanBoard projects={filtered} onOpen={(project) => onOpen(project, 'card')}
+    atRiskProjectIds={new Set(!moneyPending && !moneyError ? filtered.filter(isAtRiskActual).map((project) => project.id) : [])} />;
   else if (view === 'calendar') content = (
     <ProjectCalendarView projects={filtered} milestoneDates={milestoneDates} cursor={calendarCursor} onCursorChange={onCalendarCursorChange}
       onOpenProject={(id) => { trackProjectDetailOpened('/projects/:projectId', 'card'); openRecord('/projects/' + id); }} />
   );
   else if (view === 'table') content = (
     <DataTable<ProjectWithRefs> rows={filtered} columns={columns} rowKey={(project) => project.id}
-      tableId="projects-list" onActivate={onOpen} rowMenu={canRowWrite ? rowMenu : undefined} />
+      tableId="projects-list-v2" onActivate={onOpen} rowMenu={canRowWrite ? rowMenu : undefined} mobileRow={mobileProjectRow} />
   );
   else content = (
     <div className="grid min-w-0 grid-cols-1 gap-3.5 md:grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))]">
       {filtered.map((project) => <ProjectCard key={project.id} project={project} onOpen={(row) => onOpen(row, 'card')}
+        partialCoverageNoteId={partialProjectIds.has(project.id) ? partialCoverageNoteId : undefined}
         deliverySummary={deliverySummary?.[project.id]} deliveryPending={deliveryPending} deliveryError={deliveryError}
         projectMoney={projectMoney?.[project.id]} projectMoneyPending={moneyPending} projectMoneyError={moneyError}
         onEdit={canEdit ? (row) => setEditTarget(row) : undefined} />)}
     </div>
   );
 
-  const scopeLine = <>
-    <span>{t('projects:scope.onHandInternal', 'On-hand + internal')}</span><span aria-hidden>·</span>
-    <span>{filterLabels[filter]}</span><span aria-hidden>·</span>
-    <span>{isPending ? t('projects:scope.loading', 'Loading projects') : t('projects:scope.resultCount', '{{count}} projects', { count: filtered.length })}</span>
-    <span aria-hidden>·</span>
-    <Link to="/sales" className="touch-target rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects:scope.pipeline', 'Pipeline')}</Link>
-  </>;
+  const scopeCount = isPending
+    ? t('projects:scope.loading', 'Loading projects')
+    : filter === 'at-risk' && moneyPending
+      ? t('projects:scope.riskLoading', 'Checking budget risk')
+      : filter === 'at-risk' && moneyError
+        ? t('projects:scope.riskUnavailable', 'Risk count unavailable')
+        : isError || !data
+          ? t('projects:scope.unavailable', 'Count unavailable')
+          : t('projects:scope.resultCount', '{{count}} projects', { count: filtered.length });
+  const scopeLine = (
+    <div className="flex min-w-0 w-full flex-wrap items-center gap-x-2 gap-y-1">
+      <span className="min-w-0 break-words">{t('projects:scope.onHandInternal', 'On-hand + internal')}</span>
+      <span className="inline-flex max-w-full items-start gap-1 whitespace-nowrap"><span aria-hidden>·</span><span>{filterLabels[filter]}</span></span>
+      <span className="inline-flex max-w-full items-start gap-1 whitespace-nowrap"><span aria-hidden>·</span><span className="font-semibold text-foreground">{scopeCount}</span></span>
+      <span className="inline-flex max-w-full items-start gap-1 whitespace-nowrap"><span aria-hidden>·</span><Link to="/sales" className="touch-target rounded-sm text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{t('projects:scope.pipeline', 'Pipeline')}</Link></span>
+    </div>
+  );
 
   return (
-    <ProjectPageFrame title={t('projects.title', 'Projects')} scope={scopeLine} toolbar={toolbar} primaryAction={primaryAction}>
+    <ProjectPageFrame
+      breadcrumb={(
+        <nav aria-label={t('projects:breadcrumb', 'Breadcrumb')} className="mb-2 text-sm text-muted-foreground">
+          <ol className="flex min-w-0 flex-wrap items-center gap-2">
+            <li>{t('projects:area.delivery', 'Delivery')}</li>
+            <li aria-hidden="true">›</li>
+            <li aria-current="page">{t('projects.title', 'Projects')}</li>
+          </ol>
+        </nav>
+      )}
+      title={t('projects.title', 'Projects')}
+      scope={scopeLine}
+      toolbar={toolbar}
+    >
       {activeFilterSummary}
       {abnormalNote}
       {content}
@@ -880,9 +997,9 @@ const Projects: React.FC = () => {
             code: editTarget.code,
             client_id: editTarget.client_id,
             project_manager_id: editTarget.project_manager_id,
-            clientName: editTarget.client ? companyDisplayName(editTarget.client) : null,
+            clientName: editTarget.client?.name ?? null,
             end_client_id: editTarget.end_client_id,
-            endClientName: editTarget.end_client ? companyDisplayName(editTarget.end_client) : null,
+            endClientName: editTarget.end_client?.name ?? null,
             pmName: editTarget.pm?.full_name ?? null,
             start_date: editTarget.start_date,
             end_date: editTarget.end_date,

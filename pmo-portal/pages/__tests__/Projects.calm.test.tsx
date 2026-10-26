@@ -109,18 +109,25 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getByLabelText('Filter by customer')).toBeInTheDocument();
   });
 
-  it('Actual cells name unavailable coverage while one table note carries shared details', () => {
+  it('AC-RD-TBL-PROJ-001 / R-003: one shared coverage note explains scope, cause, and a named remedy', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
     expect(within(body).queryByText(/ERP actual|Committed POs|Updated/)).not.toBeInTheDocument();
-    expect(within(body).getAllByText('Incomplete source coverage')).toHaveLength(4);
-    const notes = screen.getAllByText(/Actual is partial on/);
-    expect(notes).toHaveLength(1);
-    expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    // null Actual stays unavailable, never 0
+    const note = screen.getByTestId('projects-data-note');
+    expect(note).toHaveAttribute('role', 'status');
+    expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
+    expect(note).toHaveTextContent('Some source categories are unmapped or missing amounts.');
+    expect(within(note).getByRole('button', { name: 'Review Synthetic project 1' })).toBeVisible();
+
     const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
-    expect(within(partialRow).getAllByText('Incomplete source coverage')).toHaveLength(2);
-    expect(within(partialRow).getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
+    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
+    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
+    for (const cell of [partialRow.cells[actualHeaderIndex], partialRow.cells[budgetHeaderIndex]]) {
+      const unavailable = within(cell).getByText('Unavailable');
+      expect(unavailable).toHaveAttribute('aria-describedby', 'projects-data-note');
+      expect(within(cell).queryByRole('link')).not.toBeInTheDocument();
+      expect(within(cell).queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    }
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 

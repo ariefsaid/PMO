@@ -387,6 +387,11 @@
   scroll-snap-align: start;
 }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(258px, 1fr); gap: 13px; min-width: 0; }
+.kanban.projects-kanban { grid-auto-columns: minmax(100%, 1fr); }
+@media (min-width: 1200px) {
+  .kanban.projects-kanban { grid-auto-columns: minmax(0, 1fr); }
+  .kanban-scroll:has(.projects-kanban) { -webkit-mask-image: none; mask-image: none; }
+}
 .kcol-head-sticky {
   position: sticky; top: 0;
   background: hsl(var(--secondary) / 0.95);

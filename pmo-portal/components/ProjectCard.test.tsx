@@ -54,15 +54,15 @@ const base = {
 } as unknown as ProjectWithRefs;
 
 describe('ProjectCard', () => {
-  it('displays the client short name in a project card (references AC-NICK-001)', () => {
+  it('shows the full client name so similarly named customers remain distinguishable', () => {
     render(<ProjectCard project={{ ...base, client: { name: 'Example Legal Company', short_name: 'Example' } }} onOpen={vi.fn()} />);
-    expect(screen.getByText('Example')).toBeInTheDocument();
-    expect(screen.queryByText('Example Legal Company')).not.toBeInTheDocument();
+    expect(screen.getByText('Example Legal Company')).toBeVisible();
+    expect(screen.queryByText('Example', { exact: true })).not.toBeInTheDocument();
   });
-  it('AC-002 #1325: delivery card shows the project alias and keeps contractual name as hover title', () => {
+  it('H-09: the open control visibly names the full contractual project identity', () => {
     render(<ProjectCard project={{ ...base, short_name: 'Harbor Operations' }} onOpen={vi.fn()} />);
-    const title = screen.getByRole('button', { name: /Harbor Operations/ });
-    expect(title).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    const title = screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' });
+    expect(title).toHaveTextContent('Innovate Corp HQ Fit-Out');
     expect(title).toBeVisible();
   });
 
@@ -71,7 +71,8 @@ describe('ProjectCard', () => {
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
     expect(screen.getByText(/PM: Alice Manager/)).toBeInTheDocument();
-    expect(screen.getByText('$5,000,000')).toBeInTheDocument();
+    expect(screen.getByText('5,000,000')).toBeInTheDocument();
+    expect(screen.getByText('Amounts · USD')).toBeInTheDocument();
   });
 
   it('shows the project lifecycle state on the card', () => {
@@ -101,8 +102,9 @@ describe('ProjectCard', () => {
 
   it('shows the customer contract ref on demand', async () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    await userEvent.click(screen.getByText('More project references for Innovate Corp HQ Fit-Out'));
-    expect(screen.getByText(/Customer contract reference: CPO-2026-001/)).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Project IDs (3)'));
+    expect(screen.getByText(/Customer contract reference:/)).toBeVisible();
+    expect(screen.getByText('CPO-2026-001')).toBeVisible();
   });
 
   it('renders em-dashes for a missing customer and PM rather than blank', () => {
@@ -145,7 +147,8 @@ describe('ProjectCard', () => {
 
   it('AC-S02: an unresolved collection read does not claim that no Active budget exists', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getAllByText('Unavailable')).toHaveLength(3);
+    expect(screen.getAllByText('Unavailable')).toHaveLength(2);
+    expect(screen.getByText('Actual / Budget used')).toBeVisible();
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByText('$4,700,000')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
@@ -171,8 +174,8 @@ describe('ProjectCard', () => {
     // Budget used bar is based on mapped Actual / Active budget, not committed spend.
     const budgetBar = screen.getByLabelText(/25% of Active budget/i);
     expect(budgetBar).toBeInTheDocument();
-    expect(screen.getByText('$125,000.00')).toBeInTheDocument();
-    expect(screen.getByText('$500,000')).toBeInTheDocument();
+    expect(screen.getByText('125,000')).toBeInTheDocument();
+    expect(screen.getByText('500,000')).toBeInTheDocument();
     // PL-B: no freshness line and no "x of y" caption on the card.
     expect(screen.queryByText(/Updated|of .* Active budget/)).not.toBeInTheDocument();
     // Should NOT show the old Committed/Actual bars
@@ -182,7 +185,8 @@ describe('ProjectCard', () => {
   it('AC-S02: the compact Actual summary uses Actual currency, not project currency', () => {
     const project = { ...base, currency: 'IDR' } as ProjectWithRefs;
     render(<ProjectCard project={project} onOpen={vi.fn()} deliverySummary={{ deliveryPct: 50, committedSpend: 0, budget: 0 }} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-    expect(screen.getByText('$125,000.00')).toBeInTheDocument();
+    expect(screen.getByText('USD 125,000')).toBeInTheDocument();
+    expect(screen.getByText('Amounts by currency')).toBeInTheDocument();
     // Not comparable: no Budget used bar (and no repeated explanation on the card).
     expect(screen.queryByRole('progressbar', { name: /Active budget/ })).not.toBeInTheDocument();
     expect(screen.getByText('Budget currency differs from Actual')).toBeInTheDocument();
@@ -193,7 +197,7 @@ describe('ProjectCard', () => {
     setActiveLocale({ locale: 'en', numberLocale: 'id-ID', timezone: 'UTC' });
     try {
       render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals: { currency: 'USD', total: '125000.00', asOf: null, excludesRestrictedRows: false, categories: [{ category: 'Labor', mapped: true, amount: '125000.00' }] }, activeBudgetAmount: '500000.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-      expect(screen.getByText(/US\$\s?125\.000,00/)).toBeInTheDocument();
+      expect(screen.getByText('125.000')).toBeInTheDocument();
     } finally {
       resetActiveLocale();
     }
@@ -216,9 +220,9 @@ describe('ProjectCard', () => {
     ];
     for (const [actuals, expectedState] of cases) {
       const { unmount } = render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={{ ledgerBasis: 'erp', actuals, activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true }} />);
-      expect(screen.queryByText('$450.00')).not.toBeInTheDocument();
-      expect(screen.getAllByText(expectedState)).toHaveLength(2);
-      expect(screen.getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
+      expect(screen.queryByText('$450')).not.toBeInTheDocument();
+      expect(screen.getByText(expectedState)).toBeVisible();
+      expect(screen.getAllByRole('link', { name: 'Review project finances' })).toHaveLength(1);
       expect(screen.queryByRole('progressbar', { name: /Active budget/i })).not.toBeInTheDocument();
       unmount();
     }
@@ -226,7 +230,7 @@ describe('ProjectCard', () => {
 
   it('R-012: missing delivery phases have a named next step', () => {
     render(<ProjectCard project={base} onOpen={vi.fn()} />);
-    expect(screen.getByText('No phases yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p1/overview');
     expect(screen.getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p1/overview');
   });
 
@@ -237,8 +241,40 @@ describe('ProjectCard', () => {
       activeBudgetAmount: '500.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('$125.00')).toBeInTheDocument();
+    expect(screen.getByText('125')).toBeInTheDocument();
+    expect(screen.getByText('Amounts · USD')).toBeInTheDocument();
+    expect(screen.queryByText('$125.00')).not.toBeInTheDocument();
     expect(screen.queryByText(/Update time unavailable|Updated/)).not.toBeInTheDocument();
+  });
+
+  it('R-003: shared partial-coverage context is not repeated in desktop money cells', () => {
+    const projectMoney: ProjectMoneyRead = {
+      ledgerBasis: 'erp',
+      actuals: {
+        currency: 'USD',
+        total: '450.00',
+        asOf: null,
+        excludesRestrictedRows: false,
+        categories: [
+          { category: 'Labor', mapped: true, amount: '450.00' },
+          { category: 'Materials', mapped: false, amount: null },
+        ],
+      },
+      activeBudgetAmount: '500.00',
+      activeBudgetCurrency: 'USD',
+      hasActiveBudget: true,
+    };
+    render(<>
+      <div id="coverage-note">Some source categories are unmapped or missing amounts.</div>
+      <ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} partialCoverageNoteId="coverage-note" />
+    </>);
+
+    const unavailable = screen.getAllByText('Unavailable');
+    expect(unavailable).toHaveLength(1);
+    unavailable.forEach((value) => expect(value).toHaveAttribute('aria-describedby', 'coverage-note'));
+    expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review project finances' })).not.toBeInTheDocument();
+    expect(screen.getByText('Some source categories are unmapped or missing amounts.')).toBeInTheDocument();
   });
 
   it('AC-S02: a known zero Active budget is not mislabeled as absent', () => {
@@ -248,7 +284,7 @@ describe('ProjectCard', () => {
       activeBudgetAmount: '0.00', activeBudgetCurrency: 'USD', hasActiveBudget: true,
     };
     render(<ProjectCard project={base} onOpen={vi.fn()} projectMoney={projectMoney} />);
-    expect(screen.getByText('$0')).toBeInTheDocument();
+    expect(screen.getAllByText('0')).toHaveLength(2);
     expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
   });
@@ -323,6 +359,6 @@ describe('OD-TAX-1 §2: the contract figure states its basis', () => {
 
     const card = screen.getByRole('article');
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
-    expect(within(card).getByText('$5,000,000')).toBeInTheDocument();
+    expect(within(card).getByText('5,000,000')).toBeInTheDocument();
   });
 });

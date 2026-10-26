@@ -1,4 +1,3 @@
-import { companyDisplayName } from '@/src/lib/companyDisplayName';
 /**
  * ProjectKanbanBoard — Projects index kanban view grouped by lifecycle status.
  *
@@ -27,12 +26,13 @@ import {
   Kanban,
   KanbanColumn,
   KanbanStageIndicator,
+  StatusPill,
   type KanbanStageItem,
   TaxBasisLabel,
 } from '@/src/components/ui';
 import { useKanbanMobileScroll } from '@/src/components/kanban/useKanbanMobileScroll';
-import { formatCurrency, formatDateOnly } from '@/src/lib/format';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
+import { formatDateOnly, formatExactMoney } from '@/src/lib/format';
+import { getNumberLocale } from '@/src/lib/locale/activeLocale';
 import { projectManagerLabel } from '@/src/lib/projects/projectManagerLabel';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -100,12 +100,12 @@ const PROJECT_KANBAN_COLUMNS: ProjectKanbanColDef[] = [
 interface ProjectKanbanCardProps {
   project: ProjectWithRefs;
   onActivate: () => void;
+  atRisk: boolean;
 }
 
-const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate }) => {
+const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActivate, atRisk }) => {
   const { t } = useTranslation();
-  const displayName = projectDisplayName(project);
-  const legalNameId = `kanban-project-legal-${project.id}`;
+  const displayName = project.name;
   const pmLabel = projectManagerLabel({
     managerId: project.project_manager_id,
     fullName: project.pm?.full_name,
@@ -118,27 +118,35 @@ const ProjectKanbanCard: React.FC<ProjectKanbanCardProps> = ({ project, onActiva
     project.customer_contract_ref && [t('uxs14.contractReference', 'Customer contract reference'), project.customer_contract_ref],
   ].filter((row): row is [string, string] => Boolean(row));
   return (
-    <button type="button" onClick={onActivate}
-      aria-label={t('projects:kanban.openProject', 'Open project {{name}}', { name: displayName })}
-      aria-describedby={displayName !== project.name ? legalNameId : undefined}
-      className="touch-target flex min-h-11 w-full min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-3 text-left hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-      <span title={project.name} className="block min-w-0 break-words font-semibold text-foreground">{displayName}</span>
-      {displayName !== project.name && <span id={legalNameId} className="sr-only">{project.name}</span>}
+    <article className="flex min-w-0 flex-col gap-2 rounded-lg border border-border bg-card p-3">
+      <button type="button" onClick={onActivate}
+        aria-label={t('projects:kanban.openProject', 'Open project {{name}}', { name: displayName })}
+        className="touch-target min-h-11 min-w-0 break-words text-left text-xl font-bold text-foreground underline underline-offset-2 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        <span title={project.name}>{displayName}</span>
+      </button>
+      {atRisk && <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>}
       {project.client
-        ? <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{companyDisplayName(project.client)}</span>
-        : <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects:customerUnavailable', 'Customer unavailable')}</span>}
-      {project.end_client && <span className="block min-w-0 break-words text-[12px] text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {companyDisplayName(project.end_client)}</span>}
-      <span className="block min-w-0 text-[12px] text-muted-foreground">
+        ? <span className="block min-w-0 break-words text-sm text-muted-foreground">{project.client.name}</span>
+        : <span className="block min-w-0 break-words text-sm text-muted-foreground">{t('projects:customerUnavailable', 'Customer unavailable')}</span>}
+      {project.end_client && <span className="block min-w-0 break-words text-sm text-muted-foreground">{t('projects:endCustomer', 'End customer')}: {project.end_client.name}</span>}
+      <span className="block min-w-0 text-sm text-muted-foreground">
         {project.end_date
           ? t('projects:card.expectedEnd', 'Expected end {{date}}', { date: formatDateOnly(project.end_date) })
           : t('projects:dates.noExpectedEnd', 'No expected end')}
       </span>
-      {references.map(([label, value]) => <span key={label} className="block min-w-0 break-words text-xs text-muted-foreground"><span className="font-medium">{label}:</span> <span className="break-all font-mono text-foreground">{value}</span></span>)}
-      <span className="block break-words text-[12px] font-semibold tabular">
-        {formatCurrency(project.contract_value, project.currency)} <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
+      <span className="block break-words text-sm font-normal tabular">
+        {project.currency} {formatExactMoney(String(project.contract_value), project.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })} <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} />
       </span>
-      <span className="block min-w-0 break-words text-sm text-foreground">{t('projects.columns.pm', 'PM')}: {pmLabel}</span>
-    </button>
+      <p className="block min-w-0 break-words text-sm text-foreground">{t('projects.columns.pm', 'PM')}: {pmLabel}</p>
+      {references.length > 0 && <details className="min-w-0" aria-label={t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}>
+        <summary className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('projects:identifiers.summary', 'Project IDs ({{count}})', { count: references.length })}
+        </summary>
+        <div className="space-y-1 pt-2">
+          {references.map(([label, value]) => <p key={label} className="block min-w-0 break-words text-xs text-muted-foreground"><span className="font-medium">{label}:</span> <span className="break-all font-mono text-foreground">{value}</span></p>)}
+        </div>
+      </details>}
+    </article>
   );
 };
 
@@ -152,6 +160,8 @@ export interface ProjectKanbanBoardProps {
   projects: ProjectWithRefs[];
   /** Drill into a project's detail (mirrors SalesKanbanBoard's contract). */
   onOpen: (project: ProjectWithRefs) => void;
+  /** Only confirmed risk signals are marked; unknown data stays unmarked. */
+  atRiskProjectIds?: ReadonlySet<string>;
 }
 
 /**
@@ -165,7 +175,7 @@ export interface ProjectKanbanBoardProps {
  * — scroll events do NOT bubble, so a parent wrapper's onScroll would never fire
  * on a swipe gesture (Defect-1 precedent).
  */
-const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpen }) => {
+const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpen, atRiskProjectIds = new Set() }) => {
   const { t } = useTranslation();
   const { activeStageIndex, hasScrolled, scrollWrapRef, colRefs, onScroll, handleStageClick } =
     useKanbanMobileScroll();
@@ -188,12 +198,15 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
         stages={stages}
         activeIndex={activeStageIndex}
         onStageClick={handleStageClick}
+        labelLayout="scroll"
+        className="md:flex min-[1200px]:hidden"
+        ariaLabel={t('projects.kanban.stageNavigation', 'Project stages')}
       />
 
       {/* Board: onScroll attached directly to <Kanban> so it lands on .kanban-scroll.
           Relative wrapper needed so the absolute swipe-hint chip stays contained. */}
       <div className="relative">
-        <Kanban aria-label={t('projects.kanban.board', 'Projects kanban board')} onScroll={onScroll}>
+        <Kanban className="projects-kanban" aria-label={t('projects.kanban.board', 'Projects kanban board')} onScroll={onScroll}>
           {PROJECT_KANBAN_COLUMNS.map((col, colIdx) => {
             const colProjects = projects.filter((p) => col.statuses.includes(p.status as string));
             const title = titles[col.key];
@@ -214,6 +227,7 @@ const ProjectKanbanBoard: React.FC<ProjectKanbanBoardProps> = ({ projects, onOpe
                     <ProjectKanbanCard
                       key={p.id}
                       project={p}
+                      atRisk={atRiskProjectIds.has(p.id)}
                       onActivate={() => onOpen(p)}
                     />
                   ))}

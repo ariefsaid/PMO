@@ -167,6 +167,21 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     expect(within(toolbar).getByRole('button', { name: /new project/i })).toBeInTheDocument();
   });
 
+  it('AC-PRJUX-003: phone rows lead with open identity, status and amount; secondary facts stay in one disclosure', async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    const open = screen.getByRole('button', { name: 'Open project Innovate Corp HQ Fit-Out' });
+    const row = open.closest('li')!;
+    expect(open).toBeVisible();
+    expect(within(row).getByText('Ongoing Project')).toBeVisible();
+    expect(within(row).getByText('USD 1,000,000')).toBeVisible();
+    expect(within(row).queryByText('Alice Manager')).not.toBeVisible();
+
+    await user.click(within(row).getByText(/More project details/));
+    expect(within(row).getByText('Alice Manager')).toBeVisible();
+  });
+
   it('R-009/R-013: the complete scope selector follows search and precedes the ordered narrowing tools', () => {
     renderPage();
     const toolbar = screen.getByTestId('list-page-toolbar');
@@ -404,7 +419,8 @@ describe('AC-PRJUX-001 — page states render no incomplete mobile toolbar', () 
     projectsState.isError = false;
     projectsState.data = [];
     renderPage();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('data-table-loading-row')).toHaveLength(3);
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
   });
 

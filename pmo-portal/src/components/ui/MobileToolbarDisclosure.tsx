@@ -41,6 +41,10 @@ export interface MobileToolbarDisclosureProps {
   defaultOpen?: boolean;
   /** Close after a native select changes and return focus to the trigger. */
   closeOnSelectChange?: boolean;
+  /** Float the phone panel over the collection without moving its results. */
+  mobileOverlay?: boolean;
+  /** Align a floating phone panel with the start or end of its trigger. */
+  mobileOverlayAlign?: 'start' | 'end';
 }
 
 // First selectors win; `:not([disabled])` handles disabled native controls so a
@@ -72,6 +76,8 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   onOpenChange,
   defaultOpen = false,
   closeOnSelectChange = false,
+  mobileOverlay = false,
+  mobileOverlayAlign = 'start',
 }) => {
   const [internalOpen, setInternalOpen] = useState<boolean>(() => defaultOpen);
   const isControlled = openProp !== undefined;
@@ -164,7 +170,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   }, [isOpen]);
 
   return (
-    <div ref={wrapperRef} className={cn('min-w-0', className)}>
+    <div ref={wrapperRef} className={cn('relative min-w-0', className)}>
       <Button
         ref={triggerRef}
         data-mobile-toolbar-disclosure-trigger
@@ -184,7 +190,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
               {count}
             </span>
           )}
-          <Icon name="chev" className={`size-3.5 transition-transform ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
+          <Icon name="chev" className={cn('size-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
         </span>
       </Button>
       {isOpen && (
@@ -201,6 +207,11 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
           }}
           className={cn(
             'mt-2 w-full min-w-0 max-w-full rounded-lg border border-border bg-card p-3 text-foreground',
+            mobileOverlay && [
+              'absolute top-full z-50 w-[min(22rem,calc(100vw-2rem))] max-h-[min(70dvh,32rem)] overflow-y-auto shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
+              mobileOverlayAlign === 'end' ? 'right-0' : 'left-0',
+              'md:static md:mt-2 md:max-h-none md:w-full md:max-w-full md:overflow-visible md:shadow-none',
+            ],
             panelClassName,
           )}
         >

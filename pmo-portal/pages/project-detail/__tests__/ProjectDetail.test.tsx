@@ -412,7 +412,10 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(alert).getByText(/Couldn.t load this project/i)).toBeInTheDocument();
     // The escape route stays; and Retry re-runs the by-id read.
     expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    // #707: like the loading / not-found states, the error state's Back bar is phone-only.
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
     await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
     expect(projectsState.refetch).toHaveBeenCalledTimes(1);
   });
@@ -428,10 +431,12 @@ describe('ProjectDetail shell (decomposition)', () => {
   it.each([
     ['loading', { data: undefined as unknown as ProjectWithRefs[], isPending: true }],
     ['not-found', { data: [] as ProjectWithRefs[], isPending: false }],
-  ])('#707: the %s state keeps the named return available', async (_n, s) => {
+  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', async (_n, s) => {
     Object.assign(projectsState, s);
     await renderAt('/projects/does-not-exist');
-    expect(screen.getByRole('button', { name: /Back to Projects/i })).toBeInTheDocument();
+    const bar = screen.getByRole('button', { name: /Back to Projects/i }).parentElement!;
+    expect(bar.className).toContain('hidden');
+    expect(bar.className).toContain('max-[920px]:flex');
   });
 
   it('AC-NAV-007: "Back to Projects" navigates to the Projects module index (no tab)', async () => {
@@ -459,18 +464,23 @@ describe('ProjectDetail shell (decomposition)', () => {
     );
   });
 
-  it('keeps the record return action beside the content-track ancestry at desktop widths', async () => {
+  it('C-IMP-1 / #735: the loaded record renders the Back bar phone-only — visible up to 920px (incl. 800px), hidden above', async () => {
+    // The 920px rule matches every other record page: the bar is CSS-gated
+    // (`hidden max-[920px]:flex`), not JS-gated on the 768px useIsDesktop split — so at
+    // 800px (>= 768, <= 920) the bar is visible and the top-bar breadcrumb (hidden
+    // <= 920px) is not the only way back. Above 920px the class hides it (breadcrumb owns it).
     desktopBox.value = true; // 800px is "desktop" by the 768px hook — the bar must still render
     await renderAt('/projects/p1');
     const back = screen.getByRole('button', { name: /Back to Projects/i });
     expect(back).toBeInTheDocument();
-    expect(back).toBeInTheDocument();
+    expect(back.parentElement!.className).toContain('hidden');
+    expect(back.parentElement!.className).toContain('max-[920px]:flex');
   });
 
-  it('keeps the record return action available below 768px', async () => {
+  it('C-IMP-1 / #735: the loaded record also renders the phone-only Back bar below 768px', async () => {
     desktopBox.value = false;
     await renderAt('/projects/p1');
     const back = screen.getByRole('button', { name: /Back to Projects/i });
-    expect(back).toBeInTheDocument();
+    expect(back.parentElement!.className).toContain('max-[920px]:flex');
   });
 });

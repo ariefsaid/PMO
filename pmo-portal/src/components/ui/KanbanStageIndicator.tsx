@@ -15,6 +15,9 @@ export interface KanbanStageIndicatorProps {
   /** Called when the user taps a stage button to request scrolling to that column. */
   onStageClick?: (index: number) => void;
   className?: string;
+  /** Projects opts into wrapping lifecycle labels; other boards keep compact truncation. */
+  labelLayout?: 'truncate' | 'wrap' | 'scroll';
+  ariaLabel?: string;
 }
 
 /**
@@ -36,10 +39,12 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
   activeIndex,
   onStageClick,
   className,
+  labelLayout = 'truncate',
+  ariaLabel = 'Pipeline stage navigation',
 }) => {
   return (
     <nav
-      aria-label="Pipeline stage navigation"
+      aria-label={ariaLabel}
       className={cn(
         // scroll-fade-x: right-edge mask-image fade for parity with Tabs/Stepper/TimesheetGrid
         // (signals "scroll for more" when the strip overflows at narrow widths).
@@ -58,7 +63,8 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
             onClick={() => onStageClick?.(i)}
             className={cn(
               // Touch target — ≥44px height on coarse pointers (WCAG 2.5.5)
-              'touch-target relative flex min-h-[44px] flex-1 flex-col items-center justify-center gap-0.5 px-2 py-2 text-[11px] font-semibold leading-tight transition-colors',
+              'touch-target relative flex min-h-[44px] flex-col items-center justify-center gap-0.5 px-2 py-2 text-xs font-semibold leading-tight transition-colors',
+              labelLayout === 'scroll' ? 'min-w-max flex-none px-3' : 'flex-1',
               isActive
                 ? 'text-primary-text'
                 : 'text-muted-foreground hover:text-foreground',
@@ -76,7 +82,9 @@ export const KanbanStageIndicator: React.FC<KanbanStageIndicatorProps> = ({
               )}
               style={{ background: stage.dotColor }}
             />
-            <span className="max-w-[52px] truncate text-center">{stage.title}</span>
+            <span className={cn('min-w-0 text-center', labelLayout === 'truncate' ? 'max-w-[52px] truncate' : labelLayout === 'scroll' ? 'whitespace-nowrap' : 'whitespace-normal break-words')}>
+              {stage.title}
+            </span>
             {/* Active underline */}
             {isActive && (
               <span

@@ -206,6 +206,7 @@ describe('Projects index — IA-3 (real data)', () => {
     try {
       renderPage();
       const identity = screen.getByTestId('projects-identity-secondary');
+      await userEvent.click(within(identity).getByText('Project IDs (2)'));
       expect(identity).toHaveTextContent(/PMO Project Number:\s*PMO-26-0042/);
       expect(identity).toHaveTextContent(/Client Project Code:\s*CLIENT-77/);
     } finally {
@@ -296,19 +297,19 @@ describe('Projects index — IA-3 (real data)', () => {
     expect(screen.queryByText('Regional Services Program')).not.toBeInTheDocument();
   });
 
-  it('AC-002 #1325: project rows show the short name, disclose the contractual title, and search either identity', async () => {
+  it('AC-002 #1325: project rows open from the full contractual name and search either identity', async () => {
     const withAlias = { ...seed[0], short_name: 'Harbor Operations' } as ProjectWithRefs;
     projectsState.data = [withAlias, seed[1], seed[2]] as ProjectWithRefs[];
     renderPage();
     const search = screen.getByRole('searchbox', { name: /search projects/i });
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toHaveAccessibleDescription('Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toHaveAttribute('title', 'Innovate Corp HQ Fit-Out');
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
     await userEvent.type(search, 'Harbor Operations');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
     await userEvent.clear(search);
     await userEvent.type(search, 'Innovate Corp HQ Fit-Out');
-    expect(screen.getByRole('button', { name: 'Harbor Operations' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
   });
 
   it('filters by search (AC-404)', async () => {
@@ -342,13 +343,19 @@ describe('Projects index states', () => {
     expect(screen.getByRole('columnheader', { name: 'Budget used' })).toBeInTheDocument();
   });
 
-  it('shows error state with retry on failure (AC-408)', () => {
-    projectsState.isError = true; projectsState.isPending = false;
+  it('AC-408 / R-004: a failed list never reports cached or empty rows as a known count', async () => {
+    projectsState.isError = true;
+    projectsState.isPending = false;
+    projectsState.data = seed as unknown as ProjectWithRefs[];
     renderPage();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getByText('Count unavailable')).toBeVisible();
+    expect(screen.queryByText('3 projects')).not.toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /Retry/i });
+    await userEvent.click(retry);
+    expect(projectsState.refetch).toHaveBeenCalled();
   });
 
-  it('AC-406: keeps one live New project action beside the zero-project guidance', () => {
+  it('C3: shows the teaching empty state with a live New project CTA when zero rows (AC-406)', () => {
     projectsState.data = [];
     renderPage(); // renders as PM (canCreate=true)
     expect(screen.getByText(/No projects yet/i)).toBeInTheDocument();
@@ -488,8 +495,9 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     await userEvent.selectOptions(viewControl(), 'cards');
     expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('article')!;
-    await userEvent.click(within(wonCard).getByText('More project references for Won Deal'));
-    expect(within(wonCard).getByText(/Customer contract reference: CPO-2026-999/)).toBeVisible();
+    await userEvent.click(within(wonCard).getByText(/Project IDs/));
+    expect(within(wonCard).getByText('Customer contract reference')).toBeVisible();
+    expect(within(wonCard).getByText('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 
@@ -500,8 +508,9 @@ describe('ProjectStatusControl integration (AC-1011 UI)', () => {
     expect(projectCardArticles().length).toBeGreaterThan(0);
     expect(screen.queryByTestId('project-status-control')).not.toBeInTheDocument();
     const wonCard = screen.getByText('Won Deal').closest<HTMLElement>('article')!;
-    await userEvent.click(within(wonCard).getByText('More project references for Won Deal'));
-    expect(within(wonCard).getByText(/Customer contract reference: CPO-2026-999/)).toBeVisible();
+    await userEvent.click(within(wonCard).getByText(/Project IDs/));
+    expect(within(wonCard).getByText('Customer contract reference')).toBeVisible();
+    expect(within(wonCard).getByText('CPO-2026-999')).toBeVisible();
     projectsState.data = seed as unknown as ProjectWithRefs[];
   });
 });
@@ -549,6 +558,19 @@ describe('Projects index — New project create + gating', () => {
   });
 });
 
+it('H-09: table and Cards opening controls expose the full project name when an alias exists', async () => {
+  const original = projectsState.data;
+  try {
+    projectsState.data = [{ ...seed[0], short_name: 'Terminal Ops' }] as unknown as ProjectWithRefs[];
+    renderPage('Project Manager', '/projects?view=table');
+    expect(await screen.findByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
+    await userEvent.selectOptions(viewControl(), 'cards');
+    expect(await screen.findByRole('button', { name: 'Innovate Corp HQ Fit-Out' })).toBeVisible();
+  } finally {
+    projectsState.data = original;
+  }
+});
+
 // ── S-02: collection Actual is the same mapped ledger basis as Project finances ──
 describe('Projects table — Actual uses the canonical collection money read (AC-S02-008)', () => {
   beforeEach(() => {
@@ -574,17 +596,18 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     setActiveLocale({ locale: 'id', numberLocale: 'id', timezone: 'Asia/Jakarta' });
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('US$125.000,00')).toBeInTheDocument();
+    expect(within(body).getByText('USD 125.000')).toBeInTheDocument();
   });
 
   it('AC-S02-008: displays canonical Actual, freshness and Active-budget utilization instead of committedSpend', () => {
     renderPage();
     expect(screen.getByRole('columnheader', { name: 'Actual' })).toBeInTheDocument();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$125,000.00')).toBeInTheDocument();
+    expect(within(body).getByText('USD 125,000')).toBeInTheDocument();
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-    expect(actualCell.textContent).toContain('$125,000.00');
+    expect(actualCell.textContent).toContain('USD 125,000');
+    expect(actualCell.textContent).not.toContain('.00');
     // PL-A: the cell is the amount only — source and freshness are not repeated per row.
     expect(actualCell.querySelector('[title]')).toBeNull();
     expect(actualCell.textContent).not.toMatch(/ERP actual|Updated/);
@@ -601,7 +624,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
     const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
     expect(actualCell.querySelector('[title]')).toBeNull();
-    expect(actualCell.textContent).toBe('$125,000.00');
+    expect(actualCell.textContent).toBe('USD 125,000');
   });
 
   it('AC-S02-009: unknown Actual and missing Active budget name their states and next steps', async () => {
@@ -618,8 +641,9 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Actual'));
     const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
     const row = body.querySelector('tr')!;
-    expect(within(row.cells[actualHeaderIndex]).getByText('Incomplete source coverage')).toBeInTheDocument();
-    expect(within(row.cells[actualHeaderIndex]).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p1/overview');
+    const actualCell = row.cells[actualHeaderIndex];
+    expect(within(actualCell).getByText('Unavailable')).toHaveAttribute('aria-describedby', 'projects-data-note');
+    expect(within(actualCell).queryByRole('link')).not.toBeInTheDocument();
     expect(within(row.cells[budgetHeaderIndex]).getByText('No active budget')).toBeInTheDocument();
     expect(within(row.cells[budgetHeaderIndex]).getByRole('link', { name: 'Review budget' })).toHaveAttribute('href', '/projects/p1/budget');
     // The coverage explanation is the one table note, not a per-row string.
@@ -652,7 +676,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0.00')).toBeInTheDocument();
+    expect(within(body).getByText('USD 0')).toBeInTheDocument();
     expect(within(body).queryByText('Unavailable')).not.toBeInTheDocument();
     expect(within(body).getByLabelText(/0% of Active budget/)).toBeInTheDocument();
   });
@@ -660,15 +684,19 @@ describe('Projects table — Actual uses the canonical collection money read (AC
   it('AC-S02: at-risk filtering shows loading and retryable error states instead of claiming nothing is at risk', async () => {
     projectMoneyState.isPending = true;
     const { unmount } = renderPage('Project Manager', '/projects?filter=at-risk');
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    expect(screen.getAllByTestId('data-table-loading-row').length).toBeGreaterThan(0);
+    expect(screen.getByRole('status', { name: 'Loading projects' })).toBeVisible();
+    expect(screen.getByText('Checking budget risk')).toBeVisible();
     expect(screen.queryByText('Nothing at risk')).not.toBeInTheDocument();
     unmount();
 
     projectMoneyState.isPending = false;
     projectMoneyState.isError = true;
     const { unmount: unmountError } = renderPage('Project Manager', '/projects?filter=at-risk');
+    expect(screen.getByText('Risk count unavailable')).toBeVisible();
+    expect(screen.queryByText('3 projects')).not.toBeInTheDocument();
     expect(screen.getByText('Some project data needs attention')).toBeInTheDocument();
-    expect(screen.getByText('Actual and Active budget are unavailable.')).toBeInTheDocument();
+    expect(screen.getByTestId('projects-data-note')).toHaveTextContent(/Actual and Active budget.*unavailable/i);
     expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Retry financial data' }));
     expect(projectMoneyState.refetch).toHaveBeenCalled();
@@ -690,9 +718,14 @@ describe('Projects table — Actual uses the canonical collection money read (AC
       expect(within(body).queryByLabelText(/90% of Active budget/i)).not.toBeInTheDocument();
       const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
       const actualCell = body.querySelector('tr')!.cells[actualHeaderIndex];
-      expect(within(actualCell).getByText(actuals.excludesRestrictedRows ? 'Restricted rows excluded' : 'Incomplete source coverage')).toBeInTheDocument();
-      expect(within(actualCell).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p1/overview');
-      expect(body.querySelector('tr')!.cells[actualHeaderIndex].textContent).not.toContain('$450,000');
+      if (actuals.excludesRestrictedRows) {
+        expect(within(actualCell).getByText('Restricted rows excluded')).toBeInTheDocument();
+        expect(within(actualCell).getByRole('link', { name: 'Review project finances' })).toHaveAttribute('href', '/projects/p1/overview');
+      } else {
+        expect(within(actualCell).getByText('Unavailable')).toHaveAttribute('aria-describedby', 'projects-data-note');
+        expect(within(actualCell).queryByRole('link')).not.toBeInTheDocument();
+      }
+      expect(body.querySelector('tr')!.cells[actualHeaderIndex].textContent).not.toContain('USD 450,000');
       unmountAll();
     }
   });
@@ -703,7 +736,7 @@ describe('Projects table — Actual uses the canonical collection money read (AC
     };
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).getByText('$0 Active budget; usage unavailable')).toBeInTheDocument();
+    expect(within(body).getByText('USD 0 Active budget; usage unavailable')).toBeInTheDocument();
     expect(within(body).queryByText('No active budget')).not.toBeInTheDocument();
   });
 
