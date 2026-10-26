@@ -24,7 +24,7 @@ const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void; 
         to={`/projects/${project.id}`}
         onClick={(event) => { event.preventDefault(); onOpen(); }}
         data-list-return-focus={`project-${project.id}`}
-        className="block min-h-11 break-words text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        className="block min-h-11 break-words text-sm font-semibold text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >
         {displayName}
       </Link>
