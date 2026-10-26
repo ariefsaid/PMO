@@ -2,7 +2,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const linkMock = vi.fn();
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: linkMock, isPending: false }) }));
@@ -32,6 +32,7 @@ const openMenu = async (name: string) => userEvent.click(screen.getByRole('butto
 const bulkBar = () => screen.getByRole('group', { name: 'Selected documents' });
 
 beforeEach(() => linkMock.mockReset());
+afterEach(() => vi.unstubAllGlobals());
 
 describe('ErpOrphansSection', () => {
   it('AC-PFE-006: each orphan has one "Link…" action offering Link to purchase and New purchase from this', async () => {
@@ -57,7 +58,9 @@ describe('ErpOrphansSection', () => {
   });
 
   it('the bulk bar stays mounted (no list shift) and carries select all, so it also works on phone cards', async () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     renderAt(<ErpOrphansSection rows={[row('PINV-1'), row('PINV-2'), row('PINV-3')]} projectId="p1" canLink />);
+    expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
     const all = within(bulkBar()).getByRole('checkbox', { name: 'Select all 3 documents' });
     await userEvent.click(all);
     expect(all).toHaveAttribute('aria-checked', 'true');
@@ -72,11 +75,11 @@ describe('ErpOrphansSection', () => {
     expect(screen.getByRole('checkbox', { name: 'Select PINV-1' }).className).toMatch(/max-\[767px\]:!size-6/);
   });
 
-  it('decision 3: the amount shown is the pre-tax total, under "Amount (pre-tax)"; a payment shows its paid amount', () => {
+  it('decision 3: the currency group states the pre-tax basis once; row amounts remain exact whole units', () => {
     renderAt(<ErpOrphansSection rows={[row('PINV-1'), row('ACC-PAY-1', { doctype: 'Payment Entry', grandTotal: 777, netTotal: null })]}
       projectId="p1" canLink={false} />);
-    expect(screen.getByRole('columnheader', { name: /Amount \(pre-tax\)/ })).toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /^IDR\s*2$/ })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Amount' })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^IDR · Amount \(pre-tax\)\s*2$/ })).toBeInTheDocument();
     const invoice = screen.getByRole('row', { name: /PINV-1/ });
     expect(invoice).toHaveTextContent(/1[.,]000/);
     expect(invoice).not.toHaveTextContent(/1[.,]110/);
@@ -89,14 +92,29 @@ describe('ErpOrphansSection', () => {
       row('PINV-USD', { currency: 'USD', grandTotal: 3412800, netTotal: 3412800 }),
     ]} projectId="p1" canLink={false} />);
 
-    expect(screen.getByRole('row', { name: /^IDR\s*1$/ })).toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /^USD\s*1$/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^IDR · Amount \(pre-tax\)\s*1$/ })).toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /^USD · Amount \(pre-tax\)\s*1$/ })).toBeInTheDocument();
     const idr = screen.getByRole('row', { name: /PINV-IDR/ });
     const usd = screen.getByRole('row', { name: /PINV-USD/ });
     expect(idr).toHaveTextContent('2,000,000,000');
     expect(usd).toHaveTextContent('3,412,800');
     expect(within(idr).getAllByRole('cell')[3]).not.toHaveTextContent('IDR');
     expect(within(usd).getAllByRole('cell')[3]).not.toHaveTextContent('USD');
+  });
+
+  it('AC-806: phone rows keep full identity/reference, status/date, exact amount and one link action ahead of details', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    renderAt(<ErpOrphansSection rows={[row('PINV-1', { billNo: 'INV-4472', netTotal: 2226648000 })]} projectId="p1" canLink projectNames={new Map([['p1', 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru']])} />);
+    const cards = screen.getByTestId('dt-card-branch');
+    const item = within(cards).getAllByRole('listitem').find((candidate) => within(candidate).queryByText('PINV-1'))!;
+    expect(item).toHaveTextContent('Reference INV-4472');
+    expect(within(item).getByText('Paid')).toBeInTheDocument();
+    expect(item.querySelector('time')).toHaveAttribute('datetime', '2026-02-01');
+    expect(within(item).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(item).getByRole('button', { name: 'Link PINV-1' })).toBeInTheDocument();
+    expect(within(item).getByText('Details · 2 fields')).toBeInTheDocument();
+    expect(within(item).getByText('Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
+    expect(item.querySelector('details')).not.toHaveAttribute('open');
   });
 
   it('AC-PFE-006: New purchase from this links the document into a new purchase on the project and opens it', async () => {

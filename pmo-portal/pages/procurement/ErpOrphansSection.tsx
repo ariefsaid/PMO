@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Checkbox, DataTable, MenuButton, type Column, type RowMenuItem } from '@/src/components/ui';
+import { Button, Checkbox, DataTable, MenuButton, StatusPill, type Column, type RowMenuItem } from '@/src/components/ui';
 import { formatDate, formatNumber } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { ErpLinkRow, ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -146,7 +146,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     }] : []),
     { key: 'date', header: t('erpPurchases.column.date', 'Date'), kind: 'date', size: 130, cell: (r) => formatDate(r.docDate), exportValue: (r) => r.docDate ?? '' },
     {
-      key: 'amount', header: t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)'), kind: 'money', align: 'num', size: 170,
+      key: 'amount', header: t('erpPurchases.column.amount', 'Amount'), kind: 'money', align: 'num', size: 170,
       cell: amountOf,
       exportValue: (r) => erpPreTaxAmount(r) ?? '',
     },
@@ -164,6 +164,37 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       )),
     }] : []),
   ];
+
+  const mobileRow = (r: ErpPurchaseRow) => (
+    <div className="grid gap-3 p-3">
+      <div className="flex min-w-0 items-start gap-3">
+        {canLink && <Checkbox className="max-[767px]:!size-6" checked={selected.has(r.id)} onChange={() => toggle(r.id)} label={t('erpLinks.selectOne', 'Select {{name}}', { name: r.name })} />}
+        <div className="min-w-0 flex-1">
+          <div className="break-all text-sm text-foreground">{r.name}</div>
+          <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">
+            {erpDoctypeLabel(t, r.doctype)}{r.billNo ? ` · ${t('erpPurchases.reference', 'Reference')} ${r.billNo}` : ''}
+          </div>
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+        <StatusPill variant="neutral">{r.erpStatus ?? t('common:notAvailable', 'Not available')}</StatusPill>
+        <time dateTime={r.docDate ?? undefined} className="text-sm text-muted-foreground">{formatDate(r.docDate)}</time>
+      </div>
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+        <span className="whitespace-nowrap text-sm tabular text-foreground">{amountOf(r)}</span>
+        {canLink && !selecting && <MenuButton label={t('erpLinks.linkMenu', 'Link…')} ariaLabel={t('erpLinks.linkMenuNamed', 'Link {{name}}', { name: r.name })} items={rowMenu(r)} />}
+      </div>
+      <details>
+        <summary className="flex min-h-11 cursor-pointer items-center break-words text-xs font-semibold text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('erpLinks.mobileDetails', 'Details · 2 fields')}
+        </summary>
+        <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.supplier', 'Supplier')}</dt><dd className="break-words text-sm text-foreground">{r.supplier ?? t('common:notAvailable', 'Not available')}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{projectLabel(r)}</dd></div>
+        </dl>
+      </details>
+    </div>
+  );
 
   return (
     <div>
@@ -210,10 +241,11 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       <DataTable<ErpPurchaseRow>
         rows={rows}
         columns={columns}
+        mobileRow={mobileRow}
         rowKey={(r) => r.id}
         tableId={tableId ?? 'erp-orphans-table'}
         accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
-        groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
+        groupBy={(row) => `${row.currency || t('common:notAvailable', 'Not available')} · ${t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}`}
         groupHeadingClassName="text-xl font-bold leading-tight"
       />
       {dialogDocs && (

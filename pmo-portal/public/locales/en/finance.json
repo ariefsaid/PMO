@@ -42,6 +42,7 @@
     "column": {
       "document": "Document",
       "supplier": "Supplier",
+      "reference": "Reference",
       "project": "Project",
       "date": "Date",
       "amount": "Amount",
@@ -75,6 +76,7 @@
     "selectAll_other": "Select all {{count}} documents",
     "selectOne": "Select {{name}}",
     "selectionGroup": "Selected documents",
+    "mobileDetails": "Details · 2 fields",
     "selectedCount": "{{count}} selected",
     "actions": "Actions",
     "linkOne": "Link to purchase",

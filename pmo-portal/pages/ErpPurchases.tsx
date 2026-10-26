@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useNavigate } from 'react-router';
-import { Button, ListState, Card, SearchMini, SelectField } from '@/src/components/ui';
+import { Button, ListState, SearchMini, SelectField } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useProjects } from '@/src/hooks/useProjects';
@@ -135,9 +135,7 @@ const ErpPurchasesPage: React.FC = () => {
           action={{ label: t('erpPurchases.clearFilters', 'Clear filters'), onClick: clearFilters }}
         />
       ) : (
-        <Card className="overflow-hidden">
-          <ErpOrphansSection key={selectionKey} rows={filtered} canLink={canLink} projectNames={projectNames} />
-        </Card>
+        <ErpOrphansSection key={selectionKey} rows={filtered} canLink={canLink} projectNames={projectNames} />
       )}
     </MoneyOutListPage>
   );
