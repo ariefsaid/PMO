@@ -58,6 +58,8 @@ export interface Column<Row> {
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
+  /** Extra classes for the column heading only. */
+  headerClassName?: string;
   /**
    * Extra Tailwind classes applied to both the `<th>` and each `<td>` in this column.
    * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
@@ -504,6 +506,7 @@ export function DataTable<Row>({
                       'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
+                      col.headerClassName,
                       col.colClassName
                     )}
                   >

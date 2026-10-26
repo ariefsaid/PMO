@@ -34,7 +34,6 @@ import { CONTRACT_TAX_REQUIRED_HINT } from '@/src/lib/taxTreatment';
 import { useOrgTaxDefault, useTaxTreatmentPreselect } from '@/src/hooks/useOrgTaxDefault';
 import { useTaxTreatmentOptions } from '@/src/hooks/useTaxTreatmentOptions';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { projectIconColor } from './projects';
 import { AWARD_TYPES, BIDDING_ENTITIES, CLASSIFICATION_MAX_LENGTH, classificationValueLabel, classificationValueOptions } from '@/src/lib/projectClassification';
 import {
   PROJECT_ORIGINATION_STATUSES,
@@ -56,14 +55,6 @@ import {
 //                          NO status (the lifecycle control / win-transition owns it).
 // Strictly DESIGN.md-tokened (it composes the shipped form primitives only).
 // ---------------------------------------------------------------------------
-
-  /** A two-letter avatar for manager and end-customer combobox options. */
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-}
 
 /** Pre-filled values when editing an existing project header. */
 export interface ProjectFormInitial extends ProjectClassification {
@@ -310,8 +301,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     return managers.map((m) => ({
       value: m.id,
       label: m.full_name,
-      initials: initialsOf(m.full_name),
-      color: 'hsl(var(--secondary-foreground))',
     }));
   };
 
@@ -321,8 +310,6 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       value: c.id,
       label: c.name,
       sub: c.short_name ?? t(`companies.type.${c.type.toLowerCase()}`, c.type),
-      initials: initialsOf(c.name),
-      color: projectIconColor(),
     }));
   };
 
@@ -346,11 +333,12 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
   useEffect(() => {
     if (form.hasAttemptedSubmit && form.errors.location) setClassificationOpen(true);
   }, [form.hasAttemptedSubmit, form.errors.location]);
+  const firstErrorMessage = errorSummary[0]?.message;
   useEffect(() => {
     if (!form.hasAttemptedSubmit || errorSummary.length === 0) return;
     errorSummaryRef.current?.focus();
     errorSummaryRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-  }, [form.hasAttemptedSubmit, errorSummary.length, errorSummary[0]?.message]);
+  }, [form.hasAttemptedSubmit, errorSummary.length, firstErrorMessage]);
 
   // Typed entries only: the org tax default and the proposed project number are seeded, not entered,
   // so a pristine page must not count as dirty (it would ask before leaving an empty form).
@@ -463,7 +451,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
     searchPlaceholder={t('projectForm.client.search', 'Search companies…')} noun={t('projectForm.client.noun', 'company')}
     error={form.errors.clientId} />;
   const endCustomerControl = <Combobox label={t('projectForm.endCustomer.label', 'End customer')} value={form.values.endClientId}
-    selectedOption={form.values.endClientId && endClientLabel ? { value: form.values.endClientId, label: endClientLabel, initials: initialsOf(endClientLabel), color: projectIconColor() } : null}
+    selectedOption={form.values.endClientId && endClientLabel ? { value: form.values.endClientId, label: endClientLabel } : null}
     onChange={(v, opt) => { form.setValue('endClientId', v); setEndClientLabel(opt.label); }}
     onClear={() => { form.setValue('endClientId', null); setEndClientLabel(null); }} clearable loadOptions={loadEndCustomers}
     placeholder={t('projectForm.endCustomer.placeholder', 'Select a company…')}
@@ -533,7 +521,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
             value={form.values.pmId}
             selectedOption={
               form.values.pmId && pmLabel
-                ? { value: form.values.pmId, label: pmLabel, initials: initialsOf(pmLabel) }
+                ? { value: form.values.pmId, label: pmLabel }
                 : null
             }
             onChange={(v, opt) => {

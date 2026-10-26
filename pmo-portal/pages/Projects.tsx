@@ -539,6 +539,7 @@ const Projects: React.FC = () => {
       size: 144,
       minSize: 128,
       maxSize: 196,
+      headerClassName: 'whitespace-normal break-words leading-tight',
       colClassName: 'whitespace-normal break-words leading-tight',
       exportValue: (p) => String(p.status),
       cell: (p) => (
@@ -664,6 +665,7 @@ const Projects: React.FC = () => {
       size: 132,
       minSize: 120,
       maxSize: 220,
+      headerClassName: 'whitespace-normal break-words leading-tight',
       colClassName: 'whitespace-normal break-words leading-tight',
       cell: (p) => {
         if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
