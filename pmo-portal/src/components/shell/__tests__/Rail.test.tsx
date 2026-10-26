@@ -154,10 +154,10 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
   });
 
   it.each([
-    ['Admin', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace setup']],
-    ['Executive', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace setup']],
-    ['Finance', ['My work', 'Manage money', 'Deliver projects', 'Work with partners', 'Workspace setup']],
-    ['Project Manager', ['My work', 'Deliver projects', 'Work with partners', 'Manage money']],
+    ['Admin', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace']],
+    ['Executive', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace']],
+    ['Finance', ['My work', 'Deliver projects', 'Manage money', 'Work with partners', 'Workspace']],
+    ['Project Manager', ['My work', 'Deliver projects', 'Manage money', 'Work with partners']],
     ['Engineer', ['My work', 'Deliver projects']],
   ])('orders visible job groups for %s', (role, expectedGroups) => {
     effectiveRole = role;
@@ -170,10 +170,10 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
   });
 
   it.each([
-    ['Admin', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views']],
-    ['Executive', ['/', '/approvals', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views']],
-    ['Finance', ['/', '/approvals', '/my-tasks', '/expenses', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/projects', '/meetings', '/incidents', '/sales', '/companies', '/contacts', '/views']],
-    ['Project Manager', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales', '/companies', '/contacts', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/reports', '/views']],
+    ['Admin', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration']],
+    ['Executive', ['/', '/approvals', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration']],
+    ['Finance', ['/', '/approvals', '/my-tasks', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/financial-statements', '/reports', '/sales', '/companies', '/contacts', '/views', '/administration/exchange-rates']],
+    ['Project Manager', ['/', '/approvals', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/sales-invoices', '/incoming-payments', '/procurement', '/revenue-by-project', '/reports', '/sales', '/companies', '/contacts', '/views']],
     ['Engineer', ['/', '/my-tasks', '/timesheets', '/expenses', '/projects', '/meetings', '/incidents', '/views']],
   ])('keeps destination order by job and role for %s', (role, expectedHrefs) => {
     effectiveRole = role;
@@ -192,6 +192,27 @@ describe('Rail role-gating (preserves getNavItems — AC-AUTH-003/009/010/011, A
     renderRail();
     const work = screen.getByRole('group', { name: 'My work' });
     expect(within(work).getAllByRole('link')[0]).toHaveAccessibleName(/Approvals/);
+  });
+
+  it('keeps the complete personal task journey in one accessible My work group', () => {
+    effectiveRole = 'Admin';
+    realRole = 'Admin';
+    renderRail();
+    const work = screen.getByRole('group', { name: 'My work' });
+    expect(within(work).getAllByRole('link').map((link) => link.getAttribute('href')))
+      .toEqual(['/approvals', '/my-tasks', '/timesheets', '/expenses']);
+  });
+
+  it('omits groups hidden by role without leaving an empty label', () => {
+    effectiveRole = 'Engineer';
+    realRole = 'Engineer';
+    renderRail();
+    expect(screen.queryByRole('group', { name: 'Manage money' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Work with partners' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Workspace' })).not.toBeInTheDocument();
+    for (const group of screen.getAllByRole('group')) {
+      expect(within(group).getAllByRole('link').length).toBeGreaterThan(0);
+    }
   });
 
   it('keeps one current destination when Vendors is opened by its query route', () => {
