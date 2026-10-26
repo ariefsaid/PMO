@@ -4,7 +4,7 @@
  * FR-AP-005: the "Assistant" button calls onOpenAssistant + onNavigate on click.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -92,6 +92,11 @@ describe('Rail — agentAssistant flag gate for the "Assistant" entry (AC-AP-004
     renderRail();
     const btn = screen.getByRole('button', { name: /assistant/i });
     expect(btn).toBeInTheDocument();
+    const workspace = screen.getByRole('group', { name: 'Workspace' });
+    expect(within(workspace).getByRole('button', { name: /assistant/i })).toBe(btn);
+    expect(within(workspace).getByRole('link', { name: 'Administration' })).toBeInTheDocument();
+    expect(Array.from(workspace.querySelectorAll('button, a')).map((item) => item.textContent))
+      .toEqual(['Assistant', 'Administration']);
     expect(btn).toHaveAttribute('aria-pressed');
   });
 

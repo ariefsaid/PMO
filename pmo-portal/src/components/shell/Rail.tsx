@@ -37,7 +37,7 @@ interface NavItem {
   text: string;
   icon: IconName;
   roles: UserRole[];
-  /** Owning job group. Dashboard and the Workspace setup utility render separately. */
+  /** Owning job group. Dashboard renders first; Workspace utilities follow the job groups. */
   group: 'My work' | 'Deliver projects' | 'Manage money' | 'Work with partners';
   /**
    * Optional per-org entitlement gate (ops-admin-surface S6, FR-ENT-005). When set, the item
@@ -58,16 +58,16 @@ const ALL_ITEMS: NavItem[] = [
   // FIN-S9: the personal "My integrations" doorway (/integrations) moved into the account menu.
   { to: '/projects', text: 'Projects', icon: 'projects', group: 'Deliver projects', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   { to: '/sales', text: 'Sales Pipeline', icon: 'pipeline', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
-  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
-  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
-  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // B-2 (AC-W2-IXD-003 / OD-W2-2): Approvals nav is limited to roles that CAN approve.
   // Engineer approval stays OFF (OD-W2-2 decision) — an IC landing on /approvals sees only
   // "sheets from your reports" which is misleading. Finance is now included: Finance approves
   // *procurement* (policy.ts `transition: allow([...MASTER_DATA])`) and reaches /approvals
   // only via a dashboard tile without the rail. Fix #7: add Finance to this list.
   { to: '/approvals', text: 'Approvals', icon: 'approvals', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/my-tasks', text: 'My Tasks', icon: 'tasks', group: 'My work', roles: [UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
+  { to: '/timesheets', text: 'Timesheets', icon: 'clock', group: 'My work', feature: 'timesheets', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Engineer, UserRole.Admin] },
+  // #775: every member files their own claims; RLS scopes reads to own ∪ approval rank.
+  { to: '/expenses', text: 'Expenses', icon: 'expenses', group: 'My work', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Engineer, UserRole.Admin] },
   // Standalone /tasks nav removed — real Tasks CRUD lives in the project Tasks tab
   // (rbac-visibility §M.1: Tasks are reached through project detail, not a top-level nav).
   { to: '/companies', text: 'Companies', icon: 'companies', group: 'Work with partners', feature: 'crm', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
@@ -96,20 +96,16 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
-const GROUP_ORDER: Record<UserRole, NavItem['group'][]> = {
-  [UserRole.Admin]: ['My work', 'Deliver projects', 'Manage money', 'Work with partners'],
-  [UserRole.Executive]: ['My work', 'Deliver projects', 'Manage money', 'Work with partners'],
-  [UserRole.Finance]: ['My work', 'Manage money', 'Deliver projects', 'Work with partners'],
-  [UserRole.ProjectManager]: ['My work', 'Deliver projects', 'Work with partners', 'Manage money'],
-  [UserRole.Engineer]: ['My work', 'Deliver projects'],
-};
+const GROUP_ORDER: NavItem['group'][] = [
+  'My work', 'Deliver projects', 'Manage money', 'Work with partners',
+];
 
-/** Maximum number of user-view entries displayed in the rail (OD-7, FR-VR-065). */
-const MAX_NAV_VIEWS = 8;
+/** N-07: six saved shortcuts plus the Views doorway keep the group within seven items. */
+const MAX_NAV_VIEWS = 6;
 
 /** Base classes shared by every nav anchor (primary items + Administration foot). */
 const NAV_LINK_BASE =
-  'touch-target flex min-h-11 w-full items-center gap-[11px] rounded-md px-2.5 text-[13.5px] font-medium transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
+  'touch-target flex min-h-10 max-[920px]:min-h-11 w-full items-center gap-[11px] rounded-md px-2.5 text-sm font-normal leading-[1.45] transition-colors [&_svg]:size-[17px] [&_svg]:shrink-0';
 
 export interface RailProps {
   onNavigate?: () => void;
@@ -163,10 +159,6 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
       ? realRoleValue !== null && i.roles.includes(realRoleValue)
       : i.roles.includes(role)) && (!i.feature || featureEnabled(i.feature)) && (!i.unlessFeature || !featureEnabled(i.unlessFeature)),
   );
-  const groupOrder = [...GROUP_ORDER[role]];
-  if (!groupOrder.includes('Manage money') && items.some((item) => item.group === 'Manage money' && item.realRoleOnly)) {
-    groupOrder.push('Manage money');
-  }
   // My Views group + the Assistant toggle remain env-flag-driven (NOT org entitlements — plan M5):
   // `userViews`/`agentAssistant` are env-only sub-flags until the entitlements system absorbs them.
   const showViews = isFeatureEnabled('userViews');
@@ -220,7 +212,11 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
     'Manage money': t('shell:rail.group.manageMoney', 'Manage money'),
     'Work with partners': t('shell:rail.group.workWithPartners', 'Work with partners'),
   };
-  const workspaceSetupLabel = t('shell:rail.group.workspaceSetup', 'Workspace setup');
+  const workspaceSetupLabel = t('shell:rail.group.workspaceSetup', 'Workspace');
+  const showAssistant = isFeatureEnabled('agentAssistant');
+  const showAdministration = role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator;
+  const showAccessCheck = operatorAccessError && role !== UserRole.Executive && role !== UserRole.Admin && !isOperator;
+  const groupHeadingClass = cn('px-2 pb-1 pt-6 text-[11px] font-semibold uppercase leading-[1.3] tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only');
   const viewsLabel = t('shell:rail.group.views', 'Views');
   const navItemBase = cn(NAV_LINK_BASE, collapsed && 'justify-center gap-0 px-0');
   const labelText = (label: string, truncate = false) => (
@@ -369,26 +365,16 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
         aria-label={t('shell.rail.primaryNavigation', 'Primary navigation')}
         className="flex min-h-0 flex-1 flex-col"
       >
-        <div data-rail-pinned-dashboard className="shrink-0 border-b border-border p-2.5">
-          {items.filter((item) => item.to === '/').map(renderItem)}
-        </div>
-        <section role="group" aria-label={groupLabels['My work']} data-rail-pinned-work className="shrink-0 border-b border-border px-2.5 pb-2.5">
-          <div data-nav-group-heading={groupLabels['My work']} className={cn('px-2 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
-            {groupLabels['My work']}
-          </div>
-          {items.filter((item) => item.to === '/approvals').map(renderItem)}
-        </section>
         <div data-rail-scroll-region className="min-h-0 flex-1 overflow-y-auto p-2.5">
-          {items.filter((item) => item.group === 'My work' && item.to !== '/' && item.to !== '/approvals').map(renderItem)}
-      {groupOrder.map((group) => {
-            if (group === 'My work') return null;
+          {items.filter((item) => item.to === '/').map(renderItem)}
+          {GROUP_ORDER.map((group) => {
             const groupItems = items.filter((item) =>
-              item.group === group && item.to !== '/' && item.to !== '/approvals',
+              item.group === group && item.to !== '/',
             );
             if (groupItems.length === 0) return null;
             return (
               <section key={group} role="group" aria-label={groupLabels[group]}>
-                <div data-nav-group-heading={group} className={cn('px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
+                <div data-nav-group-heading={group} className={groupHeadingClass}>
                   {groupLabels[group]}
                 </div>
                 {groupItems.map(renderItem)}
@@ -397,7 +383,7 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
           })}
           {showViews && (
             <section role="group" aria-label={viewsLabel}>
-              <div className={cn('px-2 pb-1.5 pt-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
+              <div className={groupHeadingClass}>
                 {viewsLabel}
               </div>
               <NavLink
@@ -433,66 +419,63 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
               ))}
             </section>
           )}
+          {(showAssistant || showAdministration || showAccessCheck) && (
+            <section role="group" aria-label={workspaceSetupLabel}>
+              <div data-nav-group-heading={workspaceSetupLabel} className={groupHeadingClass}>
+                {workspaceSetupLabel}
+              </div>
+              {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.
+                  Not a NavLink (routes nowhere) — a <button> with aria-pressed (toggle
+                  semantics). Shares Workspace with Administration. */}
+              {showAssistant && (
+                <button
+                  type="button"
+                  aria-pressed={assistantPanelOpen ?? false}
+                  onClick={() => {
+                    onOpenAssistant?.();
+                    onNavigate?.();
+                  }}
+                  title={collapsed ? t('shell.rail.assistant', 'Assistant') : undefined}
+                  className={cn(navItemBase, 'w-full text-foreground hover:bg-accent')}
+                >
+                  <Icon name="message" />
+                  {labelText(t('shell.rail.assistant', 'Assistant'))}
+                </button>
+              )}
+
+              {showAdministration && (
+                <NavLink
+                  to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
+                  onClick={onNavigate}
+                  title={collapsed ? t('shell.nav.administration', 'Administration') : undefined}
+                  className={({ isActive }: { isActive: boolean }) =>
+                    cn(
+                      navItemBase,
+                      isActive
+                        ? 'bg-primary/10 font-semibold text-nav-active-text'
+                        : 'text-foreground hover:bg-accent',
+                    )
+                  }
+                >
+                  <Icon name="admin" />
+                  {labelText(t('shell.nav.administration', 'Administration'))}
+                </NavLink>
+              )}
+              {showAccessCheck && (
+                <NavLink
+                  to="/administration/users"
+                  onClick={onNavigate}
+                  title={collapsed ? t('admin.access.checkEntry', 'Check Administration access') : undefined}
+                  className={cn(navItemBase, 'text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring')}
+                >
+                  <Icon name="admin" aria-hidden="true" />
+                  {labelText(t('admin.access.checkEntry', 'Check Administration access'))}
+                </NavLink>
+              )}
+            </section>
+          )}
         </div>
       </nav>
-
-      {/* FR-AP-005 / AC-AP-004: "Assistant" toggle — flag-gated, visible to ALL roles.
-          Not a NavLink (routes nowhere) — a <button> with aria-pressed (toggle
-          semantics). Placed above the Administration footer. */}
-      {isFeatureEnabled('agentAssistant') && (
-        <div className="flex-shrink-0 border-t border-border p-2.5">
-          <button
-            type="button"
-            aria-pressed={assistantPanelOpen ?? false}
-            onClick={() => {
-              onOpenAssistant?.();
-              onNavigate?.();
-            }}
-            title={collapsed ? t('shell.rail.assistant', 'Assistant') : undefined}
-            className={cn(navItemBase, 'w-full text-foreground hover:bg-accent')}
-          >
-            <Icon name="message" />
-            {labelText(t('shell.rail.assistant', 'Assistant'))}
-          </button>
-        </div>
-      )}
-
-      {(role === UserRole.Executive || role === UserRole.Finance || role === UserRole.Admin || isOperator) && (
-        <div role="group" aria-label={workspaceSetupLabel} className="flex-shrink-0 border-t border-border p-2.5">
-          <div data-nav-group-heading={workspaceSetupLabel} className={cn('px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground', collapsed && 'sr-only')}>
-            {workspaceSetupLabel}
-          </div>
-          <NavLink
-            to={role === UserRole.Finance ? '/administration/exchange-rates' : '/administration'}
-            onClick={onNavigate}
-            title={collapsed ? t('shell.nav.administration', 'Administration') : undefined}
-            className={({ isActive }: { isActive: boolean }) =>
-              cn(
-                navItemBase,
-                isActive
-                  ? 'bg-primary/10 font-semibold text-nav-active-text'
-                  : 'text-foreground hover:bg-accent',
-              )
-            }
-          >
-            <Icon name="admin" />
-            {labelText(t('shell.nav.administration', 'Administration'))}
-          </NavLink>
-        </div>
-      )}
-      {operatorAccessError && role !== UserRole.Executive && role !== UserRole.Admin && !isOperator && (
-        <div className="flex-shrink-0 border-t border-border p-2.5">
-          <NavLink
-            to="/administration/users"
-            onClick={onNavigate}
-            title={collapsed ? t('admin.access.checkEntry', 'Check Administration access') : undefined}
-            className={cn('touch-target flex min-h-11 items-center rounded-md text-sm text-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring', collapsed ? 'justify-center px-0' : 'gap-2 px-2.5')}
-          >
-            <Icon name="admin" aria-hidden="true" />
-            {labelText(t('admin.access.checkEntry', 'Check Administration access'))}
-          </NavLink>
-        </div>
-      )}
 
       {/* Build version — a quiet sidebar footer. Moved here from a fixed bottom-left
           corner overlay that collided with this very nav; in normal flow it sits cleanly

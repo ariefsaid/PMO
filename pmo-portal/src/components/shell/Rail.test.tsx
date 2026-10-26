@@ -107,13 +107,14 @@ describe('Rail — Views collection and shortcuts (AC-VR-014, AC-VR-015, AC-VR-0
     expect(screen.getByRole('group', { name: 'Deliver projects' })).toBeInTheDocument();
   });
 
-  it('AC-VR-014: caps rail entries at MAX_NAV_VIEWS (8)', () => {
+  it('AC-VR-014: caps saved shortcuts at six so the Views group including its doorway has at most seven items', () => {
     const views = Array.from({ length: 12 }, (_, i) => ({ id: `v${i}`, name: `View ${i}`, description: null }));
     userViewsData.splice(0, userViewsData.length, ...views);
     featureEnabled.userViews = true;
     renderRail();
     const group = screen.getByRole('group', { name: 'Views' });
     const savedLinks = within(group).getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/views/'));
-    expect(savedLinks).toHaveLength(8);
+    expect(savedLinks).toHaveLength(6);
+    expect(within(group).getAllByRole('link')).toHaveLength(7);
   });
 });
