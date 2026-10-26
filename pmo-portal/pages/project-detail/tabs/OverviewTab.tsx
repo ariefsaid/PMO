@@ -251,7 +251,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                 <button
                   type="button"
                   onClick={() => setTab('procurement')}
-                  className="text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
+                  className="touch-target inline-flex min-h-11 items-center self-start text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {t('projectDetail.overview.procSummary.viewAll', 'View all procurement')}
                 </button>

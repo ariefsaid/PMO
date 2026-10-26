@@ -158,7 +158,8 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           </>
         )}
         {!isPending && !isError && hasOverdue && !location.pathname.endsWith('/tasks') && (
-          <Link to={`/projects/${projectId}/tasks`} state={location.state} className="font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
+          <Link to={`/projects/${projectId}/tasks`} state={location.state}
+            className="touch-target inline-flex min-h-11 items-center font-semibold text-foreground underline underline-offset-2 hover:text-muted-foreground">
             {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
           </Link>
         )}
@@ -234,7 +235,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
               <span className="text-sm font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
             </div>
             {canCreate && (
-              <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
+              <Button variant="ghost" size="sm" className="min-h-11" onClick={() => setFormTarget({ milestone: null })}>
                 {t('projectDetail.milestones.addMilestone', 'Add phase')}
               </Button>
             )}
@@ -433,7 +434,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
             aria-label={t('projectDetail.milestones.editProgressForName', 'Edit progress for {{name}}', {
               name: milestone.name,
             })}
-            className="touch-target inline-flex min-h-8 items-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
+            className="touch-target inline-flex min-h-11 min-w-11 items-center justify-center rounded-sm text-xs font-semibold text-primary-text hover:underline"
             onClick={onEdit}
           >
             {t('projectDetail.milestones.edit', 'Edit')}
@@ -540,7 +541,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
-              className="mt-1 inline-block text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="touch-target mt-1 inline-flex min-h-11 items-center rounded-sm text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
               {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
             </Link>
