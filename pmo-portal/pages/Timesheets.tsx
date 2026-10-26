@@ -617,13 +617,13 @@ const TimesheetsPage: React.FC = () => {
           >
             <span
               aria-current="page"
-              className="inline-flex h-8 items-center rounded-md bg-accent px-2.5 text-[13px] font-semibold text-foreground"
+              className="inline-flex min-h-11 items-center rounded-md bg-accent px-2.5 text-xs font-semibold text-foreground"
             >
               {t('uxs28.nav.myTime', 'My time')}
             </span>
             <Link
               to="/approvals?scope=timesheets"
-              className="touch-target inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+              className="touch-target inline-flex min-h-11 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
             >
               {pendingCount > 0
                 ? t('uxs28.nav.teamReviewAwaiting', 'Team review · {{n}} awaiting', { n: String(pendingCount) })
@@ -636,15 +636,16 @@ const TimesheetsPage: React.FC = () => {
           <Button
             variant="outline"
             size="icon"
+            className="min-h-11 min-w-11"
             aria-label={t('timesheets.previousWeek', 'Previous week')}
             onClick={() => stepWeek(-1)}
           >
             <Icon name="back" />
           </Button>
-          <span className="px-2 text-[13px] font-medium tabular text-muted-foreground">
+          <span className="px-2 text-sm tabular text-muted-foreground">
             {t('timesheets.weekOf', 'Week of')} {formatMonthDay(weekStartDate)}
           </span>
-          <Button variant="outline" size="icon" aria-label={t('timesheets.nextWeek', 'Next week')} onClick={() => stepWeek(1)}>
+          <Button variant="outline" size="icon" className="min-h-11 min-w-11" aria-label={t('timesheets.nextWeek', 'Next week')} onClick={() => stepWeek(1)}>
             <Icon name="chev" />
           </Button>
         </span>
@@ -753,7 +754,7 @@ const TimesheetsPage: React.FC = () => {
               badge is supplementary — a null state renders nothing and never gates the page. */}
           <PushStateBadge state={ownPushState ?? null} canRetry={false} />
           {editable && (
-            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] font-medium text-muted-foreground">
+            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-xs font-semibold text-muted-foreground">
               <Icon name="plus" aria-hidden />
               <span>{t('timesheets.addProject', 'Add project')}</span>
               {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
@@ -775,7 +776,7 @@ const TimesheetsPage: React.FC = () => {
                       ? t('timesheets.picker.none', 'No projects to add')
                       : t('timesheets.picker.select', 'Select a project…')
                   }
-                  className="touch-target min-w-0 max-w-[160px] text-[13px]"
+                  className="touch-target min-w-0 max-w-[160px] text-sm"
                 />
               </div>
             </div>
@@ -784,7 +785,7 @@ const TimesheetsPage: React.FC = () => {
             <span
               data-testid="timesheets-save-status"
               role="status"
-              className="text-[13px] text-muted-foreground"
+              className="text-sm text-muted-foreground"
             >
               {dirty
                 ? t('uxs28.save.dirty', 'Unsaved changes')
@@ -795,7 +796,7 @@ const TimesheetsPage: React.FC = () => {
           )}
           <span
             data-testid="timesheets-weekly-total"
-            className="ml-auto text-[13px] tabular text-muted-foreground"
+            className="ml-auto text-sm tabular text-muted-foreground"
           >
             {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
               hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
@@ -806,20 +807,20 @@ const TimesheetsPage: React.FC = () => {
         {editable ? (
           editGridRows.length === 0 ? (
             <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
-              <p className="text-sm font-medium text-foreground">
+              <p className="text-xl font-bold text-foreground">
                 {t('timesheets.emptyEdit.title', 'No hours logged this week')}
               </p>
               {pickerOptions.length === 0 ? (
                 <>
-                  <p className="mt-1 text-[13px] text-muted-foreground">
+                  <p className="mt-1 text-sm text-muted-foreground">
                     {tTimesheets('emptyEdit.assignmentPrerequisite', 'You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')}
                   </p>
-                  <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline underline-offset-2">
+                  <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline underline-offset-2">
                     {tTimesheets('emptyEdit.viewAssignedProjects', 'View assigned projects')}
                   </Link>
                 </>
               ) : (
-                <p className="mt-1 text-[13px] text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
                 </p>
               )}
@@ -861,7 +862,7 @@ const TimesheetsPage: React.FC = () => {
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
             {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
             {!canSubmit && (
-              <span className="mr-auto text-[13px] text-muted-foreground">
+              <span className="mr-auto text-sm text-muted-foreground">
                 {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}

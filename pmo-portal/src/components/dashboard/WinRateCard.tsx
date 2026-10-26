@@ -3,7 +3,7 @@ import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useWinRate, type WinRateRange } from '@/src/hooks/useDashboard';
 import { ViewToggle, type ViewOption } from '@/src/components/ui/ViewToggle';
-import { formatCurrency, formatNumber } from '@/src/lib/format';
+import { formatNumber, formatNumberExact } from '@/src/lib/format';
 import { toIso } from '@/src/lib/calendar/monthMatrix';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 
@@ -133,7 +133,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       const knownTotal = row.wins !== null && row.losses !== null ? row.wins + row.losses : null;
       const amount = (value: number | null) => value === null
         ? t('dashboard:winRate.rateUnavailable', 'Rate unavailable')
-        : formatCurrency(value, row.currency);
+        : formatNumberExact(value);
       const sampleLabel = sampleCount === 1
           ? t('dashboard:winRate.sampleAcrossCurrenciesOne', '{{count}} recorded outcome across currencies', { count: sampleCount })
           : t('dashboard:winRate.sampleAcrossCurrenciesMany', '{{count}} recorded outcomes across currencies', { count: sampleCount });
@@ -176,14 +176,14 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
 
     return (
       <div key={row.id} data-testid={`win-rate-row-${row.id}`} className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1.5 border-t border-border/70 py-2 md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
-        <span data-testid={basis === 'value' ? `win-rate-currency-${row.id}` : undefined} className="min-w-0 self-center text-sm font-medium">
+        <span data-testid={basis === 'value' ? `win-rate-currency-${row.id}` : undefined} className="min-w-0 self-center text-xs font-semibold">
           {row.label}
         </span>
         <span className="row-start-1 text-right md:col-start-3">
-          <span data-testid={rateTestId} aria-live="polite" className="block text-sm font-semibold tabular">
+          <span data-testid={rateTestId} aria-live="polite" className="block text-sm tabular">
             {measured ? spokenPercent : <><span aria-hidden="true">—</span><span className="sr-only">{unavailableLabel}</span></>}
           </span>
-          <span data-testid={sampleTestId} className="block text-xs text-muted-foreground">
+          <span data-testid={sampleTestId} className="block text-[0.6875rem] font-semibold text-muted-foreground">
             {basis === 'count' || index === 0 ? row.sampleLabel : null}
           </span>
         </span>
@@ -216,7 +216,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
             </>
           )}
         </div>
-        <p data-testid={valuesTestId} className="col-span-2 min-w-0 break-words text-xs text-muted-foreground md:col-start-2 md:col-span-2">
+        <p data-testid={valuesTestId} className="col-span-2 min-w-0 break-words text-sm text-muted-foreground md:col-start-2 md:col-span-2">
           {row.valuesLabel}
         </p>
       </div>
@@ -230,7 +230,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   return (
     <section aria-labelledby="win-rate-title" className="rounded-lg border border-border bg-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 id="win-rate-title" className="text-sm font-semibold">
+        <h2 id="win-rate-title" className="text-xl font-bold">
           {t('dashboard:winRate.title', 'Win rate')}
         </h2>
       </div>
@@ -238,7 +238,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       <div className={isNarrow ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap items-center gap-2'}>
         <div data-testid="win-rate-period-controls" className={isNarrow ? 'col-span-1 min-w-0' : 'min-w-0'}>
           {isNarrow ? (
-            <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
               <span>{periodLabel}</span>
               <select
                 aria-label={periodLabel}
@@ -264,7 +264,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
 
         <div data-testid="win-rate-basis-controls" className={isNarrow ? 'col-span-1 min-w-0' : 'ml-auto min-w-0'}>
           {isNarrow ? (
-            <label className="flex min-w-0 flex-col gap-1 text-xs text-muted-foreground">
+            <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
               <span>{basisLabel}</span>
               <select
                 aria-label={basisLabel}
@@ -289,7 +289,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       </div>
 
       <figure data-testid="win-rate-figure" aria-busy={isPending} className="mt-3.5 min-w-0">
-        <div role="group" aria-label={scaleLabel} data-testid="win-rate-axis" className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pb-1 text-[11px] text-muted-foreground md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
+        <div role="group" aria-label={scaleLabel} data-testid="win-rate-axis" className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 pb-1 text-[0.6875rem] font-semibold text-muted-foreground md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
           <span className="sr-only">{scaleLabel}</span>
           <div className="col-span-2 flex justify-between md:col-span-1 md:col-start-2">
             <span>0%</span><span>50%</span><span>100%</span>
@@ -309,8 +309,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           ) : isError ? (
             <div data-testid="win-rate-error-rows" className="space-y-3" role="alert">
               <div className="grid min-h-16 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 border-t border-border/70 py-2 md:grid-cols-[8rem_minmax(0,1fr)_11rem]">
-                <span className="text-sm font-medium">{basis === 'count' ? t('dashboard:winRate.aggregateLabel', 'All outcomes') : '—'}</span>
-                <span className="text-right text-sm font-semibold tabular">—</span>
+                <span className="text-xs font-semibold">{basis === 'count' ? t('dashboard:winRate.aggregateLabel', 'All outcomes') : '—'}</span>
+                <span className="text-right text-sm tabular">—</span>
                 <span
                   data-testid={basis === 'count' ? 'win-rate-track-count' : 'win-rate-track-unavailable-0'}
                   role="progressbar"
@@ -320,7 +320,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
                   aria-valuemax={100}
                   className="col-span-2 h-3 rounded-full bg-secondary md:col-span-1 md:col-start-2"
                 />
-                <p className="col-span-2 text-xs text-muted-foreground md:col-start-2 md:col-span-2">
+                <p className="col-span-2 text-sm text-muted-foreground md:col-start-2 md:col-span-2">
                   {t('dashboard:winRate.valuesUnavailable', 'Outcome values are unavailable')}
                 </p>
               </div>
@@ -339,13 +339,13 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border/70 pt-3" role="group" aria-label={errorTitle}>
                 <div>
-                  <p className="text-sm font-medium">{errorTitle}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{t('dashboard:winRate.errorSub', 'Something went wrong. Try again.')}</p>
+                  <p className="text-sm">{errorTitle}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{t('dashboard:winRate.errorSub', 'Something went wrong. Try again.')}</p>
                 </div>
                 <button
                   type="button"
                   onClick={() => refetch()}
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-xs font-semibold text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
                   {t('dashboard:retry', 'Retry')}
                 </button>
@@ -368,7 +368,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           )}
         </div>
 
-        <div data-testid="win-rate-legend" role="group" aria-label={t('dashboard:winRate.legend', 'Legend')} className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <div data-testid="win-rate-legend" role="group" aria-label={t('dashboard:winRate.legend', 'Legend')} className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
             <span aria-hidden="true" className="size-2 rounded-full bg-success" />
             {t('dashboard:winRate.won', 'Won')}
@@ -381,20 +381,20 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
       </figure>
 
       {emptyNote && (
-        <p data-testid="win-rate-empty-note" className="mt-2 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{emptyTitle}.</span>{' '}
+        <p data-testid="win-rate-empty-note" className="mt-2 text-sm text-muted-foreground">
+          <span className="text-xs font-semibold text-foreground">{emptyTitle}.</span>{' '}
           {t('dashboard:winRate.emptySub', 'Try a wider time frame to see your win rate.')}
         </p>
       )}
       {declined > 0 && (
-        <p data-testid="win-rate-declined" className="mt-2 text-xs text-muted-foreground">
+        <p data-testid="win-rate-declined" className="mt-2 text-sm text-muted-foreground">
           {t('dashboard:winRate.declined', '{{n}} declined to bid — not counted in the win rate', { n: declined })}
         </p>
       )}
       {!isPending && !isError && basis === 'value' && hasOutcomes && valueRows.some((row) => row.rate === null) && (
-        <p data-testid="win-rate-unavailable-note" className="mt-2 text-xs text-muted-foreground">
+        <p data-testid="win-rate-unavailable-note" className="mt-2 text-sm text-muted-foreground">
           {t('dashboard:winRate.valueRateBasisMissing', 'Value win rate needs recorded won and lost amounts in the same currency.')}{' '}
-          <Link to="/projects" className="font-medium text-foreground underline underline-offset-2">{t('dashboard:winRate.reviewClosedValues', 'Review closed project values')}</Link>
+          <Link to="/projects" className="inline-flex min-h-11 items-center text-xs font-semibold text-foreground underline underline-offset-2">{t('dashboard:winRate.reviewClosedValues', 'Review closed project values')}</Link>
         </p>
       )}
     </section>

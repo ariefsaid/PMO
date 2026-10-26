@@ -1306,7 +1306,6 @@
       "helpLabel": "Bantuan: {{label}}"
     },
     "stillToInvoice": {
-      "count": "Work Order: {{n}}",
       "daysSinceClosed": "Hari sejak ditutup: {{days}}",
       "empty": "Tidak ada lagi yang perlu ditagih pada Work Order yang diterbitkan",
       "error": "Gagal memuat yang belum ditagih",

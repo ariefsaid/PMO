@@ -50,7 +50,7 @@ export interface AccountingSnapshotsSectionProps {
 
 const agingValue = (value: number | null, currency: string | null, unavailable: string) => {
   if (value === null || !currency || !/^[A-Z]{3}$/.test(currency)) {
-    return <span className="text-muted-foreground">{unavailable}</span>;
+    return <span role="img" aria-label={unavailable} title={unavailable} className="text-muted-foreground">—</span>;
   }
   return <span>{formatNumberExact(value)}</span>;
 };
@@ -91,11 +91,11 @@ const agingColumns = (
       return (
         <div className="whitespace-normal">
           {companyId && r.party ? (
-          <Link className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline" to={`/companies/${encodeURIComponent(companyId)}#collections`}>
+          <Link className="inline-flex min-h-11 items-center text-primary-text underline-offset-2 hover:underline" to={`/companies/${encodeURIComponent(companyId)}#collections`}>
               {r.party}
             </Link>
           ) : (
-            <span className="font-medium">{r.party ?? labels.unavailable}</span>
+            <span>{r.party ?? labels.unavailable}</span>
           )}
         </div>
       );
@@ -135,7 +135,7 @@ const agingColumns = (
     key: 'total',
     header: labels.total,
     align: 'num',
-    cell: (r) => <span className="font-semibold">{agingValue(r.totalOutstanding, r.currency, labels.unavailable)}</span>,
+    cell: (r) => agingValue(r.totalOutstanding, r.currency, labels.unavailable),
   },
 ];
 
@@ -144,7 +144,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
     key: 'project',
     header: t('dashboard:finance.project', 'Project'),
     cell: (r) => r.projectId ? (
-      <Link className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
+      <Link className="inline-flex min-h-11 items-center text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
         {projectNames?.get(r.projectId) ?? <span title={t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
       </Link>
     ) : <span className="text-muted-foreground">{t('dashboard:finance.unattributed', 'Not attributed to a project')}</span>,
@@ -152,7 +152,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
   {
     key: 'account',
     header: t('dashboard:finance.account', 'Account'),
-    cell: (r) => <span className="font-medium">{r.account ?? '—'}</span>,
+    cell: (r) => <span>{r.account ?? '—'}</span>,
   },
   {
     key: 'costCenter',
@@ -172,7 +172,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
       <span className="text-muted-foreground" title={t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
         —<span className="sr-only"> {t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
       </span>
-    ) : <span className="font-semibold">{formatNumberExact(r.net)}</span>,
+    ) : <span>{formatNumberExact(r.net)}</span>,
   },
 ];
 
@@ -254,7 +254,7 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
             ))}
           </div>
         ) : (
-          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
+          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-none border-0 bg-transparent" tableId={tableId} />
         )}
     </section>
   );

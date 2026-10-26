@@ -132,7 +132,7 @@ export function StatusBarChart<S extends string>({
       </ResponsiveContainer>
       </div>
 
-      <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+      <figcaption role="group" aria-label={label} className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[0.6875rem] font-semibold text-muted-foreground">
         {data.map((d) => {
           const inner = (
             <>
@@ -143,7 +143,7 @@ export function StatusBarChart<S extends string>({
                 style={{ background: toneFor(d.status) }}
               />
               {labelFor?.(d.status) ?? d.status}
-              <span className="tabular font-semibold text-foreground">{d.count}</span>
+              <span className="text-sm tabular text-foreground">{d.count}</span>
             </>
           );
           return hrefFor ? (

@@ -108,11 +108,11 @@ describe('EngineerDashboard localization and weekly facts', () => {
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dasbor');
     expect(screen.getByTestId('engineer-week-scope')).toHaveAttribute('data-week-start', currentWeekStart);
     expect(screen.getByRole('link', { name: 'Catat jam kerja minggu ini' })).toHaveAttribute('href', '/timesheets');
-    expect(screen.getByText('Jam minggu ini')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Minggu ini · 15,5 jam' })).toBeInTheDocument();
     expect(screen.getByText('Draf')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Jam minggu ini menurut hari' })).toBeInTheDocument();
     expect(screen.getByText('Jam kerja minggu ini menurut hari')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Minggu ini menurut proyek' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Jam minggu ini menurut proyek' })).toBeInTheDocument();
     expect(screen.getByText('Entri terbaru')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Sen: 8 jam' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Minggu ini: 15,5 jam' })).toBeInTheDocument();
@@ -159,7 +159,7 @@ describe('Engineer dashboard weekly summary', () => {
     expect(screen.getAllByRole('button', { name: /Retry/i })).toHaveLength(1);
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load your timesheets");
     expect(screen.queryByText('Hours this week by day')).not.toBeInTheDocument();
-    expect(screen.queryByText('This week by project')).not.toBeInTheDocument();
+    expect(screen.queryByText("This week's hours by project")).not.toBeInTheDocument();
     expect(screen.queryByText('Recent entries')).not.toBeInTheDocument();
   });
 
@@ -182,14 +182,14 @@ describe('Engineer dashboard weekly summary', () => {
 describe('EngineerDashboard T7: This week by project bars', () => {
   it('T7: renders a "This week by project" group with one HoursBar per distinct project', () => {
     renderPane();
-    const group = screen.getByRole('group', { name: /This week by project/i });
+    const group = screen.getByRole('group', { name: /This week's hours by project/i });
     expect(group).toBeInTheDocument();
     // fixture has p1 only — one progressbar
     expect(group.querySelectorAll('[role="progressbar"]')).toHaveLength(1);
   });
   it('T7: shows the project name inside the group', () => {
     renderPane();
-    const group = screen.getByRole('group', { name: /This week by project/i });
+    const group = screen.getByRole('group', { name: /This week's hours by project/i });
     expect(group.textContent).toContain('A'); // project name from fixture
   });
 });
@@ -214,7 +214,7 @@ describe('EngineerDashboard T9: Recent entries card', () => {
     expect(rows).toHaveLength(8);
     expect(rows[0]).toHaveAttribute('data-testid', 'engineer-recent-row-recent-06');
     expect(screen.getByTestId('engineer-recent-row-recent-09')).toHaveTextContent('A long note that remains visible in the recent entry row instead of being clipped.');
-    expect(screen.getByTestId('engineer-recent-row-recent-09')).toHaveTextContent('10h');
+    expect(screen.getByTestId('engineer-recent-row-recent-09')).toHaveTextContent('10');
     expect(rows[7]).toHaveAttribute('data-testid', 'engineer-recent-row-recent-02');
   });
 });

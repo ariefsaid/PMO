@@ -62,15 +62,17 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
   return (
     <div role="group" aria-label={t('dashboard:projectedMargin.group', 'Pipeline projected margin')} className="space-y-4">
       <div className="border-b border-border pb-3">
-        <h3 className="text-xl font-bold">{t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</h3>
+        <h3 className="text-xl font-bold">{currencyTotals.length > 1
+          ? t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')
+          : t('dashboard:exec.pipelineForecastMarginCurrency', 'Pipeline forecast margin · {{currency}}', { currency })}</h3>
         {projectedMargin !== null ? (
-          <p className="mt-1 text-xl font-semibold tabular">{`${(projectedMargin * 100).toFixed(1)}%`}</p>
+          <p className="mt-1 text-sm tabular">{`${(projectedMargin * 100).toFixed(1)}%`}</p>
         ) : currencyTotals.length > 0 ? (
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
             {currencyTotals.map((row) => (
               <div key={`margin-${row.currency}`} className="contents">
                 <dt className="text-xs font-semibold text-muted-foreground">{row.currency}</dt>
-                <dd className="text-right text-sm font-semibold tabular">
+                <dd className="text-right text-sm tabular">
                   {row.forecastMargin === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end" href="#executive-data-note">—</a> : `${(row.forecastMargin * 100).toFixed(1)}%`}
                 </dd>
               </div>
@@ -91,9 +93,9 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
               </h3>
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
                 <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.weightedPipeline', 'Weighted pipeline')}</dt>
-                <dd className="text-right text-sm font-semibold tabular">{row.weightedValue === null ? '—' : formatNumberExact(row.weightedValue)}</dd>
+                <dd className="text-right text-sm tabular">{row.weightedValue === null ? '—' : formatNumberExact(row.weightedValue)}</dd>
                 <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.grossPipeline', 'Gross pipeline')}</dt>
-                <dd className="text-right text-sm font-semibold tabular">{row.grossValue === null ? '—' : formatNumberExact(row.grossValue)}</dd>
+                <dd className="text-right text-sm tabular">{row.grossValue === null ? '—' : formatNumberExact(row.grossValue)}</dd>
               </dl>
             </section>
           );
@@ -109,7 +111,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
         <p className="text-sm text-muted-foreground">{t('dashboard:projectedMargin.emptyStages', 'No open pipeline stages')}</p>
       )}
       <section aria-label={t('dashboard:exec.pipelineStagesCurrency', 'Open stages · {{currency}}', { currency })}>
-      <h3 className="mb-2 text-xl font-bold">{t('dashboard:exec.openStageValues', 'Open stage values')}</h3>
+      <h3 className="mb-2 text-xl font-bold">{t('dashboard:exec.openStageValuesCurrency', 'Open stage values · {{currency}}', { currency })}</h3>
       <div className="flex flex-col divide-y divide-border/70">
         {open.map((s) => {
           const pct = Math.round((s.weighted_value / max) * 100);
@@ -120,7 +122,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
               aria-label={statusLabel(s.status as string)}
               className="flex min-h-11 min-w-0 items-center gap-2.5 py-2 hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
-              <span className="min-w-20 max-w-[9rem] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>
+              <span className="min-w-20 max-w-[9rem] shrink-0 text-xs font-semibold text-muted-foreground">{statusLabel(s.status as string)}</span>
               <span
                 role="progressbar"
                 aria-label={t('dashboard:projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
@@ -134,7 +136,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
                   style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
-              <span className="min-w-[6rem] shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular">
+              <span className="min-w-[6rem] shrink-0 whitespace-nowrap text-right text-sm tabular">
                 {formatNumberExact(s.weighted_value)}
               </span>
             </Link>

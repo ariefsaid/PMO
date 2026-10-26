@@ -45,6 +45,16 @@ describe('Executive spending comparison', () => {
     expect(within(onTrack).queryByText('At risk')).toBeNull();
   });
 
+  it('keeps unknown risk as a labelled dash instead of repeating prose in every row', () => {
+    renderCard(projects.map((project) => ({
+      ...project, budget: null, spent: null, actual_complete: false,
+      actual_coverage_count: 0, actual_coverage_total: 1,
+    })));
+    const table = screen.getByRole('table', { name: 'USD spending comparison' });
+    expect(within(table).getAllByRole('link', { name: 'Risk not checked; see portfolio data note' })).toHaveLength(2);
+    expect(within(table).queryByText('Risk not checked')).not.toBeInTheDocument();
+  });
+
   it('names the table for assistive technology', () => {
     renderCard();
     expect(screen.getByRole('table', { name: 'USD spending comparison' })).toBeInTheDocument();

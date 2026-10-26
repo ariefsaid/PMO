@@ -51,8 +51,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
       cell: (project) => (
         <Link
           to={`/projects/${project.id}`}
-          title={projectDisplayName(project) !== project.name ? project.name : undefined}
-          className="inline-flex min-h-11 min-w-0 items-center font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="inline-flex min-h-11 min-w-0 items-center text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="break-words">{projectDisplayName(project)}</span>
         </Link>
@@ -68,10 +67,14 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           <div className="flex min-w-0 flex-col items-start gap-1">
             <StatusPill variant={pillVariantForProjectStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
             {risk === 'at-risk' && <StatusPill variant="warn">{t('common:dashboard.bva.atRisk', 'At risk')}</StatusPill>}
-            {risk === 'within-budget' && <span className="text-xs text-muted-foreground">{t('dashboard:exec.withinBudget', 'Within budget')}</span>}
+            {risk === 'within-budget' && <span className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.withinBudget', 'Within budget')}</span>}
             {risk === 'unchecked' && (
-              <a href="#executive-data-note" className="inline-flex min-h-11 items-center text-xs text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                {t('dashboard:exec.riskUnchecked', 'Risk not checked')}
+              <a
+                href="#executive-data-note"
+                aria-label={t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                —
               </a>
             )}
           </div>

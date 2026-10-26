@@ -93,12 +93,16 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.queryByRole('heading', { name: 'Project Status' })).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Spending vs contract' })).not.toBeInTheDocument();
 
-    const evidence = screen.getByRole('button', { name: /evidence.*my project b/i });
+    const projectB = screen.getByTestId('pm-project-row-p2');
+    expect(within(projectB).getByText('USD')).toBeVisible();
+    expect(within(projectB).getAllByText('USD')).toHaveLength(1);
+    const evidence = within(projectB).getByRole('button', { name: /evidence.*my project b/i });
     expect(evidence).toHaveTextContent('Evidence');
     fireEvent.click(evidence);
     expect(screen.getByTestId('pm-dashboard-search')).toHaveTextContent('pmProjectEvidence=p2');
-    expect(screen.getByText('$980,000')).toBeInTheDocument();
-    expect(screen.getByText('$2,000,000')).toBeInTheDocument();
+    expect(within(projectB).getByText('980,000')).toBeInTheDocument();
+    expect(within(projectB).getByText('2,000,000')).toBeInTheDocument();
+    expect(within(projectB).getAllByText('USD')).toHaveLength(1);
     expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveTextContent('Open budget');
     expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveAttribute('href', '/projects/p2/budget');
     expect(screen.getByRole('progressbar', { name: /My Project B.*49% of contract/i })).toBeInTheDocument();
@@ -148,7 +152,7 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
   it('sums my delivery contract value including Close Out, not the whole org', () => {
     renderPane();
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('$10,600,000');
+    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('USD 10,600,000');
     expect(screen.getByTestId('pm-project-scope')).not.toHaveTextContent('Someone Else');
   });
   it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
@@ -302,10 +306,10 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
     ];
     renderPane();
     const scope = screen.getByTestId('pm-project-scope');
-    expect(scope).toHaveTextContent('$4,000,000');
+    expect(scope).toHaveTextContent('USD 4,000,000');
     expect(scope).toHaveTextContent('IDR');
     expect(scope).toHaveTextContent('2,000,000');
-    expect(scope).not.toHaveTextContent('$6,000,000');
+    expect(scope).not.toHaveTextContent('USD 6,000,000');
   });
 });
 

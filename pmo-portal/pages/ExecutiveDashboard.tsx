@@ -108,7 +108,7 @@ const ExecutiveAttention: React.FC<{
 
   return (
     <section aria-labelledby="executive-attention-title" className="border-b border-border pb-4" data-testid="dashboard-attention">
-      <h2 id="executive-attention-title" className="mb-2 text-lg font-semibold">
+      <h2 id="executive-attention-title" className="mb-2 text-xl font-bold">
         {t('uxs03.attentionAndApprovals', 'Attention and approvals')}
       </h2>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-6">
@@ -118,12 +118,12 @@ const ExecutiveAttention: React.FC<{
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
           {primaryAction && (
-            <Link to={primaryAction.to} className={buttonClasses('primary', 'default', 'min-h-11 px-4')}>
+            <Link to={primaryAction.to} className={buttonClasses('primary', 'default', 'min-h-11 px-4 text-xs font-semibold')}>
               {primaryAction.label}
             </Link>
           )}
           {approvalError && (
-            <Link to="/approvals" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            <Link to="/approvals" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               {t('exec.openApprovals', 'Open approvals')}
             </Link>
           )}
@@ -168,7 +168,7 @@ const DeliveryBook: React.FC<{
   const incompleteMargin = (data?.on_hand_realized_margin_by_currency ?? []).some((row) => row.unknown_projects > 0)
     || (data?.pipeline_total_value_by_currency ?? []).some((row) => row.forecast_margin === null || row.no_active_budget > 0);
   const mapNote = canManageAccounting
-    ? <Link to="/administration/accounting#budget-account-map" className="inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
+    ? <Link to="/administration/accounting#budget-account-map" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
     : <span>{t('exec.askAdministrator', 'Ask an administrator to complete missing budget or accounting data.')}</span>;
   const abnormalReasons: string[] = data ? [
     contractUnavailable
@@ -199,13 +199,13 @@ const DeliveryBook: React.FC<{
   const fact = (label: string, value: number | null | undefined, reason: string, href?: string) => (
     <div key={label} className="flex min-w-0 items-baseline justify-between gap-3">
       <dt className="min-w-0 text-xs font-semibold text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-sm font-semibold tabular">{exactValue(value, reason, href)}</dd>
+      <dd className="min-w-0 text-right text-sm tabular">{exactValue(value, reason, href)}</dd>
     </div>
   );
 
   return (
     <section aria-labelledby="executive-delivery-title" className="space-y-4" data-testid="dashboard-delivery-book">
-      <h2 id="executive-delivery-title" className="text-lg font-semibold">{t('exec.deliveryBook', 'Delivery book')}</h2>
+      <h2 id="executive-delivery-title" className="text-xl font-bold">{t('exec.deliveryBook', 'Delivery book')}</h2>
       {isPending && !data ? (
         <ListState variant="loading" rows={5} />
       ) : isError && !data ? (
@@ -236,7 +236,7 @@ const DeliveryBook: React.FC<{
                     {hasActive && <div className="contents">
                       {fact(t('uxs03.activeContractValue', 'Active contract value'), valueFor(activeContracts), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
                       <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:kpi.activeProjectsCount', 'Active projects')}</dt>
-                      <dd className="text-right text-sm font-semibold tabular">{formatNumber(data.active_projects)}</dd>
+                      <dd className="text-right text-sm tabular">{formatNumber(data.active_projects)}</dd>
                     </div>}
                     <div className="contents" data-testid={currencyCode === 'IDR' ? 'dashboard-known-actual' : undefined}>
                       {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}
@@ -256,11 +256,11 @@ const DeliveryBook: React.FC<{
           </div>
           {actualIncomplete && (
             <aside id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="pt-3 text-sm text-muted-foreground">
-              <p className="font-semibold text-foreground">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')}</p>
+              <p className="text-xs font-semibold text-foreground">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')}</p>
               <p className="mt-1">
                 {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
                 {' · '}
-                {t('uxs03.coverageCategories', 'Mapped cost categories: {{known}} of {{total}}', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
+                {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
                 {' · '}{mapNote}
               </p>
             </aside>
@@ -274,8 +274,8 @@ const DeliveryBook: React.FC<{
 
           {!hasNoProjects && <div className="space-y-2">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-base font-semibold">{t('dashboard:exec.spendingComparison', 'Spending comparison')}</h3>
-              <p className="text-xs text-muted-foreground">{t('dashboard:exec.sortAtRiskFirst', 'At-risk projects first, then project name')}</p>
+              <h3 className="text-xl font-bold">{t('dashboard:exec.spendingComparison', 'Spending comparison')}</h3>
+              <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.sortAtRiskFirst', 'At-risk projects first, then project name')}</p>
             </div>
             <BvACard
               projects={data.top_projects}
@@ -287,21 +287,21 @@ const DeliveryBook: React.FC<{
           </div>}
 
           <details className="group border-t border-border pt-2">
-            <summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
               {t('dashboard:exec.howFiguresMeasured', 'How figures are measured')}
             </summary>
             <dl className="grid gap-x-6 gap-y-3 py-3 text-sm sm:grid-cols-2">
-              <div><dt className="font-medium">{t('uxs03.contractValueOnHand', 'Contract value on hand')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.onHandDefinition', 'Contract value for won, on-hold, delivery, and closed-out work, shown by currency.')}</dd></div>
-              <div><dt className="font-medium">{t('uxs03.activeContractValue', 'Active contract value')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.activeDefinition', 'Contract value for active delivery projects only.')}</dd></div>
-              <div><dt className="font-medium">{t('dashboard:exec.knownActual', 'Known Actual')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.actualDefinition', 'Recorded ERP-ledger Actual with its project and mapped-category coverage.')}</dd></div>
-              <div><dt className="font-medium">{t('uxs03.contractRemaining', 'Contract remaining after known Actual')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.remainingDefinition', 'Contract value less complete, same-currency Actual.')}</dd></div>
-              <div><dt className="font-medium">{t('uxs03.realizedMargin', 'Margin on billed work')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.marginDefinition', 'Billed-work revenue less recorded Actual; it is not cash received.')}</dd></div>
-              <div><dt className="font-medium">{t('dashboard:winRate.title', 'Win rate')}</dt><dd className="mt-1 text-muted-foreground">{t('dashboard:exec.winRateDefinition', 'Wins divided by won plus lost closed project outcomes.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('uxs03.contractValueOnHand', 'Contract value on hand')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.onHandDefinition', 'Contract value for won, on-hold, delivery, and closed-out work, shown by currency.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('uxs03.activeContractValue', 'Active contract value')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.activeDefinition', 'Contract value for active delivery projects only.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('dashboard:exec.knownActual', 'Known Actual')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.actualDefinition', 'Recorded ERP-ledger Actual with its project and mapped-category coverage.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('uxs03.contractRemaining', 'Contract remaining after known Actual')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.remainingDefinition', 'Contract value less complete, same-currency Actual.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('uxs03.realizedMargin', 'Margin on billed work')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.marginDefinition', 'Billed-work revenue less recorded Actual; it is not cash received.')}</dd></div>
+              <div><dt className="text-xs font-semibold">{t('dashboard:winRate.title', 'Win rate')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.winRateDefinition', 'Wins divided by won plus lost closed project outcomes.')}</dd></div>
             </dl>
           </details>
           {abnormalReasons.length > 0 && (
             <aside id="executive-data-note" className="border-t border-border pt-3 text-sm text-muted-foreground">
-              <p className="font-medium text-foreground">{t('dashboard:exec.dataNoteTitle', 'Some portfolio values are unavailable')}</p>
+              <p className="text-xs font-semibold text-foreground">{t('dashboard:exec.dataNoteTitle', 'Some portfolio values are unavailable')}</p>
               <ul className="mt-1 list-inside list-disc space-y-1">
                 {abnormalReasons.map((reason, index) => <li key={index}>{reason}</li>)}
               </ul>
@@ -336,7 +336,7 @@ const PipelineSection: React.FC<{
 
   return (
     <section aria-labelledby="executive-pipeline-title" className="space-y-4" data-testid="dashboard-pipeline">
-      <h2 id="executive-pipeline-title" className="text-lg font-semibold">{t('exec.pipeline', 'Pipeline')}</h2>
+      <h2 id="executive-pipeline-title" className="text-xl font-bold">{t('exec.pipeline', 'Pipeline')}</h2>
       {dashboardPending && !data ? (
         <ListState variant="loading" rows={4} />
       ) : dashboardError && !data ? (
@@ -380,7 +380,7 @@ const PurchasingRequests: React.FC<{
 
   return (
     <details data-testid="dashboard-purchasing" className="group border-t border-border pt-2">
-      <summary className="flex min-h-11 cursor-pointer items-center font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+      <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         {t('dashboard:exec.purchasingRequests', 'Purchasing requests')}
       </summary>
       <div className="pt-2">
@@ -438,7 +438,6 @@ const ExecutiveDashboard: React.FC = () => {
       <DashPageHead
         title={t('dashboard.title', 'Executive Dashboard')}
         sub={t('exec.scope', 'Portfolio · delivery and sales evidence')}
-        showBreadcrumb
         actions={<span className="[&>button]:min-h-11 [&>span>button]:min-h-11"><BoardPackAction /></span>}
       />
       <ExecutiveAttention

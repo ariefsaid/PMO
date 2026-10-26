@@ -449,7 +449,7 @@ export function DataTable<Row>({
           style={{
             ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
-          className="w-full border-collapse text-[13.5px]"
+          className="w-full border-collapse text-sm"
         >
           <thead>
             <tr>
@@ -470,7 +470,7 @@ export function DataTable<Row>({
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.colClassName
@@ -586,7 +586,7 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    <th scope="row" className="px-3 text-left text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -667,10 +667,10 @@ export function DataTable<Row>({
                               }}
                               className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
                         </CellTag>
                       );
@@ -690,7 +690,7 @@ export function DataTable<Row>({
             )}
           </tbody>
           {totals && totals.length > 0 && <tfoot>
-            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 tabular">
               {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
@@ -727,7 +727,7 @@ export function DataTable<Row>({
           <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
@@ -744,20 +744,15 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-2 p-4 text-[13.5px] transition-colors',
+                  'relative flex flex-col gap-2 p-4 text-sm transition-colors',
                   onActivate && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                {/* Identity row: first column + rowMenu pinned top-right */}
                 <div className="flex items-start justify-between gap-3">
-                  {/* Card title — activation button if rowLabel+onActivate supplied.
-                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                      descendants to block lets them clip with an ellipsis within this min-w-0
-                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                  {/* Canonical identity text wraps in full without hover-only recovery. */}
+                  <div className="min-w-0 flex-1 [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -765,10 +760,10 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
@@ -791,7 +786,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
+                              'text-xs font-semibold text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -801,7 +796,7 @@ export function DataTable<Row>({
                             className={cn(
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
-                              'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
+                              'min-w-0 break-words text-sm text-foreground',
                               col.align === 'num' && 'tabular text-right',
                               col.align === 'center' && 'text-center',
                               stripHiddenClasses(col.colClassName)
@@ -818,30 +813,29 @@ export function DataTable<Row>({
             );
           })
         )}
-        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-sm tabular">
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-xs font-semibold text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 text-sm', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>
         </li>)}
       </ul>
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[12px] text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[0.6875rem] font-semibold text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
     </div>
   );
 }
 
-function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
-  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
+function PrimaryCell({ title, secondary }: { title: React.ReactNode; secondary?: React.ReactNode }) {
   return <span className="block min-w-0">
-    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
-    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
+    <span className="block whitespace-normal break-words text-sm text-foreground">{title}</span>
+    {secondary != null && <span className="block whitespace-normal break-words text-[0.6875rem] font-semibold text-muted-foreground">{secondary}</span>}
   </span>;
 }
 
@@ -1013,9 +1007,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
             <Icon name="chev" aria-hidden className="size-3.5 rotate-90 text-muted-foreground" />
           </>
         ) : (
-          <span aria-hidden className="text-base leading-none">
-            ⋯
-          </span>
+          <Icon name="menu" className="size-4" />
         )}
       </button>
       {open &&
@@ -1055,7 +1047,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
-                      'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
+                      'touch-target flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-xs font-semibold hover:bg-accent',
                       item.danger && 'text-destructive',
                       item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}
@@ -1165,7 +1157,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          'w-full border-none bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground',
+          'w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
           className
         )}
         {...rest}
@@ -1182,7 +1174,7 @@ export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-3.5 py-[11px] text-[13px] tabular',
+      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-3.5 py-[11px] text-sm tabular',
       className
     )}
     {...rest}

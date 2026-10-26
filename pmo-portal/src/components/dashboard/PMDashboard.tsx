@@ -16,7 +16,7 @@ import { DashPageHead } from './layout';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatNumberExact } from '@/src/lib/format';
 import { pillVariantForProjectStatus } from '@/components/projects';
 import { INTERNAL_STATUSES, ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
@@ -131,11 +131,10 @@ export const PMDashboard: React.FC = () => {
   }, [mine, orgCurrency]);
 
   const contractScope = contractTotals.map(({ currency, amount, complete }) => {
-    const formatted = complete ? formatDashboardMoney(amount, currency) : null;
-    return formatted ?? `— ${currency}`;
+    return complete ? `${currency} ${formatNumberExact(amount)}` : `— ${currency}`;
   }).join(' · ');
 
-  const money = (amount: number | null, currency: string) => formatDashboardMoney(amount, currency) ?? '—';
+  const money = (amount: number | null) => amount !== null && Number.isFinite(amount) ? formatNumberExact(amount) : '—';
 
   const showUnknownDataNote = !isPending && !isError && (hasUnknownRisk || hasUnknownMargin || hasUnknownContract || hasUnknownDelivery || deliveryError);
 
@@ -144,7 +143,6 @@ export const PMDashboard: React.FC = () => {
       <DashPageHead
         title={t('dashboard:pm.title', 'My Dashboard')}
         sub={t('dashboard:pm.deliveryScope', 'Delivery projects assigned to you.')}
-        showBreadcrumb
       />
 
       <section aria-label={t('uxs03.attentionAndApprovals', 'Attention and approvals')} className="empty:hidden">
@@ -155,7 +153,7 @@ export const PMDashboard: React.FC = () => {
         <div className="border-b border-border/70 px-4 py-3.5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
-              <CardHead><span id="pm-delivery-projects-heading">{t('dashboard:pm.projectsTitle', 'My delivery projects')}</span></CardHead>
+              <CardHead className="text-xl font-bold"><span id="pm-delivery-projects-heading">{t('dashboard:pm.projectsTitle', 'My delivery projects')}</span></CardHead>
               <p data-testid="pm-project-scope" aria-describedby={hasUnknownContract && showUnknownDataNote ? 'pm-project-data-note' : undefined} className="mt-1 text-sm text-muted-foreground">
                 {isPending || isError
                   ? t('uxs03.notAvailableYet', 'Not available yet')
@@ -168,11 +166,11 @@ export const PMDashboard: React.FC = () => {
             {!isPending && !isError && atRiskCount > 0 && (
               <AtRiskProjectsLink
                 count={atRiskCount}
-                className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             )}
             {!isPending && !isError && mine.length > 0 && (
-              <label className="flex min-w-40 flex-col gap-1 text-xs text-muted-foreground">
+              <label className="flex min-w-40 flex-col gap-1 text-xs font-semibold text-muted-foreground">
                 <span>{t('dashboard:pm.sortLabel', 'Sort projects')}</span>
                 <select
                   data-testid="pm-project-sort"
@@ -196,11 +194,11 @@ export const PMDashboard: React.FC = () => {
             <ListState variant="error" title={t('dashboard:pm.loadError', "Couldn't load your projects")} onRetry={() => refetch()} />
           ) : mine.length === 0 ? (
             <div data-testid="pm-projects-empty" className="py-4">
-              <p className="text-sm font-medium">{t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}</p>
+              <p className="text-xl font-bold">{t('dashboard:pm.noProjects', 'No delivery projects assigned to you yet')}</p>
               <p className="mt-1 text-sm text-muted-foreground">{t('dashboard:pm.noProjectsSub', 'Projects in the delivery phase will appear here.')}</p>
               <Link
                 to="/projects?filter=My+Projects"
-                className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {t('dashboard:pm.openMyProjects', 'Open my projects')}
               </Link>
@@ -234,18 +232,18 @@ export const PMDashboard: React.FC = () => {
                       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                         <Link
                           to={`/projects/${project.id}`}
-                          title={name !== project.name ? project.name : undefined}
-                          className="flex min-h-11 min-w-0 basis-72 grow items-center whitespace-normal text-sm font-semibold text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                          className="flex min-h-11 min-w-0 basis-72 grow items-center whitespace-normal text-sm text-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         >
                           <span className="min-w-0 break-words">{name}</span>
                         </Link>
+                        <span className="text-[0.6875rem] font-semibold text-muted-foreground">{project.currency}</span>
                         <StatusPill variant={statusVariant(project.status)}>{statusLabel(project.status)}</StatusPill>
                         {isAtRisk && <StatusPill variant="warn">{t('dashboard:pm.atRisk', 'At risk')}</StatusPill>}
                         {isActive && !isAtRisk && !isRiskUnknown && (
-                          <span className="text-xs text-muted-foreground">{t('dashboard:pm.riskClear', 'No confirmed budget risk')}</span>
+                          <span className="text-xs font-semibold text-muted-foreground">{t('dashboard:pm.riskClear', 'No confirmed budget risk')}</span>
                         )}
                         {isRiskUnknown && (
-                          <span data-testid={`pm-risk-unavailable-${project.id}`} aria-describedby={rowNoteId} className="text-xs text-muted-foreground">
+                          <span data-testid={`pm-risk-unavailable-${project.id}`} aria-describedby={rowNoteId} className="text-xs font-semibold text-muted-foreground">
                             {t('dashboard:pm.riskUnavailable', 'Risk unavailable')}
                           </span>
                         )}
@@ -272,9 +270,9 @@ export const PMDashboard: React.FC = () => {
                         <p className="flex min-w-0 items-center gap-2 text-sm">
                           <span className="text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin to date')}</span>
                           {margin === null ? (
-                            <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.marginUnavailable', 'Margin unavailable')} className="font-semibold tabular text-muted-foreground">—</span>
+                            <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.marginUnavailable', 'Margin unavailable')} className="tabular text-muted-foreground">—</span>
                           ) : (
-                            <span role="img" aria-label={t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: project.name, pct: margin.toFixed(1) })} className="font-semibold tabular">{margin.toFixed(1)}%</span>
+                            <span role="img" aria-label={t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: project.name, pct: margin.toFixed(1) })} className="tabular">{margin.toFixed(1)}%</span>
                           )}
                         </p>
                       </div>
@@ -302,14 +300,14 @@ export const PMDashboard: React.FC = () => {
                             <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                               <span className="text-muted-foreground">{t('dashboard:pm.actual', 'Actual')}</span>
                               {actual === null ? (
-                                <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.actualUnavailable', 'Actual unavailable')} className="font-medium tabular">—</span>
-                              ) : <span role="img" aria-label={`${t('dashboard:pm.actual', 'Actual')}: ${money(actual, project.actual_currency ?? project.currency)}`} className="font-medium tabular">{money(actual, project.actual_currency ?? project.currency)}</span>}
+                                <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.actualUnavailable', 'Actual unavailable')} className="tabular">—</span>
+                              ) : <span role="img" aria-label={`${t('dashboard:pm.actual', 'Actual')}: ${money(actual)} ${project.actual_currency ?? project.currency}`} className="tabular">{money(actual)}</span>}
                             </p>
                             <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
                               <span className="text-muted-foreground">{t('dashboard:pm.contract', 'Contract')}</span>
                               {project.contract_value === null
-                                ? <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.contractUnavailable', 'Contract unavailable')} className="font-medium tabular">—</span>
-                                : <span role="img" aria-label={`${t('dashboard:pm.contract', 'Contract')}: ${money(project.contract_value, project.currency)}`} className="font-medium tabular">{money(project.contract_value, project.currency)}</span>}
+                                ? <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.contractUnavailable', 'Contract unavailable')} className="tabular">—</span>
+                                : <span role="img" aria-label={`${t('dashboard:pm.contract', 'Contract')}: ${money(project.contract_value)} ${project.currency}`} className="tabular">{money(project.contract_value)}</span>}
                             </p>
                             <div className="sm:col-span-2">
                               {barPercent !== null && comparisonPct !== null ? (
@@ -325,7 +323,7 @@ export const PMDashboard: React.FC = () => {
                                   <span aria-hidden="true" className="block h-full rounded-full bg-muted-foreground" style={{ width: `${barPercent}%` }} />
                                 </div>
                               ) : (
-                                <p aria-describedby={rowNoteId} className="text-xs text-muted-foreground">
+                                <p aria-describedby={rowNoteId} className="text-sm text-muted-foreground">
                                   {t('dashboard:pm.comparisonUnavailable', 'Comparison unavailable; Actual or contract coverage is incomplete.')}
                                 </p>
                               )}
@@ -334,7 +332,7 @@ export const PMDashboard: React.FC = () => {
                           <Link
                             to={`/projects/${project.id}/budget`}
                             aria-label={t('dashboard:pm.openBudgetFor', 'Open budget for {{name}}', { name })}
-                            className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                            className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-xs font-semibold text-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                           >
                             {t('dashboard:pm.openBudget', 'Open budget')}
                           </Link>
@@ -349,8 +347,8 @@ export const PMDashboard: React.FC = () => {
         </div>
 
         {showUnknownDataNote && (
-          <aside id="pm-project-data-note" data-testid="pm-project-data-note" className="border-t border-border/70 px-4 py-3 text-xs text-muted-foreground" aria-label={t('dashboard:pm.dataNotes', 'Project data notes')}>
-            <p className="font-medium text-foreground">{t('dashboard:pm.dataNotes', 'Project data notes')}</p>
+          <aside id="pm-project-data-note" data-testid="pm-project-data-note" className="border-t border-border/70 px-4 py-3 text-sm text-muted-foreground" aria-label={t('dashboard:pm.dataNotes', 'Project data notes')}>
+          <p className="text-xs font-semibold text-foreground">{t('dashboard:pm.dataNotes', 'Project data notes')}</p>
             <ul className="mt-1 list-inside list-disc space-y-1">
               {hasUnknownRisk && <li>{t('dashboard:pm.riskUnavailableNote', 'Risk needs a positive active budget and complete, comparable Actual.')}</li>}
               {hasUnknownMargin && <li>{t('dashboard:pm.marginUnavailableNote', 'Margin needs billed-work revenue and complete Actual.')}</li>}
@@ -359,7 +357,7 @@ export const PMDashboard: React.FC = () => {
               {hasUnknownDelivery && <li>{t('dashboard:pm.noMilestonesNote', 'No milestone progress was supplied for some projects; open a project to review its milestones.')}</li>}
             </ul>
             {hasUnknownDelivery && (
-              <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <Link to="/projects?filter=My+Projects" className="mt-2 inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                 {t('dashboard:pm.openMyProjects', 'Open my projects')}
               </Link>
             )}

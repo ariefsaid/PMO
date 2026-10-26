@@ -1306,7 +1306,6 @@
       "helpLabel": "Help: {{label}}"
     },
     "stillToInvoice": {
-      "count": "Work orders: {{n}}",
       "daysSinceClosed": "Days since closed: {{days}}",
       "empty": "Nothing left to invoice on issued work orders",
       "error": "Couldn't load what is still to invoice",

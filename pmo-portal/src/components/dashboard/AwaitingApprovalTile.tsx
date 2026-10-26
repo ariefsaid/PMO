@@ -77,11 +77,11 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
         <p role="status" className="text-sm text-muted-foreground">{t('approval.checking', 'Checking approval requests…')}</p>
       ) : hasError ? (
         <p role="status" className="text-sm text-muted-foreground">
-          {resolvedLabel}: <span className="font-medium text-foreground">—</span> · {t('approval.unavailable', 'Approval status unavailable')}
+          {resolvedLabel}: <span className="text-foreground">—</span> · {t('approval.unavailable', 'Approval status unavailable')}
         </p>
       ) : (
         <p className="text-sm">
-          <span className="font-semibold tabular">{total}</span>{' '}
+          <span className="tabular">{total}</span>{' '}
           <span>{total === 1 ? t('approval.item', 'item') : t('approval.items', 'items')}</span>{' '}
           <span className="text-muted-foreground">{resolvedLabel}</span>
         </p>
@@ -90,7 +90,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
         to="/approvals"
         className={hasError
           ? 'inline-flex min-h-11 items-center px-2 text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-          : 'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
+          : 'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
       >
         {hasError ? t('approval.open', 'Open approvals') : t('approval.review', 'Review requests')}
       </Link>

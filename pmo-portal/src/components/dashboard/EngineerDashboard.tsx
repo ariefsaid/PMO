@@ -8,7 +8,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { HoursBar } from '@/src/components/ui/HoursBar';
 import { entriesByProject, recentEntries } from '@/src/lib/timesheet-derive';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatFullDate, formatMonthDay, formatNumberExact } from '@/src/lib/format';
+import { formatFullDate, formatNumberExact } from '@/src/lib/format';
 import { DashPageHead } from './layout';
 
 const RECENT_ENTRIES_LIMIT = 8;
@@ -85,43 +85,42 @@ export const EngineerDashboard: React.FC = () => {
       <DashPageHead
         title={t('dashboard:engineer.title', 'My Dashboard')}
         sub={t('dashboard:engineer.scope', 'Review and log your hours.')}
-        showBreadcrumb
       />
 
       <Card aria-labelledby="engineer-week-summary-title" data-testid="engineer-week-summary" aria-busy={isPending}>
-        <CardHead>
-          <span id="engineer-week-summary-title">{t('dashboard:engineer.weekSummary', 'This week')}</span>
+        <CardHead className="text-xl font-bold">
+          <span id="engineer-week-summary-title">
+            {t('dashboard:engineer.weekSummaryCompact', 'This week · {{hours}} hours', {
+              hours: isPending || isError ? '—' : formatNumberExact(hoursThisWeek),
+            })}
+          </span>
         </CardHead>
-        <div className="grid min-w-0 gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1.25fr)_minmax(8rem,0.75fr)_minmax(8rem,0.75fr)]">
+        <div className="grid min-w-0 gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1.25fr)_minmax(8rem,0.75fr)]">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">{t('dashboard:engineer.calendarWeekLabel', 'Calendar week')}</p>
-            <p data-testid="engineer-week-scope" data-week-start={weekStart} className="mt-1 break-words text-sm font-medium">{weekScope}</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:engineer.calendarWeekLabel', 'Calendar week')}</p>
+            <p data-testid="engineer-week-scope" data-week-start={weekStart} className="mt-1 break-words text-sm">{weekScope}</p>
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">{t('dashboard:engineer.hoursThisWeek', 'Hours this week')}</p>
-            <p data-testid="engineer-hours-total" role="img" className="mt-1 text-xl font-semibold tabular" aria-label={isError ? t('dashboard:engineer.hoursUnavailable', 'Hours unavailable') : t('dashboard:engineer.weekHoursAria', 'This week: {{hours}} hours', { hours: formatNumberExact(hoursThisWeek) })}>
-              {isPending || isError ? <span aria-hidden="true">—</span> : formatNumberExact(hoursThisWeek)}
-              {!isPending && !isError && <span className="ml-1 text-sm font-medium">{t('dashboard:engineer.hoursUnit', 'hours')}</span>}
-            </p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-muted-foreground">{t('dashboard:engineer.timesheetStatus', 'Timesheet status')}</p>
+            <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:engineer.timesheetStatus', 'Timesheet status')}</p>
             <div data-testid="engineer-timesheet-status" className="mt-1 min-h-7">
               {isPending || isError ? (
-                <span role="img" aria-label={isError ? t('dashboard:engineer.statusUnavailable', 'Timesheet status unavailable') : t('dashboard:loading', 'Loading')} className="font-medium text-muted-foreground">—</span>
+                <span role="img" aria-label={isError ? t('dashboard:engineer.statusUnavailable', 'Timesheet status unavailable') : t('dashboard:loading', 'Loading')} className="text-muted-foreground">—</span>
               ) : current ? (
                 <StatusPill variant={workflowVariant(current.status)}>{statusLabels[current.status] ?? current.status}</StatusPill>
               ) : (
-                <span className="text-sm font-medium text-muted-foreground">{t('dashboard:engineer.noTimesheetThisWeek', 'No timesheet this week')}</span>
+                <span className="text-sm text-muted-foreground">{t('dashboard:engineer.noTimesheetThisWeek', 'No timesheet this week')}</span>
               )}
             </div>
           </div>
+          <span data-testid="engineer-hours-total" role="img" className="sr-only" aria-label={isError ? t('dashboard:engineer.hoursUnavailable', 'Hours unavailable') : t('dashboard:engineer.weekHoursAria', 'This week: {{hours}} hours', { hours: formatNumberExact(hoursThisWeek) })}>
+            {isPending || isError ? '—' : formatNumberExact(hoursThisWeek)}
+          </span>
         </div>
         <div className="flex flex-wrap items-center gap-3 border-t border-border/70 px-4 py-3">
           <Link
             to="/timesheets"
             data-testid="engineer-log-hours"
-            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('dashboard:engineer.logHours', "Log this week's hours")}
           </Link>
@@ -136,7 +135,7 @@ export const EngineerDashboard: React.FC = () => {
               <button
                 type="button"
                 onClick={() => refetch()}
-                className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-sm font-medium hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex min-h-11 items-center justify-center rounded-md border border-border px-3 text-xs font-semibold hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
                 {t('dashboard:retry', 'Retry')}
               </button>
@@ -147,7 +146,7 @@ export const EngineerDashboard: React.FC = () => {
       </Card>
 
       {!isError && (isPending || hasCurrentWeekEntries) && <Card>
-        <CardHead>{t('dashboard:engineer.weeklyHoursCardTitle', 'Hours this week by day')}</CardHead>
+        <CardHead className="text-xl font-bold">{t('dashboard:engineer.weeklyHoursCardTitle', 'Hours this week by day')}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={4} /></div>
         ) : isError ? (
@@ -158,7 +157,7 @@ export const EngineerDashboard: React.FC = () => {
               const value = formatNumberExact(hours);
               return (
                 <div key={formatDateKey(weekDates[index]!)} className="grid min-h-11 grid-cols-[2.5rem_minmax(0,1fr)_3.5rem] items-center gap-3 border-t border-border/70 first:border-t-0">
-                  <span className="text-xs text-muted-foreground">{dayLabels[index]}</span>
+                  <span className="text-xs font-semibold text-muted-foreground">{dayLabels[index]}</span>
                   <span
                     role="progressbar"
                     aria-label={t('dashboard:engineer.dayHours', '{{day}}: {{hours}} hours', { day: dayLabels[index], hours: value })}
@@ -169,7 +168,7 @@ export const EngineerDashboard: React.FC = () => {
                   >
                     <span aria-hidden="true" className="block h-full rounded-full bg-muted-foreground" style={{ width: `${Math.min(100, (hours / maxDay) * 100)}%` }} />
                   </span>
-                  <span className="text-right text-sm font-semibold tabular">{value}h</span>
+                  <span className="text-right text-sm tabular">{value}</span>
                 </div>
               );
             })}
@@ -178,7 +177,7 @@ export const EngineerDashboard: React.FC = () => {
       </Card>}
 
       {!isError && (isPending || hasCurrentWeekEntries) && <Card>
-        <CardHead>{t('dashboard:engineer.byProject', 'This week by project')}</CardHead>
+        <CardHead className="text-xl font-bold">{t('dashboard:engineer.byProject', "This week's hours by project")}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={3} /></div>
         ) : isError ? (
@@ -186,14 +185,14 @@ export const EngineerDashboard: React.FC = () => {
         ) : byProject.length > 0 ? (
           <div role="group" aria-label={t('dashboard:engineer.byProject', 'This week by project')} className="flex flex-col px-4 pb-4">
             {byProject.map((row) => (
-              <HoursBar key={row.projectId} label={row.name} code={row.code} hours={row.hours} maxHours={hoursThisWeek} />
+              <HoursBar key={row.projectId} label={row.name} code={row.code} hours={row.hours} maxHours={hoursThisWeek} showUnitSuffix={false} />
             ))}
           </div>
         ) : null}
       </Card>}
 
       {!isError && <Card>
-        <CardHead>{t('dashboard:engineer.recentEntries', 'Recent entries')}</CardHead>
+        <CardHead className="text-xl font-bold">{t('dashboard:engineer.recentEntriesHead', 'Recent entries · hours')}</CardHead>
         {isPending ? (
           <div className="px-4 pb-4"><ListState variant="loading" rows={4} /></div>
         ) : flatRecent.length === 0 ? (
@@ -204,13 +203,13 @@ export const EngineerDashboard: React.FC = () => {
               <li key={entry.id} data-testid={`engineer-recent-row-${entry.id}`} className="grid min-h-16 min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5">
                 <div className="min-w-0">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                    <span className="break-words text-sm font-semibold">{entry.project?.name ?? t('dashboard:engineer.unknownProject', 'Unknown')}</span>
-                    {entry.project?.code && <span className="font-mono text-xs text-muted-foreground">{entry.project.code}</span>}
-                    <span className="text-xs text-muted-foreground">{formatMonthDay(new Date(`${entry.entry_date}T00:00:00`))}</span>
+                    <span className="break-words text-sm">{entry.project?.name ?? t('dashboard:engineer.unknownProject', 'Unknown')}</span>
+                    {entry.project?.code && <span className="font-mono text-[0.6875rem] font-semibold text-muted-foreground">{entry.project.code}</span>}
+                    <span className="text-[0.6875rem] font-semibold text-muted-foreground">{formatFullDate(new Date(`${entry.entry_date}T00:00:00`))}</span>
                   </div>
                   <p className="break-words text-sm text-muted-foreground">{entry.notes?.trim() || t('dashboard:engineer.noNote', 'No note')}</p>
                 </div>
-                <span className="text-right text-sm font-semibold tabular">{formatNumberExact(entry.hours)}h</span>
+                <span className="text-right text-sm tabular">{formatNumberExact(entry.hours)}</span>
               </li>
             ))}
           </ul>

@@ -8,6 +8,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { formatNumberExact } from '@/src/lib/format';
 
 export interface HoursBarProps {
   /** Project name (displayed as body text). */
@@ -26,6 +27,8 @@ export interface HoursBarProps {
   formatValue?: (value: number) => string;
   /** Accessible-name unit word (default "hours"); ignored when `formatValue` is set. */
   unitLabel?: string;
+  /** Hide a repeated visible unit when the containing section head already names it. */
+  showUnitSuffix?: boolean;
 }
 
 
@@ -36,21 +39,25 @@ export const HoursBar: React.FC<HoursBarProps> = ({
   maxHours,
   formatValue,
   unitLabel = 'hours',
+  showUnitSuffix = true,
 }) => {
   const { t } = useTranslation();
   const pct = maxHours > 0 ? (hours / maxHours) * 100 : 0;
-  const display = formatValue ? formatValue(hours) : t('dashboard:engineer.hoursShort', '{{hours}}h', { hours });
+  const formattedHours = formatNumberExact(hours);
+  const display = formatValue ? formatValue(hours) : showUnitSuffix
+    ? t('dashboard:engineer.hoursShort', '{{hours}}h', { hours: formattedHours })
+    : t('dashboard:engineer.hoursValue', '{{hours}}', { hours: formattedHours });
   // When a custom formatter is given, the formatted string is the a11y suffix;
   // otherwise fall back to the "N hours" phrasing.
-  const ariaValue = formatValue ? display : t('dashboard:engineer.hoursSpoken', '{{hours}} {{unit}}', { hours, unit: unitLabel === 'hours' ? t('dashboard:engineer.hoursUnit', 'hours') : unitLabel });
+  const ariaValue = formatValue ? display : t('dashboard:engineer.hoursSpoken', '{{hours}} {{unit}}', { hours: formattedHours, unit: unitLabel === 'hours' ? t('dashboard:engineer.hoursUnit', 'hours') : unitLabel });
 
   return (
     <div className="flex items-center gap-2.5 py-[5px]">
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-1.5 min-w-0">
-          <span className="truncate text-[13px] font-semibold min-w-0">{label}</span>
+          <span className="min-w-0 break-words text-sm">{label}</span>
           {code && (
-            <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{code}</span>
+            <span className="shrink-0 font-mono text-[0.6875rem] font-semibold text-muted-foreground">{code}</span>
           )}
         </div>
         <span
@@ -67,7 +74,7 @@ export const HoursBar: React.FC<HoursBarProps> = ({
           />
         </span>
       </div>
-      <span className="w-auto min-w-10 shrink-0 text-right text-[12px] font-semibold tabular text-foreground">
+      <span className="w-auto min-w-10 shrink-0 text-right text-sm tabular text-foreground">
         {display}
       </span>
     </div>
