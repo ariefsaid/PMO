@@ -98,6 +98,35 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getCardBranch()).not.toBeInTheDocument();
   });
 
+  it('keeps a named, keyboard-scrollable table on phones for financial matrices', async () => {
+    mockViewport(false);
+    const matrixColumns: Column<Row>[] = [
+      { key: 'name', header: 'Publication date', cell: (row) => row.name, stickyLeft: true, rowHeader: true },
+      { key: 'value', header: 'Source', cell: (row) => row.status },
+      { key: 'status', header: 'IDR per USD', cell: (row) => row.value, align: 'num' },
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={matrixColumns}
+        rowKey={(r) => r.id}
+        accessibleName="Exchange rates"
+        mobileTable
+      />,
+    );
+
+    const region = screen.getByRole('region', { name: 'Exchange rates' });
+    expect(getTableBranch()).toBeInTheDocument();
+    expect(getCardBranch()).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Exchange rates' })).toBeInTheDocument();
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toHaveClass('overflow-x-auto');
+    expect(getTableBranch()?.querySelector('th[scope="row"]')).toHaveClass('sticky', 'left-0');
+
+    await userEvent.tab();
+    expect(region).toHaveFocus();
+  });
+
   it('omits a phone-hidden secondary fact from compact cards while leaving the rest of the row available', () => {
     mockViewport(false);
     const phoneHidden: Column<Row> = {

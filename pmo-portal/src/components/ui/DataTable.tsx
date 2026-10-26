@@ -141,6 +141,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Keep a labelled, keyboard-focusable semantic table on phones for dense financial matrices. */
+  mobileTable?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -314,6 +316,7 @@ export function DataTable<Row>({
   rowMenu,
   className,
   cardBelow,
+  mobileTable = false,
   accessibleName,
   tableId,
   groupBy,
@@ -347,7 +350,7 @@ export function DataTable<Row>({
   };
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
-  const isDesktop = wideViewport && !narrowTable;
+  const isDesktop = (wideViewport || mobileTable) && !narrowTable;
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,
@@ -366,7 +369,7 @@ export function DataTable<Row>({
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     columnResizeMode: 'onChange',
-    enableColumnResizing: isDesktop,
+    enableColumnResizing: wideViewport && !narrowTable,
     state: {
       sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
       columnSizing,
@@ -443,7 +446,13 @@ export function DataTable<Row>({
         ref={tableBranchRef}
         data-testid="dt-table-branch"
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
-        className="relative overflow-x-auto"
+        role={mobileTable ? 'region' : undefined}
+        aria-label={mobileTable ? accessibleName : undefined}
+        tabIndex={mobileTable && !wideViewport ? 0 : undefined}
+        className={cn(
+          'relative overflow-x-auto',
+          mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+        )}
       >
         <table
           ref={tableRef}
@@ -492,6 +501,7 @@ export function DataTable<Row>({
                       <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
                     {(() => {
+                      if (!wideViewport) return null;
                       const min = columnMinSize(col) ?? 20;
                       const max = columnMaxSize(col) ?? 900;
                       if (min === max) return null;

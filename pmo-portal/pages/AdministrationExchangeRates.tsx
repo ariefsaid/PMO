@@ -146,12 +146,19 @@ const AdministrationExchangeRates: React.FC = () => {
       header: t('fx.date', 'Publication date'),
       cell: (row) => formatDateOnly(row.rate_date),
       exportValue: (row) => row.rate_date,
+      kind: 'date',
+      rowHeader: true,
+      stickyLeft: true,
+      size: 148,
+      minSize: 132,
     },
     {
       key: 'source',
       header: t('fx.source', 'Source'),
       cell: (row) => row.source,
       exportValue: (row) => row.source,
+      size: 118,
+      minSize: 100,
     },
     {
       key: 'rate',
@@ -163,6 +170,9 @@ const AdministrationExchangeRates: React.FC = () => {
         </span>
       ),
       exportValue: (row) => row.rate,
+      kind: 'number',
+      size: 168,
+      minSize: 152,
     },
   ];
 
@@ -253,6 +263,8 @@ const AdministrationExchangeRates: React.FC = () => {
             rows={rates.data.rows}
             columns={columns}
             rowKey={(row) => row.id}
+            accessibleName={t('fx.title', 'Exchange rates')}
+            mobileTable
             rowMenu={
               canEdit
                 ? (row) => [
