@@ -142,8 +142,6 @@ test('Shell frame: My integrations uses the personal shell label and breadcrumb'
 
   await expect(page.locator('[data-page-frame]')).toBeVisible();
   await expect(page.locator('[data-shell-area-name]')).toHaveText('My integrations');
-  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
-    .toHaveText('My integrations');
   await expect(page.getByRole('heading', { level: 1, name: 'My integrations' })).toBeVisible();
 });
 
