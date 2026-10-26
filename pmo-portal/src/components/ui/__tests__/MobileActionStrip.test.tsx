@@ -8,7 +8,7 @@ import id from '../../../../public/locales/id/common.json';
 import { MobileActionStrip } from '../MobileActionStrip';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-async function renderStrip(locale: 'en' | 'id' = 'en', options?: { canSave?: boolean; canSubmit?: boolean; showSubmitHint?: boolean }) {
+async function renderStrip(locale: 'en' | 'id' = 'en', options?: { canSave?: boolean; canSubmit?: boolean; showSubmitHint?: boolean; showEmptyWeekTotal?: boolean }) {
   setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   const i18n = i18next.createInstance();
   await i18n.init({ lng: locale, fallbackLng: false, resources: { en: { translation: en }, id: { translation: id } } });
@@ -18,6 +18,7 @@ async function renderStrip(locale: 'en' | 'id' = 'en', options?: { canSave?: boo
         canSave={options?.canSave ?? true}
         canSubmit={options?.canSubmit ?? true}
         showSubmitHint={options?.showSubmitHint}
+        showEmptyWeekTotal={options?.showEmptyWeekTotal}
         onSave={vi.fn()}
         onSubmit={vi.fn()}
       />
@@ -60,5 +61,14 @@ describe('MobileActionStrip', () => {
     expect(screen.queryByText(/jam minggu ini/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan draf' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ajukan minggu ini' })).toBeInTheDocument();
+  });
+
+  it('AC-UXS-023: localizes the empty-week total beside the Indonesian completion actions', async () => {
+    await renderStrip('id', { canSave: false, canSubmit: false, showSubmitHint: true, showEmptyWeekTotal: true });
+    expect(screen.getByText('Total minggu')).toBeInTheDocument();
+    expect(screen.getByText('0 h')).toBeInTheDocument();
+    expect(screen.getByText('Isi jam untuk mengajukan')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Simpan draf' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Ajukan minggu ini' })).toBeDisabled();
   });
 });
