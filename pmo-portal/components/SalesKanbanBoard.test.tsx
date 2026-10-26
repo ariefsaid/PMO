@@ -112,7 +112,8 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
 
     const card = screen.getByRole('link', { name: longDeal.name }).closest('article')!;
     expect(within(card).getByText(longDeal.client_name!)).toBeInTheDocument();
-    expect(within(card).getByText(formatCurrencyAuto(longDeal.contract_value, 'IDR'))).toBeInTheDocument();
+    const normalizeSpacing = (text: string) => text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+    expect(within(card).getByText((text) => normalizeSpacing(text) === normalizeSpacing(formatCurrencyAuto(longDeal.contract_value, 'IDR')))).toBeInTheDocument();
     expect(within(card).getByText('10%')).toBeInTheDocument();
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
   });

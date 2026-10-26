@@ -251,6 +251,30 @@ describe('ProjectDetail shell (decomposition)', () => {
     });
   });
 
+  it('AC-N-05: keeps the full record identity beside the current section when the heading leaves view', async () => {
+    desktopBox.value = false;
+    class FakeIntersectionObserver {
+      readonly root = document.getElementById('main');
+      readonly rootMargin = '0px';
+      readonly thresholds = [0];
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        this.callback([{ isIntersecting: false, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() { return []; }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+    try {
+      await renderAt('/projects/p1');
+      expect(await screen.findByTestId('project-sticky-identity')).toHaveTextContent('Innovate Corp HQ Fit-Out');
+      expect(screen.getByRole('combobox', { name: 'Sections' })).toHaveValue('overview');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
     await renderAt('/projects/p1');
 

@@ -1,5 +1,4 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
@@ -483,13 +482,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 />
                 <span
                   id="contract-vat-flag-label"
-                  className={`text-[13px] text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
+                  className={`text-sm text-foreground ${vatLocked ? '' : 'cursor-pointer'}`}
                   onClick={() => { if (!vatLocked) setVatDraft(!vatDraft); }}
                 >
                   {t('projectDetail.header.subjectToVat', 'Subject to VAT (PPN)')}
                 </span>
               </div>
-              <p data-testid="contract-vat-flag-hint" className="text-[12px] text-muted-foreground">
+              <p data-testid="contract-vat-flag-hint" className="text-sm text-muted-foreground">
                 {vatCheck.isPending || vatCheck.isFetching
                   ? t('projectDetail.header.vatChecking', 'Checking whether PPN can be changed…')
                   : vatCheck.isError
@@ -532,7 +531,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           {stagedValue === null && (
             <p
               data-testid="contract-tax-required-hint"
-              className="basis-full text-[12px] text-muted-foreground"
+              className="basis-full text-sm text-muted-foreground"
             >
               {CONTRACT_TAX_REQUIRED_HINT}
             </p>
@@ -540,7 +539,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         </div>
       ) : null}
       {isOnHand && canEditValue && isFinanceForward && valueEditing && (
-        <span className="basis-full text-[12px] text-muted-foreground">
+        <span className="basis-full text-sm text-muted-foreground">
           {t(
             'projectDetail.header.sodEditableNote',
             'Changing the value on a won project is a segregation-of-duties action and is recorded.',
@@ -554,9 +553,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
-        icon={(projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
+        icon={(project.name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
-        name={<span title={project.name}>{projectDisplayName(project)}</span>}
+        name={<span>{project.name}</span>}
         status={
           <StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(status)}</StatusPill>
         }
@@ -668,7 +667,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
                 components={{
                   1: <b className="tabular text-foreground" />,
                   3: <b className="tabular text-foreground" />,
-                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-[13px] text-foreground" />,
+                  5: <TaxBasisLabel treatment={pendingValue.taxTreatment} taxRate={pendingValue.taxRate} taxBaseNumerator={pendingValue.taxBaseNumerator} taxBaseDenominator={pendingValue.taxBaseDenominator} className="text-sm text-foreground" />,
                   7: <b className="tabular text-foreground" />,
                 }}
               />

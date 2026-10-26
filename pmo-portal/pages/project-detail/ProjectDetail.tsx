@@ -1,6 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { tabId, tabPanelId, ListState, useToast, Button, type TabItem } from '@/src/components/ui';
@@ -68,7 +68,9 @@ const ProjectSectionNavigation: React.FC<{
   items: TabItem<PTab>[];
   value: PTab;
   onChange: (value: PTab) => void;
-}> = ({ items, value, onChange }) => {
+  identityName: string;
+  identityVisible: boolean;
+}> = ({ items, value, onChange, identityName, identityVisible }) => {
   const { t } = useTranslation('sales');
   const tablistRef = React.useRef<HTMLDivElement>(null);
   const focusSection = (nextValue: PTab) => {
@@ -91,7 +93,8 @@ const ProjectSectionNavigation: React.FC<{
   };
   return (
     <>
-      <label className="mb-4 flex min-w-0 items-center gap-3 min-[921px]:hidden">
+      <label className="sticky top-0 z-20 mb-4 flex min-w-0 flex-wrap items-center gap-3 border-b border-border bg-background py-2 min-[921px]:hidden">
+        {!identityVisible && <span data-testid="project-sticky-identity" className="basis-full min-w-0 break-words text-xs font-semibold text-foreground">{identityName}</span>}
         <span className="shrink-0 text-xs font-semibold text-muted-foreground">
           {t('pipeline.sections', 'Sections')}
         </span>
@@ -105,32 +108,37 @@ const ProjectSectionNavigation: React.FC<{
         </select>
       </label>
       <div
-        ref={tablistRef}
-        role="tablist"
-        aria-label={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-        aria-orientation="vertical"
-        onKeyDown={onTabKeyDown}
-        className="mb-4 hidden min-w-0 flex-col gap-2 border-l border-border pl-3 min-[921px]:flex"
+        className="sticky top-0 z-10 mb-4 hidden min-w-0 self-start bg-background py-2 min-[921px]:flex min-[921px]:flex-col"
       >
-        {items.map((item) => {
-          const selected = item.value === value;
-          return (
-            <button
-              key={item.value}
-              id={tabId('project-detail', item.value)}
-              type="button"
-              role="tab"
-              data-section={item.value}
-              aria-selected={selected}
-              aria-controls={selected ? tabPanelId('project-detail', item.value) : undefined}
-              tabIndex={selected ? 0 : -1}
-              onClick={() => onChange(item.value)}
-              className={`min-h-11 break-words px-3 py-2 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selected ? 'border-l-2 border-primary font-semibold text-primary-text' : 'text-foreground hover:bg-secondary/50'}`}
-            >
-              {item.label}
-            </button>
-          );
-        })}
+        {!identityVisible && <div className="mb-3 break-words border-b border-border pb-3 text-xs font-semibold text-foreground">{identityName}</div>}
+        <div
+          ref={tablistRef}
+          role="tablist"
+          aria-label={t('projectDetail.tabs.ariaLabel', 'Project sections')}
+          aria-orientation="vertical"
+          onKeyDown={onTabKeyDown}
+          className="flex min-w-0 flex-col gap-2 border-l border-border pl-3"
+        >
+          {items.map((item) => {
+            const selected = item.value === value;
+            return (
+              <button
+                key={item.value}
+                id={tabId('project-detail', item.value)}
+                type="button"
+                role="tab"
+                data-section={item.value}
+                aria-selected={selected}
+                aria-controls={selected ? tabPanelId('project-detail', item.value) : undefined}
+                tabIndex={selected ? 0 : -1}
+                onClick={() => onChange(item.value)}
+                className={`min-h-11 break-words px-3 py-2 text-left text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selected ? 'border-l-2 border-primary text-primary-text' : 'text-foreground hover:bg-secondary/50'}`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </>
   );
@@ -156,6 +164,21 @@ const ProjectDetail: React.FC = () => {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
+  const identityRef = React.useRef<HTMLDivElement>(null);
+  const [identityVisible, setIdentityVisible] = useState(true);
+
+  useEffect(() => {
+    const identity = identityRef.current;
+    const root = document.getElementById('main');
+    if (!identity || typeof IntersectionObserver === 'undefined') return;
+    setIdentityVisible(true);
+    const observer = new IntersectionObserver(([entry]) => setIdentityVisible(entry.isIntersecting), {
+      root,
+      threshold: 0,
+    });
+    observer.observe(identity);
+    return () => observer.disconnect();
+  }, [project?.id, projectId]);
 
   // Tab labels live here (not at module scope) so they can be translated; the tab
   // VALUES and their order stay in TAB_VALUES above.
@@ -374,29 +397,31 @@ const ProjectDetail: React.FC = () => {
           selected record's primary evidence immediately after it. */}
       {isPipeline ? (
         <>
-          <ProjectDetailHeader
-            project={project}
-            committedSpend={committedSpend}
-            committedOtherCurrencies={committedOtherCurrencies}
-            commitmentSource={commitmentSource}
-            ledgerBasis={ledgerBasis}
-            commitmentPending={commitmentPending}
-            commitmentError={commitmentError}
-            onEditProject={openEditProject}
-            primaryAction={pipelinePrimaryAction && (
-              <Button
-                variant="primary"
-                disabled={pipelinePrimaryAction.disabled}
-                onClick={pipelinePrimaryAction.activate}
-                className="max-[920px]:w-full"
-              >
-                {pipelinePrimaryAction.label}
-              </Button>
-            )}
-          />
+          <div ref={identityRef}>
+            <ProjectDetailHeader
+              project={project}
+              committedSpend={committedSpend}
+              committedOtherCurrencies={committedOtherCurrencies}
+              commitmentSource={commitmentSource}
+              ledgerBasis={ledgerBasis}
+              commitmentPending={commitmentPending}
+              commitmentError={commitmentError}
+              onEditProject={openEditProject}
+              primaryAction={pipelinePrimaryAction && (
+                <Button
+                  variant="primary"
+                  disabled={pipelinePrimaryAction.disabled}
+                  onClick={pipelinePrimaryAction.activate}
+                  className="max-[920px]:w-full"
+                >
+                  {pipelinePrimaryAction.label}
+                </Button>
+              )}
+            />
+          </div>
 
           <div className="grid min-w-0 gap-4 min-[921px]:grid-cols-[12rem_minmax(0,1fr)] min-[921px]:gap-8">
-            <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} />
+            <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} identityName={project.name} identityVisible={identityVisible} />
             <div className="min-w-0">
               {/* The record's decision facts follow its section control and stay above evidence. */}
               <div className="mb-8">
@@ -412,18 +437,20 @@ const ProjectDetail: React.FC = () => {
       ) : (
         <>
           <div className="min-w-0">
-            <ProjectDetailHeader
-              project={project}
-              committedSpend={committedSpend}
-              committedOtherCurrencies={committedOtherCurrencies}
-              commitmentSource={commitmentSource}
-              ledgerBasis={ledgerBasis}
-              commitmentPending={commitmentPending}
-              commitmentError={commitmentError}
-              onEditProject={openEditProject}
-            />
+            <div ref={identityRef}>
+              <ProjectDetailHeader
+                project={project}
+                committedSpend={committedSpend}
+                committedOtherCurrencies={committedOtherCurrencies}
+                commitmentSource={commitmentSource}
+                ledgerBasis={ledgerBasis}
+                commitmentPending={commitmentPending}
+                commitmentError={commitmentError}
+                onEditProject={openEditProject}
+              />
+            </div>
             <div className="grid min-w-0 gap-4 min-[921px]:grid-cols-[12rem_minmax(0,1fr)] min-[921px]:gap-8">
-              <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} />
+              <ProjectSectionNavigation items={tabItems} value={tab} onChange={setTab} identityName={project.name} identityVisible={identityVisible} />
               <div className="min-w-0">
                 <ProjectDetailRail project={project} onEditProject={openEditProject} />
                 {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}

@@ -144,7 +144,7 @@ describe('SalesPipeline — live Export (AC-EXP-008)', () => {
       'Value',
       'Currency',
       'Win %',
-      'Weighted',
+      'Weighted · same currency as Value',
     ]);
     // Per-row currency stays adjacent to the numeric value in the workbook.
     expect(header.indexOf('Currency')).toBe(7);

@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatNumberExact, formatShortMoney } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
@@ -102,15 +102,19 @@ describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', (
     );
     await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
 
-    // The inline capture moves the decision amount into the primary evidence position and
-    // removes the separate amount band / Advance action while that decision is in progress.
+    // The inline capture keeps the decision amount visible above its required fields and
+    // removes the Advance action while that decision is in progress.
     const refInput = screen.getByLabelText(/Customer contract reference/i);
     expect(refInput).toBeInTheDocument();
-    const formatted = formatCurrencyAuto(CONTRACT_VALUE, 'USD');
-    expect(screen.getAllByText(formatted)).toHaveLength(1);
+    const compactAmount = screen.getAllByRole('heading', { level: 2 }).find((heading) =>
+      heading.textContent?.includes(formatShortMoney(CONTRACT_VALUE, 'USD', { code: true })),
+    );
+    expect(compactAmount).toBeDefined();
+    expect(screen.getAllByText(formatNumberExact(CONTRACT_VALUE))).toHaveLength(1);
+    expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
     expect(screen.getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
     expect(screen.getByText(/This contract value is recorded when you confirm the win/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('pipeline-contract-value')).not.toBeInTheDocument();
+    expect(screen.getByTestId('pipeline-contract-value')).toBeInTheDocument();
     await vi.waitFor(() => expect(onPrimaryActionChange).toHaveBeenLastCalledWith(null));
   });
 });

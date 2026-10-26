@@ -81,7 +81,7 @@ describe('AC-JR-W4-03: Stage control scopes Board and Table', () => {
     const summary = screen.getByTestId('sales-summary');
     expect(summary).not.toHaveAttribute('open');
     await userEvent.click(screen.getByText('Pipeline summary'));
-    expect(within(summary).getByText('Leads')).toBeInTheDocument();
+    expect(within(summary).getByText('Leads · USD')).toBeInTheDocument();
     expect(within(summary).queryByRole('button')).toBeNull();
   });
 });

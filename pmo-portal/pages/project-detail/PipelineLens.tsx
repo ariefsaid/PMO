@@ -475,7 +475,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
             <a
               href={listReturnNavigation(locationState, 'sales').path}
               onClick={onReturnToSales ? (event) => { event.preventDefault(); onReturnToSales(); } : undefined}
-              className="mt-1 self-start text-[12.5px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+              className="mt-1 self-start text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
             </a>

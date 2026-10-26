@@ -171,8 +171,8 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     renderPage();
     await userEvent.click(screen.getByText('Pipeline summary'));
     const f = within(screen.getByTestId('sales-summary'));
-    expect(f.getByText('Leads')).toBeInTheDocument();
-    expect(f.getByText('Negotiation')).toBeInTheDocument();
+    expect(f.getByText('Leads · USD')).toBeInTheDocument();
+    expect(f.getByText('Negotiation · USD')).toBeInTheDocument();
     expect(f.queryByText(/Won/)).toBeNull();
     expect(f.queryByRole('button')).toBeNull();
   });
@@ -227,8 +227,8 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     await userEvent.click(screen.getByText('Pipeline summary'));
     const leads = within(screen.getByTestId('sales-summary')).getByText('Leads').closest('[data-funnel-stage]')!;
     expect(leads.querySelector('[aria-label="Summary unavailable"]')).not.toBeNull();
-    const negotiation = within(screen.getByTestId('sales-summary')).getByText('Negotiation').closest('[data-funnel-stage]')!;
-    expect(negotiation.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('$0');
+    const negotiation = within(screen.getByTestId('sales-summary')).getByText('Negotiation · USD').closest('[data-funnel-stage]')!;
+    expect(negotiation.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('0');
   });
 });
 
