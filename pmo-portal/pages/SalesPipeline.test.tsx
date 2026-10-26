@@ -106,9 +106,10 @@ beforeEach(() => {
 });
 
 describe('SalesPipeline header + summary (AC-SP-202)', () => {
-  it('renders the local shared-shell adapter, ordered controls, closed read-only summary, and desktop view control', () => {
+  it('renders the shared page heading, ordered controls, closed read-only summary, and desktop view control', () => {
     renderPage();
-    expect(screen.getByTestId('sales-page-header-adapter')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Sales Pipeline' })).toBeInTheDocument();
+    expect(screen.getByText(/Open · Oldest activity first/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Sales pipeline controls' })).toBeInTheDocument();
     expect(screen.getByTestId('sales-summary')).not.toHaveAttribute('open');
     expect(screen.getByRole('tablist', { name: /Pipeline view/i })).toBeInTheDocument();
@@ -123,7 +124,9 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
     // C3: the old disabled "New deal" stub is gone; the live "New project" CTA replaced it.
     expect(screen.queryByRole('button', { name: /New deal/i })).toBeNull();
     // PM can create → the live "New project" button is present.
-    expect(screen.getByRole('button', { name: /New project/i })).toBeInTheDocument();
+    const controls = screen.getByRole('region', { name: 'Sales pipeline controls' });
+    const create = within(controls).getByRole('button', { name: /New project/i });
+    expect(controls.lastElementChild).toContainElement(create);
     // The live Export action remains reachable on desktop.
     expect(screen.getByRole('button', { name: /Export/i })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /New project/i })).toHaveLength(1);

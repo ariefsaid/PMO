@@ -9,6 +9,7 @@ import {
   Funnel,
   Icon,
   ListState,
+  PageHeading,
   StatusPill,
   TaxBasisLabel,
   ViewToggle,
@@ -27,7 +28,6 @@ import { formatCurrencyAuto } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { weightedValue, openOpportunity, daysSince, ATTENTION_THRESHOLD_DAYS, SALES_COLUMNS, formatPercent, pillVariantForStatus } from '../components/salesPipeline';
 import { selectSalesProjects } from '@/src/components/sales/salesWorkingSet';
-import { SalesPageHeaderAdapter } from '@/src/components/sales/SalesPageHeaderAdapter';
 import { readPipelineView, writePipelineView } from '@/src/hooks/usePipelineView';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 import type { SalesScope, SalesSort, SalesStage } from '@/src/lib/listWorkingSet';
@@ -143,7 +143,7 @@ const SalesPipeline: React.FC = () => {
   };
   const onOpen = (project: PipelineProject) => openOpportunity(openRecord, project);
   const createAction = canCreate ? (
-    <Button variant="primary" className="min-h-11 px-4" onClick={() => openRecord('/projects/new')}>
+    <Button variant="primary" className="min-h-11 w-full px-4 md:w-auto" onClick={() => openRecord('/projects/new')}>
       <Icon name="plus" />{t('sales.newProject', 'New project')}
     </Button>
   ) : null;
@@ -310,7 +310,7 @@ const SalesPipeline: React.FC = () => {
           <div className="absolute right-0 z-10 mt-1 rounded-md border border-border bg-card p-2"><ExportButton rows={visible} columns={exportColumns} entity="Pipeline" className="min-h-11" /></div>
         </details>
       )}
-      {!isDesktop && createAction}
+      {createAction && <div className="ml-auto w-full md:w-auto">{createAction}</div>}
     </section>
   );
 
@@ -330,10 +330,11 @@ const SalesPipeline: React.FC = () => {
 
   return (
     <div className="min-w-0">
-      <SalesPageHeaderAdapter
+      <PageHeading
         title={t('shell.nav.sales', 'Sales Pipeline')}
-        scopeLine={`${scopeLine} · ${salesT('pipeline.firstUse', 'Find the next project needing follow-up, then open it to act.')}${!canCreate ? ` ${salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}` : ''}`}
-        primaryAction={isDesktop ? createAction : null}
+        scope={`${scopeLine} · ${salesT('pipeline.firstUse', 'Find the next project needing follow-up, then open it to act.')}${!canCreate ? ` ${salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}` : ''}`}
+        kind="collection"
+        className="mb-4"
       />
       {toolbar}
       {isDesktop && shouldShowSummary && summary}

@@ -377,6 +377,7 @@ export const ShellChrome: React.FC = () => {
   const usesContentPageFrame =
     pathname === '/' ||
     pathname === '/projects' ||
+    pathname === '/sales' ||
     projectRecordRoute ||
     pathname === '/approvals' ||
     pathname === '/timesheets' ||
@@ -389,7 +390,9 @@ export const ShellChrome: React.FC = () => {
         ? t('shell.nav.approvals', 'Approvals')
         : pathname === '/timesheets'
           ? t('shell.nav.timesheets', 'Timesheets')
-          : administrationRoute
+          : pathname === '/sales'
+            ? t('shell.nav.sales', 'Sales Pipeline')
+            : administrationRoute
             ? t('shell.nav.administration', 'Administration')
             : personalIntegrationsRoute
               ? t('shell.nav.integrations', 'My integrations')
