@@ -488,7 +488,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             aria-label={t('admin.users.search.label', 'Search users')}
             value={search}
             onChange={(e) => updateDirectoryUrl('search', e.target.value)}
-            containerClassName="min-h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0"
+            containerClassName="min-h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 md:w-64 md:min-w-64"
           />
           <label className="sr-only" htmlFor="admin-users-status-filter">
             {t('administration:admin.users.statusFilter.label', 'Filter users by status')}
