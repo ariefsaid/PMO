@@ -303,7 +303,7 @@ describe('ViewBuilderPage — guard states', () => {
     });
     renderEdit('v2');
     expect(screen.getByRole('heading', { level: 1, name: 'View is read-only' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /go to saved views/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /go to my views/i })).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /view name/i })).not.toBeInTheDocument();
   });
 });

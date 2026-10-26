@@ -6,6 +6,8 @@ import { I18nextProvider } from 'react-i18next';
 import { axeViolations } from '@/src/components/__tests__/axe';
 import enCatalogue from '../public/locales/en/common.json';
 import idCatalogue from '../public/locales/id/common.json';
+import enWorkCatalogue from '../public/locales/en/work.json';
+import idWorkCatalogue from '../public/locales/id/work.json';
 
 // ── Mocks ──────────────────────────────────────────────────────────────────
 const { setLocalePreferences, refreshMock, resolvedLocaleState, orgDefaultsState } = vi.hoisted(() => ({
@@ -389,11 +391,11 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
     await instance.init({
       lng: 'en',
       fallbackLng: 'en',
-      ns: 'common',
+      ns: ['common', 'work'],
       defaultNS: 'common',
       resources: {
-        en: { common: enCatalogue },
-        id: { common: idCatalogue },
+        en: { common: enCatalogue, work: enWorkCatalogue },
+        id: { common: idCatalogue, work: idWorkCatalogue },
       },
       interpolation: { escapeValue: false },
     });
@@ -413,11 +415,11 @@ describe('ProfileSettings localized labels (AC-ACCT-006)', () => {
     await instance.init({
       lng: 'id',
       fallbackLng: 'en',
-      ns: 'common',
+      ns: ['common', 'work'],
       defaultNS: 'common',
       resources: {
-        en: { common: enCatalogue },
-        id: { common: idCatalogue },
+        en: { common: enCatalogue, work: enWorkCatalogue },
+        id: { common: idCatalogue, work: idWorkCatalogue },
       },
       interpolation: { escapeValue: false },
     });
