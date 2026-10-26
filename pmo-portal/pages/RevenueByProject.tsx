@@ -14,7 +14,7 @@ import {
 import { useNavigate, useSearchParams } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
 import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
 import { ExportButton } from '@/src/components/export';
@@ -149,26 +149,25 @@ const RevenueByProject: React.FC = () => {
       // The on-screen amounts already carry their own currency, so this column is export-only (FIN-S6).
       key: 'currency',
       header: t('financeCopy.currency', 'Currency'),
-      exportOnly: true,
       cell: (row) => row.currency,
       exportValue: (row) => row.currency,
     },
     {
       key: 'total_amount',
-      header: `${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`,
+      header: t('moneyIn:uxs42.netBilled', 'Net billed'),
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => formatCurrencyAuto(row.total_amount, row.currency),
+      cell: (row) => <span className="tabular text-right text-sm">{formatNumber(row.total_amount)}</span>,
       exportValue: (row) => row.total_amount,
     },
     {
       key: 'open_ar',
-      header: `${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`,
+      header: t('moneyIn:uxs42.openReceivablesGross', 'Open receivables'),
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => formatCurrencyAuto(row.open_ar, row.currency),
+      cell: (row) => <span className="tabular text-right text-heading font-bold">{formatNumber(row.open_ar)}</span>,
       exportValue: (row) => row.open_ar,
     },
     {
@@ -187,8 +186,8 @@ const RevenueByProject: React.FC = () => {
     key: currency,
     label: `${t('financeCopy.total', 'Total')} · ${currency}`,
     values: {
-      total_amount: formatCurrencyAuto(amount, currency),
-      open_ar: formatCurrencyAuto(openARTotals.find((x) => x.currency === currency)?.amount ?? 0, currency),
+      total_amount: formatNumber(amount),
+      open_ar: formatNumber(openARTotals.find((x) => x.currency === currency)?.amount ?? 0),
       invoice_count: visibleRows.filter((r) => r.currency === currency).reduce((sum, r) => sum + r.invoice_count, 0),
     } as Record<string, React.ReactNode>,
   }));

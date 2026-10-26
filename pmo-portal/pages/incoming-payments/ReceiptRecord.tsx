@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BackBar } from '@/src/components/shell';
 import { Button, DataTable, StatusPill, type Column } from '@/src/components/ui';
-import { formatCurrencyAuto, formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
+import { formatCurrencyAuto, formatDateOnly, formatNumber } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -21,7 +21,7 @@ interface Props {
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
 export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, onCancel }) => {
   const { t } = useTranslation();
-  const money = (n: number) => formatCurrencyCents(n, receipt.currency);
+  const money = (n: number) => formatNumber(n);
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
   const unapplied = knownUnappliedCash({ ...receipt, allocation_details: allocations });
   const notReported = t('uxs06.notReported', 'Not reported');
@@ -67,16 +67,16 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       <MoneyInPageHeader
         kind="record"
         title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
-        scope={[receipt.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')].join(' · ')}
+        scope={[receipt.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported'), receipt.currency].join(' · ')}
         status={status}
         returnAction={<BackBar label={t('shell.nav.incomingPayments', 'Incoming Payments')} onBack={onBack} phoneOnly />}
       />
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
-          <div key={f.label}>
+          <div key={f.label} className={f.testId ? 'sm:col-span-2' : undefined}>
             <dt className="text-xs text-muted-foreground">{f.label}</dt>
-            <dd data-testid={f.testId} className="tabular mt-0.5 text-[15px] font-medium">{f.value}</dd>
+            <dd data-testid={f.testId} className={f.testId ? 'tabular mt-0.5 text-heading font-bold' : 'tabular mt-0.5 text-sm font-medium'}>{f.value}</dd>
           </div>
         ))}
       </dl>

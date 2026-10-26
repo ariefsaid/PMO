@@ -33,7 +33,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   currencySymbol,
-  formatCurrencyCents,
+  formatCurrencyAuto,
   formatDateOnly,
   formatMoneyInputValue,
   instantToZonedDatetimeLocal,
@@ -195,7 +195,7 @@ function openInvoiceOptions(
       label: invoiceNumber(inv) ?? inv.id,
       sub:
         inv.erp_outstanding_amount != null
-          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) })
+          ? t('financeCopy.amountOutstanding', '{{amount}} outstanding', { amount: formatCurrencyAuto(inv.erp_outstanding_amount, inv.currency) })
           : undefined,
     }));
 }
@@ -372,7 +372,7 @@ const IncomingPayments: React.FC = () => {
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right text-[13px]">
-          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
+          {p.amount != null ? formatCurrencyAuto(p.amount, p.currency) : '—'}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
@@ -386,14 +386,14 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
-      cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
+      cell: (p) => p.received_amount != null ? formatCurrencyAuto(p.received_amount, p.currency) : '—',
       exportValue: (p) => p.received_amount ?? '',
     },
     {
       // S-06 (RF-032): None = known to be zero; Not reported = the source never said. Unknown is not zero.
       key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
       cell: (p) => p.withheld_amount == null ? <span className="text-muted-foreground">{notReported}</span>
-        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyCents(p.withheld_amount, p.currency),
+        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyAuto(p.withheld_amount, p.currency),
       exportValue: (p) => p.withheld_amount ?? '',
     },
     {
@@ -402,7 +402,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => {
         const unapplied = knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) });
         return unapplied === null ? <span className="text-muted-foreground">{notReported}</span>
-          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
+          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyAuto(unapplied, p.currency)}</span>;
       },
       exportValue: (p) => knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) }) ?? '',
     },
@@ -469,7 +469,7 @@ const IncomingPayments: React.FC = () => {
       header: t('uxs06.receiptTotal', 'Receipt total'),
       kind: 'money',
       align: 'num',
-      cell: (p) => <span className="tabular text-right text-[13px]">{p.amount != null ? formatCurrencyCents(p.amount, p.currency) : t('uxs06.notReported', 'Not reported')}</span>,
+      cell: (p) => <span className="tabular text-right text-sm">{p.amount != null ? formatCurrencyAuto(p.amount, p.currency) : t('uxs06.notReported', 'Not reported')}</span>,
       exportValue: (p) => p.amount ?? '',
     },
   ];
@@ -940,7 +940,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             error={paidAmountField.error}
             helper={chosenInvoice?.erp_outstanding_amount != null
               ? t('financeCopy.nativeReceiptAmountHelper', 'Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.', {
-                amount: formatCurrencyCents(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
+                amount: formatCurrencyAuto(chosenInvoice.erp_outstanding_amount, chosenInvoice.currency),
               })
               : undefined}
             localeAware
