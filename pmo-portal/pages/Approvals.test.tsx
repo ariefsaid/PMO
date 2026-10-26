@@ -360,7 +360,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     renderPage('all');
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
     expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-    expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Structural steel/i, pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
     expect(screen.getByRole('button', { name: /Approve 3/i })).toBeInTheDocument();
   });

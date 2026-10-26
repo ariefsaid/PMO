@@ -88,6 +88,24 @@ beforeEach(() => {
 });
 
 describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
+  it('publishes the forward transition for the shared record primary-action slot', async () => {
+    const onPrimaryActionChange = vi.fn();
+    render(
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens project={dealRow} onPrimaryActionChange={onPrimaryActionChange} />
+        </ToastProvider>
+      </ImpersonationProvider>,
+    );
+
+    await waitFor(() => expect(onPrimaryActionChange).toHaveBeenCalled());
+    const action = onPrimaryActionChange.mock.calls.at(-1)?.[0];
+    expect(action).toMatchObject({ label: expect.stringMatching(/Advance to/), disabled: false });
+    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
+    action.activate();
+    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Negotiation'));
+  });
+
   it('AC-IXD-WP-004: clicking "Advance to <stage>" fires the transition on a SINGLE click — no confirm dialog', async () => {
     renderLens();
     const advance = screen.getByRole('button', { name: /Advance to/i });

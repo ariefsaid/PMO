@@ -42,6 +42,21 @@ describe('AppShell', () => {
     expect(screen.getByRole('heading', { name: 'Project One' })).toBeInTheDocument();
   });
 
+  it('omits a one-item self breadcrumb when the top bar and page heading already name the area', () => {
+    const { container } = wrap(
+      <AppShell
+        rail={null}
+        header={<div data-testid="header-slot">Projects</div>}
+        pageFrame={{ breadcrumb: [{ label: 'Projects' }] }}
+      >
+        <h1>Projects</h1>
+      </AppShell>,
+    );
+    expect(container.querySelector('[data-page-frame]')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
+  });
+
   it('main is a programmatically-focusable landmark with id=main', () => {
     wrap(
       <AppShell rail={null} header={null}>
@@ -78,12 +93,14 @@ describe('AppShell', () => {
       );
     };
     const tree = render(
-      <MemoryRouter>
-        <AppShell rail={null} header={null}>
-          <div>x</div>
-        </AppShell>
-        <NavProbe />
-      </MemoryRouter>
+      <React.StrictMode>
+        <MemoryRouter>
+          <AppShell rail={null} header={null}>
+            <div>x</div>
+          </AppShell>
+          <NavProbe />
+        </MemoryRouter>
+      </React.StrictMode>
     );
     const main = screen.getByRole('main');
     // First mount is intentionally skipped (no focus yank on load).

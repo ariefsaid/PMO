@@ -110,7 +110,8 @@ export const AppShell: React.FC<AppShellProps> = ({
   );
 
   // Move focus to main on route change (a11y: focus-on-route-change) and reset
-  // scroll. Skip the very first mount so we don't yank focus on load.
+  // scroll. Compare pathnames instead of a mounted flag: StrictMode replays mount
+  // effects in development, and the replay must not look like a route change.
   // #879 (WCAG 2.4.3): record pages encode the active tab in the URL, so an arrow-key
   // tab switch is also a pathname change — but it is NOT a route change to the user.
   // Skip focus only when the marker is present AND both locations are within the same
@@ -119,23 +120,19 @@ export const AppShell: React.FC<AppShellProps> = ({
   // Focus and scroll are route-change behavior: state-only updates (including list
   // search/filter updates that clear one-shot return state) must not steal focus.
   // The state at the pathname transition is still read to preserve #879 tab switches.
-  const mounted = useRef(false);
   const previousPathname = useRef(location.pathname);
   const { pathname, state } = location;
   const stateRef = useRef(state);
   stateRef.current = state;
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      previousPathname.current = pathname;
-      return;
-    }
-    const previousRecordBase = previousPathname.current.match(/^\/(projects|procurement)\/([^/]+)/u);
+    const previous = previousPathname.current;
+    if (previous === pathname) return;
+    previousPathname.current = pathname;
+    const previousRecordBase = previous.match(/^\/(projects|procurement)\/([^/]+)/u);
     const currentRecordBase = pathname.match(/^\/(projects|procurement)\/([^/]+)/u);
     const sameRecordBase =
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
-    previousPathname.current = pathname;
     const sameRecordTabSwitch = isTabSwitchNavState(stateRef.current) && sameRecordBase;
     if (sameRecordTabSwitch) return;
     mainRef.current?.focus();

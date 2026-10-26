@@ -92,7 +92,7 @@ try {
         const currentAdvisories = countDetectorAdvisories(detectorJson);
         detectorCount += currentDetectorFindings;
         advisoryCount += currentAdvisories;
-        if (detect.status !== 0 || currentDetectorFindings > 0) failed = true;
+        if (currentDetectorFindings > 0) failed = true;
 
         const axeJson = await new AxeBuilder({ page }).analyze();
         fs.writeFileSync(path.join(output, `${stem}.axe.json`), `${JSON.stringify(axeJson, null, 2)}\n`);

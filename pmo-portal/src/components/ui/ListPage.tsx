@@ -45,6 +45,10 @@ export interface ListPageProps {
   mobileToolbar?: React.ReactNode;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
+  /** Place search before the collection scope filters (used by the Projects workflow). */
+  searchFirst?: boolean;
+  /** Put view selection before secondary export/import actions in visual and keyboard order. */
+  viewBeforeActions?: boolean;
 
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
@@ -80,6 +84,8 @@ export const ListPage: React.FC<ListPageProps> = ({
   view,
   mobileToolbar,
   desktopToolbarClassName,
+  searchFirst = false,
+  viewBeforeActions = false,
   banner,
   children,
   className,
@@ -133,12 +139,17 @@ export const ListPage: React.FC<ListPageProps> = ({
           </Toolbar>
         ) : (
           <Toolbar standalone data-testid="list-page-toolbar" className={desktopToolbarClassName}>
-            {filters}
-            {search}
+            {searchFirst ? search : filters}
+            {searchFirst ? filters : search}
             {secondaryFilter}
+            {viewBeforeActions && view && (
+              <div data-testid="list-page-view" className="ml-auto">
+                {view}
+              </div>
+            )}
             {exportAction}
             {importAction}
-            {view && (
+            {!viewBeforeActions && view && (
               <div data-testid="list-page-view" className="ml-auto">
                 {view}
               </div>

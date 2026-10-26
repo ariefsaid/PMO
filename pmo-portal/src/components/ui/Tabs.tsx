@@ -50,10 +50,14 @@ export function Tabs<V extends string = string>({
   className,
 }: TabsProps<V>) {
   const listRef = useRef<HTMLDivElement>(null);
+  const previousValue = useRef(value);
 
-  // Scroll the active tab into view on value change (mobile: keeps the active tab
-  // visible in the snap strip). `block:'nearest'` avoids vertical scroll on desktop.
+  // Scroll the active tab into view after a user changes it (mobile: keeps the
+  // active tab visible in the snap strip). Do not scroll on mount: a deep-linked
+  // record must open at its identity/header, not jump down to the tab bar.
   useEffect(() => {
+    if (previousValue.current === value) return;
+    previousValue.current = value;
     if (!listRef.current) return;
     const active = listRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
     if (!active) return;

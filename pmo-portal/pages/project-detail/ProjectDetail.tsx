@@ -3,7 +3,7 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
+import { Tabs, tabId, tabPanelId, ListState, useToast, Button, type TabItem } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
@@ -17,7 +17,7 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
-import PipelineLens from './PipelineLens';
+import PipelineLens, { type PipelinePrimaryAction } from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
@@ -82,6 +82,7 @@ const ProjectDetail: React.FC = () => {
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
+  const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
 
   // Tab labels live here (not at module scope) so they can be translated; the tab
   // VALUES and their order stay in TAB_VALUES above.
@@ -169,7 +170,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -179,7 +180,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
@@ -194,7 +195,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
         <ListState
           variant="error"
           icon="inbox"
@@ -286,7 +287,7 @@ const ProjectDetail: React.FC = () => {
       {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
           loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
           rule as every other record page and this page's loading / not-found states). */}
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} onBack={goBack} />
       {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
           breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
           The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
@@ -308,11 +309,21 @@ const ProjectDetail: React.FC = () => {
             commitmentPending={commitmentPending}
             commitmentError={commitmentError}
             onEditProject={openEditProject}
+            primaryAction={pipelinePrimaryAction && (
+              <Button
+                variant="primary"
+                disabled={pipelinePrimaryAction.disabled}
+                onClick={pipelinePrimaryAction.activate}
+                className="max-[920px]:w-full"
+              >
+                {pipelinePrimaryAction.label}
+              </Button>
+            )}
           />
 
           {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
           <div className="mb-8">
-            <PipelineLens project={project} locationState={location.state} />
+            <PipelineLens project={project} locationState={location.state} onPrimaryActionChange={setPipelinePrimaryAction} />
           </div>
           {/* Classification, codes and the ERP project link live in the one closed details disclosure. */}
           <ProjectDetailRail project={project} showActionSection={false} />

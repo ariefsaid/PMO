@@ -171,8 +171,7 @@ export const AccountMenu: React.FC = () => {
       >
         <span
           aria-hidden
-          className="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
-          style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
+          className="grid size-6 shrink-0 place-items-center rounded-full bg-avatar-1 text-[11px] font-bold text-primary-foreground"
         >
           {initials(currentUser?.full_name)}
         </span>
@@ -199,8 +198,7 @@ export const AccountMenu: React.FC = () => {
           <div className="flex items-center gap-2.5 px-2.5 py-2">
             <span
               aria-hidden
-              className="grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-bold text-primary-foreground"
-              style={{ background: 'linear-gradient(135deg, hsl(var(--primary)), hsl(var(--violet)))' }}
+              className="grid size-7 shrink-0 place-items-center rounded-full bg-avatar-1 text-[11px] font-bold text-primary-foreground"
             >
               {initials(currentUser?.full_name)}
             </span>

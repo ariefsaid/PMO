@@ -45,7 +45,7 @@ export const PageHeading: React.FC<PageHeadingProps> = ({
       <div
         data-page-primary-action-slot={kind}
         className={cn(
-          'flex shrink-0 flex-wrap items-center gap-2',
+          'flex shrink-0 flex-wrap items-center gap-2 [&_button]:min-h-11 [&_a]:min-h-11',
           kind === 'record' ? 'ml-auto w-full sm:w-auto' : 'w-full sm:w-auto',
         )}
       >

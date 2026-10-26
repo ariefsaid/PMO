@@ -11,7 +11,9 @@ export interface PageFrameProps {
 /** Content-track wayfinding shared by pages using the redesigned shell frame. */
 export const PageFrame: React.FC<PageFrameProps> = ({ breadcrumb, returnLabel, children }) => (
   <div data-page-frame className="min-w-0">
-    <Breadcrumb parts={breadcrumb} className={`mb-4 ${returnLabel ? 'max-[920px]:hidden' : ''}`} />
+    {breadcrumb.length > 1 && (
+      <Breadcrumb parts={breadcrumb} className={`mb-4 ${returnLabel ? 'max-[920px]:hidden' : ''}`} />
+    )}
     {children}
   </div>
 );

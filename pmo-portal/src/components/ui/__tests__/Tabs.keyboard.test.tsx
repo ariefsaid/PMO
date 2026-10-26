@@ -9,7 +9,7 @@
  * Owning layer: Vitest/RTL — pure FE component, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Tabs } from '../Tabs';
 
@@ -48,6 +48,25 @@ const tabNames = () =>
 const activeEl = () => document.activeElement as HTMLElement | null;
 
 describe('#879 Tabs keyboard contract (WAI-ARIA tabs pattern)', () => {
+  it('does not scroll the page on initial mount, but reveals a tab after the user changes it', () => {
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      render(
+        <StrictMode>
+          <Harness />
+        </StrictMode>,
+      );
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      fireEvent.keyDown(screen.getByRole('tab', { name: 'Overview' }), { key: 'ArrowRight' });
+
+      expect(screen.getByRole('tab', { name: 'Budget' })).toHaveFocus();
+      expect(scrollIntoView).toHaveBeenCalled();
+    } finally {
+      scrollIntoView.mockRestore();
+    }
+  });
+
   it('AC #879: ArrowRight activates the next tab and focus moves to it, staying in the tab bar', () => {
     render(<Harness />);
     const tabs = tabNames();

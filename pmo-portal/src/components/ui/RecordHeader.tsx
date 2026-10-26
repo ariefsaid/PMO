@@ -63,9 +63,9 @@ export const RecordHeader: React.FC<RecordHeaderProps> = ({
     stats={stats}
     actions={
       actions ? (
-        <span data-testid="record-header-actions" className="flex items-center gap-2">
+        <div data-testid="record-header-actions" className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           {actions}
-        </span>
+        </div>
       ) : undefined
     }
     // Phone identity gets a complete row before status; desktop PageHeader is unchanged.

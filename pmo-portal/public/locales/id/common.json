@@ -1293,9 +1293,9 @@
     "uxs36OpenInvoices": "Buka faktur",
     "uxs36OverdueInvoicesFirst": "Faktur terlambat lebih dulu",
     "boardPack": {
-      "ariaLabel": "Board pack (segera hadir)",
-      "label": "Board pack",
-      "tooltip": "Ekspor board pack hadir bersama Laporan"
+      "ariaLabel": "Paket laporan dewan (segera hadir)",
+      "label": "Paket laporan dewan",
+      "tooltip": "Ekspor paket laporan dewan tersedia bersama Laporan"
     },
     "chart": {
       "pipelineMargin": {

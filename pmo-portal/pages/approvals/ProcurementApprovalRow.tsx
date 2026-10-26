@@ -101,6 +101,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="primary"
         size="sm"
+        aria-label={`Approve request ${row.title}`}
         onClick={() => setPending('Approved')}
         loading={transition.isPending}
       >
@@ -110,6 +111,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="outline"
         size="sm"
+        aria-label={`Reject request ${row.title}`}
         onClick={() => setPending('Rejected')}
         loading={transition.isPending}
       >
@@ -154,7 +156,6 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 >
                   Open request
                 </Link>
-                {actionCluster}
               </div>
             )}
           </div>
@@ -258,6 +259,11 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
             >
               Open request
             </Link>
+            {actionCluster}
+          </div>
+        )}
+        {!isInline && actionCluster && (
+          <div data-testid="approval-decision-actions" className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
             {actionCluster}
           </div>
         )}

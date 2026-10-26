@@ -61,6 +61,7 @@ import ProjectCalendarView from '../components/ProjectCalendarView';
 import ProjectKanbanBoard from '../components/ProjectKanbanBoard';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { projectManagerLabel, UNASSIGNED_PROJECT_MANAGER } from '@/src/lib/projects/projectManagerLabel';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * The status-group SegFilter. Model B (ADR-0020): the pre-win "Leads" partition lives in the
@@ -76,6 +77,7 @@ const COMPLETED = [ProjectStatusEnum.CloseOut, ProjectStatusEnum.Loss] as string
 
 const Projects: React.FC = () => {
   const { t } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   const { effectiveRole, realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -509,16 +511,13 @@ const Projects: React.FC = () => {
     },
     {
       key: 'status',
-      // ⚑ The pill CONTENT (`p.status`) is a database enum, not a literal — localising workflow
-      // status labels is its own decision (it needs one map every surface shares) and is not in
-      // this pass. Only the column header moves.
       header: t('projects.columns.status', 'Status'),
       kind: 'status',
       size: 140,
       minSize: 112,
       maxSize: 220,
-      exportValue: (p) => String(p.status),
-      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{p.status}</StatusPill>,
+      exportValue: (p) => projectStatusLabel(String(p.status)),
+      cell: (p) => <StatusPill variant={pillVariantForProjectStatus(p.status as string)}>{projectStatusLabel(String(p.status))}</StatusPill>,
     },
     {
       key: 'contract',
@@ -808,20 +807,7 @@ const Projects: React.FC = () => {
 
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
-      {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
-        <ViewToggle<StatusFilter>
-          options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
-          value={filter}
-          onChange={(v) => {
-            setWorkingSet((ws) => ({ ...ws, filter: v }));
-            trackFilterApplied('status', FILTERS.length, 'projects');
-          }}
-          ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
-        />
-      </div>
-
-      {/* search + selected view */}
+      {/* Search starts the collection narrowing sequence. */}
       <div className="flex flex-wrap items-center gap-2">
         <SearchMini
           placeholder={t('projects.search.placeholder', 'Search projects…')}
@@ -833,24 +819,23 @@ const Projects: React.FC = () => {
           resultCount={filtered.length}
           containerClassName="min-w-0 flex-1 basis-40"
         />
-        {/* The 4-option view toggle can exceed a 360px row; keep it reachable within the
-            toolbar without page bleed — it scrolls inside this bounded container. */}
-        <div data-testid="projects-mobile-view-scroll" className="ml-auto min-w-0 max-w-full overflow-x-auto">
-          <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
-            options={[
-              { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
-              { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
-              { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
-              { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
-            ]}
-            value={view}
-            onChange={onViewChange}
-            ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
-          />
-        </div>
       </div>
 
-      {/* filters + more actions disclosures */}
+      {/* Scope tabs precede finer classification filters. Wrapping keeps all five visible. */}
+      <div data-testid="status-filter-scroll" className="status-filter-wrap min-w-0 overflow-x-auto scroll-fade-x">
+        <ViewToggle<StatusFilter>
+          className="max-w-full flex-wrap"
+          options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
+          value={filter}
+          onChange={(v) => {
+            setWorkingSet((ws) => ({ ...ws, filter: v }));
+            trackFilterApplied('status', FILTERS.length, 'projects');
+          }}
+          ariaLabel={t('projects.filters.ariaLabel', 'Status filter')}
+        />
+      </div>
+
+      {/* Classification filters follow the status scope. */}
       <div className="flex flex-wrap items-center gap-2">
         <ProjectClassificationFilters
           {...classificationFilterProps}
@@ -911,7 +896,25 @@ const Projects: React.FC = () => {
             </MobileToolbarDisclosure>
           )}
         />
+      </div>
 
+      <div data-testid="projects-mobile-view-scroll" className="min-w-0 max-w-full">
+        <ViewToggle<'table' | 'cards' | 'calendar' | 'kanban'>
+          className="max-w-full flex-wrap"
+          options={[
+            { value: 'table', label: t('projects.view.table', 'Table'), icon: 'table' },
+            { value: 'cards', label: t('projects.view.cards', 'Cards'), icon: 'cards' },
+            { value: 'calendar', label: t('projects.view.calendar', 'Calendar'), icon: 'cal' },
+            { value: 'kanban', label: t('projects.view.board', 'Board'), icon: 'cols' },
+          ]}
+          value={view}
+          onChange={onViewChange}
+          ariaLabel={t('projects.view.ariaLabel', 'Projects view')}
+        />
+      </div>
+
+      {/* Export/import actions follow the scope, filters, and view choice. */}
+      <div className="flex flex-wrap items-center gap-2">
         {moreActionsChildren.length > 0 && (
           <MobileToolbarDisclosure
             label={t('uxs14.moreActions', 'More actions')}
@@ -998,14 +1001,15 @@ const Projects: React.FC = () => {
       description={pageDescription}
       primaryAction={primaryAction}
       primaryActionPlacement="toolbar"
+      searchFirst
+      viewBeforeActions
       mobileToolbar={mobileToolbar}
       desktopToolbarClassName="xl:grid xl:grid-cols-[minmax(0,1fr)_220px_auto] xl:items-center xl:gap-x-2 xl:gap-y-2 xl:overflow-visible xl:[&>*:nth-child(1)]:col-start-1 xl:[&>*:nth-child(1)]:row-start-1 xl:[&>*:nth-child(2)]:col-start-2 xl:[&>*:nth-child(2)]:row-start-1 xl:[&>*:nth-child(3)]:col-start-1 xl:[&>*:nth-child(3)]:row-start-2 xl:[&>*:nth-child(4)]:col-start-2 xl:[&>*:nth-child(4)]:row-start-2 xl:[&>*:nth-child(5)]:col-start-3 xl:[&>*:nth-child(5)]:row-span-2"
       filters={
-        /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
-           reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
-           affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+        /* Keep the full scope set visible by wrapping its labelled options at phone widths. */
+        <div data-testid="status-filter-scroll" className="status-filter-wrap min-w-0 overflow-x-auto scroll-fade-x">
           <ViewToggle<StatusFilter>
+            className="max-w-full flex-wrap"
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}
             onChange={(v) => {

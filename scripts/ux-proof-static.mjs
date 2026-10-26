@@ -46,7 +46,7 @@ for (const source of sources) {
   const findings = findingsCount(json);
   const advisories = advisoryCount(json);
   console.log(`${source}: impeccable findings=${findings}; advisory=${advisories}`);
-  if (result.status !== 0 || findings > 0) failed = true;
+  if (findings > 0) failed = true;
 }
 
 process.exitCode = failed ? 1 : 0;

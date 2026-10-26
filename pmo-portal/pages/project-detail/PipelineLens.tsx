@@ -58,6 +58,14 @@ export interface PipelineLensProps {
    * outside a Router (several tests mount it without one).
    */
   locationState?: unknown;
+  /** When supplied, the forward transition is rendered in the shared record heading slot. */
+  onPrimaryActionChange?: (action: PipelinePrimaryAction | null) => void;
+}
+
+export interface PipelinePrimaryAction {
+  label: string;
+  disabled: boolean;
+  activate: () => void;
 }
 
 /**
@@ -70,7 +78,7 @@ export interface PipelineLensProps {
  * above this lens in `ProjectDetail`; this panel owns only the deal-specific surfaces (stats,
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
-const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
+const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onPrimaryActionChange }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { currentUser } = useAuth();
@@ -185,6 +193,22 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
       setPending(false);
     }
   };
+
+  const runTransitionRef = useRef(runTransition);
+  runTransitionRef.current = runTransition;
+  useEffect(() => {
+    if (!onPrimaryActionChange) return;
+    if (!canTransition || !nextStage || isTerminal) {
+      onPrimaryActionChange(null);
+      return;
+    }
+    onPrimaryActionChange({
+      label: `${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`,
+      disabled: pending,
+      activate: () => { void runTransitionRef.current(nextStage); },
+    });
+  }, [canTransition, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, t]);
+  useEffect(() => () => onPrimaryActionChange?.(null), [onPrimaryActionChange]);
 
   const submitWon = () => {
     const refMissing = !contractRef.trim();
@@ -306,7 +330,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                 (color-not-only). The solid destructive fill appears ONLY inside the confirm. */}
             {!isTerminal && (
               <div className="flex flex-wrap gap-2">
-                {nextStage && (
+                {nextStage && !onPrimaryActionChange && (
                   <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
                     {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${
                       NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage
