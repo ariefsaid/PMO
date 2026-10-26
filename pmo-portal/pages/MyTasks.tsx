@@ -281,7 +281,7 @@ const MyTasks: React.FC = () => {
                   )}
                 </div>
                 {(task.start_date || task.end_date) && (
-                  <div className="mt-1 text-sm text-muted-foreground">
+                  <div className="mt-1 text-sm tabular text-foreground">
                     {task.start_date && t('myTasks.start', 'Start {{date}}', { date: formatDateOnly(task.start_date) })}
                     {task.start_date && task.end_date && <span className="mx-1">·</span>}
                     {task.end_date && t('myTasks.due', 'Due {{date}}', { date: formatDateOnly(task.end_date) })}

@@ -61,8 +61,8 @@ describe('CompanyCollections doorway', () => {
 
     renderPanel();
 
-    const idrHeading = screen.getByRole('heading', { name: 'Customer collections (AR) · IDR' });
-    const usdHeading = screen.getByRole('heading', { name: 'Customer collections (AR) · USD' });
+    const idrHeading = screen.getByRole('region', { name: 'Customer collections (AR) · IDR' });
+    const usdHeading = screen.getByRole('region', { name: 'Customer collections (AR) · USD' });
     expect(idrHeading).toBeInTheDocument();
     expect(usdHeading).toBeInTheDocument();
     expect(screen.getByText('63,400,000,000')).toBeInTheDocument();

@@ -112,11 +112,11 @@ describe('LoginPage', () => {
     renderLogin();
     const details = screen.getByText('Show demo sign-in options').closest('details');
     expect(details).not.toHaveAttribute('open');
-    expect(within(details as HTMLElement).queryByText(/Demo password/i)).not.toBeInTheDocument();
+    expect(within(details as HTMLElement).getByText(/Demo password/i)).not.toBeVisible();
     expect(screen.getByLabelText('Email')).toBeInTheDocument();
     expect(screen.getByLabelText('Password')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Show demo sign-in options'));
-    expect(within(details as HTMLElement).getByText(/Demo password/i)).toBeInTheDocument();
+    expect(within(details as HTMLElement).getByText(/Demo password/i)).toBeVisible();
   });
 
   it('shows an inline error on invalid credentials (AC-AUTH-004)', async () => {

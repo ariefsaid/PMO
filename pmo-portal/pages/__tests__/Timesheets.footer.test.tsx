@@ -222,7 +222,8 @@ describe('R-032–R-034: timesheet completion follows the week evidence in norma
     expect(within(footer).getByText('0')).toBeInTheDocument();
     expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
     expect(screen.getAllByText(/draft — not submitted/i)).toHaveLength(1);
-    expect(screen.getByTestId('timesheets-empty')).toHaveTextContent('Choose a project above to start recording hours.');
+    expect(screen.getByTestId('timesheets-empty')).toHaveTextContent('You need an assigned delivery project before you can log hours.');
+    expect(screen.getByRole('link', { name: 'View assigned projects' })).toHaveAttribute('href', '/projects?filter=My+Projects');
     expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();
     expect(screen.queryByText('0 hours this week')).not.toBeInTheDocument();
   });

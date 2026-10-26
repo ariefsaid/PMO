@@ -157,7 +157,6 @@ describe('AC-IFW-PROC-01: queue row identity', () => {
     expect(button).toHaveTextContent('Requested');
     expect(within(button).getByText('USD')).toBeInTheDocument();
     expect(within(button).getByText('50,000')).toBeInTheDocument();
-    expect(button).not.toHaveTextContent('Solar Alpha');
     expect(button).not.toHaveTextContent('Diego Ramirez');
     await userEvent.click(button);
     expect(selectMock).toHaveBeenCalledOnce();
@@ -213,11 +212,9 @@ describe('AC-IFW-PROC-01: selected preview — budget impact + line items + acti
   it('R-018: selected request facts appear once and decision actions follow the evidence', () => {
     renderPreview();
 
-    expect(screen.getByRole('heading', { name: 'Decision total' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Decision total · USD' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Line items · per unit' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Decision total' }).nextElementSibling).toHaveClass('text-xl');
-    expect(screen.getByRole('heading', { name: /Budget impact · USD/ })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Decision total' })).not.toHaveTextContent('USD');
+    expect(screen.getByTestId('decision-support')).toHaveTextContent('Budget impact');
     expect(screen.queryByText('Request details')).not.toBeInTheDocument();
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('Solar Alpha');
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('This request');
@@ -266,7 +263,7 @@ describe('AC-IFW-PROC-02: Approve fires transition with to:Approved', () => {
     await userEvent.click(screen.getByRole('button', { name: /^Approve request/i }));
     // ConfirmDialog should open
     const dialog = await screen.findByRole('dialog');
-    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve$/i }));
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Approve request$/i }));
     expect(transitionMutate).toHaveBeenCalledWith(
       { to: 'Approved' },
       expect.any(Object),

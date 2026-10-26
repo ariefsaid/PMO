@@ -31,6 +31,7 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidents: () => listState,
   useIncidentMutations: () => mutations,
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({ useProjectOptions: () => ({ data: [] }) }));
 
 let realRole: Role = 'Admin';

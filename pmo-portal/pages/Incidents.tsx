@@ -207,7 +207,7 @@ const Incidents: React.FC = () => {
     {
       key: 'incident_date',
       header: t('work:incidents.columns.date', 'Date'),
-      cell: (i) => <span className="tabular text-muted-foreground">{formatDateOnly(i.incident_date)}</span>,
+      cell: (i) => <span className="tabular text-foreground">{formatDateOnly(i.incident_date)}</span>,
       exportValue: (i) => i.incident_date,
     },
     {
@@ -236,7 +236,7 @@ const Incidents: React.FC = () => {
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <StatusPill variant={severityVariant(incident.severity)}>{severityLabels[incident.severity]}</StatusPill>
           <StatusPill variant={workflowVariant(incident.status)}>{statusLabels[incident.status]}</StatusPill>
-          <span className="text-sm font-normal tabular text-muted-foreground">{formatDateOnly(incident.incident_date)}</span>
+          <span className="text-sm font-normal tabular text-foreground">{formatDateOnly(incident.incident_date)}</span>
         </div>
         {incident.project_id ? (
           <Link className="block break-words text-sm font-normal text-primary-text hover:underline" to={`/projects/${incident.project_id}`}>
@@ -245,7 +245,7 @@ const Incidents: React.FC = () => {
         ) : <span className="block text-sm font-normal text-muted-foreground">{t('work:incidents.unlinked', 'Unlinked')}</span>}
         <details>
           <summary className="min-h-11 text-xs font-semibold">{t('work:incidents.rowDetails', 'More details')}</summary>
-          <p className="break-words text-sm font-normal text-muted-foreground">{incident.location || t('work:incidents.notRecorded', 'Not recorded')}</p>
+          <p className="break-words text-sm font-normal text-foreground">{incident.location || t('work:incidents.notRecorded', 'Not recorded')}</p>
         </details>
       </div>
     ),

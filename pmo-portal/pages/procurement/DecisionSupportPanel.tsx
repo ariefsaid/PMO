@@ -207,24 +207,24 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           </p>
         )}
         <section aria-label="Budget figures" className="mb-4">
-          <div data-testid="budget-impact-primary" className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div data-testid="budget-impact-primary" className="mb-8 flex flex-col items-start gap-1">
             <span className="text-xs font-semibold text-muted-foreground">
               {t('work:budgetImpact.afterRequest', 'After this request · {{percent}}% headroom remaining', { percent: formatNumberExact(Math.round(afterPct * 10) / 10) })}
             </span>
-            <span className={`text-xl font-bold tabular text-right ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
+            <span className={`text-xl font-bold tabular ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
               {formatNumberWhole(afterRequest)}
             </span>
           </div>
-          <table data-testid="budget-impact-figures" className="w-full border-collapse">
+          <table data-testid="budget-impact-figures" className="w-auto max-w-full border-collapse">
             <tbody>
               {facts.map((fact) => (
                 <tr key={fact.label} data-testid="budget-impact-row" className="border-t border-border/60">
-                  <th scope="row" className="py-2 pr-4 text-left text-xs font-semibold text-muted-foreground">
+                  <th scope="row" className="py-2 pr-2 text-left text-xs font-semibold text-muted-foreground">
                     {fact.label}
                   </th>
                   <td
                     data-testid="budget-impact-value"
-                    className={`py-2 text-right text-sm tabular ${'negative' in fact && fact.negative ? 'font-semibold text-destructive-text' : 'text-foreground'}`}
+                    className={`py-2 text-left text-sm tabular ${'negative' in fact && fact.negative ? 'font-semibold text-destructive-text' : 'text-foreground'}`}
                   >
                     {formatNumberWhole(fact.value)}
                   </td>

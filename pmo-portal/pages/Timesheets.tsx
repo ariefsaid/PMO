@@ -834,8 +834,8 @@ const TimesheetsPage: React.FC = () => {
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
           >
             {editGridRows.length === 0 && (
-              <span data-testid="timesheets-empty-week-total" className="mr-auto flex items-baseline gap-3 tabular">
-                <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+              <span data-testid="timesheets-empty-week-total" className="mr-auto flex flex-col items-start gap-1 tabular">
+                <span className="text-xs font-semibold text-muted-foreground">
                   {t('work:timesheets.weekTotalHours', 'Week total · hours')}
                 </span>
                 <span className="text-xl font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>

@@ -118,9 +118,9 @@ function QueueButton({
           <span className="min-w-0 break-words text-sm font-normal">{identity}</span>
           <StatusPill variant={workflowVariant(status)}>{approvalStatusLabel(status, t)}</StatusPill>
         </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-muted-foreground">
           <span className="min-w-0 break-words">{detail}</span>
-          <span className="tabular font-normal text-foreground">{amount}</span>
+          <span className="text-sm tabular font-normal text-foreground">{amount}</span>
         </div>
       </button>
     );
@@ -151,14 +151,14 @@ function QueueButton({
         </div>
         <StatusPill variant={workflowVariant(row.status)}>{approvalStatusLabel(row.status, t)}</StatusPill>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
         <span>
           {row.entries.length}{' '}
           {row.entries.length === 1
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-normal text-foreground">{formatNumberExact(sumHours(row))}</span>
+        <span className="text-sm tabular font-normal text-foreground">{formatNumberExact(sumHours(row))}</span>
       </div>
     </button>
   );
@@ -221,11 +221,11 @@ function QueueGroup({
           )}
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {items.map((item, index) => (
-            <React.Fragment key={item.key}>
+            <div key={item.key} className={index > 0 && items[index - 1].kind !== item.kind ? 'pt-4' : undefined}>
               {(index === 0 || items[index - 1].kind !== item.kind) && (
-                <h3 className="text-xl font-bold text-foreground">
+                <h3 className="mb-2 text-xl font-bold text-foreground">
                   {item.kind === 'procurement' ? t('work:approvals.group.procurement.title', 'Purchase requests')
                     : item.kind === 'timesheets' ? t('work:approvals.group.timesheets.hoursTitle', 'Timesheets · hours')
                       : item.kind === 'expense' ? t('work:approvals.group.expense.title', 'Expense claims')
@@ -238,7 +238,7 @@ function QueueGroup({
                 onSelect={() => onSelect(item.key)}
                 bulk={bulk}
               />
-            </React.Fragment>
+            </div>
           ))}
         </div>
       )}

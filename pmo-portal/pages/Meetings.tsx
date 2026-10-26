@@ -144,7 +144,14 @@ const Meetings: React.FC = () => {
             ? projectDisplayName(m.project) !== m.project.name
               ? projectDisplayName(m.project)
               : t('work:meetings.openProject', 'Open project')
-            : m.project.name}
+            : (
+              <>
+                <span className="block">{projectDisplayName(m.project)}</span>
+                {projectDisplayName(m.project) !== m.project.name && (
+                  <span className="block text-sm text-foreground">{m.project.name}</span>
+                )}
+              </>
+            )}
         </Link>
       ) : <span className="text-sm text-muted-foreground">{t('work:meetings.noProject', 'Not linked')}</span>,
       exportValue: (m) => m.project?.name ?? '',

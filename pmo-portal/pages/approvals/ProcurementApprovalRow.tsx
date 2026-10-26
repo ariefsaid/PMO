@@ -139,13 +139,13 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         </div>
 
         {detail.data && (
-          <section className="mt-4 flex flex-wrap items-baseline justify-between gap-2" aria-label={t('work:approvals.decisionTotal', 'Decision total')}>
+          <section className="mt-8 flex flex-col items-start gap-1" aria-label={t('work:approvals.decisionTotal', 'Decision total')}>
             <h3 className="text-xs font-semibold text-muted-foreground">{t('work:approvals.decisionTotal', 'Decision total')} · {row.currency}</h3>
-            <p className="text-right text-xl font-bold tabular text-foreground">{formatNumberWhole(detail.data.total_value)}</p>
+            <p className="text-xl font-bold tabular text-foreground">{formatNumberWhole(detail.data.total_value)}</p>
           </section>
         )}
 
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-4">
+        <div className="min-h-0 flex-1 space-y-8 overflow-y-auto pt-8">
           {detail.isPending ? (
             <ListState variant="loading" rows={3} />
           ) : detail.isError ? (
@@ -178,10 +178,10 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                     {detail.data.items.map((item) => (
                       <li
                         key={item.id}
-                        className="flex items-baseline justify-between gap-3 rounded-lg border border-border/70 px-3 py-2 text-sm"
+                        className="flex flex-col items-start gap-1 rounded-lg border border-border/70 px-3 py-2 text-sm"
                       >
-                        <span className="min-w-0 break-words">{item.name}</span>
-                        <span className="shrink-0 tabular text-muted-foreground">
+                        <span className="min-w-0 break-words text-xs font-semibold text-muted-foreground">{item.name}</span>
+                        <span className="shrink-0 tabular text-foreground">
                           {t('work:approvals.unitRate', '{{quantity}} × {{rate}}', {
                             quantity: item.quantity,
                             rate: formatNumberWhole(item.rate),
@@ -246,7 +246,7 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
       <div className="break-words text-sm font-normal">{row.title}</div>
       <StatusPill variant={workflowVariant(row.status)} className="mt-1">{approvalStatusLabel(row.status, t)}</StatusPill>
       {!selected && (
-        <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
+        <div className="mt-2 flex items-baseline gap-2 text-sm">
           <span className="text-xs font-semibold text-muted-foreground">{row.currency}</span>
           <span className="tabular font-normal text-foreground">{formatNumberWhole(row.total_value)}</span>
         </div>

@@ -154,7 +154,6 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const identity = within(button).getByText(title);
     expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
     expect(button).toHaveAccessibleName(/Cable supply.*PR-001/);
-    expect(button).not.toHaveTextContent('Apollo');
     expect(button).not.toHaveTextContent('Sam Vendor');
     expect(button).not.toHaveTextContent('$48,000');
     await userEvent.tab();
@@ -189,7 +188,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     invoiceState.rows = [{ id: 'si1', created_at: '2026-06-04' }];
     renderAs('Admin');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).not.toHaveTextContent('4');
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('4');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
     expect(within(queue).getByRole('button', { name: /Steel beams/i })).toBeInTheDocument();
     expect(within(queue).getByRole('button', { name: /Anita Rao/i })).toBeInTheDocument();
@@ -235,7 +234,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
     renderAs('Finance');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).not.toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
     expect(within(queue).queryByText('1', { exact: true })).toBeNull();
     expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();

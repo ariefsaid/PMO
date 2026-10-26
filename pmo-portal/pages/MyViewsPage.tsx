@@ -106,7 +106,7 @@ const MyViewsPage: React.FC = () => {
     {
       key: 'scope',
       header: t('work:financeCopy.scope', 'Scope'),
-      cell: (row) => <span className="text-muted-foreground">{scopeLabel(row)}</span>,
+      cell: (row) => <span className="text-sm text-foreground">{scopeLabel(row)}</span>,
     },
     {
       key: 'description',
@@ -116,7 +116,7 @@ const MyViewsPage: React.FC = () => {
           <summary className="min-h-11 cursor-pointer font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('work:financeCopy.viewDescription', 'View description')}
           </summary>
-          <span className="block whitespace-normal break-words text-muted-foreground">{row.description}</span>
+          <span className="block whitespace-normal break-words text-sm text-foreground">{row.description}</span>
         </details>
       ) : <span className="text-muted-foreground">—</span>,
     },
@@ -124,7 +124,7 @@ const MyViewsPage: React.FC = () => {
       key: 'updated_at',
       header: t('financeCopy.updated', "Updated"),
       cell: (row) => (
-          <span className="text-muted-foreground">{formatRelativeTime(row.updated_at)}</span>
+          <span className="text-sm tabular text-foreground">{formatRelativeTime(row.updated_at)}</span>
       ),
     },
   ];
