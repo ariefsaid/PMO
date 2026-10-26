@@ -233,11 +233,11 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     renderSection();
     expect(within(region()).getByRole('heading', { level: 2, name: 'Customer invoices awaiting you (1)' })).toBeInTheDocument();
   });
-  it('AC-NAR-002 (M-4) a long customer name truncates and keeps the full name as a tooltip', () => {
+  it('AC-NAR-002 (M-4) keeps the complete long customer name in the invoice row', () => {
     const long = 'A Very Long Customer Company Name That Will Not Fit On A Phone Screen Pty';
     h.data = [draft({ customer_name: long })];
     renderSection();
-    expect(within(region()).getByTitle(long)).toHaveClass('truncate');
+    expect(within(region()).getByText(long)).toBeVisible();
   });
   it('AC-NAR-002 the section gates on the approve (transition) permission, not on create', () => {
     h.deny = ['transition'];

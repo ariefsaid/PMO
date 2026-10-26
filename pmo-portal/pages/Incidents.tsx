@@ -173,7 +173,7 @@ const Incidents: React.FC = () => {
       key: 'type',
       header: t('incidents.columns.incident', 'Incident'),
       cell: (i) => (
-        <span className="truncate font-semibold" title={i.type}>
+        <span className="break-words font-semibold">
           {i.type}
         </span>
       ),
@@ -209,7 +209,7 @@ const Incidents: React.FC = () => {
       key: 'location',
       header: t('incidents.columns.location', 'Location'),
       cell: (i) => (
-        <span className="truncate text-muted-foreground" title={i.location ?? undefined}>
+        <span className="break-words text-muted-foreground">
           {i.location || t('incidents.notRecorded', 'Not recorded')}
         </span>
       ),

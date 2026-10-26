@@ -31,6 +31,7 @@ import { BackBar } from '@/src/components/shell';
 import { VendorTaxDefaultsCard } from './company/VendorTaxDefaultsCard';
 import { CompanyCollections } from '@/src/components/companies/CompanyCollections';
 import WorkPageHeading from './WorkPageHeading';
+import { RecordSectionIndex } from './RecordSectionIndex';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import {
@@ -231,6 +232,20 @@ const CompanyDetail: React.FC = () => {
   };
 
   const hasActions = canEdit || canArchive;
+  const sections = [
+    { id: 'company-contacts', label: t('companyDetail.contacts.title', 'Contacts') },
+    { id: 'company-projects', label: t('companyDetail.relatedProjects.title', 'Projects') },
+    { id: 'company-procurement', label: t('companyDetail.relatedProcurement.title', 'Purchasing') },
+    ...(company.type === 'Client' && canViewSalesInvoices
+      ? [{ id: 'company-collections', label: t('companyCollections.title', 'Collections') }]
+      : []),
+    { id: 'company-activity', label: t('companyDetail.activity.title', 'Activity') },
+    { id: 'company-details', label: t('companyDetail.sectionTitle', 'Details') },
+    ...(company.type === 'Vendor'
+      ? [{ id: 'company-tax-defaults', label: t('companyDetail.taxDefaults.title', 'Tax defaults') }]
+      : []),
+    { id: 'company-history', label: t('common.history', 'History') },
+  ];
 
   return (
     <div>
@@ -266,7 +281,9 @@ const CompanyDetail: React.FC = () => {
         }
       />
 
+      <RecordSectionIndex identity={companyDisplayName(company)} sections={sections}>
       {/* FR-CRM-008: contact reachability is the first account evidence. */}
+      <section id="company-contacts" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <CardHead
           actions={
@@ -284,22 +301,23 @@ const CompanyDetail: React.FC = () => {
           <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
+      </section>
 
       {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
           (always fetch; visible for Vendors or any type when vendor PRs exist). */}
-      <RelatedProjects companyId={company.id} />
-      <RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} />
-      {company.type === 'Client' && canViewSalesInvoices && <CompanyCollections companyId={company.id} />}
+      <section id="company-projects" className="scroll-mt-20"><RelatedProjects companyId={company.id} /></section>
+      <section id="company-procurement" className="scroll-mt-20"><RelatedProcurement companyId={company.id} isVendor={company.type === 'Vendor'} /></section>
+      {company.type === 'Client' && canViewSalesInvoices && <section id="company-collections" className="scroll-mt-20"><CompanyCollections companyId={company.id} /></section>}
 
       {/* T17: Account-level activity timeline — aggregated across all company contacts.
           CD-4: pass the add-contact opener so the cold-start card can surface it. */}
-      <AccountActivityCard
+      <section id="company-activity" className="scroll-mt-20"><AccountActivityCard
         companyId={company.id}
         onAddContact={canCreateContact ? () => setAddContactOpen(true) : undefined}
-      />
+      /></section>
 
       {/* Account configuration is secondary to its people, projects and activity. */}
-      <details className="mb-4 rounded-xl border border-border bg-card px-4">
+      <details id="company-details" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
         <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
           {t('companyDetail.sectionTitle', 'Details')}
         </summary>
@@ -318,7 +336,7 @@ const CompanyDetail: React.FC = () => {
 
       {/* Vendor tax defaults prefill bills; keep the edit affordance discoverable on demand. */}
       {company.type === 'Vendor' && (
-        <details className="mb-4 rounded-xl border border-border bg-card px-4">
+        <details id="company-tax-defaults" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
             {t('companyDetail.taxDefaults.title', 'Tax defaults')}
           </summary>
@@ -329,7 +347,8 @@ const CompanyDetail: React.FC = () => {
       )}
 
       {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
-      <HistorySection entityType="company" entityId={company.id} />
+      <section id="company-history" className="scroll-mt-20"><HistorySection entityType="company" entityId={company.id} /></section>
+      </RecordSectionIndex>
 
       {/* T14: Add contact modal — company_id pre-filled and locked. */}
       {addContactOpen && (

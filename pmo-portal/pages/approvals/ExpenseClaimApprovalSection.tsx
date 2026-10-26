@@ -36,7 +36,7 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
       {files.map((file) => {
         const name = receiptName(file.file_path);
         return <li key={file.id} className="flex flex-wrap items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-xs" title={name}>{name}</span>
+          <span className="min-w-0 flex-1 break-words text-xs">{name}</span>
           <ReceiptPreview fileName={name} getPreviewUrl={() => download(file.file_path)} onDownload={() => downloadOriginal(file.file_path)} />
         </li>;
       })}
@@ -74,7 +74,7 @@ export const ExpenseClaimApprovalSection: React.FC<{ selectedClaimId?: string }>
             <li key={claim.id} className="px-4 py-2.5 text-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
                 <Link to={`/expenses/${claim.id}`} className="font-medium text-primary-text hover:underline">{claim.claim_number ?? claim.title}</Link>
-                <span className="min-w-0 flex-1 truncate">{claim.title}</span>
+                <span className="min-w-0 flex-1 break-words">{claim.title}</span>
                 <span className="text-muted-foreground">{claim.claimant?.full_name ?? '—'}</span>
                 <span className="tabular">{formatCurrencyAuto(Number(claim.amount), claim.currency)}</span>
                 <Button variant="outline" size="sm" aria-expanded={evidenceClaimId === claim.id} onClick={() => setEvidenceClaimId((current) => current === claim.id ? null : claim.id)}>

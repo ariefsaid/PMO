@@ -30,6 +30,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
 import WorkPageHeading from './WorkPageHeading';
+import { RecordSectionIndex } from './RecordSectionIndex';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -187,6 +188,12 @@ const ContactDetail: React.FC = () => {
   };
 
   const hasActions = canEdit || canArchive;
+  const sections = [
+    { id: 'contact-methods', label: t('contactDetail.methods.title', 'Contact methods') },
+    { id: 'contact-notes', label: t('contactDetail.field.notes', 'Notes') },
+    { id: 'contact-activity', label: t('contactDetail.activity.title', 'Activity') },
+    { id: 'contact-history', label: t('common.history', 'History') },
+  ];
 
   return (
     <div>
@@ -234,7 +241,9 @@ const ContactDetail: React.FC = () => {
         }
       />
 
+      <RecordSectionIndex identity={contact.full_name} sections={sections}>
       {/* Contact methods are the first useful evidence after identity. */}
+      <section id="contact-methods" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <CardHead>{t('contactDetail.methods.title', 'Contact methods')}</CardHead>
         <CardPad>
@@ -272,8 +281,9 @@ const ContactDetail: React.FC = () => {
           </dl>
         </CardPad>
       </Card>
+      </section>
 
-      <details className="mb-4 rounded-xl border border-border bg-card px-4">
+      <details id="contact-notes" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
         <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
           {t('contactDetail.field.notes', 'Notes')}
         </summary>
@@ -283,15 +293,17 @@ const ContactDetail: React.FC = () => {
       </details>
 
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
-      <Card variant="bare">
+      <section id="contact-activity" className="scroll-mt-20"><Card variant="bare">
         <CardHead>{t('contactDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
           <ContactActivityPanel contactId={contact.id} />
         </CardPad>
       </Card>
+      </section>
 
       {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
-      <HistorySection entityType="contact" entityId={contact.id} />
+      <section id="contact-history" className="scroll-mt-20"><HistorySection entityType="contact" entityId={contact.id} /></section>
+      </RecordSectionIndex>
 
       {/* Edit modal — reuses the shared create/edit form. */}
       {editOpen && (

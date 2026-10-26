@@ -114,7 +114,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
 
   const subtitle = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-      <span className="min-w-0 truncate">{nativeInvoiceSummary(inv) ?? '—'}</span>
+      <span className="min-w-0 break-words">{nativeInvoiceSummary(inv) ?? '—'}</span>
       <span className="inline-flex items-baseline gap-1.5">
         <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyAuto(inv.amount, inv.currency) : '—'}</span>
         <TaxBasisLabel

@@ -185,10 +185,10 @@ const Companies: React.FC = () => {
       key: 'name',
       header: t('companies.columns.name', 'Company'),
       cell: (c) => (
-        <div className="min-w-0" title={c.name}>
-          <span className="block truncate font-semibold">{companyDisplayName(c)}</span>
+        <div className="min-w-0">
+          <span className="block break-words font-semibold">{companyDisplayName(c)}</span>
           {c.short_name?.trim() && c.short_name.trim() !== c.name && (
-            <span className="block truncate text-xs text-muted-foreground">{c.name}</span>
+            <span className="block break-words text-xs text-muted-foreground">{c.name}</span>
           )}
         </div>
       ),

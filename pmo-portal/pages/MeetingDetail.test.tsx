@@ -205,7 +205,7 @@ const enterEdit = async () => {
 };
 
 const openDisclosure = async (name: string) => {
-  await userEvent.click(screen.getByText(name).closest('summary')!);
+  await userEvent.click(screen.getByText(name, { selector: 'summary' }));
 };
 
 // list-working-set-return (#683): reads the URL a Meetings-index Route landed on, for the

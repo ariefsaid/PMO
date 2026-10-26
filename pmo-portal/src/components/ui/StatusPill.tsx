@@ -87,7 +87,7 @@ export const StatusPill: React.FC<StatusPillProps> = ({
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center gap-1.5 text-[12px] font-semibold whitespace-nowrap',
+        'inline-flex max-w-full flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-semibold',
         s.labelCls,
         className
       )}

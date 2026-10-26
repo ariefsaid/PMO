@@ -184,7 +184,7 @@ const Contacts: React.FC = () => {
       key: 'full_name',
       header: t('contacts.columns.name', 'Name'),
       cell: (c) => (
-        <span className="truncate font-semibold" title={c.full_name}>
+        <span className="break-words font-semibold">
           {c.full_name}
         </span>
       ),
@@ -194,7 +194,7 @@ const Contacts: React.FC = () => {
       key: 'company',
       header: t('contacts.columns.company', 'Company'),
       cell: (c) => (
-        <span className="truncate text-muted-foreground" title={companyById.get(c.company_id) ?? ''}>
+        <span className="break-words text-muted-foreground">
           {companyById.get(c.company_id) ?? '—'}
         </span>
       ),
@@ -203,13 +203,13 @@ const Contacts: React.FC = () => {
     {
       key: 'title',
       header: t('contacts.columns.title', 'Title'),
-      cell: (c) => <span className="truncate text-muted-foreground">{c.title || t('contacts.notRecorded', 'Not recorded')}</span>,
+      cell: (c) => <span className="break-words text-muted-foreground">{c.title || t('contacts.notRecorded', 'Not recorded')}</span>,
       exportValue: (c) => c.title ?? '',
     },
     {
       key: 'email',
       header: t('contacts.columns.email', 'Email'),
-      cell: (c) => <span className="truncate text-muted-foreground">{c.email ?? '—'}</span>,
+      cell: (c) => <span className="break-words text-muted-foreground">{c.email ?? '—'}</span>,
       exportValue: (c) => c.email ?? '',
     },
   ];

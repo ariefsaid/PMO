@@ -142,7 +142,7 @@ function QueueButton({
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             {t('approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
           </div>
-          <div className="truncate text-sm font-medium">
+          <div className="break-words text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">

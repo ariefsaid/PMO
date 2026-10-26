@@ -174,12 +174,13 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(within(row).getByText('Site office')).toBeInTheDocument();
   });
 
-  it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
+  it('AC-002 #1325: the project column keeps the short and contractual names readable', () => {
     const original = listState.data;
     listState.data = [{ ...(seed[0] as object), project: { id: '33333333-3333-4333-8333-333333333333', name: 'Harbour Upgrade', short_name: 'Harbour', project_manager_id: null, pm: null } }];
     renderPage();
     const row = screen.getByText('Kickoff with Acme').closest('tr')!;
-    expect(within(row).getByTitle('Harbour Upgrade')).toHaveTextContent('Harbour');
+    expect(within(row).getByText('Harbour')).toBeVisible();
+    expect(within(row).getByText('Harbour Upgrade')).toBeVisible();
     listState.data = original;
   });
 

@@ -31,15 +31,12 @@ export const PageHeading: React.FC<PageHeadingProps> = ({
     {leading}
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-        <h1 className={cn(
-          'min-w-0 break-words font-bold tracking-[-0.02em]',
-          kind === 'record' ? 'text-[19px] sm:truncate' : 'text-[24px] leading-tight',
-        )}>
+        <h1 className="min-w-0 break-words text-2xl font-bold tracking-[-0.02em]">
           {title}
         </h1>
         {status}
       </div>
-      {scope && <div data-page-scope className="mt-0.5 max-w-[72ch] text-[13.5px] text-muted-foreground">{scope}</div>}
+      {scope && <div data-page-scope className="mt-0.5 max-w-[72ch] break-words text-sm text-muted-foreground">{scope}</div>}
     </div>
     {actions && (
       <div

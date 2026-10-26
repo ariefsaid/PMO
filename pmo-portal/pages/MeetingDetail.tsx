@@ -36,6 +36,7 @@ import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import ActionItemModal from '@/src/components/meetings/ActionItemModal';
 import WorkPageHeading from './WorkPageHeading';
+import { RecordSectionIndex } from './RecordSectionIndex';
 import {
   formatDateTime,
   formatDateOnly,
@@ -370,6 +371,12 @@ const MeetingDetail: React.FC = () => {
   };
 
   const hasHeaderActions = canEdit || canArchive || canDelete;
+  const sections = [
+    { id: 'meeting-minutes', label: t('meetingDetail.minutes.title', 'Minutes') },
+    { id: 'meeting-action-items', label: t('meetingDetail.actionItems.title', 'Action items') },
+    { id: 'meeting-attendees', label: t('meetingDetail.attendees.title', 'Attendees') },
+    { id: 'meeting-sharing', label: t('meetingDetail.share.title', 'Sharing') },
+  ];
 
   return (
     <div>
@@ -421,7 +428,9 @@ const MeetingDetail: React.FC = () => {
         }
       />
 
+      <RecordSectionIndex identity={isEditing ? (headerDraft.title || meeting.title) : meeting.title} sections={sections}>
       {/* ── Minutes ─────────────────────────────────────────────────────────── */}
+      <section id="meeting-minutes" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <CardHead
           actions={
@@ -469,8 +478,10 @@ const MeetingDetail: React.FC = () => {
           )}
         </CardPad>
       </Card>
+      </section>
 
       {/* ── Action items (real tasks, linked via tasks.meeting_id — DD-MTG-2) ── */}
+      <section id="meeting-action-items" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <CardHead>{t('meetingDetail.actionItems.title', 'Action items')}</CardHead>
         <CardPad>
@@ -516,8 +527,10 @@ const MeetingDetail: React.FC = () => {
           )}
         </CardPad>
       </Card>
+      </section>
 
       {/* ── Attendees (the read-access list — FR-MTG-031) ──────────────────── */}
+      <section id="meeting-attendees" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <details>
           <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.attendees.title', 'Attendees')}</summary>
@@ -533,7 +546,7 @@ const MeetingDetail: React.FC = () => {
           <ul className="flex flex-col gap-1.5" data-testid="attendees-list">
             {attendees.map((a) => (
               <li key={a.id} className="flex items-center gap-2 text-sm">
-                <span className="min-w-0 flex-1 truncate">
+                <span className="min-w-0 flex-1 break-words">
                   {attendeeName(a)}
                   {!a.profile_id && (
                     <span className="ml-2 text-muted-foreground">
@@ -592,8 +605,10 @@ const MeetingDetail: React.FC = () => {
           </CardPad>
         </details>
       </Card>
+      </section>
 
       {/* ── Share (view-only grants — OD-MTG-2 / FR-MTG-032..034) ──────────── */}
+      <section id="meeting-sharing" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <details>
           <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.share.title', 'Sharing')}</summary>
@@ -634,7 +649,7 @@ const MeetingDetail: React.FC = () => {
                 meeting.created_by_id === currentUserId;
               return (
                 <li key={g.id} className="flex items-center gap-2 text-sm">
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 break-words">
                     {g.user?.full_name ?? '—'}
                     {g.granter && (
                       <span className="ml-2 text-muted-foreground">
@@ -669,6 +684,8 @@ const MeetingDetail: React.FC = () => {
           </CardPad>
         </details>
       </Card>
+      </section>
+      </RecordSectionIndex>
 
       {/* ── /action task-create modal (DD-MTG-8) ───────────────────────────── */}
       {actionLine !== null && (

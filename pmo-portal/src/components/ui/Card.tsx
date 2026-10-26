@@ -72,7 +72,7 @@ export const CardHead = React.forwardRef<HTMLHeadingElement, CardHeadProps>(({
   return (
     <div
       className={cn(
-        'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-sm font-semibold',
+        'flex items-center gap-2.5 border-b border-border px-4 py-[13px] text-xl font-bold',
         className
       )}
     >

@@ -128,7 +128,7 @@ const Meetings: React.FC = () => {
       key: 'title',
       header: t('meetings.columns.title', 'Meeting'),
       cell: (m) => (
-        <span className="truncate font-semibold" title={m.title}>
+        <span className="break-words font-semibold">
           {m.title}
         </span>
       ),
@@ -143,13 +143,20 @@ const Meetings: React.FC = () => {
     {
       key: 'project',
       header: t('meetings.columns.project', 'Project'),
-      cell: (m) => <span className="truncate" title={m.project?.name}>{m.project ? projectDisplayName(m.project) : '—'}</span>,
+      cell: (m) => (
+        <span className="break-words">
+          {m.project ? projectDisplayName(m.project) : '—'}
+          {m.project && m.project.name !== projectDisplayName(m.project) && (
+            <span className="block break-words text-xs text-muted-foreground">{m.project.name}</span>
+          )}
+        </span>
+      ),
       exportValue: (m) => m.project?.name ?? '',
     },
     {
       key: 'location',
       header: t('meetings.columns.location', 'Location'),
-      cell: (m) => <span className="truncate">{m.location ?? '—'}</span>,
+      cell: (m) => <span className="break-words">{m.location ?? '—'}</span>,
       exportValue: (m) => m.location ?? '',
     },
   ];

@@ -116,7 +116,7 @@ export const ApprovalRow: React.FC<ApprovalRowProps> = ({
         {initial}
       </span>
       <div className="min-w-0 flex-1">
-        <div className={cn(identityLayout === 'request' ? 'line-clamp-2 break-words' : 'truncate', 'text-sm font-medium')} title={name}>{name}</div>
+        <div className="break-words text-sm">{name}</div>
         {identityLayout === 'request' && status && <div className="mt-1">{status}</div>}
         <div className={cn('text-xs text-muted-foreground', identityLayout === 'request' && 'mt-1')}>
           {subtitleNode}
