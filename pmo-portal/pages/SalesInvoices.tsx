@@ -1318,8 +1318,8 @@ const SalesInvoices: React.FC = () => {
           columns={columns}
           rowKey={(inv) => inv.id}
           mobileDetails={{
-            columnKeys: ['amount'],
-            summary: (_inv, count) => t('moneyIn:financeCopy.invoiceOtherAmounts', 'Other invoice amounts · {{count}}', { count }),
+            columnKeys: ['customer_project', 'amount'],
+            summary: (_inv, count) => t('moneyIn:financeCopy.invoiceMoreDetails', 'More invoice details · {{count}}', { count }),
           }}
           rowMenu={rowMenu}
           tableId="salesinvoices-table"

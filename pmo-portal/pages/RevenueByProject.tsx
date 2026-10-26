@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import {
@@ -29,6 +29,8 @@ const RevenueByProject: React.FC = () => {
   const may = usePermission();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const { data, isPending, isError, refetch } = useRevenuePerProject();
   const all = useMemo(() => data ?? [], [data]);
 
@@ -193,7 +195,7 @@ const RevenueByProject: React.FC = () => {
   }));
 
   const toolbar = (
-    <div role="group" aria-label={t('moneyIn:uxs42.billingFilters', 'Billing filters')} className="mb-4 min-w-0 space-y-3">
+    <div data-testid="money-in-toolbar" role="group" aria-label={t('moneyIn:uxs42.billingFilters', 'Billing filters')} className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
       <SearchMini
         placeholder={t('moneyIn:uxs42.searchProjects', 'Search projects')}
         aria-label={t('moneyIn:uxs42.searchProjects', 'Search projects')}
@@ -202,9 +204,20 @@ const RevenueByProject: React.FC = () => {
         searchSurface="project-revenue-billing"
         module="revenueByProject"
         resultCount={visibleRows.length}
-        containerClassName="w-full min-w-0 min-h-11"
+        className="min-h-11"
+        containerClassName="w-full min-w-0 min-h-11 md:w-64"
       />
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        aria-expanded={filtersOpen}
+        aria-controls="billing-collection-filters"
+        className="min-h-11 md:hidden"
+        onClick={() => setFiltersOpen((open) => !open)}
+      >
+        {t('filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
+      </Button>
+      <div id="billing-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
         <label className="sr-only" htmlFor="billing-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
         <select id="billing-project-filter" aria-label={t('moneyIn:uxs42.filterByProject', 'Filter by project')} value={selectedProject}
           onChange={(event) => updateParam('project', event.target.value)}
@@ -223,15 +236,29 @@ const RevenueByProject: React.FC = () => {
           {selectedCurrency && !currencyOptions.includes(selectedCurrency) && <option value={selectedCurrency}>{selectedCurrency}</option>}
           {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
         </select>
-        <label className="sr-only" htmlFor="billing-sort">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</label>
+      </div>
+      <label className="min-w-0 md:w-auto">
+        <span className="sr-only">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</span>
         <select id="billing-sort" aria-label={t('moneyIn:uxs42.sortProjects', 'Sort projects')} value={projectSort}
           onChange={(event) => updateParam('sort', event.target.value)}
-          className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
+          className="min-h-11 w-full min-w-0 rounded-md border border-border bg-card px-3 text-sm text-foreground md:w-auto">
           <option value="project-name-asc">{t('moneyIn:uxs42.projectNameAscending', 'Project name A–Z')}</option>
           <option value="project-name-desc">{t('moneyIn:uxs42.projectNameDescending', 'Project name Z–A')}</option>
         </select>
-        <ExportButton rows={visibleRows} columns={columns} entity={t('moneyIn:uxs42.billingTotals', 'Billing totals')}
-          label={t('moneyIn:uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
+      </label>
+      <div className="flex min-w-0 items-center gap-2 md:ml-auto">
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={moreActionsOpen}
+          aria-controls="billing-collection-more-actions"
+          className="min-h-11 flex-1 md:hidden"
+          onClick={() => setMoreActionsOpen((open) => !open)}
+        >{t('moreActions', 'More actions')}</Button>
+        <div id="billing-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
+          <ExportButton rows={visibleRows} columns={columns} entity={t('moneyIn:uxs42.billingTotals', 'Billing totals')}
+            label={t('moneyIn:uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
+        </div>
         {visibleRows.length === 0 && <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>}
       </div>
     </div>

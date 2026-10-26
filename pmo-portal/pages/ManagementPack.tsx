@@ -59,6 +59,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { currentUser } = useAuth();
   const [params, setParams] = useSearchParams();
   const canView = may('view', 'managementPack');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const label: Record<Measure | TotalsMeasure, string> = {
     planned: t('managementPack.col.planned', 'Planned'),
     recognised: t('managementPack.col.recognised', 'Recognised'),
@@ -370,7 +372,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       </div>
   );
   const filters = (
-    <div role="group" aria-label={t('moneyIn:uxs42.earnedFilters', 'Earned revenue filters')} className="mb-3 min-w-0 space-y-3">
+    <div data-testid="money-in-toolbar" role="group" aria-label={t('moneyIn:uxs42.earnedFilters', 'Earned revenue filters')} className="mb-3 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
       <SearchMini
         placeholder={t('moneyIn:uxs42.searchProjects', 'Search projects')}
         aria-label={t('moneyIn:uxs42.searchProjects', 'Search projects')}
@@ -379,9 +381,20 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         searchSurface="project-revenue-earned"
         module="managementPack"
         resultCount={visiblePackRows.length}
-        containerClassName="w-full min-w-0 min-h-11"
+        className="min-h-11"
+        containerClassName="w-full min-w-0 min-h-11 md:w-64"
       />
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        aria-expanded={filtersOpen}
+        aria-controls="earned-collection-filters"
+        className="min-h-11 md:hidden"
+        onClick={() => setFiltersOpen((open) => !open)}
+      >
+        {t('filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
+      </Button>
+      <div id="earned-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
         <label className="sr-only" htmlFor="earned-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
         <select id="earned-project-filter" aria-label={t('moneyIn:uxs42.filterByProject', 'Filter by project')} value={selectedProject}
           onChange={(event) => updateParam('project', event.target.value)}
@@ -400,18 +413,34 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           {selectedCurrency && !currencyOptions.includes(selectedCurrency) && <option value={selectedCurrency}>{selectedCurrency}</option>}
           {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
         </select>
-        <label className="sr-only" htmlFor="earned-sort">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</label>
+      </div>
+      <label className="min-w-0 md:w-auto">
+        <span className="sr-only">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</span>
         <select id="earned-sort" aria-label={t('moneyIn:uxs42.sortProjects', 'Sort projects')} value={projectSort}
           onChange={(event) => updateParam('sort', event.target.value)}
-          className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
+          className="min-h-11 w-full min-w-0 rounded-md border border-border bg-card px-3 text-sm text-foreground md:w-auto">
           <option value="project-name-asc">{t('moneyIn:uxs42.projectNameAscending', 'Project name A–Z')}</option>
           <option value="project-name-desc">{t('moneyIn:uxs42.projectNameDescending', 'Project name Z–A')}</option>
         </select>
-        {embedded && exportAction}
-        {embedded && visiblePackRows.length === 0 && (
-          <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>
-        )}
-      </div>
+      </label>
+      {embedded && (
+        <div className="flex min-w-0 items-center gap-2 md:ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={moreActionsOpen}
+            aria-controls="earned-collection-more-actions"
+            className="min-h-11 flex-1 md:hidden"
+            onClick={() => setMoreActionsOpen((open) => !open)}
+          >{t('moreActions', 'More actions')}</Button>
+          <div id="earned-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
+            {exportAction}
+          </div>
+          {visiblePackRows.length === 0 && (
+            <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>
+          )}
+        </div>
+      )}
     </div>
   );
   const content = (

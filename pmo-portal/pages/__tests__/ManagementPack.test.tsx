@@ -138,6 +138,22 @@ describe('AC-MMP-013 honest states', () => {
 });
 
 describe('earned project revenue query state', () => {
+  it('keeps project and currency filters collapsed while the earned range and sort remain visible', async () => {
+    const user = userEvent.setup();
+    renderPage('/financial-statements?section=project-revenue&view=earned&from=2026-03&to=2026-04&project=p1&currency=IDR');
+    const filters = screen.getByRole('button', { name: 'Filters · 2' });
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('combobox', { name: 'Sort projects' })).toHaveValue('project-name-asc');
+    expect(screen.getByLabelText('From')).toHaveValue('2026-03');
+    expect(screen.getByLabelText('As at')).toHaveValue('2026-04');
+
+    await user.click(filters);
+
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('p1');
+    expect(screen.getByRole('combobox', { name: 'Filter by currency' })).toHaveValue('IDR');
+  });
+
   it('filters project rows and preserves the earned range while sorting', async () => {
     const user = userEvent.setup();
     renderPage('/financial-statements?section=project-revenue&view=earned&from=2026-03&to=2026-04');

@@ -263,6 +263,8 @@ const IncomingPayments: React.FC = () => {
 
   const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
 
   // BLOCK 2 (ADR-0058): the cancel confirm dialog is ALWAYS mounted, so its command identity is per
   // (record, verb) — a retry on payment B must never carry payment A's key. Released only after a
@@ -565,27 +567,32 @@ const IncomingPayments: React.FC = () => {
         scope={native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
           : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', 'Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.')}
-        primaryAction={mode !== undefined && canCreate ? (
-          <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
-            <Icon name="plus" />
-            {t('financeCopy.receivePayment', 'Receive Payment')}
-          </Button>
-        ) : undefined}
       />
 
-      {state === undefined && (
-        <div className="mb-4 min-w-0 space-y-3" role="group" aria-label={t('moneyIn:uxs06.receiptFilters', 'Receipt filters')}>
-          <SearchMini
-            placeholder={t('financeCopy.searchPayments', 'Search payments…')}
-            aria-label={t('financeCopy.searchIncomingPayments', 'Search incoming payments')}
-            value={search}
-            onChange={(event) => updateListParam('q', event.target.value)}
-            searchSurface="incoming-payments-list"
-            module="incomingPayments"
-            resultCount={filtered.length}
-            containerClassName="w-full min-w-0 min-h-11"
-          />
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div data-testid="money-in-toolbar" className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center" role="group" aria-label={t('moneyIn:uxs06.receiptFilters', 'Receipt filters')}>
+        {state !== 'empty' && <>
+        <SearchMini
+          placeholder={t('financeCopy.searchPayments', 'Search payments…')}
+          aria-label={t('financeCopy.searchIncomingPayments', 'Search incoming payments')}
+          value={search}
+          onChange={(event) => updateListParam('q', event.target.value)}
+          searchSurface="incoming-payments-list"
+          module="incomingPayments"
+          resultCount={filtered.length}
+          className="min-h-11"
+          containerClassName="w-full min-w-0 min-h-11 md:w-64"
+        />
+        <Button
+          type="button"
+          variant="outline"
+          aria-expanded={filtersOpen}
+          aria-controls="receipt-collection-filters"
+          className="min-h-11 md:hidden"
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          {t('filters', 'Filters')}{statusFilter !== 'All' || customerFilter ? ` · ${Number(statusFilter !== 'All') + Number(Boolean(customerFilter))}` : ''}
+        </Button>
+        <div id="receipt-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
             <label className="sr-only" htmlFor="receipt-customer-filter">{t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}</label>
             <select
               id="receipt-customer-filter"
@@ -609,21 +616,43 @@ const IncomingPayments: React.FC = () => {
               }}
               ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
             />
-            <label className="sr-only" htmlFor="receipt-sort">{t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}</label>
-            <select
-              id="receipt-sort"
-              aria-label={t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}
-              value={receiptSort}
-              onChange={(event) => updateListParam('sort', event.target.value)}
-              className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
-            >
-              <option value="payment-date-desc">{t('moneyIn:uxs06.latestPaymentDate', 'Latest payment date')}</option>
-              <option value="payment-date-asc">{t('moneyIn:uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
-            </select>
-            <ExportButton rows={filtered} columns={exportColumns} entity={t('moneyIn:uxs06.receipts', 'Receipts')} className="min-h-11" />
-          </div>
         </div>
-      )}
+        <label className="min-w-0 md:w-auto">
+          <span className="sr-only">{t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}</span>
+          <select
+            id="receipt-sort"
+            aria-label={t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}
+            value={receiptSort}
+            onChange={(event) => updateListParam('sort', event.target.value)}
+            className="min-h-11 w-full min-w-0 rounded-md border border-border bg-card px-3 text-sm text-foreground md:w-auto"
+          >
+            <option value="payment-date-desc">{t('moneyIn:uxs06.latestPaymentDate', 'Latest payment date')}</option>
+            <option value="payment-date-asc">{t('moneyIn:uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
+          </select>
+        </label>
+        </>}
+        <div className="flex min-w-0 items-center gap-2 md:ml-auto">
+          {state !== 'empty' && <>
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={moreActionsOpen}
+            aria-controls="receipt-collection-more-actions"
+            className="min-h-11 flex-1 md:hidden"
+            onClick={() => setMoreActionsOpen((open) => !open)}
+          >{t('moreActions', 'More actions')}</Button>
+          <div id="receipt-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
+            <ExportButton rows={filtered} columns={exportColumns} entity={t('moneyIn:uxs06.receipts', 'Receipts')} className="min-h-11" disabled={state === 'loading' || state === 'error'} />
+          </div>
+          </>}
+          {mode !== undefined && canCreate && (
+            <Button variant="primary" onClick={() => setFormTarget({ payment: null })} className="min-h-11 w-full md:w-auto">
+              <Icon name="plus" />
+              {t('financeCopy.receivePayment', 'Receive Payment')}
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Body */}
       {state === 'loading' && (

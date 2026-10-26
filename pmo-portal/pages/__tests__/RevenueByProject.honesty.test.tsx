@@ -372,6 +372,23 @@ describe('Billing — never reports a figure it does not have', () => {
     expect(sorted[0]).toHaveAccessibleName('Open Beta (IDR)');
   });
 
+  it('keeps billing project and currency filters collapsed on phone while sort remains available', async () => {
+    revenueState.data = [
+      { project_id: 'p1', project_name: 'Alpha', currency: 'IDR', total_amount: 100, open_ar: 10, invoice_count: 1 },
+    ];
+    const user = userEvent.setup();
+    renderPage('Executive', '/financial-statements?section=project-revenue&view=billing&project=p1&currency=IDR');
+    const filters = screen.getByRole('button', { name: 'Filters · 2' });
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('combobox', { name: 'Sort projects' })).toHaveValue('project-name-asc');
+
+    await user.click(filters);
+
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('p1');
+    expect(screen.getByRole('combobox', { name: 'Filter by currency' })).toHaveValue('IDR');
+  });
+
   it('offers Clear filters when search has no match and keeps the report range', async () => {
     revenueState.data = [
       { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 100, open_ar: 10, invoice_count: 1 },

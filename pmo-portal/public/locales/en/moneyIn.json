@@ -18,7 +18,7 @@
     "invoiceGross": "Invoice gross",
     "invoiceLinesCurrency": "Line items · {{currency}}",
     "invoiceRecordIdentity": "Invoice",
-    "invoiceOtherAmounts": "Other invoice amounts · {{count}}",
+    "invoiceMoreDetails": "More invoice details · {{count}}",
     "invoiceSections": "Sections",
     "invoiceTotals": "Invoice totals",
     "invoiceTotalsCurrency": "Invoice totals · {{currency}}",

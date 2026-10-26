@@ -18,7 +18,7 @@
     "invoiceGross": "Nilai bruto faktur",
     "invoiceLinesCurrency": "Rincian · {{currency}}",
     "invoiceRecordIdentity": "Faktur",
-    "invoiceOtherAmounts": "Jumlah faktur lainnya · {{count}}",
+    "invoiceMoreDetails": "Detail faktur lainnya · {{count}}",
     "invoiceSections": "Bagian",
     "invoiceTotals": "Total faktur",
     "invoiceTotalsCurrency": "Total faktur · {{currency}}",

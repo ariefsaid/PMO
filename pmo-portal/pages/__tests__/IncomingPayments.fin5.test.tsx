@@ -115,6 +115,26 @@ describe('FIN-S5: receipts list', () => {
     expect(screen.getByRole('combobox', { name: 'Filter by customer' })).toBeInTheDocument();
   });
 
+  it('keeps receipt filters collapsed on phone and places creation after secondary actions', async () => {
+    const user = userEvent.setup();
+    h.payments.data = [receipt()];
+    renderPage('/incoming-payments?customer=cust-1&status=Received');
+    const toolbar = screen.getByTestId('money-in-toolbar');
+    const search = within(toolbar).getByRole('searchbox', { name: 'Search incoming payments' });
+    const filters = within(toolbar).getByRole('button', { name: 'Filters · 2' });
+    const sort = within(toolbar).getByRole('combobox', { name: 'Sort receipts' });
+    const exportAction = within(toolbar).getByRole('button', { name: /export/i });
+    const create = within(toolbar).getByRole('button', { name: 'Receive Payment' });
+
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+    expect(search.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(sort.compareDocumentPosition(exportAction) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(exportAction.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    await user.click(filters);
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+    expect(within(toolbar).getByRole('combobox', { name: 'Filter by customer' })).toHaveValue('cust-1');
+  });
+
   it('sorts newest payment first, keeps unknown dates last, and resolves same-day ties by creation then ID', () => {
     h.payments.data = [
       receipt({ id: 'ip-c', pmo_number: 'RCV-C', date: '2026-10-07', created_at: '2026-10-07T10:00:00Z' }),

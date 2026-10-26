@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -122,6 +122,21 @@ beforeEach(() => {
   h.mode = 'erp';
 });
 
+afterEach(() => vi.unstubAllGlobals());
+
+function mockPhoneViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
+
 describe('invoice list evidence', () => {
   it('keeps invoice identity, customer context and exact amounts available', () => {
     renderAt('/sales-invoices');
@@ -193,6 +208,20 @@ describe('invoice list evidence', () => {
 
     expect(filters).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('project-1');
+  });
+
+  it('keeps secondary invoice context behind one named detail disclosure on phone', async () => {
+    mockPhoneViewport();
+    renderAt('/sales-invoices');
+    const phoneList = screen.getByTestId('dt-card-branch');
+    const summary = within(phoneList).getByText('More invoice details · 2');
+    const disclosure = summary.closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+
+    await userEvent.setup().click(summary);
+
+    expect(disclosure).toHaveAttribute('open');
+    expect(within(disclosure as HTMLElement).getByText('Northwind Services')).toBeInTheDocument();
   });
 
   it('orders by due date by default, leaves unknown due dates last and uses invoice IDs for ties', () => {
