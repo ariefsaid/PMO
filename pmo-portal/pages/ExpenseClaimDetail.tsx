@@ -14,7 +14,7 @@ import {
 import { availableExpenseActions, settlementPreview } from '@/src/lib/expenses/expenseRules';
 import { approvalRouteNote } from '@/src/lib/procurement/approvalRoute';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatNumber } from '@/src/lib/format';
+import { formatNumber, formatShortMoney } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { ExpenseDecisionBar } from './expenses/ExpenseDecisionBar';
 import { ExpenseLinesCard } from './expenses/ExpenseLinesCard';
@@ -87,6 +87,13 @@ const ExpenseClaimDetail: React.FC = () => {
       { label: t('expenses.detail.cashPaid', 'Cash paid'), value: paidSplit.cash, primary: false },
     ] : []),
   ];
+  const primaryAmount = amountFacts.find((fact) => fact.primary) ?? amountFacts[0];
+  const amountHeading = primaryAmount.value === null
+    ? t('expenseClaims:record.primaryAmountUnavailable', '{{label}} · Not available', { label: primaryAmount.label })
+    : t('expenseClaims:record.primaryAmount', '{{label}} · {{compact}}', {
+      label: primaryAmount.label,
+      compact: formatShortMoney(primaryAmount.value, claim.currency, { code: true }),
+    });
 
   return (
     <div>
@@ -114,21 +121,21 @@ const ExpenseClaimDetail: React.FC = () => {
         primaryAction={canEdit ? <Button variant="outline" size="sm" className="min-h-11" onClick={() => setEditOpen(true)}>{t('expenses.detail.editDetails', 'Edit details')}</Button> : undefined}
       />
 
-      <section aria-labelledby="expense-evidence-heading" className="mb-4 border-b border-border pb-4">
-        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenseClaims:record.purposeAndAmount', 'Purpose and amount · {{currency}}', { currency: claim.currency })}</h2>
-        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
+      <section aria-labelledby="expense-evidence-heading" className="mb-8 border-b border-border pb-4">
+        <h2 id="expense-evidence-heading" className="mb-4 break-words text-xl font-bold">{amountHeading}</h2>
+        <dl className="grid min-w-0 grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {amountFacts.map((fact, index) => (
-            <div key={`${fact.label}-${index}`}>
-              <dt className="text-xs text-muted-foreground">{fact.label}</dt>
-              <dd className={fact.primary ? 'break-words text-2xl font-bold tabular-nums' : 'break-words font-medium tabular-nums'} data-testid={fact.label === t('expenses.detail.amount', 'Amount') ? 'expense-amount' : undefined}>
+            <div key={`${fact.label}-${index}`} className="min-w-0">
+              <dt className="break-words text-xs font-semibold text-muted-foreground">{fact.label}</dt>
+              <dd className="mt-2 break-words text-sm font-normal tabular-nums" data-testid={fact.label === t('expenses.detail.amount', 'Amount') ? 'expense-amount' : undefined}>
                 {fact.value === null ? t('expenseClaims:record.outstandingUnavailable', 'Not available — refresh this record to check again.') : formatNumber(fact.value)}
               </dd>
             </div>
           ))}
           {claim.payment_reference && (
             <div>
-              <dt className="text-xs text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
-              <dd className="break-words">{claim.payment_reference}</dd>
+              <dt className="break-words text-xs font-semibold text-muted-foreground">{t('expenses.detail.reference', 'Payment reference')}</dt>
+              <dd className="mt-2 break-words text-sm">{claim.payment_reference}</dd>
             </div>
           )}
         </dl>

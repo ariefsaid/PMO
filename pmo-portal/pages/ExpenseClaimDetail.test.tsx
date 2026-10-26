@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents, formatMoneyInputValue, formatNumber } from '@/src/lib/format';
+import { formatCurrencyCents, formatMoneyInputValue, formatNumber, formatShortMoney } from '@/src/lib/format';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
 const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
@@ -108,13 +108,16 @@ describe('ExpenseClaimDetail', () => {
     expect(receipts.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('AC-806 states the claim currency once in the amount group and keeps the exact whole-unit value visible', () => {
+  it('AC-806 names the primary claim amount in the section head and keeps its exact whole-unit value visible', () => {
     h.claim = { ...base, amount: 2226648000 };
     as('eng', 'Engineer');
     renderAt();
-    const evidence = screen.getByRole('region', { name: 'Purpose and amount · IDR' });
-    expect(within(evidence).getByTestId('expense-amount')).toHaveTextContent(formatNumber(2226648000));
-    expect(within(evidence).getAllByText(/IDR/)).toHaveLength(1);
+    const compact = formatShortMoney(2226648000, 'IDR', { code: true });
+    const evidence = screen.getByRole('region', { name: `Amount · ${compact}` });
+    expect(within(evidence).getByRole('heading', { name: `Amount · ${compact}` })).toBeInTheDocument();
+    const facts = within(evidence.querySelector('dl') as HTMLElement);
+    expect(facts.getByTestId('expense-amount')).toHaveTextContent(formatNumber(2226648000));
+    expect(facts.queryByText(/IDR/)).not.toBeInTheDocument();
   });
 
   it('AC-EXP-061 returns to the exact list URL that opened the record', async () => {

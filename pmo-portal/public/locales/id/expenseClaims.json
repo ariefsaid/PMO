@@ -70,6 +70,8 @@
   "record": {
     "backToRegister": "Kembali ke pengeluaran",
     "purposeAndAmount": "Tujuan dan jumlah · {{currency}}",
+    "primaryAmount": "{{label}} · {{compact}}",
+    "primaryAmountUnavailable": "{{label}} · Tidak tersedia",
     "outstandingUnavailable": "Tidak tersedia — muat ulang data ini untuk memeriksa kembali."
   },
   "capture": {
