@@ -104,7 +104,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   const isApprover = may('transition', 'approval');
   const [pending, setPending] = useState<PendingApproval | null>(null);
   const actions = timesheetActions(sheet.status as TimesheetStatus, false, isApprover);
-  const total = sumHours(sheet);
   const name = sheet.owner?.full_name ?? 'Unknown';
   const { days, rows } = buildGrid(sheet);
   const isInline = surface === 'inline';
@@ -169,7 +168,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
                 <span>{weekLabel(sheet.week_start_date)}</span>
-                <span className="tabular font-medium text-foreground">{total.toFixed(1)} h</span>
                 <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
               </div>
               <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>

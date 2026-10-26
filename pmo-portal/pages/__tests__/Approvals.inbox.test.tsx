@@ -334,7 +334,19 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
     expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(within(preview).getAllByText('Hours')).toHaveLength(1);
+    expect(within(preview).queryByText('8.0 h')).not.toBeInTheDocument();
+    expect(within(preview).getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
+  });
+
+  it('H-01–H-03: gives a queued timesheet one type-and-unit heading and a bare total', () => {
+    renderAs('Project Manager');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    const sheet = within(queue).getByRole('button', { name: /Anita Rao/i });
+    expect(within(sheet).getByText('Timesheets · hours')).toBeInTheDocument();
+    expect(within(sheet).getByText('8')).toBeInTheDocument();
+    expect(within(sheet).queryByText(/8(?:\.0)? h\b/i)).not.toBeInTheDocument();
   });
 
   it('procurement queue counts only Requested + not-self (SoD): 1 of 3', () => {

@@ -65,8 +65,8 @@ describe('MobileActionStrip', () => {
 
   it('AC-UXS-023: localizes the empty-week total beside the Indonesian completion actions', async () => {
     await renderStrip('id', { canSave: false, canSubmit: false, showSubmitHint: true, showEmptyWeekTotal: true });
-    expect(screen.getByText('Total minggu')).toBeInTheDocument();
-    expect(screen.getByText('0 h')).toBeInTheDocument();
+    expect(screen.getByText('Total minggu · jam')).toBeInTheDocument();
+    expect(screen.getByText('0')).toBeInTheDocument();
     expect(screen.getByText('Isi jam untuk mengajukan')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan draf' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Ajukan minggu ini' })).toBeDisabled();

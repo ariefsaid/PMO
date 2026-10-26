@@ -735,7 +735,8 @@
       "timesheets": {
         "emptySub": "Timesheet yang diajukan oleh bawahan Anda akan muncul di sini untuk ditinjau.",
         "emptyTitle": "Tidak ada timesheet yang menunggu keputusan Anda",
-        "title": "Timesheet"
+        "title": "Timesheet",
+        "hoursTitle": "Timesheet · jam"
       }
     },
     "noProjectLinked": "Tidak ada proyek tertaut",
@@ -3485,6 +3486,8 @@
     "addNotePlaceholder": "Tambahkan catatan",
     "submitWeek": "Ajukan minggu ini",
     "weekTotal": "Total minggu",
+    "weekTotalHours": "Total minggu · jam",
+    "hoursGroup": "Jam",
     "dailyTotal": "Total harian",
     "rowTotal": "Total baris",
     "projectColumn": "Proyek",

@@ -207,8 +207,8 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
     renderPage();
 
     const strip = screen.getByTestId('timesheets-mobile-action-strip');
-    expect(within(strip).getByText('Week total')).toBeInTheDocument();
-    expect(within(strip).getByText('0 h')).toBeInTheDocument();
+    expect(within(strip).getByText('Week total · hours')).toBeInTheDocument();
+    expect(within(strip).getByText('0')).toBeInTheDocument();
     expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeDisabled();
     expect(screen.getByTestId('timesheets-empty')).toHaveTextContent('Choose a project above to start recording hours.');
     expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();

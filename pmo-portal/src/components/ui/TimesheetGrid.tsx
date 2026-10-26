@@ -118,20 +118,25 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   // S7: single-render seam — mobile day-stacked layout below 768px.
   if (!isDesktop) {
     return (
-      <MobileTimesheetStack
-        days={days}
-        rows={rows}
-        className={className}
-        editable={editable}
-        notes={notes}
-        rawHours={rawHours}
-        invalidCells={invalidCells}
-        editTotals={editTotals}
-        grandTotal={grandTotal}
-        onCellChange={onCellChange}
-        onNoteChange={onNoteChange}
-        onDeleteRow={onDeleteRow}
-      />
+      <div className="min-w-0">
+        <p data-testid="tsgrid-hours-group" className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+          {t('timesheets.hoursGroup', 'Hours')}
+        </p>
+        <MobileTimesheetStack
+          days={days}
+          rows={rows}
+          className={className}
+          editable={editable}
+          notes={notes}
+          rawHours={rawHours}
+          invalidCells={invalidCells}
+          editTotals={editTotals}
+          grandTotal={grandTotal}
+          onCellChange={onCellChange}
+          onNoteChange={onNoteChange}
+          onDeleteRow={onDeleteRow}
+        />
+      </div>
     );
   }
 
@@ -294,7 +299,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
         `day-${i}`,
         <span key={i} data-testid={`tsgrid-daily-total-${i}`} className="text-sm tabular">{total > 0 ? fmt(total) : '·'}</span>,
       ])),
-      total: <span data-testid="tsgrid-grand-total" className="text-sm tabular">{fmt(grandTotal)}</span>,
+      total: <span data-testid="tsgrid-grand-total" className="text-[23px] font-bold tabular">{fmt(grandTotal)}</span>,
     } as Record<string, React.ReactNode>,
   }];
 
@@ -302,6 +307,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     // Scroll container: scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
     // signals "more to scroll". CSS-only (mask-image, compositor); the sibling overlay carries the testid.
     <div className={cn('relative', className)} data-testid="tsgrid-table">
+      <p data-testid="tsgrid-hours-group" className="mb-2 px-3.5 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+        {t('timesheets.hoursGroup', 'Hours')}
+      </p>
       <div
         data-testid="tsgrid-scroll"
         className={cn(
@@ -537,7 +545,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
         </span>
         <span
           data-testid="tsgrid-grand-total"
-          className="text-sm tabular text-foreground"
+          className="text-[23px] font-bold tabular text-foreground"
         >
           {fmt(grandTotal)}
         </span>

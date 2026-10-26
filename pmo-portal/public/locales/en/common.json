@@ -735,7 +735,8 @@
       "timesheets": {
         "emptySub": "Submitted timesheets from your reports will appear here for review.",
         "emptyTitle": "No timesheets awaiting your decision",
-        "title": "Timesheets"
+        "title": "Timesheets",
+        "hoursTitle": "Timesheets · hours"
       }
     },
     "noProjectLinked": "No project linked",
@@ -3485,6 +3486,8 @@
     "addNotePlaceholder": "Add a note",
     "submitWeek": "Submit week",
     "weekTotal": "Week total",
+    "weekTotalHours": "Week total · hours",
+    "hoursGroup": "Hours",
     "dailyTotal": "Daily total",
     "rowTotal": "Row total",
     "projectColumn": "Project",

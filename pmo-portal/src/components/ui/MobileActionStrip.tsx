@@ -40,9 +40,11 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
         {showEmptyWeekTotal && (
-          <p data-testid="timesheets-empty-week-total" className="text-center text-[13px] tabular text-muted-foreground">
-            <span>{t('timesheets.weekTotal', 'Week total')}</span>{' '}
-            <span className="font-medium text-foreground">0 h</span>
+          <p data-testid="timesheets-empty-week-total" className="flex items-baseline justify-center gap-3 text-center tabular">
+            <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+              {t('timesheets.weekTotalHours', 'Week total · hours')}
+            </span>
+            <span className="text-[23px] font-bold text-foreground">0</span>
           </p>
         )}
         {showSubmitHint && (

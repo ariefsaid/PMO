@@ -60,7 +60,9 @@ async function renderGrid(locale: 'en' | 'id') {
 describe('TimesheetGrid localized operational copy', () => {
   it('AC-UXS-006-part: shows Bahasa labels and accessible names for the entered week', async () => {
     await renderGrid('id');
+    expect(screen.getAllByText('Jam')).toHaveLength(1);
     expect(screen.getByText('Total minggu')).toBeInTheDocument();
+    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
     expect(screen.getByText('Total baris')).toBeInTheDocument();
     expect(screen.getByLabelText('Jam North Annex, Sen')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Tambahkan catatan untuk North Annex' })).toBeInTheDocument();
@@ -69,7 +71,9 @@ describe('TimesheetGrid localized operational copy', () => {
 
   it('keeps the same grid copy in English', async () => {
     await renderGrid('en');
+    expect(screen.getAllByText('Hours')).toHaveLength(1);
     expect(screen.getByText('Week total')).toBeInTheDocument();
+    expect(screen.getByTestId('tsgrid-grand-total').className).toContain('text-[23px]');
     expect(screen.getByText('Row total')).toBeInTheDocument();
     expect(screen.getByLabelText('North Annex, Mon hours')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add note to North Annex' })).toBeInTheDocument();

@@ -43,7 +43,7 @@ import { useAuth } from '@/src/auth/useAuth';
 import WorkPageHeading from './WorkPageHeading';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay, formatWeekday } from '@/src/lib/format';
+import { formatFullDate, formatMonthDay, formatWeekday, formatNumberExact } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
@@ -844,8 +844,11 @@ const TimesheetsPage: React.FC = () => {
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
           >
             {editGridRows.length === 0 && (
-              <span data-testid="timesheets-empty-week-total" className="mr-auto text-[13px] tabular text-muted-foreground">
-                {t('timesheets.weekTotal', 'Week total')} <span className="font-medium text-foreground">{editTotals.weekly} h</span>
+              <span data-testid="timesheets-empty-week-total" className="mr-auto flex items-baseline gap-3 tabular">
+                <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+                  {t('timesheets.weekTotalHours', 'Week total · hours')}
+                </span>
+                <span className="text-[23px] font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>
               </span>
             )}
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}

@@ -24,7 +24,7 @@ import { pendingProcurementApprovals, type ApprovalScope } from '@/src/lib/selec
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyCents, formatNumberExact } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
@@ -140,7 +140,7 @@ function QueueButton({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-            {t('approvals.group.timesheets.title', 'Timesheets')}
+            {t('approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
           </div>
           <div className="truncate text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
@@ -160,7 +160,7 @@ function QueueButton({
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-medium text-foreground">{sumHours(row).toFixed(1)} h</span>
+        <span className="tabular font-medium text-foreground">{formatNumberExact(sumHours(row))}</span>
       </div>
     </button>
   );
