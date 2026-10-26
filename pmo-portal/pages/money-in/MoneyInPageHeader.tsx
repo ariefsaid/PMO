@@ -1,36 +1,26 @@
 import type { ReactNode } from 'react';
+import { PageHeading, type PageHeadingKind } from '@/src/components/ui/PageHeading';
 
-/** Local adapter for the money-in pages until the shared shell exposes its content slots. */
+/** Maps money-in page identity props to the shared content-track heading. */
 export function MoneyInPageHeader({
   title,
   scope,
   status,
+  kind = 'collection',
   returnAction,
   primaryAction,
 }: {
   title: ReactNode;
   scope?: ReactNode;
   status?: ReactNode;
+  kind?: PageHeadingKind;
   returnAction?: ReactNode;
   primaryAction?: ReactNode;
 }) {
   return (
-    <header data-testid="money-in-page-header" className="mb-4 min-w-0">
-      {returnAction && <div className="mb-2 min-h-11">{returnAction}</div>}
-      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="min-w-0 break-words text-page-title">{title}</h1>
-            {status}
-          </div>
-          {scope && <p className="mt-1 max-w-[80ch] break-words text-sm text-muted-foreground">{scope}</p>}
-        </div>
-        {primaryAction && (
-          <div data-slot="primary" className="flex min-h-11 shrink-0 items-center [&_button]:min-h-11">
-            {primaryAction}
-          </div>
-        )}
-      </div>
-    </header>
+    <div data-testid="money-in-page-header" className="mb-4 min-w-0">
+      {returnAction}
+      <PageHeading kind={kind} title={title} scope={scope} status={status} actions={primaryAction} />
+    </div>
   );
 }

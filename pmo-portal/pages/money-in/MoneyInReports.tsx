@@ -86,14 +86,14 @@ export default function MoneyInReports() {
 
   if (!statementsAllowed && !billingAllowed) {
     return (
-      <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+      <div className="min-w-0">
         <MoneyInPageHeader title={t('uxs42.reports', 'Financial reports')} />
         <section className="max-w-2xl rounded-md border border-border bg-card p-4" aria-labelledby="reports-access-title">
           <h2 id="reports-access-title" className="font-semibold">{t('financialStatements.accessDenied', "You don't have access to financial statements")}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{t('uxs42.reportsUnavailable', 'Reports are not available to this role.')}</p>
           <Button variant="outline" className="mt-3 min-h-11" onClick={() => navigate('/')}>{t('financeCopy.backToDashboard', 'Back to dashboard')}</Button>
         </section>
-      </main>
+      </div>
     );
   }
 
@@ -115,7 +115,7 @@ export default function MoneyInReports() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+    <div className="min-w-0">
       <MoneyInPageHeader title={title} scope={scope} />
       {sectionLinks}
       {recoveryFrom && (
@@ -150,6 +150,6 @@ export default function MoneyInReports() {
           {view === 'earned' && earnedAllowed ? <ManagementPack embedded /> : <RevenueByProject />}
         </>
       )}
-    </main>
+    </div>
   );
 }

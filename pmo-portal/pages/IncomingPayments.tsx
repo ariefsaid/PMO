@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BackBar } from '@/src/components/shell';
 import {
   SearchMini,
   ViewToggle,
@@ -525,29 +526,24 @@ const IncomingPayments: React.FC = () => {
   );
 
   if (receiptId) {
-    const returnAction = (
-      <Button variant="ghost" onClick={returnFromRecord} className="min-h-11 -ml-3">
-        <Icon name="back" className="size-4" />
-        {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
-      </Button>
-    );
+    const returnAction = <BackBar label={t('shell.nav.incomingPayments', 'Incoming Payments')} onBack={returnFromRecord} phoneOnly />;
     if (state === 'loading') {
-      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
-        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+      return <div className="min-w-0">
+        <MoneyInPageHeader kind="record" title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
         <ListState variant="loading" rows={3} />
-      </main>;
+      </div>;
     }
     if (state === 'error') {
-      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
-        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+      return <div className="min-w-0">
+        <MoneyInPageHeader kind="record" title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
         <ListState variant="error" title={t('financeCopy.incomingPaymentsLoadFailed', "Couldn't load incoming payments")} onRetry={() => void refetch()} retryLabel={t('ui.listState.retry', 'Retry')} />
-      </main>;
+      </div>;
     }
     if (!record) {
-      return <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
-        <MoneyInPageHeader title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
+      return <div className="min-w-0">
+        <MoneyInPageHeader kind="record" title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptId })} returnAction={returnAction} />
         <ListState variant="empty" icon="doc" title={t('uxs06.receiptNotFound', "We couldn't find this receipt")} sub={t('uxs06.receiptNotFoundBody', 'It may have been removed, or you may not have access to it.')} />
-      </main>;
+      </div>;
     }
     const recordCanCancel = canCancel && ((record.pmo_native && !record.cancelled_at && native) || (!record.pmo_native && record.status !== 'Paid'));
     return <>
@@ -562,7 +558,7 @@ const IncomingPayments: React.FC = () => {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] min-w-0 px-4 py-5 sm:px-6">
+    <div className="min-w-0">
       <MoneyInPageHeader
         title={t('financeCopy.incomingPayments', 'Incoming Payments')}
         scope={native
@@ -696,7 +692,7 @@ const IncomingPayments: React.FC = () => {
       )}
 
       {cancelDialog}
-    </main>
+    </div>
   );
 };
 

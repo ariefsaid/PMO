@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { BackBar } from '@/src/components/shell';
 import {
   SearchMini,
   ViewToggle,
@@ -576,7 +577,8 @@ const SalesInvoices: React.FC = () => {
 
   if (invoiceId) {
     return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
+      <div className="min-w-0">
+        <BackBar label={t('shell.nav.salesInvoices', 'Sales Invoices')} onBack={recordContext.closeRecord} phoneOnly />
         {isPending || mode === undefined ? (
           <ListState variant="loading" rows={3} />
         ) : isError || !data ? (
@@ -589,6 +591,7 @@ const SalesInvoices: React.FC = () => {
         ) : viewTarget ? (
           <>
             <MoneyInPageHeader
+              kind="record"
               title={viewTarget.si_number
                 ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
                 : invoiceDisplayLabel(viewTarget)}
@@ -596,12 +599,6 @@ const SalesInvoices: React.FC = () => {
               status={isPartlyPaid(viewTarget)
                 ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
                 : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
-              returnAction={(
-                <Button variant="ghost" onClick={recordContext.closeRecord} className="min-h-11 px-0">
-                  <Icon name="back" className="size-4" />
-                  {t('financeCopy.backToInvoices', 'Back to Sales Invoices')}
-                </Button>
-              )}
               primaryAction={canDownloadApprovedPdf(viewTarget) && !viewTarget.received_date ? (
                 <Button
                   variant="primary"
@@ -747,7 +744,7 @@ const SalesInvoices: React.FC = () => {
           onConfirm={onSubmitConfirm}
           onCancel={() => setSubmitTarget(null)}
         />
-      </main>
+      </div>
     );
   }
 
@@ -1063,7 +1060,7 @@ const SalesInvoices: React.FC = () => {
   };
 
   return (
-    <main className="mx-auto w-full max-w-[1440px] px-4 py-5 sm:px-6">
+    <div className="min-w-0">
       <MoneyInPageHeader
         title={t('financeCopy.salesInvoices', 'Sales Invoices')}
         scope={t('finance:invoices.description', 'Client invoices.')}
@@ -1354,7 +1351,7 @@ const SalesInvoices: React.FC = () => {
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
       />
-    </main>
+    </div>
   );
 };
 
