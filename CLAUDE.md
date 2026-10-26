@@ -161,12 +161,13 @@ stops new merges until fixed; the same caps apply.
   `scripts/ci-e2e.sh <branch>` (once per PR, for shared-code or milestone-closing PRs; it enforces the caps
   and needs `--owner-ok` beyond them — CI fair-use rule shared with MOS). `scripts/verify-main-pr.sh`
   reproduces CI's PR-to-`main` run locally; use it only to diagnose a CI failure CI could not report (e.g. a
-  job that timed out before printing). **Local final gate** (every builder and brief, before a PR): `npm run
-  typecheck`, `npx eslint --max-warnings=0 <touched files>`, `npx vitest run --changed origin/dev` (every test
-  that imports anything you changed — this is what still catches shared-component breakage), the touched e2e
-  journeys (`scripts/e2e-local.sh <fragment>`), and for DB changes only the touched pgTAP files
-  (`supabase test db <files>`; CI's `pgtap` job is the full proof) — vitest/typecheck under
-  `scripts/with-test-lock.sh`, DB work under `scripts/with-db-lock.sh`. `db reset` (and `e2e-local.sh --reset`)
+  job that timed out before printing). **Local final gate** (every builder and brief, before a PR; owner rule 2026-10-26): `npm run check:guards`,
+  `npm run typecheck`, `npx eslint --max-warnings=0 <touched files>`, the **directly touched test files** (never
+  `vitest --changed` or the full suite locally — CI's two unit shards are the full proof; a local near-full run
+  queues every parallel build behind one lock for hours), the touched e2e journeys (`scripts/e2e-local.sh
+  <fragment>`), rendered captures for UI (`scripts/ux-proof.sh`), and for DB changes only the touched pgTAP
+  files (`supabase test db <files>`; CI's `pgtap` job is the full proof) — DB work under `scripts/with-db-lock.sh`;
+  `scripts/with-test-lock.sh` only for the rare deliberate full run (`npm run verify:locked`). `db reset` (and `e2e-local.sh --reset`)
   only when your branch adds/changes a migration or seed. Reviewers and release-engineer read the builder's
   gate evidence and re-run only a targeted check they doubt — no outer re-verify chains.
 - **⛔ NOT DONE UNTIL GREEN — enforced, not advised (2026-07-17).** A task is not complete while any
