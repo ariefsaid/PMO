@@ -2547,7 +2547,7 @@
     "pipeline": {
       "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
       "advanceTo": "Lanjutkan ke",
-      "bookingOnWin": "Mencatat <1>{{amount}}</1> <3></3> ke nilai kontrak saat menang",
+      "bookingOnWin": "Nilai kontrak ini dicatat saat Anda mengonfirmasi kemenangan.",
       "cancel": "Batal",
       "confirmWon": "Konfirmasi menang",
       "contractDateLabel": "Tanggal kontrak",
@@ -2579,7 +2579,7 @@
       "stat": {
         "decision": "Keputusan",
         "owner": "Pemilik",
-        "value": "Nilai",
+        "value": "Nilai kontrak",
         "weighted": "Tertimbang",
         "winProbability": "Peluang menang"
       },

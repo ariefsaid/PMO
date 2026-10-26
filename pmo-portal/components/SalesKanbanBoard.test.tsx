@@ -87,10 +87,34 @@ describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', (
     const list = screen.getByTestId('sales-phone-stage-list');
     const card = within(list).getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
     expect(within(card).getByText('Tender Submitted')).toBeInTheDocument();
-    expect(within(card).getByText('Activity unavailable')).toBeInTheDocument();
     expect(within(card).getByText('Customer unavailable')).toBeInTheDocument();
     expect(within(card).getByText(formatCurrencyAuto(1_200_000, 'USD'))).toBeInTheDocument();
     expect(list.querySelectorAll('li')).toHaveLength(1);
+  });
+
+  it('AC-S24-002: the compact phone row keeps a long contractual identity, customer and exact 13-digit IDR value', () => {
+    const longDeal: PipelineProject = {
+      id: 'long-idr',
+      name: 'Pengadaan dan pemeliharaan terpadu untuk fasilitas regional Jawa Barat dengan layanan berkelanjutan',
+      short_name: null,
+      client_name: 'Example Regional Services Cooperative with a long procurement identity',
+      status: 'Leads',
+      contract_value: 2_226_648_000_000,
+      currency: 'IDR',
+      tax_treatment: 'inclusive',
+      tax_rate: 11,
+      tax_base_numerator: 100,
+      tax_base_denominator: 111,
+      win_probability: 0.1,
+      pm_name: 'Example Project Manager',
+    };
+    render(<MemoryRouter><SalesKanbanBoard projects={[longDeal]} onOpen={vi.fn()} presentation="list" /></MemoryRouter>);
+
+    const card = screen.getByRole('link', { name: longDeal.name }).closest('article')!;
+    expect(within(card).getByText(longDeal.client_name!)).toBeInTheDocument();
+    expect(within(card).getByText(formatCurrencyAuto(longDeal.contract_value, 'IDR'))).toBeInTheDocument();
+    expect(within(card).getByText('10%')).toBeInTheDocument();
+    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
   });
 
   it('OD-TAX-1 §2: unknown basis renders no inferred label', () => {

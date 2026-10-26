@@ -24,7 +24,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { activeClassificationCount } from '@/src/lib/projectClassification';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrencyAuto, formatNumberWhole } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { weightedValue, openOpportunity, daysSince, ATTENTION_THRESHOLD_DAYS, SALES_COLUMNS, formatPercent, pillVariantForStatus } from '../components/salesPipeline';
 import { selectSalesProjects } from '@/src/components/sales/salesWorkingSet';
@@ -194,7 +194,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 180, align: 'num',
-      cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 tabular"><span>{formatCurrencyAuto(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
+      cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 whitespace-normal tabular"><span className="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
       exportValue: (project) => project.contract_value,
     },
     {
@@ -203,8 +203,8 @@ const SalesPipeline: React.FC = () => {
       exportValue: (project) => isTerminal(project) ? '' : Math.round(project.win_probability * 100),
     },
     {
-      key: 'weighted', header: t('sales.column.weighted', 'Weighted'), kind: 'money', size: 150, align: 'num',
-      cell: (project) => isTerminal(project) ? salesT('pipeline.notApplicable', 'Not applicable') : formatCurrencyAuto(weightedValue(project), project.currency),
+      key: 'weighted', header: salesT('pipeline.weightedSameCurrency', 'Weighted · same currency as Value'), kind: 'money', size: 190, align: 'num',
+      cell: (project) => isTerminal(project) ? salesT('pipeline.notApplicable', 'Not applicable') : formatNumberWhole(weightedValue(project)),
       exportValue: (project) => isTerminal(project) ? '' : weightedValue(project),
     },
   ];
@@ -236,10 +236,12 @@ const SalesPipeline: React.FC = () => {
     summaryHasUnknown ||= valueUnavailable || probabilityUnavailable || !Number.isFinite(aggregate?.weighted_value);
     const currency = currencies.size === 1 ? [...currencies][0] : orgCurrency;
     return {
-      name: stageLabel(column),
+      name: !valueUnavailable && currencies.size <= 1
+        ? `${stageLabel(column)} · ${currencies.size === 1 ? currency : orgCurrency}`
+        : stageLabel(column),
       dotColor: column.dotColor,
       prob: !probabilityUnavailable && aggregate ? formatPercent(aggregate.win_probability) : undefined,
-      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatCurrencyAuto(aggregate?.total_value ?? 0, currency),
+      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatNumberWhole(aggregate?.total_value ?? 0),
       weighted: undefined,
       barPct: valueUnavailable || pipelineCurrencies.size > 1 || maxStageWeight === 0
         ? undefined
@@ -332,7 +334,7 @@ const SalesPipeline: React.FC = () => {
     <div className="min-w-0">
       <PageHeading
         title={t('shell.nav.sales', 'Sales Pipeline')}
-        scope={`${scopeLine} · ${salesT('pipeline.firstUse', 'Find the next project needing follow-up, then open it to act.')}${!canCreate ? ` ${salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}` : ''}`}
+        scope={scopeLine}
         kind="collection"
         className="mb-4"
       />
@@ -354,7 +356,7 @@ const SalesPipeline: React.FC = () => {
       )}
       {state === 'loading' && <ListState variant="loading" rows={5} />}
       {state === 'error' && <ListState variant="error" title={t('sales.error.title', "Couldn't load the sales pipeline")} sub={t('sales.error.sub', 'Something went wrong fetching your pipeline.')} onRetry={() => refetch()} />}
-      {state === 'empty' && !hasActiveFilters && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{t('sales.empty.sub', 'Add a project to start tracking the pipeline.')}</p></div>}
+      {state === 'empty' && !hasActiveFilters && <div className="rounded-lg border border-border bg-card p-5"><h2 className="font-semibold">{t('sales.empty.title', 'No projects yet')}</h2><p className="mt-1 text-sm text-muted-foreground">{canCreate ? t('sales.empty.sub', 'Add a project to start tracking the pipeline.') : salesT('pipeline.financeCreateHint', 'Ask a project manager to add a project.')}</p></div>}
       {(state === undefined || state === 'empty' && hasActiveFilters) && showEmpty && <ListState variant="empty" title={emptyCopy[0]} sub={emptyCopy[1]} action={narrowedEmpty ? { label: salesT('pipeline.clearFilters', 'Clear filters'), onClick: clearFilters } : undefined} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}

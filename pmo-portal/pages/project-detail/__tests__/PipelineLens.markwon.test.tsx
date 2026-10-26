@@ -4,13 +4,13 @@ import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 /**
  * AC-IXD-DASH-005 (Area 4, plan task 21): confirm against the money. The mark-won capture panel
- * shows the value being booked ("Booking $X to contract value on win") above the contract-ref /
- * date inputs, so the user confirms against the actual figure before committing the win.
+ * shows the contract value once with its tax basis above the contract-ref / date inputs, so the
+ * user confirms against the actual figure before committing the win.
  */
 
 const { transitionProject, invalidateQueries } = vi.hoisted(() => ({
@@ -68,6 +68,10 @@ const dealRow = {
   contract_date: null,
   decided_at: null,
   customer_contract_ref: null,
+  tax_treatment: 'inclusive',
+  tax_rate: 11,
+  tax_base_numerator: 100,
+  tax_base_denominator: 111,
   client: { name: 'Acme' },
   pm: { full_name: 'Alice Manager' },
 } as unknown as ProjectWithRefs;
@@ -87,24 +91,27 @@ beforeEach(() => {
 });
 
 describe('PipelineLens — mark-won shows the booked value (AC-IXD-DASH-005)', () => {
-  it('AC-IXD-DASH-005: the won-capture panel states the value being booked to contract value', async () => {
-    renderLens();
+  it('AC-IXD-DASH-005: the capture shows the exact amount and basis once and clears the shared primary', async () => {
+    const onPrimaryActionChange = vi.fn();
+    render(
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens project={dealRow} onPrimaryActionChange={onPrimaryActionChange} />
+        </ToastProvider>
+      </ImpersonationProvider>,
+    );
     await userEvent.click(screen.getByRole('button', { name: /Mark won/i }));
 
-    // The capture panel restates the figure the user is committing against.
+    // The inline capture moves the decision amount into the primary evidence position and
+    // removes the separate amount band / Advance action while that decision is in progress.
     const refInput = screen.getByLabelText(/Customer contract reference/i);
     expect(refInput).toBeInTheDocument();
-    // "Booking $1,200,000 to contract value on win" — the money is shown before confirming.
-    // The phrase spans inline elements (the amount is bolded), so assert the wrapper carries the
-    // full sentence (textContent stitches the inline <strong>) and that the amount is the bolded run.
-    const formatted = formatCurrency(CONTRACT_VALUE, 'USD');
-    const bookingLine = screen.getByText(
-      (content) => /^Booking\b/.test(content.trim()),
-      { selector: 'div' },
-    );
-    expect(bookingLine).toHaveTextContent(
-      new RegExp(`Booking\\s*${formatted.replace(/[$,]/g, '\\$&')}\\s*to contract value on win`, 'i'),
-    );
+    const formatted = formatCurrencyAuto(CONTRACT_VALUE, 'USD');
+    expect(screen.getAllByText(formatted)).toHaveLength(1);
+    expect(screen.getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
+    expect(screen.getByText(/This contract value is recorded when you confirm the win/i)).toBeInTheDocument();
+    expect(screen.queryByTestId('pipeline-contract-value')).not.toBeInTheDocument();
+    await vi.waitFor(() => expect(onPrimaryActionChange).toHaveBeenLastCalledWith(null));
   });
 });
 

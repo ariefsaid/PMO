@@ -752,8 +752,9 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
   it('AC-RD-SALES-002 a one-currency stage still shows its total in that currency', async () => {
     renderPage();
     await openSummary();
-    const preQual = stageCell('Pre-Qual');
-    expect(within(preQual).getByText(formatCurrencyAuto(800000, 'USD'))).toBeInTheDocument();
+    const preQual = stageCell('Pre-Qual · USD');
+    expect(preQual.querySelector('[data-funnel-stage-amount]')).toHaveTextContent('800,000');
+    expect(preQual.querySelector('[data-funnel-stage-amount]')).not.toHaveTextContent(/USD|\$/);
   });
 
   it('AC-RD-SALES-002 the summary never adds stage values into a mixed-currency total', async () => {
@@ -770,8 +771,10 @@ describe('SalesPipeline funnel truth and table stage names (RD-S5)', () => {
     };
     renderPage();
     await openSummary();
-    const amount = stageCell('Pre-Qual').querySelector('[data-funnel-stage-amount]') as HTMLElement;
-    expect(amount.textContent).toContain('IDR');
+    const preQual = stageCell('Pre-Qual · IDR');
+    const amount = preQual.querySelector('[data-funnel-stage-amount]') as HTMLElement;
+    expect(amount).toHaveTextContent('800,000');
+    expect(amount.textContent).not.toContain('IDR');
     expect(amount.textContent).not.toContain('$');
   });
 

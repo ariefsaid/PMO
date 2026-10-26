@@ -14,7 +14,7 @@ interface SalesKanbanBoardProps {
   presentation?: 'board' | 'list';
 }
 
-const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void }> = ({ project, onOpen }) => {
+const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void; compact?: boolean }> = ({ project, onOpen, compact = false }) => {
   const { t } = useTranslation('sales');
   const displayName = projectDisplayName(project);
   const ids = [project.pmo_project_number, project.code].filter(Boolean).join(' · ');
@@ -29,8 +29,8 @@ const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void }
         {displayName}
       </Link>
       {displayName !== project.name && <p className="break-words text-sm text-muted-foreground">{project.name}</p>}
-      {ids && <p className="break-words font-mono text-xs text-muted-foreground">{ids}</p>}
-      {project.end_client_name && (
+      {!compact && ids && <p className="break-words font-mono text-xs text-muted-foreground">{ids}</p>}
+      {!compact && project.end_client_name && (
         <p className="break-words text-sm text-muted-foreground">
           {t('pipeline.endCustomerLine', 'for {{name}}', { name: project.end_client_name })}
         </p>
@@ -55,33 +55,33 @@ const Activity: React.FC<{ project: PipelineProject }> = ({ project }) => {
   );
 };
 
-const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean }> = ({ project, onOpen, grouped }) => {
+const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: boolean; compact?: boolean }> = ({ project, onOpen, grouped, compact = false }) => {
   const { t } = useTranslation('sales');
   const statusLabel = useProjectStatusLabel();
   const customer = project.client_name || t('pipeline.customerUnavailable', 'Customer unavailable');
   const terminal = project.status === 'Loss Tender' || project.status === 'Declined';
   return (
-    <article className="min-w-0 rounded-lg border border-border bg-card p-3">
+    <article className={`min-w-0 rounded-lg border border-border bg-card ${compact ? 'p-2' : 'p-3'}`}>
       <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
-        <ProjectIdentity project={project} onOpen={onOpen} />
+        <ProjectIdentity project={project} onOpen={onOpen} compact={compact} />
         {(!grouped || terminal) && (
           <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
         )}
       </div>
-      <dl className="mt-3 grid min-w-0 grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-        <div className="min-w-0">
+      <dl className={`mt-2 grid min-w-0 gap-x-4 gap-y-1.5 text-sm ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+        <div className={`min-w-0 ${compact ? 'col-span-2' : ''}`}>
           <dt className="text-xs text-muted-foreground">{t('pipeline.customer', 'Customer')}</dt>
           <dd className="break-words">{customer}</dd>
         </div>
-        <div className="min-w-0">
+        {!compact && <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('pipeline.owner', 'Owner')}</dt>
           <dd className="break-words">{project.pm_name || t('pipeline.ownerUnavailable', 'Owner unavailable')}</dd>
-        </div>
-        <div className="min-w-0">
+        </div>}
+        {!compact && <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('pipeline.lastActivity', 'Last activity')}</dt>
           <dd><Activity project={project} /></dd>
-        </div>
-        <div className="min-w-0 sm:col-span-2">
+        </div>}
+        <div className={`min-w-0 ${compact ? 'col-span-2' : 'sm:col-span-2'}`}>
           <dt className="text-xs text-muted-foreground">{t('pipeline.value', 'Value')}</dt>
           <dd className="flex min-w-0 flex-wrap items-center gap-1 tabular font-medium">
             <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span>
@@ -102,7 +102,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
   const stageLabel = useSalesStageLabel();
   const openColumns = SALES_COLUMNS.filter((column) => !column.terminal && column.testId !== 'stage-Won');
   const renderProject = (project: PipelineProject, grouped: boolean) => (
-    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} />
+    <Deal key={project.id} project={project} onOpen={() => onOpen(project)} grouped={grouped} compact={presentation === 'list'} />
   );
 
   if (presentation === 'list') {

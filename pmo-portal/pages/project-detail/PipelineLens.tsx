@@ -1,7 +1,7 @@
 import TaxBasisLabel from '@/src/components/ui/TaxBasisLabel';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardHead,
@@ -20,7 +20,7 @@ import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
-import { formatCurrency, formatDecisionDateNumeric } from '@/src/lib/format';
+import { formatCurrencyAuto, formatDecisionDateNumeric, formatNumberWhole } from '@/src/lib/format';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -200,7 +200,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   runTransitionRef.current = runTransition;
   useEffect(() => {
     if (!onPrimaryActionChange) return;
-    if (!canTransition || !nextStage || isTerminal) {
+    if (!canTransition || !nextStage || isTerminal || showWonPanel || confirmAction) {
       onPrimaryActionChange(null);
       return;
     }
@@ -209,7 +209,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
       disabled: pending,
       activate: () => { void runTransitionRef.current(nextStage); },
     });
-  }, [canTransition, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, t]);
+  }, [canTransition, confirmAction, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, showWonPanel, t]);
   useEffect(() => () => onPrimaryActionChange?.(null), [onPrimaryActionChange]);
 
   const submitWon = () => {
@@ -230,15 +230,6 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
     });
   };
 
-  const valueTile: StatTile = {
-    label: t('projectDetail.pipeline.stat.value', 'Value'),
-    value: formatCurrency(value, currency),
-    // OD-TAX-1 §2: this is the figure that BECOMES the drawdown ceiling on win, so it states its
-    // basis like every other money figure. The row carries it — OPPORTUNITY_COLUMNS includes
-    // tax_treatment precisely for this (opportunity.ts). The pipeline LIST is a fair omission
-    // (its RPC doesn't project the column, #578); this lens is not.
-    sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
-  };
   const ownerTile: StatTile = {
     label: t('projectDetail.pipeline.stat.owner', 'Owner'),
     value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
@@ -247,7 +238,6 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   // the decision instead — never a 0% win probability or a zero weighted value.
   const stats: StatTile[] = isTerminal
     ? [
-        valueTile,
         ownerTile,
         {
           label: t('projectDetail.pipeline.stat.decision', 'Decision'),
@@ -258,15 +248,29 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
         },
       ]
     : [
-        valueTile,
         { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-        { label: t('projectDetail.pipeline.stat.weighted', 'Weighted'), value: formatCurrency(weighted, currency) },
+        { label: `${t('projectDetail.pipeline.stat.weighted', 'Weighted')} · ${currency}`, value: formatNumberWhole(weighted) },
         ownerTile,
       ];
 
   return (
     <div>
-      <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
+      {!showWonPanel && (
+        <>
+          <section data-testid="pipeline-contract-value" className="mb-3 min-w-0">
+            <h2 className="text-sm font-semibold text-muted-foreground">
+              {t('projectDetail.pipeline.stat.value', 'Contract value')}
+            </h2>
+            <p className="mt-1 max-w-full break-words text-2xl font-bold leading-tight tracking-[-0.02em] tabular [overflow-wrap:anywhere]">
+              {formatCurrencyAuto(value, currency)}
+            </p>
+            <div className="mt-1 text-xs text-muted-foreground">
+              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
+            </div>
+          </section>
+          <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
+        </>
+      )}
 
       {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
           min-w-0 on EACH grid item. Without it, a grid item's default min-width:auto falls back
@@ -276,7 +280,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
           shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {/* Opportunity journey */}
-        <Card className="min-w-0">
+        {!showWonPanel && <Card className="min-w-0">
           <CardHead>{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
           <CardPad>
             <LifecycleStepper
@@ -285,7 +289,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
               aria-label={t('projectDetail.pipeline.journeyAriaLabel', 'Project stage journey')}
             />
           </CardPad>
-        </Card>
+        </Card>}
 
         {/* Next actions — wrapped in RecordActionZone so the advance/decide verb is sticky
             on desktop (never below the fold per DESIGN.md §7 RecordActionZone molecule). */}
@@ -295,7 +299,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
               programmatically after an Advance/Lost transition so a keyboard/SR user is
               told what changed. tabIndex={-1} keeps it out of the natural tab order. */}
           <div ref={nextActionsHeadRef} tabIndex={-1} className="outline-none focus-visible:ring-0">
-            <CardHead>{t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
+            <CardHead>{showWonPanel ? t('projectDetail.pipeline.recordWonHeading', 'Record the won project') : t('projectDetail.pipeline.nextActionsHeading', 'Next actions')}</CardHead>
           </div>
           <CardPad className="flex flex-col gap-3">
             {!canTransition ? (
@@ -330,7 +334,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
             {/* Action hierarchy: exactly ONE solid blue (Advance — the primary path); Mark won
                 / Mark lost are quiet outlines distinguished by a leading status dot
                 (color-not-only). The solid destructive fill appears ONLY inside the confirm. */}
-            {!isTerminal && (
+            {!isTerminal && !showWonPanel && (
               <div className="flex flex-wrap gap-2">
                 {nextStage && !onPrimaryActionChange && (
                   <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
@@ -363,26 +367,19 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
             {/* Inline progressive SoD capture panel (no modal). */}
             {showWonPanel && canWin && (
               <div className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 p-3">
-                <div className="text-[12px] font-semibold text-muted-foreground">
-                  {t('projectDetail.pipeline.recordWonHeading', 'Record the won project')}
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground">
+                    {t('projectDetail.pipeline.stat.value', 'Contract value')}
+                  </p>
+                  <p className="mt-1 max-w-full break-words text-2xl font-bold leading-tight tracking-[-0.02em] tabular [overflow-wrap:anywhere]">
+                    {formatCurrencyAuto(value, currency)}
+                  </p>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
+                  </div>
                 </div>
-                {/* Confirm against the money (AC-IXD-DASH-005): restate the value being booked to
-                    contract value on win, above the capture inputs. */}
-                {/* ⚑ The note that used to sit here said <Trans> could not be used because the
-                    unit runner never initialises i18next. That stopped being true when the #526
-                    review added an i18next instance to test/setup.ts — the block outlived its
-                    cause by two milestones (#575). One whole sentence, never gluable fragments:
-                    Indonesian reorders this and fragments cannot be reordered. */}
-                <div className="text-[13px] text-foreground">
-                  <Trans
-                    i18nKey="projectDetail.pipeline.bookingOnWin"
-                    defaults="Booking <1>{{amount}}</1> <3></3> to contract value on win"
-                    values={{ amount: formatCurrency(value, currency) }}
-                    components={{
-                      1: <strong className="font-semibold tabular" />,
-                      3: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />,
-                    }}
-                  />
+                <div className="text-sm text-muted-foreground">
+                  {t('projectDetail.pipeline.bookingOnWin', 'This contract value is recorded when you confirm the win.')}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="won-ref" className="text-[12px] font-semibold">
@@ -398,6 +395,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     aria-invalid={!!refError}
                     aria-describedby={refError ? 'won-ref-err' : undefined}
                     placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
+                    autoFocus
                     className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${
                       refError ? 'border-destructive' : 'border-input'
                     }`}

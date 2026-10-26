@@ -2547,7 +2547,7 @@
     "pipeline": {
       "backToSalesPipeline": "← Back to Sales Pipeline",
       "advanceTo": "Advance to",
-      "bookingOnWin": "Booking <1>{{amount}}</1> <3></3> to contract value on win",
+      "bookingOnWin": "This contract value is recorded when you confirm the win.",
       "cancel": "Cancel",
       "confirmWon": "Confirm won",
       "contractDateLabel": "Contract date",
@@ -2579,7 +2579,7 @@
       "stat": {
         "decision": "Decision",
         "owner": "Owner",
-        "value": "Value",
+        "value": "Contract value",
         "weighted": "Weighted",
         "winProbability": "Win probability"
       },
