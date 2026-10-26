@@ -600,7 +600,7 @@ export const FinanceDashboard: React.FC = () => {
       />
       {hasMissingSnapshot && <p className="text-sm text-muted-foreground">{t('dashboard:finance.snapshotUnavailable', 'An accounting snapshot is not available yet.')} {snapshotRemedy}</p>}
 
-      <Card data-testid="finance-budget-review">
+      <Card clip data-testid="finance-budget-review">
         <CardHead>{t('dashboard:finance.budgetReview', 'Budget review')}</CardHead>
         <p className="px-4 pb-2 text-sm text-muted-foreground">{t('dashboard:finance.budgetReviewScope', 'Five projects by budget variance')}</p>
         {budgetError ? (
@@ -624,7 +624,7 @@ export const FinanceDashboard: React.FC = () => {
             state={budgetPending ? 'loading' : topByVariance.length === 0 ? 'empty' : undefined}
             emptyTitle={t('uxs03.activeBudgetReviewEmpty', 'No active budgets ready for review')}
             emptySub={t('uxs03.activeBudgetReviewEmptySub', 'Active, positive-value budgets appear here.')}
-            className="rounded-t-none border-t-0"
+            className="rounded-none border-0 bg-transparent"
           tableId="components-dashboard-financedashboard-budget-review-v2-table" />
         )}
         {!budgetError && !budgetPending && topByVariance.some((project) => !canCompareActual(project)) && (
