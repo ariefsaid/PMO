@@ -193,7 +193,7 @@ const LoginPage: React.FC = () => {
           <h1 className="text-2xl font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
             Sign in to your account
           </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
+          <p className="mt-1.5 text-sm text-pretty text-muted-foreground">
             Welcome back. Use your work account or email to continue.
           </p>
         </div>
@@ -317,11 +317,11 @@ const LoginPage: React.FC = () => {
             {/* Demo-login panel — local dev OR a demo build (VITE_DEMO_MODE=true); never real prod.
                 Lists all 5 role personas; click any to one-click fill credentials. */}
             {showDemoLogin && (
-              <div className="space-y-2 rounded-md border border-border bg-secondary/40 px-3 py-2.5">
+              <div className="space-y-2 border-t border-border pt-3">
                 <p className="text-center text-xs font-semibold text-muted-foreground">
                   Demo login
                 </p>
-                <p className="text-center font-mono text-[11px] font-semibold text-muted-foreground">
+                <p className="text-center font-mono text-sm font-semibold text-muted-foreground">
                   password: {DEMO_PASSWORD}
                 </p>
                 <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
