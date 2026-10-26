@@ -25,7 +25,6 @@ import {
   type RowMenuItem,
 } from '@/src/components/ui';
 import { EfakturModal } from '@/src/components/EfakturModal';
-import { EfakturCell } from '@/src/components/EfakturCell';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
@@ -595,7 +594,7 @@ const SalesInvoices: React.FC = () => {
               title={viewTarget.si_number
                 ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
                 : invoiceDisplayLabel(viewTarget)}
-              scope={viewTarget.customer_name ?? t('financeCopy.customerUnavailable', 'Customer not available')}
+              scope={viewTarget.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}
               status={isPartlyPaid(viewTarget)
                 ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
                 : <StatusPill variant={salesInvoiceStatusVariant(viewTarget.status)}>{salesInvoiceStatusLabel(viewTarget.status, t)}</StatusPill>}
@@ -791,14 +790,14 @@ const SalesInvoices: React.FC = () => {
   };
   const customerProjectColumn: Column<SalesInvoiceRow> = {
     key: 'customer_project',
-    header: t('financeCopy.customerProjectContext', 'Customer / project'),
+    header: t('moneyIn:financeCopy.customerProjectContext', 'Customer / project'),
     kind: 'text',
     size: 250,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       return (
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="break-words font-medium">{inv.customer_name ?? t('financeCopy.customerUnavailable', 'Customer not available')}</span>
+          <span className="break-words font-medium">{inv.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}</span>
           {project
             ? <span className="break-words text-xs text-muted-foreground">{project}</span>
             : inv.project_id
@@ -928,7 +927,7 @@ const SalesInvoices: React.FC = () => {
   };
   const statusDueColumn: Column<SalesInvoiceRow> = {
     key: 'status_due',
-    header: t('financeCopy.statusDueContext', 'Status / due'),
+    header: t('moneyIn:financeCopy.statusDueContext', 'Status / due'),
     kind: 'status',
     size: 200,
     cell: (inv) => (
@@ -1098,40 +1097,40 @@ const SalesInvoices: React.FC = () => {
             />
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
-            <label className="sr-only" htmlFor="invoice-customer-filter">{t('financeCopy.filterByCustomer', 'Filter by customer')}</label>
+            <label className="sr-only" htmlFor="invoice-customer-filter">{t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}</label>
             <select
               id="invoice-customer-filter"
-              aria-label={t('financeCopy.filterByCustomer', 'Filter by customer')}
+              aria-label={t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}
               value={requestedCustomerId ?? ''}
               onChange={(event) => updateListParam('customer', event.target.value)}
               className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <option value="">{t('financeCopy.allCustomers', 'All customers')}</option>
+              <option value="">{t('moneyIn:financeCopy.allCustomers', 'All customers')}</option>
               {requestedCustomerId && !selectedCustomer && <option value={requestedCustomerId}>{t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</option>}
               {(customerOptionsQuery.data ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <label className="sr-only" htmlFor="invoice-project-filter">{t('financeCopy.filterByProject', 'Filter by project')}</label>
+            <label className="sr-only" htmlFor="invoice-project-filter">{t('moneyIn:financeCopy.filterByProject', 'Filter by project')}</label>
             <select
               id="invoice-project-filter"
-              aria-label={t('financeCopy.filterByProject', 'Filter by project')}
+              aria-label={t('moneyIn:financeCopy.filterByProject', 'Filter by project')}
               value={searchParams.get('project') ?? ''}
               onChange={(event) => updateListParam('project', event.target.value)}
               className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <option value="">{t('financeCopy.allProjects', 'All projects')}</option>
+              <option value="">{t('moneyIn:financeCopy.allProjects', 'All projects')}</option>
               {searchParams.get('project') && !selectedProject && <option value={searchParams.get('project')!}>{t('financeCopy.projectUnavailable', 'Project details unavailable')}</option>}
               {(projectOptions ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
-            <label className="sr-only" htmlFor="invoice-attribution-filter">{t('financeCopy.filterByAttribution', 'Filter by project attribution')}</label>
+            <label className="sr-only" htmlFor="invoice-attribution-filter">{t('moneyIn:financeCopy.filterByAttribution', 'Filter by project attribution')}</label>
             <select
               id="invoice-attribution-filter"
-              aria-label={t('financeCopy.filterByAttribution', 'Filter by project attribution')}
+              aria-label={t('moneyIn:financeCopy.filterByAttribution', 'Filter by project attribution')}
               value={searchParams.get('attribution') ?? 'all'}
               onChange={(event) => updateListParam('attribution', event.target.value === 'all' ? '' : event.target.value)}
               className="min-h-11 min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
-              <option value="all">{t('financeCopy.allAttribution', 'All project attribution')}</option>
-              <option value="assigned">{t('financeCopy.assignedToProject', 'Assigned to project')}</option>
+              <option value="all">{t('moneyIn:financeCopy.allAttribution', 'All project attribution')}</option>
+              <option value="assigned">{t('moneyIn:financeCopy.assignedToProject', 'Assigned to project')}</option>
               <option value="unassigned">{t('invoiceProject.unassignedFilter', 'Unassigned invoices')}</option>
             </select>
           </div>
@@ -1145,24 +1144,24 @@ const SalesInvoices: React.FC = () => {
           >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
         </div>
         <label className="flex min-h-11 min-w-0 items-center gap-2 md:w-auto">
-          <span className="sr-only">{t('financeCopy.sortInvoices', 'Sort invoices')}</span>
+          <span className="sr-only">{t('moneyIn:financeCopy.sortInvoices', 'Sort invoices')}</span>
           <select
-            aria-label={t('financeCopy.sortInvoices', 'Sort invoices')}
+            aria-label={t('moneyIn:financeCopy.sortInvoices', 'Sort invoices')}
             value={invoiceSort}
             onChange={(event) => updateListParam('sort', event.target.value)}
             className="min-h-11 w-full min-w-0 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring md:w-auto"
           >
-            <option value="due-asc">{t('financeCopy.dueSoonest', 'Due soonest')}</option>
-            <option value="overdue-desc">{t('financeCopy.oldestOverdueFirst', 'Oldest overdue first')}</option>
-            <option value="invoice-date-desc">{t('financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
+            <option value="due-asc">{t('moneyIn:financeCopy.dueSoonest', 'Due soonest')}</option>
+            <option value="overdue-desc">{t('moneyIn:financeCopy.oldestOverdueFirst', 'Oldest overdue first')}</option>
+            <option value="invoice-date-desc">{t('moneyIn:financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
           </select>
         </label>
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row md:ml-auto">
           <ExportButton
             rows={sortedInvoices}
             columns={exportColumns}
-            entity={t('financeCopy.salesInvoices', 'Sales invoices')}
-            label={t('financeCopy.exportInvoices', 'Export invoices')}
+            entity={t('financeCopy.salesInvoices', 'Sales Invoices')}
+            label={t('moneyIn:financeCopy.exportInvoices', 'Export invoices')}
             disabled={state === 'loading' || state === 'error'}
             className="min-h-11"
           />
@@ -1232,7 +1231,7 @@ const SalesInvoices: React.FC = () => {
             <div className="flex flex-col items-center gap-2">
               <span>{t('financeCopy.tryADifferentStatusOrClearTheSearch', 'Try a different status or clear the search.')}</span>
               <Button variant="ghost" onClick={clearFilters} className="min-h-11">
-                {t('financeCopy.clearFilters', 'Clear filters')}
+                {t('moneyIn:financeCopy.clearFilters', 'Clear filters')}
               </Button>
             </div>
           )}
@@ -1246,7 +1245,7 @@ const SalesInvoices: React.FC = () => {
           rowKey={(inv) => inv.id}
           rowMenu={rowMenu}
           tableId="salesinvoices-table"
-          accessibleName={t('financeCopy.salesInvoices', 'Sales invoices')}
+          accessibleName={t('financeCopy.salesInvoices', 'Sales Invoices')}
         />
       )}
 

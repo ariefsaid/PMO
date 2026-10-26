@@ -58,6 +58,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [params, setParams] = useSearchParams();
+  const canView = may('view', 'managementPack');
   const label: Record<Measure | TotalsMeasure, string> = {
     planned: t('managementPack.col.planned', 'Planned'),
     recognised: t('managementPack.col.recognised', 'Recognised'),
@@ -77,25 +78,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   );
   const { data: delivery } = useProjectsDelivery(projectIds);
 
-  if (!may('view', 'managementPack')) {
-    return (
-      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
-        <div className="text-center">
-          <h2 className="text-heading font-semibold">
-            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
-          </h2>
-          <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'The management pack is available to Finance, Project Managers, Executives and Admins.')}
-          </p>
-          <Button variant="outline" onClick={() => navigate('/')} className="mt-4 min-h-11">
-            <Icon name="back" className="size-4 mr-2" />
-            {t('financeCopy.backToDashboard', 'Back to dashboard')}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   const last = pack ? pack.months.length - 1 : -1;
   const at = (row: PackRow): PackMonth | null => (last >= 0 ? row.months[last] : null);
   const state: 'loading' | 'error' | 'empty' | undefined = isError
@@ -114,6 +96,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const historyOpen = params.get('history') === '1';
 
   useEffect(() => {
+    if (!canView) return;
     const invalidSort = requestedSort !== null && requestedSort !== 'project-name-asc' && requestedSort !== 'project-name-desc';
     const invalidHistory = params.get('history') !== null && params.get('history') !== '0' && params.get('history') !== '1';
     const missingHistory = params.get('history') === null;
@@ -124,7 +107,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       if (invalidHistory || missingHistory) next.set('history', '0');
       return next;
     }, { replace: true });
-  }, [params, requestedSort, setParams]);
+  }, [canView, params, requestedSort, setParams]);
 
   const updateParam = (key: string, value: string) => {
     setParams((current) => {
@@ -160,6 +143,25 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     rows: visiblePackRows,
     totals: totalsForRows(visiblePackRows, pack.months),
   } : null, [pack, visiblePackRows]);
+
+  if (!canView) {
+    return (
+      <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
+        <div className="text-center">
+          <h2 className="text-heading font-semibold">
+            {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
+          </h2>
+          <p className="mt-2 text-muted-foreground">
+            {t('managementPack.noAccessSub', 'The management pack is available to Finance, Project Managers, Executives and Admins.')}
+          </p>
+          <Button variant="outline" onClick={() => navigate('/')} className="mt-4 min-h-11">
+            <Icon name="back" className="size-4 mr-2" />
+            {t('financeCopy.backToDashboard', 'Back to dashboard')}
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const setMonth = (key: 'from' | 'to', value: string) => {
     const next = new URLSearchParams(params);
@@ -328,7 +330,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const exportAction = (
     <Button variant="outline" disabled={!visiblePack?.rows.length || busy} onClick={onExport} className="min-h-11">
       <Icon name="export" className="size-4 mr-2" />
-      {t('uxs42.exportMonthlyData', 'Export monthly data')}
+      {t('moneyIn:uxs42.exportMonthlyData', 'Export monthly data')}
     </Button>
   );
   const periodControls = (
@@ -352,10 +354,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       </div>
   );
   const filters = (
-    <div role="group" aria-label={t('uxs42.earnedFilters', 'Earned revenue filters')} className="mb-3 min-w-0 space-y-3">
+    <div role="group" aria-label={t('moneyIn:uxs42.earnedFilters', 'Earned revenue filters')} className="mb-3 min-w-0 space-y-3">
       <SearchMini
-        placeholder={t('uxs42.searchProjects', 'Search projects')}
-        aria-label={t('uxs42.searchProjects', 'Search projects')}
+        placeholder={t('moneyIn:uxs42.searchProjects', 'Search projects')}
+        aria-label={t('moneyIn:uxs42.searchProjects', 'Search projects')}
         value={search}
         onChange={(event) => updateParam('q', event.target.value)}
         searchSurface="project-revenue-earned"
@@ -364,34 +366,34 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         containerClassName="w-full min-w-0 min-h-11"
       />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor="earned-project-filter">{t('uxs42.filterByProject', 'Filter by project')}</label>
-        <select id="earned-project-filter" aria-label={t('uxs42.filterByProject', 'Filter by project')} value={selectedProject}
+        <label className="sr-only" htmlFor="earned-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
+        <select id="earned-project-filter" aria-label={t('moneyIn:uxs42.filterByProject', 'Filter by project')} value={selectedProject}
           onChange={(event) => updateParam('project', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('uxs42.allProjects', 'All projects')}</option>
+          <option value="">{t('moneyIn:uxs42.allProjects', 'All projects')}</option>
           <option value="unassigned">{t('managementPack.unassigned', 'Unassigned')}</option>
           {selectedProject && selectedProject !== 'unassigned' && !projectOptions.some((option) => option.value === selectedProject) &&
-            <option value={selectedProject}>{t('uxs42.projectUnavailable', 'Project unavailable')}</option>}
+            <option value={selectedProject}>{t('moneyIn:uxs42.projectUnavailable', 'Project unavailable')}</option>}
           {projectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <label className="sr-only" htmlFor="earned-currency-filter">{t('uxs42.filterByCurrency', 'Filter by currency')}</label>
-        <select id="earned-currency-filter" aria-label={t('uxs42.filterByCurrency', 'Filter by currency')} value={selectedCurrency}
+        <label className="sr-only" htmlFor="earned-currency-filter">{t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')}</label>
+        <select id="earned-currency-filter" aria-label={t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')} value={selectedCurrency}
           onChange={(event) => updateParam('currency', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('uxs42.allCurrencies', 'All currencies')}</option>
+          <option value="">{t('moneyIn:uxs42.allCurrencies', 'All currencies')}</option>
           {selectedCurrency && !currencyOptions.includes(selectedCurrency) && <option value={selectedCurrency}>{selectedCurrency}</option>}
           {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
         </select>
-        <label className="sr-only" htmlFor="earned-sort">{t('uxs42.sortProjects', 'Sort projects')}</label>
-        <select id="earned-sort" aria-label={t('uxs42.sortProjects', 'Sort projects')} value={projectSort}
+        <label className="sr-only" htmlFor="earned-sort">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</label>
+        <select id="earned-sort" aria-label={t('moneyIn:uxs42.sortProjects', 'Sort projects')} value={projectSort}
           onChange={(event) => updateParam('sort', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="project-name-asc">{t('uxs42.projectNameAscending', 'Project name A–Z')}</option>
-          <option value="project-name-desc">{t('uxs42.projectNameDescending', 'Project name Z–A')}</option>
+          <option value="project-name-asc">{t('moneyIn:uxs42.projectNameAscending', 'Project name A–Z')}</option>
+          <option value="project-name-desc">{t('moneyIn:uxs42.projectNameDescending', 'Project name Z–A')}</option>
         </select>
         {embedded && exportAction}
         {embedded && visiblePackRows.length === 0 && (
-          <span className="text-xs text-muted-foreground">{t('uxs42.noRowsToExport', 'No rows to export')}</span>
+          <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>
         )}
       </div>
     </div>
@@ -422,8 +424,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           variant="empty"
           icon="table"
           title={t('managementPack.emptyTitle', 'No projects to report')}
-          sub={t('uxs42.earnedEmpty', 'Eligible projects and their earned or billed evidence appear here.')}
-          action={{ label: t('uxs42.openProjects', 'Open projects'), onClick: () => navigate('/projects') }}
+          sub={t('moneyIn:uxs42.earnedEmpty', 'Eligible projects and their earned or billed evidence appear here.')}
+          action={{ label: t('moneyIn:uxs42.openProjects', 'Open projects'), onClick: () => navigate('/projects') }}
         />
       )}
 
@@ -441,10 +443,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
               accessibleName={t('managementPack.col.project', 'Project')}
               totals={projectTotals}
               state={visiblePackRows.length === 0 ? 'empty' : undefined}
-              emptyTitle={t('uxs42.noProjectMatches', 'No projects match these filters')}
-              emptySub={t('uxs42.clearBillingFilters', 'Clear search and filters to see all project revenue.')}
+              emptyTitle={t('moneyIn:uxs42.noProjectMatches', 'No projects match these filters')}
+              emptySub={t('moneyIn:uxs42.clearBillingFilters', 'Clear search and filters to see all billing totals.')}
               emptyAction={{
-                label: t('financeCopy.clearFilters', 'Clear filters'),
+                label: t('moneyIn:financeCopy.clearFilters', 'Clear filters'),
                 onClick: () => setParams((current) => {
                   const next = new URLSearchParams(current);
                   for (const key of ['q', 'project', 'currency', 'sort']) next.delete(key);
@@ -455,9 +457,9 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           </Card>
           <details className="mb-6 rounded-md border border-border px-3" open={historyOpen}
             onToggle={(event) => updateParam('history', event.currentTarget.open ? '1' : '0')}>
-            <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('uxs42.monthlyHistory', 'Monthly history')}</summary>
+            <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('moneyIn:uxs42.monthlyHistory', 'Monthly history')}</summary>
             <Card className="mb-3 overflow-hidden">
-              <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('uxs42.monthlyHistory', 'Monthly history')} />
+              <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('moneyIn:uxs42.monthlyHistory', 'Monthly history')} />
             </Card>
           </details>
           {pack.undatedInvoiceCount > 0 && (

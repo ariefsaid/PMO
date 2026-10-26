@@ -54,6 +54,8 @@ import RevenueByProject from '../RevenueByProject';
 const testI18n = createInstance();
 const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
 const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
+const enMoneyInCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/moneyIn.json'), 'utf8')) as Record<string, unknown>;
+const idMoneyInCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/moneyIn.json'), 'utf8')) as Record<string, unknown>;
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 beforeAll(async () => {
@@ -62,8 +64,8 @@ beforeAll(async () => {
     fallbackLng: 'en',
     defaultNS: 'common',
     resources: {
-      en: { common: enCatalogue },
-      id: { common: idCatalogue },
+      en: { common: enCatalogue, moneyIn: enMoneyInCatalogue },
+      id: { common: idCatalogue, moneyIn: idMoneyInCatalogue },
     },
     interpolation: { escapeValue: false },
     react: { useSuspense: false },

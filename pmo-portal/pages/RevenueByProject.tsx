@@ -119,7 +119,7 @@ const RevenueByProject: React.FC = () => {
       cell: (row) => shown(row) ? (
         <button
           type="button"
-          aria-label={t('uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
+          aria-label={t('moneyIn:uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
           title={row.project_name !== shown(row) ? row.project_name ?? undefined : undefined}
           className="min-h-11 w-fit text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
@@ -132,7 +132,7 @@ const RevenueByProject: React.FC = () => {
       ) : (
         <button
           type="button"
-          aria-label={t('uxs42.openUnassigned', 'Open Unassigned ({{currency}})', { currency: row.currency })}
+          aria-label={t('moneyIn:uxs42.openUnassigned', 'Open Unassigned ({{currency}})', { currency: row.currency })}
           className="min-h-11 w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
@@ -194,10 +194,10 @@ const RevenueByProject: React.FC = () => {
   }));
 
   const toolbar = (
-    <div role="group" aria-label={t('uxs42.billingFilters', 'Billing filters')} className="mb-4 min-w-0 space-y-3">
+    <div role="group" aria-label={t('moneyIn:uxs42.billingFilters', 'Billing filters')} className="mb-4 min-w-0 space-y-3">
       <SearchMini
-        placeholder={t('uxs42.searchProjects', 'Search projects…')}
-        aria-label={t('uxs42.searchProjects', 'Search projects')}
+        placeholder={t('moneyIn:uxs42.searchProjects', 'Search projects')}
+        aria-label={t('moneyIn:uxs42.searchProjects', 'Search projects')}
         value={search}
         onChange={(event) => updateParam('q', event.target.value)}
         searchSurface="project-revenue-billing"
@@ -206,34 +206,34 @@ const RevenueByProject: React.FC = () => {
         containerClassName="w-full min-w-0 min-h-11"
       />
       <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor="billing-project-filter">{t('uxs42.filterByProject', 'Filter by project')}</label>
-        <select id="billing-project-filter" aria-label={t('uxs42.filterByProject', 'Filter by project')} value={selectedProject}
+        <label className="sr-only" htmlFor="billing-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
+        <select id="billing-project-filter" aria-label={t('moneyIn:uxs42.filterByProject', 'Filter by project')} value={selectedProject}
           onChange={(event) => updateParam('project', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('uxs42.allProjects', 'All projects')}</option>
+          <option value="">{t('moneyIn:uxs42.allProjects', 'All projects')}</option>
           <option value="unassigned">{t('financeCopy.unassigned', 'Unassigned')}</option>
           {selectedProject && selectedProject !== 'unassigned' && !projectOptions.some((option) => option.value === selectedProject) &&
-            <option value={selectedProject}>{t('uxs42.projectUnavailable', 'Project unavailable')}</option>}
+            <option value={selectedProject}>{t('moneyIn:uxs42.projectUnavailable', 'Project unavailable')}</option>}
           {projectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <label className="sr-only" htmlFor="billing-currency-filter">{t('uxs42.filterByCurrency', 'Filter by currency')}</label>
-        <select id="billing-currency-filter" aria-label={t('uxs42.filterByCurrency', 'Filter by currency')} value={selectedCurrency}
+        <label className="sr-only" htmlFor="billing-currency-filter">{t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')}</label>
+        <select id="billing-currency-filter" aria-label={t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')} value={selectedCurrency}
           onChange={(event) => updateParam('currency', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('uxs42.allCurrencies', 'All currencies')}</option>
+          <option value="">{t('moneyIn:uxs42.allCurrencies', 'All currencies')}</option>
           {selectedCurrency && !currencyOptions.includes(selectedCurrency) && <option value={selectedCurrency}>{selectedCurrency}</option>}
           {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
         </select>
-        <label className="sr-only" htmlFor="billing-sort">{t('uxs42.sortProjects', 'Sort projects')}</label>
-        <select id="billing-sort" aria-label={t('uxs42.sortProjects', 'Sort projects')} value={projectSort}
+        <label className="sr-only" htmlFor="billing-sort">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</label>
+        <select id="billing-sort" aria-label={t('moneyIn:uxs42.sortProjects', 'Sort projects')} value={projectSort}
           onChange={(event) => updateParam('sort', event.target.value)}
           className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="project-name-asc">{t('uxs42.projectNameAscending', 'Project name A–Z')}</option>
-          <option value="project-name-desc">{t('uxs42.projectNameDescending', 'Project name Z–A')}</option>
+          <option value="project-name-asc">{t('moneyIn:uxs42.projectNameAscending', 'Project name A–Z')}</option>
+          <option value="project-name-desc">{t('moneyIn:uxs42.projectNameDescending', 'Project name Z–A')}</option>
         </select>
-        <ExportButton rows={visibleRows} columns={columns} entity={t('uxs42.billingTotals', 'Billing totals')}
-          label={t('uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
-        {visibleRows.length === 0 && <span className="text-xs text-muted-foreground">{t('uxs42.noRowsToExport', 'No rows to export')}</span>}
+        <ExportButton rows={visibleRows} columns={columns} entity={t('moneyIn:uxs42.billingTotals', 'Billing totals')}
+          label={t('moneyIn:uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
+        {visibleRows.length === 0 && <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>}
       </div>
     </div>
   );
@@ -251,12 +251,12 @@ const RevenueByProject: React.FC = () => {
           variant="error"
           title={currencyError
             ? t('revenueByProject.currencyErrorTitle', "Couldn't load organization currency")
-            : t('uxs42.billingErrorTitle', "Couldn't load billing totals")}
+            : t('moneyIn:uxs42.billingErrorTitle', "Couldn't load billing totals")}
           sub={currencyError
             ? t('revenueByProject.currencyErrorSub', 'Try again to view revenue.')
-            : t('uxs42.billingErrorSub', 'The request failed. Check your connection and try again.')}
+            : t('moneyIn:uxs42.billingErrorSub', 'The request failed. Check your connection and try again.')}
           onRetry={() => { void (currencyError ? refetchCurrency() : refetch()); }}
-          retryLabel={t('financeCopy.retry', 'Retry')}
+          retryLabel={t('ui.listState.retry', 'Retry')}
         />
       )}
 
@@ -266,10 +266,10 @@ const RevenueByProject: React.FC = () => {
           icon="table"
           title={t('financeCopy.noRevenueDataYet', "No revenue data yet")}
           sub={canCreateInvoice
-            ? t('uxs42.billingEmptyFinance', 'Project billing will appear here after invoices are recorded.')
-            : t('uxs42.billingEmptyReader', 'Project billing has not been recorded yet. Open your projects to see project work.')}
+            ? t('moneyIn:uxs42.billingEmptyFinance', 'Project billing will appear here after invoices are recorded.')
+            : t('moneyIn:uxs42.billingEmptyReader', 'Project billing has not been recorded yet. Open your projects to see project work.')}
           action={{
-            label: canCreateInvoice ? t('uxs42.openInvoices', 'Open invoices') : t('uxs42.openProjects', 'Open projects'),
+            label: canCreateInvoice ? t('moneyIn:uxs42.openInvoices', 'Open invoices') : t('moneyIn:uxs42.openProjects', 'Open projects'),
             onClick: () => navigate(canCreateInvoice ? '/sales-invoices' : '/projects'),
           }}
         />
@@ -286,10 +286,10 @@ const RevenueByProject: React.FC = () => {
               else navigate('/sales-invoices?attribution=unassigned');
             }}
             state={visibleRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('uxs42.noProjectMatches', 'No projects match these filters')}
-            emptySub={t('uxs42.clearBillingFilters', 'Clear search and filters to see all billing totals.')}
+            emptyTitle={t('moneyIn:uxs42.noProjectMatches', 'No projects match these filters')}
+            emptySub={t('moneyIn:uxs42.clearBillingFilters', 'Clear search and filters to see all billing totals.')}
             emptyAction={{
-              label: t('financeCopy.clearFilters', 'Clear filters'),
+              label: t('moneyIn:financeCopy.clearFilters', 'Clear filters'),
               onClick: () => setParams((current) => {
                 const next = new URLSearchParams(current);
                 for (const key of ['q', 'project', 'currency', 'sort']) next.delete(key);

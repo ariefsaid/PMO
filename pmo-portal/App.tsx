@@ -340,7 +340,7 @@ export const ShellChrome: React.FC = () => {
           onClick: () => breadcrumbNavigate(listPath),
           i18nKey: 'shell.nav.incomingPayments',
         },
-        { label: t('shell.nav.receiptRecord', 'Receipt record') },
+        { label: t('shell:nav.receiptRecord', 'Receipt record') },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost

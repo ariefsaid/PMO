@@ -14,5 +14,8 @@
       "workWithPartners": "Work with partners",
       "workspaceSetup": "Workspace"
     }
+  },
+  "nav": {
+    "receiptRecord": "Receipt record"
   }
 }

@@ -77,20 +77,20 @@ export default function MoneyInReports() {
 
   const title = effectiveSection === 'statements'
     ? t('shell.nav.financialStatements', 'Financial statements')
-    : t('uxs42.projectRevenue', 'Project revenue');
+    : t('moneyIn:uxs42.projectRevenue', 'Project revenue');
   const scope = effectiveSection === 'statements'
-    ? t('uxs42.statementsScope', 'Company and admitted project statements by supplied period.')
+    ? t('moneyIn:uxs42.statementsScope', 'Company and admitted project statements by supplied period.')
     : view === 'earned'
-      ? t('uxs42.earnedScope', 'Cumulative project revenue · net of tax · through the selected as-at month.')
-      : t('uxs42.billingScope', 'All invoice dates · billed amounts exclude tax; open receivables include tax.');
+      ? t('moneyIn:uxs42.earnedScope', 'Cumulative project revenue · net of tax · through the selected as-at month.')
+      : t('moneyIn:uxs42.billingScope', 'All invoice dates · billed amounts exclude tax; open receivables include tax.');
 
   if (!statementsAllowed && !billingAllowed) {
     return (
       <div className="min-w-0">
-        <MoneyInPageHeader title={t('uxs42.reports', 'Financial reports')} />
+        <MoneyInPageHeader title={t('moneyIn:uxs42.reports', 'Financial reports')} />
         <section className="max-w-2xl rounded-md border border-border bg-card p-4" aria-labelledby="reports-access-title">
           <h2 id="reports-access-title" className="font-semibold">{t('financialStatements.accessDenied', "You don't have access to financial statements")}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t('uxs42.reportsUnavailable', 'Reports are not available to this role.')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('moneyIn:uxs42.reportsUnavailable', 'Reports are not available to this role.')}</p>
           <Button variant="outline" className="mt-3 min-h-11" onClick={() => navigate('/')}>{t('financeCopy.backToDashboard', 'Back to dashboard')}</Button>
         </section>
       </div>
@@ -98,17 +98,17 @@ export default function MoneyInReports() {
   }
 
   const sectionLinks = (
-    <nav aria-label={t('uxs42.reportSections', 'Report sections')} className="mb-4 flex flex-wrap gap-x-5 gap-y-2 border-b border-border">
+    <nav aria-label={t('moneyIn:uxs42.reportSections', 'Report sections')} className="mb-4 flex flex-wrap gap-x-5 gap-y-2 border-b border-border">
       {statementsAllowed && (
         <Link to={sectionUrl('statements')} aria-current={effectiveSection === 'statements' ? 'page' : undefined}
           className="inline-flex min-h-11 items-center border-b-2 px-1 py-2 text-sm font-medium text-muted-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground">
-          {t('uxs42.statements', 'Statements')}
+          {t('moneyIn:uxs42.statements', 'Statements')}
         </Link>
       )}
       {billingAllowed && (
         <Link to={sectionUrl('project-revenue')} aria-current={effectiveSection === 'project-revenue' ? 'page' : undefined}
           className="inline-flex min-h-11 items-center border-b-2 px-1 py-2 text-sm font-medium text-muted-foreground aria-[current=page]:border-primary aria-[current=page]:text-foreground">
-          {t('uxs42.projectRevenue', 'Project revenue')}
+          {t('moneyIn:uxs42.projectRevenue', 'Project revenue')}
         </Link>
       )}
     </nav>
@@ -121,30 +121,30 @@ export default function MoneyInReports() {
       {recoveryFrom && (
         <div role="status" className="mb-4 rounded-md border border-border bg-card p-3 text-sm text-muted-foreground">
           {recoveryFrom === 'statements'
-            ? t('uxs42.statementsUnavailableRecovery', 'Company statements are available to Finance, Admin, and Executive roles. Project revenue is available to your role.')
-            : t('uxs42.projectRevenueUnavailableRecovery', 'Project revenue is not available to your role. Statements are available instead.')}
+            ? t('moneyIn:uxs42.statementsUnavailableRecovery', 'Company statements are available to Finance, Admin, and Executive roles. Project revenue is available to your role.')
+            : t('moneyIn:uxs42.projectRevenueUnavailableRecovery', 'Project revenue is not available to your role. Statements are available instead.')}
         </div>
       )}
       {effectiveSection === 'statements' && <FinancialStatements />}
       {effectiveSection === 'project-revenue' && (
         <>
-          <nav aria-label={t('uxs42.projectRevenueViews', 'Project revenue views')} className="mb-4 flex flex-wrap gap-2">
+          <nav aria-label={t('moneyIn:uxs42.projectRevenueViews', 'Project revenue views')} className="mb-4 flex flex-wrap gap-2">
             {earnedAllowed && (
               <Link to={viewUrl('earned')} aria-current={view === 'earned' ? 'page' : undefined}
                 className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm font-medium aria-[current=page]:border-primary aria-[current=page]:bg-secondary">
-                {t('uxs42.earned', 'Earned vs billed')}
+                {t('moneyIn:uxs42.earned', 'Earned vs billed')}
               </Link>
             )}
             {billingAllowed && (
               <Link to={viewUrl('billing')} aria-current={view === 'billing' ? 'page' : undefined}
                 className="inline-flex min-h-11 items-center rounded-md border border-border px-3 py-2 text-sm font-medium aria-[current=page]:border-primary aria-[current=page]:bg-secondary">
-                {t('uxs42.billingToDate', 'Billing to date')}
+                {t('moneyIn:uxs42.billingToDate', 'Billing to date')}
               </Link>
             )}
           </nav>
           {viewRecovery && (
             <div role="status" className="mb-4 rounded-md border border-border bg-card p-3 text-sm text-muted-foreground">
-              {t('uxs42.earnedUnavailableRecovery', 'Earned revenue is unavailable; Billing to date remains available.')}
+              {t('moneyIn:uxs42.earnedUnavailableRecovery', 'Earned revenue is unavailable; Billing to date remains available.')}
             </div>
           )}
           {view === 'earned' && earnedAllowed ? <ManagementPack embedded /> : <RevenueByProject />}

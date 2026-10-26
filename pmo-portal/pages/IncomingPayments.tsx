@@ -236,7 +236,8 @@ const IncomingPayments: React.FC = () => {
     ? requestedStatus as StatusFilter
     : 'All';
   const customerFilter = searchParams.get('customer') ?? '';
-  const receiptSort = isReceiptSort(searchParams.get('sort')) ? searchParams.get('sort')! : 'payment-date-desc';
+  const requestedSort = searchParams.get('sort');
+  const receiptSort: ReceiptSort = isReceiptSort(requestedSort) ? requestedSort : 'payment-date-desc';
 
   const updateListParam = (key: string, value: string) => {
     setSearchParams((current) => {
@@ -445,21 +446,21 @@ const IncomingPayments: React.FC = () => {
         const more = settled && settled.length > 1 ? settled.length - 1 : 0;
         const invoiceLabel = invoice && more > 0
           ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first: invoice, count: more })
-          : invoice ?? t('uxs06.noInvoiceLinked', 'No invoice linked');
-        return <span className="block truncate text-xs text-muted-foreground">{p.customer_name ?? t('uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
+          : invoice ?? t('moneyIn:uxs06.noInvoiceLinked', 'No invoice linked');
+        return <span className="block truncate text-xs text-muted-foreground">{p.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
       },
       exportValue: (p) => receiptNumber(p) ?? '',
     },
     {
       key: 'status-date',
-      header: t('uxs06.statusAndPaymentDate', 'Status / payment date'),
+      header: t('moneyIn:uxs06.statusAndPaymentDate', 'Status / payment date'),
       kind: 'status',
       cell: (p) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
           {p.cancelled_at || p.erp_cancelled_at
             ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
             : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.pmo_native && p.status === 'Paid' ? 'Received' : p.status, t)}</StatusPill>}
-          <span className="text-xs text-muted-foreground">{p.date ? formatDateOnly(p.date) : t('uxs06.dateNotReported', 'Date not reported')}</span>
+          <span className="text-xs text-muted-foreground">{p.date ? formatDateOnly(p.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')}</span>
         </div>
       ),
     },
@@ -573,7 +574,7 @@ const IncomingPayments: React.FC = () => {
       />
 
       {state === undefined && (
-        <div className="mb-4 min-w-0 space-y-3" role="group" aria-label={t('uxs06.receiptFilters', 'Receipt filters')}>
+        <div className="mb-4 min-w-0 space-y-3" role="group" aria-label={t('moneyIn:uxs06.receiptFilters', 'Receipt filters')}>
           <SearchMini
             placeholder={t('financeCopy.searchPayments', 'Search payments…')}
             aria-label={t('financeCopy.searchIncomingPayments', 'Search incoming payments')}
@@ -585,17 +586,17 @@ const IncomingPayments: React.FC = () => {
             containerClassName="w-full min-w-0 min-h-11"
           />
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <label className="sr-only" htmlFor="receipt-customer-filter">{t('financeCopy.filterByCustomer', 'Filter by customer')}</label>
+            <label className="sr-only" htmlFor="receipt-customer-filter">{t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}</label>
             <select
               id="receipt-customer-filter"
-              aria-label={t('financeCopy.filterByCustomer', 'Filter by customer')}
+              aria-label={t('moneyIn:financeCopy.filterByCustomer', 'Filter by customer')}
               value={customerFilter}
               onChange={(event) => updateListParam('customer', event.target.value)}
               className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
-              <option value="">{t('uxs06.allCustomers', 'All customers')}</option>
+              <option value="">{t('moneyIn:uxs06.allCustomers', 'All customers')}</option>
               {customerFilter && !customerOptions.some((option) => option.value === customerFilter) && (
-                <option value={customerFilter}>{t('uxs06.customerUnavailable', 'Customer unavailable')}</option>
+                <option value={customerFilter}>{t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')}</option>
               )}
               {customerOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -608,18 +609,18 @@ const IncomingPayments: React.FC = () => {
               }}
               ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
             />
-            <label className="sr-only" htmlFor="receipt-sort">{t('uxs06.sortReceipts', 'Sort receipts')}</label>
+            <label className="sr-only" htmlFor="receipt-sort">{t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}</label>
             <select
               id="receipt-sort"
-              aria-label={t('uxs06.sortReceipts', 'Sort receipts')}
+              aria-label={t('moneyIn:uxs06.sortReceipts', 'Sort receipts')}
               value={receiptSort}
               onChange={(event) => updateListParam('sort', event.target.value)}
               className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground"
             >
-              <option value="payment-date-desc">{t('uxs06.latestPaymentDate', 'Latest payment date')}</option>
-              <option value="payment-date-asc">{t('uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
+              <option value="payment-date-desc">{t('moneyIn:uxs06.latestPaymentDate', 'Latest payment date')}</option>
+              <option value="payment-date-asc">{t('moneyIn:uxs06.oldestPaymentDate', 'Oldest payment date')}</option>
             </select>
-            <ExportButton rows={filtered} columns={exportColumns} entity={t('uxs06.receipts', 'Receipts')} className="min-h-11" />
+            <ExportButton rows={filtered} columns={exportColumns} entity={t('moneyIn:uxs06.receipts', 'Receipts')} className="min-h-11" />
           </div>
         </div>
       )}
@@ -664,7 +665,7 @@ const IncomingPayments: React.FC = () => {
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
           emptyAction={{
-            label: t('financeCopy.clearFilters', 'Clear filters'),
+            label: t('moneyIn:financeCopy.clearFilters', 'Clear filters'),
             onClick: () => {
               setSearchParams((current) => {
                 const next = new URLSearchParams(current);

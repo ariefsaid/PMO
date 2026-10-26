@@ -25,19 +25,19 @@ export const BoardPackAction: React.FC = () => {
     return (
       <Button variant="outline" className="min-h-11" onClick={() => navigate(`/financial-statements?section=project-revenue&view=${targetView}`)}>
         <Icon name="export" />
-        {t('uxs42.projectRevenue', 'Project revenue')}
+        {t('moneyIn:uxs42.projectRevenue', 'Project revenue')}
       </Button>
     );
   }
 
   return (
-    <Tooltip content={t('uxs42.projectRevenueUnavailableRecovery', 'Project revenue is not available to your role.')}>
+    <Tooltip content={t('moneyIn:uxs42.projectRevenueUnavailableRecovery', 'Project revenue is not available to your role. Statements are available instead.')}>
       {/* coming_soon_clicked (2026-07-13 wiring plan — demand signal): the Button itself stays genuinely
           disabled; the wrapping span's click still reports intent, since a `disabled` button cannot dispatch one. */}
       <span className="inline-flex" onClick={() => trackComingSoonClicked('board-pack-export', 'dashboard')}>
-        <Button variant="outline" disabled className="min-h-11" aria-label={t('uxs42.projectRevenueDisabled', 'Project revenue (unavailable)')}>
+        <Button variant="outline" disabled className="min-h-11" aria-label={t('moneyIn:uxs42.projectRevenueDisabled', 'Project revenue (unavailable)')}>
           <Icon name="export" />
-          {t('uxs42.projectRevenue', 'Project revenue')}
+          {t('moneyIn:uxs42.projectRevenue', 'Project revenue')}
         </Button>
       </span>
     </Tooltip>

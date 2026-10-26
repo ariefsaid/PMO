@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BackBar } from '@/src/components/shell';
-import { Button, DataTable, Icon, StatusPill, type Column } from '@/src/components/ui';
+import { Button, DataTable, StatusPill, type Column } from '@/src/components/ui';
 import { formatCurrencyAuto, formatCurrencyCents, formatDateOnly } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
@@ -67,7 +67,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       <MoneyInPageHeader
         kind="record"
         title={t('uxs06.receiptTitle', 'Receipt {{number}}', { number: receiptNumber(receipt) ?? receipt.id })}
-        scope={[receipt.customer_name ?? t('uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('uxs06.dateNotReported', 'Date not reported')].join(' · ')}
+        scope={[receipt.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable'), receipt.date ? formatDateOnly(receipt.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')].join(' · ')}
         status={status}
         returnAction={<BackBar label={t('shell.nav.incomingPayments', 'Incoming Payments')} onBack={onBack} phoneOnly />}
       />
@@ -100,7 +100,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       )}
       {receipt.reference_number && (
         <details className="mt-5 max-w-2xl rounded-md border border-border px-3 py-2">
-          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{t('uxs06.referenceDetails', 'Reference details')}</summary>
+          <summary className="min-h-11 cursor-pointer py-2 text-sm font-medium">{t('moneyIn:uxs06.referenceDetails', 'Reference details')}</summary>
           <p className="break-words pb-2 text-sm text-muted-foreground">{receipt.reference_number}</p>
         </details>
       )}

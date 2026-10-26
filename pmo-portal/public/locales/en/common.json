@@ -1,9 +1,13 @@
 {
-  "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
+  "ui": {
+    "listState": {
+      "loading": "Loading…",
+      "retry": "Retry"
+    }
+  },
   "uxs07": {
     "organizationScope": "Organization connections are shared; your personal connection is separate. Manage it in ",
     "personalConnections": "My integrations",
-
     "connectionOptions": "Connection options",
     "reviewRecords": "Review connected records",
     "liveRecordCheck": "Not yet verified — review a connected record to confirm the data is usable.",
@@ -21,12 +25,10 @@
     "reviewHeld": "Review held updates",
     "notReady": "Not ready yet — {{count}} steps left",
     "setupChecking": "Checking setup",
-
     "setupAdminRequired": "Ask an administrator to check setup",
     "ready": "Ready",
     "finishSetup": "Finish setup",
     "ownershipTitle": "Automatic update selection",
-
     "ownershipLoading": "Checking which information is updated automatically…",
     "ownershipUnavailable": "Automatic updates unavailable",
     "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
@@ -36,7 +38,6 @@
     "lastKnownBody": "The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.",
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
-
     "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
   },
   "uxs14": {
@@ -78,7 +79,6 @@
     "catalogueLoadError": "Couldn't load chart accounts",
     "checkingBinding": "Checking ERPNext setup…",
     "downPaymentHeading": "Down payments",
-
     "downPaymentIntro": "Choose the existing ERPNext item used to bill a customer advance and recover it from billing claims.",
     "downPaymentItemLabel": "Down payment item",
     "downPaymentItemPlaceholder": "Choose an ERPNext item",
@@ -92,7 +92,6 @@
     "inputVatLabel": "Input VAT account",
     "itemNoun": "item",
     "itemSearch": "Search ERPNext items",
-
     "loadingAccounts": "Loading chart accounts…",
     "noAssetAccounts": "No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.",
     "notConfigured": "Not configured",
@@ -218,7 +217,6 @@
     "date": "Publication date",
     "rate": "IDR per USD",
     "source": "Source",
-
     "denied": "Exchange rates are available to Finance and Admin.",
     "saved": "Rates saved: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "orgCurrencyError": "Could not resolve the organization currency.",
@@ -288,27 +286,120 @@
     "saved": "e-Faktur details saved"
   },
   "bupot": {
-    "loading": "Loading bukti potong…", "loadError": "Bukti potong unavailable", "unavailable": "Unavailable",
-    "view": "View bukti potong", "record": "Record bukti potong", "setVendor": "Set vendor", "vendorRequired": "Set a vendor on the request before recording this slip.", "vendorSet": "Vendor set", "vendorAlreadySet": "A vendor was already set. Refresh to see it.", "selectVendor": "Select a vendor…", "saveVendor": "Save vendor", "cancelSetVendor": "Cancel", "history": "Bukti potong history",
-    "state": { "slipped": "Slipped", "needsReview": "Needs review", "unavailable": "Unavailable", "notRecorded": "Not recorded", "notRequired": "Not required", "returnReview": "Return review" },
-    "select": "Select", "selectBill": "Select bill {{bill}}", "bill": "Bill", "withheld": "Withheld", "type": "PPh type",
-    "identity": { "vendorReference": "Vendor invoice reference", "systemNumber": "System VI number", "case": "Case", "project": "Project", "pmoNumber": "PMO project number", "billDate": "Bill date", "referenceMissing": "Vendor invoice reference not recorded", "systemNumberMissing": "System VI number unavailable", "contextPending": "Details loading", "contextUnavailable": "Details unavailable", "caseMissing": "Case not recorded", "projectMissing": "Project not recorded", "pmoNumberMissing": "PMO project number unavailable", "dateMissing": "Bill date not recorded" },
-    "confirmUnknown": "Confirm as {{type}} from issued slip", "recordTitle": "Record bukti potong",
-    "vendor": "Vendor", "slipNumber": "Issued slip number", "slipDate": "Slip date", "taxPeriod": "Tax period", "taxBase": "Tax base", "withheldAmount": "Issued withheld amount",
-    "typeWarning": "Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.", "candidates": "Eligible bills",
-    "selectedTotal": "Selected total: {{currency}} {{amount}}", "loadMore": "Load more bills", "reconciliation": "Selection {{sum}} · Slip {{amount}} · Difference {{difference}}",
-    "amountMismatch": "The slip amount must exactly equal selected bill withholding.", "startingBillSelected": "Starting bill selected",
-    "refusal": { "stale": "This slip changed. Reload it before saving.", "conflict": "A slip number or bill is already covered. Inspect existing slip history.", "invalidFacts": "Review the entered facts and selected bills.", "retrySameIntent": "The result is uncertain. Retry with this same slip intent.", "ineligibleBill": "One or more bills are no longer eligible.", "amountMismatch": "The issued amount does not match selected bills.", "typeConfirmation": "Confirm the unknown bill types.", "billLimit": "A slip can cover at most 100 bills.", "notPermitted": "You do not have permission to record this slip.", "notFound": "The slip or bill is no longer available.", "voided": "This slip has already been voided." },
-    "remedy": { "reload": "Reload and review the latest slip facts.", "inspect": "Inspect existing coverage before recording another slip.", "edit": "Edit the facts and try again.", "retry": "Retry this same request; do not start a new slip." },
-    "detailTitle": "Bukti potong details", "status": "Status", "voidReason": "Void reason",
-    "validationState": "Validation state", "reconciled": "Reconciled", "active": "Active", "voidedStatus": "Voided in PMO", "sourceUnavailableShort": "Source data unavailable",
-    "reviewReason": "Bill withholding changed. Verify the source; void and record a replacement if needed.", "sourceUnavailable": "Source data is unavailable. Coverage cannot be verified.",
-    "recordedTotal": "Recorded", "currentTotal": "Current", "difference": "Difference", "taxPeriodMonth": "Tax period (month)",
-    "invalidAmount": "Enter a positive amount with at most two decimal places.", "invalidSlipDate": "Choose a slip date no later than today.", "amountExceedsBase": "Issued withholding cannot exceed the tax base.", "invalidTaxPeriod": "Choose a tax month no later than the current month.", "invalidFactsCopy": "Review the entered facts and try again.", "vendorUnavailable": "Vendor details unavailable",
+    "loading": "Loading bukti potong…",
+    "loadError": "Bukti potong unavailable",
+    "unavailable": "Unavailable",
+    "view": "View bukti potong",
+    "record": "Record bukti potong",
+    "setVendor": "Set vendor",
+    "vendorRequired": "Set a vendor on the request before recording this slip.",
+    "vendorSet": "Vendor set",
+    "vendorAlreadySet": "A vendor was already set. Refresh to see it.",
+    "selectVendor": "Select a vendor…",
+    "saveVendor": "Save vendor",
+    "cancelSetVendor": "Cancel",
+    "history": "Bukti potong history",
+    "state": {
+      "slipped": "Slipped",
+      "needsReview": "Needs review",
+      "unavailable": "Unavailable",
+      "notRecorded": "Not recorded",
+      "notRequired": "Not required",
+      "returnReview": "Return review"
+    },
+    "select": "Select",
+    "selectBill": "Select bill {{bill}}",
+    "bill": "Bill",
+    "withheld": "Withheld",
+    "type": "PPh type",
+    "identity": {
+      "vendorReference": "Vendor invoice reference",
+      "systemNumber": "System VI number",
+      "case": "Case",
+      "project": "Project",
+      "pmoNumber": "PMO project number",
+      "billDate": "Bill date",
+      "referenceMissing": "Vendor invoice reference not recorded",
+      "systemNumberMissing": "System VI number unavailable",
+      "contextPending": "Details loading",
+      "contextUnavailable": "Details unavailable",
+      "caseMissing": "Case not recorded",
+      "projectMissing": "Project not recorded",
+      "pmoNumberMissing": "PMO project number unavailable",
+      "dateMissing": "Bill date not recorded"
+    },
+    "confirmUnknown": "Confirm as {{type}} from issued slip",
+    "recordTitle": "Record bukti potong",
+    "vendor": "Vendor",
+    "slipNumber": "Issued slip number",
+    "slipDate": "Slip date",
+    "taxPeriod": "Tax period",
+    "taxBase": "Tax base",
+    "withheldAmount": "Issued withheld amount",
+    "typeWarning": "Confirm the PPh type from the issued external slip. PMO does not issue or cancel tax documents.",
+    "candidates": "Eligible bills",
+    "selectedTotal": "Selected total: {{currency}} {{amount}}",
+    "loadMore": "Load more bills",
+    "reconciliation": "Selection {{sum}} · Slip {{amount}} · Difference {{difference}}",
+    "amountMismatch": "The slip amount must exactly equal selected bill withholding.",
+    "startingBillSelected": "Starting bill selected",
+    "refusal": {
+      "stale": "This slip changed. Reload it before saving.",
+      "conflict": "A slip number or bill is already covered. Inspect existing slip history.",
+      "invalidFacts": "Review the entered facts and selected bills.",
+      "retrySameIntent": "The result is uncertain. Retry with this same slip intent.",
+      "ineligibleBill": "One or more bills are no longer eligible.",
+      "amountMismatch": "The issued amount does not match selected bills.",
+      "typeConfirmation": "Confirm the unknown bill types.",
+      "billLimit": "A slip can cover at most 100 bills.",
+      "notPermitted": "You do not have permission to record this slip.",
+      "notFound": "The slip or bill is no longer available.",
+      "voided": "This slip has already been voided."
+    },
+    "remedy": {
+      "reload": "Reload and review the latest slip facts.",
+      "inspect": "Inspect existing coverage before recording another slip.",
+      "edit": "Edit the facts and try again.",
+      "retry": "Retry this same request; do not start a new slip."
+    },
+    "detailTitle": "Bukti potong details",
+    "status": "Status",
+    "voidReason": "Void reason",
+    "validationState": "Validation state",
+    "reconciled": "Reconciled",
+    "active": "Active",
+    "voidedStatus": "Voided in PMO",
+    "sourceUnavailableShort": "Source data unavailable",
+    "reviewReason": "Bill withholding changed. Verify the source; void and record a replacement if needed.",
+    "sourceUnavailable": "Source data is unavailable. Coverage cannot be verified.",
+    "recordedTotal": "Recorded",
+    "currentTotal": "Current",
+    "difference": "Difference",
+    "taxPeriodMonth": "Tax period (month)",
+    "invalidAmount": "Enter a positive amount with at most two decimal places.",
+    "invalidSlipDate": "Choose a slip date no later than today.",
+    "amountExceedsBase": "Issued withholding cannot exceed the tax base.",
+    "invalidTaxPeriod": "Choose a tax month no later than the current month.",
+    "invalidFactsCopy": "Review the entered facts and try again.",
+    "vendorUnavailable": "Vendor details unavailable",
     "noBillHistory": "No withholding slips recorded for this bill.",
-"selectedBills": "Selected bills ({{count}})", "candidateEmpty": "No eligible bills for this vendor, currency and PPh type.", "candidateError": "Unable to load eligible bills. Your entries are kept. Retry loading.", "retry": "Retry",
-    "openBillCase": "Open bill {{bill}} in case {{case}}", "openBill": "Open bill in case", "selectFirst": "Select this bill first.", "loadMoreSlips": "Load more history", "void": "Void PMO entry", "correct": "Correct metadata", "voidWarning": "This only removes PMO coverage. It does not cancel a DJP document.",
-    "reason": "Reason", "confirmVoid": "Void this PMO entry?", "reload": "Reload", "close": "Close", "save": "Save changes", "correctionReason": "Correction reason"
+    "selectedBills": "Selected bills ({{count}})",
+    "candidateEmpty": "No eligible bills for this vendor, currency and PPh type.",
+    "candidateError": "Unable to load eligible bills. Your entries are kept. Retry loading.",
+    "retry": "Retry",
+    "openBillCase": "Open bill {{bill}} in case {{case}}",
+    "openBill": "Open bill in case",
+    "selectFirst": "Select this bill first.",
+    "loadMoreSlips": "Load more history",
+    "void": "Void PMO entry",
+    "correct": "Correct metadata",
+    "voidWarning": "This only removes PMO coverage. It does not cancel a DJP document.",
+    "reason": "Reason",
+    "confirmVoid": "Void this PMO entry?",
+    "reload": "Reload",
+    "close": "Close",
+    "save": "Save changes",
+    "correctionReason": "Correction reason"
   },
   "budget": {
     "category": {
@@ -319,9 +410,7 @@
     "expenseMap": {
       "notReady": "Connect ERPNext before mapping expense accounts. Expense posting is not active.",
       "error": {
-        "saveHeadline": "Couldn’t save the expense account",
-        "accountRemedy": "Check the account name and type in ERPNext, then try again. Your entry is kept.",
-        "unknownRemedy": "Check your connection and try again. Your entry is kept."
+        "title": "Couldn't load the expense account map"
       },
       "openIntegrations": "Open integrations",
       "change": "Change {{key}}",
@@ -332,9 +421,6 @@
         "title": "Clear {{key}}?"
       },
       "description": "The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.",
-      "error": {
-        "title": "Couldn't load the expense account map"
-      },
       "form": {
         "account": "ERP account",
         "legend": "Account",
@@ -380,7 +466,6 @@
       "users": "Users",
       "projects": "Project setup"
     },
-
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
       "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
@@ -415,7 +500,6 @@
         "placeholder": "Search by name or email…",
         "label": "Search users"
       },
-
       "invite": "Invite user",
       "columns": {
         "user": "User",
@@ -508,7 +592,6 @@
     },
     "credits": {
       "grant": "Grant credits",
-
       "unit": "credits",
       "error": {
         "title": "Balance unavailable"
@@ -528,7 +611,6 @@
       "amountRequired": "Amount is required.",
       "amountPositive": "Grant amount must be positive."
     },
-
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
       "title": "Budget account map",
@@ -592,7 +674,6 @@
         "title": "Couldn't load the project number pattern"
       },
       "label": "Project number pattern",
-
       "example": "Example: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Project number pattern updated",
@@ -1263,9 +1344,7 @@
     "uxs36ReportDate": "Report date",
     "uxs36AgeingBasis": "Ageing basis",
     "uxs36Unavailable": "Unavailable",
-    "uxs36CustomerFilterLabel": "Customer",
     "uxs36CustomerFilterUnavailable": "Selected customer is unavailable",
-    "uxs36CustomerFilterClear": "Clear customer filter",
     "uxs36CollectionsHeading": "Customer collections",
     "uxs36CollectionsUnavailableTitle": "Customer aging position unavailable",
     "uxs36CollectionsUnavailableDescription": "No matching ERP customer aging position is available. This does not indicate a zero balance.",
@@ -1273,11 +1352,6 @@
     "uxs36CollectionsReadError": "Customer collections could not be loaded.",
     "uxs36OpenInvoices": "Open invoices",
     "uxs36OverdueInvoicesFirst": "Overdue invoices first",
-    "boardPack": {
-      "ariaLabel": "Board pack (coming soon)",
-      "label": "Board pack",
-      "tooltip": "Board pack export arrives with Reports"
-    },
     "chart": {
       "pipelineMargin": {
         "empty": "No open pipeline",
@@ -1886,11 +1960,30 @@
   },
   "procurementLedger": {
     "title": "Case ledger",
-    "filter": { "label": "Filter records", "all": "All", "financial": "Financial", "hasFile": "Has file" },
-    "date": "Date", "typeHeader": "Type", "systemNumber": "System #", "externalRef": "External ref", "amount": "Amount", "status": "Status", "file": "File",
+    "filter": {
+      "label": "Filter records",
+      "all": "All",
+      "financial": "Financial",
+      "hasFile": "Has file"
+    },
+    "date": "Date",
+    "typeHeader": "Type",
+    "systemNumber": "System #",
+    "externalRef": "External ref",
+    "amount": "Amount",
+    "status": "Status",
+    "file": "File",
     "ledgerNote": "Every record appears once, chronological. Empty record types have no row.",
-    "types": { "purchaseRequest": "Purchase Request", "purchaseOrder": "Purchase Order", "payment": "Payment", "rfq": "RFQ" },
-    "capture": { "action": "Capture {{record}}", "next": "+ Capture {{record}} — the next record for this phase." }
+    "types": {
+      "purchaseRequest": "Purchase Request",
+      "purchaseOrder": "Purchase Order",
+      "payment": "Payment",
+      "rfq": "RFQ"
+    },
+    "capture": {
+      "action": "Capture {{record}}",
+      "next": "+ Capture {{record}} — the next record for this phase."
+    }
   },
   "procurementDetail": {
     "accessDenied": {
@@ -1910,11 +2003,26 @@
       "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit Request"
     },
-    "recordKinds": { "goodsReceipt": "Goods Receipt", "vendorInvoice": "Vendor Invoice" },
+    "recordKinds": {
+      "goodsReceipt": "Goods Receipt",
+      "vendorInvoice": "Vendor Invoice"
+    },
     "statusOption": {
-      "draft": "Draft", "requested": "Requested", "approved": "Approved", "rejected": "Rejected", "sent": "Sent",
-      "received": "Received", "closed": "Closed", "issued": "Issued", "acknowledged": "Acknowledged", "pending": "Pending",
-      "processed": "Processed", "cleared": "Cleared", "partial": "Partial", "complete": "Complete", "scheduled": "Scheduled"
+      "draft": "Draft",
+      "requested": "Requested",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "sent": "Sent",
+      "received": "Received",
+      "closed": "Closed",
+      "issued": "Issued",
+      "acknowledged": "Acknowledged",
+      "pending": "Pending",
+      "processed": "Processed",
+      "cleared": "Cleared",
+      "partial": "Partial",
+      "complete": "Complete",
+      "scheduled": "Scheduled"
     },
     "vendorInvoice": {
       "enterDetails": "Enter invoice details to mark as Vendor Invoiced:",
@@ -3067,8 +3175,7 @@
   },
   "revenueByProject": {
     "currencyErrorSub": "Try again to view revenue.",
-    "currencyErrorTitle": "Couldn't load organization currency",
-    "subtitle": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
+    "currencyErrorTitle": "Couldn't load organization currency"
   },
   "financialStatements": {
     "amounts": "Amounts",
@@ -3192,7 +3299,6 @@
       "incomingPayments": "Incoming Payments",
       "integrations": "My integrations",
       "invoiceRecord": "Invoice record",
-      "receiptRecord": "Receipt record",
       "meetings": "Meetings",
       "myTasks": "My Tasks",
       "myTasksHint": "Your assigned work across projects",
@@ -3655,7 +3761,6 @@
     "invoiceRecordTitle": "Invoice {{number}}",
     "invoiceRecordNotFound": "Invoice not found",
     "invoiceRecordNotFoundBody": "This invoice is no longer available.",
-    "backToInvoices": "Back to Sales Invoices",
     "draftInvoiceForProject": "Draft invoice · {{project}}",
     "draftInvoice": "Draft invoice",
     "project": "Project",
@@ -3665,7 +3770,6 @@
     "projectNotRecorded": "Project not recorded",
     "customerNotRecorded": "Customer not recorded",
     "unnamedInvoice": "invoice",
-    "continueToApprove": "Continue to approve",
     "nativeNewInvoiceSubtitle": "Raises a draft. A different Finance or Admin user approves it.",
     "nativeProjectRequired": "Project is required: it decides the invoice's VAT.",
     "nativeSelectProject": "Select project…",
@@ -3782,7 +3886,6 @@
     "backToDashboard": "Back to dashboard",
     "invoice": "Invoice #",
     "customerPO": "Customer PO",
-    "customer": "Customer",
     "status": "Status",
     "outstanding": "Outstanding",
     "date": "Date",
@@ -3790,24 +3893,7 @@
     "submit": "Submit",
     "salesInvoices": "Sales Invoices",
     "newInvoice": "New Invoice",
-    "customerProjectContext": "Customer / project",
-    "customerUnavailable": "Customer not available",
-    "statusDueContext": "Status / due",
-    "sortInvoices": "Sort invoices",
-    "dueSoonest": "Due soonest",
-    "oldestOverdueFirst": "Oldest overdue first",
-    "latestInvoiceDate": "Latest invoice date",
-    "filterByCustomer": "Filter by customer",
-    "filterByProject": "Filter by project",
-    "filterByAttribution": "Filter by project attribution",
-    "allCustomers": "All customers",
-    "allProjects": "All projects",
-    "allAttribution": "All project attribution",
-    "assignedToProject": "Assigned to project",
-    "exportInvoices": "Export invoices",
-    "clearFilters": "Clear filters",
     "filterByStatus": "Filter by status",
-    "clearFilter": "Clear filter",
     "searchInvoices": "Search invoices…",
     "searchSalesInvoices": "Search sales invoices",
     "noSalesInvoicesYet": "No sales invoices yet",
@@ -3820,7 +3906,6 @@
     "submitInvoice": "Submit invoice",
     "pushingToERPNext": "Pushing to ERPNext…",
     "selectOrSearchCustomer": "Select or search customer…",
-    "project": "Project",
     "selectProjectOptional": "Select project (optional)…",
     "itemCode": "Item code",
     "iTEM001": "ITEM-001",
@@ -3850,9 +3935,6 @@
     "invoices": "Invoices",
     "revenueByProject": "Revenue by Project",
     "noRevenueDataYet": "No revenue data yet",
-    "createSalesInvoicesToSeeRevenuePerProject": "No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.",
-    "noRevenueData": "No revenue data",
-    "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
     "updated": "Updated",
     "myViews": "My Views",
@@ -3899,7 +3981,6 @@
     "statusAll": "All",
     "statusSubmitted": "Submitted",
     "statusUnpaid": "Unpaid",
-    "statusPaid": "Paid",
     "statusCancelled": "Cancelled",
     "customerRequired": "Customer is required.",
     "invoiceLineRequired": "At least one line item is required.",
@@ -4093,7 +4174,6 @@
     "saved": "Classification options saved",
     "retained": "Existing project classifications stay recorded.",
     "setupHelp": "Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.",
-
     "serviceLines": "Service lines",
     "sectors": "Sectors",
     "onePerLine": "One option per line. Leave empty to offer no options.",
@@ -4112,8 +4192,6 @@
   "managementPack": {
     "actions": "Actions",
     "retry": "Retry",
-    "title": "Monthly management pack",
-    "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
     "from": "From",
     "asAt": "As at",
     "noAccessTitle": "You don't have access to the management pack",
@@ -4122,9 +4200,7 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
-    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
     "projectsAsAt": "Projects as at {{month}}",
-    "monthlyTotals": "Monthly totals",
     "unassigned": "Unassigned",
     "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
     "recordProgress": "Record progress",
@@ -4281,7 +4357,19 @@
       "native_lines": "Invoice lines",
       "withheld_amount": "Tax withheld",
       "withheld_pph_type": "Withholding tax type",
-      "slip_number": "Slip number", "slip_date": "Slip date", "tax_period": "Tax period", "pph_type": "PPh type", "tax_base": "Tax base", "invoice_count": "Bill count", "voided_at": "Voided at", "voided_by": "Voided by", "slip_id": "Bukti potong", "withheld_at_record": "Withheld at record", "pph_type_at_record": "PPh type at record", "type_source": "Type source", "released_at": "Released at"
+      "slip_number": "Slip number",
+      "slip_date": "Slip date",
+      "tax_period": "Tax period",
+      "pph_type": "PPh type",
+      "tax_base": "Tax base",
+      "invoice_count": "Bill count",
+      "voided_at": "Voided at",
+      "voided_by": "Voided by",
+      "slip_id": "Bukti potong",
+      "withheld_at_record": "Withheld at record",
+      "pph_type_at_record": "PPh type at record",
+      "type_source": "Type source",
+      "released_at": "Released at"
     },
     "kind": {
       "project": "Project",
@@ -4305,8 +4393,14 @@
       "pph23": "PPh 23",
       "pph4_2": "PPh 4(2)"
     },
-    "typeSource": { "bill": "Bill type", "declared": "Declared from slip" },
-    "slipStatus": { "active": "Active", "void": "Void" },
+    "typeSource": {
+      "bill": "Bill type",
+      "declared": "Declared from slip"
+    },
+    "slipStatus": {
+      "active": "Active",
+      "void": "Void"
+    },
     "filter": {
       "all": "All",
       "project": "Project"
@@ -4404,11 +4498,19 @@
     "cashReceivedIncomplete": "Incomplete — receipt allocation cannot establish cash"
   },
   "invoiceProject": {
-    "assign":"Assign project", "change":"Change project", "project":"Project", "save":"Save project",
-    "scope":"PMO attribution only; the ERP invoice is unchanged.", "required":"Select a project.",
-    "current":"Current project", "fromTo":"From {{old}} to {{new}}. PMO attribution only; the ERP invoice is unchanged.",
-    "discardTitle":"Discard project selection?", "discardDetail":"The selected project will not be saved.",
-    "discard":"Discard", "keep":"Keep editing", "unassignedFilter":"Unassigned invoices"
+    "assign": "Assign project",
+    "change": "Change project",
+    "project": "Project",
+    "save": "Save project",
+    "scope": "PMO attribution only; the ERP invoice is unchanged.",
+    "required": "Select a project.",
+    "current": "Current project",
+    "fromTo": "From {{old}} to {{new}}. PMO attribution only; the ERP invoice is unchanged.",
+    "discardTitle": "Discard project selection?",
+    "discardDetail": "The selected project will not be saved.",
+    "discard": "Discard",
+    "keep": "Keep editing",
+    "unassignedFilter": "Unassigned invoices"
   },
   "uxs28": {
     "nav": {
@@ -4516,7 +4618,6 @@
     "dueDate": "Due date",
     "dateNotRecorded": "Not recorded",
     "dueDateUnavailable": "Due date not available",
-    "status": "Status",
     "outstandingUnavailable": "Outstanding amount not available",
     "overdue": "Overdue",
     "daysOverdue": "{{count}} days overdue",
@@ -4542,17 +4643,6 @@
     }
   },
   "uxs06": {
-    "receiptFilters": "Receipt filters",
-    "allCustomers": "All customers",
-    "sortReceipts": "Sort receipts",
-    "latestPaymentDate": "Latest payment date",
-    "oldestPaymentDate": "Oldest payment date",
-    "receipts": "Receipts",
-    "customerUnavailable": "Customer unavailable",
-    "dateNotReported": "Date not reported",
-    "noInvoiceLinked": "No invoice linked",
-    "statusAndPaymentDate": "Status / payment date",
-    "referenceDetails": "Reference details",
     "statusReceived": "Received",
     "statusExpected": "Expected",
     "none": "None",
@@ -4560,7 +4650,6 @@
     "unappliedCol": "Not yet applied",
     "invoiceAndMore": "{{first}} +{{count}} more",
     "receiptTotal": "Receipt total",
-    "backToReceipts": "Back to Incoming Payments",
     "receiptTitle": "Receipt {{number}}",
     "settledTitle": "Invoices this receipt settled",
     "applied": "Applied",
@@ -4570,50 +4659,7 @@
     "receiptNotFound": "We couldn't find this receipt",
     "receiptNotFoundBody": "It may have been removed, or you may not have access to it."
   },
-  "uxs42": {
-    "reports": "Financial reports",
-    "reportSections": "Report sections",
-    "statements": "Statements",
-    "projectRevenue": "Project revenue",
-    "projectRevenueDisabled": "Project revenue (unavailable)",
-    "projectRevenueViews": "Project revenue views",
-    "earned": "Earned vs billed",
-    "billingToDate": "Billing to date",
-    "statementsScope": "Company and admitted project statements by supplied period.",
-    "earnedScope": "Cumulative project revenue · net of tax · through the selected as-at month.",
-    "billingScope": "All invoice dates · billed amounts exclude tax; open receivables include tax.",
-    "statementsUnavailableRecovery": "Company statements are available to Finance, Admin, and Executive roles. Project revenue is available to your role.",
-    "projectRevenueUnavailableRecovery": "Project revenue is not available to your role. Statements are available instead.",
-    "earnedUnavailableRecovery": "Earned revenue is unavailable; Billing to date remains available.",
-    "reportsUnavailable": "Reports are not available to this role.",
-    "billingFilters": "Billing filters",
-    "earnedFilters": "Earned revenue filters",
-    "searchProjects": "Search projects",
-    "filterByProject": "Filter by project",
-    "allProjects": "All projects",
-    "projectUnavailable": "Project unavailable",
-    "filterByCurrency": "Filter by currency",
-    "allCurrencies": "All currencies",
-    "sortProjects": "Sort projects",
-    "projectNameAscending": "Project name A–Z",
-    "projectNameDescending": "Project name Z–A",
-    "billingTotals": "Billing totals",
-    "exportBillingTotals": "Export billing totals",
-    "exportMonthlyData": "Export monthly data",
-    "monthlyHistory": "Monthly history",
-    "noRowsToExport": "No rows to export",
-    "billingErrorTitle": "Couldn't load billing totals",
-    "billingErrorSub": "The request failed. Check your connection and try again.",
-    "billingEmptyFinance": "Project billing will appear here after invoices are recorded.",
-    "billingEmptyReader": "Project billing has not been recorded yet. Open your projects to see project work.",
-    "earnedEmpty": "Eligible projects and their earned or billed evidence appear here.",
-    "openInvoices": "Open invoices",
-    "openProjects": "Open projects",
-    "noProjectMatches": "No projects match these filters",
-    "clearBillingFilters": "Clear search and filters to see all billing totals.",
-    "openProject": "Open {{project}} ({{currency}})",
-    "openUnassigned": "Open Unassigned ({{currency}})"
-  },
+  "uxs42": {},
   "uxs23": {
     "history": {
       "summaryCreated": "{{kind}} created",
@@ -4658,7 +4704,10 @@
     "projectTaxUnavailable": "Project tax details are unavailable, so tax and final total cannot be previewed yet.",
     "reviewProjectTax": "Review project tax settings"
   },
-  "uxs39": {"showTaxDetails": "Show tax details", "hideTaxDetails": "Hide tax details"},
+  "uxs39": {
+    "showTaxDetails": "Show tax details",
+    "hideTaxDetails": "Hide tax details"
+  },
   "uxs19": {
     "status": {
       "draft": "Draft",
@@ -4751,7 +4800,6 @@
   },
   "uxs26": {
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
-    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
-    "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
+    "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments."
   }
 }

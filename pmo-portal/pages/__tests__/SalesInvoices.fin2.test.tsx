@@ -107,10 +107,10 @@ describe('FIN-S2: invoice record facts', () => {
   it('renders native invoice lines from the native record once', () => {
     h.invoice = invoice({
       pmo_native: true,
-      native_lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: '2', rate: 500, amount: 1_000 }],
+      native_lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: 2, rate: 500, amount: 1_000 }],
     } as Partial<SalesInvoiceRow>);
     h.evidence = {
-      data: { lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: '2', rate: 500, amount: 1_000 }], contact: null },
+      data: { lines: [{ item_code: 'SVC-1', description: 'Project mobilization', qty: 2, rate: 500, amount: 1_000 }], contact: null },
       isPending: false,
       isError: false,
       refetch: vi.fn(),
