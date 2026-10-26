@@ -60,6 +60,8 @@ async function expectSectionSelected(
   await expect(page).toHaveURL(opts.expectUrl ?? new RegExp(`${s.url}$`));
   // The selected route job owns the sole page h1; the area name remains in the breadcrumb.
   await expect(page.getByRole('heading', { level: 1, name: s.heading })).toBeVisible();
+  await expect(page.locator('[data-page-frame]')).toBeVisible();
+  await expect(page.locator('[data-shell-area-name]')).toHaveText('Administration');
   await expect(sectionLink(page, s.name)).toHaveAttribute('aria-current', 'page');
   await expect(panel(page, s.testid)).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
@@ -132,6 +134,17 @@ test('AC-ADMIA-001: Project setup → Credits; browser Back restores Project set
 
 test('AC-ADMIA-001: Credits → Exchange rates; browser Back restores Credits', async ({ page }) => {
   await navigateAndRestore(page, ORGANIZATION_SECTIONS[4], ORGANIZATION_SECTIONS[5]);
+});
+
+test('AC-ADMIA-006: My integrations uses the shared page frame and personal shell label', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.goto('/integrations');
+
+  await expect(page.locator('[data-page-frame]')).toBeVisible();
+  await expect(page.locator('[data-shell-area-name]')).toHaveText('My integrations');
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
+    .toHaveText('My integrations');
+  await expect(page.getByRole('heading', { level: 1, name: 'My integrations' })).toBeVisible();
 });
 
 test('AC-ADMIA-001/003: the historical budget map bookmark resolves to Accounting setup with the fragment intact', async ({ page }) => {
