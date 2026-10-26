@@ -21,6 +21,21 @@ describe('ListPage shell', () => {
     expect(within(header).getByRole('button', { name: 'New company' })).toBeInTheDocument();
   });
 
+  it('puts an opted-in collection primary at the end of its toolbar', () => {
+    render(
+      <ListPage
+        title="Projects"
+        search={<input aria-label="Search projects" />}
+        primaryAction={<button type="button">New project</button>}
+        primaryActionPlacement="toolbar"
+      />,
+    );
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    expect(within(screen.getByTestId('list-page-header')).queryByRole('button', { name: 'New project' })).toBeNull();
+    expect(within(toolbar).getByTestId('page-primary-action-slot')).toBeInTheDocument();
+    expect(within(toolbar).getAllByRole('button').at(-1)).toHaveTextContent('New project');
+  });
+
   it('renders the toolbar slots in the canonical order: filters · search · secondaryFilter · export · import, view right-aligned', () => {
     render(
       <ListPage
@@ -48,6 +63,29 @@ describe('ListPage shell', () => {
       'slot-import',
       'slot-view',
     ]);
+  });
+
+  it('supports the Projects sequence: search, scope, filters, view, actions, creation', () => {
+    render(
+      <ListPage
+        title="Projects"
+        searchFirst
+        viewBeforeActions
+        search={<div data-testid="slot-search">search</div>}
+        filters={<div data-testid="slot-filters">scope</div>}
+        secondaryFilter={<div data-testid="slot-secondary">filters</div>}
+        view={<div data-testid="slot-view">view</div>}
+        exportAction={<div data-testid="slot-export">actions</div>}
+        primaryAction={<button type="button">New project</button>}
+        primaryActionPlacement="toolbar"
+      />,
+    );
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const ids = within(toolbar)
+      .getAllByTestId(/^slot-/)
+      .map((el) => el.getAttribute('data-testid'));
+    expect(ids).toEqual(['slot-search', 'slot-filters', 'slot-secondary', 'slot-view', 'slot-export']);
+    expect(within(toolbar).getByTestId('page-primary-action-slot')).toBeInTheDocument();
   });
 
   it('pushes the view-switcher to the right edge of the toolbar', () => {

@@ -1,4 +1,9 @@
 {
+  "form": {
+    "scope": {
+      "create": "Proyek baru dimulai di tahap {{stage}}; proyek on-hand masuk setelah menang di pipeline."
+    }
+  },
   "finishSpendingSetup": "Selesaikan penyiapan pengeluaran",
   "spendingAdminHandoff": "Minta administrator menyelesaikan penyiapan pengeluaran.",
   "spendingSetupDetails": "Detail penyiapan pengeluaran",

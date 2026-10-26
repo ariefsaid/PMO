@@ -1261,13 +1261,12 @@
       "myProjects": "Proyek saya", "openMyProjects": "Buka proyek saya",
       "contractValue": "Nilai kontrak saya", "openContractValue": "Buka proyek saya untuk melihat nilai kontrak", "contractValueHelp": "Total nilai kontrak seluruh proyek Anda.",
       "atRisk": "Berisiko", "budgetUsage": "penggunaan anggaran > 90%", "openAtRisk": "Buka proyek saya yang berisiko", "atRiskHelp": "Proyek Anda dengan realisasi pengeluaran lebih dari 90% anggaran.",
-      "loadError": "Gagal memuat proyek Anda",
-      "statusTitle": "Status Proyek", "nothingToShow": "Belum ada yang ditampilkan"
+      "loadError": "Gagal memuat proyek Anda"
     },
     "delivery": { "percent": "Progres {{rounded}}%" },
     "engineer": {
       "title": "Dashboard saya", "subtitle": "Jam kerja minggu ini dan status timesheet Anda.", "logHours": "Catat jam kerja minggu ini", "logHoursShort": "Catat jam kerja", "kpiBand": "KPI saya",
-      "hoursThisWeek": "Jam minggu ini", "weeklyHoursCardTitle": "Jam Kerja Minggu Ini", "weekOf": "minggu mulai {{date}}", "openTimesheetsLog": "Buka timesheet untuk mencatat jam kerja minggu ini", "hoursHelp": "Total jam pada timesheet terbaru Anda.",
+      "weeklyHoursCardTitle": "Jam Kerja Minggu Ini",
       "timesheetStatus": "Status timesheet", "noneThisPeriod": "Tidak ada untuk periode ini", "openTimesheetsStatus": "Buka timesheet untuk melihat status terbaru", "statusHelp": "Status timesheet terbaru Anda.",
       "loadError": "Gagal memuat timesheet Anda", "recentError": "Gagal memuat entri terbaru", "noHours": "Belum ada jam kerja minggu ini", "noHoursSub": "Catat jam kerja untuk melihat ringkasan mingguan.", "projectBreakdownSub": "Catat jam kerja untuk melihat rincian proyek.",
       "hoursByDay": "Jam minggu ini menurut hari", "dayHours": "{{day}}: {{hours}} jam", "byProject": "Minggu ini menurut proyek", "recentEntries": "Entri terbaru", "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam",
@@ -1278,10 +1277,6 @@
       "reviewMany": "Tinjau {{count}} proyek berisiko"
     },
     "budgetReviewLink": "Tinjau anggaran {{project}}",
-    "snapshots": {
-      "unavailable": "Belum ada snapshot akuntansi yang disinkronkan.",
-      "guidance": "Minta administrator menyinkronkan data akuntansi."
-    },
     "accountingSnapshots": "Snapshot akuntansi",
     "uxs36CustomerCollectionsTitle": "Piutang pelanggan (AR)",
     "uxs36ReportDate": "Tanggal laporan",
@@ -1297,12 +1292,10 @@
     "uxs36CollectionsReadError": "Data piutang pelanggan tidak dapat dimuat.",
     "uxs36OpenInvoices": "Buka faktur",
     "uxs36OverdueInvoicesFirst": "Faktur terlambat lebih dulu",
-    "actualsSnapshotEmpty": "Belum ada snapshot aktual",
-    "agingSnapshotEmpty": "Belum ada data umur utang/piutang untuk ditampilkan.",
     "boardPack": {
-      "ariaLabel": "Board pack (segera hadir)",
-      "label": "Board pack",
-      "tooltip": "Ekspor board pack hadir bersama Laporan"
+      "ariaLabel": "Paket laporan dewan (segera hadir)",
+      "label": "Paket laporan dewan",
+      "tooltip": "Ekspor paket laporan dewan tersedia bersama Laporan"
     },
     "chart": {
       "pipelineMargin": {
@@ -1312,7 +1305,6 @@
       },
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",
-        "empty": "Belum ada aktivitas pengadaan",
         "noun": "permintaan"
       }
     },
@@ -1329,11 +1321,6 @@
         "label": "Menunggu persetujuan Anda",
         "unavailable": "tidak tersedia — periksa koneksi", "one": "{{count}} item menunggu", "many": "{{count}} item menunggu",
         "linkUnavailable": "{{label}}: tidak tersedia", "linkOne": "{{label}}: {{count}} item menunggu", "linkMany": "{{label}}: {{count}} item menunggu", "review": "Tinjau"
-      },
-      "pipelineMargin": {
-        "help": "Proyeksi margin yang disesuaikan dengan peluang menang di seluruh pipeline aktif (Σ(nilai − anggaran) / Σ nilai, tertimbang menurut peluang menang tiap tahap).",
-        "label": "Margin proyeksi pipeline",
-        "vs": "tertimbang peluang"
       },
       "pipelineWeighted": {
         "help": "Jumlah (nilai proyek × peluang menang tahap) di semua tahap aktif.",
@@ -1378,8 +1365,7 @@
       "label": "KPI portofolio"
     },
     "sr": {
-      "activeProjects": "proyek aktif",
-      "statuses": "status"
+      "activeProjects": "proyek aktif"
     },
     "stillToInvoice": {
       "count": "Work Order: {{n}}",
@@ -3025,7 +3011,6 @@
       "edit": "Edit proyek"
     },
     "subtitle": {
-      "create": "Buat proyek",
       "edit": "Perbarui detail header proyek"
     },
     "submit": {
@@ -3447,14 +3432,6 @@
     },
     "rail": {
       "assistant": "Asisten",
-      "group": {
-        "crm": "CRM",
-        "delivery": "Pelaksanaan",
-        "finance": "Keuangan",
-        "overview": "Ringkasan",
-        "workforce": "SDM"
-      },
-      "myViews": "Tampilan Saya",
       "primaryNavigation": "Navigasi utama",
       "approvalsCountSuffix": "{{count}} persetujuan menunggu"
     },
@@ -4666,7 +4643,7 @@
   "uxs03": {
     "contractedRevenue":"Pendapatan terikat kontrak", "contractValueOnHand":"Nilai kontrak dalam portofolio saat ini", "activeContractValue":"Nilai kontrak aktif", "spendingContract":"Pengeluaran dibanding kontrak", "spendingContractBar":"{{name}}: {{percent}}% dari kontrak",
     "notAvailableYet":"Belum tersedia",
-    "marginToDate":"Margin hingga saat ini", "attentionAndApprovals":"Perhatian dan persetujuan",
+    "attentionAndApprovals":"Perhatian dan persetujuan",
     "realizedMargin":"Margin atas pekerjaan yang ditagihkan", "realizedMarginKnown":"Margin yang diketahui atas pekerjaan yang ditagihkan", "contractRemaining":"Sisa kontrak setelah Aktual yang diketahui",
     "coverage":"Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan", "coverageCategories":"Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan", "actualIncompleteCategories":"Aktual belum lengkap: {{count}} kategori biaya belum dipetakan", "openAccountingMap":"Tinjau pemetaan akuntansi", "mixedCurrencyTotalUnavailable":"Tidak tersedia untuk mata uang campuran", "recordedOutcomesOnly":"Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.", "pmoPurchasing":"Permintaan pembelian PMO", "pmoPurchasingScope":"Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget":"Anggaran aktif", "actual":"Aktual", "variance":"Selisih", "utilization":"Pemakaian", "atRisk":"Berisiko",

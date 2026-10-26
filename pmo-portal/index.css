@@ -327,8 +327,16 @@
    at the top of the file. The canonical `:root { --rail-w: 224px }` is unlayered;
    an override placed inside `@layer base` would lose the cascade to it (unlayered
    beats layered) and never collapse the rail — the defect that slipped jsdom. */
+.app-shell-root[data-rail-collapsed="true"] {
+  --rail-w: 64px;
+}
+
 @media (max-width: 920px) {
   :root {
+    --rail-w: 0px;
+  }
+  .app-shell-root,
+  .app-shell-root[data-rail-collapsed="true"] {
     --rail-w: 0px;
   }
   .rail-persistent {
@@ -488,6 +496,16 @@
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
 
+/* Projects wraps every status choice on narrow screens, so it has no clipped
+   edge to signal there. Keep the shared scroll/fade affordance at wider sizes. */
+@media (max-width: 1023px) {
+  .status-filter-wrap {
+    overflow-x: visible;
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
 /* Skeleton fill for loading record rows. The shimmer is auto-disabled by the
    global prefers-reduced-motion rule (animation-duration → 0). */
 .cmdk-skeleton { position: relative; overflow: hidden; }
@@ -621,8 +639,8 @@
 
   /* Blockquote: left border, muted text */
   blockquote {
-    border-left: 3px solid hsl(var(--border));
-  padding-left: 0.75rem;
+    border-inline-start: 1px solid hsl(var(--border));
+    padding-inline-start: 0.75rem;
     margin: 0.5em 0;
     color: hsl(var(--muted-foreground));
   }

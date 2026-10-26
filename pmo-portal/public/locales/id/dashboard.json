@@ -45,6 +45,7 @@
     "value": "Nilai"
   },
   "pm": {
+    "deliveryProjects": "Proyek pengiriman saya",
     "myProjectsHelp": "Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.",
     "noProjects": "Belum ada proyek pengiriman yang ditetapkan kepada Anda",
     "noProjectsSub": "Proyek dalam tahap pengiriman akan muncul di sini."
@@ -62,5 +63,8 @@
   },
   "kpi": {
     "activeProjectsCount": "{{count}} proyek aktif"
+  },
+  "engineer": {
+    "weekSummary": "{{hours}} jam · minggu mulai {{date}}"
   }
 }

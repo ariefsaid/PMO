@@ -15,8 +15,7 @@ import type { Tables } from '@/src/lib/supabase/database.types';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { BvACard } from '@/src/components/dashboard/BvACard';
 import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
-import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
-import { procurementStatusTone } from '@/src/components/dashboard/procurementStatusTone';
+import { PmoPurchasingCard } from '@/src/components/dashboard/PmoPurchasingCard';
 import { DashPageHead, DashGrid } from '@/src/components/dashboard/layout';
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
@@ -156,10 +155,6 @@ const ExecutiveDashboard: React.FC = () => {
     }) + ' · ' + t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
       known: data.on_hand_actual_coverage_count ?? 0, total: data.on_hand_actual_coverage_total ?? 0,
     });
-    const weightedPct = data.pipeline_projected_margin === null
-      ? '—'
-      : `${(data.pipeline_projected_margin * 100).toFixed(1)}%`;
-
     /** Chart/detail section — shared between mobile (below fold) and desktop. */
     const chartsSection = (
       <>
@@ -189,33 +184,16 @@ const ExecutiveDashboard: React.FC = () => {
         </DashGrid>
 
         <DashGrid>
-          <Card data-testid="dashboard-proc-status">
-            <span className="sr-only">{`${data.procurements_by_status.length} ${t('dashboard.sr.statuses', 'statuses')}`}</span>
-            <CardHead>{t('uxs03.pmoPurchasing', 'PMO purchasing requests')}</CardHead>
-            <p className="px-4 text-xs text-muted-foreground">{t('uxs03.pmoPurchasingScope', 'ERP-native purchases are outside this PMO request chart.')}</p>
-            <div className="px-4 pb-4 pt-2">
-              {procByStatus.length === 0 ? (
-                <ListState
-                  variant="empty"
-                  icon="cart"
-                  title={t('uxs19.dashboardEmpty', 'No PMO requests to show')}
-                />
-              ) : (
-                <StatusBarChart
-                  data={procByStatus}
-                  toneFor={procurementStatusTone}
-                  label={t('dashboard.chart.procStatus.chartLabel', 'Procurement by status')}
-                  noun={t('dashboard.chart.procStatus.noun', 'requests')}
-                  hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`}
-                  labelFor={procurementStatusLabel}
-                />
-              )}
-            </div>
-          </Card>
+          <PmoPurchasingCard
+            data={procByStatus}
+            isPending={isPending}
+            isError={false}
+            labelFor={procurementStatusLabel}
+            hrefFor={(s) => `/procurement?status=${encodeURIComponent(s)}`}
+          />
 
           <Card data-testid="dashboard-pipeline-margin">
-            {/* DASH-002: the chart heading reads the SAME canonical noun as the KPI tile
-                ("Pipeline forecast margin"), not the divergent "Pipeline — Projected Margin". */}
+            {/* The weighted margin and supporting stage evidence share one home. */}
             <CardHead>{data.pipeline_projected_margin === null
               ? t('dashboard.kpi.pipelineWeighted.label', 'Pipeline (weighted)')
               : t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</CardHead>
@@ -330,26 +308,6 @@ const ExecutiveDashboard: React.FC = () => {
               'Sum of (project value × stage win-probability) across all open stages.',
             )}
           />
-          {/* SL-B: shown only when the margin is computable (no budgets → no tile; one risk note says why). */}
-          {data.pipeline_projected_margin !== null && (
-            <>
-          {/* Pipeline forecast margin: PLAIN tile (OD-W5-C2-D — /sales has no margin lens; drilling
-              would misrepresent). ONE metric, ONE number — the probability-weighted pipeline
-              projected margin only (SP-7). */}
-          <KPITile
-            testId="kpi-pipeline-projected-margin"
-            tone="blue"
-            icon="up"
-            label={t('dashboard.kpi.pipelineMargin.label', 'Pipeline forecast margin')}
-            value={weightedPct}
-            vs={t('dashboard.kpi.pipelineMargin.vs', 'probability-weighted')}
-            help={t(
-              'dashboard.kpi.pipelineMargin.help',
-              'Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).',
-            )}
-          />
-            </>
-          )}
           {/* AC-IXD-DASH-W5-C2A: Total contract value → /projects?filter=Ongoing.
               vs copy corrected from "active + closed-out" to "active" — the RPC total_contract_value
               is Ongoing-project only; the drill destination matches the data (honesty fix). */}

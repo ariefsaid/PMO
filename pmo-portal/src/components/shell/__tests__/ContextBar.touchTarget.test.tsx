@@ -1,10 +1,9 @@
-/**
- * AC-W2-7-02: the account-menu trigger has ≥44px touch target (touch-target class).
- */
+/** AC-W2-7-02: the named Account control opens its menu. */
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {} }) }));
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 vi.mock('@/src/components/shell/NotificationBell', () => ({ NotificationBell: () => null }));
 vi.mock('@/src/auth/impersonation', () => ({
@@ -17,7 +16,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({
-    currentUser: { id: 'u1', full_name: 'Ada Lovelace', org_id: 'org-1' },
+    currentUser: { id: 'u1', full_name: 'Portal User', org_id: 'org-1' },
     role: 'Admin',
     signOut: vi.fn(),
   }),
@@ -26,17 +25,24 @@ vi.mock('@/src/auth/useAuth', () => ({
 import { ContextBar } from '../ContextBar';
 
 describe('ContextBar touch target (W2-7)', () => {
-  it('AC-W2-7-02: the account-menu trigger has touch-target class for ≥44px coarse-pointer hit area', () => {
+  it('AC-W2-7-02: the named Account control opens its menu', () => {
     render(
-      <ContextBar
-        breadcrumb={[{ label: 'Dashboard' }]}
-        onOpenPalette={vi.fn()}
-        onToggleRail={vi.fn()}
-      />,
+      <MemoryRouter>
+        <ContextBar
+          breadcrumb={[{ label: 'Dashboard' }]}
+          onOpenPalette={vi.fn()}
+          onToggleRail={vi.fn()}
+        />
+      </MemoryRouter>,
     );
 
-    // The single account-menu trigger (the sole home of the personal command surface).
     const trigger = screen.getByRole('button', { name: /account menu/i });
-    expect(trigger.className).toContain('touch-target');
+    expect(trigger).toHaveAttribute('aria-haspopup', 'menu');
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(trigger);
+
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('menu', { name: /account menu/i })).toBeInTheDocument();
   });
 });

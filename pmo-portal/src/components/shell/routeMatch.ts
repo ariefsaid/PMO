@@ -552,32 +552,25 @@ export function recordStatusGroupForPath(
 }
 
 /**
- * Maps a (pathname, statusGroup) pair to the rail's active-item override (Option A, Task D).
+ * Maps a project record route to its canonical rail destination.
  *
  * Returns:
- *  - 'salesPipeline' when on a `/projects/:id` detail and the record is pipeline or lost
- *  - 'projects'      when on a `/projects/:id` detail and the record is onHand or internal
- *  - null            when the caches are still pending (statusGroup = undefined) OR when the
- *                    current route is not a `/projects/:id` detail — in both cases the Rail
- *                    falls back to its URL-based NavLink `isActive` logic.
+ *  - 'projects' when on any `/projects/:id` detail, whatever its stage or cache state
+ *  - null when the current route is not a `/projects/:id` detail
  *
  * Only `/projects/<id>` (with any optional trailing `/tab`) qualifies — the index `/projects`
  * never triggers the override so the Projects nav item stays active there as usual.
  */
 export function deriveRailActiveOverride(
   pathname: string,
-  statusGroup: ProjectStatusGroup | undefined,
-): 'salesPipeline' | 'projects' | null {
+  _statusGroup: ProjectStatusGroup | undefined,
+): 'projects' | null {
   // Must be a /projects/:id detail route (not the index).
   if (!pathname.startsWith('/projects/')) return null;
   const segment = pathname.slice('/projects/'.length).split('/')[0];
   if (!segment) return null; // bare /projects/ with no id
 
-  // Caches still resolving → no override; let NavLink URL-matching stand.
-  if (!statusGroup) return null;
-
-  if (statusGroup === 'pipeline' || statusGroup === 'lost') return 'salesPipeline';
-  return 'projects'; // onHand | internal
+  return 'projects';
 }
 
 /**

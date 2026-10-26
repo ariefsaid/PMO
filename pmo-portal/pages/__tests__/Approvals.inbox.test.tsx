@@ -136,7 +136,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const title = 'Cable supply for extended commissioning — northern distribution boards';
     procState.data = [{ ...procRows[0], title }];
     renderAs('Finance');
-    const button = screen.getByRole('button', { name: new RegExp(title) });
+    const button = screen.getByRole('button', { name: new RegExp(title), pressed: true });
     const identity = within(button).getByText(title);
     expect(identity.className).toContain('line-clamp-2');
     expect(identity.className).not.toContain('truncate');
@@ -263,7 +263,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
   it('a queue selection moves the preview pane + keeps approve/reject there — no navigation', async () => {
     renderAs('Project Manager', '/approvals?scope=procurement');
     const preview = screen.getByRole('region', { name: /Approval preview/i });
-    const queueRow = screen.getByRole('button', { name: /Steel beams/i });
+    const queueRow = screen.getByRole('button', { name: /Steel beams/i, pressed: true });
     await userEvent.click(queueRow);
     expect(within(preview).getByRole('button', { name: /Approve/i })).toBeInTheDocument();
     expect(within(preview).getByRole('button', { name: /Reject/i })).toBeInTheDocument();

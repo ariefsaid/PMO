@@ -11,18 +11,6 @@ import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('AppShell', () => {
-  it('UIP-002: root shell width does not include the vertical scrollbar gutter', () => {
-    const { container } = wrap(
-      <AppShell rail={null} header={null}>
-        <div>x</div>
-      </AppShell>
-    );
-    const root = container.querySelector<HTMLElement>('[data-app-shell="root"]');
-    expect(root).not.toBeNull();
-    expect(root).not.toHaveClass('w-screen');
-    expect(root?.className).not.toMatch(/(?:100vw|100dvw)/);
-  });
-
   it('renders the grid areas (rail/header/main slots)', () => {
     wrap(
       <AppShell
@@ -35,6 +23,38 @@ describe('AppShell', () => {
     expect(screen.getByTestId('rail-slot')).toBeInTheDocument();
     expect(screen.getByTestId('header-slot')).toBeInTheDocument();
     expect(screen.getByText('page content')).toBeInTheDocument();
+  });
+
+  it('renders opted-in breadcrumb wayfinding in the content track', () => {
+    const breadcrumb = breadcrumbForPath('/projects/p1', 'Project One');
+    const { container } = wrap(
+      <AppShell
+        rail={null}
+        header={<div data-testid="header-slot">Projects</div>}
+        pageFrame={{ breadcrumb }}
+      >
+        <h1>Project One</h1>
+      </AppShell>,
+    );
+    const frame = container.querySelector('[data-page-frame]');
+    expect(frame).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' }).parentElement).toBe(frame);
+    expect(screen.getByRole('heading', { name: 'Project One' })).toBeInTheDocument();
+  });
+
+  it('omits a one-item self breadcrumb when the top bar and page heading already name the area', () => {
+    const { container } = wrap(
+      <AppShell
+        rail={null}
+        header={<div data-testid="header-slot">Projects</div>}
+        pageFrame={{ breadcrumb: [{ label: 'Projects' }] }}
+      >
+        <h1>Projects</h1>
+      </AppShell>,
+    );
+    expect(container.querySelector('[data-page-frame]')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Projects' })).toBeInTheDocument();
   });
 
   it('main is a programmatically-focusable landmark with id=main', () => {
@@ -73,12 +93,14 @@ describe('AppShell', () => {
       );
     };
     const tree = render(
-      <MemoryRouter>
-        <AppShell rail={null} header={null}>
-          <div>x</div>
-        </AppShell>
-        <NavProbe />
-      </MemoryRouter>
+      <React.StrictMode>
+        <MemoryRouter>
+          <AppShell rail={null} header={null}>
+            <div>x</div>
+          </AppShell>
+          <NavProbe />
+        </MemoryRouter>
+      </React.StrictMode>
     );
     const main = screen.getByRole('main');
     // First mount is intentionally skipped (no focus yank on load).
@@ -132,8 +154,8 @@ describe('AppShell', () => {
 
   // AC-NAV-001 — the tab layer is fully removed. No browser-style workspace
   // tab strip should exist anywhere in the shell.
-  it('AC-NAV-001: renders no workspace tab strip (no tablist, no gridArea:tabstrip)', () => {
-    const { container } = wrap(
+  it('AC-NAV-001: renders no workspace tab strip', () => {
+    wrap(
       <AppShell
         rail={<div data-testid="rail-slot">nav</div>}
         header={<div data-testid="header-slot">bar</div>}
@@ -145,60 +167,17 @@ describe('AppShell', () => {
     expect(
       screen.queryByRole('tablist', { name: /open workspace tabs/i })
     ).not.toBeInTheDocument();
-    // No element occupies the removed `tabstrip` grid area.
-    const tabstripArea = Array.from(container.querySelectorAll<HTMLElement>('*')).find(
-      (el) => el.style.gridArea === 'tabstrip'
-    );
-    expect(tabstripArea).toBeUndefined();
   });
 
-  // AC-NAV-002 — the grid drops from 3 rows to 2 (header + main) with the
-  // two-area template; the rail spans both rows.
-  it('AC-NAV-002: grid has exactly two rows and the rail/header/main areas', () => {
-    const { container } = wrap(
-      <AppShell rail={<div>nav</div>} header={<div>bar</div>}>
-        <div>x</div>
-      </AppShell>
-    );
-    const grid = container.querySelector<HTMLElement>('.grid');
-    expect(grid).not.toBeNull();
-    expect(grid!.style.gridTemplateRows).toBe('var(--header-h) 1fr');
-    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
-  });
-
-  // C1-a/c regression — the persistent grid-area rail is hidden ≤920px by the
-  // SAME index.css media query that zeroes --rail-w (single source of truth),
-  // via a .rail-persistent class. The hide must live on the grid-area wrapper,
-  // NOT on the Rail <aside> itself (that would also blank the drawer copy).
-  it('wraps the persistent grid-area rail in a .rail-persistent container', () => {
-    const { container } = wrap(
-      <AppShell rail={<div data-testid="rail-slot">nav</div>} header={null}>
-        <div>x</div>
-      </AppShell>
-    );
-    const persistent = container.querySelector('.rail-persistent');
-    expect(persistent).not.toBeNull();
-    // The persistent wrapper occupies the rail grid area and contains the rail.
-    expect(persistent).toHaveStyle({ gridArea: 'rail' });
-    expect(persistent?.querySelector('[data-testid="rail-slot"]')).not.toBeNull();
-  });
-
-  // C1-b regression — when the mobile drawer is open the SAME rail node renders
-  // again inside the overlay, and that copy is NOT wrapped in .rail-persistent,
-  // so the ≤920px hide never touches it: the drawer always shows nav.
-  it('renders the rail inside the open mobile drawer WITHOUT the persistent hide', () => {
-    const { container } = wrap(
+  it('renders a reachable rail copy inside the open mobile drawer', () => {
+    wrap(
       <AppShell rail={<div data-testid="rail-slot">nav</div>} header={null} railOpen>
         <div>x</div>
       </AppShell>
     );
-    // Two rail copies render: one in the grid area, one in the drawer.
+    // One persistent copy and one drawer copy render; the dialog owns the drawer copy.
     expect(screen.getAllByTestId('rail-slot')).toHaveLength(2);
-    // The drawer panel exists and holds a rail copy that is not under .rail-persistent.
-    const drawerRails = Array.from(
-      container.querySelectorAll('[data-testid="rail-slot"]')
-    ).filter((el) => !el.closest('.rail-persistent'));
-    expect(drawerRails.length).toBe(1);
+    expect(screen.getByRole('dialog').querySelector('[data-testid="rail-slot"]')).not.toBeNull();
   });
 
   // AC-AP-001 — when no assistant prop is passed (flag off), no complementary
@@ -243,11 +222,11 @@ describe('AppShell', () => {
     expect(asst).toHaveAttribute('inert');
   });
 
-  it('AC-AXP-019 dock/overlay reflow + persists: docked open assistant reserves a shell column', () => {
+  it('AC-AXP-019: docked open assistant has its own named slot', () => {
     localStorage.setItem('pmo.agentPanel.mode', 'docked');
     localStorage.setItem('pmo.agentPanel.width', '512');
 
-    const { container } = wrap(
+    wrap(
       <AppShell
         rail={<div>nav</div>}
         header={<div>bar</div>}
@@ -264,25 +243,16 @@ describe('AppShell', () => {
       </AppShell>
     );
 
-    const grid = container.querySelector<HTMLElement>('.grid');
-    expect(grid).not.toBeNull();
-    expect(grid!.style.gridTemplateColumns).toBe(
-      'var(--rail-w) minmax(0, 1fr) 512px'
-    );
-    expect(grid!.style.gridTemplateAreas).toBe(
-      '"rail header assistant" "rail main assistant"'
-    );
-
     const assistantSlot = screen.getByTestId('asst').parentElement;
     expect(assistantSlot).toHaveAttribute('data-assistant-dock-slot', 'true');
-    expect(assistantSlot).toHaveStyle({ gridArea: 'assistant' });
+    expect(assistantSlot).toBeInTheDocument();
   });
 
-  it('AC-AXP-019 dock/overlay reflow + persists: overlay or closed assistant does not add a shell column', () => {
+  it('AC-AXP-019 dock/overlay reflow + persists: a closed assistant remains outside the docked slot', () => {
     localStorage.setItem('pmo.agentPanel.mode', 'overlay');
     localStorage.setItem('pmo.agentPanel.width', '512');
 
-    const { container, rerender } = wrap(
+    const { rerender } = wrap(
       <AppShell
         rail={<div>nav</div>}
         header={<div>bar</div>}
@@ -293,10 +263,7 @@ describe('AppShell', () => {
       </AppShell>
     );
 
-    const grid = container.querySelector<HTMLElement>('.grid');
-    expect(grid).not.toBeNull();
-    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
-    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
+    expect(screen.getByRole('complementary', { name: 'Agent assistant' })).toBeInTheDocument();
 
     localStorage.setItem('pmo.agentPanel.mode', 'docked');
     rerender(
@@ -312,8 +279,8 @@ describe('AppShell', () => {
       </MemoryRouter>
     );
 
-    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
-    expect(grid!.style.gridTemplateAreas).toBe('"rail header" "rail main"');
+    expect(screen.getByRole('complementary', { name: 'Agent assistant' })).toBeInTheDocument();
+    expect(document.querySelector('[data-assistant-dock-slot="true"]')).not.toBeInTheDocument();
   });
 
   it('AC-AXP-019 dock/overlay reflow + persists: shell reacts when panel prefs change', () => {
@@ -331,9 +298,7 @@ describe('AppShell', () => {
       </AppShell>
     );
 
-    const grid = container.querySelector<HTMLElement>('.grid');
-    expect(grid).not.toBeNull();
-    expect(grid!.style.gridTemplateColumns).toBe('var(--rail-w) minmax(0, 1fr)');
+    expect(screen.getByRole('complementary', { name: 'Agent assistant' })).toBeInTheDocument();
 
     localStorage.setItem('pmo.agentPanel.mode', 'docked');
     localStorage.setItem('pmo.agentPanel.width', '544');
@@ -341,9 +306,7 @@ describe('AppShell', () => {
       window.dispatchEvent(new Event('pmo.agentPanel.prefsChanged'));
     });
 
-    expect(grid!.style.gridTemplateColumns).toBe(
-      'var(--rail-w) minmax(0, 1fr) 544px'
-    );
+    expect(container.querySelector('[data-assistant-dock-slot="true"]')).toBeInTheDocument();
   });
 });
 

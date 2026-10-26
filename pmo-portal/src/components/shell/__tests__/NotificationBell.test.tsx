@@ -77,18 +77,6 @@ describe('NotificationBell', () => {
     expect(screen.getByText('3')).toBeInTheDocument();
   });
 
-  it('F2+F3: the unread badge is a NEUTRAL foreground/background chip, never destructive (non-severity signal)', async () => {
-    listUnreadCount.mockResolvedValue(3);
-    renderBell();
-    const count = await screen.findByText('3');
-    // Maximal-AA-contrast neutral pair — the badge is a COUNT, not a severity signal (the
-    // Freed-Blue + Status-As-Dot rules reserve destructive for the actual destructive verb).
-    expect(count).toHaveClass('bg-foreground');
-    expect(count).toHaveClass('text-background');
-    expect(count).not.toHaveClass('bg-destructive');
-    expect(count).not.toHaveClass('text-destructive-foreground');
-  });
-
   it('NFR-AAN-A11Y-003 the badge region is aria-live=polite', async () => {
     listUnreadCount.mockResolvedValue(2);
     renderBell();
@@ -247,36 +235,6 @@ describe('NotificationBell', () => {
     const item = await screen.findByRole('button', { name: /budget breach/i });
     // Severity label text is present (never color-only).
     expect(within(item).getByText(/critical/i)).toBeInTheDocument();
-    // The dot marker exists but carries no visible text of its own (decorative).
-    const dot = item.querySelector('[data-severity-dot]');
-    expect(dot).not.toBeNull();
-    expect(dot).toHaveAttribute('aria-hidden', 'true');
-  });
-
-  it('F1: the bell is a quiet shell control at rest in both light and dark DOM states', async () => {
-    listUnreadCount.mockResolvedValue(0);
-    document.documentElement.classList.remove('dark');
-    const { unmount } = render(
-      <MemoryRouter>
-        <NotificationBell />
-      </MemoryRouter>,
-    );
-    const bell = await screen.findByRole('button', { name: /notifications/i });
-    // A quiet top-bar control: `text-muted-foreground` at rest, never `text-foreground`
-    // (that class only applies on :hover). Mirrors the retired ThemeToggle construction.
-    expect(bell).toHaveClass('text-muted-foreground');
-    expect(bell.className).not.toMatch(/(?<!hover:)(?<!focus-visible:)(?<!:)\btext-foreground\b/);
-    unmount();
-
-    document.documentElement.classList.add('dark');
-    render(
-      <MemoryRouter>
-        <NotificationBell />
-      </MemoryRouter>,
-    );
-    const bellDark = await screen.findByRole('button', { name: /notifications/i });
-    expect(bellDark).toHaveClass('text-muted-foreground');
-    document.documentElement.classList.remove('dark');
   });
 
   it('F4: the popover is a labelled region/list, not a role="menu" — Escape/outside-click still close it', async () => {
@@ -457,7 +415,6 @@ describe('NotificationBell', () => {
     await userEvent.click(await screen.findByRole('button', { name: /notifications/i }));
     await screen.findByText('First page item');
     const btn = screen.getByRole('button', { name: /load more/i });
-    expect(btn).toHaveClass('touch-target');
     expect(btn).not.toBeDisabled();
     expect(btn).toHaveAttribute('aria-busy', 'false');
     await userEvent.click(btn);

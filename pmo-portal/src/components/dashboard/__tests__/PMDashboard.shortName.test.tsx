@@ -47,10 +47,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 describe('PMDashboard short names (AC-002 #1325)', () => {
-  it('shows the short name in "Spending vs contract" and "Project Status", titling the contractual name', () => {
+  it('shows one short-name project doorway, titling the contractual name', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
     const links = screen.getAllByRole('link', { name: 'Steelworks' });
-    expect(links).toHaveLength(2);
+    expect(links).toHaveLength(1);
     for (const link of links) expect(link).toHaveAttribute('title', 'Meridian Steelworks');
     expect(screen.queryByText('Meridian Steelworks')).toBeNull();
   });

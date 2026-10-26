@@ -228,6 +228,7 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
@@ -361,14 +362,18 @@ export const ShellChrome: React.FC = () => {
     opportunities,
   ]);
 
-  // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.
-  // Reuses the same cached lists as the breadcrumb — no new query. The override is
-  // null while caches are pending (NavLink URL-based fallback) and resolves on the
-  // next render once the pipeline/projects lists settle.
-  const railActiveOverride = useMemo<'salesPipeline' | 'projects' | null>(() => {
-    const statusGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
-    return deriveRailActiveOverride(pathname, statusGroup);
-  }, [pathname, projects, opportunities]);
+  // Project records belong to Projects for every stage and cold-load state. The source-list return
+  // context preserves Sales Pipeline as the originating collection lens.
+  const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
+  const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
+  const usesContentPageFrame = pathname === '/' || pathname === '/projects' || projectRecordRoute || pathname === '/approvals' || pathname === '/timesheets';
+  const areaName = pathname === '/'
+    ? t('shell.nav.dashboard', 'Dashboard')
+    : pathname === '/approvals'
+      ? t('shell.nav.approvals', 'Approvals')
+      : pathname === '/timesheets'
+        ? t('shell.nav.timesheets', 'Timesheets')
+        : t('shell.nav.projects', 'Projects');
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -419,9 +424,12 @@ export const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
+        railCollapsed={railCollapsed}
         rail={
           <Rail
             onNavigate={() => setRailOpen(false)}
+            collapsed={railCollapsed}
+            onToggleCollapse={() => setRailCollapsed((value) => !value)}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
@@ -430,9 +438,18 @@ export const ShellChrome: React.FC = () => {
             assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
           />
         }
+        drawerRail={
+          <Rail
+            onNavigate={() => setRailOpen(false)}
+            railActiveOverride={railActiveOverride}
+            operatorAccessError={needsOperatorRecovery}
+            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
+            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
+          />
+        }
         header={
           <ContextBar
-            breadcrumb={breadcrumb}
+            {...(usesContentPageFrame ? { areaName } : { breadcrumb })}
             onOpenPalette={openPalette}
             onToggleRail={() => setRailOpen((v) => !v)}
           />
@@ -443,6 +460,12 @@ export const ShellChrome: React.FC = () => {
         assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
+        pageFrame={usesContentPageFrame ? {
+          breadcrumb,
+          ...(projectRecordRoute ? {
+            returnLabel: t('shell.nav.projects', 'Projects'),
+          } : {}),
+        } : undefined}
       >
         <AppRoutes />
       </AppShell>

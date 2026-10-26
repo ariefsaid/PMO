@@ -41,6 +41,7 @@ export interface AccountingSnapshotsSectionProps {
   onRetryArAging?: () => void;
   customerLinks?: ReadonlyMap<string, string>;
   actualProjectNames?: ReadonlyMap<string, string>;
+  positionFact?: string;
 }
 
 const agingValue = (value: number | null, currency: string | null, unavailable: string) => {
@@ -165,8 +166,6 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
  *  or the populated table. */
 function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }>({
   title,
-  emptyLabel,
-  emptyDescription,
   rows,
   pending,
   isError,
@@ -179,8 +178,6 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   detail,
 }: {
   title: string;
-  emptyLabel: string;
-  emptyDescription: string;
   rows: Row[];
   pending?: boolean;
   isError?: boolean;
@@ -212,8 +209,6 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
           <ListState variant="error" title={errorLabel} onRetry={onRetry} />
         ) : pending ? (
           <ListState variant="loading" rows={3} />
-        ) : rows.length === 0 ? (
-          <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
           <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
         )}
@@ -237,6 +232,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   onRetryArAging,
   customerLinks,
   actualProjectNames,
+  positionFact,
   showActuals = true,
   showApAging = true,
 }) => {
@@ -255,14 +251,28 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   const agingDetail = (rows: ErpAgingSnapshotRow[]) => rows[0]
     ? `${reportDateLabel}: ${rows[0].reportDate ?? unavailable} · ${ageingBasisLabel}: ${rows[0].ageingBasedOn ?? unavailable}`
     : undefined;
+  const missingSources = [
+    showActuals && !actualsPending && !actualsError && actuals.length === 0 ? t('finance.actualsTitle', 'Actuals (ERP ledger)') : null,
+    showApAging && !apAgingPending && !apAgingError && apAging.length === 0 ? t('finance.apTitle', 'Vendor payables (AP)') : null,
+    !arAgingPending && !arAgingError && arAging.length === 0 ? t('uxs36CustomerCollectionsTitle', 'Customer collections (AR)') : null,
+  ].filter((source): source is string => source !== null);
   return (
   <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
-    {showActuals && (
+    {(missingSources.length > 0 || positionFact) && <Card>
+      <CardHead>{t('financialEvidenceTitle', 'Financial position and accounting evidence')}</CardHead>
+      <div className="space-y-2 px-4 pb-4 text-sm">
+        {positionFact && <p>{positionFact}</p>}
+        {missingSources.length > 0 && <>
+          <p className="text-muted-foreground">{t('financialEvidenceMissing', 'These accounting sources have no snapshot yet.')}</p>
+          <ul className="list-inside list-disc text-muted-foreground">{missingSources.map((source) => <li key={source}>{source}</li>)}</ul>
+          <p>{t('snapshots.guidance', 'Ask your administrator to sync accounting data.')}</p>
+        </>}
+      </div>
+    </Card>}
+    {showActuals && (actuals.length > 0 || actualsPending || actualsError) && (
     <SnapshotBlock<ErpActualsSnapshotRow>
       title={t('dashboard:finance.actualsTitle', 'Actuals (ERP ledger)')}
       errorLabel={t('dashboard:finance.actualsError', "Couldn't load actuals")}
-      emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
-      emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
       rows={actuals}
       pending={actualsPending}
       isError={actualsError}
@@ -277,12 +287,10 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={(r) => [r.snapshotId, r.projectId ?? '', r.costCenter ?? '', r.account ?? '', r.fiscalYear ?? ''].join('\u0000')}
     />
     )}
-    {showApAging && (
+    {showApAging && (apAging.length > 0 || apAgingPending || apAgingError) && (
     <SnapshotBlock<ErpAgingSnapshotRow>
       title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
       errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
-      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
-      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
       pending={apAgingPending}
       isError={apAgingError}
@@ -294,11 +302,9 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       detail={agingDetail(apAging)}
     />
     )}
-    <SnapshotBlock<ErpAgingSnapshotRow>
+    {(arAging.length > 0 || arAgingPending || arAgingError) && <SnapshotBlock<ErpAgingSnapshotRow>
       title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
       errorLabel={t('dashboard:finance.arError', "Couldn't load customer receivables")}
-      emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
-      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
       pending={arAgingPending}
       isError={arAgingError}
@@ -308,7 +314,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
-    />
+    />}
   </section>
   );
 };

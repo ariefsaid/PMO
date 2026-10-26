@@ -259,7 +259,7 @@ describe('Approvals page states', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByRole('heading', { level: 1, name: 'Approvals' }).nextElementSibling).toHaveTextContent(/customer invoices/i);
+    expect(screen.getByText(/customer invoices/i)).toBeInTheDocument();
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
@@ -360,7 +360,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
     renderPage('all');
     await userEvent.click(screen.getByRole('button', { name: /^select items$/i }));
     expect(screen.getAllByRole('checkbox')).toHaveLength(4);
-    expect(screen.getByRole('button', { name: /Structural steel/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Structural steel/i, pressed: true })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('checkbox', { name: 'Select all approvable weeks' }));
     expect(screen.getByRole('button', { name: /Approve 3/i })).toBeInTheDocument();
   });

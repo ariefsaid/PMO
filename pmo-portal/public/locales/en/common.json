@@ -1261,13 +1261,12 @@
       "myProjects": "My projects", "openMyProjects": "Open my projects",
       "contractValue": "My contract value", "openContractValue": "Open my projects to see contract value", "contractValueHelp": "Total contract value across your projects.",
       "atRisk": "At risk", "budgetUsage": "budget usage > 90%", "openAtRisk": "Open my at-risk projects", "atRiskHelp": "Your projects whose actual spend exceeds 90% of budget.",
-      "loadError": "Couldn't load your projects",
-      "statusTitle": "Project Status", "nothingToShow": "Nothing to show yet"
+      "loadError": "Couldn't load your projects"
     },
     "delivery": { "percent": "Delivery {{rounded}}%" },
     "engineer": {
       "title": "My Dashboard", "subtitle": "Your hours this week and timesheet status.", "logHours": "Log this week's hours", "logHoursShort": "Log hours", "kpiBand": "My KPIs",
-      "hoursThisWeek": "Hours this week", "weeklyHoursCardTitle": "Hours This Week", "weekOf": "week of {{date}}", "openTimesheetsLog": "Open your timesheets to log this week's hours", "hoursHelp": "Total hours on your most recent timesheet.",
+      "weeklyHoursCardTitle": "Hours This Week",
       "timesheetStatus": "Timesheet status", "noneThisPeriod": "None this period", "openTimesheetsStatus": "Open your timesheets to see your current status", "statusHelp": "The status of your most recent timesheet.",
       "loadError": "Couldn't load your timesheets", "recentError": "Couldn't load recent entries", "noHours": "No hours logged this week", "noHoursSub": "Log your hours to see your weekly breakdown.", "projectBreakdownSub": "Log your hours to see a project breakdown.",
       "hoursByDay": "Hours this week by day", "dayHours": "{{day}}: {{hours}} hours", "byProject": "This week by project", "recentEntries": "Recent entries", "entriesEmptySub": "Hours you log will show up here.", "noNote": "No note", "unknownProject": "Unknown", "hoursShort": "{{hours}}h", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "hours",
@@ -1278,10 +1277,6 @@
       "reviewMany": "Review {{count}} at-risk projects"
     },
     "budgetReviewLink": "Review {{project}} budget",
-    "snapshots": {
-      "unavailable": "No accounting snapshot has been synced yet.",
-      "guidance": "Ask your administrator to sync accounting data."
-    },
     "accountingSnapshots": "Accounting snapshots",
     "uxs36CustomerCollectionsTitle": "Customer collections (AR)",
     "uxs36ReportDate": "Report date",
@@ -1297,8 +1292,6 @@
     "uxs36CollectionsReadError": "Customer collections could not be loaded.",
     "uxs36OpenInvoices": "Open invoices",
     "uxs36OverdueInvoicesFirst": "Overdue invoices first",
-    "actualsSnapshotEmpty": "No actuals snapshot yet",
-    "agingSnapshotEmpty": "No aging data to show yet.",
     "boardPack": {
       "ariaLabel": "Board pack (coming soon)",
       "label": "Board pack",
@@ -1312,7 +1305,6 @@
       },
       "procStatus": {
         "chartLabel": "Procurement by status",
-        "empty": "No procurement activity yet",
         "noun": "requests"
       }
     },
@@ -1329,11 +1321,6 @@
         "label": "Awaiting your approval",
         "unavailable": "unavailable — check connection", "one": "{{count}} item waiting", "many": "{{count}} items waiting",
         "linkUnavailable": "{{label}}: unavailable", "linkOne": "{{label}}: {{count}} item awaiting", "linkMany": "{{label}}: {{count}} items awaiting", "review": "Review"
-      },
-      "pipelineMargin": {
-        "help": "Probability-adjusted projected margin across the open pipeline (Σ(value − budget) / Σ value, weighted by stage win-probability).",
-        "label": "Pipeline forecast margin",
-        "vs": "probability-weighted"
       },
       "pipelineWeighted": {
         "help": "Sum of (project value × stage win-probability) across all open stages.",
@@ -1378,8 +1365,7 @@
       "label": "Portfolio KPIs"
     },
     "sr": {
-      "activeProjects": "active projects",
-      "statuses": "statuses"
+      "activeProjects": "active projects"
     },
     "stillToInvoice": {
       "count": "Work orders: {{n}}",
@@ -3025,7 +3011,6 @@
       "edit": "Edit project"
     },
     "subtitle": {
-      "create": "Create a project",
       "edit": "Update the project header details"
     },
     "submit": {
@@ -3447,14 +3432,6 @@
     },
     "rail": {
       "assistant": "Assistant",
-      "group": {
-        "crm": "CRM",
-        "delivery": "Delivery",
-        "finance": "Finance",
-        "overview": "Overview",
-        "workforce": "Workforce"
-      },
-      "myViews": "My Views",
       "primaryNavigation": "Primary navigation",
       "approvalsCountSuffix": "{{count}} pending"
     },
@@ -4666,7 +4643,7 @@
   "uxs03": {
     "contractedRevenue":"Contracted revenue", "contractValueOnHand":"Contract value on hand", "activeContractValue":"Active contract value", "spendingContract":"Spending vs contract", "spendingContractBar":"{{name}}: {{percent}}% of contract",
     "notAvailableYet":"Not available yet",
-    "marginToDate":"Margin to date", "attentionAndApprovals":"Attention and approvals",
+    "attentionAndApprovals":"Attention and approvals",
     "realizedMargin":"Margin on billed work", "realizedMarginKnown":"Known margin on billed work", "contractRemaining":"Contract remaining after known Actual",
     "coverage":"Actual available for {{known}} of {{total}} delivery projects", "coverageCategories":"Actual coverage: {{known}} of {{total}} mapped cost categories", "actualIncompleteCategories":"Actual incomplete: {{count}} cost categories not mapped", "openAccountingMap":"Review accounting mappings", "mixedCurrencyTotalUnavailable":"Unavailable for mixed currencies", "recordedOutcomesOnly":"Recorded outcomes only; unrecorded decisions are not counted.", "pmoPurchasing":"PMO purchasing requests", "pmoPurchasingScope":"ERP-native purchases are outside this PMO request chart.",
     "activeBudget":"Active budget", "actual":"Actual", "variance":"Variance", "utilization":"Utilization", "atRisk":"At risk",

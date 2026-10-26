@@ -195,35 +195,6 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
     expect(within(deliveryChart).getByText('Won, on-hold, delivery and closed-out projects, plus internal work.')).toBeInTheDocument();
   });
 
-  it('AC-MOBILE-3: contract book section (Revenue on hand + Total contract value) renders before charts', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const contractBook = screen.getByTestId('mobile-contract-book');
-    const charts = screen.getByTestId('dashboard-pipeline');
-    expect(domOrderCompare(contractBook, charts)).toBe(-1);
-    // Both money tiles present inside the contract book
-    expect(within(contractBook).getByTestId('mobile-kpi-on-hand')).toBeInTheDocument();
-    expect(within(contractBook).getByTestId('mobile-kpi-total-contract-value')).toBeInTheDocument();
-  });
-
-  it('CW-3b: contract-book metrics render the shared KPITile (one tile vocabulary everywhere)', () => {
-    // CW-3b unification: the mobile contract-book money tiles are NOT one-off markup — they render
-    // the canonical KPITile. The shared tile's structure (the 30px tinted icon-tile + the 23px
-    // bold value) is the same molecule the desktop KPI band uses. We assert the canonical tile
-    // chrome: each metric carries the KPITile icon-tile (rounded-lg, size-[30px]) and its testId.
-    mockIsDesktop = false;
-    renderPage();
-    for (const testId of ['mobile-kpi-on-hand', 'mobile-kpi-total-contract-value']) {
-      const tile = screen.getByTestId(testId);
-      // The canonical KPITile head: a size-[30px] tinted icon-tile (grid place-items-center).
-      const iconTile = tile.querySelector('span.size-\\[30px\\]');
-      expect(iconTile, `${testId} should render the shared KPITile icon-tile`).not.toBeNull();
-      // The canonical KPITile value type-scale (23px bold) — the shared tile, not a forked size.
-      const value = tile.querySelector('.text-\\[23px\\]');
-      expect(value, `${testId} should render the shared KPITile value`).not.toBeNull();
-    }
-  });
-
   it('shows mixed-currency on-hand values and contract remainder on the phone', () => {
     dashState.data = {
       ...populated,
@@ -330,13 +301,12 @@ describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
 });
 
 describe('AC-MOBILE-6: desktop layout unaffected', () => {
-  it('desktop renders the full 6-tile KPI band including "Total contract value"', () => {
+  it('desktop keeps its portfolio KPIs and the pipeline evidence section', () => {
     mockIsDesktop = true;
     renderPage();
-    // All 6 existing KPI tiles must be present on desktop
     expect(screen.getByTestId('kpi-on-hand-margin')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-pipeline-margin')).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument(); // SL-B: count rides on the contract tile
     expect(screen.getByTestId('kpi-total-contract-value')).toBeInTheDocument();
     expect(screen.getByTestId('kpi-total-spend')).toBeInTheDocument();

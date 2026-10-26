@@ -435,7 +435,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                       <span
                         className={cn(
                           'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                          weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                          'text-muted-foreground'
                         )}
                         aria-hidden="true"
                       >
@@ -483,7 +483,7 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     <span
                       className={cn(
                         'w-[52px] shrink-0 text-[12px] font-semibold uppercase tracking-[0.03em]',
-                        weekend ? 'text-muted-foreground/70' : 'text-muted-foreground'
+                        'text-muted-foreground'
                       )}
                       aria-hidden="true"
                     >

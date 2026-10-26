@@ -11,7 +11,7 @@ import { login, waitForFonts } from './helpers';
 const DESKTOP = { width: 1280, height: 800 };
 const MOBILE = { width: 560, height: 800 };
 
-test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer carries nav', async ({
+test('AC-1201 desktop and mobile navigation keep destinations reachable', async ({
   page,
 }) => {
   // The DOM landmark labels below are English; avoid dependence on a persisted seed locale.
@@ -29,34 +29,25 @@ test('AC-1201 desktop shows the persistent rail; mobile hides it and the drawer 
   await login(page, 'exec@acme.test');
   await page.goto('/');
 
-  // --- Desktop: persistent grid-area rail is visible, no hamburger. ---
-  const persistent = page.locator('.rail-persistent');
-  await expect(persistent).toBeVisible();
-  // The persistent rail's nav is present with real items (anchors now that Rail uses NavLink).
-  const desktopNavCount = await persistent.locator('nav a').count();
+  // --- Desktop: grouped navigation is available, no drawer trigger. ---
+  const desktopNav = page.getByRole('navigation', { name: 'Primary navigation' }).first();
+  await expect(desktopNav).toBeVisible();
+  const desktopNavCount = await desktopNav.getByRole('link').count();
   expect(desktopNavCount).toBeGreaterThan(0);
-  // Hamburger is hidden at desktop widths.
-  await expect(page.locator('.mobile-rail-toggle')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Open navigation menu' })).toBeHidden();
 
-  // --- Mobile: persistent rail collapses, hamburger appears. ---
+  // --- Mobile: the navigation drawer carries the same destinations. ---
   await page.setViewportSize(MOBILE);
-  // .rail-persistent is display:none ≤920px → not visible.
-  await expect(persistent).toBeHidden();
-  const hamburger = page.locator('.mobile-rail-toggle');
+  const hamburger = page.getByRole('button', { name: 'Open navigation menu' });
   await expect(hamburger).toBeVisible();
 
   // Opening the hamburger reveals a drawer copy of the rail WITH nav links.
   await hamburger.click();
-  // The drawer rail is the Primary-navigation <nav> NOT under .rail-persistent.
-  const drawerNav = page.locator('nav[aria-label="Primary navigation"]').nth(1);
+  // The navigation inside the dialog is the mobile drawer copy.
+  const drawerNav = page.getByRole('dialog', { name: 'Navigation menu' })
+    .getByRole('navigation', { name: 'Primary navigation' });
   await expect(drawerNav.getByRole('link', { name: /Approvals/ })).toBeVisible();
-  const drawerNavCount = await page.evaluate(() => {
-    const navs = Array.from(
-      document.querySelectorAll('nav[aria-label="Primary navigation"]')
-    );
-    const drawer = navs.find((n) => !n.closest('.rail-persistent'));
-    return drawer ? drawer.querySelectorAll('a').length : 0;
-  });
+  const drawerNavCount = await drawerNav.getByRole('link').count();
   expect(drawerNavCount).toBeGreaterThan(0);
 });
 
@@ -65,7 +56,7 @@ test('UX-001 Approvals stays within the 800px rail viewport while Sales remains 
   await login(page, 'admin@acme.test');
   await page.goto('/projects');
 
-  const nav = page.locator('.rail-persistent nav[aria-label="Primary navigation"]');
+  const nav = page.getByRole('navigation', { name: 'Primary navigation' }).first();
   const approvals = nav.getByRole('link', { name: /Approvals/ });
   const sales = nav.getByRole('link', { name: 'Sales Pipeline' });
   await expect(approvals).toBeVisible();

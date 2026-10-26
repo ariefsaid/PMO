@@ -147,8 +147,9 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: Project Status list is risk-sorted
 
   it('C2C-PM-1: at-risk rows appear before safe rows in the Project Status list', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const itemTexts = listItems.map((li) => li.textContent ?? '');
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    const rows = Array.from(worklist.querySelectorAll<HTMLElement>('[data-row]'));
+    const itemTexts = rows.map((row) => row.textContent ?? '');
     const highBurnIdx = itemTexts.findIndex((t) => t.includes('High Burn Project'));
     const thresholdIdx = itemTexts.findIndex((t) => t.includes('At Threshold Project'));
     const safeIdx = itemTexts.findIndex((t) => t.includes('Safe Project'));
@@ -170,26 +171,25 @@ describe('AC-IXD-DASH-W5-C2C — PMDashboard: Project Status list is risk-sorted
 
   it('C2C-PM-3: safe project does NOT show an "At risk" pill', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const safeItem = listItems.find((li) => li.textContent?.includes('Safe Project'));
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    const safeItem = within(worklist).getByRole('link', { name: 'Safe Project' }).closest('[data-row]');
     expect(safeItem).toBeDefined();
     expect(safeItem?.textContent).not.toContain('At risk');
   });
 
   it('C2C-PM-4: completed project is NOT flagged at-risk even when high utilization', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const completedItem = listItems.find((li) => li.textContent?.includes('Completed High Burn'));
-    if (completedItem) {
-      expect(completedItem.textContent).not.toContain('At risk');
-    }
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    const completedItem = within(worklist).getByRole('link', { name: 'Completed High Burn' }).closest('[data-row]');
+    expect(completedItem).toBeDefined();
+    expect(completedItem?.textContent).not.toContain('At risk');
   });
 
   it('C2C-PM-5: the "At risk" pill in the Project Status list has the dot indicator (not color-only, a11y)', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    // The StatusPill "At risk" in the list items — find via listitem context to skip the KPI tile
-    const listItems = screen.getAllByRole('listitem');
-    const atRiskItem = listItems.find((li) => li.textContent?.includes('High Burn Project'));
+    // Scope the pill to the named delivery row, separate from the KPI tile.
+    const worklist = screen.getByRole('region', { name: 'My delivery projects' });
+    const atRiskItem = within(worklist).getByRole('link', { name: 'High Burn Project' }).closest('[data-row]');
     expect(atRiskItem).toBeDefined();
     // The "At risk" StatusPill inside this row must carry data-pill-dot (dot indicator)
     const pillDot = atRiskItem?.querySelector('[data-pill-dot]');

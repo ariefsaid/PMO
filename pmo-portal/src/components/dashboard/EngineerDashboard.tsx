@@ -99,13 +99,6 @@ export const EngineerDashboard: React.FC = () => {
       />
 
       <section aria-label={t('dashboard.engineer.kpiBand', 'My KPIs')} className="grid grid-cols-1 gap-3 min-[560px]:grid-cols-2">
-        {/* AC-IXD-DASH-W5-C2A: Hours this week → /timesheets (the one place an IC acts) */}
-        <KPITile testId="kpi-hours-week" tone="blue" icon="clock" label={t('dashboard.engineer.hoursThisWeek', 'Hours this week')}
-          value={`${hoursThisWeek}`} loading={isPending}
-          vs={current ? t('dashboard.engineer.weekOf', 'week of {{date}}', { date: current.week_start_date }) : undefined}
-          to="/timesheets"
-          linkLabel={t('dashboard.engineer.openTimesheetsLog', "Open your timesheets to log this week's hours")}
-          help={t('dashboard.engineer.hoursHelp', 'Total hours on your most recent timesheet.')} />
         {/* AC-IXD-DASH-W5-C2A: Timesheet status → /timesheets */}
         <KPITile testId="kpi-timesheet-status" tone="violet" icon="doc" label={t('dashboard.engineer.timesheetStatus', 'Timesheet status')}
           value={current
@@ -117,11 +110,15 @@ export const EngineerDashboard: React.FC = () => {
           help={t('dashboard.engineer.statusHelp', 'The status of your most recent timesheet.')} />
       </section>
 
-      {/* T8: Two-up DashGrid — Hours This Week (existing) + This week by project (new) */}
+      {/* T8: daily and project detail share one dated weekly total. */}
       <DashGrid>
-        {/* Left: existing day-bar card */}
         <Card>
-          <CardHead>{t('dashboard.engineer.weeklyHoursCardTitle', 'Hours This Week')}</CardHead>
+          <CardHead>
+            <span>{t('dashboard.engineer.weeklyHoursCardTitle', 'Hours This Week')}</span>
+            {current && <span className="ml-2 text-[12px] font-normal text-muted-foreground">
+              {t('dashboard:engineer.weekSummary', '{{hours}} hours · week of {{date}}', { hours: hoursThisWeek, date: current.week_start_date })}
+            </span>}
+          </CardHead>
           <div className="px-4 pb-3.5">
             {isError ? (
               <ListState variant="error" title={t('dashboard.engineer.loadError', "Couldn't load your timesheets")} onRetry={() => refetch()} />

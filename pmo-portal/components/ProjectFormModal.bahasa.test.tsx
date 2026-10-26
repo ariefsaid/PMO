@@ -59,7 +59,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
   it('#693: the create form renders its title, sections, labels, placeholders and submit in Bahasa', () => {
     renderForm();
     expect(screen.getByRole('dialog', { name: 'Proyek baru' })).toBeInTheDocument();
-    expect(screen.getByText('Buat proyek', { selector: 'p, div, span' })).toBeInTheDocument();
+    expect(screen.getByText(/dimulai di tahap Prospek/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Nama proyek/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan — Pekerjaan Sipil')).toBeInTheDocument();

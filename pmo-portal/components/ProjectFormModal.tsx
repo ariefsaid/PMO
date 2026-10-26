@@ -686,11 +686,17 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
 
   const submitDisabled = !form.isComplete || taxIncomplete || (!isEdit && numberProposal.status !== 'success');
   const submitLabel = isEdit ? t('projectForm.submit.edit', 'Save project') : t('projectForm.submit.create', 'Create project');
+  const createScope = t('project:form.scope.create', 'New project starts in {{stage}}; on-hand projects come through a pipeline win.', {
+    stage: statusLabel(form.values.status),
+  });
 
   if (variant === 'page') {
     return (
       <form onSubmit={handleSubmit} className="mx-auto w-full max-w-[880px]">
-        <PageHeader name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')} meta={t('projectForm.subtitle.create', 'Create a project')} />
+        <PageHeader
+          name={isEdit ? t('projectForm.title.edit', 'Edit project') : t('projectForm.title.create', 'New project')}
+          meta={isEdit ? t('projectForm.subtitle.edit', 'Update the project header details') : createScope}
+        />
         <div className="rounded-lg border border-border bg-card px-5 py-4">
           {errorSummary.length > 0 && form.hasAttemptedSubmit && (
             <div role="alert" className="mb-4 text-[12.5px] text-destructive-text">
@@ -721,7 +727,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       subtitle={
         isEdit
           ? t('projectForm.subtitle.edit', 'Update the project header details')
-          : t('projectForm.subtitle.create', 'Create a project')
+          : createScope
       }
       submitLabel={submitLabel}
       onSubmit={handleSubmit}

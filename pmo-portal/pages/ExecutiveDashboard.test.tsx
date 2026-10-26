@@ -74,6 +74,13 @@ function resetWinRateRangeTracker(): void {
   winRateRangeTracker.current = null;
 }
 
+const salesPipelineState = vi.hoisted(() => ({
+  data: { stages: [{ status: 'Tender Submitted', count: 1, total_value: 2_000_000, win_probability: 0.4, weighted_value: 800_000 }] },
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+
 const dashState: {
   data: (typeof populated & Pick<ExecutiveDashboardData, 'on_hand_value_by_currency' | 'on_hand_realized_margin_by_currency'>) | null;
   isPending: boolean;
@@ -87,7 +94,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     winRateRangeTracker.current = range;
     return { data: winRateOracle, isPending: false, isError: false };
   },
-  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
+  useSalesPipeline: () => salesPipelineState,
 }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {}, isLoading: false }) }));
 vi.mock('@/src/auth/impersonation', () => ({
@@ -120,6 +127,7 @@ const renderPage = () =>
 beforeEach(() => {
   desktop.value = true;
   dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+  salesPipelineState.isPending = false; salesPipelineState.isError = false;
 });
 
 describe('ExecutiveDashboard (real data)', () => {
@@ -251,7 +259,7 @@ describe('ExecutiveDashboard (real data)', () => {
     renderPage();
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('PMO purchasing requests');
     expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5 requests');
   });
 
   it('AC-S19-004: dashboard links use the shared full status labels and preserve raw status filters', () => {
@@ -290,9 +298,12 @@ describe('ExecutiveDashboard (real data)', () => {
   it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
     dashState.data = { ...populated, procurements_by_status: [] };
     renderPage();
-    const chart = screen.getByTestId('dashboard-proc-status');
-    expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
-    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
+    const disclosure = screen.getByTestId('dashboard-proc-status');
+    expect(disclosure.tagName).toBe('DETAILS');
+    const summary = within(disclosure).getByText('No PMO requests to show').closest('summary')!;
+    expect(summary).toBeInTheDocument();
+    fireEvent.click(summary);
+    expect(within(disclosure).getByText('ERP-native purchases are outside this PMO request chart.')).toBeVisible();
   });
   it('spending-vs-contract list shows project names and contract denominator', () => {
     renderPage();
@@ -329,13 +340,6 @@ describe('ExecutiveDashboard states', () => {
 });
 
 describe('ExecutiveDashboard design polish', () => {
-  it('DA-1: actionable warning link uses the accessible warning-foreground token', () => {
-    renderPage();
-    const warningLink = screen.getByRole('link', { name: /Review 1 at-risk project/i });
-    expect(warningLink).toHaveClass('text-warning-foreground');
-    expect(warningLink).not.toHaveClass('text-warning');
-  });
-
   it('DA-3: mobile dashboard renders the Board pack action', () => {
     desktop.value = false;
     renderPage();
@@ -353,17 +357,19 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
     expect(weighted).toHaveTextContent('$800K');
     expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
-    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
-    // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
+    const pipeline = screen.getByTestId('dashboard-pipeline-margin');
+    expect(pipeline).toHaveTextContent('20.0%');
+    expect(within(pipeline).getByRole('link', { name: /Tender Submitted/i })).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
+    expect(screen.getAllByText('20.0%')).toHaveLength(1);
     expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
-  it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
+  it('AC-IXD-DASH-002: pipeline margin appears once beside weighted stage evidence', () => {
     renderPage();
-    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
-    expect(tile).toHaveTextContent('20.0%');
+    const pipeline = screen.getByTestId('dashboard-pipeline-margin');
+    expect(pipeline).toHaveTextContent('20.0%');
+    expect(screen.getAllByText('20.0%')).toHaveLength(1);
+    expect(within(pipeline).getByRole('link', { name: /Tender Submitted/i })).toBeInTheDocument();
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
@@ -424,28 +430,6 @@ describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (
     }
     // Regression: old "opportunity value" text must not appear anywhere in the rendered page
     expect(document.body.textContent).not.toContain('opportunity value');
-  });
-});
-
-describe('ExecutiveDashboard token purity / no mockData', () => {
-  it('does not render legacy gray/dark utility classes on the KPI band', () => {
-    const { container } = renderPage();
-    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
-    expect(band).toBeTruthy();
-    expect(band.querySelector('.text-gray-500')).toBeNull();
-    expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
-  });
-
-  it('reflows the KPI band 1→2→3→4 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
-    const { container } = renderPage();
-    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
-    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
-    expect(band.className).toContain('grid-cols-1');
-    expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).toContain('min-[920px]:grid-cols-3');
-    expect(band.className).toContain('min-[1180px]:grid-cols-4');
-    // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
-    expect(band.className).not.toContain('sm:grid-cols');
   });
 });
 

@@ -3,7 +3,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   RecordHeader,
@@ -51,6 +51,7 @@ import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -90,6 +91,7 @@ export interface ProjectDetailHeaderProps {
   commitmentPending?: boolean;
   commitmentError?: boolean;
   onEditProject?: () => void;
+  primaryAction?: React.ReactNode;
 }
 
 /**
@@ -114,8 +116,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentPending = false,
   commitmentError = false,
   onEditProject,
+  primaryAction,
 }) => {
   const { t, i18n } = useTranslation();
+  const projectStatusLabel = useProjectStatusLabel();
   const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -213,7 +217,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     : null;
   const meta = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      {customerName && <span className="font-medium text-foreground">{customerName}</span>}
+      {customerName && project.client_id ? (
+        <Link to={`/companies/${project.client_id}`} className="font-medium text-foreground underline-offset-2 hover:underline">
+          {customerName}
+        </Link>
+      ) : customerName ? <span className="font-medium text-foreground">{customerName}</span> : null}
       {orderReference && <span>{orderReference}</span>}
     </div>
   );
@@ -401,6 +409,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const actions = (
     <>
+      {primaryAction}
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEditProject}>
           {t('projectDetail.header.action.edit', 'Edit')}
@@ -549,13 +558,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
         status={
-          <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
+          <StatusPill variant={pillVariantForProjectStatus(status)}>{projectStatusLabel(status)}</StatusPill>
         }
-        // Phone keeps identity/status; the persistent Details rail below the
-        // selected work already carries these codes, customer and PO facts.
+        // Identity, status, scope and primary action share the content-track frame.
         meta={meta}
         actions={canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
+        sharedPageHeading
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
       />
 

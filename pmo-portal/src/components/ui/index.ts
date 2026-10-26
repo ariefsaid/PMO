@@ -53,6 +53,7 @@ export { Funnel, type FunnelStage, type FunnelProps } from './Funnel';
 export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
+export { PageHeading, type PageHeadingKind, type PageHeadingProps } from './PageHeading';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';
