@@ -3212,7 +3212,7 @@
     "statement": "Laporan",
     "trialBalance": "Neraca saldo",
     "unavailable": "Laporan keuangan belum tersedia",
-    "unavailableDescription": "Tidak ada laporan tersimpan untuk cakupan dan periode ini. Pilih periode atau cakupan lain. Jika belum ada laporan, minta administrator memeriksa koneksi akuntansi dan snapshot laporan.",
+    "unavailableDescription": "Laporan tersimpan akan muncul di sini saat tersedia.",
     "updated": "Diperbarui",
     "choosePeriod": "Pilih periode",
     "chooseScope": "Pilih cakupan",
@@ -3223,7 +3223,8 @@
     "closingCredit": "Kredit akhir",
     "debit": "Debit",
     "credit": "Kredit",
-    "choosePeriodOrScope": "Pilih periode atau cakupan"
+    "choosePeriodOrScope": "Pilih periode atau cakupan",
+    "missingSnapshotRecovery": "Tidak ada laporan tersimpan untuk cakupan dan periode ini. Pilih periode atau cakupan lain. Jika belum ada laporan, minta administrator memeriksa koneksi akuntansi dan snapshot laporan."
   },
   "sales": {
     "accessDenied": {
@@ -3793,7 +3794,6 @@
     "nativeReceiptAmountHelper": "Diisi dengan sisa tagihan {{amount}}. Isi lebih kecil untuk pembayaran sebagian, atau lebih besar jika klien membayar lebih; kelebihannya ditampilkan sebagai kelebihan bayar.",
     "receiptDateMissing": "Isi tanggal pembayaran.",
     "receiptRefused": "Periksa jumlah penerimaan.",
-    "nativeCancelReceiptBody": "Ini membatalkan penerimaan di PMO dan mengembalikan jumlahnya ke saldo faktur.",
     "receiptCancelled": "Penerimaan dibatalkan",
     "invoicePdf": {
       "download": "Unduh PDF",
@@ -3924,7 +3924,6 @@
     "noIncomingPaymentsYet": "Belum ada pembayaran masuk",
     "recordYourFirstPaymentReceivedFromAClient": "Belum ada penerimaan dari klien yang dicatat. Gunakan Terima Pembayaran saat pembayaran klien masuk.",
     "noPaymentsMatchYourFilters": "Tidak ada pembayaran yang cocok dengan filter",
-    "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
     "linkToSalesInvoice": "Tautkan ke faktur penjualan…",
     "youDonTHaveAccessToRevenueByProject": "Anda tidak memiliki akses ke Pendapatan per Proyek",
@@ -4020,7 +4019,6 @@
     "incomingPaymentsLoadFailed": "Pembayaran masuk tidak dapat dimuat",
     "cancelPaymentNamed": "Batalkan {{payment}}?",
     "cancelPaymentQuestion": "Batalkan pembayaran?",
-    "cancelPaymentDescription": "Tindakan ini membatalkan pembayaran di ERPNext (docstatus 1→2). Pembayaran akan ditandai Dibatalkan dan sisa tagihan faktur tertaut akan dipulihkan.",
     "archiveViewDescription": "\"{{name}}\" akan diarsipkan dan dihapus dari daftar Anda.",
     "deleteBudgetLineItemNamed": "Hapus item anggaran {{category}}",
     "editBudgetLineItemNamed": "Edit item anggaran {{category}}",
@@ -4073,7 +4071,8 @@
     "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
     "outstanding": "Belum dibayar",
     "openInvoice": "Buka",
-    "openReceipt": "Buka"
+    "openReceipt": "Buka",
+    "overpaidBy": "Kelebihan pembayaran {{amount}}"
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
@@ -4198,7 +4197,6 @@
     "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
     "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
     "emptyTitle": "Tidak ada proyek untuk dilaporkan",
-    "projectsAsAt": "Proyek per {{month}}",
     "unassigned": "Tanpa proyek",
     "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
     "recordProgress": "Catat progres",

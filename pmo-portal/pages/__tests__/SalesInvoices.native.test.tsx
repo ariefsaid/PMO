@@ -198,7 +198,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
-    await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
   });
 

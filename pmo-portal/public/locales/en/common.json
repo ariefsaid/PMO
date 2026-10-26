@@ -3212,7 +3212,7 @@
     "statement": "Statement",
     "trialBalance": "Trial balance",
     "unavailable": "Statements are not available yet",
-    "unavailableDescription": "No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.",
+    "unavailableDescription": "Saved statements will appear here when available.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
     "chooseScope": "Choose a scope",
@@ -3223,7 +3223,8 @@
     "closingCredit": "Closing credit",
     "debit": "Debit",
     "credit": "Credit",
-    "choosePeriodOrScope": "Choose a period or scope"
+    "choosePeriodOrScope": "Choose a period or scope",
+    "missingSnapshotRecovery": "No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots."
   },
   "sales": {
     "accessDenied": {
@@ -3793,7 +3794,6 @@
     "nativeReceiptAmountHelper": "Starts at the {{amount}} outstanding. Enter less for a part payment, or more if the client paid more; the excess shows as overpaid.",
     "receiptDateMissing": "Enter the payment date.",
     "receiptRefused": "Check the receipt amounts.",
-    "nativeCancelReceiptBody": "This cancels the receipt in PMO and puts its amount back on the invoice's balance.",
     "receiptCancelled": "Receipt cancelled",
     "invoicePdf": {
       "download": "Download PDF",
@@ -3925,7 +3925,6 @@
     "noIncomingPaymentsYet": "No incoming payments yet",
     "recordYourFirstPaymentReceivedFromAClient": "No client receipts have been recorded yet. Use Receive Payment when a client payment arrives.",
     "noPaymentsMatchYourFilters": "No payments match your filters",
-    "cancelPayment": "Cancel payment",
     "salesInvoiceOptional": "Sales Invoice (optional)",
     "linkToSalesInvoice": "Link to sales invoice…",
     "youDonTHaveAccessToRevenueByProject": "You don't have access to Revenue by Project",
@@ -4021,7 +4020,6 @@
     "incomingPaymentsLoadFailed": "Couldn't load incoming payments",
     "cancelPaymentNamed": "Cancel {{payment}}?",
     "cancelPaymentQuestion": "Cancel payment?",
-    "cancelPaymentDescription": "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.",
     "archiveViewDescription": "\"{{name}}\" will be archived and removed from your list.",
     "deleteBudgetLineItemNamed": "Delete line item {{category}}",
     "editBudgetLineItemNamed": "Edit line item {{category}}",
@@ -4073,7 +4071,8 @@
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
     "openInvoice": "Open",
-    "openReceipt": "Open"
+    "openReceipt": "Open",
+    "overpaidBy": "Overpaid by {{amount}}"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -4198,7 +4197,6 @@
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
-    "projectsAsAt": "Projects as at {{month}}",
     "unassigned": "Unassigned",
     "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
     "recordProgress": "Record progress",

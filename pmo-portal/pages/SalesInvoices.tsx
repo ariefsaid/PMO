@@ -37,7 +37,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatInstantDate, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatInstantTimestamp, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -857,7 +857,7 @@ const SalesInvoices: React.FC = () => {
       const preErpDetail = inv.erp_opening_amount != null && inv.erp_opening_at
         ? `${preErp}. ${t('financeCopy.carriedIntoErpOpening', 'Carried into the ERP opening balance: {{amount}} on {{date}}', {
           amount: formatCurrencyAuto(inv.erp_opening_amount, inv.currency),
-          date: formatInstantDate(inv.erp_opening_at),
+          date: formatInstantTimestamp(inv.erp_opening_at),
         })}`
         : preErp;
       return (
