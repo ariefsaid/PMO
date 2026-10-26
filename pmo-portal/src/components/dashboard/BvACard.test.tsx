@@ -16,11 +16,11 @@ const renderCard = (rows = projects) => render(
 describe('Executive spending comparison', () => {
   it('AC-UX-013 keeps project identity, known Actual, contract, and an explicit open action', () => {
     renderCard();
-    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const table = screen.getByRole('table', { name: 'USD spending comparison' });
     expect(within(table).getByRole('link', { name: 'Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
     expect(within(table).getByRole('link', { name: 'Open Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
-    expect(within(table).getByText('USD $2,100,000')).toBeInTheDocument();
-    expect(within(table).getByText('USD $5,000,000')).toBeInTheDocument();
+    expect(within(table).getByText('2,100,000')).toBeInTheDocument();
+    expect(within(table).getByText('5,000,000')).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Known Actual' })).toBeInTheDocument();
   });
 
@@ -31,9 +31,9 @@ describe('Executive spending comparison', () => {
 
   it('AC-RF-002 keeps an unknown Actual as a linked dash and draws no comparison bar', () => {
     renderCard([{ ...projects[0]!, spent: null, actual_complete: false }]);
-    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const table = screen.getByRole('table', { name: 'USD spending comparison' });
     expect(within(table).getByRole('link', { name: 'Actual unavailable; see coverage note' })).toBeInTheDocument();
-    expect(within(table).getByText('USD $5,000,000')).toBeInTheDocument();
+    expect(within(table).getByText('5,000,000')).toBeInTheDocument();
     expect(within(table).queryByRole('progressbar')).toBeNull();
   });
 
@@ -47,6 +47,20 @@ describe('Executive spending comparison', () => {
 
   it('names the table for assistive technology', () => {
     renderCard();
-    expect(screen.getByRole('table', { name: 'Spending comparison' })).toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'USD spending comparison' })).toBeInTheDocument();
+  });
+
+  it('H-03 groups amounts by currency and shows the unit once above exact numeric rows', () => {
+    renderCard([
+      { ...projects[0]!, name: 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru', currency: 'IDR', actual_currency: 'IDR', contract_value: 2_226_648_000, spent: 1_780_000_000 },
+      projects[1]!,
+    ]);
+    const idrTable = screen.getByRole('table', { name: 'IDR spending comparison' });
+    const usdTable = screen.getByRole('table', { name: 'USD spending comparison' });
+    expect(within(idrTable).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(idrTable).getByText('1,780,000,000')).toBeInTheDocument();
+    expect(idrTable).not.toHaveTextContent('IDR');
+    expect(usdTable).not.toHaveTextContent('USD');
+    expect(screen.getByRole('heading', { name: 'IDR spending comparison' })).toBeInTheDocument();
   });
 });

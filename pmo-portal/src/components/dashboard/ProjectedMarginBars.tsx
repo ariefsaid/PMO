@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatDashboardMoney, moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatNumberExact } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SALES_COLUMNS } from '@/components/salesPipeline';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
@@ -61,16 +62,16 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
   return (
     <div role="group" aria-label={t('dashboard:projectedMargin.group', 'Pipeline projected margin')} className="space-y-4">
       <div className="border-b border-border pb-3">
-        <h3 className="text-sm font-semibold">{t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</h3>
+        <h3 className="text-xl font-bold">{t('dashboard.chart.pipelineMargin.title', 'Pipeline forecast margin')}</h3>
         {projectedMargin !== null ? (
           <p className="mt-1 text-xl font-semibold tabular">{`${(projectedMargin * 100).toFixed(1)}%`}</p>
         ) : currencyTotals.length > 0 ? (
-          <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
             {currencyTotals.map((row) => (
-              <div key={`margin-${row.currency}`} className="flex items-baseline justify-between gap-3">
-                <dt className="text-sm text-muted-foreground">{row.currency}</dt>
-                <dd className="text-sm font-semibold tabular">
-                  {row.forecastMargin === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : `${(row.forecastMargin * 100).toFixed(1)}%`}
+              <div key={`margin-${row.currency}`} className="contents">
+                <dt className="text-xs font-semibold text-muted-foreground">{row.currency}</dt>
+                <dd className="text-right text-sm font-semibold tabular">
+                  {row.forecastMargin === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end" href="#executive-data-note">—</a> : `${(row.forecastMargin * 100).toFixed(1)}%`}
                 </dd>
               </div>
             ))}
@@ -80,24 +81,24 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
         )}
       </div>
 
-      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-        {currencyTotals.map((row) => (
-          <React.Fragment key={`totals-${row.currency}`}>
-            <div>
-              <dt className="text-xs text-muted-foreground">{t('dashboard:exec.weightedPipeline', 'Weighted pipeline')} · {row.currency}</dt>
-              <dd className="mt-0.5 font-semibold tabular">
-                {row.weightedValue === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : formatDashboardMoney(row.weightedValue, row.currency)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted-foreground">{t('dashboard:exec.grossPipeline', 'Gross pipeline')} · {row.currency}</dt>
-              <dd className="mt-0.5 font-semibold tabular">
-                {row.grossValue === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-data-note">—</a> : formatDashboardMoney(row.grossValue, row.currency)}
-              </dd>
-            </div>
-          </React.Fragment>
-        ))}
-      </dl>
+      <div className="grid gap-4">
+        {currencyTotals.map((row) => {
+          const weighted = moneyFigure(row.weightedValue, row.currency, t('uxs03.notAvailableYet', 'Not available yet'), { code: true });
+          return (
+            <section key={`totals-${row.currency}`} aria-label={t('dashboard:exec.pipelineCurrencyGroup', 'Pipeline · {{currency}}', { currency: row.currency })}>
+              <h3 className="text-xl font-bold tabular">
+                {t('dashboard:exec.weightedPipelineCompact', 'Weighted pipeline · {{figure}}', { figure: weighted.value })}
+              </h3>
+              <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
+                <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.weightedPipeline', 'Weighted pipeline')}</dt>
+                <dd className="text-right text-sm font-semibold tabular">{row.weightedValue === null ? '—' : formatNumberExact(row.weightedValue)}</dd>
+                <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.grossPipeline', 'Gross pipeline')}</dt>
+                <dd className="text-right text-sm font-semibold tabular">{row.grossValue === null ? '—' : formatNumberExact(row.grossValue)}</dd>
+              </dl>
+            </section>
+          );
+        })}
+      </div>
 
       {/* D-1 (AC-JR-W3B-05): each stage row is a Link to /sales?status=<encoded> so
           the exec can drill into that stage's deals directly from the margin card. */}
@@ -107,6 +108,8 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
       {allowStageBars && open.length === 0 && (
         <p className="text-sm text-muted-foreground">{t('dashboard:projectedMargin.emptyStages', 'No open pipeline stages')}</p>
       )}
+      <section aria-label={t('dashboard:exec.pipelineStagesCurrency', 'Open stages · {{currency}}', { currency })}>
+      <h3 className="mb-2 text-xl font-bold">{t('dashboard:exec.openStageValues', 'Open stage values')}</h3>
       <div className="flex flex-col divide-y divide-border/70">
         {open.map((s) => {
           const pct = Math.round((s.weighted_value / max) * 100);
@@ -131,13 +134,14 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
                   style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
-              <span className="min-w-[6rem] shrink-0 whitespace-nowrap text-right text-xs font-semibold tabular">
-                {fullMoney(s.weighted_value)}
+              <span className="min-w-[6rem] shrink-0 whitespace-nowrap text-right text-sm font-semibold tabular">
+                {formatNumberExact(s.weighted_value)}
               </span>
             </Link>
           );
         })}
       </div>
+      </section>
     </div>
   );
 };

@@ -188,7 +188,8 @@ describe('Executive and Admin dashboard recomposition', () => {
     renderPage();
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
     expect(within(delivery).getAllByText('Contract value on hand')[0]).toBeInTheDocument();
-    expect(within(delivery).getByText('USD $10,000')).toBeInTheDocument();
+    expect(within(delivery).getByText('10,000')).toBeInTheDocument();
+    expect(within(delivery).getByRole('heading', { name: /Contract value on hand/ })).toBeInTheDocument();
     expect(within(delivery).getAllByText('Active contract value')[0]).toBeInTheDocument();
     expect(within(delivery).getAllByText('Known Actual')[0]).toBeInTheDocument();
     expect(within(delivery).getAllByText('Contract remaining after known Actual')).toHaveLength(2);
@@ -196,9 +197,32 @@ describe('Executive and Admin dashboard recomposition', () => {
     expect(within(delivery).getByText('How figures are measured')).toBeInTheDocument();
   });
 
+  it('AC-806-EXEC-HIERARCHY-001 sets one currency in each position head and keeps exact rows unit-free', () => {
+    view.data = {
+      ...dashboard,
+      total_contract_value: null,
+      on_hand_value: null,
+      on_hand_value_by_currency: [
+        dashboard.on_hand_value_by_currency[0],
+        { currency: 'IDR', contract_value: 2_226_648_000, actual_known: null, contract_remaining: null, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null, unknown_projects: 1 },
+      ],
+      on_hand_realized_margin_by_currency: [
+        ...dashboard.on_hand_realized_margin_by_currency,
+        { currency: 'IDR', known_amount: null, unknown_projects: 1 },
+      ],
+    };
+    renderPage();
+    const usd = screen.getByTestId('dashboard-delivery-position-USD');
+    const idr = screen.getByTestId('dashboard-delivery-position-IDR');
+    expect(usd.textContent?.match(/USD/g)).toHaveLength(1);
+    expect(idr.textContent?.match(/IDR/g)).toHaveLength(1);
+    expect(within(idr).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(usd).getByText('5,000')).toBeInTheDocument();
+  });
+
   it('AC-806-EXEC-SPEND-001 puts known risk first, names unknown risk, and preserves the project destination', () => {
     renderPage();
-    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const table = screen.getByRole('table', { name: 'USD spending comparison' });
     const rows = Array.from(table.querySelectorAll('tbody tr')).map((row) => row.textContent ?? '');
     expect(rows[0]).toContain('Beta');
     expect(rows[0]).toContain('At risk');
@@ -212,8 +236,9 @@ describe('Executive and Admin dashboard recomposition', () => {
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
     expect(within(pipeline).getByText('Pipeline forecast margin')).toBeInTheDocument();
-    expect(within(pipeline).getByText('Weighted pipeline · USD')).toBeInTheDocument();
-    expect(within(pipeline).getByText('Gross pipeline · USD')).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /Weighted pipeline/ })).toBeInTheDocument();
+    expect(within(pipeline).getByText('1,600')).toBeInTheDocument();
+    expect(within(pipeline).getByText('4,000')).toBeInTheDocument();
     expect(within(pipeline).getByRole('heading', { name: 'Win rate' })).toBeInTheDocument();
     expect(within(pipeline).getByRole('link', { name: 'Negotiation' })).toHaveAttribute('href', '/sales?status=Negotiation');
   });
@@ -236,7 +261,7 @@ describe('Executive and Admin dashboard recomposition', () => {
     expect(screen.getByRole('heading', { name: 'Delivery book' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
     const firstFigure = screen.getAllByText('Contract value on hand')[0]!;
-    expect(firstFigure.compareDocumentPosition(screen.getByText('USD $10,000')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(firstFigure.compareDocumentPosition(screen.getByText('10,000')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-806-EXEC-STATE-001 keeps the frame, invoiceable section, and pipeline when portfolio data fails', () => {

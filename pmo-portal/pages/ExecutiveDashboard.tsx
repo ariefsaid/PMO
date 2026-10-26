@@ -5,7 +5,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatCurrency, formatNumber } from '@/src/lib/format';
+import { formatNumber, formatNumberExact } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
 import type { ExecutiveDashboard as ExecutiveDashboardData, PipelineStage } from '@/src/lib/db/dashboard';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { BvACard } from '@/src/components/dashboard/BvACard';
@@ -27,29 +28,6 @@ import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { isActualComplete } from '@/src/lib/projectFinances';
 
 type CurrencyValue = { currency: string; value: number | null };
-
-function currencyValue(value: number | null, currency: string, unavailableLabel: string, noteHref = '#executive-data-note'): React.ReactNode {
-  if (value === null || !Number.isFinite(value)) {
-    return <a className="inline-flex min-h-11 min-w-11 items-center justify-center whitespace-nowrap underline underline-offset-2" href={noteHref} aria-label={`${unavailableLabel} (${currency})`}><span aria-hidden="true">— {currency}</span></a>;
-  }
-  const formatted = formatCurrency(value, currency);
-  return <span className="inline-block whitespace-nowrap">{formatted.includes(currency) ? formatted : `${currency} ${formatted}`}</span>;
-}
-
-function metricRows(label: string, rows: CurrencyValue[], unavailableLabel: string): React.ReactNode {
-  return (
-    <div className="grid gap-2 py-3 sm:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1.3fr)] sm:items-baseline">
-      <dt className="text-sm font-medium">{label}</dt>
-      <dd className="flex min-w-0 flex-wrap gap-x-5 gap-y-1 text-sm tabular">
-        {rows.map((row) => (
-          <span key={`${label}-${row.currency}`} className="min-w-0">
-            {currencyValue(row.value, row.currency, unavailableLabel)}
-          </span>
-        ))}
-      </dd>
-    </div>
-  );
-}
 
 function onHandRows(data: ExecutiveDashboardData, orgCurrency: string): CurrencyValue[] {
   const rows = data.on_hand_value_by_currency ?? [];
@@ -210,6 +188,20 @@ const DeliveryBook: React.FC<{
     && data.top_projects.length === 0
     && data.projects_by_status.every((row) => row.count === 0)
     && data.procurements_by_status.every((row) => row.count === 0));
+  const currencyRows = [...new Map(
+    [...onHand, ...activeContracts, ...actual, ...remaining, ...margin]
+      .map((row) => [row.currency, row] as const),
+  ).keys()].sort((left, right) => left === currency ? -1 : right === currency ? 1 : left.localeCompare(right));
+  const exactValue = (value: number | null | undefined, reason: string, href = '#executive-data-note') =>
+    value === null || value === undefined || !Number.isFinite(value)
+      ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end underline underline-offset-2" href={href} title={reason} aria-label={reason}>—</a>
+      : <span>{formatNumberExact(value)}</span>;
+  const fact = (label: string, value: number | null | undefined, reason: string, href?: string) => (
+    <div key={label} className="flex min-w-0 items-baseline justify-between gap-3">
+      <dt className="min-w-0 text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right text-sm font-semibold tabular">{exactValue(value, reason, href)}</dd>
+    </div>
+  );
 
   return (
     <section aria-labelledby="executive-delivery-title" className="space-y-4" data-testid="dashboard-delivery-book">
@@ -227,40 +219,52 @@ const DeliveryBook: React.FC<{
               onRetry={onRetry}
             />
           )}
-          <dl className="divide-y divide-border border-y border-border">
-            {metricRows(t('uxs03.contractValueOnHand', 'Contract value on hand'), onHand, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
-            <div className="grid gap-2 py-3 sm:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1.3fr)] sm:items-baseline">
-              <dt className="text-sm font-medium">{t('uxs03.activeContractValue', 'Active contract value')}</dt>
-              <dd className="flex min-w-0 flex-wrap items-baseline gap-x-5 gap-y-1 text-sm tabular">
-                <span>{activeContracts.map((row) => <span key={row.currency} className="mr-5">{currencyValue(row.value, row.currency, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}</span>)}</span>
-                <span className="text-muted-foreground">{t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}</span>
-              </dd>
-            </div>
-            <div className="grid gap-2 py-3 sm:grid-cols-[minmax(12rem,0.7fr)_minmax(0,1.3fr)] sm:items-baseline">
-              <dt className="text-sm font-medium">{t('dashboard:exec.knownActual', 'Known Actual')}</dt>
-              <dd data-testid="dashboard-known-actual" className="min-w-0 text-sm tabular">
-                <div className="flex flex-wrap gap-x-5 gap-y-1">
-                  {actual.map((row) => <span key={row.currency} className="inline-block whitespace-nowrap">{currencyValue(row.value, row.currency, t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}</span>)}
-                </div>
-                {actualIncomplete && (
-                  <p id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="mt-1 text-xs text-muted-foreground">
-                    {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
-                    {' · '}
-                    {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
-                    {' · '}{mapNote}
-                  </p>
-                )}
-              </dd>
-            </div>
-            {metricRows(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), remaining, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
-            {metricRows(
-              (data.on_hand_realized_margin_by_currency ?? []).some((row) => row.unknown_projects > 0)
-                ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
-                : t('uxs03.realizedMargin', 'Margin on billed work'),
-              margin,
-              t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'),
-            )}
-          </dl>
+          <div className="space-y-8 border-y border-border py-4">
+            {currencyRows.map((currencyCode, index) => {
+              const valueFor = (rows: CurrencyValue[]) => rows.find((row) => row.currency === currencyCode)?.value;
+              const primary = valueFor(onHand);
+              const compact = moneyFigure(primary ?? null, currencyCode, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), { code: true });
+              const groupId = `dashboard-position-${currencyCode.toLowerCase()}`;
+              const hasActive = activeContracts.some((row) => row.currency === currencyCode);
+              return (
+                <section key={currencyCode} aria-labelledby={groupId} data-testid={`dashboard-delivery-position-${currencyCode}`}>
+                  <h3 id={groupId} className={`mb-3 text-xl font-bold tabular ${index === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
+                    {t('dashboard:exec.contractValueOnHandCompact', 'Contract value on hand · {{figure}}', { figure: compact.value })}
+                  </h3>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                    {fact(t('dashboard:exec.exactContractValueOnHand', 'Exact on-hand value'), primary, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
+                    {hasActive && <div className="contents">
+                      {fact(t('uxs03.activeContractValue', 'Active contract value'), valueFor(activeContracts), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
+                      <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:kpi.activeProjectsCount', 'Active projects')}</dt>
+                      <dd className="text-right text-sm font-semibold tabular">{formatNumber(data.active_projects)}</dd>
+                    </div>}
+                    <div className="contents" data-testid={currencyCode === 'IDR' ? 'dashboard-known-actual' : undefined}>
+                      {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}
+                    </div>
+                    {fact(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
+                    {fact(
+                      (data.on_hand_realized_margin_by_currency ?? []).some((row) => row.currency === currencyCode && row.unknown_projects > 0)
+                        ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
+                        : t('uxs03.realizedMargin', 'Margin on billed work'),
+                      valueFor(margin),
+                      t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'),
+                    )}
+                  </dl>
+                </section>
+              );
+            })}
+          </div>
+          {actualIncomplete && (
+            <aside id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="pt-3 text-sm text-muted-foreground">
+              <p className="font-semibold text-foreground">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')}</p>
+              <p className="mt-1">
+                {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
+                {' · '}
+                {t('uxs03.coverageCategories', 'Mapped cost categories: {{known}} of {{total}}', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
+                {' · '}{mapNote}
+              </p>
+            </aside>
+          )}
 
           {hasNoProjects && (
             <p data-testid="dashboard-empty" className="text-sm text-muted-foreground">

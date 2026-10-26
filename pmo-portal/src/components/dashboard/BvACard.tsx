@@ -5,7 +5,7 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
@@ -27,14 +27,22 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
   const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
   const rows = useMemo(() => sortExecutiveProjects(projects), [projects]);
-  const money = (value: number | null, rowCurrency: string) => {
+  const groups = useMemo(() => {
+    const grouped = new Map<string, TopProject[]>();
+    for (const project of rows) {
+      const group = grouped.get(project.currency) ?? [];
+      group.push(project);
+      grouped.set(project.currency, group);
+    }
+    return [...grouped.entries()];
+  }, [rows]);
+  const money = (value: number | null, rowCurrency: string, groupCurrency: string) => {
     if (value === null || !Number.isFinite(value)) return null;
-    const code = rowCurrency || currency;
-    const formatted = formatCurrency(value, code);
-    return formatted.includes(code) ? formatted : `${code} ${formatted}`;
+    const code = rowCurrency || groupCurrency || currency;
+    return code === groupCurrency ? formatNumberExact(value) : formatCurrency(value, code);
   };
 
-  const columns: Column<TopProject>[] = [
+  const columnsFor = (groupCurrency: string): Column<TopProject>[] => [
     {
       key: 'project',
       header: t('dashboard:exec.project', 'Project'),
@@ -46,7 +54,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           title={projectDisplayName(project) !== project.name ? project.name : undefined}
           className="inline-flex min-h-11 min-w-0 items-center font-medium text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {projectDisplayName(project)}
+          <span className="break-words">{projectDisplayName(project)}</span>
         </Link>
       ),
     },
@@ -84,7 +92,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           coverageCount: project.actual_coverage_count,
           coverageTotal: project.actual_coverage_total,
         });
-        const actual = money(actualComplete ? project.spent : null, actualCurrency);
+        const actual = money(actualComplete ? project.spent : null, actualCurrency, groupCurrency);
         const comparable = actualComplete && project.spent !== null
           && project.contract_value !== null && project.contract_value > 0
           && actualCurrency === project.currency;
@@ -105,7 +113,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
       kind: 'money',
       align: 'num',
       cell: (project) => {
-        const value = money(project.contract_value, project.currency);
+        const value = money(project.contract_value, project.currency, groupCurrency);
         return value === null
           ? <a className="inline-flex min-h-11 items-center" href="#executive-data-note" aria-label={t('dashboard:exec.contractUnavailable', 'Contract value unavailable; see data note')}>—</a>
           : <span className="inline-block whitespace-nowrap">{value}</span>;
@@ -128,16 +136,38 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
   ];
 
   return (
-    <DataTable<TopProject>
-      rows={rows}
-      columns={columns}
-      rowKey={(project) => project.id}
-      accessibleName={t('dashboard:exec.spendingComparison', 'Spending comparison')}
-      state={isPending ? 'loading' : isError ? 'error' : projects.length === 0 ? 'empty' : undefined}
-      emptyTitle={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
-      errorTitle={t('dashboard:exec.projectDataError', "Couldn't load project comparison")}
-      onRetry={onRetry}
-      tableId="components-dashboard-executive-delivery-v2"
-    />
+    <div className="space-y-4">
+      {groups.map(([groupCurrency, groupRows]) => (
+        <section key={groupCurrency} aria-labelledby={`executive-spending-${groupCurrency.toLowerCase()}`}>
+          <h3 id={`executive-spending-${groupCurrency.toLowerCase()}`} className="mb-2 text-xl font-bold">
+            {t('dashboard:exec.spendingCurrencyGroup', '{{currency}} spending comparison', { currency: groupCurrency })}
+          </h3>
+          <DataTable<TopProject>
+            rows={groupRows}
+            columns={columnsFor(groupCurrency)}
+            rowKey={(project) => project.id}
+            accessibleName={t('dashboard:exec.spendingComparisonForCurrency', '{{currency}} spending comparison', { currency: groupCurrency })}
+            state={isPending ? 'loading' : isError ? 'error' : groupRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
+            errorTitle={t('dashboard:exec.projectDataError', "Couldn't load project comparison")}
+            onRetry={onRetry}
+            tableId={`components-dashboard-executive-delivery-v2-${groupCurrency.toLowerCase()}`}
+          />
+        </section>
+      ))}
+      {groups.length === 0 && (isPending || isError || projects.length === 0) && (
+        <DataTable<TopProject>
+          rows={[]}
+          columns={columnsFor(currency)}
+          rowKey={(project) => project.id}
+          accessibleName={t('dashboard:exec.spendingComparison', 'Spending comparison')}
+          state={isPending ? 'loading' : isError ? 'error' : 'empty'}
+          emptyTitle={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
+          errorTitle={t('dashboard:exec.projectDataError', "Couldn't load project comparison")}
+          onRetry={onRetry}
+          tableId="components-dashboard-executive-delivery-v2-empty"
+        />
+      )}
+    </div>
   );
 };
