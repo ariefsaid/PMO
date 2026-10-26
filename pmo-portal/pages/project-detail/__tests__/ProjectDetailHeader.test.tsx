@@ -143,11 +143,11 @@ describe('ProjectDetailHeader — content', () => {
     expect(deliveryHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
     expect(deliveryHeader.queryByTitle('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
     expect(deliveryHeader.queryByRole('heading', { name: 'Harbor Operations' })).not.toBeInTheDocument();
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} /></ToastProvider></MemoryRouter>);
     const pipelineHeader = within(screen.getByTestId('record-header'));
     expect(pipelineHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
     expect(pipelineHeader.queryByRole('heading', { name: 'Tender package' })).not.toBeInTheDocument();
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} /></ToastProvider></MemoryRouter>);
     expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });
 

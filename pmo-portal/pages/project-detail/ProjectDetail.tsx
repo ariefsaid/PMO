@@ -1,6 +1,6 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, useToast } from '@/src/components/ui';
@@ -14,6 +14,7 @@ import type { ProjectHeaderInput } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import { listReturnNavigation } from '@/src/lib/listReturnContext';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens, { type PipelinePrimaryAction } from './PipelineLens';
@@ -63,86 +64,6 @@ function tabFromParam(param: string | undefined): PTab {
   return 'overview';
 }
 
-const ProjectSectionNavigation: React.FC<{
-  items: TabItem<PTab>[];
-  value: PTab;
-  onChange: (value: PTab) => void;
-  identityName: string;
-  identityVisible: boolean;
-}> = ({ items, value, onChange, identityName, identityVisible }) => {
-  const { t } = useTranslation('sales');
-  const tablistRef = React.useRef<HTMLDivElement>(null);
-  const focusSection = (nextValue: PTab) => {
-    const button = Array.from(tablistRef.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])
-      .find((item) => item.dataset.section === nextValue);
-    button?.focus();
-    onChange(nextValue);
-  };
-  const onTabKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const key = event.key;
-    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(key)) return;
-    event.preventDefault();
-    const index = items.findIndex((item) => item.value === value);
-    const next = key === 'Home'
-      ? items[0]
-      : key === 'End'
-        ? items[items.length - 1]
-        : items[(index + (key === 'ArrowDown' ? 1 : -1) + items.length) % items.length];
-    focusSection(next.value);
-  };
-  return (
-    <>
-      <label className="sticky top-0 z-20 mb-4 flex min-w-0 flex-wrap items-center gap-3 border-b border-border bg-background py-2 min-[921px]:hidden">
-        {!identityVisible && <span data-testid="project-sticky-identity" className="basis-full min-w-0 break-words text-xs font-semibold text-foreground">{identityName}</span>}
-        <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-          {t('pipeline.sections', 'Sections')}
-        </span>
-        <select
-          aria-label={t('pipeline.sections', 'Sections')}
-          value={value}
-          onChange={(event) => onChange(event.currentTarget.value as PTab)}
-          className="min-h-11 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          {items.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-        </select>
-      </label>
-      <div
-        className="sticky top-0 z-10 mb-4 hidden min-w-0 self-start bg-background py-2 min-[921px]:flex min-[921px]:flex-col"
-      >
-        {!identityVisible && <div className="mb-3 break-words border-b border-border pb-3 text-xs font-semibold text-foreground">{identityName}</div>}
-        <div
-          ref={tablistRef}
-          role="tablist"
-          aria-label={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-          aria-orientation="vertical"
-          onKeyDown={onTabKeyDown}
-          className="flex min-w-0 flex-col gap-2 border-l border-border pl-3"
-        >
-          {items.map((item) => {
-            const selected = item.value === value;
-            return (
-              <button
-                key={item.value}
-                id={tabId('project-detail', item.value)}
-                type="button"
-                role="tab"
-                data-section={item.value}
-                aria-selected={selected}
-                aria-controls={selected ? tabPanelId('project-detail', item.value) : undefined}
-                tabIndex={selected ? 0 : -1}
-                onClick={() => onChange(item.value)}
-                className={`min-h-11 break-words px-3 py-2 text-left text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selected ? 'border-l-2 border-primary text-primary-text' : 'text-foreground hover:bg-secondary/50'}`}
-              >
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </>
-  );
-};
-
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
@@ -159,7 +80,6 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
-  const isPipeline = isPipelineRecord;
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
 
@@ -252,6 +172,14 @@ const ProjectDetail: React.FC = () => {
     const destination = listReturnNavigation(location.state, 'sales');
     navigate(destination.path, { state: destination.state });
   };
+  const backNavigation = isPipelineRecord ? (
+    <a href={listReturnNavigation(location.state, 'sales').path}
+      onClick={(event) => { event.preventDefault(); returnToSales(); }}
+      className="mb-4 inline-flex min-h-11 min-w-11 items-center text-sm text-primary-text underline underline-offset-4">
+      {t('project:projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')}
+    </a>
+  ) : <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />;
+
 
   const openEditProject = () => setEditOpen(true);
   const closeEditProject = () => setEditOpen(false);
@@ -271,7 +199,7 @@ const ProjectDetail: React.FC = () => {
     if (isPending) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          {backNavigation}
           <ListState variant="loading" rows={6} />
         </>
       );
@@ -281,7 +209,7 @@ const ProjectDetail: React.FC = () => {
     if (projectError) {
       return (
         <>
-          <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+          {backNavigation}
           <ListState
             variant="error"
             title={t('projectDetail.loadError.title', "Couldn't load this project")}
@@ -296,7 +224,7 @@ const ProjectDetail: React.FC = () => {
     }
     return (
       <>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+        {backNavigation}
         <ListState
           variant="error"
           icon="inbox"
@@ -324,12 +252,12 @@ const ProjectDetail: React.FC = () => {
             {isPipelineRecord && (
               <PipelineLens
                 project={project}
+                locationState={location.state}
+                onReturnToSales={returnToSales}
                 onPrimaryActionChange={showPipelinePrimaryAction ? setPipelinePrimaryAction : undefined}
-                phasePlanner={pipelineGroup === 'pipeline'
-                  ? <MilestoneStrip projectId={project.id} compactWhenEmpty />
-                  : undefined}
               />
             )}
+            {!isPipeline && <>
             <OverviewTab
               project={project}
               committedSpend={committedSpend}
@@ -354,6 +282,7 @@ const ProjectDetail: React.FC = () => {
                 <ProjectSCurve projectId={project.id} />
               </React.Suspense>
             )}
+            </>}
             <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
               <CommentsSection entityType="project" entityId={project.id} />
             </React.Suspense>
@@ -386,7 +315,7 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div className="project-detail-record min-w-0">
-      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+      {backNavigation}
       <ProjectDetailHeader
         project={project}
         onEditProject={openEditProject}

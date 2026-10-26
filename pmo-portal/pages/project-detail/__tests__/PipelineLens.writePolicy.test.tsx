@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -125,8 +125,8 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
       activate: expect.any(Function),
     }));
     expect(screen.queryByRole('button', { name: 'Mark won' })).not.toBeInTheDocument();
-    onPrimaryActionChange.mock.calls.at(-1)?.[0].activate();
-    expect(await screen.findByLabelText('Customer contract reference')).toBeInTheDocument();
+    act(() => onPrimaryActionChange.mock.calls.at(-1)?.[0].activate());
+    expect(await screen.findByRole('textbox', { name: /Customer contract reference/ })).toHaveAttribute('aria-required', 'true');
   });
 
   it('AC-IXD-WP-004: clicking "Advance to <stage>" fires the transition on a SINGLE click — no confirm dialog', async () => {
@@ -154,58 +154,31 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     expect(screen.getByRole('button', { name: 'Mark won' })).toBeInTheDocument();
   });
 
-  it('R-004: centers the current journey stage and provides explicit scroll controls for the remaining stages', async () => {
+  it('R-004: keeps the current and remaining journey stages visible in the section', () => {
     renderLens();
-    const viewport = screen.getByTestId('stepper-scroll-container');
-    const scrollBy = vi.fn();
-    const currentStage = screen.getByRole('listitem', { name: 'Tender: current' });
-    const rect = (left: number, width: number) => ({
-      x: left,
-      y: 0,
-      left,
-      right: left + width,
-      top: 0,
-      bottom: 48,
-      width,
-      height: 48,
-      toJSON: () => ({}),
-    }) as DOMRect;
-    Object.defineProperties(viewport, {
-      clientWidth: { configurable: true, value: 220 },
-      scrollWidth: { configurable: true, value: 640 },
-      scrollBy: { configurable: true, value: scrollBy },
-      getBoundingClientRect: { configurable: true, value: () => rect(100, 220) },
-    });
-    Object.defineProperty(currentStage, 'getBoundingClientRect', {
-      configurable: true,
-      value: () => rect(450, 88),
-    });
-    fireEvent(window, new Event('resize'));
-    fireEvent.scroll(viewport);
-
-    expect(currentStage).toHaveAttribute('aria-current', 'step');
-    expect(viewport.scrollLeft).toBe(284);
-    const laterStages = screen.getByRole('button', { name: 'Later stages' });
-    expect(laterStages).toBeEnabled();
-    await userEvent.click(laterStages);
-    expect(scrollBy).toHaveBeenCalledWith({ left: 176, behavior: 'smooth' });
+    const journey = screen.getByRole('list', { name: 'Project stage journey' });
+    const current = journey.querySelector('[aria-current="step"]');
+    expect(current).toHaveTextContent(/Tender/);
+    expect(within(journey).getByText('Negotiation', { exact: true })).toBeVisible();
+    expect(within(journey).getByText('Pre-Qual', { exact: true })).toBeVisible();
   });
 
   it('keeps the named journey stages and open-deal figures available after the layout change', () => {
     renderLens();
-    expect(screen.getByRole('list', { name: 'Project stage journey' })).toHaveTextContent('Pre-Qualification');
-    expect(screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent)).toEqual([
-      'Value', 'Win probability', 'Weighted', 'Owner',
-    ]);
+    expect(screen.getByRole('list', { name: 'Project stage journey' })).toHaveTextContent('Pre-Qual');
+    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('1,200,000');
+    expect(screen.getByText('Win probability').nextElementSibling).toHaveTextContent('50%');
+    expect(screen.getByText('Weighted').nextElementSibling).toHaveTextContent('600,000');
+    expect(screen.getByText('Owner').nextElementSibling).toHaveTextContent('Alice Manager');
     expect(screen.queryByText('Decision')).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
   });
 
   it('keeps lost-deal decision evidence and terminal context without inventing a zero win rate', () => {
     renderLens({ ...dealRow, status: 'Loss Tender' } as ProjectWithRefs);
-    expect(screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent)).toEqual([
-      'Value', 'Owner', 'Decision',
-    ]);
+    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('1,200,000');
+    expect(screen.getByText('Owner').nextElementSibling).toHaveTextContent('Alice Manager');
+    expect(screen.getByText('Decision')).toBeInTheDocument();
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });

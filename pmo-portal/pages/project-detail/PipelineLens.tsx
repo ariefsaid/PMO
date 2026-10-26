@@ -192,8 +192,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   runTransitionRef.current = runTransition;
   useEffect(() => {
     if (!onPrimaryActionChange) return;
-    if (!canTransition || !nextStage || isTerminal || showWonPanel || confirmAction) {
+    if (!canTransition || (!nextStage && !canWin) || isTerminal || showWonPanel || confirmAction) {
       onPrimaryActionChange(null);
+      return;
+    }
+    if (!nextStage) {
+      onPrimaryActionChange({ label: t('projectDetail.pipeline.markWon', 'Mark won'), disabled: pending, activate: () => setShowWonPanel(true) });
       return;
     }
     onPrimaryActionChange({
@@ -201,7 +205,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
       disabled: pending,
       activate: () => { void runTransitionRef.current(nextStage); },
     });
-  }, [canTransition, confirmAction, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, nextStageLabel, showWonPanel, t]);
+  }, [canTransition, canWin, confirmAction, isTerminal, liveStatus, nextStage, onPrimaryActionChange, pending, nextStageLabel, showWonPanel, t]);
   useEffect(() => () => onPrimaryActionChange?.(null), [onPrimaryActionChange]);
 
   const submitWon = () => {
@@ -359,8 +363,8 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     }`}
                   </Button>
                 )}
-                {canWin && (
-                  <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                {canWin && (nextStage || !onPrimaryActionChange) && (
+                  <Button variant={nextStage ? 'outline' : 'primary'} disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
                     <span aria-hidden className="size-1.5 rounded-full bg-success" />
                     {t('projectDetail.pipeline.markWon', 'Mark won')}
                   </Button>
@@ -475,7 +479,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
               href={listReturnNavigation(locationState, 'sales').path}
               className="mt-1 inline-flex min-h-11 min-w-11 items-center self-start text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
-              {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
+              {t('project:projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}
             </a>}
           </CardPad>
         </Card>

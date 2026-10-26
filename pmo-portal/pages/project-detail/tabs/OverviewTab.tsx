@@ -92,10 +92,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
         <div className="min-w-0">
           <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.header.contractValue', 'Contract value')}</dt>
           <dd data-testid="overview-contract-value" className="break-words text-sm font-normal tabular-nums">{exactMoney(project.contract_value)}</dd>
-          <dd className="text-xs text-muted-foreground">
-            <span>{t('project:projectDetail.moneyPosition.idrEquivalent', 'IDR equivalent')}: </span>
-            <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
-          </dd>
+          <FxEquivalent as="dd" amount={project.contract_value} currency={project.currency} date={project.contract_date} />
         </div>
       </dl>
     </section>

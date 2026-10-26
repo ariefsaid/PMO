@@ -167,6 +167,7 @@ describe('ProjectDetail — section deep-link behavior (B-9, AC-W2-IA-004)', () 
     await renderAt('/projects/p1/tasks?view=timeline&sort=due#task-7');
 
     const navigation = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(screen.getByRole('complementary', { name: 'Project sections' })).toContainElement(navigation);
     const groups = within(navigation).getAllByRole('group');
     expect(groups.map((group) => group.getAttribute('aria-label'))).toEqual([
       'Overview',

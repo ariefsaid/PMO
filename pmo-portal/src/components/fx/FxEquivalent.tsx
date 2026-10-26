@@ -13,9 +13,11 @@ export interface FxEquivalentProps {
   currency: string | null | undefined;
   date: FxEquivalentDate;
   compact?: boolean;
+  /** Own the definition row so an inapplicable conversion leaves no empty row behind. */
+  as?: 'span' | 'dd';
 }
 
-const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, compact = false }) => {
+const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, compact = false, as: Element = 'span' }) => {
   const { t } = useTranslation();
   const auth = useAuth();
   const orgCurrency = useOrgCurrencyState();
@@ -37,9 +39,9 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   // FIN-S4: a quiet component. Not applicable (other currency pair, no date) or still loading renders nothing;
   // a failure is one short line with no retry control.
   const failure = (
-    <span role="alert" className="block min-w-0 break-words text-xs font-normal text-destructive-text">
+    <Element role="alert" className="block min-w-0 break-words text-xs font-normal text-destructive-text">
       {t('fx.rateError', 'Could not load JISDOR rate.')}
-    </span>
+    </Element>
   );
   if (!orgResolved) {
     return orgCurrency.isError || (!auth.loading && !auth.currentUser?.org_id) ? failure : null;
@@ -53,27 +55,27 @@ const FxEquivalent: React.FC<FxEquivalentProps> = ({ amount, currency, date, com
   if (rate.isPending) return null;
   if (!rate.data) {
     return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
+      <Element className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
         {t('fx.noRateForDate', 'No JISDOR rate for {{date}}.', { date: requestedDay ?? '' })}
-      </span>
+      </Element>
     );
   }
   try {
     const equivalent = formatFxEquivalent(amount, rate.data);
     if (compact) {
       return (
-        <span className="block min-w-0 text-xs font-normal tabular text-muted-foreground">
+        <Element className="block min-w-0 text-xs font-normal tabular text-muted-foreground">
           <span aria-hidden="true" title={equivalent} className="block truncate whitespace-nowrap">
             {equivalent}
           </span>
           <span className="sr-only">{equivalent}</span>
-        </span>
+        </Element>
       );
     }
     return (
-      <span className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
+      <Element className="block min-w-0 break-words text-xs font-normal tabular text-muted-foreground">
         {equivalent}
-      </span>
+      </Element>
     );
   } catch {
     return failure;

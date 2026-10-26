@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
@@ -227,9 +227,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });
 
-  // The shared frame owns record wayfinding (AC-NAV-004); a Sales list state must not recreate a
-  // competing return link inside the project page.
-  it('R-002 / AC-NAV-004: the shared frame returns to Projects even with a captured Sales list context', async () => {
+  // The Sales lens keeps the commercial record's owning collection and validated return scope.
+  it('R-002 / AC-NAV-004: a pipeline record returns to its captured Sales list context', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],
@@ -239,7 +238,9 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
       pathname: '/projects/d1',
       state: { pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted' } },
     });
-    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects');
-    expect(screen.queryByRole('link', { name: /back to sales pipeline/i })).not.toBeInTheDocument();
+    const back = screen.getByRole('link', { name: /back to sales pipeline/i });
+    expect(back).toHaveAttribute('href', '/sales?status=Tender+Submitted');
+    fireEvent.click(back);
+    expect(navigate).toHaveBeenCalledWith('/sales?status=Tender+Submitted', { state: {} });
   });
 });

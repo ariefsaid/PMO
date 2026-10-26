@@ -244,14 +244,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     desktopBox.value = false;
     await renderAt('/projects/p1');
 
-    const sections = screen.getByRole('combobox', { name: 'Sections' });
-    expect(sections).toHaveValue('overview');
-    await userEvent.selectOptions(sections, 'tasks');
-
-    expect(navigate).toHaveBeenCalledWith('/projects/p1/tasks', {
-      replace: true,
-      state: { pmoTabSwitch: true },
-    });
+    await userEvent.click(screen.getByRole('button', { name: 'Project sections' }));
+    const sheet = screen.getByRole('dialog', { name: 'Project sections' });
+    const taskLink = within(sheet).getByRole('link', { name: 'Tasks' });
+    expect(taskLink).toHaveAttribute('href', '/projects/p1/tasks');
+    await userEvent.click(taskLink);
+    expect(await screen.findByText('No tasks yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
   });
 
   it('AC-N-05: keeps the full record identity beside the current section when the heading leaves view', async () => {
@@ -271,8 +270,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
     try {
       await renderAt('/projects/p1');
-      expect(await screen.findByTestId('project-sticky-identity')).toHaveTextContent('Innovate Corp HQ Fit-Out');
-      expect(screen.getByRole('combobox', { name: 'Sections' })).toHaveValue('overview');
+      const sections = screen.getByRole('button', { name: 'Project sections' });
+      expect(within(sections.parentElement!).getByText('Innovate Corp HQ Fit-Out')).toBeVisible();
+      expect(sections).toHaveTextContent('Overview');
     } finally {
       vi.unstubAllGlobals();
     }

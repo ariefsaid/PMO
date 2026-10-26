@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -165,6 +165,7 @@ describe('AC-FX-011 project contract equivalent', () => {
       <OverviewTab project={project({ contract_date: null })} committedSpend={10} />,
     );
     expect(screen.queryByText(/JISDOR|publication date/i)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('overview-contract-value').parentElement!).getAllByRole('definition')).toHaveLength(1);
     expect(h.calls.at(-1)?.[3]).toBe(false);
     cleanup();
     h.calls = [];
@@ -172,6 +173,7 @@ describe('AC-FX-011 project contract equivalent', () => {
       <OverviewTab project={project({ currency: 'IDR' })} committedSpend={10} />,
     );
     expect(screen.queryByText(/JISDOR/)).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('overview-contract-value').parentElement!).getAllByRole('definition')).toHaveLength(1);
     expect(h.calls).toHaveLength(1);
     expect(h.calls[0]?.[3]).toBe(false);
   });

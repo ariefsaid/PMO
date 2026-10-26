@@ -103,7 +103,7 @@ export function ProjectSectionNavigation<T extends string>({
 
   return (
     <>
-      <aside className="hidden min-w-0 min-[921px]:block">
+      <aside aria-label={navigationLabel} className="hidden min-w-0 min-[921px]:block">
         <nav aria-label={navigationLabel} className="sticky top-4">
           {showIdentity && <p className="mb-3 break-words text-sm font-semibold">{recordName}</p>}
           <SectionLinks

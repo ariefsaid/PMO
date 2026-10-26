@@ -63,7 +63,8 @@
     },
     "pipeline": {
       "earlierStages": "Earlier stages",
-      "laterStages": "Later stages"
+      "laterStages": "Later stages",
+      "backToSalesPipeline": "← Back to Sales Pipeline"
     },
     "procurement": {
       "column": {
@@ -108,7 +109,6 @@
       "exactRemaining": "Exact remaining",
       "invoiceBalanceClearedNote": "ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.",
       "invoiceRecordsInBilling": "Invoice records are in the Billing section.",
-      "idrEquivalent": "IDR equivalent",
       "erpActuals": "ERP actuals",
       "noActiveBudget": "No active budget",
       "stillToInvoice": "Still to invoice",
