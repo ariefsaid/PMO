@@ -115,12 +115,12 @@ function QueueButton({
       >
         <div className="mb-1 text-xs font-semibold text-muted-foreground">{label}</div>
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
+          <span className="min-w-0 break-words text-sm font-normal">{identity}</span>
           <StatusPill variant={workflowVariant(status)}>{approvalStatusLabel(status, t)}</StatusPill>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span className="min-w-0 break-words">{detail}</span>
-          <span className="tabular font-medium text-foreground">{amount}</span>
+          <span className="tabular font-normal text-foreground">{amount}</span>
         </div>
       </button>
     );
@@ -140,7 +140,7 @@ function QueueButton({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="break-words text-sm font-medium">
+          <div className="break-words text-sm font-normal">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-muted-foreground">
@@ -158,7 +158,7 @@ function QueueButton({
             ? t('approvals.entryOne', 'entry')
             : t('approvals.entryOther', 'entries')}
         </span>
-        <span className="tabular font-medium text-foreground">{formatNumberExact(sumHours(row))}</span>
+        <span className="tabular font-normal text-foreground">{formatNumberExact(sumHours(row))}</span>
       </div>
     </button>
   );
@@ -281,7 +281,7 @@ function PushAttentionSection() {
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
             >
               <div className="min-w-0">
-                <div className="text-sm font-medium">{row.owner_name}</div>
+                <div className="text-sm font-normal">{row.owner_name}</div>
                 <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
                   {weekLabel(row.week_start_date, t)}
                 </div>
@@ -489,7 +489,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2.5"
             >
               <div className="min-w-0">
-                <div className="text-sm font-medium">
+                <div className="text-sm font-normal">
                   {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
                 </div>
                 <div className="mt-0.5 text-sm text-muted-foreground">

@@ -251,12 +251,12 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
           <span className="tabular font-normal text-foreground">{formatNumberWhole(row.total_value)}</span>
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-muted-foreground">
         <span className="min-w-0 break-words">{row.project ? projectDisplayName(row.project) : t('approvals.noProjectLinked', 'No project linked')}</span>
         <span aria-hidden="true">·</span>
         <span>{t('work:approvals.waitingSince', 'Waiting since {{date}}', { date: formatDate(row.created_at) })}</span>
       </div>
-      <div className="mt-1 break-words font-mono text-xs font-semibold text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
+      <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
     </button>
   );
 };
