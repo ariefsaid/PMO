@@ -9,6 +9,7 @@ import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/re
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { MoneyInPageHeader } from '../money-in/MoneyInPageHeader';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 interface Props {
   receipt: IncomingPaymentRow;
@@ -21,6 +22,7 @@ interface Props {
 /** S-06 (RF-030..034) — the read-only receipt page: every invoice allocation, cash not yet applied, and recorded withholding. */
 export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, onCancel }) => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const money = (n: number) => formatNumber(n);
   const cancelled = Boolean(receipt.cancelled_at || receipt.erp_cancelled_at);
   const unapplied = knownUnappliedCash({ ...receipt, allocation_details: allocations });
@@ -97,6 +99,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
         </p>
       ) : (
+        isDesktop ? (
         <DataTable
           rows={allocations.map((allocation, index) => ({ ...allocation, rowKey: `${allocation.invoice_number}-${index}` }))}
           columns={allocationColumns}
@@ -104,6 +107,12 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           tableId="receipt-settled-invoices"
           accessibleName={t('uxs06.settledTitle', 'Invoices this receipt settled')}
         />
+        ) : <ul className="divide-y divide-border" aria-label={t('uxs06.settledTitle', 'Invoices this receipt settled')}>
+          {allocations.map((allocation, index) => <li key={`${allocation.invoice_number}-${index}`} className="flex min-w-0 items-center justify-between gap-3 py-2 type-value">
+            {allocation.invoice_id ? <Link className="inline-flex min-h-11 min-w-0 items-center break-words underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`}>{allocation.invoice_number}</Link> : <span className="min-w-0 break-words">{allocation.invoice_number}</span>}
+            <span className="shrink-0 text-right tabular">{allocation.amount == null || allocation.currency == null ? notReported : `${allocationCurrency ? '' : `${allocation.currency} `}${formatNumber(Number(allocation.amount))}`}</span>
+          </li>)}
+        </ul>
       )}
       {receipt.reference_number && (
         <details className="mt-5 max-w-2xl rounded-md border border-border px-3 py-2">

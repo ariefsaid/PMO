@@ -18,6 +18,7 @@ import {
   Button,
   Icon,
   Badge,
+  TaxBasisLabel,
   useToast,
   type Column,
   type ComboboxOption,
@@ -46,7 +47,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
-import { invoiceGross, invoiceNumber, isPartlyPaid, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
 import { decimalUnits } from '@/src/lib/taxNormalize';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
 import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -55,6 +56,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { MoneyInPageHeader } from './money-in/MoneyInPageHeader';
 import { sortSalesInvoiceCollection, type SalesInvoiceCollectionSort } from '@/src/lib/salesInvoiceCollectionSort';
 
@@ -311,6 +313,7 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
 const SalesInvoices: React.FC = () => {
   const { t } = useTranslation();
+  const isDesktop = useIsDesktop();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
@@ -712,6 +715,7 @@ const SalesInvoices: React.FC = () => {
                 )}
               </h2>
               <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+                {paidToDate(viewTarget) !== null && <div><dt className="type-label text-muted-foreground">{t('financeCopy.statusPaid', 'Paid')}</dt><dd className="mt-1 type-value tabular">{formatNumber(paidToDate(viewTarget)!)}</dd></div>}
                 <div>
                   <dt className="type-label text-muted-foreground">{t('uxs17.invoiceDate', 'Invoice date')}</dt>
                   <dd className="mt-1 type-value">{viewTarget.invoice_date ? formatDateOnly(viewTarget.invoice_date) : t('uxs17.dateNotRecorded', 'Not recorded')}</dd>
@@ -938,10 +942,13 @@ const SalesInvoices: React.FC = () => {
       const gross = invoiceGross(inv);
       return <div className="tabular text-right type-value">
         <span>{gross === null ? t('moneyIn:financeCopy.notAvailableShort', 'Not available') : formatNumber(gross)}</span>
-        {inv.currency === 'USD' && inv.invoice_date && gross !== null && <details className="text-left">
-          <summary className="min-h-11 cursor-pointer py-2 type-label">{t('moneyIn:financeCopy.conversionDetails', 'Conversion details')}</summary>
+        {isDesktop && inv.amount != null && <details className="text-left">
+          <summary className="min-h-11 cursor-pointer py-2 type-label">{t('moneyIn:financeCopy.amountDetails', 'Amount details')}</summary>
+          <p>{t('moneyIn:financeCopy.netAmount', 'Net amount')} · {inv.currency} {formatNumber(inv.amount)} <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} /></p>
+          {inv.currency === 'USD' && inv.invoice_date && <>
+
           <p>{t('moneyIn:financeCopy.netEquivalent', 'Net equivalent')}<FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} /></p>
-          <p>{t('moneyIn:financeCopy.grossEquivalent', 'Gross equivalent')}<FxEquivalent amount={gross} currency={inv.currency} date={inv.invoice_date} /></p>
+          <p>{t('moneyIn:financeCopy.grossEquivalent', 'Gross equivalent')}<FxEquivalent amount={gross} currency={inv.currency} date={inv.invoice_date} /></p></>}
         </details>}
       </div>;
     },
@@ -992,11 +999,7 @@ const SalesInvoices: React.FC = () => {
     kind: 'status',
     size: 200,
     cell: (inv) => {
-      const gross = invoiceGross(inv);
-      const overpaid = gross != null && inv.erp_outstanding_amount != null && inv.erp_outstanding_amount < 0
-        ? Math.abs(inv.erp_outstanding_amount)
-        : gross != null && inv.erp_outstanding_amount === 0 && inv.paid_amount != null && inv.paid_amount > gross
-          ? inv.paid_amount - gross : null;
+      const overpaid = overpaidBy(inv);
       return <span className="flex min-w-0 flex-col items-start gap-1">
         {statusColumn.cell(inv)}
         <span className="text-sm">{dueColumn.cell(inv)}</span>

@@ -35,10 +35,10 @@
     "notAvailableShort": "Tidak tersedia",
     "balanceUnavailableRecovery": "Sebagian saldo faktur tidak tersedia. Buka faktur untuk memeriksa rincian sumbernya, lalu muat ulang daftar ini.",
     "overdueDateUnavailable": "Tanggal organisasi tidak tersedia. Muat ulang untuk menggunakan filter jatuh tempo.",
-    "conversionDetails": "Rincian konversi",
     "netEquivalent": "Ekuivalen neto",
     "grossEquivalent": "Ekuivalen bruto",
-    "clearCustomerFilter": "Hapus filter pelanggan"
+    "clearCustomerFilter": "Hapus filter pelanggan",
+    "amountDetails": "Rincian jumlah"
   },
   "uxs06": {
     "allCustomers": "Semua klien",

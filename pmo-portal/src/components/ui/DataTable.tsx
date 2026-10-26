@@ -512,7 +512,7 @@ export function DataTable<Row>({
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 type-metadata uppercase text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 type-label uppercase text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
                       col.headerClassName,

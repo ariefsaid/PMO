@@ -35,10 +35,10 @@
     "notAvailableShort": "Not available",
     "balanceUnavailableRecovery": "Some invoice balances are unavailable. Open the invoice to review its source details, then refresh this list.",
     "overdueDateUnavailable": "The organization date is unavailable. Refresh to use the overdue filter.",
-    "conversionDetails": "Conversion details",
     "netEquivalent": "Net equivalent",
     "grossEquivalent": "Gross equivalent",
-    "clearCustomerFilter": "Clear customer filter"
+    "clearCustomerFilter": "Clear customer filter",
+    "amountDetails": "Amount details"
   },
   "uxs06": {
     "allCustomers": "All customers",
