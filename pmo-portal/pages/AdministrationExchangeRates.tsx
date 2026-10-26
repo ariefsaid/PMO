@@ -153,14 +153,6 @@ const AdministrationExchangeRates: React.FC = () => {
       minSize: 132,
     },
     {
-      key: 'source',
-      header: t('fx.source', 'Source'),
-      cell: (row) => row.source,
-      exportValue: (row) => row.source,
-      size: 118,
-      minSize: 100,
-    },
-    {
       key: 'rate',
       header: t('fx.rate', 'IDR per USD'),
       align: 'num',
@@ -173,6 +165,14 @@ const AdministrationExchangeRates: React.FC = () => {
       kind: 'number',
       size: 168,
       minSize: 152,
+    },
+    {
+      key: 'source',
+      header: t('fx.source', 'Source'),
+      cell: (row) => row.source,
+      exportValue: (row) => row.source,
+      size: 118,
+      minSize: 100,
     },
   ];
 

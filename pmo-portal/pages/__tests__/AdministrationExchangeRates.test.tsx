@@ -75,17 +75,20 @@ beforeEach(() => {
   h.upsert.mockResolvedValue({ new: 1, changed: 0, unchanged: 0 });
   h.existing.mockResolvedValue([]);
 });
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('AC-FX-008 Administration exchange-rate list', () => {
   it('shows 50 newest rows, keys the next page by the last shown date, and returns via Previous', async () => {
     renderPage();
     const table = await screen.findByRole('table');
     expect(within(table).getAllByRole('row')).toHaveLength(51);
-    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Publication date', 'Source', 'IDR per USD', 'Actions']);
+    expect(within(table).getAllByRole('columnheader').map((header) => header.textContent)).toEqual(['Publication date', 'IDR per USD', 'Source', 'Actions']);
     expect(screen.getByText('Publication date · newest first')).toBeInTheDocument();
-    expect(within(within(table).getAllByRole('row')[1]).getAllByRole('cell')[0]).toHaveTextContent('Oct 31, 2026');
-    expect(within(within(table).getAllByRole('row')[2]).getAllByRole('cell')[0]).toHaveTextContent('Oct 30, 2026');
+    expect(within(within(table).getAllByRole('row')[1]).getByRole('rowheader')).toHaveTextContent('Oct 31, 2026');
+    expect(within(within(table).getAllByRole('row')[2]).getByRole('rowheader')).toHaveTextContent('Oct 30, 2026');
     expect(h.list).toHaveBeenCalledWith(undefined);
     fireEvent.click(screen.getByRole('button', { name: 'Next' }));
     await waitFor(() => expect(h.list).toHaveBeenCalledWith(rows[49].rate_date));
@@ -93,6 +96,33 @@ describe('AC-FX-008 Administration exchange-rate list', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Previous' }));
     await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument());
     expect(h.list).toHaveBeenCalledWith(undefined);
+  });
+
+  it('keeps the phone rate matrix in a labelled table with its exact rate beside the sticky date', async () => {
+    vi.stubGlobal(
+      'matchMedia',
+      vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    );
+    renderPage();
+
+    const table = await screen.findByRole('table', { name: 'Exchange rates' });
+    const headers = within(table).getAllByRole('columnheader').map((header) => header.textContent);
+    expect(headers).toEqual(['Publication date', 'IDR per USD', 'Source', 'Actions']);
+    const scrollRegion = screen.getByTestId('dt-table-branch');
+    expect(scrollRegion).toHaveAttribute('role', 'region');
+    expect(scrollRegion).toHaveAttribute('aria-label', 'Exchange rates');
+    expect(scrollRegion).toHaveAttribute('tabindex', '0');
+    expect(screen.queryByTestId('dt-card-branch')).not.toBeInTheDocument();
+    expect(table.querySelector('tbody tr th[scope="row"]')).toHaveClass('sticky', 'left-0');
   });
 
   it('AC-FX-007 connects Upload to preview and saves once with committed counts', async () => {
