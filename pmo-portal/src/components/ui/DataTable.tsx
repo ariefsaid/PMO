@@ -106,6 +106,8 @@ export interface RowMenuItem {
 export interface DataTableProps<Row> {
   rows: Row[];
   columns: Column<Row>[];
+  /** Page-specific phone row anatomy. The desktop table continues to use `columns`. */
+  mobileRow?: (row: Row) => React.ReactNode;
   rowKey: (row: Row) => string;
   /** Click/Enter on a row (drill-down). */
   onActivate?: (row: Row) => void;
@@ -315,6 +317,7 @@ function stripHiddenClasses(colClassName?: string): string {
 export function DataTable<Row>({
   rows,
   columns: allColumns,
+  mobileRow,
   rowKey,
   onActivate,
   rowLabel,
@@ -790,20 +793,24 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-2 p-4 text-sm transition-colors',
-                  onActivate && 'cursor-pointer',
+                  mobileRow ? 'relative transition-colors' : 'relative flex flex-col gap-2 p-4 text-sm',
+                  onActivate && !mobileRow && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                {mobileRow ? (
+                  <>
+                    {mobileRow(row)}
+                    {hasMenu && menuItems.length > 0 && (
+                      <div className="absolute right-2 top-2 z-10"><RowMenu items={menuItems} /></div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                {/* Identity row: first column + rowMenu pinned top-right */}
                 <div className="flex min-w-0 items-start justify-between gap-3">
-                  {/* Card title — activation button if rowLabel+onActivate supplied.
-                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
-                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
-                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
-                      descendants to block lets them clip with an ellipsis within this min-w-0
-                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 [&_.truncate]:block">
+                  {/* Canonical identity text wraps in full without hover-only recovery. */}
+                  <div className="min-w-0 flex-1 [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
@@ -816,7 +823,7 @@ export function DataTable<Row>({
                     ) : (
                       titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
-                  </div>}
+                  </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
                   {hasMenu && menuItems.length > 0 && (
                     <div className="shrink-0">
@@ -859,6 +866,8 @@ export function DataTable<Row>({
                       );
                     })}
                   </dl>
+                )}
+                  </>
                 )}
               </li>
             );

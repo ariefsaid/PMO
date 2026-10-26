@@ -158,6 +158,21 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getTableBranch()).toHaveTextContent('Manager for Alpha Corp');
   });
 
+  it('uses a page-specific phone row while leaving the desktop table columns intact', () => {
+    mockViewport(false);
+    const phoneRow = (row: Row) => <div className="grid grid-cols-2 gap-3 p-3"><strong>{row.name}</strong><span>{row.status}</span><span>{row.value}</span><button type="button">Open</button></div>;
+    const { unmount } = render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} mobileRow={phoneRow} />);
+    expect(screen.getByText('Alpha Corp')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Open' })).toHaveLength(rows.length);
+    expect(getCardBranch()!.querySelector('dt')).toBeNull();
+
+    unmount();
+    mockViewport(true);
+    render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} mobileRow={phoneRow} />);
+    expect(getTableBranch()).toBeInTheDocument();
+    expect(getTableBranch()!.textContent).toContain('Company');
+  });
+
   it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
     mockViewport(false);
     const sparse: Column<Row>[] = [

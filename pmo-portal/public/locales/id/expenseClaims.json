@@ -65,7 +65,8 @@
       "noMatch": "Tidak ada biaya yang cocok dengan filter ini",
       "open": "Buka",
       "openClaim": "Buka {{title}}"
-    }
+    },
+    "mobileDetails": "Detail · 3 bidang"
   },
   "record": {
     "backToRegister": "Kembali ke pengeluaran",

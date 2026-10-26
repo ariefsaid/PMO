@@ -65,7 +65,8 @@
       "noMatch": "No expenses match these filters",
       "open": "Open",
       "openClaim": "Open {{title}}"
-    }
+    },
+    "mobileDetails": "Details · 3 fields"
   },
   "record": {
     "backToRegister": "Back to expenses",

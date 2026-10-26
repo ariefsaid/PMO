@@ -123,6 +123,44 @@ const ExpenseClaims: React.FC = () => {
       cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent">{t('expenseClaims:register.table.open', 'Open')}</Link>,
       exportValue: () => '' },
   ];
+  const mobileRow = (r: ExpenseClaimWithRefs) => {
+    const recordPath = `/expenses/${encodeURIComponent(r.id)}${location.search}`;
+    const recordState = { recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } };
+    return (
+      <div className="grid gap-3 p-3">
+        <div className="min-w-0">
+          <Link to={recordPath} state={recordState} className="block break-words text-sm font-semibold text-foreground hover:underline">{r.title}</Link>
+          <div className="mt-1 break-words text-xs text-muted-foreground">
+            {r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}
+          </div>
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill>
+          <time dateTime={r.created_at} className="text-sm text-muted-foreground">{formatInstantDate(r.created_at)}</time>
+        </div>
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+          <span className="whitespace-nowrap text-sm font-semibold tabular text-foreground">
+            {r.amount == null || !r.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(r.amount))}
+          </span>
+          <Link to={recordPath} state={recordState}
+            aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })}
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            {t('expenseClaims:register.table.open', 'Open')}
+          </Link>
+        </div>
+        <details>
+          <summary className="flex min-h-11 cursor-pointer items-center break-words text-xs font-semibold text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('expenseClaims:register.mobileDetails', 'Details · 3 fields')}
+          </summary>
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{r.project?.name ?? t('expenses.overhead', 'Overhead')}</dd></div>
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.claimant', 'Claimant')}</dt><dd className="break-words text-sm text-foreground">{r.claimant?.full_name ?? t('common:notAvailable', 'Not available')}</dd></div>
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.category', 'Budget category')}</dt><dd className="break-words text-sm text-foreground">{r.budget_category ? budgetCategoryLabel(r.budget_category, t) : t('common:notAvailable', 'Not available')}</dd></div>
+          </dl>
+        </details>
+      </div>
+    );
+  };
 
   const clearFilters = () => {
     setSearch('');
@@ -211,6 +249,7 @@ const ExpenseClaims: React.FC = () => {
           <DataTable<ExpenseClaimWithRefs>
             rows={rows}
             columns={columns}
+            mobileRow={mobileRow}
             rowKey={(r) => r.id}
             onActivate={(r) => openRecord(r.id)}
             tableId="expenseclaims-table"

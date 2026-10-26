@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
@@ -69,6 +69,7 @@ beforeEach(() => {
   h.capture.recovery = null;
   h.list.data = { rows: [ROW], truncated: false };
 });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('ExpenseClaims page', () => {
   it('AC-EXP-060 lists records with number, claimant, project, amount and status', () => {
@@ -97,6 +98,25 @@ describe('ExpenseClaims page', () => {
     expect(within(screen.getByRole('row', { name: /Consultant travel/ })).getByText('2,226,648,000')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /Cloud services/ })).getByText('3,412,800')).toBeInTheDocument();
     expect(within(screen.getByRole('row', { name: /Site visit/ })).getByText('750,000')).toBeInTheDocument();
+  });
+
+  it('AC-806 phone rows lead with full identity, status/date, exact amount and Open before collapsed facts', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: false, media: query, onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+    })));
+    h.list.data = { rows: [{ ...ROW, title: 'Expense claim', project: { name: 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru' }, amount: 2226648000 }], truncated: false };
+    renderPage();
+    const row = within(screen.getByTestId('dt-card-branch')).getAllByRole('listitem').find((item) =>
+      within(item).queryByRole('link', { name: 'Expense claim' }),
+    )!;
+    expect(within(row).getByRole('link', { name: 'Expense claim' })).toBeInTheDocument();
+    expect(within(row).getByText('Submitted')).toBeInTheDocument();
+    expect(within(row).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'Open Expense claim' })).toBeInTheDocument();
+    expect(within(row).getByText('Details · 3 fields')).toBeInTheDocument();
+    expect(within(row).getByText('Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
+    expect(row.querySelector('details')).not.toHaveAttribute('open');
   });
 
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
