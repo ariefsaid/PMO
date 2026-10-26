@@ -36,7 +36,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumberWhole } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
@@ -102,7 +102,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
       <h3 className="text-[12.5px] font-semibold text-muted-foreground uppercase tracking-[0.06em]">
-        Budget impact
+        Budget impact · {currency}
       </h3>
       {showProjectContext && projectName ? (
         <ProjectNameLink
@@ -181,28 +181,17 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const tiles = [
-    { label: 'This request', value: formatCurrency(totalValue, currency) },
+    { label: 'This request', value: formatNumberWhole(totalValue) },
     {
-      label: 'Reserved',
-      value: formatCurrency(otherReserved, currency),
-      sub: 'approved, not yet ordered',
+      label: 'Reserved · approved, not yet ordered',
+      value: formatNumberWhole(otherReserved),
     },
     {
       label: 'Available',
-      value: formatCurrency(available, currency),
+      value: formatNumberWhole(available),
       tone: available < 0 ? ('neg' as const) : undefined,
-      // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
-      ...(otherCurrencyCommitted ? { sub: `Not counting commitments in other currencies: ${otherCurrencyCommitted}` } : {}),
     },
-    { label: 'Project budget', value: formatCurrency(budgetAmount, currency) },
-    {
-      label: 'After this request',
-      value: formatCurrency(afterRequest, currency),
-      // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
-      // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: `${afterPct.toFixed(1)}% headroom remaining`,
-      tone: afterRequest < 0 ? ('neg' as const) : undefined,
-    },
+    { label: 'Project budget', value: formatNumberWhole(budgetAmount) },
   ];
   const visibleTiles = showRequestValue ? tiles : tiles.filter((tile) => tile.label !== 'This request');
 
@@ -215,7 +204,25 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
             misreads as broken (Wave-5 I1). */}
-        <StatTiles tiles={visibleTiles} columns={visibleTiles.length} />
+        {otherCurrencyCommitted && (
+          <p data-testid="budget-impact-other-currencies" className="mb-3 text-[13px] text-muted-foreground">
+            Not counting commitments in other currencies: {otherCurrencyCommitted}
+          </p>
+        )}
+        <div
+          data-testid="budget-impact-primary"
+          className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-lg border border-border/70 px-3 py-3"
+        >
+          <span className="text-[12px] font-semibold text-muted-foreground">
+            After this request · {afterPct.toFixed(1)}% headroom remaining
+          </span>
+          <span className={`text-[23px] font-bold tracking-[-0.01em] tabular ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
+            {formatNumberWhole(afterRequest)}
+          </span>
+        </div>
+        <div data-testid="budget-impact-figures">
+          <StatTiles tiles={visibleTiles} columns={visibleTiles.length} />
+        </div>
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not
@@ -227,7 +234,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             sub={
               <>
                 This request exceeds available budget by{' '}
-                <strong className="tabular">{formatCurrency(overAvailableAmount, currency)}</strong>. Approval
+                <strong className="tabular">{formatNumberWhole(overAvailableAmount)}</strong>. Approval
                 is still permitted — this is an advisory only.
               </>
             }
@@ -243,7 +250,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             sub={
               <>
                 This project is over budget by{' '}
-                <strong className="tabular">{formatCurrency(-available, currency)}</strong> across committed
+                <strong className="tabular">{formatNumberWhole(-available)}</strong> across committed
                 and reserved demand. This is an advisory only.
               </>
             }
