@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { PMDashboard } from './PMDashboard';
+import { PageFrame } from '@/src/components/shell';
 import { BahasaProvider } from '@/test/bahasa';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -54,7 +55,12 @@ const renderPane = (locale: 'en' | 'id' = 'en') => {
   return render(
   <BahasaProvider locale={locale}>
     <MemoryRouter>
-      <PMDashboard />
+      <PageFrame breadcrumb={[
+        { label: locale === 'id' ? 'Beranda' : 'Home', href: '/' },
+        { label: locale === 'id' ? 'Dasbor' : 'Dashboard' },
+      ]}>
+        <PMDashboard />
+      </PageFrame>
       <LocationProbe />
     </MemoryRouter>
   </BahasaProvider>,

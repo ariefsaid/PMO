@@ -3,6 +3,7 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
+import { PageFrame } from '@/src/components/shell';
 import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
@@ -112,7 +113,9 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ExecutiveDashboard />
+        <PageFrame breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}>
+          <ExecutiveDashboard />
+        </PageFrame>
       </ToastProvider>
     </MemoryRouter>,
   );

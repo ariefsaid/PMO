@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
+import { PageFrame } from '@/src/components/shell';
 import { BahasaProvider } from '@/test/bahasa';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -81,7 +82,14 @@ const renderPane = (locale: 'en' | 'id' = 'en') => {
   setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   return render(
     <BahasaProvider locale={locale}>
-      <MemoryRouter><EngineerDashboard /></MemoryRouter>
+      <MemoryRouter>
+        <PageFrame breadcrumb={[
+          { label: locale === 'id' ? 'Beranda' : 'Home', href: '/' },
+          { label: locale === 'id' ? 'Dasbor' : 'Dashboard' },
+        ]}>
+          <EngineerDashboard />
+        </PageFrame>
+      </MemoryRouter>
     </BahasaProvider>,
   );
 };

@@ -2,6 +2,7 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { formatCurrency } from '@/src/lib/format';
+import { PageFrame } from '@/src/components/shell';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';
 import { BahasaProvider } from '@/test/bahasa';
@@ -104,7 +105,13 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
 
-const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
+const renderPane = () => render(
+  <MemoryRouter>
+    <PageFrame breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}>
+      <FinanceDashboard />
+    </PageFrame>
+  </MemoryRouter>,
+);
 
 beforeEach(() => {
   procurements.splice(0, procurements.length,
