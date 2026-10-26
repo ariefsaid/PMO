@@ -137,18 +137,19 @@ const Contacts: React.FC = () => {
       );
   }, [all, search, companyFilter, companyById]);
 
-  const collator = useMemo(
-    () => new Intl.Collator(i18n.resolvedLanguage ?? i18n.language, { sensitivity: 'base', numeric: true }),
-    [i18n.language, i18n.resolvedLanguage],
-  );
   const sorted = useMemo(
     () => [...filtered].sort((a, b) => {
-      const nameOrder = collator.compare(a.full_name, b.full_name);
-      const companyOrder = collator.compare(companyById.get(a.company_id) ?? '', companyById.get(b.company_id) ?? '');
+      const locale = i18n.resolvedLanguage ?? i18n.language;
+      const nameOrder = a.full_name.localeCompare(b.full_name, locale, { sensitivity: 'base', numeric: true });
+      const companyOrder = (companyById.get(a.company_id) ?? '').localeCompare(
+        companyById.get(b.company_id) ?? '',
+        locale,
+        { sensitivity: 'base', numeric: true },
+      );
       const stableOrder = nameOrder || companyOrder || a.id.localeCompare(b.id);
       return sort === 'name-desc' && nameOrder !== 0 ? -nameOrder : stableOrder;
     }),
-    [filtered, collator, companyById, sort],
+    [filtered, companyById, i18n.language, i18n.resolvedLanguage, sort],
   );
 
   // AC-LRC-012: the DataTable's `empty` branch (with `clearFilters`) only renders when
