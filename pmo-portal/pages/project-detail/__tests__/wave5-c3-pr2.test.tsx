@@ -430,15 +430,15 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     expect(labels[1]).not.toBe('Pre-Qual');
   });
 
-  it('AC-IXD-PROJ-W5-C3-20: the deal journey stepper renders "Pre-Qualification" in the DOM', () => {
+  it('AC-IXD-PROJ-W5-C3-20: the deal journey stepper uses the shared Sales stage vocabulary in the DOM', () => {
     renderLens();
     // The LifecycleStepper renders step labels — "Pre-Qualification" must be visible
-    expect(screen.getByText('Pre-Qualification')).toBeInTheDocument();
-    // "Pre-Qual" should not appear as a rendered node label
+    expect(screen.getByText('Pre-Qual')).toBeInTheDocument();
+    // The visible journey shares the selector and board vocabulary
     // (Note: it may still appear in the SALES_COLUMNS title for the kanban board — that is
     //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
-    expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
+    expect(within(journey).getByText('Pre-Qual')).toBeInTheDocument();
   });
 });
 
@@ -447,18 +447,23 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('SUB-I: opportunity lens figures and notices', () => {
-  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+
 
   it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
     renderLens();
-    expect(tileLabels()).toEqual(['Value', 'Win probability', 'Weighted', 'Owner']);
+    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('Opportunity value');
+    ['Win probability', 'Weighted', 'Owner'].forEach((label) => expect(screen.getByText(label, { exact: true })).toBeInTheDocument());
+    expect(screen.queryByText('Decision', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
   });
 
   it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
     renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
-    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
+    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('Opportunity value');
+    ['Owner', 'Decision'].forEach((label) => expect(screen.getByText(label, { exact: true })).toBeInTheDocument());
+    expect(screen.queryByText('Win probability', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText('Weighted', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });

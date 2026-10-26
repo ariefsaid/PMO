@@ -237,6 +237,44 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
   });
 
+  it('AC-PA-REC-390: the phone Sections control switches the canonical project section URL', async () => {
+    desktopBox.value = false;
+    await renderAt('/projects/p1');
+
+    const sections = screen.getByRole('combobox', { name: 'Sections' });
+    expect(sections).toHaveValue('overview');
+    await userEvent.selectOptions(sections, 'tasks');
+
+    expect(navigate).toHaveBeenCalledWith('/projects/p1/tasks', {
+      replace: true,
+      state: { pmoTabSwitch: true },
+    });
+  });
+
+  it('AC-N-05: keeps the full record identity beside the current section when the heading leaves view', async () => {
+    desktopBox.value = false;
+    class FakeIntersectionObserver {
+      readonly root = document.getElementById('main');
+      readonly rootMargin = '0px';
+      readonly thresholds = [0];
+      constructor(private readonly callback: IntersectionObserverCallback) {}
+      observe(target: Element) {
+        this.callback([{ isIntersecting: false, target } as IntersectionObserverEntry], this as unknown as IntersectionObserver);
+      }
+      disconnect() {}
+      unobserve() {}
+      takeRecords() { return []; }
+    }
+    vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+    try {
+      await renderAt('/projects/p1');
+      expect(await screen.findByTestId('project-sticky-identity')).toHaveTextContent('Innovate Corp HQ Fit-Out');
+      expect(screen.getByRole('combobox', { name: 'Sections' })).toHaveValue('overview');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
     await renderAt('/projects/p1');
 

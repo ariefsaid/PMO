@@ -175,9 +175,9 @@ async function assertPhoneGeometry(page: Page) {
     const viewportWidth = document.documentElement.clientWidth;
     const pageWidth = document.documentElement.scrollWidth;
     const list = document.querySelector<HTMLElement>('[data-testid="sales-phone-stage-list"]');
-    const card = list?.querySelector<HTMLElement>('[data-testid="project-card"]');
-    const name = card?.querySelector<HTMLElement>('button');
-    const customer = card?.querySelector<HTMLElement>('span.truncate');
+    const card = list?.querySelector<HTMLElement>('article');
+    const name = card?.querySelector<HTMLElement>('a[href^="/projects/"]');
+    const customer = card?.querySelector<HTMLElement>('dl div:first-child dd');
     const listBox = list?.getBoundingClientRect();
     const cardBox = card?.getBoundingClientRect();
     const amount = Array.from(card?.querySelectorAll('span') ?? []).find(
@@ -213,37 +213,47 @@ for (const locale of ['en', 'id'] as const) {
   for (const theme of ['light', 'dark'] as const) {
     test(`AC-S24-004: phone identity, geometry, disclosure, and canonical activation in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
       await openSalesPipeline(page, locale, theme, { width: 390, height: 844 });
-      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' });
+      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Cakupan proyek' : 'Project scope' });
+      const stageSelector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap' : 'Stage' });
       await expect(selector).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
       const phoneList = page.getByTestId('sales-phone-stage-list');
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
-      const firstCard = phoneList.getByTestId('project-card').first();
-      await expect(firstCard.getByText(LONG_NAME, { exact: true })).toBeVisible();
+      const sortSelector = page.getByRole('combobox', { name: locale === 'id' ? 'Urutkan' : 'Sort' });
+      await expect(sortSelector).toHaveValue('activity-oldest');
+      await sortSelector.selectOption('activity-newest');
+      const firstCard = phoneList.locator('article').first();
+      await expect(firstCard.getByRole('link', { name: LONG_NAME, exact: true })).toBeVisible();
       await expect(firstCard.getByText(LONG_CUSTOMER, { exact: true })).toBeVisible();
       await expect(firstCard.getByText(/1[.,]250(?:[.,]000){3}/)).toBeVisible();
       await expect(firstCard.getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
       await waitForFonts(page);
       await assertPhoneGeometry(page);
+      await expect(stageSelector).toHaveValue('');
+      await expect(page.locator('[data-testid="sales-summary"]')).not.toHaveAttribute('open');
+      const summaryFollowsList = await phoneList.evaluate((list) =>
+        Boolean(list.compareDocumentPosition(document.querySelector('[data-testid="sales-summary"]')!) & Node.DOCUMENT_POSITION_FOLLOWING),
+      );
+      expect(summaryFollowsList).toBe(true);
       const phoneShot = testInfo.outputPath(`S24-phone-${locale}-${theme}-390.png`);
       await phoneList.screenshot({ path: phoneShot, animations: 'disabled' });
       await testInfo.attach(`S24 phone list ${locale} ${theme} 390`, { path: phoneShot, contentType: 'image/png' });
 
-      // SUB-H: no per-card details disclosure; the value and win % sit on the card itself.
+      // The row stays compact without hiding the value or stage behind a card disclosure.
       await expect(firstCard.locator('details')).toHaveCount(0);
 
-      await firstCard.getByRole('button', { name: LONG_NAME, exact: true }).click();
+      await firstCard.getByRole('link', { name: LONG_NAME, exact: true }).click();
       await expect(page).toHaveURL(new RegExp(`/projects/${OPEN_PROJECTS[0].id}$`));
       await page.goBack();
-      await expect(page).toHaveURL(/\/sales\?view=kanban$/);
+      await expect(page).toHaveURL(/\/sales\?.*view=kanban/);
+      await expect(page).toHaveURL(/[?&]sort=activity-newest(?:&|$)/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
     });
 
     test(`AC-S24-004: phone stage, search, and Lost recovery in ${locale}/${theme}`, async ({ page }) => {
       await openSalesPipeline(page, locale, theme, { width: 390, height: 844 });
-      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' });
+      const scopeSelector = page.getByRole('combobox', { name: locale === 'id' ? 'Cakupan proyek' : 'Project scope' });
+      const selector = page.getByRole('combobox', { name: locale === 'id' ? 'Tahap' : 'Stage' });
       await expect(selector).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(1);
       const phoneList = page.getByTestId('sales-phone-stage-list');
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
       await selector.selectOption('Negotiation');
@@ -253,26 +263,29 @@ for (const locale of ['en', 'id'] as const) {
       await expect(phoneList.getByText(LONG_NAME)).toHaveCount(0);
 
       await page.getByRole('searchbox', { name: locale === 'id' ? 'Cari proyek' : 'Search projects' }).fill('no synthetic match');
-      await expect(page.getByText(locale === 'id' ? 'Tidak ada proyek pada tahap ini' : 'No projects in this stage')).toBeVisible();
+      await expect(page.getByText(locale === 'id' ? 'Tidak ada proyek yang cocok' : 'No matching projects')).toBeVisible();
       await page.getByRole('button', { name: locale === 'id' ? 'Hapus filter' : 'Clear filters' }).click();
-      await expect(page).toHaveURL(/\/sales\?view=kanban$/);
+      await expect(page).toHaveURL(/\/sales\?.*view=kanban/);
       await expect(phoneList.locator(':scope > li')).toHaveCount(OPEN_PROJECTS.length);
 
-      await page.getByRole('tab', { name: locale === 'id' ? /Kalah/ : /Lost/ }).click();
+      await scopeSelector.selectOption('Lost');
       await expect(page).toHaveURL(/[?&]scope=Lost/);
-      await expect(page).toHaveURL(/[?&]view=table/);
+      await expect(page).toHaveURL(/[?&]view=kanban/);
       await expect(page.getByText('Synthetic Lost Coverage Contract')).toBeVisible();
       await expect(page.getByText('Synthetic Declined Service Bid')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(0);
+      await expect(selector).toBeDisabled();
+      await expect(page.getByText(locale === 'id' ? 'Tahap berlaku untuk proyek terbuka' : 'Stage applies to open projects')).toBeVisible();
+      await expect(page.getByRole('tablist', { name: /Pipeline view|Tampilan pipeline/i })).toHaveCount(0);
     });
 
     test(`AC-S24-004: desktop funnel and board in ${locale}/${theme}`, async ({ page }, testInfo: TestInfo) => {
       await openSalesPipeline(page, locale, theme, { width: 1440, height: 900 });
-      await expect(page.getByRole('region', { name: /Pipeline summary|Ringkasan pipeline/i })).toBeVisible();
+      await page.getByText(locale === 'id' ? 'Ringkasan pipeline' : 'Pipeline summary', { exact: true }).click();
+      await expect(page.locator('[data-testid="funnel-stage-grid"]')).toBeVisible();
       await expect(page.getByTestId('stage-Leads')).toBeVisible();
       await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
-      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap pipeline' : 'Pipeline stage' })).toHaveCount(0);
-      const desktopBoard = page.locator('.kanban-scroll');
+      await expect(page.getByRole('combobox', { name: locale === 'id' ? 'Tahap' : 'Stage' })).toBeVisible();
+      const desktopBoard = page.getByRole('region', { name: locale === 'id' ? 'Papan pipeline penjualan' : 'Sales pipeline board' });
       const desktopShot = testInfo.outputPath(`S24-desktop-${locale}-${theme}-1440.png`);
       await desktopBoard.screenshot({ path: desktopShot, animations: 'disabled' });
       await testInfo.attach(`S24 desktop board ${locale} ${theme} 1440`, { path: desktopShot, contentType: 'image/png' });

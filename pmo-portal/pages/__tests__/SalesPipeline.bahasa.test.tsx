@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -62,8 +62,9 @@ describe('SalesPipeline funnel in Bahasa', () => {
         </ImpersonationProvider>
       </BahasaProvider>,
     );
+    fireEvent.click(screen.getByTestId('sales-summary').querySelector('summary')!);
     const grid = screen.getByTestId('funnel-stage-grid');
-    const name = (n: string) => within(grid).getByText(n, { exact: true });
+    const name = (n: string) => within(grid).getByText((text) => text === n || text.startsWith(`${n} ·`));
     expect(name('Prospek')).toBeInTheDocument();
     expect(name('Pra-kualifikasi')).toBeInTheDocument();
     expect(name('Penawaran')).toBeInTheDocument();

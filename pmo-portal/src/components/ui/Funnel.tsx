@@ -90,7 +90,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 if (interactive) e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
               }}
               className={cn(
-                'relative flex flex-col border border-r-0 border-border px-3.5 pb-3 pt-[13px] first:rounded-l-lg last:rounded-r-lg last:border-r',
+                'relative flex flex-col border border-r-0 border-border px-3.5 pb-3 pt-3 first:rounded-l-lg last:rounded-r-lg last:border-r',
                 interactive && 'cursor-pointer',
                 // Discover fix I-1 (2026-09-28): the global `*:focus-visible` ring draws OUTWARD
                 // (2px width, 2px offset) from the stage, but the scroll viewport's own
@@ -103,7 +103,7 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 selected && 'bg-primary/[0.06] shadow-[inset_0_-2px_0_hsl(var(--primary))]'
               )}
             >
-              <div className="mb-2 flex items-center gap-[7px]">
+              <div className="mb-2 flex items-center gap-2">
                 <span
                   aria-hidden
                   className="size-[9px] shrink-0 rounded-full"
@@ -111,14 +111,14 @@ export const Funnel: React.FC<FunnelProps> = ({ stages, selectedIndex, onSelect,
                 />
                 <span className="text-xs font-semibold">{s.name}</span>
                 {s.prob && (
-                  <span className="ml-auto text-[11px] font-bold text-muted-foreground">{s.prob}</span>
+                <span data-funnel-stage-prob className="ml-auto text-[0.6875rem] font-semibold text-muted-foreground">{s.prob}</span>
                 )}
               </div>
-              <div data-funnel-stage-amount className="text-[17px] font-bold leading-none tracking-[-0.02em] tabular">
+              <div data-funnel-stage-amount className="text-sm font-normal leading-5 tabular">
                 {s.value}
               </div>
               {s.weighted && (
-                <div data-funnel-stage-weighted className="mt-[7px] text-[11px] text-muted-foreground">
+                <div data-funnel-stage-weighted className="mt-2 text-[0.6875rem] text-muted-foreground">
                   {s.weighted}
                 </div>
               )}

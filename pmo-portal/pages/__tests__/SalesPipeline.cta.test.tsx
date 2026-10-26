@@ -63,7 +63,7 @@ describe('SalesPipeline — + New project CTA gating (B-3, AC-W2-IXD-005)', () =
   it('AC-PROJ1-001: "+ New project" opens the one-step create page through the list-return seam', async () => {
     renderAs('Project Manager');
     await userEvent.click(screen.getByRole('button', { name: /new project/i }));
-    expect(navigateSpy).toHaveBeenCalledWith('/projects/new', 'projects');
+    expect(navigateSpy).toHaveBeenCalledWith('/projects/new');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 

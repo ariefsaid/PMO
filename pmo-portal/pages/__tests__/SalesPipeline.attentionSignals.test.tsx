@@ -4,7 +4,7 @@
  * DATA-CHECK NOTES (binding, per honest-dashboard rule):
  *  - `get_sales_pipeline()` now (migration 0020) projects, per OPEN pipeline row:
  *    { id, name, client_name, status, contract_value, win_probability, last_update, pm_name }.
- *    So OPEN deals carry real aging + owner — the Owner / Last touch columns and the
+ *    So OPEN deals carry real aging + owner — the Owner / Last activity columns and the
  *    "Needs attention" filter work on OPEN deals, not just lost ones.
  *  - Lost deals (via useLostDeals → repositories.project.list) come through as
  *    ProjectWithRefs which includes `last_update` and `pm.full_name`.
@@ -18,17 +18,17 @@
  *   - Rows that lack last_update are excluded from the filter (honest).
  *
  * TESTS:
- * 1. Table view renders "Owner" and "Last touch" column headers.
- * 2. An OPEN pipeline row from the RPC shows its real Owner (pm_name) and Last touch.
+ * 1. Table view renders "Owner" and "Last activity" column headers.
+ * 2. An OPEN pipeline row from the RPC shows its real Owner (pm_name) and Last activity.
  * 2b. A row genuinely missing last_update/pm_name still shows "—" (honest, no fabrication).
  * 3. A lost deal row with a recent last_update shows the PM name and "X days ago".
- * 4. The "Needs attention" filter tab is present in the table toolbar.
+ * 4. The "Needs attention" scope is present in the toolbar.
  * 5. "Needs attention" filter shows only deals with last_update >= 30 days ago.
  * 6. "Needs attention" filter excludes deals with last_update < 30 days ago.
  * 7. "Needs attention" filter INCLUDES a stale OPEN deal (now that open rows carry last_update).
  * 8. "Needs attention" filter shows an honest empty state when there are no stale deals.
  * 9. Owner column: text label (not color-only), has accessible column header.
- * 10. Last touch aging signal uses text label (not color-only); stale row shows warning label.
+ * 10. Last activity aging uses a readable text label without color dependence.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -54,7 +54,7 @@ const openProjectRecent = {
   contract_value: 1_200_000, currency: 'USD',
   win_probability: 0.5,
   last_update: daysAgo(3), // 3 days ago — NOT stale
-  pm_name: 'Alice Manager',
+  pm_name: 'Project Manager North',
 };
 
 // An OPEN deal that has gone stale — open rows now carry last_update, so the attention filter flags it.
@@ -66,7 +66,7 @@ const openProjectStale = {
   contract_value: 2_000_000, currency: 'USD',
   win_probability: 0.7,
   last_update: daysAgo(40), // 40 days ago — STALE (>= 30 days)
-  pm_name: 'Carol Owner',
+  pm_name: 'Project Manager East',
 };
 
 // A row that GENUINELY lacks last_update / pm_name (defensive edge): renders "—" and is filter-excluded.
@@ -88,7 +88,7 @@ const lostProjectRecent = {
   contract_value: 950_000, currency: 'USD',
   win_probability: 0,
   last_update: daysAgo(5), // 5 days ago — NOT stale
-  pm_name: 'Alice PM',
+  pm_name: 'Project Manager Coast',
 };
 
 const lostProjectStale = {
@@ -99,7 +99,7 @@ const lostProjectStale = {
   contract_value: 600_000, currency: 'USD',
   win_probability: 0,
   last_update: daysAgo(35), // 35 days ago — STALE (>= 30 days)
-  pm_name: 'Bob Manager',
+  pm_name: 'Project Manager South',
 };
 
 // ── Mocks ───────────────────────────────────────────────────────────────────
@@ -168,19 +168,19 @@ beforeEach(() => {
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
-  it('AC-IXD-PIPE-W5-C5-1: table view renders "Owner" and "Last touch" column headers', async () => {
+  it('AC-IXD-PIPE-W5-C5-1: table view renders "Owner" and "Last activity" column headers', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     expect(screen.getByRole('columnheader', { name: /owner/i })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: /last touch/i })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /last activity/i })).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-2: open pipeline row (RPC migration 0020) shows its real Owner and Last touch', async () => {
+  it('AC-IXD-PIPE-W5-C5-2: open pipeline row shows its real Owner and Last activity', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     const row = screen.getByText('Northwind ERP Rollout').closest('tr')!;
-    // Owner is the PM name supplied by the RPC; Last touch is the aged last_update — NOT "—".
-    expect(within(row).getByText('Alice Manager')).toBeInTheDocument();
+    // Owner is the PM name supplied by the RPC; Last activity uses the aged last_update.
+    expect(within(row).getByText('Project Manager North')).toBeInTheDocument();
     expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
   });
 
@@ -189,36 +189,29 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
     const row = screen.getByText('Bare Opportunity').closest('tr')!;
-    const dashCells = within(row)
-      .getAllByRole('cell')
-      .map((c) => c.textContent ?? '')
-      .filter((t) => t.trim() === '—');
-    // Both Owner and Last touch render "—" when the row has no data.
-    expect(dashCells.length).toBeGreaterThanOrEqual(2);
+    expect(within(row).getByText('Owner unavailable')).toBeInTheDocument();
+    expect(within(row).getByText('Activity unavailable')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-3: lost deal row with data shows PM name and "X days ago" in Last touch', async () => {
+  it('AC-IXD-PIPE-W5-C5-3: lost deal row shows its owner and "X days ago" in Last activity', async () => {
     lostState.data = [lostProjectRecent];
     renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     const row = screen.getByText('Coastal Depot Bid').closest('tr')!;
-    expect(within(row).getByText('Alice PM')).toBeInTheDocument();
+    expect(within(row).getByText('Project Manager Coast')).toBeInTheDocument();
     expect(within(row).getByText(/days ago/i)).toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-4: "Needs attention" filter tab is present in the table toolbar', async () => {
+  it('AC-IXD-PIPE-W5-C5-4: "Needs attention" is an available project scope', () => {
     renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    expect(
-      screen.getByRole('tab', { name: /needs attention/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Needs attention' })).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-5: "Needs attention" filter shows stale deals (last_update >= 30 days ago)', async () => {
     lostState.data = [lostProjectStale];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Needs attention');
     expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
   });
 
@@ -226,7 +219,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     lostState.data = [lostProjectRecent, lostProjectStale];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Needs attention');
     expect(screen.queryByText('Coastal Depot Bid')).not.toBeInTheDocument();
     expect(screen.getByText('Stale Northern Tender')).toBeInTheDocument();
   });
@@ -236,7 +229,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     pipelineState.data = { stages: [], projects: [openProjectRecent, openProjectStale] };
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Needs attention');
     // The stale OPEN deal IS flagged; the recent OPEN deal is NOT.
     expect(screen.getByText('Eastgate Depot Upgrade')).toBeInTheDocument();
     expect(screen.queryByText('Northwind ERP Rollout')).not.toBeInTheDocument();
@@ -246,7 +239,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     pipelineState.data = { stages: [], projects: [openProjectNoData] };
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Needs attention');
     expect(screen.queryByText('Bare Opportunity')).not.toBeInTheDocument();
   });
 
@@ -254,7 +247,7 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     lostState.data = [lostProjectRecent]; // recent — NOT stale
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /needs attention/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Needs attention');
     expect(screen.getByText(/no projects need attention/i)).toBeInTheDocument();
   });
 
@@ -267,8 +260,8 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
     expect(ownerHeader.textContent?.trim()).toBeTruthy();
   });
 
-  it('AC-W6-H8: win-probability bar uses neutral primary tone, never destructive at high win %', async () => {
-    // A deal with 92% win probability — "higher = good". The bar must NOT render red (destructive).
+  it('AC-W6-H8: high win probability remains readable as a text percentage', async () => {
+    // Keep the meaningful value assertion; Sales no longer adds a color-coded progress bar.
     pipelineState.data = {
       stages: [],
       projects: [
@@ -280,23 +273,19 @@ describe('AC-IXD-PIPE-W5-C5 — Pipeline table attention signals (N14)', () => {
           contract_value: 1_000_000, currency: 'USD',
           win_probability: 0.92, // 92% — above the 90% utilization at-risk threshold
           last_update: daysAgo(2),
-          pm_name: 'Alice',
+          pm_name: 'Project Manager High',
         },
       ],
     };
     renderPage();
-    await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    const winBar = screen.getByRole('progressbar', { name: /win probability 92%/i });
-    const fill = winBar.querySelector('[data-testid="progress-fill"]')!;
-    expect(fill).toHaveClass('bg-primary');
-    expect(fill).not.toHaveClass('bg-destructive');
+    expect(screen.getByText('92%')).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-10: stale lost deal shows the aging warning label text (text, not color-only)', async () => {
     lostState.data = [lostProjectStale];
     renderPage();
     await userEvent.click(screen.getByRole('tab', { name: /Table/i }));
-    await userEvent.click(screen.getByRole('tab', { name: /^Lost$/i }));
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
     const row = screen.getByText('Stale Northern Tender').closest('tr')!;
     // Should show a text-based aging signal (e.g. "35 days ago" and/or an "Overdue" label)
     expect(within(row).getByText(/days ago/i)).toBeInTheDocument();

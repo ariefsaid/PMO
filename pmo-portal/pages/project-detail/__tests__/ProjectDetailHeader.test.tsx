@@ -251,15 +251,18 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
   });
 
-  it('AC-002 #1325: delivery and pipeline headers display a short name with contractual hover and NULL fallback', () => {
+  it('H-09: delivery and pipeline headers show the full identity when a short name exists', () => {
     const delivery = { ...onHand, short_name: 'Harbor Operations' } as ProjectWithRefs;
     const pipeline = { ...preWin, short_name: 'Tender package' } as ProjectWithRefs;
     const { rerender } = renderHeader('Project Manager', delivery);
-    const deliveryName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Harbor Operations' });
-    expect(within(deliveryName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Harbor Operations');
+    const deliveryHeader = within(screen.getByTestId('record-header'));
+    expect(deliveryHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
+    expect(deliveryHeader.queryByTitle('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
+    expect(deliveryHeader.queryByRole('heading', { name: 'Harbor Operations' })).not.toBeInTheDocument();
     rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
-    const pipelineName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Tender package' });
-    expect(within(pipelineName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Tender package');
+    const pipelineHeader = within(screen.getByTestId('record-header'));
+    expect(pipelineHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
+    expect(pipelineHeader.queryByRole('heading', { name: 'Tender package' })).not.toBeInTheDocument();
     rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
     expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });

@@ -61,4 +61,6 @@ test('AC-1117: dashboard shows delivery measures and a stable win-rate figure be
   // The URL updates before the lazy Sales Pipeline route finishes mounting.
   await expect(page.getByRole('heading', { name: 'Sales Pipeline' })).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
+  await page.getByText('Pipeline summary', { exact: true }).click();
+  await expect(page.getByTestId('pipeline-weighted-total')).toContainText('Not available');
 });

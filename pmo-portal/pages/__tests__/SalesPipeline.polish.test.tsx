@@ -47,7 +47,7 @@ it('UIP-004 URL-owned classification stays visible collapsed on arrival and zero
   page('/sales?view=kanban&serviceLine=Engineering&location=Bali');
   expect(screen.getByRole('button', { name: /^Classification\s*2/ })).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getByText('Location: Bali')).toBeVisible();
-  expect(screen.getByText('No projects match these classifications')).toBeVisible();
+  expect(screen.getByText('No matching projects')).toBeVisible();
   await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
   await waitFor(() => expect(screen.getByText(state.data.projects[0].name)).toBeVisible());
 });
@@ -57,12 +57,13 @@ it.each(['kanban', 'table'])('UIP-004 phone %s keeps a single search/core scope,
   page(`/sales?view=${view}`);
   const user = userEvent.setup();
   expect(screen.getAllByRole('searchbox', { name: 'Search projects' })).toHaveLength(1);
-  // SUB-H: the phone has one presentation (the stage list), so a stored/URL `table` view is not
-  // honoured and no Board/Table switcher or Export is offered; the core scope control stays.
+  // Phone keeps the vertical list and places export behind the named More actions disclosure.
   expect(screen.queryByRole('tablist', { name: 'Pipeline view' })).not.toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument();
-  expect(screen.getAllByRole('tablist', { name: 'Project scope' })).toHaveLength(1);
+  expect(screen.getByText('More actions')).toBeInTheDocument();
+  expect(screen.getByRole('combobox', { name: 'Project scope' })).toBeInTheDocument();
   expect(screen.getByTestId('sales-phone-stage-list')).toBeInTheDocument();
+  await user.click(screen.getByText('More actions'));
+  expect(screen.getByRole('button', { name: 'Export' })).toBeVisible();
   await user.click(screen.getByRole('button', { name: /^Classification$/ }));
   expect(screen.getByRole('region', { name: /^Classification$/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText('Filter by sector'), 'Energy');

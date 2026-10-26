@@ -180,7 +180,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
         type="button"
         variant="outline"
         title={compactOnMobile ? label : undefined}
-        className={compactOnMobile ? 'max-md:w-11 max-md:px-0' : undefined}
+        className={cn('min-h-11 md:min-h-8', compactOnMobile && 'max-md:w-11 max-md:px-0')}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setOpen(!isOpen)}
@@ -191,7 +191,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
           {typeof count === 'number' && count > 0 && (
             <span
               data-testid="mobile-toolbar-count"
-              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-[11px] font-semibold tabular text-muted-foreground"
+              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-[0.6875rem] font-semibold tabular text-muted-foreground"
             >
               {count}
             </span>

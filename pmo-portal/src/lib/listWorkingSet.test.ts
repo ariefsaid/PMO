@@ -36,6 +36,7 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('sales', '')).toEqual({
       scope: 'Open',
       status: '',
+      sort: 'activity-oldest',
       q: '',
       view: 'kanban',
     });
@@ -192,7 +193,13 @@ describe('list working-set URL codec', () => {
       'sales',
       '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
     );
-    expect(sales).toEqual({ scope: 'Open', status: '', q: 'review', view: 'kanban' });
+    expect(sales).toEqual({
+      scope: 'Open',
+      status: '',
+      sort: 'activity-oldest',
+      q: 'review',
+      view: 'kanban',
+    });
   });
 
   it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
@@ -266,6 +273,7 @@ describe('list working-set URL codec', () => {
     const lostQuery = serializeListWorkingSet('sales', '?campaign=fall', {
       scope: 'Lost',
       status: 'Leads',
+      sort: 'activity-oldest',
       q: '',
       view: 'table',
     });
@@ -273,7 +281,13 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
     // Lost without a stage is not contradictory and is written as-is.
     expect(
-      serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'table' })
+      serializeListWorkingSet('sales', '', {
+        scope: 'Lost',
+        status: '',
+        sort: 'activity-oldest',
+        q: '',
+        view: 'table',
+      })
         .toString(),
     ).toBe('scope=Lost&view=table');
 
@@ -285,28 +299,56 @@ describe('list working-set URL codec', () => {
     expect(roundTrip).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
   });
 
-  it('#682 Director ruling (2026-09-29): scope is meaningful only for the Sales table view — the board carries no scope', () => {
-    // A direct/copied board URL with a stale scope parses to Open, never Lost/Needs attention.
+  it('AC-SALES-C01: Sales scopes remain selected when the presentation changes', () => {
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Lost')).toMatchObject({
-      scope: 'Open',
+      scope: 'Lost',
       view: 'kanban',
     });
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Needs+attention')).toMatchObject({
-      scope: 'Open',
+      scope: 'Needs attention',
       view: 'kanban',
     });
-    // Serializing a working set whose view is the board never writes an inert `scope` key, even
-    // when the in-memory value still carries a stale table scope (e.g. mid-transition).
+    // Serialize the named subset so switching back to Table restores it.
     const boardQuery = serializeListWorkingSet('sales', '?scope=Lost', {
       scope: 'Lost',
       status: '',
+      sort: 'activity-oldest',
       q: '',
       view: 'kanban',
     });
-    expect(boardQuery.get('scope')).toBeNull();
-    // Switching the view back to table (same working set otherwise) reads Open, not the stale
-    // Lost — the URL no longer carries it, so there is nothing to snap back to.
-    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Open', view: 'kanban' });
+    expect(boardQuery.get('scope')).toBe('Lost');
+    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Lost', view: 'kanban' });
+  });
+
+  it('AC-SALES-N04: Sales sort and scope survive board/table navigation in the URL', () => {
+    const board = parseListWorkingSet(
+      'sales',
+      '?scope=Needs+attention&status=Leads&sort=activity-newest&view=kanban',
+    );
+    expect(board).toMatchObject({
+      scope: 'Needs attention',
+      status: 'Leads',
+      sort: 'activity-newest',
+      view: 'kanban',
+    });
+
+    const tableUrl = serializeListWorkingSet('sales', '', {
+      ...board,
+      view: 'table',
+    });
+    expect(tableUrl.get('scope')).toBe('Needs attention');
+    expect(tableUrl.get('sort')).toBe('activity-newest');
+    expect(parseListWorkingSet('sales', tableUrl)).toMatchObject({
+      scope: 'Needs attention',
+      sort: 'activity-newest',
+      view: 'table',
+    });
+  });
+
+  it('AC-SALES-C03: rejects unknown Sales sort values to oldest activity', () => {
+    expect(parseListWorkingSet('sales', '?sort=untrusted')).toMatchObject({
+      sort: 'activity-oldest',
+    });
   });
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
@@ -475,7 +517,7 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet(
         'sales',
         '',
-        { scope: 'Open', status: '', q: '', view: 'kanban' },
+        { scope: 'Open', status: '', sort: 'activity-oldest', q: '', view: 'kanban' },
         { sessionView: 'table' },
       ).get('view'),
     ).toBe('kanban');

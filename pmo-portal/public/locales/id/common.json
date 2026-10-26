@@ -2546,7 +2546,7 @@
     "pipeline": {
       "backToSalesPipeline": "← Kembali ke Pipeline Penjualan",
       "advanceTo": "Lanjutkan ke",
-      "bookingOnWin": "Mencatat <1>{{amount}}</1> <3></3> ke nilai kontrak saat menang",
+      "bookingOnWin": "Nilai kontrak ini dicatat saat Anda mengonfirmasi kemenangan.",
       "cancel": "Batal",
       "confirmWon": "Konfirmasi menang",
       "contractDateLabel": "Tanggal kontrak",
@@ -2578,7 +2578,6 @@
       "stat": {
         "decision": "Keputusan",
         "owner": "Pemilik",
-        "value": "Nilai",
         "weighted": "Tertimbang",
         "winProbability": "Peluang menang"
       },
@@ -3151,8 +3150,7 @@
       "title": "Anda tidak memiliki akses ke Pipeline Penjualan"
     },
     "column": {
-      "customer": "Klien",
-      "lastTouch": "Aktivitas terakhir",
+      "customer": "Pelanggan / pelanggan akhir",
       "owner": "Pemilik",
       "project": "Proyek",
       "stage": "Tahap",
@@ -3169,65 +3167,16 @@
       "sub": "Terjadi kesalahan saat mengambil pipeline Anda.",
       "title": "Gagal memuat pipeline penjualan"
     },
-    "funnel": {
-      "weighted": "{{value}} tertimbang"
-    },
-    "lastTouch": {
-      "daysAgo": "hari lalu",
-      "oneDayAgo": "1 hari lalu",
-      "stale": "Tidak tersentuh selama {{days}} hari — perlu perhatian",
-      "today": "hari ini"
-    },
-    "lastTouchUnavailable": "Aktivitas terakhir tidak tersedia",
-    "lostError": {
-      "sub": "Terjadi kesalahan saat mengambil proyek yang kalah.",
-      "title": "Gagal memuat proyek yang kalah"
-    },
     "newProject": "Proyek baru",
-    "openRow": "Buka",
-    "ownerUnavailable": "Pemilik tidak tersedia",
-    "scope": {
-      "lost": "Kalah",
-      "needsAttention": "Perlu perhatian",
-      "open": "Aktif"
-    },
-    "scopeToggleLabel": "Cakupan proyek",
     "search": {
       "label": "Cari proyek",
       "placeholder": "Cari proyek…"
-    },
-    "summaryLabel": "Ringkasan pipeline",
-    "boardEmpty": {
-      "classification": {
-        "sub": "Hapus filter klasifikasi untuk melihat lebih banyak proyek.",
-        "title": "Tidak ada proyek yang cocok dengan klasifikasi ini"
-      }
-    },
-    "tableEmpty": {
-      "clearFilters": "Hapus filter",
-      "lost": {
-        "sub": "Proyek yang ditandai kalah akan muncul di sini.",
-        "title": "Tidak ada proyek yang kalah"
-      },
-      "needsAttention": {
-        "sub": "Tidak ada proyek yang tak tersentuh selama {{days}}+ hari — pipeline aktif.",
-        "title": "Tidak ada proyek yang perlu perhatian"
-      },
-      "search": {
-        "sub": "Coba nama atau klien lain.",
-        "title": "Tidak ada proyek yang cocok dengan pencarian"
-      }
     },
     "view": {
       "board": "Board",
       "table": "Tabel"
     },
     "viewToggleLabel": "Tampilan pipeline",
-    "weightedForecast": "Proyeksi pipeline tertimbang",
-    "winProbability": "Peluang menang",
-    "board": {
-      "ariaLabel": "Papan pipeline penjualan"
-    },
     "stage": {
       "leads": "Prospek",
       "preQual": "Pra-kualifikasi",
@@ -3235,8 +3184,7 @@
       "tender": "Tender",
       "negotiation": "Negosiasi",
       "lost": "Kalah"
-    },
-    "lostCounts": "Kalah {{lost}} · Tidak ikut tender {{declined}}"
+    }
   },
   "shell": {
     "backBar": {
@@ -4667,13 +4615,6 @@
     "contextInvalid": "Proyek ini atau kliennya tidak lagi tersedia. Mulai faktur baru dan pilih dari opsi yang tersedia.",
     "retryContext": "Coba lagi",
     "currencyUnavailable": "Mata uang proyek tidak tersedia."
-  },
-  "uxs24": {
-    "stageLabel": "Tahap pipeline",
-    "allStages": "Semua tahap",
-    "phoneList": "Proyek pada tahap pipeline yang dipilih",
-    "stageEmptyTitle": "Tidak ada proyek pada tahap ini",
-    "stageEmptyBody": "Pilih tahap lain atau hapus filter untuk melihat proyek lainnya."
   },
   "uxs16": {
     "invoiceDraftReview": "Tinjauan draf faktur",
