@@ -45,7 +45,7 @@ export const ToastView: React.FC<{
     >
       <Icon name={KIND_ICON[kind]} />
       <div className="min-w-0 flex-1">
-        <span className="font-semibold">{title}</span>
+        <span className="font-semibold text-popover-foreground">{title}</span>
         {sub && <span className="ml-1 text-muted-foreground">{sub}</span>}
         {moreCount > 0 && <span className="ml-1 whitespace-nowrap text-muted-foreground">{t('toast.more', '+{{count}} more', { count: moreCount })}</span>}
       </div>

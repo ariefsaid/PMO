@@ -481,6 +481,7 @@ export const M365ConnectionCard: React.FC = () => {
             variant="outline"
             onClick={() => setConfirmOpen(true)}
             disabled={phase === 'disconnecting'}
+            className="min-h-11 text-foreground sm:min-h-8"
             data-testid="m365-disconnect-btn"
           >
             {t('integrations.personalM365.action.disconnect', 'Disconnect')}
