@@ -38,6 +38,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import BudgetAccountMap from './BudgetAccountMap';
 import { Constants } from '@/src/lib/supabase/database.types';
+import type { PostingAccountFilters } from './postingAccountFilters';
 
 /**
  * Router-driven fragment navigation control (AC-ADMIA-004). The focus/scroll behavior is keyed to
@@ -74,13 +75,13 @@ const openRowOptions = async (user: ReturnType<typeof userEvent.setup>, category
   return row;
 };
 
-const renderPage = (role: Role = 'Admin', initial = '/administration/accounting') => {
+const renderPage = (role: Role = 'Admin', initial = '/administration/accounting', filters?: PostingAccountFilters) => {
   realRole = role;
   return render(
     <MemoryRouter initialEntries={[initial]}>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
-          <BudgetAccountMap />
+          <BudgetAccountMap filters={filters} />
           <FragmentNav />
         </ToastProvider>
       </QueryClientProvider>
@@ -384,11 +385,14 @@ describe('BudgetAccountMap — I-8: reachable, and it marks what is blocking', (
     expect(document.activeElement).not.toBe(document.getElementById('budget-account-map'));
   });
 
-  it('I-8 an UNMAPPED category is marked as blocking every push, not merely "Not mapped"', async () => {
+  it('I-8 an unmapped category has a concise row state and one whole-budget blocking explanation', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     const row = screen.getByText('Contingency').closest('tr')!;
-    expect(within(row).getByText(/blocks every push/i)).toBeInTheDocument();
+    expect(within(row).getByText('Needs setup')).toBeInTheDocument();
+    const map = screen.getByRole('region', { name: 'Budget category to ERP account map' });
+    expect(within(map).getByText(/blocks the push for the WHOLE budget/i)).toBeInTheDocument();
+    expect(within(map).getAllByText(/blocks the push for the WHOLE budget/i)).toHaveLength(1);
   });
 
   it('I-8 a MAPPED category is not marked as blocking', async () => {
@@ -418,11 +422,12 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
     expect(within(labor).queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('AC-BAM-008 a category with accounts but no push account is marked as blocking every push', async () => {
+  it('AC-BAM-008 identifies an actuals-only category with no push account under the single blocking explanation', async () => {
     listMock.mockResolvedValue(MULTI);
     renderPage('Admin');
     const materials = (await screen.findByText('Materials')).closest('tr')!;
-    expect(within(materials).getByText('No push account — blocks every push')).toBeInTheDocument();
+    expect(within(materials).getByText('No budget account')).toBeInTheDocument();
+    expect(screen.getByText(/blocks the push for the WHOLE budget/i)).toBeInTheDocument();
   });
 
   it('AC-BAM-009 an account added to a category that has a push account is added read-only', async () => {
@@ -507,18 +512,31 @@ describe('BudgetAccountMap — several accounts per category (#768)', () => {
 });
 
 describe('BudgetAccountMap T5 DataTable adoption', () => {
-  it('lists every category in the shared DataTable with Category / ERP account / Actions headers for an Admin', async () => {
+  it('lists purpose, account, coverage, and actions in that order for an Admin', async () => {
     renderPage('Admin');
     await screen.findByText('Labor');
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account', 'Actions']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Purpose / category', 'ERP account', 'Coverage', 'Actions']);
     expect(screen.getByRole('table')).toBeInTheDocument();
   });
 
   it('a non-Admin sees no Actions column', async () => {
     renderPage('Finance');
     await screen.findByText('Labor');
-    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Category', 'ERP account']);
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual(['Purpose / category', 'ERP account', 'Coverage']);
+  });
+
+  it('searches category and account names, and its no-match state clears the shared filters', async () => {
+    const onClear = vi.fn();
+    const first = renderPage('Admin', '/administration/accounting', { purpose: 'all', coverage: 'all', sort: 'asc', search: '5100', onClear });
+    expect(await screen.findByText('Labor')).toBeInTheDocument();
+    expect(screen.queryByText('Contingency')).not.toBeInTheDocument();
+
+    first.unmount();
+    renderPage('Admin', '/administration/accounting', { purpose: 'all', coverage: 'all', sort: 'asc', search: 'not present', onClear });
+    expect(await screen.findByText('No posting accounts match these filters')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClear).toHaveBeenCalled();
   });
 
   it('on a phone each category is a stacked card with its account still visible', async () => {

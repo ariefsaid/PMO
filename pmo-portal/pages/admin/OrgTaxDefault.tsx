@@ -1,7 +1,7 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { ListState, SelectField, useToast } from '@/src/components/ui';
+import { Button, ListState, SelectField, useToast } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -28,7 +28,14 @@ import type { TaxTreatment } from '@/src/lib/db/procurementLifecycle';
  * predicate is enforced server-side by 0207's `organizations_update_tax_default` policy plus a
  * column-scoped UPDATE grant — this gate is UX, RLS is the authority (ADR-0016).
  */
-const OrgTaxDefault: React.FC = () => {
+interface OrgTaxDefaultProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
+
+const OrgTaxDefault: React.FC<OrgTaxDefaultProps> = ({ editing, onEdit, onClose }) => {
+  const isEditing = editing ?? true;
   const { t } = useTranslation();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -59,6 +66,7 @@ const OrgTaxDefault: React.FC = () => {
         ),
         'success',
       );
+      onClose?.();
     } catch (err) {
       const { headline, detail } = classifyMutationError(err);
       toast(headline, detail, 'warning');
@@ -67,16 +75,16 @@ const OrgTaxDefault: React.FC = () => {
 
   return (
     <section id="org-tax-default" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.taxDefault.title', 'Default tax treatment')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.taxDefault.title', 'Default tax treatment')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.taxDefault.description',
           'The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.',
         )}
       </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.taxDefault.doesNotRestate',
           'Changing this does not restate any existing figure. Every record keeps the tax treatment it was recorded with.',
@@ -94,19 +102,39 @@ const OrgTaxDefault: React.FC = () => {
         ) : current === undefined ? (
           <ListState variant="loading" rows={1} testId="org-tax-default-loading" />
         ) : canManage ? (
-          <SelectField
-            id="org-tax-default-select"
-            label={t('admin.taxDefault.label', 'Default tax treatment')}
-            value={current}
-            onChange={(value) => void onChange(value)}
-            options={taxOptions.options}
-            disabled={mutation.isPending}
-            data-testid="org-tax-default-select"
-          />
+          isEditing ? (
+            <div className="space-y-2">
+              <SelectField
+                id="org-tax-default-select"
+                label={t('admin.taxDefault.label', 'Default tax treatment')}
+                value={current}
+                onChange={(value) => void onChange(value)}
+                options={taxOptions.options}
+                disabled={mutation.isPending}
+                data-testid="org-tax-default-select"
+              />
+              {editing !== undefined && (
+                <Button type="button" variant="outline" className="min-h-11" onClick={onClose}>
+                  {t('integrations:uxs11.doneEditing', 'Done editing')}
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p data-testid="org-tax-default-readonly" className="text-sm font-medium">
+                {current === 'inclusive'
+                  ? t('admin.taxDefault.value.inclusive', 'Inclusive — the amount already includes tax')
+                  : t('admin.taxDefault.value.exclusive', 'Exclusive — tax is on top of the amount')}
+              </p>
+              <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>
+                {t('integrations:uxs11.editTaxTreatment', 'Edit tax treatment')}
+              </Button>
+            </div>
+          )
         ) : (
           // read-only-distinction: a role that cannot change this sees the VALUE, never a dead
           // control. It is org configuration every member's forms already read.
-          <p data-testid="org-tax-default-readonly" className="text-[13px]">
+          <p data-testid="org-tax-default-readonly" className="text-sm">
             <span className="font-semibold">
               {current === 'inclusive'
                 ? t('admin.taxDefault.value.inclusive', 'Inclusive — the amount already includes tax')

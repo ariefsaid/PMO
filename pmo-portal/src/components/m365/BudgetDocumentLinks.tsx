@@ -50,23 +50,23 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
     <section aria-labelledby={`budget-evidence-${versionId}`} className="mt-4 min-w-0 border-t border-border pt-4" data-testid="budget-document-links">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
         <h3 id={`budget-evidence-${versionId}`} className="min-w-0 text-[14px] font-semibold text-foreground">
-          {t('m365Documents.budget.heading', 'Evidence documents')}
+          {t('m365Documents:budget.heading', 'Evidence documents')}
         </h3>
         {mayMutate && (
           <Button variant="outline" size="sm" disabled={!connected} onClick={() => setPickerOpen(true)}>
             <Icon name="doc" />
-            {t('m365Documents.budget.link', 'Link from Microsoft 365')}
+            {t('m365Documents:budget.link', 'Link from Microsoft 365')}
           </Button>
         )}
       </div>
       {!mayMutate && (
         <p className="mt-1 text-[12px] text-muted-foreground">
-          {t('m365Documents.budget.readOnly', 'Evidence is read-only on this version.')}
+          {t('m365Documents:budget.readOnly', 'Evidence is read-only on this version.')}
         </p>
       )}
       {mayMutate && !connected && (
         <p className="mt-1 text-[12px] text-muted-foreground">
-          {t('m365Documents.budget.connectHint', 'Connect Microsoft 365 in My integrations to link documents.')}
+          {t('m365Documents:budget.connectHint', 'Connect Microsoft 365 in My integrations to link documents.')}
         </p>
       )}
 
@@ -76,12 +76,12 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
         ) : query.isError ? (
           <ListState
             variant="error"
-            title={t('m365Documents.budget.loadError', 'Evidence documents could not be loaded')}
-            sub={t('m365Documents.budget.loadErrorSub', 'The budget figures are not affected. Try again.')}
+            title={t('m365Documents:budget.loadError', 'Evidence documents could not be loaded')}
+            sub={t('m365Documents:budget.loadErrorSub', 'The budget figures are not affected. Try again.')}
             onRetry={() => void query.refetch()}
           />
         ) : rows.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">{t('m365Documents.budget.empty', 'No evidence documents are linked to this version.')}</p>
+          <p className="text-[13px] text-muted-foreground">{t('m365Documents:budget.empty', 'No evidence documents are linked to this version.')}</p>
         ) : (
           <ul className="divide-y divide-border">
             {rows.map((row) => {
@@ -92,17 +92,17 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
                     {reference ? (
                       <LinkedDocumentCell reference={reference} owner={{ kind: 'budget', id: row.id }} />
                     ) : (
-                      <span className="text-[12px] text-muted-foreground">{t('m365Documents.budget.unavailable', 'This link is unavailable.')}</span>
+                      <span className="text-[12px] text-muted-foreground">{t('m365Documents:budget.unavailable', 'This link is unavailable.')}</span>
                     )}
                   </div>
                   {mayMutate && (
                     <Button
                       variant="ghost"
                       size="sm"
-                      aria-label={t('m365Documents.budget.removeNamed', 'Remove link to {{name}}', { name: row.ms_item_name })}
+                      aria-label={t('m365Documents:budget.removeNamed', 'Remove link to {{name}}', { name: row.ms_item_name })}
                       onClick={() => setRemoving({ id: row.id, name: row.ms_item_name })}
                     >
-                      {t('m365Documents.budget.remove', 'Remove')}
+                      {t('m365Documents:budget.remove', 'Remove')}
                     </Button>
                   )}
                 </li>
@@ -123,9 +123,9 @@ export function BudgetDocumentLinks({ versionId, status }: BudgetDocumentLinksPr
       )}
       <ConfirmDialog
         open={removing !== null}
-        title={t('m365Documents.budget.removeTitle', 'Remove this link?')}
-        description={t('m365Documents.budget.removeDescription', 'The link to {{name}} is removed from this version. The Microsoft file is not changed.', { name: removing?.name ?? '' })}
-        confirmLabel={t('m365Documents.budget.remove', 'Remove')}
+        title={t('m365Documents:budget.removeTitle', 'Remove this link?')}
+        description={t('m365Documents:budget.removeDescription', 'The link to {{name}} is removed from this version. The Microsoft file is not changed.', { name: removing?.name ?? '' })}
+        confirmLabel={t('m365Documents:budget.remove', 'Remove')}
         tone="destructive"
         loading={remove.isPending}
         onConfirm={() => void confirmRemove()}

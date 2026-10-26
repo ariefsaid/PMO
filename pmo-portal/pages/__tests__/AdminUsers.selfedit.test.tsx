@@ -73,9 +73,16 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
+const getUserRow = (name: string) => {
+  const row = screen.getAllByText(name)
+    .map((element) => element.closest('tr'))
+    .find((candidate): candidate is HTMLTableRowElement => candidate !== null);
+  if (!row) throw new Error(`No directory row found for ${name}`);
+  return row;
+};
+
 const openRowMenu = async (name: string) => {
-  const row = screen.getByText(name).closest('tr') ?? screen.getByText(name).closest('div');
-  const menuBtn = within(row as HTMLElement).getByRole('button', { name: /Row actions/i });
+  const menuBtn = within(getUserRow(name)).getByRole('button', { name: /Row actions/i });
   await userEvent.click(menuBtn);
 };
 

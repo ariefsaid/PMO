@@ -1,0 +1,49 @@
+{
+  "uxs07": {
+    "viewConfiguredConnections": "View configured connections and unused lists",
+    "connectionDetails": "Connection details",
+    "detailsForService": "{{service}} connection details",
+    "m365ApprovalMayBeRequired": "Organization approval may be required",
+    "m365ApprovalScope": "Microsoft confirms organization approval during connection. An administrator can approve the app if Microsoft asks.",
+    "m365Options": "Document library and approval options",
+    "setupCheckFailed": "Setup check failed",
+    "setupCheckBoundary": "Outbound queue status was checked separately; it does not confirm ERP business setup.",
+    "viewConfiguredSetup": "View configured setup",
+    "reviewSetupStatus": "Review setup status",
+    "organizationApproval": "Organization approval",
+    "ownershipNone": "No information areas are selected for updates from this service."
+  },
+  "uxs11": {
+    "doneEditing": "Done editing",
+    "editSetting": "Edit setting",
+    "editTaxTreatment": "Edit tax treatment",
+    "editWithholdingAccount": "Edit withholding account",
+    "editVendorTaxAccounts": "Edit vendor tax accounts",
+    "editDownPaymentItem": "Edit down payment item"
+  },
+  "erpSetup": {
+    "noDomains": "No connected information is currently updating from ERPNext"
+  },
+  "uxs21": {
+    "batchAcceptAllAction": "Accept all clear matches",
+    "batchAcceptSelectedAction": "Accept selected clear matches",
+    "batchRetryAction": "Retry failed match",
+    "batchReviewAction": "Review project connections",
+    "batchTitle": "Review clear ClickUp matches",
+    "batchSubtitle": "Clear name matches are selected. Confirm each project and its initial task source.",
+    "batchConfirmTitle": "Confirm project connections",
+    "batchConfirmSubtitle": "These links use existing ClickUp lists. The choice controls the initial task transfer only.",
+    "batchSourceLegend": "Initial task source for selected projects",
+    "batchSourceFor": "Initial task source for {{name}}",
+    "batchUseCommonSource": "Use batch choice",
+    "batchInclude": "Include {{name}}",
+    "batchConsequence": "This connects each selected PMO project to the shown ClickUp list. The initial source choice does not start ongoing syncing.",
+    "batchSaved": "Saved",
+    "batchSaveFailed": "This link was not saved. Your choice is kept so you can retry.",
+    "batchSaveFailedSummary": "Some project links could not be saved.",
+    "batchPartialOutcome": "{{saved}} saved; {{failed}} need attention. Saved links are not repeated."
+  },
+  "personalM365": {
+    "unavailable": "Microsoft 365 is not available for this workspace. Ask a workspace administrator to enable it."
+  }
+}

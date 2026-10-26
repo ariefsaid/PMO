@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import en from '../../../public/locales/en/common.json';
-import id from '../../../public/locales/id/common.json';
+import en from '../../../public/locales/en/m365Documents.json';
+import id from '../../../public/locales/id/m365Documents.json';
 
 // Flatten nested groups (procurement / budget / defaultLibrary / …) to dotted leaf keys.
 const flat = (o: unknown, prefix = ''): Record<string, string> =>
@@ -10,14 +10,17 @@ const flat = (o: unknown, prefix = ''): Record<string, string> =>
     const key = prefix ? `${prefix}.${k}` : k;
     return typeof v === 'object' && v !== null ? { ...acc, ...flat(v, key) } : { ...acc, [key]: String(v) };
   }, {});
-const enFlat = flat(en.m365Documents);
-const idFlat = flat(id.m365Documents);
+const enFlat = flat(en);
+const idFlat = flat(id);
 
 const read = (path: string) => readFileSync(resolve(__dirname, '../../..', path), 'utf8');
 
 describe('m365Documents localization (AC-M365DOC-020/064/065/067)', () => {
   it('AC-M365DOC-020: en and id carry the same keys, all non-empty', () => {
     expect(Object.keys(idFlat).sort()).toEqual(Object.keys(enFlat).sort());
+    expect(en.procurement.heading).toBe('SharePoint links for this case');
+    expect(en.picker.title).toBe('Choose a Microsoft document');
+    expect(en.versions.title).toBe('Versions of {{name}}');
     for (const catalogue of [enFlat, idFlat]) {
       for (const value of Object.values(catalogue)) expect(value.trim()).not.toBe('');
     }
@@ -31,8 +34,8 @@ describe('m365Documents localization (AC-M365DOC-020/064/065/067)', () => {
   });
 
   it('AC-M365DOC-065: folder / recovery messages are reviewed sentences, never raw codes or tokens', () => {
-    expect(en.m365Documents.referenceOnly).toBe('Folder reference — contents are not issued or approved');
-    expect(en.m365Documents.unlinkBody).toBe('Only the PMO reference is removed. The Microsoft item is unchanged.');
+    expect(en.referenceOnly).toBe('Folder reference — contents are not issued or approved');
+    expect(en.unlinkBody).toBe('Only the PMO reference is removed. The Microsoft item is unchanged.');
     for (const value of [...Object.values(enFlat), ...Object.values(idFlat)]) {
       expect(value).not.toMatch(/\b[A-Z]{2,}(?:_[A-Z]{2,})+\b/);
       expect(value).not.toMatch(/\bGRAPH_ERROR\b|\bBearer\b|access_token/i);

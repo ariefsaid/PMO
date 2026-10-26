@@ -5,7 +5,6 @@ import {
   ConfirmDialog,
   DataTable,
   ListState,
-  SectionHeader,
   useToast,
   type Column,
   type SubmitError,
@@ -147,52 +146,60 @@ const AdministrationExchangeRates: React.FC = () => {
       header: t('fx.date', 'Publication date'),
       cell: (row) => formatDateOnly(row.rate_date),
       exportValue: (row) => row.rate_date,
+      kind: 'date',
+      rowHeader: true,
+      stickyLeft: true,
+      size: 148,
+      minSize: 132,
     },
     {
       key: 'rate',
       header: t('fx.rate', 'IDR per USD'),
       align: 'num',
-      cell: (row) => <span className="tabular-nums">{formatNumberExact(row.rate)}</span>,
+      cell: (row) => (
+        <span className={row.rate_date === rates.data?.rows[0]?.rate_date ? 'text-xl font-bold tabular-nums' : 'tabular-nums'}>
+          {formatNumberExact(row.rate)}
+        </span>
+      ),
       exportValue: (row) => row.rate,
+      kind: 'number',
+      size: 168,
+      minSize: 152,
     },
     {
       key: 'source',
       header: t('fx.source', 'Source'),
       cell: (row) => row.source,
       exportValue: (row) => row.source,
+      size: 118,
+      minSize: 100,
     },
   ];
 
   return (
-    <section aria-labelledby="fx-rates-heading" className="min-w-0">
-      <SectionHeader
-        title={<span id="fx-rates-heading">{t('admin.nav.exchangeRates', 'Exchange rates')}</span>}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            {canUpload && !listEmpty && (
-              <Button disabled={busy} onClick={openUpload}>
-                {t('fx.upload', 'Upload rates')}
-              </Button>
-            )}
-            {canCreate && (
-              <Button
-                variant="outline"
-                disabled={busy}
-                onClick={() => {
-                  if (!may('create', 'fxRate', { record: { viewOnly } })) return;
-                  setManualError(null);
-                  setFormTarget({});
-                }}
-              >
-                {t('fx.newRate', 'New rate')}
-              </Button>
-            )}
-          </div>
-        }
-      />
-      <p className="mb-4 text-sm text-muted-foreground">
-        {t('fx.description', 'USD → IDR · JISDOR · display equivalents only')}
-      </p>
+    <section aria-label={t('admin.nav.exchangeRates', 'Exchange rates')} className="min-w-0">
+      <div className="mb-4 flex min-w-0 flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground" aria-label={t('administration:fx.sortAriaLabel', 'Sorted by publication date, newest first')}>
+          {t('administration:fx.sortLabel', 'Publication date · newest first')}
+        </p>
+        {!listEmpty && <div className="flex flex-wrap items-center gap-2">
+          {canCreate && <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={busy}
+            onClick={() => {
+              if (!may('create', 'fxRate', { record: { viewOnly } })) return;
+              setManualError(null);
+              setFormTarget({});
+            }}
+          >
+            {t('fx.newRate', 'New rate')}
+          </Button>}
+          {canUpload && <Button className="min-h-11" disabled={busy} onClick={openUpload}>
+            {t('fx.upload', 'Upload rates')}
+          </Button>}
+        </div>}
+      </div>
 
       {orgDay.isPending ? (
         <ListState variant="loading" rows={1} testId="fx-org-day-loading" />
@@ -219,20 +226,9 @@ const AdministrationExchangeRates: React.FC = () => {
           variant="empty"
           icon="upload"
           title={t('fx.empty', 'No JISDOR rates yet')}
-          sub={
-            canUpload
-              ? `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
-                  'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
-                )}`
-              : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t(
-                  'uxs38.emptyScope',
-                  'Reference rates affect displayed rupiah equivalents only — accounting records are never changed.',
-                )} ${t(
-                  'uxs38.emptyNeedRole',
-                  'An Admin or Finance member can upload them from this page.',
-                )}`
-          }
+          sub={canUpload
+            ? t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")
+            : `${t('fx.emptyBody', "Upload BI's JISDOR history to show rupiah equivalents.")} ${t('uxs38.emptyNeedRole', 'An Admin or Finance member can upload them from this page.')}`}
           stateId="fx-rates-empty"
           role={realRole ?? undefined}
           module="administration"
@@ -267,6 +263,8 @@ const AdministrationExchangeRates: React.FC = () => {
             rows={rates.data.rows}
             columns={columns}
             rowKey={(row) => row.id}
+            accessibleName={t('fx.title', 'Exchange rates')}
+            mobileTable
             rowMenu={
               canEdit
                 ? (row) => [

@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ListState,
   DataTable,
+  DisclosureSummary,
   type Column,
   ConfirmDialog,
   EntityFormModal,
@@ -32,6 +33,7 @@ import {
   listBudgetPostingAccountCatalogue,
 } from '@/src/lib/repositories/budgetProjection';
 import { isDirectCostPostingAccount, proposeBudgetAccountMap, type BudgetPostingAccount } from '@/src/lib/budget/categoryAccountMap';
+import { DEFAULT_POSTING_ACCOUNT_FILTERS, type PostingAccountFilters } from './postingAccountFilters';
 
 /**
  * Administration › Budget account map (P3c FR-BUD-110..113; #768 FR-BAM-010..013) — the Admin CRUD surface for
@@ -63,9 +65,10 @@ type FormTarget =
   | { mode: 'create'; category: BudgetCategory; isPushTarget: boolean }
   | { mode: 'edit'; row: CategoryAccountMapRow };
 
-const BudgetAccountMap: React.FC = () => {
-  const { t } = useTranslation();
-  const categoryLabel = (value: string) => accountMapCategoryLabel(value, t);
+const BudgetAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filters }) => {
+  const { t, i18n } = useTranslation();
+  const activeFilters = filters ?? { ...DEFAULT_POSTING_ACCOUNT_FILTERS, onClear: () => undefined };
+  const categoryLabel = useCallback((value: string) => accountMapCategoryLabel(value, t), [t]);
   const may = usePermission();
   const canManage = may('manage', 'integration');
   const { toast } = useToast();
@@ -98,6 +101,21 @@ const BudgetAccountMap: React.FC = () => {
     for (const row of rows) byCategory.set(row.category, [...(byCategory.get(row.category) ?? []), row]);
     return byCategory;
   }, [rows]);
+  const visibleCategories = useMemo(() => {
+    const term = activeFilters.search.trim().toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language);
+    return BUDGET_CATEGORIES.filter((category) => {
+      const accounts = accountsByCategory.get(category) ?? [];
+      const configured = accounts.some((account) => account.isPushTarget);
+      if (activeFilters.coverage === 'configured' && !configured) return false;
+      if (activeFilters.coverage === 'needs-setup' && configured) return false;
+      return !term || [categoryLabel(category), ...accounts.map((account) => account.erpAccount)]
+        .some((value) => value.toLocaleLowerCase(i18n.resolvedLanguage ?? i18n.language).includes(term));
+    }).sort((a, b) => {
+      const result = categoryLabel(a).localeCompare(categoryLabel(b), i18n.resolvedLanguage ?? i18n.language, { sensitivity: 'base' });
+      return activeFilters.sort === 'desc' ? -result : result;
+    });
+  }, [activeFilters.coverage, activeFilters.search, activeFilters.sort, accountsByCategory, categoryLabel, i18n.language, i18n.resolvedLanguage]);
+  const filterActive = Boolean(activeFilters.search.trim()) || activeFilters.coverage !== 'all';
 
   const [formTarget, setFormTarget] = useState<FormTarget | null>(null);
   const [removeTarget, setRemoveTarget] = useState<CategoryAccountMapRow | null>(null);
@@ -222,7 +240,7 @@ const BudgetAccountMap: React.FC = () => {
   const columns: Column<CategoryRow>[] = [
     {
       key: 'category',
-      header: t('admin.budgetMap.columns.category', 'Category'),
+      header: t('administration:admin.postingAccounts.category', 'Purpose / category'),
       kind: 'text',
       size: 180,
       cell: (category) => <span className="font-medium">{categoryLabel(category)}</span>,
@@ -234,22 +252,18 @@ const BudgetAccountMap: React.FC = () => {
       size: 360,
       cell: (category) => {
         const accounts = accountsByCategory.get(category) ?? [];
-        const hasPush = accounts.some((a) => a.isPushTarget);
-        if (accounts.length === 0) {
-          return <StatusPill variant="warn">{t('admin.budgetMap.unmapped', 'Not mapped — blocks every push')}</StatusPill>;
-        }
         return (
           <div className="space-y-2">
-            {!hasPush && <StatusPill variant="warn">{t('admin.budgetMap.noPush', 'No push account — blocks every push')}</StatusPill>}
             {accounts.filter((account) => account.isPushTarget).map((account) => (
               <div key={account.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="break-words">{account.erpAccount}</span>
                 <StatusPill variant="open">{t('admin.budgetMap.pushBadge', 'Budget push')}</StatusPill>
               </div>
             ))}
+            {accounts.length === 0 && <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
             {accounts.some((account) => !account.isPushTarget) && (
-              <details className="text-[13px]">
-                <summary className="w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+              <details className="text-sm">
+                <summary className="min-h-11 w-fit cursor-pointer text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
                   {t('uxs10.countOnlyAccounts', { defaultValue: '{{count}} additional account(s) count toward actuals only', count: accounts.filter((account) => !account.isPushTarget).length })}
                 </summary>
                 <ul className="mt-2 flex flex-col gap-1.5">
@@ -259,6 +273,21 @@ const BudgetAccountMap: React.FC = () => {
             )}
           </div>
         );
+      },
+    },
+    {
+      key: 'coverage',
+      header: t('administration:admin.postingAccounts.coverage.header', 'Coverage'),
+      kind: 'text',
+      size: 180,
+      cell: (category) => {
+        const accounts = accountsByCategory.get(category) ?? [];
+        if (accounts.some((account) => account.isPushTarget)) {
+          return <StatusPill variant="won">{t('administration:admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>;
+        }
+        return <StatusPill variant="warn">{accounts.length
+          ? t('admin.budgetMap.noPush', 'No budget account')
+          : t('administration:admin.budgetMap.needsSetup', 'Needs setup')}</StatusPill>;
       },
     },
     ...(canManage ? [{
@@ -272,7 +301,7 @@ const BudgetAccountMap: React.FC = () => {
         const hasPush = accounts.some((a) => a.isPushTarget);
         return (
           <details className="text-left">
-            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-[13px] text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
+            <summary className="touch-target ml-auto w-fit cursor-pointer rounded-md px-2 py-1 text-sm text-muted-foreground underline decoration-border underline-offset-2 hover:text-foreground">
               {t('uxs10.rowOptions', 'Account options')}
             </summary>
             <div className="mt-2 flex flex-wrap justify-end gap-1">
@@ -295,7 +324,7 @@ const BudgetAccountMap: React.FC = () => {
                     {t('admin.budgetMap.usePush', { defaultValue: 'Use {{account}} for budget push', account: account.erpAccount })}
                   </Button>}
                   {removeBlocked
-                    ? <span className="self-center text-[12px] text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
+                    ? <span className="self-center text-xs text-muted-foreground">{t('admin.budgetMap.removePushHint', 'Make another account the push account to remove this one.')}</span>
                     : <Button variant="ghost" size="sm" onClick={() => setRemoveTarget(account)}>{t('admin.budgetMap.removeAccount', { defaultValue: 'Remove {{account}}', account: account.erpAccount })}</Button>}
                 </React.Fragment>;
               })}
@@ -315,27 +344,29 @@ const BudgetAccountMap: React.FC = () => {
       ref={sectionRef}
       tabIndex={-1}
     >
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.budgetMap.title', 'Budget account map')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t(
-          'admin.budgetMap.description',
-          'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.',
-        )}
-      </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('uxs10.mapPrinciple', 'One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.')}
-      </p>
-      <p className="mt-1 text-[13px] text-muted-foreground">
-        {t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}
-      </p>
+      {categoriesNeedingPosting.length > 0 && (
+        <p role="status" className="mt-2 text-sm text-warning-foreground">
+          {t('admin.budgetMap.description', 'Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.')}
+        </p>
+      )}
+      <details className="group mt-2 rounded-md border border-border px-3">
+        <DisclosureSummary className="text-sm font-medium">
+          {t('administration:admin.postingAccounts.guidance', 'How posting accounts work')}
+        </DisclosureSummary>
+        <div className="space-y-1 pb-3 text-sm text-muted-foreground">
+          <p>{t('uxs10.mapPrinciple', 'One direct-cost account receives each category budget. Additional project-tagged accounts can count toward actuals only.')}</p>
+          <p>{t('admin.budgetMap.multiNote', 'A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.')}</p>
+        </div>
+      </details>
 
       {categoriesNeedingPosting.length > 0 && <div className="mt-4 border-y border-border py-3" role="region" aria-label={t('uxs10.proposalsLabel', 'Suggested posting accounts')}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h3 className="text-sm font-semibold">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
-            <p className="mt-1 text-[13px] text-muted-foreground">{t('uxs10.proposalsHelp', 'Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.')}</p>
+            <h3 className="text-xl font-bold tracking-[-0.01em]">{t('uxs10.proposalsTitle', 'Review suggested posting accounts')}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t('uxs10.proposalsHelp', 'Suggestions use enabled ledger accounts grouped under direct costs. Existing choices are kept; unclear categories need your decision.')}</p>
           </div>
           {proposals.length > 0 && canManage && (
             <Button variant="primary" onClick={() => setConfirmProposals(true)}>
@@ -343,19 +374,23 @@ const BudgetAccountMap: React.FC = () => {
             </Button>
           )}
         </div>
-        {catalogueQuery.isPending && <p className="mt-2 text-[13px] text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
-        {catalogueQuery.isError && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-[13px] text-destructive-text" role="alert">{t('uxs10.catalogueError', 'The account chart is unavailable. No suggestions were applied.')}</p><Button variant="outline" size="sm" onClick={() => void catalogueQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></div>}
-        {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; these choices come from the current ERP chart.')}</p>}
-        {catalogue && proposals.length === 0 && <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
-        {proposalError && <p className="mt-2 text-[13px] text-destructive-text" role="alert">{proposalError}</p>}
+        {catalogueQuery.isPending && <p className="mt-2 text-sm text-muted-foreground" role="status">{t('uxs10.catalogueLoading', 'Loading the account chart…')}</p>}
+        {catalogueQuery.isError && <div className="mt-2 flex flex-wrap items-center gap-2"><p className="text-sm text-destructive-text" role="alert">{t('uxs10.catalogueError', 'The account chart is unavailable. No suggestions were applied.')}</p><Button variant="outline" size="sm" onClick={() => void catalogueQuery.refetch()}>{t('admin.retry', 'Retry')}</Button></div>}
+        {catalogue?.source === 'erp-fallback' && <p className="mt-2 text-sm text-muted-foreground">{t('uxs10.catalogueFallback', 'The saved account chart is empty; these choices come from the current ERP chart.')}</p>}
+        {catalogue && proposals.length === 0 && <p className="mt-2 text-sm text-muted-foreground">{t('uxs10.noProposal', 'No clear direct-cost match is available. Resolve the account with your operator; an overhead account will not be substituted.')}</p>}
+        {proposalError && <p className="mt-2 text-sm text-destructive-text" role="alert">{proposalError}</p>}
       </div>}
       <div className="mt-3.5">
         <DataTable
-          rows={[...BUDGET_CATEGORIES]}
+          rows={visibleCategories}
           columns={columns}
           rowKey={(category) => category}
           tableId="budget-account-map"
           accessibleName={t('admin.budgetMap.title', 'Budget account map')}
+          state={filterActive && visibleCategories.length === 0 ? 'empty' : undefined}
+          emptyTitle={t('administration:admin.postingAccounts.noMatches', 'No posting accounts match these filters')}
+          emptySub={t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}
+          emptyAction={{ label: t('administration:admin.postingAccounts.clear', 'Clear filters'), onClick: activeFilters.onClear }}
         />
       </div>
 
@@ -561,8 +596,8 @@ const MapFormModal: React.FC<MapFormModalProps> = ({ target, hasAccounts, allRow
             searchPlaceholder={t('uxs10.accountSearch', 'Search account name or number')}
             noun={t('uxs10.accountNoun', 'account')}
           />
-          {isPushTarget && availableAccounts.length === 0 && <p className="text-[13px] text-muted-foreground">{t('uxs10.noPostingAccounts', 'No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.')}</p>}
-          {!isPushTarget && <p className="text-[13px] text-muted-foreground">{t('uxs10.countOnlyHelp', 'This account counts toward actuals for the category; budgets are never posted to it.')}</p>}
+          {isPushTarget && availableAccounts.length === 0 && <p className="text-sm text-muted-foreground">{t('uxs10.noPostingAccounts', 'No unused direct-cost ledger accounts are available. Ask your operator to add a suitable account; overhead is not a substitute.')}</p>}
+          {!isPushTarget && <p className="text-sm text-muted-foreground">{t('uxs10.countOnlyHelp', 'This account counts toward actuals for the category; budgets are never posted to it.')}</p>}
         </FormGrid>
       </FormSection>
     </EntityFormModal>

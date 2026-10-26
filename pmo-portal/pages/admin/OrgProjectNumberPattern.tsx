@@ -15,8 +15,16 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 const SYSTEM_DEFAULT = 'PRJ-{YY}-{SEQ4}';
 
 /** Admin control for the org-wide PMO-owned project-number display pattern. */
-const OrgProjectNumberPattern: React.FC = () => {
+interface OrgProjectNumberPatternProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
+
+const OrgProjectNumberPattern: React.FC<OrgProjectNumberPatternProps> = ({ editing: controlledEditing, onEdit, onClose }) => {
   const { t } = useTranslation();
+  const [localEditing, setLocalEditing] = useState(controlledEditing ?? true);
+  const editing = onEdit ? controlledEditing ?? localEditing : localEditing;
   const may = usePermission();
   const canManage = may('manage', 'orgProjectNumbering');
   const { toast } = useToast();
@@ -51,26 +59,42 @@ const OrgProjectNumberPattern: React.FC = () => {
         t('admin.projectNumberPattern.toast.detail', 'New project numbers will use this pattern. Existing project numbers are unchanged.'),
         'success',
       );
+      closeEditor();
     } catch (error) {
       const { headline, detail } = classifyMutationError(error);
       toast(headline, detail, 'warning');
     }
   };
 
+  const openEditor = () => onEdit ? onEdit() : setLocalEditing(true);
+  const closeEditor = () => {
+    if (onClose) onClose();
+    else setLocalEditing(false);
+    setDraft(current);
+  };
+  const preview = (pattern: string) => {
+    if (!validateProjectNumberPattern(pattern).valid) return null;
+    return previewYear === null ? (
+      <div className="space-y-2 text-sm text-muted-foreground" role="status">
+        {timezoneReadPending ? <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p> : <>
+          <p>{t('uxCorrectness.projectNumberPattern.previewUnavailable', 'Preview unavailable')}</p>
+          <Button type="button" variant="outline" onClick={() => void timezoneQuery.refetch()}>{t('uxCorrectness.projectNumberPattern.retryPreview', 'Retry preview')}</Button>
+        </>}
+      </div>
+    ) : (
+      <p data-testid="org-project-number-pattern-preview" className="text-sm text-muted-foreground">
+        {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
+        <span className="font-mono">{previewProjectNumber(pattern, previewYear)}</span>
+        <span className="ml-1.5">{t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}</span>
+      </p>
+    );
+  };
+
   return (
     <section id="org-project-number-pattern" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.projectNumberPattern.title', 'Project number pattern')}>
-      <h2 className="text-base font-semibold tracking-tight">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">
         {t('admin.projectNumberPattern.title', 'Project number pattern')}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t(
-          'admin.projectNumberPattern.description',
-          'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
-        )}
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}
-      </p>
       <div className="mt-3 max-w-md">
         {loadFailed ? (
           <ListState
@@ -82,8 +106,29 @@ const OrgProjectNumberPattern: React.FC = () => {
           />
         ) : data === undefined ? (
           <ListState variant="loading" rows={1} testId="org-project-number-pattern-loading" />
+        ) : canManage && !editing ? (
+          <div className="space-y-3">
+            <dl className="space-y-1 text-sm">
+              <div>
+                <dt className="text-xs font-semibold text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</dt>
+                <dd className="mt-1 break-words font-mono text-xl font-bold tracking-[-0.01em]">{current}</dd>
+              </div>
+            </dl>
+            {preview(current)}
+            <Button type="button" variant="outline" className="min-h-11" onClick={openEditor}>{t('administration:admin.projectNumberPattern.edit', 'Edit numbering')}</Button>
+          </div>
         ) : canManage ? (
           <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">{t('administration:admin.projectNumberPattern.current', 'Current pattern:')} <span className="font-mono font-semibold text-foreground">{current}</span></p>
+            <div className="space-y-1 text-sm text-muted-foreground">
+              <p>
+                {t(
+                  'admin.projectNumberPattern.description',
+                  'Format PMO-assigned project numbers. The built-in pattern is PRJ-{YY}-{SEQ4}; a custom pattern must use {CLIENT}, {YY}, and {SEQ4} exactly once each.',
+                )}
+              </p>
+              <p>{t('admin.projectNumberPattern.immutable', 'This affects future proposals only; existing project numbers do not change.')}</p>
+            </div>
             <TextField
               id="org-project-number-pattern-input"
               label={t('admin.projectNumberPattern.label', 'Project number pattern')}
@@ -95,46 +140,30 @@ const OrgProjectNumberPattern: React.FC = () => {
               mono
               disabled={mutation.isPending}
             />
-            {validation.valid && (previewYear === null ? (
-              <div className="space-y-2 text-[13px] text-muted-foreground" role="status">
-                {timezoneReadPending ? (
-                  <p>{t('uxCorrectness.projectNumberPattern.timezonePending', 'Checking organisation year…')}</p>
-                ) : (
-                  <>
-                    <p>{t('uxCorrectness.projectNumberPattern.previewUnavailable', 'Preview unavailable')}</p>
-                    <Button type="button" variant="outline" onClick={() => void timezoneQuery.refetch()}>
-                      {t('uxCorrectness.projectNumberPattern.retryPreview', 'Retry preview')}
-                    </Button>
-                  </>
-                )}
-              </div>
-            ) : (
-              <p data-testid="org-project-number-pattern-preview" className="text-[13px] text-muted-foreground">
-                {t('uxs31.projectNumberPattern.preview', 'Preview:')}{' '}
-                <span className="font-mono">{previewProjectNumber(draft, previewYear)}</span>
-                <span className="ml-1.5">
-                  {t('uxs31.projectNumberPattern.previewNote', 'Illustrative only; the actual number is assigned when a project is created.')}
-                </span>
-              </p>
-            ))}
-            <Button
-              type="button"
-              onClick={() => void save()}
-              disabled={!validation.valid || draft === current}
-              loading={mutation.isPending}
-            >
-              {mutation.isPending
-                ? t('admin.projectNumberPattern.saving', 'Saving…')
-                : t('admin.projectNumberPattern.save', 'Save pattern')}
-            </Button>
+            {preview(draft)}
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" className="min-h-11" onClick={closeEditor}>{t('admin.cancel', 'Cancel')}</Button>
+              <Button
+                type="button"
+                onClick={() => void save()}
+                disabled={!validation.valid || draft === current}
+                loading={mutation.isPending}
+              >
+                {mutation.isPending
+                  ? t('admin.projectNumberPattern.saving', 'Saving…')
+                  : t('admin.projectNumberPattern.save', 'Save pattern')}
+              </Button>
+            </div>
           </div>
         ) : (
-          <p data-testid="org-project-number-pattern-readonly" className="text-sm">
-            <span className="font-semibold">{current}</span>
-            <span className="ml-2 text-muted-foreground">
-              {t('admin.projectNumberPattern.adminOnly', 'Only an Admin can change this.')}
-            </span>
-          </p>
+          <div data-testid="org-project-number-pattern-readonly" className="space-y-2 text-sm">
+            <p className="space-y-1">
+              <span className="block text-xs font-semibold text-muted-foreground">{t('administration:admin.projectNumberPattern.saved', 'Saved pattern')}</span>
+              <span className="block break-words font-mono text-xl font-bold tracking-[-0.01em]">{current}</span>
+            </p>
+            {preview(current)}
+            <p className="text-muted-foreground">{t('admin.projectNumberPattern.adminOnly', 'Only an Admin can change this.')}</p>
+          </div>
         )}
       </div>
     </section>

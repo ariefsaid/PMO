@@ -159,9 +159,12 @@ describe('AgentCostMetrics', () => {
     expect(onRetry).toHaveBeenCalledOnce();
   });
 
-  it('empty state (both arrays empty) renders ListState empty with a message', () => {
+  it('zero-data scope keeps the KPI and figure frame visible with an explicit empty basis', () => {
     render(<AgentCostMetrics {...defaultProps} summaryRows={[]} runStatsRows={[]} />);
-    expect(screen.getByText(/no agent cost data yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no metrics for this selection/i)).toBeInTheDocument();
+    expect(screen.getAllByText('—')).toHaveLength(5);
+    expect(screen.getByRole('figure', { name: /Cache hit-rate by month/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
   });
 
   // ── KPI derivation ─────────────────────────────────────────────────────────
@@ -231,13 +234,14 @@ describe('AgentCostMetrics', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(3);
   });
 
-  // ── Chart graceful single-month fallback ─────────────────────────────────
+  // ── Chart form remains stable as a filter narrows the selected months ─────
 
-  it('renders a graceful placeholder (no chart) when summaryRows span only one month', () => {
-    const { container } = render(
+  it('keeps the line chart, legend and frame when summaryRows span one month', () => {
+    render(
       <AgentCostMetrics {...defaultProps} summaryRows={[summaryRows[0]]} />,
     );
-    expect(container.querySelector('.recharts-wrapper')).not.toBeInTheDocument();
+    expect(screen.getByRole('figure', { name: /1 month/i })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Chart legend' })).toHaveTextContent('Cache hit-rate');
     expect(screen.getByText(/more months/i)).toBeInTheDocument();
   });
 
@@ -287,7 +291,7 @@ describe('AgentCostMetrics', () => {
     expect(blocking).toEqual([]);
   });
 
-  it('AC-ACD-009 empty state: axe-core zero blocking violations', async () => {
+  it('AC-ACD-009 zero-data figure: axe-core zero blocking violations', async () => {
     const { container } = render(
       <AgentCostMetrics {...defaultProps} summaryRows={[]} runStatsRows={[]} />,
     );

@@ -372,14 +372,28 @@ export const ShellChrome: React.FC = () => {
   // context preserves Sales Pipeline as the originating collection lens.
   const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
   const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
-  const usesContentPageFrame = pathname === '/' || pathname === '/projects' || projectRecordRoute || pathname === '/approvals' || pathname === '/timesheets';
-  const areaName = pathname === '/'
-    ? t('shell.nav.dashboard', 'Dashboard')
-    : pathname === '/approvals'
-      ? t('shell.nav.approvals', 'Approvals')
-      : pathname === '/timesheets'
-        ? t('shell.nav.timesheets', 'Timesheets')
-        : t('shell.nav.projects', 'Projects');
+  const administrationRoute = pathname === '/administration' || pathname.startsWith('/administration/');
+  const personalIntegrationsRoute = pathname === '/integrations';
+  const usesContentPageFrame =
+    pathname === '/' ||
+    pathname === '/projects' ||
+    projectRecordRoute ||
+    pathname === '/approvals' ||
+    pathname === '/timesheets' ||
+    administrationRoute ||
+    personalIntegrationsRoute;
+  const areaName =
+    pathname === '/'
+      ? t('shell.nav.dashboard', 'Dashboard')
+      : pathname === '/approvals'
+        ? t('shell.nav.approvals', 'Approvals')
+        : pathname === '/timesheets'
+          ? t('shell.nav.timesheets', 'Timesheets')
+          : administrationRoute
+            ? t('shell.nav.administration', 'Administration')
+            : personalIntegrationsRoute
+              ? t('shell.nav.integrations', 'My integrations')
+              : t('shell.nav.projects', 'Projects');
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator

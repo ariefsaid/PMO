@@ -16,6 +16,11 @@ import type { OrgVendorTaxAccounts as Accounts } from '@/src/lib/db/orgs';
 
 const QUERY_KEY = 'org-vendor-tax-accounts';
 const NO_ACCOUNTS: BudgetPostingAccount[] = [];
+interface OrgVendorTaxAccountsProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
 type AccountField = 'inputVatAccount' | 'pph23PayableAccount' | 'pph42PayableAccount';
 type VendorTaxPurpose = Exclude<TaxSetupPurpose, 'receipt-withholding'>;
 
@@ -38,8 +43,9 @@ function valueOption(value: string, choices: BudgetPostingAccount[], staleLabel?
   return account ? accountOption(account) : { value, label: value, sub: staleLabel };
 }
 
-export default function OrgVendorTaxAccounts() {
+export default function OrgVendorTaxAccounts({ editing, onEdit, onClose }: OrgVendorTaxAccountsProps = {}) {
   const { t } = useTranslation();
+  const isEditing = editing ?? true;
   const { currentUser } = useAuth();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -116,6 +122,7 @@ export default function OrgVendorTaxAccounts() {
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.vendorTaxSaved', 'Vendor tax accounts saved'), undefined, 'success');
+      onClose?.();
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -155,10 +162,10 @@ export default function OrgVendorTaxAccounts() {
 
   return (
     <section aria-labelledby="vendor-tax-accounts-heading">
-      <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+      <h2 id="vendor-tax-accounts-heading" tabIndex={-1} className="scroll-mt-4 text-xl font-bold">
         {t('uxs11.vendorTaxHeading', 'Vendor bill tax accounts')}
       </h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <p className="mt-1 text-sm text-muted-foreground">
         {t('uxs11.vendorTaxIntro', 'Choose the company-chart accounts used for input VAT and tax withheld from vendor bills. Input VAT candidates use Asset accounts; PPh payable candidates use Liability accounts.')}
       </p>
       <div className="mt-3 max-w-md">
@@ -166,7 +173,7 @@ export default function OrgVendorTaxAccounts() {
           <ListState variant="error" title={t('uxs11.vendorTaxLoadError', "Couldn't load the tax accounts")} onRetry={() => void query.refetch()} />
         ) : query.isPending ? (
           <ListState variant="loading" rows={3} />
-        ) : canManage ? (
+        ) : canManage && isEditing ? (
           <form
             onSubmit={(event) => {
               event.preventDefault();
@@ -176,7 +183,7 @@ export default function OrgVendorTaxAccounts() {
             className="space-y-3"
           >
             {remoteChanged && (
-              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+              <div role="status" className="rounded-md bg-secondary px-3 py-2 text-sm text-secondary-foreground">
                 <p>{t('uxs11.vendorTaxRemoteChanged', 'The saved accounts changed. Your edits are kept; reload the saved values to discard them.')}</p>
                 <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
                   const remote = query.data;
@@ -188,8 +195,8 @@ export default function OrgVendorTaxAccounts() {
                 }}>{t('uxs11.reloadSaved', 'Reload saved values')}</Button>
               </div>
             )}
-            {commonStatus && <p role="status" className="text-[13px] text-muted-foreground">{commonStatus}</p>}
-            {binding.isError && <div role="status" className="space-y-2 text-[13px] text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+            {commonStatus && <p role="status" className="text-sm text-muted-foreground">{commonStatus}</p>}
+            {binding.isError && <div role="status" className="space-y-2 text-sm text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
             {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
             {fields.map((field) => {
               const value = values[field.key];
@@ -227,8 +234,8 @@ export default function OrgVendorTaxAccounts() {
                     disabled={mutation.isPending || !canBrowse}
                     error={isUnavailableDraftChoice ? t('v024Polish.accountDraftUnavailable', 'This unsaved choice is no longer available in the current chart. Choose another account or clear this field.') : undefined}
                   />
-                  {savedUnavailableCopy && <p className="text-[13px] text-muted-foreground">{savedUnavailableCopy}</p>}
-                  {canBrowse && fieldCandidates.length === 0 && <p className="text-[13px] text-muted-foreground">{t(field.emptyKey, field.empty)}</p>}
+                  {savedUnavailableCopy && <p className="text-sm text-muted-foreground">{savedUnavailableCopy}</p>}
+                  {canBrowse && fieldCandidates.length === 0 && <p className="text-sm text-muted-foreground">{t(field.emptyKey, field.empty)}</p>}
                 </div>
               );
             })}
@@ -236,15 +243,25 @@ export default function OrgVendorTaxAccounts() {
             <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSave}>
               {t('uxs11.saveVendorTax', 'Save accounts')}
             </Button>
+            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('integrations:uxs11.doneEditing', 'Done editing')}</Button>}
           </form>
+        ) : canManage ? (
+          <div className="space-y-3">
+            <dl className="space-y-1 text-sm">
+              <div><dt className="inline text-muted-foreground">{t('uxs11.inputVatLabel', 'Input VAT account')}: </dt><dd className="inline font-medium">{current?.inputVatAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline font-medium">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
+              <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline font-medium">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
+            </dl>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editVendorTaxAccounts', 'Edit vendor tax accounts')}</Button>
+          </div>
         ) : (
           <>
-            <dl className="space-y-1 text-[13px]">
+            <dl className="space-y-1 text-sm">
               <div><dt className="inline text-muted-foreground">{t('uxs11.inputVatLabel', 'Input VAT account')}: </dt><dd className="inline">{current?.inputVatAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph23Label', 'PPh 23 payable account')}: </dt><dd className="inline">{current?.pph23PayableAccount ?? notConfigured}</dd></div>
               <div><dt className="inline text-muted-foreground">{t('uxs11.pph42Label', 'PPh 4(2) payable account')}: </dt><dd className="inline">{current?.pph42PayableAccount ?? notConfigured}</dd></div>
             </dl>
-            <p className="mt-2 text-[13px] text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</p>
           </>
         )}
       </div>

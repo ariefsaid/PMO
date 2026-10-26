@@ -22,6 +22,7 @@ import { repositories } from '@/src/lib/repositories';
 import type { ExpenseAccountMapRow } from '@/src/lib/repositories/expensePostings';
 import { EXPENSE_ACCOUNT_KEYS, type ExpenseAccountKey } from '@/src/lib/adapterSeam/erpnext/expenseAccountRules';
 import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadiness';
+import { DEFAULT_POSTING_ACCOUNT_FILTERS, type PostingAccountFilters } from './postingAccountFilters';
 
 /**
  * Administration › Accounting › Expense account map (#775 phase B, FR-EXP-116). The 8 keys an expense posting needs
@@ -36,8 +37,9 @@ import { useExpensePostingReadiness } from '@/src/hooks/useExpensePostingReadine
  */
 const QUERY_KEY = ['expense-account-map'] as const;
 
-const ExpenseAccountMap: React.FC = () => {
+const ExpenseAccountMap: React.FC<{ filters?: PostingAccountFilters }> = ({ filters }) => {
   const { t } = useTranslation();
+  const activeFilters = filters ?? { ...DEFAULT_POSTING_ACCOUNT_FILTERS, onClear: () => undefined };
   const canManage = usePermission()('manage', 'integration');
   const navigate = useNavigate();
   const readiness = useExpensePostingReadiness();
@@ -67,6 +69,17 @@ const ExpenseAccountMap: React.FC = () => {
     'Local transport': t('admin.expenseMap.key.localTransport', 'Local transport'),
     Other: t('admin.expenseMap.key.other', 'Other'),
   })[key];
+  const term = activeFilters.search.trim().toLocaleLowerCase();
+  const visibleKeys = EXPENSE_ACCOUNT_KEYS.filter((key) => {
+    const account = byKey.get(key);
+    if (activeFilters.coverage === 'configured' && !account) return false;
+    if (activeFilters.coverage === 'needs-setup' && account) return false;
+    return !term || `${label(key)} ${account ?? ''}`.toLocaleLowerCase().includes(term);
+  }).sort((a, b) => {
+    const result = label(a).localeCompare(label(b), undefined, { sensitivity: 'base' });
+    return activeFilters.sort === 'desc' ? -result : result;
+  });
+  const filterActive = Boolean(activeFilters.search.trim()) || activeFilters.coverage !== 'all';
   const invalidate = () => qc.invalidateQueries({ queryKey: QUERY_KEY });
   const save = useMutation({
     mutationFn: (v: { accountKey: ExpenseAccountKey; erpAccount: string }) => repositories.integrations.saveExpenseAccount(v),
@@ -131,8 +144,8 @@ const ExpenseAccountMap: React.FC = () => {
 
   return (
     <section id="expense-account-map" tabIndex={-1} className="scroll-mt-4" aria-label={t('admin.expenseMap.title', 'Expense account map')}>
-      <h2 className="text-[15px] font-semibold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
-      <p className="mt-1 text-[13px] text-muted-foreground">
+      <h2 className="text-xl font-bold tracking-[-0.01em]">{t('admin.expenseMap.title', 'Expense account map')}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
         {t(
           'admin.expenseMap.description',
           'The ERPNext accounts approved expense claims and cash advances post to. A posting that needs an unmapped account stops and is reported.',
@@ -159,30 +172,43 @@ const ExpenseAccountMap: React.FC = () => {
         </GateNotice>
       )}
       {isReady && unmappedCount > 0 && (
-        <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+        <p role="status" className="mt-3 text-sm text-muted-foreground">
           {t('uxs12.expensePosting.mapIncomplete', '{{count}} of {{total}} accounts are not mapped yet. A posting that needs an unmapped account stops until it is mapped.', { count: unmappedCount, total: EXPENSE_ACCOUNT_KEYS.length })}
         </p>
       )}
       {/* AC-MOBILE-OVERFLOW-001 — each row wraps (`flex-wrap`, `break-words`), so a long account name never pushes
           past 390px. */}
-      <ul className="mt-3.5 flex flex-col">
-        {EXPENSE_ACCOUNT_KEYS.map((key) => {
+      {filterActive && visibleKeys.length === 0 ? (
+        <div className="mt-3.5 rounded-md border border-border p-4" role="status">
+          <p className="text-sm font-medium">{t('administration:admin.postingAccounts.noMatches', 'No posting accounts match these filters')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('administration:admin.postingAccounts.clearHelp', 'Clear the filters to see all budget categories and expense accounts.')}</p>
+          <Button variant="outline" className="mt-3 min-h-11" onClick={activeFilters.onClear}>{t('administration:admin.postingAccounts.clear', 'Clear filters')}</Button>
+        </div>
+      ) : <ul className="mt-3.5 flex flex-col">
+        {visibleKeys.map((key) => {
           const account = byKey.get(key);
           return (
             <li
               key={key}
               data-testid="expense-account-row"
-              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-[13.5px]"
+              className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 text-sm"
             >
               <span className="font-medium">{label(key)}</span>
+              <span
+                role="group"
+                className="min-w-0 flex-1 break-words"
+                aria-label={t('administration:admin.postingAccounts.account', 'Account')}
+              >
+                {account ?? <span className="text-muted-foreground">{t('administration:admin.postingAccounts.unmapped', 'Not mapped')}</span>}
+              </span>
               <span className="flex min-w-0 flex-wrap items-center gap-2">
                 {account
-                  ? <span className="break-words">{account}</span>
+                  ? <StatusPill variant="won">{t('administration:admin.postingAccounts.coverage.configured', 'Configured')}</StatusPill>
                   // Until the `expenses` domain can be employed (#901, like ErpSetupChecklist), nothing posts, so an
                   // unmapped key stops nothing: say so plainly instead of warning.
                   : isReady
                     ? <StatusPill variant="warn">{t('admin.expenseMap.unmapped', 'Not mapped — expense posting stops')}</StatusPill>
-                    : <span className="text-muted-foreground">{t('admin.expenseMap.unmappedIdle', 'Not mapped')}</span>}
+                    : <span className="text-muted-foreground">{t('administration:admin.postingAccounts.coverage.needsSetup', 'Needs setup')}</span>}
                 {canManage && (
                   <>
                     {(isReady || account) && <Button variant="ghost" size="sm" disabled={!isReady} onClick={() => { setSaveError(null); setEditing(key); }}>
@@ -201,7 +227,7 @@ const ExpenseAccountMap: React.FC = () => {
             </li>
           );
         })}
-      </ul>
+      </ul>}
 
       {editing && (
         <AccountForm

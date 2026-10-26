@@ -51,18 +51,19 @@ const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Adminis
 const sectionLink = (page: Page, name: string) => sectionNav(page).getByRole('link', { name });
 const panel = (page: Page, testid: string) => page.getByTestId(testid);
 
-/** Asserts the location-, heading- and panel-coherence oracle for one selected section. */
+/** Asserts route-job heading, selected destination, breadcrumb and panel coherence. */
 async function expectSectionSelected(
   page: Page,
   s: (typeof ORGANIZATION_SECTIONS)[number],
   opts: { expectUrl?: string } = {},
 ) {
   await expect(page).toHaveURL(opts.expectUrl ?? new RegExp(`${s.url}$`));
-  // Source-of-truth heading: the page-level h1 stays "Administration"; the selected panel owns an h2.
-  await expect(page.getByRole('heading', { level: 1, name: 'Administration' })).toBeVisible();
+  // The selected route job owns the sole page h1; the area name remains in the breadcrumb.
+  await expect(page.getByRole('heading', { level: 1, name: s.heading })).toBeVisible();
+  await expect(page.locator('[data-page-frame]')).toBeVisible();
+  await expect(page.locator('[data-shell-area-name]')).toHaveText('Administration');
   await expect(sectionLink(page, s.name)).toHaveAttribute('aria-current', 'page');
   await expect(panel(page, s.testid)).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: s.heading })).toBeVisible();
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' }).locator('[aria-current="page"]'))
     .toHaveText(s.heading);
   // Exactly one destination is active and exactly one panel is mounted — no unrelated panel competes.
@@ -95,7 +96,7 @@ async function navigateAndRestore(
   await expectSectionSelected(page, from);
 }
 
-test('AC-ADMIA-001: /administration aliases to the Users destination and exposes only the six organization sections', async ({ page }) => {
+test('AC-ADMIA-001: /administration resolves to the Users job and leaves Operator tools out of organization navigation', async ({ page }) => {
   await signIn(page, ADMIN);
   await page.goto('/administration');
 
@@ -104,10 +105,13 @@ test('AC-ADMIA-001: /administration aliases to the Users destination and exposes
   await expectOnlySelectedPanel(page, ORGANIZATION_SECTIONS[0]);
   // The user directory itself is visible (FR-ADMIA-005's reachable surface — read-only observe).
   await expect(page.getByRole('searchbox', { name: 'Search users' })).toBeVisible();
-  await expect(page.getByText('All users')).toBeVisible();
+  await expect(page.getByTestId('liststate-loading')).toHaveCount(0);
+  await expect(page.getByRole('table')).toBeVisible();
 
-  // A non-Operator org Admin sees exactly the organization destinations, never Usage/Features.
-  await expect(sectionNav(page).getByRole('link')).toHaveCount(ORGANIZATION_SECTIONS.length);
+  // A non-Operator org Admin can reach every organization destination, never Usage/Features.
+  for (const section of ORGANIZATION_SECTIONS) {
+    await expect(sectionLink(page, section.name)).toHaveAttribute('href', section.url);
+  }
   await expect(sectionNav(page).getByRole('link', { name: 'Usage' })).toHaveCount(0);
   await expect(sectionNav(page).getByRole('link', { name: 'Features' })).toHaveCount(0);
 });
@@ -132,6 +136,15 @@ test('AC-ADMIA-001: Credits → Exchange rates; browser Back restores Credits', 
   await navigateAndRestore(page, ORGANIZATION_SECTIONS[4], ORGANIZATION_SECTIONS[5]);
 });
 
+test('Shell frame: My integrations uses the shared page frame and personal shell label', async ({ page }) => {
+  await signIn(page, ADMIN);
+  await page.goto('/integrations');
+
+  await expect(page.locator('[data-page-frame]')).toBeVisible();
+  await expect(page.locator('[data-shell-area-name]')).toHaveText('My integrations');
+  await expect(page.getByRole('heading', { level: 1, name: 'My integrations' })).toBeVisible();
+});
+
 test('AC-ADMIA-001/003: the historical budget map bookmark resolves to Accounting setup with the fragment intact', async ({ page }) => {
   await signIn(page, ADMIN);
   await page.goto('/administration#budget-account-map');
@@ -140,7 +153,7 @@ test('AC-ADMIA-001/003: the historical budget map bookmark resolves to Accountin
   await expect(page).toHaveURL(/\/administration\/accounting#budget-account-map$/);
   await expect(sectionLink(page, 'Accounting setup')).toHaveAttribute('aria-current', 'page');
   await expect(panel(page, 'administration-panel-accounting')).toBeVisible();
-  await expect(page.getByRole('heading', { level: 2, name: 'Accounting setup' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Accounting setup' })).toBeVisible();
 
   // The budgeting deep-link target is genuinely reachable after Accounting mounts (FR-ADMIA-003).
   const map = page.locator('#budget-account-map');

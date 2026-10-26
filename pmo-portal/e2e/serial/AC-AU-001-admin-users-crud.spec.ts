@@ -48,6 +48,41 @@ async function openRowMenu(page: Page, row: ReturnType<typeof page.locator>) {
   await row.getByRole('button', { name: 'Row actions' }).click();
 }
 
+async function setUserRole(page: Page, email: string, role: string) {
+  await openRowMenu(page, userRow(page, email));
+  await page.getByRole('menuitem', { name: /edit role/i }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByLabel(/role/i).selectOption(role);
+  await editor.getByRole('button', { name: /save role/i }).click();
+  const confirmation = page.getByRole('dialog').getByRole('button', { name: /change role/i });
+  if (await confirmation.count()) await confirmation.click();
+  await expect(userRow(page, email).getByRole('cell', { name: role, exact: true })).toBeVisible({ timeout: 15_000 });
+}
+
+async function setUserManager(page: Page, email: string, manager: string) {
+  await openRowMenu(page, userRow(page, email));
+  await page.getByRole('menuitem', { name: /change manager/i }).click();
+  const editor = page.getByRole('dialog');
+  await editor.getByRole('combobox', { name: /manager/i }).click();
+  const listbox = page.getByRole('listbox');
+  await expect(listbox).toBeVisible({ timeout: 8_000 });
+  await listbox.getByText(manager, { exact: true }).click();
+  await editor.getByRole('button', { name: /save manager/i }).click();
+  await expect(editor).not.toBeVisible({ timeout: 15_000 });
+  await expect(userRow(page, email).getByRole('button', { name: manager, exact: true })).toBeVisible({ timeout: 15_000 });
+}
+
+/** Repair this journey's shared fixture if a prior interrupted run stopped before cleanup. */
+async function ensureSeedEngineerState(page: Page, email: string, manager: string) {
+  const row = userRow(page, email);
+  if (await row.getByRole('cell', { name: 'Engineer', exact: true }).count() === 0) {
+    await setUserRole(page, email, 'Engineer');
+  }
+  if (await row.getByRole('button', { name: manager, exact: true }).count() === 0) {
+    await setUserManager(page, email, manager);
+  }
+}
+
 // ── AC-AU-001 / AC-AU-003 / AC-AU-004 — full Admin management journey ──
 
 test(
@@ -61,7 +96,9 @@ test(
     await login(page, 'admin@acme.test');
     await page.goto('/administration');
     await waitReady(page);
+    await ensureSeedEngineerState(page, engineerEmail, seedManager);
 
+    try {
     // ── Step 1: AC-AU-001 — directory loads, the invite affordance is visible for Admin ──
     // FR-INV-004/006 (S4): the interim "Copy invite instructions" clipboard workaround was replaced
     // with a real "Invite user" button → InviteFormModal → admin-invite-user edge fn. The deep invite
@@ -104,34 +141,12 @@ test(
 
     // GOAL ORACLE: the manager column for Tomas now shows Mara Lindqvist.
     await expect(mgrDialog).not.toBeVisible({ timeout: 15_000 });
-    await expect(userRow(page, engineerEmail).getByText(newManager)).toBeVisible({ timeout: 15_000 });
-
-    // ── Restore Tomas's role to Engineer so the seed stays reusable ──
-    await openRowMenu(page, userRow(page, engineerEmail));
-    await page.getByRole('menuitem', { name: /edit role/i }).click();
-    const restoreDialog = page.getByRole('dialog');
-    await restoreDialog.getByLabel(/role/i).selectOption('Engineer');
-    await restoreDialog.getByRole('button', { name: /save role/i }).click();
-    await page.getByRole('dialog').getByRole('button', { name: /change role/i }).click();
-    await expect(
-      userRow(page, engineerEmail).getByRole('cell', { name: 'Engineer', exact: true }),
-    ).toBeVisible({ timeout: 15_000 });
-
-    // ── Restore Tomas's LINE MANAGER to Diego Salvatierra, through the same UI ──
-    // Not cosmetic: the seeded Tomas→Diego chain is what makes pm@ the approver of Tomas's week
-    // (transition_timesheet's approve arm is line-manager-exclusive). Leaving it pointed at Mara
-    // silently disarms every downstream approval fixture. Asserted, not merely attempted.
-    await openRowMenu(page, userRow(page, engineerEmail));
-    await page.getByRole('menuitem', { name: /change manager/i }).click();
-    const mgrRestoreDialog = page.getByRole('dialog');
-    await expect(mgrRestoreDialog).toBeVisible({ timeout: 8_000 });
-    await mgrRestoreDialog.getByRole('combobox', { name: /manager/i }).click();
-    const restoreListbox = page.getByRole('listbox');
-    await expect(restoreListbox).toBeVisible({ timeout: 8_000 });
-    await restoreListbox.getByText(seedManager, { exact: true }).click();
-    await mgrRestoreDialog.getByRole('button', { name: /save manager/i }).click();
-    await expect(mgrRestoreDialog).not.toBeVisible({ timeout: 15_000 });
-    await expect(userRow(page, engineerEmail).getByText(seedManager)).toBeVisible({ timeout: 15_000 });
+    await expect(userRow(page, engineerEmail).getByRole('button', { name: newManager, exact: true })).toBeVisible({ timeout: 15_000 });
+    } finally {
+      await page.keyboard.press('Escape').catch(() => {});
+      // Restore shared seed state even when an assertion fails part-way through the journey.
+      await ensureSeedEngineerState(page, engineerEmail, seedManager);
+    }
   },
 );
 

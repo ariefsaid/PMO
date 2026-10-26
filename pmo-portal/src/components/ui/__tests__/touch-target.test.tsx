@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { ViewToggle } from '../ViewToggle';
 import { KPITile } from '../KPITile';
+import { buttonClasses } from '../buttonClasses';
 
 /**
  * WCAG 2.5.5 Target Size (AA) — item D. Compact controls (28px segmented-control
@@ -55,5 +56,9 @@ describe('touch-target hit-area expansion (WCAG 2.5.5)', () => {
     );
     const help = screen.getByRole('button', { name: /Help: On-hand margin/i });
     expect(help.className).toContain('touch-target');
+  });
+
+  it('default buttons carry the coarse-pointer hit-area hook', () => {
+    expect(buttonClasses('primary', 'default')).toContain('touch-target');
   });
 });

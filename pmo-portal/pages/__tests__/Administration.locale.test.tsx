@@ -1,9 +1,6 @@
 /**
- * FR-L10N — the EMBEDDED Users and Credits section headings render the translated shell label in
- * a Bahasa session, not a duplicated English constant.
- *
- * The section NAV labels already localize (admin.nav.*); these assert the selected panel's own
- * <h2> (the section-header molecule) agrees, so heading and nav never diverge in `id`.
+ * FR-L10N — the selected Users and Credits route jobs render as the translated h1 in a Bahasa
+ * session. The task navigation keeps its own translated labels below the route heading.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -92,16 +89,16 @@ const renderPage = (section: 'users' | 'credits') =>
     </I18nextProvider>,
   );
 
-describe('FR-L10N — embedded Users & Credits headings agree with the shell in Bahasa', () => {
-  it('renders the Users embedded section heading as "Pengguna"', () => {
+describe('FR-L10N — Users & Credits route headings render in Bahasa', () => {
+  it('renders the Users route job as the h1 "Pengguna"', () => {
     renderPage('users');
-    expect(screen.getByRole('heading', { level: 2, name: 'Pengguna' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Pengguna' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Users' })).not.toBeInTheDocument();
   });
 
-  it('renders the Credits embedded section heading as "Kredit"', () => {
+  it('renders the Credits route job as the h1 "Kredit"', () => {
     renderPage('credits');
-    expect(screen.getByRole('heading', { level: 2, name: 'Kredit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Kredit' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Credits' })).not.toBeInTheDocument();
   });
 });

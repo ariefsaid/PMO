@@ -78,21 +78,24 @@ describe('Budget account map in Bahasa (#693 F-1)', () => {
     expect(await screen.findByRole('dialog', { name: 'Petakan Kendaraan' })).toBeInTheDocument();
   });
 
-  it('#693: heading, intro, column headers, unmapped pill and row actions are Bahasa', async () => {
+  it('#693: intro, column headers, unmapped pill and row actions are Bahasa', async () => {
     listMock.mockResolvedValue([{ id: 'm-labor', category: 'Labor', erpAccount: '5100 - Direct Costs', isPushTarget: true }]);
     renderPage();
-    expect(await screen.findByRole('heading', { name: 'Peta akun anggaran' })).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Peta kategori anggaran ke akun ERP' })).toBeInTheDocument();
     expect(
       screen.getByText(
         'Setiap kategori anggaran harus dipetakan ke akun ERP sebelum jumlahnya dapat dikirim ke ERP. Kategori yang belum dipetakan memblokir pengiriman SELURUH anggaran, bukan hanya baris itu.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Kategori' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Tujuan / kategori' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun ERP' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Aksi' })).toBeInTheDocument();
-    expect(screen.getAllByText('Belum dipetakan — memblokir setiap pengiriman').length).toBe(9);
-    const labor = (await screen.findByText('Labor')).closest('tr')!;
+    const rows = screen.getAllByRole('row');
+    const labor = rows.find((row) => row.textContent?.includes('Labor'))!;
+    const materials = rows.find((row) => row.textContent?.includes('Materials'))!;
+    expect(within(labor).getByText('Dikonfigurasi', { exact: true })).toBeInTheDocument();
+    expect(within(materials).getByText('Perlu disiapkan')).toBeInTheDocument();
+    expect(screen.getByText(/memblokir pengiriman SELURUH anggaran/i)).toBeInTheDocument();
     expect(within(labor).getByText('Opsi akun')).toBeInTheDocument();
     await userEvent.click(within(labor).getByText('Opsi akun'));
     expect(within(labor).getByRole('button', { name: 'Edit 5100 - Direct Costs' })).toBeInTheDocument();

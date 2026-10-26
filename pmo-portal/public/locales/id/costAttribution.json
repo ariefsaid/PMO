@@ -1,7 +1,8 @@
 {
   "add": "Tambah aturan",
-  "description": "Menempatkan biaya buku besar yang tidak memiliki proyek ERP ke proyek, misalnya gaji. Ditampilkan sebagai teralokasi, terpisah dari biaya yang ditandai di ERP, dan tidak ada yang ditulis ke ERP.",
   "empty": {
+    "clearHelp": "Hapus filter untuk melihat semua aturan alokasi biaya.",
+    "noMatches": "Tidak ada aturan yang cocok dengan filter ini",
     "readOnly": "Finance dan Admin dapat menambah aturan.",
     "sub": "Tambahkan aturan untuk menempatkan biaya buku besar tanpa proyek, seperti gaji, ke proyek.",
     "title": "Belum ada aturan alokasi biaya"
@@ -63,7 +64,10 @@
   },
   "list": {
     "account": "Akun {{name}}",
+    "active": "Aktif",
+    "allStatuses": "Semua status",
     "actions": "Tindakan",
+    "clear": "Hapus filter",
     "costCenter": "pusat biaya {{name}}",
     "dates": "Tanggal posting",
     "edit": "Ubah {{name}}",
@@ -71,14 +75,26 @@
     "end": "Akhiri {{name}}",
     "endShort": "Akhiri",
     "ended": "berakhir",
+    "endedStatus": "Berakhir",
     "fromOpen": "Mulai {{from}}",
     "group": "Grup {{name}}",
     "match": "Kecocokan",
     "name": "Aturan",
     "party": "pihak {{name}}",
     "range": "{{from}} sampai {{to}}",
+    "searchLabel": "Cari aturan alokasi biaya",
+    "searchPlaceholder": "Cari aturan dan proyek…",
+    "sortAsc": "Nama aturan A–Z",
+    "sortDesc": "Nama aturan Z–A",
+    "status": "Status",
+    "statusLabel": "Filter aturan berdasarkan status",
     "targets": "Dialokasikan ke",
     "version": "Versi"
+  },
+  "details": {
+    "close": "Tutup detail",
+    "openRule": "Lihat detail {{name}}",
+    "title": "Detail {{name}}"
   },
   "preview": {
     "amount": "Jumlah",

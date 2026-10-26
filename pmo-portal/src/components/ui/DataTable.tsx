@@ -68,6 +68,8 @@ export interface Column<Row> {
   exportValue?: (row: Row) => string | number | boolean;
   /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
   stickyLeft?: boolean;
+  /** Keep a secondary fact out of phone cards when the same fact is available in a named disclosure. */
+  phoneHidden?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
@@ -139,6 +141,8 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
+  /** Keep a labelled, keyboard-focusable semantic table on phones for dense financial matrices. */
+  mobileTable?: boolean;
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -312,6 +316,7 @@ export function DataTable<Row>({
   rowMenu,
   className,
   cardBelow,
+  mobileTable = false,
   accessibleName,
   tableId,
   groupBy,
@@ -345,7 +350,7 @@ export function DataTable<Row>({
   };
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
-  const isDesktop = wideViewport && !narrowTable;
+  const isDesktop = (wideViewport || mobileTable) && !narrowTable;
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,
@@ -364,7 +369,7 @@ export function DataTable<Row>({
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     columnResizeMode: 'onChange',
-    enableColumnResizing: isDesktop,
+    enableColumnResizing: wideViewport && !narrowTable,
     state: {
       sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
       columnSizing,
@@ -441,7 +446,13 @@ export function DataTable<Row>({
         ref={tableBranchRef}
         data-testid="dt-table-branch"
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
-        className="relative overflow-x-auto"
+        role={mobileTable ? 'region' : undefined}
+        aria-label={mobileTable ? accessibleName : undefined}
+        tabIndex={mobileTable && !wideViewport ? 0 : undefined}
+        className={cn(
+          'relative overflow-x-auto',
+          mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
+        )}
       >
         <table
           ref={tableRef}
@@ -490,6 +501,7 @@ export function DataTable<Row>({
                       <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
                     {(() => {
+                      if (!wideViewport) return null;
                       const min = columnMinSize(col) ?? 20;
                       const max = columnMaxSize(col) ?? 900;
                       if (min === max) return null;
@@ -709,7 +721,8 @@ export function DataTable<Row>({
        *   - Numeric columns: tabular + text-right on <dd>
        *   - rowMenu ⋯: top-right corner of the card, .touch-target
        * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
-       * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
+       * Columns render in the card regardless of colClassName responsive-hide, unless a secondary
+       * fact is explicitly moved behind a named phone disclosure with phoneHidden.
        *
        * AT scoping: at <768px this card branch is the ONLY structure rendered, so it
        * is fully AT-readable. No aria-hidden is needed (or wanted — it would hide the
@@ -758,7 +771,7 @@ export function DataTable<Row>({
                         type="button"
                         aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
-                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                        className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                       >
                         {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
@@ -779,7 +792,7 @@ export function DataTable<Row>({
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
                 {restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
-                    {restCols.map((col) => {
+                    {restCols.filter((col) => !col.phoneHidden).map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
@@ -1157,7 +1170,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          'w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
+          '[@media(pointer:coarse)]:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
           className
         )}
         {...rest}

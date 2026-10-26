@@ -40,6 +40,7 @@ export {
 export { ReceiptPreview, type ReceiptPreviewProps } from './ReceiptPreview';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
+export { DisclosureSummary } from './DisclosureSummary';
 
 export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
 export { KanbanStageIndicator, type KanbanStageItem, type KanbanStageIndicatorProps } from './KanbanStageIndicator';

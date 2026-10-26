@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import type { ErpSetupReadiness, IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -86,7 +87,10 @@ describe('ERP setup checklist', () => {
       domains:['companies'],unmappedProjects:[],budgetMappedCategories:[...Constants.public.Enums.budget_category],unlinkedEmployeeCount:0,
     });
     wrapWithRole('Admin', <IntegrationsView />);
-    expect(await screen.findByText(/Setup is complete\. Confirmed connections are retained/)).toBeInTheDocument();
+    const completed = await screen.findByText(/Setup is complete\. Confirmed connections are retained/);
+    const setupDetails = completed.closest('details');
+    expect(setupDetails).not.toHaveAttribute('open');
+    fireEvent.click(within(setupDetails!).getByText('View configured setup'));
     expect(document.getElementById('erp-setup-employee-links')).toHaveAttribute('hidden');
     expect(document.getElementById('erp-setup-project-links')).toHaveAttribute('hidden');
   });
@@ -136,6 +140,90 @@ describe('ERP setup checklist', () => {
     expect(screen.queryByRole('button',{name:'Review work and billing settings'})).not.toBeInTheDocument();
   });
 })
+
+describe('administration integrations composition', () => {
+  it('AC-ADMIA-011: orders shared service rows ERPNext, ClickUp, Microsoft 365', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    expect(await screen.findByTestId('integrations-connect-cards')).toBeInTheDocument();
+    const services = screen.getByTestId('integrations-connect-cards');
+    const order = [
+      services.querySelector('[data-tier="erpnext"]'),
+      services.querySelector('[data-tier="clickup"]'),
+      services.querySelector('[data-testid="m365-organization-service"]'),
+    ];
+    expect(order.every(Boolean)).toBe(true);
+    expect(order[0]!.compareDocumentPosition(order[1]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(order[1]!.compareDocumentPosition(order[2]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const microsoft = within(order[2] as HTMLElement);
+    expect(microsoft.getByRole('heading', { name: 'Microsoft 365' })).toBeInTheDocument();
+    expect(microsoft.getByText('Organization approval may be required')).toBeInTheDocument();
+    expect(microsoft.getByText('Document library and approval options')).toBeInTheDocument();
+  });
+
+  it('AC-ADMIA-012: keeps the unused ClickUp list roll call behind configured connections', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      clickupLists: [{ id: 'list-untracked', name: 'Untracked Delivery', space_name: 'Work', folder_name: null }],
+      isListsPending: false,
+      isListsError: false,
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const untrackedList = await screen.findByText('Untracked Delivery');
+    const disclosure = untrackedList.closest('details');
+    expect(disclosure).not.toBeNull();
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(within(disclosure!).getByText(/View configured connections/i)).toBeInTheDocument();
+    expect(within(disclosure!).getByRole('heading', { name: 'ClickUp Lists PMO does not track' })).toBeInTheDocument();
+  });
+
+  it('AC-ADMIA-013: keeps connector identity and information ownership in connection details', async () => {
+    const erpBinding = { ...mockBinding, external_tier: 'erpnext' as const, config: { company: 'Example Company' } };
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({
+      ...baseExternalDomainReturn,
+      data: [{ id: 'domain-1', orgId: 'org-1', externalTier: 'clickup', domain: 'tasks' }],
+    } as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      bindings: [erpBinding, mockBinding],
+      getBinding: (tier: string) => tier === 'erpnext' ? erpBinding : mockBinding,
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({ data: [], isPending: false, isError: false } as never);
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const details = screen.getByTestId('service-details-clickup');
+    expect(details).not.toHaveAttribute('open');
+    fireEvent.click(within(details).getByText(/connection details/i));
+    expect(within(details).getByText(/Connected by/)).toBeInTheDocument();
+    expect(within(details).getByTestId('service-information-clickup')).toHaveTextContent('Tasks');
+    expect(screen.getAllByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toHaveLength(1);
+  });
+
+  it('AC-ADMIA-016: exposes the batch action only for clear unbound project matches', async () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue(baseExternalDomainReturn as never);
+    vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations({
+      clickupLists: [{ id: 'list-1', name: 'Example Delivery', space_name: 'Delivery', folder_name: null }],
+      isListsPending: false,
+      isListsError: false,
+      projectBindings: [],
+    }) as never);
+    vi.mocked(useProjects).mockReturnValue({
+      data: [{ id: 'project-1', name: 'Example Delivery', archived_at: null }],
+      isPending: false,
+      isError: false,
+    } as never);
+    const user = userEvent.setup();
+    wrapWithRole('Admin', <IntegrationsView />);
+
+    const acceptAll = await screen.findByRole('button', { name: /Accept all clear matches/i });
+    await user.click(acceptAll);
+    expect(await screen.findByRole('dialog', { name: 'Review clear ClickUp matches' })).toBeInTheDocument();
+  });
+});
 
 describe('ERP domain setup actions', () => {
   it('AC-TH-003 refreshing Company defaults updates the setup checklist after Company selection succeeds', async () => {
@@ -221,9 +309,11 @@ describe('ERP domain setup actions', () => {
     const card=within(screen.getByTestId('integrations-connect-cards').querySelector('[data-tier="erpnext"]')!);
     const readiness=await card.findByText(/Not ready yet/i);
     expect(readiness).toBeInTheDocument();
-    expect(card.getByText('Connected',{exact:true})).toHaveClass('text-muted-foreground');
     const finish=card.getByRole('link',{name:/Finish setup/i});
     expect(finish.getAttribute('href')).toBe('#erp-setup-company-defaults');
+    expect(card.queryByText('Connected',{exact:true})).not.toBeInTheDocument();
+    expect(card.queryByRole('heading',{name:'Business setup review'})).toBeInTheDocument();
+    expect(card.queryByText('Finish setup', { selector: 'summary' })).not.toBeInTheDocument();
   });
 
   it('AC-UX-072 preserves the last known readiness and offers an operator handoff after a refresh failure', async () => {

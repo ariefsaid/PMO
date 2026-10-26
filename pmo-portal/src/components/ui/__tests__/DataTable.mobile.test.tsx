@@ -98,6 +98,66 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(getCardBranch()).not.toBeInTheDocument();
   });
 
+  it('keeps a named, keyboard-scrollable table on phones for financial matrices', async () => {
+    mockViewport(false);
+    const matrixColumns: Column<Row>[] = [
+      { key: 'name', header: 'Publication date', cell: (row) => row.name, stickyLeft: true, rowHeader: true },
+      { key: 'value', header: 'Source', cell: (row) => row.status },
+      { key: 'status', header: 'IDR per USD', cell: (row) => row.value, align: 'num' },
+    ];
+    render(
+      <DataTable
+        rows={rows}
+        columns={matrixColumns}
+        rowKey={(r) => r.id}
+        accessibleName="Exchange rates"
+        mobileTable
+      />,
+    );
+
+    const region = screen.getByRole('region', { name: 'Exchange rates' });
+    expect(getTableBranch()).toBeInTheDocument();
+    expect(getCardBranch()).not.toBeInTheDocument();
+    expect(screen.getByRole('table', { name: 'Exchange rates' })).toBeInTheDocument();
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(region).toHaveClass('overflow-x-auto');
+    expect(getTableBranch()?.querySelector('th[scope="row"]')).toHaveClass('sticky', 'left-0');
+
+    await userEvent.tab();
+    expect(region).toHaveFocus();
+  });
+
+  it('omits a phone-hidden secondary fact from compact cards while leaving the rest of the row available', () => {
+    mockViewport(false);
+    const phoneHidden: Column<Row> = {
+      key: 'manager',
+      header: 'Manager',
+      cell: (row: Row) => `Manager for ${row.name}`,
+      phoneHidden: true,
+    };
+    render(<DataTable rows={rows} columns={[columns[0], phoneHidden, columns[2]]} rowKey={(r) => r.id} />);
+
+    const cards = Array.from(getCardBranch()!.querySelectorAll(':scope > li'));
+    expect(cards[0]).toBeVisible();
+    expect(cards[0]).toHaveTextContent('Alpha Corp');
+    expect(Array.from(cards[0].querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['Status']);
+    expect(cards[0]).not.toHaveTextContent('Manager for Alpha Corp');
+  });
+
+  it('keeps a phone-hidden secondary fact in the desktop table', () => {
+    mockViewport(true);
+    const phoneHidden: Column<Row> = {
+      key: 'manager',
+      header: 'Manager',
+      cell: (row: Row) => `Manager for ${row.name}`,
+      phoneHidden: true,
+    };
+    render(<DataTable rows={rows} columns={[columns[0], phoneHidden, columns[2]]} rowKey={(r) => r.id} />);
+
+    expect(getTableBranch()).toHaveTextContent('Manager');
+    expect(getTableBranch()).toHaveTextContent('Manager for Alpha Corp');
+  });
+
   it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
     mockViewport(false);
     const sparse: Column<Row>[] = [
@@ -144,6 +204,21 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     // the table branch is not in the DOM.
     expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
+  });
+
+  it('keeps the phone row-opening action at the 44px minimum hit height', () => {
+    mockViewport(false);
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(r) => r.id}
+        onActivate={vi.fn()}
+        rowLabel={(r) => `Open ${r.name}`}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toHaveClass('min-h-11');
   });
 
   // ── Card anatomy ─────────────────────────────────────────────────────────

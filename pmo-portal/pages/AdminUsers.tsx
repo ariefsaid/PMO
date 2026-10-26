@@ -13,11 +13,11 @@ import {
   Combobox,
   FormSection,
   GateNotice,
-  SectionHeader,
   useEntityForm,
   useToast,
   Button,
   Icon,
+  DisclosureSummary,
   type Column,
   type RowMenuItem,
   type ComboboxOption,
@@ -31,6 +31,7 @@ import type { UserRow, UserRole } from '@/src/lib/db/adminUsers';
 import { useAuth } from '@/src/auth/useAuth';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
+import { useLocation, useNavigate } from 'react-router';
 
 /**
  * Administration › Users (CRUD+RBAC program, plan §9.10; rbac-visibility §J; ops-admin-surface
@@ -110,7 +111,7 @@ function avatarHue(id: string): string {
 const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 }) => (
   <span
     aria-hidden
-    className="grid shrink-0 place-items-center rounded-full text-[11px] font-bold text-white"
+    className="grid shrink-0 place-items-center rounded-full text-xs font-semibold text-white"
     style={{ width: size, height: size, background: avatarHue(user.id) }}
   >
     {initialsOf(user.full_name)}
@@ -118,7 +119,7 @@ const Avatar: React.FC<{ user: UserRow; size?: number }> = ({ user, size = 30 })
 );
 
 const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const roleNames = useRoleLabels();
   const may = usePermission();
   const isOperator = useIsOperator();
@@ -126,9 +127,29 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { data, isPending, isError, refetch } = useUsers();
   const { updateRole, assignManager, invite, setStatus } = useUserMutations();
   const { currentUser } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const tableRef = useRef<HTMLDivElement>(null);
-  const [search, setSearch] = useState('');
+  const directoryParams = new URLSearchParams(location.search);
+  const search = directoryParams.get('search') ?? '';
+  const statusValue = directoryParams.get('status');
+  const statusFilter: 'all' | 'active' | 'disabled' =
+    statusValue === 'active' || statusValue === 'disabled' ? statusValue : 'all';
+  const sortDescending = directoryParams.get('sort') === 'desc';
+  const updateDirectoryUrl = (key: 'search' | 'status' | 'sort', value: string) => {
+    const next = new URLSearchParams(location.search);
+    if (!value || (key === 'status' && value === 'all')) next.delete(key);
+    else next.set(key, value);
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next.toString()}` : '',
+        hash: location.hash,
+      },
+      { replace: true, state: location.state },
+    );
+  };
   // Active modal: { mode:'role', user } | { mode:'manager', user } | null.
   const [editTarget, setEditTarget] = useState<{ mode: 'role' | 'manager'; user: UserRow } | null>(null);
   // Pending high-impact role change awaiting the confirm step.
@@ -193,11 +214,28 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return all;
-    return all.filter(
-      (u) => u.full_name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+    return all
+      .filter((user) => statusFilter === 'all' || user.status === statusFilter)
+      .filter((user) => !q || user.full_name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q))
+      .sort((left, right) => {
+        const result = left.full_name.localeCompare(right.full_name, i18n.resolvedLanguage, { sensitivity: 'base' });
+        return sortDescending ? -result : result;
+      });
+  }, [all, i18n.resolvedLanguage, search, sortDescending, statusFilter]);
+
+  const clearFilters = () => {
+    const next = new URLSearchParams(location.search);
+    next.delete('search');
+    next.delete('status');
+    navigate(
+      {
+        pathname: location.pathname,
+        search: next.toString() ? `?${next.toString()}` : '',
+        hash: location.hash,
+      },
+      { replace: true, state: location.state },
     );
-  }, [all, search]);
+  };
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending
     ? 'loading'
@@ -206,6 +244,7 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       : all.length === 0
         ? 'empty'
         : undefined;
+  const noMatches = state === undefined && filtered.length === 0;
 
   // ── A direct deep-link still needs its own gate. Admin, Executive, and platform Operator
   // proceed; RLS and the server-side Operator RPCs remain the authority for each action.
@@ -228,18 +267,56 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       key: 'user',
       header: t('admin.users.columns.user', 'User'),
       cell: (u) => (
-        <div className="flex min-w-0 items-center gap-2.5">
-          <Avatar user={u} />
-          <div className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate font-semibold" title={u.full_name}>
-              {u.full_name}
-            </span>
-            <span className="truncate text-xs text-muted-foreground" title={u.email}>
-              {u.email}
-            </span>
+        <div className="min-w-0">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Avatar user={u} />
+            <div className="flex min-w-0 flex-col leading-tight">
+              <span className="break-words font-semibold">
+                {u.full_name}
+              </span>
+              <span className="break-all text-sm text-muted-foreground">
+                {u.email}
+              </span>
+            </div>
           </div>
+          <details className="group mt-1 md:hidden">
+            <DisclosureSummary
+              aria-label={t('administration:admin.users.detailsFor', { defaultValue: 'Details for {{name}}', name: u.full_name })}
+              className="text-xs font-medium text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {t('administration:admin.users.memberDetails', 'Member details')}
+            </DisclosureSummary>
+            <div className="grid min-w-0 gap-1 py-1 text-xs">
+              <span className="break-all">{u.full_name}</span>
+              <span className="break-all text-muted-foreground">{u.email}</span>
+              <span className="text-muted-foreground">
+                {t('admin.users.columns.manager', 'Manager')}: {u.manager_id ? byId.get(u.manager_id)?.full_name ?? t('administration:admin.users.unavailable', 'Unavailable') : t('admin.users.noManager', 'No manager')}
+              </span>
+            </div>
+          </details>
         </div>
       ),
+    },
+    {
+      key: 'manager',
+      header: t('admin.users.columns.manager', 'Manager'),
+      colClassName: 'hidden md:table-cell',
+      phoneHidden: true,
+      // Clicking the manager name jumps to that person's row while preserving the directory.
+      cell: (u) => {
+        const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
+        return manager ? (
+          <button
+            type="button"
+            onClick={() => scrollToManager(manager.id)}
+            className="touch-target min-h-11 whitespace-normal break-words text-left text-sm underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+          >
+            {manager.full_name}
+          </button>
+        ) : (
+          <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>
+        );
+      },
     },
     {
       key: 'role',
@@ -255,27 +332,6 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
         ) : (
           <StatusPill variant="neutral">{t('admin.users.status.active', 'Active')}</StatusPill>
         ),
-    },
-    {
-      key: 'manager',
-      header: t('admin.users.columns.manager', 'Manager'),
-      colClassName: 'hidden md:table-cell',
-      // AD-1 (AC-JR-W3B-E1): clicking the manager name scrolls to that manager's
-      // row in the same table (no user-detail route exists; keep small).
-      cell: (u) => {
-        const manager = u.manager_id ? byId.get(u.manager_id) : undefined;
-        return manager ? (
-          <button
-            type="button"
-            onClick={() => scrollToManager(manager.id)}
-            className="truncate text-left text-[13px] underline-offset-2 hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-          >
-            {manager.full_name}
-          </button>
-        ) : (
-          <span className="text-muted-foreground">{t('admin.users.noManager', 'No manager')}</span>
-        );
-      },
     },
   ];
 
@@ -426,19 +482,43 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       )}
 
       {/* Toolbar */}
-      {state !== 'loading' && (
+      {state === undefined && (
         <Toolbar standalone>
-          <span className="text-[13px] font-semibold">{t('admin.users.allUsers', 'All users')}</span>
-          {state === undefined && (
-            <span className="text-[12.5px] text-muted-foreground tabular">{all.length}</span>
-          )}
           <SearchMini
             placeholder={t('admin.users.search.placeholder', 'Search by name or email…')}
             aria-label={t('admin.users.search.label', 'Search users')}
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto"
+            onChange={(e) => updateDirectoryUrl('search', e.target.value)}
+            containerClassName="min-h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 md:w-64 md:min-w-64"
           />
+          <label className="sr-only" htmlFor="admin-users-status-filter">
+            {t('administration:admin.users.statusFilter.label', 'Filter users by status')}
+          </label>
+          <select
+            id="admin-users-status-filter"
+            aria-label={t('administration:admin.users.statusFilter.label', 'Filter users by status')}
+            className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+            value={statusFilter}
+            onChange={(event) => updateDirectoryUrl('status', event.target.value)}
+          >
+            <option value="all">{t('administration:admin.users.statusFilter.all', 'All statuses')}</option>
+            <option value="active">{t('admin.users.status.active', 'Active')}</option>
+            <option value="disabled">{t('admin.users.status.disabled', 'Disabled')}</option>
+          </select>
+          <Button
+            variant="outline"
+            aria-pressed={sortDescending}
+            className="min-h-11"
+            onClick={() => updateDirectoryUrl('sort', sortDescending ? 'asc' : 'desc')}
+          >
+            {sortDescending ? t('administration:admin.users.sort.nameDesc', 'Name Z–A') : t('administration:admin.users.sort.nameAsc', 'Name A–Z')}
+          </Button>
+          {embedded && canInvite && (
+            <Button variant={noMatches ? 'outline' : 'primary'} className="min-h-11 shrink-0" onClick={() => setInviteOpen(true)}>
+              <Icon name="plus" />
+              {t('admin.users.invite', 'Invite user')}
+            </Button>
+          )}
         </Toolbar>
       )}
 
@@ -460,12 +540,22 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
       )}
 
       {state === 'empty' && (
-        <ListState
-          variant="empty"
-          icon="admin"
-          title={t('admin.users.empty.title', 'No users yet')}
-          sub={t('admin.users.empty.sub', 'People appear here once they are invited to the workspace.')}
-        />
+        <div>
+          <ListState
+            variant="empty"
+            icon="admin"
+            title={t('admin.users.empty.title', 'No users yet')}
+            sub={t('admin.users.empty.sub', 'People appear here once they are invited to the workspace.')}
+          />
+          {embedded && canInvite && (
+            <div className="mt-3">
+              <Button variant="primary" className="min-h-11" onClick={() => setInviteOpen(true)}>
+                <Icon name="plus" />
+                {t('admin.users.invite', 'Invite user')}
+              </Button>
+            </div>
+          )}
+        </div>
       )}
 
       {state === undefined && (
@@ -476,8 +566,9 @@ const AdminUsers: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
             rowKey={(u) => u.id}
             rowMenu={canManage || canDisable ? rowMenu : undefined}
             state={filtered.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('admin.users.noMatch.title', 'No users match your search')}
-            emptySub={t('admin.users.noMatch.sub', 'Try a different name or email.')}
+            emptyTitle={t('admin.users.noMatch.title', 'No matching users')}
+            emptySub={t('admin.users.noMatch.sub', 'Adjust the search or status filter to see users again.')}
+            emptyAction={{ label: t('administration:admin.users.clearFilters', 'Clear filters'), onClick: clearFilters }}
           tableId="adminusers-table" />
         </div>
       )}
@@ -580,9 +671,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
     </Button>
   ) : undefined;
 
-  if (embedded) {
-    return <SectionHeader title={t('admin.nav.users', 'Users')} action={inviteAction} />;
-  }
+  if (embedded) return null;
 
   return (
     <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
@@ -590,7 +679,7 @@ const PageHead: React.FC<{ canInvite: boolean; onInvite: () => void; embedded?: 
         {/* B-8 (AC-W2-IA-003): the standalone compatibility composition keeps the
             Administration heading aligned with its route and breadcrumb. The route-backed shell
             uses the embedded Users section header above instead. */}
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
+        <h1 className="text-2xl font-bold tracking-[-0.02em]">{t('admin.nav.title', 'Administration')}</h1>
         <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">
           {t(
             'admin.users.page.description',
@@ -845,14 +934,14 @@ const ManagerFormModal: React.FC<{
           placeholder={t('admin.users.managerForm.placeholder', 'Assign a manager…')}
           searchPlaceholder={t('admin.users.managerForm.search', 'Search people…')}
         />
-        <p className="mt-1.5 text-[12px] text-muted-foreground">
+        <p className="mt-1.5 text-sm text-muted-foreground">
           {t('admin.users.managerForm.hint', 'Used for timesheet-approval routing.')}
         </p>
         {managerId && (
           <button
             type="button"
             onClick={() => form.setValue('managerId', null)}
-            className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-primary-text hover:underline"
+            className="mt-2 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-primary-text hover:underline"
           >
             <Icon name="x" className="size-[13px]" />
             {t('admin.users.managerForm.clear', 'Clear manager')}

@@ -20,11 +20,11 @@ vi.mock('@/src/components/ui', async (original) => {
 
 import OrgProjectNumberPattern from './OrgProjectNumberPattern';
 
-function renderPanel() {
+function renderPanel(editing?: boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <ToastProvider><OrgProjectNumberPattern /></ToastProvider>
+      <ToastProvider><OrgProjectNumberPattern editing={editing} /></ToastProvider>
     </QueryClientProvider>,
   );
 }
@@ -43,6 +43,18 @@ afterEach(() => {
 });
 
 describe('AC-CODE-001 organisation PMO number pattern', () => {
+  it('shows the saved number pattern and preview before opening its editor', async () => {
+    h.get.mockResolvedValue('PRE-{CLIENT}-{YY}-{SEQ4}');
+    renderPanel(false);
+    expect(await screen.findByText('PRE-{CLIENT}-{YY}-{SEQ4}')).toBeVisible();
+    expect(screen.getByTestId('org-project-number-pattern-preview')).toBeVisible();
+    expect(screen.queryByRole('textbox', { name: /project number pattern/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/the built-in pattern is PRJ-/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Edit numbering' }));
+    expect(await screen.findByRole('textbox', { name: /project number pattern/i })).toBeVisible();
+    expect(screen.getByText(/the built-in pattern is PRJ-/i)).toBeInTheDocument();
+  });
+
   it('loads the system pattern, validates tokens inline, and saves a valid custom pattern', async () => {
     renderPanel();
     const input = await screen.findByRole('textbox', { name: /project number pattern/i });

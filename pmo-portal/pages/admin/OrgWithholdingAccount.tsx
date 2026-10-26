@@ -14,6 +14,12 @@ import { useTranslation } from 'react-i18next';
 
 const ACCOUNT_QUERY_KEY = 'org-withholding-account';
 
+interface OrgWithholdingAccountProps {
+  editing?: boolean;
+  onEdit?: () => void;
+  onClose?: () => void;
+}
+
 function accountOption(account: BudgetPostingAccount, context?: string): ComboboxOption {
   return {
     value: account.account,
@@ -22,8 +28,9 @@ function accountOption(account: BudgetPostingAccount, context?: string): Combobo
   };
 }
 
-export default function OrgWithholdingAccount() {
+export default function OrgWithholdingAccount({ editing, onEdit, onClose }: OrgWithholdingAccountProps = {}) {
   const { t } = useTranslation();
+  const isEditing = editing ?? true;
   const { currentUser } = useAuth();
   const may = usePermission();
   const canManage = may('manage', 'orgAccounting');
@@ -88,6 +95,7 @@ export default function OrgWithholdingAccount() {
       setRemoteChanged(false);
       void qc.invalidateQueries({ queryKey });
       toast(t('uxs11.withholdingSaved', 'Receipt withholding account saved'), undefined, 'success');
+      onClose?.();
     },
     onError: (err) => {
       const classified = classifyMutationError(err);
@@ -104,18 +112,18 @@ export default function OrgWithholdingAccount() {
     : t('uxs11.receiptWithholdingContext', 'Asset account for client withholding received');
 
   return <section aria-labelledby="withholding-account-heading">
-    <h2 id="withholding-account-heading" tabIndex={-1} className="scroll-mt-4 text-[15px] font-semibold">
+    <h2 id="withholding-account-heading" tabIndex={-1} className="scroll-mt-4 text-xl font-bold">
       {t('uxs11.withholdingHeading', 'Receipt withholding')}
     </h2>
-    <p className="mt-1 text-[13px] text-muted-foreground">
-      {t('uxs11.withholdingIntro', 'Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.')}
+    <p className="mt-1 text-sm text-muted-foreground">
+      {t('uxs11.withholdingIntro', 'An Admin must configure this before a receipt with withholding can be recorded.')}
     </p>
     <div className="mt-3 max-w-md">
       {query.isError ? <ListState variant="error" title={t('uxs11.withholdingLoadError', "Couldn't load the tax-prepaid account")} onRetry={() => void query.refetch()} />
         : query.isPending ? <ListState variant="loading" rows={1} />
-        : canManage ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
+        : canManage && isEditing ? <form onSubmit={(event) => { event.preventDefault(); setError(undefined); mutation.mutate(draft || null); }} className="space-y-3">
           {remoteChanged && (
-            <div role="status" className="rounded-md bg-secondary px-3 py-2 text-[13px] text-secondary-foreground">
+            <div role="status" className="rounded-md bg-secondary px-3 py-2 text-sm text-secondary-foreground">
               <p>{t('uxs11.withholdingRemoteChanged', 'The saved account changed. Your edit is kept; reload the saved value to discard it.')}</p>
               <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => {
                 const remote = query.data ?? null;
@@ -140,16 +148,27 @@ export default function OrgWithholdingAccount() {
             searchPlaceholder={t('uxs11.accountSearch', 'Search account name or number')}
             disabled={mutation.isPending || !canBrowse}
           />
-          <p className="text-[13px] text-muted-foreground">{savedContext}</p>
-          {binding.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
-          {binding.isError && <div role="status" className="space-y-2 text-[13px] text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
-          {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')}</p>}
-          {hasActiveBinding && catalogue.isPending && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.loadingAccounts', 'Loading chart accounts…')}</p>}
+          <p className="text-sm text-muted-foreground">{savedContext}</p>
+          {binding.isPending && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.checkingBinding', 'Checking ERPNext setup…')}</p>}
+          {binding.isError && <div role="status" className="space-y-2 text-sm text-muted-foreground"><p>{t('uxs11.bindingLoadError', "Couldn't check ERPNext setup. Retry before deciding whether a connection is needed.")}</p><Button type="button" variant="outline" size="sm" onClick={() => void binding.refetch()}>{t('uxs11.retryBinding', 'Check setup again')}</Button></div>}
+          {!binding.isPending && !binding.isError && !hasActiveBinding && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.bindingRequired', 'An active ERPNext organization connection is needed to load these choices. Ask your accounting administrator to review the connection.')}</p>}
+          {hasActiveBinding && catalogue.isPending && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.loadingAccounts', 'Loading chart accounts…')}</p>}
           {hasActiveBinding && catalogue.isError && <ListState variant="error" title={t('uxs11.catalogueLoadError', "Couldn't load chart accounts")} onRetry={() => void catalogue.refetch()} />}
-          {canBrowse && candidates.length === 0 && <p role="status" className="text-[13px] text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.')}</p>}
+          {canBrowse && candidates.length === 0 && <p role="status" className="text-sm text-muted-foreground">{t('uxs11.noAssetAccounts', 'No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.')}</p>}
           {error && <FieldError>{error}</FieldError>}
-          <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
-        </form> : <p className="text-[13px]">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="outline" disabled={mutation.isPending || !dirty || !canSaveDraft}> {t('uxs11.saveWithholding', 'Save account')}</Button>
+            {editing !== undefined && <Button type="button" variant="ghost" className="min-h-11" onClick={onClose}>{t('integrations:uxs11.doneEditing', 'Done editing')}</Button>}
+          </div>
+        </form> : canManage ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">{readOnlyValue}</p>
+              <p className="mt-0.5 text-sm text-muted-foreground">{savedContext}</p>
+            </div>
+            <Button type="button" variant="outline" className="min-h-11" onClick={onEdit}>{t('integrations:uxs11.editWithholdingAccount', 'Edit withholding account')}</Button>
+          </div>
+        ) : <p className="text-sm">{readOnlyValue}<span className="ml-2 text-muted-foreground">{t('uxs11.onlyAdmin', 'Only an Admin can change this.')}</span></p>}
     </div>
   </section>;
 }

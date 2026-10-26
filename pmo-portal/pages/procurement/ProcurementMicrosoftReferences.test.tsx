@@ -4,6 +4,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import i18n from 'i18next';
 import idCatalogue from '../../public/locales/id/common.json';
+import enM365Catalogue from '../../public/locales/en/m365Documents.json';
+import idM365Catalogue from '../../public/locales/id/m365Documents.json';
+
+i18n.addResourceBundle('en', 'm365Documents', enM365Catalogue, true, true);
+i18n.addResourceBundle('id', 'm365Documents', idM365Catalogue, true, true);
 
 const h = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,

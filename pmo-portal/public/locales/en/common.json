@@ -1,9 +1,9 @@
 {
   "ui": { "listState": { "loading": "Loading…", "retry": "Retry" } },
   "uxs07": {
-    "organizationScope": "Organization integrations are shared by your organization. Manage personal connections in ",
+    "organizationScope": "Organization connections are shared; your personal connection is separate. Manage it in ",
     "personalConnections": "My integrations",
-    "scopeTail": ". Personal connections do not activate organization integrations.",
+
     "connectionOptions": "Connection options",
     "reviewRecords": "Review connected records",
     "liveRecordCheck": "Not yet verified — review a connected record to confirm the data is usable.",
@@ -21,23 +21,22 @@
     "reviewHeld": "Review held updates",
     "notReady": "Not ready yet — {{count}} steps left",
     "setupChecking": "Checking setup",
-    "setupUnavailable": "Setup status unavailable",
+
     "setupAdminRequired": "Ask an administrator to check setup",
     "ready": "Ready",
     "finishSetup": "Finish setup",
-    "ownershipTitle": "Information updated from connected services",
+    "ownershipTitle": "Automatic update selection",
+
     "ownershipLoading": "Checking which information is updated automatically…",
     "ownershipUnavailable": "Automatic updates unavailable",
     "ownershipUnavailableHelp": "PMO could not check which information updates automatically. Try again.",
-    "ownershipEmpty": "No information is set to update automatically",
-    "ownershipEmptyHelp": "Choose which information should stay current from each connected service.",
     "ownershipDomains": "{{service}} updates {{count}} information areas here.",
-    "setupUnavailableHelp": "Readiness is unknown. Retry, or ask your PMO administrator to review ERP setup.",
+    "setupUnavailableHelp": "The ERP business setup check failed, so readiness is unknown. Check again or open accounting setup.",
     "lastKnownTitle": "Showing the last saved setup check",
     "lastKnownBody": "The current check failed. These results may be out of date; retry or ask your PMO administrator to review setup.",
     "retryCheck": "Check setup again",
     "operatorHandoff": "Open accounting setup",
-    "noDomains": "No connected information is currently updating from ERPNext",
+
     "m365ApprovalDescription": "Your organization may need to approve the PMO Portal app before team members connect Microsoft 365. Start this only if Microsoft asks for organization approval; an existing approval does not need to be repeated."
   },
   "uxs14": {
@@ -81,6 +80,7 @@
     "catalogueLoadError": "Couldn't load chart accounts",
     "checkingBinding": "Checking ERPNext setup…",
     "downPaymentHeading": "Down payments",
+
     "downPaymentIntro": "Choose the existing ERPNext item used to bill a customer advance and recover it from billing claims.",
     "downPaymentItemLabel": "Down payment item",
     "downPaymentItemPlaceholder": "Choose an ERPNext item",
@@ -94,6 +94,7 @@
     "inputVatLabel": "Input VAT account",
     "itemNoun": "item",
     "itemSearch": "Search ERPNext items",
+
     "loadingAccounts": "Loading chart accounts…",
     "noAssetAccounts": "No enabled Asset accounts are available. Ask your accounting administrator to add a suitable account to the ERP chart.",
     "notConfigured": "Not configured",
@@ -113,7 +114,7 @@
     "vendorTaxRemoteChanged": "The saved accounts changed. Your edits are kept; reload the saved values to discard them.",
     "vendorTaxSaved": "Vendor tax accounts saved",
     "withholdingHeading": "Receipt withholding",
-    "withholdingIntro": "Choose the Asset account used for income tax withheld by clients. An Admin must configure it before a receipt with withholding can be recorded.",
+    "withholdingIntro": "An Admin must configure this before a receipt with withholding can be recorded.",
     "withholdingLabel": "Tax-prepaid account",
     "withholdingLoadError": "Couldn't load the tax-prepaid account",
     "withholdingPlaceholder": "Choose an Asset account",
@@ -221,7 +222,7 @@
     "date": "Publication date",
     "rate": "IDR per USD",
     "source": "Source",
-    "description": "USD → IDR · JISDOR · display equivalents only",
+
     "denied": "Exchange rates are available to Finance and Admin.",
     "saved": "Rates saved: {{new}} new, {{changed}} changed, {{unchanged}} unchanged.",
     "orgCurrencyError": "Could not resolve the organization currency.",
@@ -360,8 +361,7 @@
       "toast": {
         "saved": "Expense account saved"
       },
-      "unmapped": "Not mapped — expense posting stops",
-      "unmappedIdle": "Not mapped"
+      "unmapped": "Not mapped — expense posting stops"
     },
     "access": {
       "checking": "Checking your Administration access…",
@@ -375,7 +375,6 @@
       "accounting": "Accounting setup",
       "ariaLabel": "Administration sections",
       "credits": "Credits",
-      "description": "Organization setup and governance.",
       "features": "Features",
       "exchangeRates": "Exchange rates",
       "integrations": "Organization integrations",
@@ -385,6 +384,7 @@
       "users": "Users",
       "projects": "Project setup"
     },
+
     "taxDefault": {
       "adminOnly": "Only an Admin can change this.",
       "description": "The basis a new contract value, work order or invoice starts on. Anyone recording one can change it on the form.",
@@ -415,11 +415,11 @@
     "users": {
       "blocked": "Administration is an Admin-only area. You don’t have access to user management.",
       "execReadOnly": "You can view the user directory, but only an Admin can add, edit, or disable users.",
-      "allUsers": "All users",
       "search": {
         "placeholder": "Search by name or email…",
         "label": "Search users"
       },
+
       "invite": "Invite user",
       "columns": {
         "user": "User",
@@ -464,8 +464,8 @@
         "sub": "People appear here once they are invited to the workspace."
       },
       "noMatch": {
-        "title": "No users match your search",
-        "sub": "Try a different name or email."
+        "title": "No matching users",
+        "sub": "Adjust the search or status filter to see users again."
       },
       "roleConfirm": {
         "title": "Change {{name}}'s role to {{role}}?",
@@ -512,10 +512,10 @@
     },
     "credits": {
       "grant": "Grant credits",
-      "orgBalance": "Org balance",
+
       "unit": "credits",
       "error": {
-        "title": "Couldn't load balance"
+        "title": "Balance unavailable"
       },
       "toast": {
         "granted": "Credits granted",
@@ -532,19 +532,18 @@
       "amountRequired": "Amount is required.",
       "amountPositive": "Grant amount must be positive."
     },
+
     "budgetMap": {
       "sectionLabel": "Budget category to ERP account map",
       "title": "Budget account map",
       "description": "Every budget category must map to an ERP account before its amount can be pushed. An unmapped category blocks the push for the WHOLE budget, not just that line.",
       "columns": {
-        "category": "Category",
         "erpAccount": "ERP account",
         "actions": "Actions"
       },
-      "unmapped": "Not mapped — blocks every push",
       "map": "Map {{category}}",
       "multiNote": "A category may list several accounts. Its actuals add up across all of them; its budget is pushed only to the account marked Budget push.",
-      "noPush": "No push account — blocks every push",
+      "noPush": "No budget account",
       "pushBadge": "Budget push",
       "addAccount": "Add account to {{category}}",
       "editAccount": "Edit {{account}}",
@@ -597,6 +596,7 @@
         "title": "Couldn't load the project number pattern"
       },
       "label": "Project number pattern",
+
       "example": "Example: PRE-{CLIENT}-{YY}-{SEQ4}",
       "toast": {
         "saved": "Project number pattern updated",
@@ -608,7 +608,7 @@
     },
     "spendApprovers": {
       "title": "Spend approvers",
-      "description": "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve. With nobody listed, the standard role rules apply.",
+      "description": "Who approves purchase requests. Spend charged to a project and within its budget line goes to that project's approver; overhead, and spend that would exceed the budget line, goes to the overhead approvers. Any one listed approver can approve.",
       "orgSet": {
         "title": "Overhead and over-budget approvers"
       },
@@ -618,7 +618,7 @@
       "addOrg": "Add overhead approver",
       "addProject": "Add project approver",
       "remove": "Remove {{name}}",
-      "empty": "Nobody listed — the standard role rules apply.",
+      "empty": "No named approvers listed.",
       "adminOnly": "Only an Admin can change this.",
       "loadError": {
         "title": "Couldn't load spend approvers"
@@ -3637,7 +3637,7 @@
       }
     },
     "m365OrgApproval": {
-      "heading": "Microsoft 365",
+      "heading": "Organization approval",
       "badge": "Organization approval",
       "approve": "Approve in Microsoft 365",
       "approving": "Opening Microsoft 365…",
@@ -4193,6 +4193,7 @@
     "saved": "Classification options saved",
     "retained": "Existing project classifications stay recorded.",
     "setupHelp": "Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.",
+
     "serviceLines": "Service lines",
     "sectors": "Sectors",
     "onePerLine": "One option per line. Leave empty to offer no options.",
@@ -4561,16 +4562,6 @@
     "projectNumberPattern": {
       "preview": "Preview:",
       "previewNote": "Illustrative only; the actual number is assigned when a project is created."
-    },
-    "accounting": {
-      "sectionsLabel": "Accounting setup sections",
-      "taxDefault": "Default tax treatment",
-      "spendApprovers": "Spend approvers",
-      "withholding": "Receipt withholding",
-      "vendorTax": "Vendor bill tax accounts",
-      "downPayments": "Down payments",
-      "budgetMap": "Budget account map",
-      "expenseMap": "Expense account map"
     }
   },
   "uxs03": {
@@ -4606,10 +4597,9 @@
     "routeUnavailable": "Couldn't verify who can approve right now.",
     "noEligible": "Nobody listed can approve right now. Only an Admin can decide these requests until someone eligible is added.",
     "escalate": "Nobody listed can approve right now. These requests go to the overhead approvers.",
-    "projectEmpty": "No project approvers listed. Within budget, the standard rules apply — any of {{roles}} can approve. Over the budget line, or when the line cannot be checked, requests go to the overhead approvers."
+    "projectEmpty": "Within budget, the standard rules apply. Over-budget or uncheckable requests go to the configured overhead approvers."
   },
   "uxs38": {
-    "emptyScope": "Reference rates affect displayed rupiah equivalents only — accounting records are never changed.",
     "emptyNeedRole": "An Admin or Finance member can upload them from this page.",
     "pageSummary": "Dates from {{first}} to {{last}} — {{count}} with rates",
     "pageGaps": "No rate for {{dates}}",
@@ -4819,210 +4809,5 @@
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
     "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
     "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
-  },
-  "m365Documents": {
-    "link": "Link from Microsoft 365",
-    "linked": "Microsoft item linked",
-    "unlink": "Unlink Microsoft item",
-    "unlinkTitle": "Unlink {{title}}?",
-    "unlinkBody": "Only the PMO reference is removed. The Microsoft item is unchanged.",
-    "unlinkConfirm": "Unlink",
-    "unlinked": "Reference removed",
-    "checkingConnection": "Checking your Microsoft 365 connection…",
-    "referenceOnly": "Folder reference — contents are not issued or approved",
-    "newRevisionFromLatest": "Make new revision from latest file update",
-    "revisionLatestNote": "The new revision will reference the latest Microsoft file: {{name}}.",
-    "latestFailedTitle": "Could not read the latest file",
-    "latestFailed": "Microsoft could not load this file. Check access and SharePoint availability with your Microsoft admin, or retry.",
-    "procurement": {
-      "heading": "SharePoint links for this case",
-      "intro": "SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.",
-      "link": "Link from Microsoft 365",
-      "emptyTitle": "No links yet",
-      "emptySub": "Link a SharePoint or OneDrive file or folder to this case.",
-      "emptySubReadOnly": "Nothing has been linked to this case.",
-      "errorTitle": "SharePoint links could not be loaded",
-      "errorSub": "Check your connection and try again.",
-      "legacyNote": "Plain link, not from Microsoft 365",
-      "openLegacy": "Open linked document",
-      "legacyUnsafe": "This link cannot be opened.",
-      "unlink": "Unlink",
-      "unlinkAria": "Unlink {{name}}",
-      "unlinkTitle": "Unlink this reference",
-      "unlinkBody": "This removes only the PMO reference. The item stored in Microsoft 365 is not changed or deleted.",
-      "clearLegacy": "Clear link",
-      "clearAria": "Clear link on {{type}}",
-      "clearTitle": "Clear this link",
-      "clearBody": "This removes the saved web address from this record. The record itself is not changed.",
-      "changeFailed": "The reference was not changed. Check your permissions and try again.",
-      "linkedOn": "Linked {{date}}"
-    },
-    "budget": {
-      "connectHint": "Connect Microsoft 365 in My integrations to link documents.",
-      "empty": "No evidence documents are linked to this version.",
-      "heading": "Evidence documents",
-      "link": "Link from Microsoft 365",
-      "loadError": "Evidence documents could not be loaded",
-      "loadErrorSub": "The budget figures are not affected. Try again.",
-      "readOnly": "Evidence is read-only on this version.",
-      "remove": "Remove",
-      "removeDescription": "The link to {{name}} is removed from this version. The Microsoft file is not changed.",
-      "removeNamed": "Remove link to {{name}}",
-      "removeTitle": "Remove this link?",
-      "unavailable": "This link is unavailable."
-    },
-    "defaultLibrary": {
-      "browseFailed": "Microsoft locations could not be loaded. Close this dialog and try again.",
-      "choose": "Choose default library",
-      "clear": "Clear default",
-      "clearDescription": "The document picker will start from the location chooser. Existing links are not changed.",
-      "clearFailed": "Could not clear the default library.",
-      "clearTitle": "Clear the default library?",
-      "connectHint": "Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.",
-      "current": "Current default:",
-      "description": "The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.",
-      "disabledReason": "Choose a site and a library to save.",
-      "heading": "Default document library",
-      "library": "Library",
-      "loading": "Loading…",
-      "modalSub": "Pick a SharePoint site, then one of its document libraries.",
-      "modalTitle": "Choose default library",
-      "none": "No default library is set.",
-      "pickLibrary": "Select a library",
-      "pickSite": "Select a site",
-      "save": "Save default",
-      "saveFailed": "Could not save the default library.",
-      "site": "Site",
-      "unavailable": "The default library could not be read",
-      "unavailableSub": "The current setting is unchanged. Try again."
-    },
-    "cell": {
-      "file": "{{place}} file",
-      "folder": "{{place}} folder",
-      "open": "Open in {{place}}",
-      "openLatest": "Open latest in {{place}}",
-      "openFolder": "Open folder in {{place}}",
-      "openShort": "Open",
-      "versions": "Versions",
-      "versionsOf": "Versions of {{name}}",
-      "openRefused": "This Microsoft link cannot be opened.",
-      "accessFile": "Opens in Microsoft. Access depends on your Microsoft permissions on this file.",
-      "accessFolder": "Opens in Microsoft. Access depends on your Microsoft permissions on this folder.",
-      "approvedVersion": "Approved version {{version}}",
-      "issuedVersion": "Issued version {{version}}",
-      "approvedVersionLabel": "Approved version",
-      "issuedVersionLabel": "Issued version"
-    },
-    "drift": {
-      "sinceApproval": "since approval",
-      "sinceIssue": "since issue",
-      "changed": "Changed",
-      "unchanged": "Unchanged",
-      "checked": "Checked {{date}}",
-      "changedSinceApproval": "Changed since approval",
-      "changedSinceIssue": "Changed since issue",
-      "unchangedSinceApproval": "Unchanged since approval. Verified {{date}}.",
-      "unchangedSinceIssue": "Unchanged since issue. Verified {{date}}.",
-      "notVerified": "Not verified",
-      "notVerifiedSince": "Not verified since {{date}}. Microsoft could not be checked.",
-      "notVerifiedYet": "Not verified yet.",
-      "notVerifiedYetFailed": "Not verified yet. Microsoft could not be checked."
-    },
-    "versions": {
-      "title": "Versions of {{name}}",
-      "done": "Done",
-      "close": "Close",
-      "loading": "Loading…",
-      "emptyTitle": "No versions listed",
-      "emptySub": "Microsoft lists no earlier versions of this file.",
-      "list": "Versions",
-      "version": "Version {{id}}",
-      "loadMore": "Load more"
-    },
-    "history": {
-      "view": "View approved version history",
-      "viewAria": "View approved version history: {{name}}",
-      "partial": "Approved version not found in loaded history.",
-      "loadMore": "Load more history",
-      "noSharepointIds": "Version history unavailable: Microsoft did not provide SharePoint identifiers.",
-      "notRecorded": "Approved version unavailable: no version was recorded when this file was issued.",
-      "pruned": "Approved version unavailable: Microsoft no longer lists it, so it may have been pruned. The latest version is still available.",
-      "noVersioning": "Approved version unavailable: Microsoft lists no versions for this file (version history may be turned off). The latest version is still available.",
-      "needsConnection": "Approved version history needs a Microsoft 365 connection.",
-      "needsReconnect": "Approved version history needs you to reconnect Microsoft 365.",
-      "needsScope": "Approved version history needs additional Microsoft permissions.",
-      "generic": "Microsoft could not load version history. Retry, or open the latest version."
-    },
-    "revisionLinkedSubtitle": "Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.",
-    "docsTab": {
-      "linkedSubtitle": "Record a drawing, specification, or transmittal. Its file stays in Microsoft 365.",
-      "change": "Change",
-      "notConnected": "Connect Microsoft 365 first to browse documents.",
-      "myIntegrations": "My integrations"
-    },
-    "picker": {
-      "title": "Choose a Microsoft document",
-      "submit": "Link from Microsoft 365",
-      "disabledReason": "Select a file or folder to link.",
-      "linkFailed": "Could not link this Microsoft item.",
-      "retained": "Your selection is retained. Try again.",
-      "changeLocation": "Change location",
-      "loadingConnection": "Loading Microsoft connection…",
-      "defaultReadError": "Default library settings could not be read",
-      "defaultReadErrorSub": "You can still choose a location manually.",
-      "defaultLibrary": "Default library: {{site}} / {{library}}",
-      "defaultUnavailable": "Default library is unavailable; choose another accessible location. An Admin can change the default.",
-      "loading": "Loading…",
-      "chooseLocation": "Choose a location",
-      "sites": "SharePoint sites",
-      "oneDrive": "My OneDrive",
-      "browseDefault": "Browse default library",
-      "noSites": "No sites found",
-      "chooseAnother": "Choose another location.",
-      "librariesIn": "Libraries in {{site}}",
-      "libraries": "Libraries",
-      "noLibraries": "No libraries found",
-      "suggestedFor": "Suggested folders for {{label}}",
-      "suggested": "Suggested folders",
-      "browse": "Browse",
-      "browseNamed": "Browse {{name}}",
-      "linkFolder": "Link this folder",
-      "linkFolderNamed": "Link this folder {{name}}",
-      "browseRoot": "Browse the library root instead",
-      "chooseItem": "Choose a file or folder",
-      "locationNav": "Microsoft location",
-      "search": "Search this location",
-      "searchHelper": "Type at least 2 characters. Results update after you stop typing.",
-      "noSuggestion": "No folder suggestion for {{label}}. Browse this library or choose another location.",
-      "noItems": "No items found",
-      "noItemsSub": "Choose another location or search.",
-      "itemsAria": "Items in this location",
-      "selected": "Selected",
-      "select": "Select",
-      "selectNamed": "Select {{kind}} {{name}}",
-      "kindFile": "file",
-      "kindFolder": "folder",
-      "selectedSummary": "Selected {{kind}}: {{name}}",
-      "unsupported_one": "{{count}} item can't be linked (not a file or folder).",
-      "unsupported_other": "{{count}} items can't be linked (not a file or folder).",
-      "loadMore": "Load more"
-    },
-    "notice": {
-      "expired": "The Microsoft 365 connection expired. Reconnect to link more documents.",
-      "scope": "The connection needs additional permissions. Reconnect to grant them.",
-      "notConnected": "Connect Microsoft 365 first to browse documents.",
-      "network": "Could not load Microsoft items. Retry; your selection and location are kept.",
-      "generic": "Microsoft could not load this location. Check access and SharePoint availability with your Microsoft admin, or retry.",
-      "reconnectFailed": "Could not start the Microsoft 365 reconnect. Try again.",
-      "openIntegrations": "Open My integrations",
-      "retry": "Retry",
-      "reconnect": "Reconnect Microsoft 365"
-    },
-    "backfill": {
-      "failed": "Could not finish checking existing folders.",
-      "done": "Done. Every record has been checked.",
-      "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
-      "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
-    }
   }
 }

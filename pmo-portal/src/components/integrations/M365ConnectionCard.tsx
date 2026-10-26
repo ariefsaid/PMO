@@ -147,8 +147,8 @@ function DisconnectErrorAlert({ headline, body }: { headline: string; body: stri
     >
       <Icon name="alert" className="mt-px size-[17px] shrink-0 text-destructive" aria-hidden="true" />
       <div className="min-w-0">
-        <div className="text-[13px] font-semibold text-destructive-text">{headline}</div>
-        <p className="text-[12.5px] text-muted-foreground">{body}</p>
+        <div className="text-sm font-semibold text-destructive-text">{headline}</div>
+        <p className="text-sm text-muted-foreground">{body}</p>
       </div>
     </div>
   );
@@ -364,7 +364,7 @@ export const M365ConnectionCard: React.FC = () => {
     <Card className="mb-3.5 p-4" data-testid="m365-connection-card">
       <div className="flex items-center gap-2">
         <Icon name="plug" />
-        <h3 className="text-[15px] text-foreground font-semibold">
+        <h3 className="text-xl font-bold tracking-[-0.01em] text-foreground">
           {t('integrations.personalM365.heading', 'Microsoft 365')}
         </h3>
       </div>
@@ -481,6 +481,7 @@ export const M365ConnectionCard: React.FC = () => {
             variant="outline"
             onClick={() => setConfirmOpen(true)}
             disabled={phase === 'disconnecting'}
+            className="min-h-11 text-foreground sm:min-h-8"
             data-testid="m365-disconnect-btn"
           >
             {t('integrations.personalM365.action.disconnect', 'Disconnect')}

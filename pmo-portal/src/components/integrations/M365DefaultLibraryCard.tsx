@@ -47,7 +47,7 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
       setClearOpen(false);
     } catch (error) {
       setClearError({
-        headline: t('m365Documents.defaultLibrary.clearFailed', 'Could not clear the default library.'),
+        headline: t('m365Documents:defaultLibrary.clearFailed', 'Could not clear the default library.'),
         detail: classifyMutationError(error, undefined, { module: 'unknown', operation: 'update' }).detail,
       });
     }
@@ -57,12 +57,12 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
     <Card id="m365-default-library" className="mb-3.5 scroll-mt-4 p-4" data-testid="m365-default-library">
       <div className="flex items-center gap-2">
         <Icon name="folder" aria-hidden="true" />
-        <h3 className="text-[15px] font-semibold text-foreground">
-          {t('m365Documents.defaultLibrary.heading', 'Default document library')}
+        <h3 className="text-xl font-bold tracking-[-0.01em] text-foreground">
+          {t('m365Documents:defaultLibrary.heading', 'Default document library')}
         </h3>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        {t('m365Documents.defaultLibrary.description', 'The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.')}
+        {t('m365Documents:defaultLibrary.description', 'The library the document picker opens in first. It does not give anyone access to its files; Microsoft permissions still apply.')}
       </p>
 
       <div className="mt-3 min-w-0">
@@ -71,28 +71,28 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
         ) : readFailed ? (
           <ListState
             variant="error"
-            title={t('m365Documents.defaultLibrary.unavailable', 'The default library could not be read')}
-            sub={t('m365Documents.defaultLibrary.unavailableSub', 'The current setting is unchanged. Try again.')}
+            title={t('m365Documents:defaultLibrary.unavailable', 'The default library could not be read')}
+            sub={t('m365Documents:defaultLibrary.unavailableSub', 'The current setting is unchanged. Try again.')}
             onRetry={() => void refetch()}
           />
         ) : defaultLibrary ? (
-          <p className="break-words text-[13px] text-foreground" data-testid="m365-default-library-current">
-            <span className="text-muted-foreground">{t('m365Documents.defaultLibrary.current', 'Current default:')} </span>
+          <p className="break-words text-sm text-foreground" data-testid="m365-default-library-current">
+            <span className="text-muted-foreground">{t('m365Documents:defaultLibrary.current', 'Current default:')} </span>
             {`${defaultLibrary.site_name} / ${defaultLibrary.drive_name}`}
           </p>
         ) : (
-          <p className="text-[13px] text-muted-foreground">{t('m365Documents.defaultLibrary.none', 'No default library is set.')}</p>
+          <p className="text-sm text-muted-foreground">{t('m365Documents:defaultLibrary.none', 'No default library is set.')}</p>
         )}
       </div>
 
       {canManage && (
         <div className="mt-3 flex min-w-0 flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" disabled={!connected} onClick={() => setChooseOpen(true)}>
-            {t('m365Documents.defaultLibrary.choose', 'Choose default library')}
+            {t('m365Documents:defaultLibrary.choose', 'Choose default library')}
           </Button>
           {defaultLibrary && !readFailed && (
             <Button variant="ghost" size="sm" onClick={() => { setClearError(null); setClearOpen(true); }}>
-              {t('m365Documents.defaultLibrary.clear', 'Clear default')}
+              {t('m365Documents:defaultLibrary.clear', 'Clear default')}
             </Button>
           )}
           <LinkExistingRecordFolders defaultAvailable={Boolean(defaultLibrary) && !readFailed} />
@@ -100,8 +100,8 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
         </div>
       )}
       {canManage && !connected && !isPending && (
-        <p className="mt-2 text-[12px] text-muted-foreground">
-          {t('m365Documents.defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}
+        <p className="mt-2 text-sm text-muted-foreground">
+          {t('m365Documents:defaultLibrary.connectHint', 'Connect your Microsoft 365 account to choose a library. Clearing the default does not need a connection.')}
         </p>
       )}
 
@@ -109,19 +109,19 @@ export const M365DefaultLibraryCard: React.FC<M365DefaultLibraryCardProps> = ({ 
       <ConfirmDialog
         open={clearOpen}
         tone="destructive"
-        title={t('m365Documents.defaultLibrary.clearTitle', 'Clear the default library?')}
+        title={t('m365Documents:defaultLibrary.clearTitle', 'Clear the default library?')}
         description={
           <>
-            {t('m365Documents.defaultLibrary.clearDescription', 'The document picker will start from the location chooser. Existing links are not changed.')}
+            {t('m365Documents:defaultLibrary.clearDescription', 'The document picker will start from the location chooser. Existing links are not changed.')}
             {clearError && (
-              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-[12px] text-destructive-text">
+              <span role="alert" className="mt-2 block rounded-md border border-destructive/30 bg-destructive/[0.07] p-2 text-sm text-destructive-text">
                 <strong className="block">{clearError.headline}</strong>
                 {clearError.detail}
               </span>
             )}
           </>
         }
-        confirmLabel={t('m365Documents.defaultLibrary.clear', 'Clear default')}
+        confirmLabel={t('m365Documents:defaultLibrary.clear', 'Clear default')}
         loading={setDefault?.isPending ?? false}
         onConfirm={() => void confirmClear()}
         onCancel={() => { setClearOpen(false); setClearError(null); }}
@@ -165,7 +165,7 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
       onClose();
     } catch (error) {
       setSubmitError({
-        headline: t('m365Documents.defaultLibrary.saveFailed', 'Could not save the default library.'),
+        headline: t('m365Documents:defaultLibrary.saveFailed', 'Could not save the default library.'),
         detail: classifyMutationError(error, undefined, { module: 'unknown', operation: 'update' }).detail,
       });
     } finally {
@@ -177,10 +177,10 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
   return (
     <EntityFormModal
       open
-      title={t('m365Documents.defaultLibrary.modalTitle', 'Choose default library')}
-      subtitle={t('m365Documents.defaultLibrary.modalSub', 'Pick a SharePoint site, then one of its document libraries.')}
-      submitLabel={t('m365Documents.defaultLibrary.save', 'Save default')}
-      disabledReason={t('m365Documents.defaultLibrary.disabledReason', 'Choose a site and a library to save.')}
+      title={t('m365Documents:defaultLibrary.modalTitle', 'Choose default library')}
+      subtitle={t('m365Documents:defaultLibrary.modalSub', 'Pick a SharePoint site, then one of its document libraries.')}
+      submitLabel={t('m365Documents:defaultLibrary.save', 'Save default')}
+      disabledReason={t('m365Documents:defaultLibrary.disabledReason', 'Choose a site and a library to save.')}
       onSubmit={(e) => void submit(e)}
       onClose={onClose}
       submitDisabled={!form.isComplete || !site || !drive}
@@ -189,29 +189,29 @@ function ChooseLibraryModal({ onClose }: { onClose: () => void }) {
     >
       <FormGrid>
         <SelectField
-          label={t('m365Documents.defaultLibrary.site', 'Site')}
+          label={t('m365Documents:defaultLibrary.site', 'Site')}
           required
           fullWidth
           value={form.values.site}
           onChange={(value) => form.setValues({ site: value, drive: '' })}
           options={(sites.data ?? []).map((s) => ({ value: s.id, label: s.name }))}
-          placeholder={sites.isPending ? t('m365Documents.defaultLibrary.loading', 'Loading…') : t('m365Documents.defaultLibrary.pickSite', 'Select a site')}
+          placeholder={sites.isPending ? t('m365Documents:defaultLibrary.loading', 'Loading…') : t('m365Documents:defaultLibrary.pickSite', 'Select a site')}
           disabled={sites.isPending}
         />
         <SelectField
-          label={t('m365Documents.defaultLibrary.library', 'Library')}
+          label={t('m365Documents:defaultLibrary.library', 'Library')}
           required
           fullWidth
           value={form.values.drive}
           onChange={(value) => form.setValue('drive', value)}
           options={(drives.data ?? []).map((d) => ({ value: d.id, label: d.name }))}
-          placeholder={drives.isFetching ? t('m365Documents.defaultLibrary.loading', 'Loading…') : t('m365Documents.defaultLibrary.pickLibrary', 'Select a library')}
+          placeholder={drives.isFetching ? t('m365Documents:defaultLibrary.loading', 'Loading…') : t('m365Documents:defaultLibrary.pickLibrary', 'Select a library')}
           disabled={siteId === '' || drives.isFetching}
         />
       </FormGrid>
       {loadError && (
-        <p role="status" className="mt-2 text-[12px] text-destructive-text">
-          {t('m365Documents.defaultLibrary.browseFailed', 'Microsoft locations could not be loaded. Close this dialog and try again.')}
+        <p role="status" className="mt-2 text-sm text-destructive-text">
+          {t('m365Documents:defaultLibrary.browseFailed', 'Microsoft locations could not be loaded. Close this dialog and try again.')}
         </p>
       )}
     </EntityFormModal>

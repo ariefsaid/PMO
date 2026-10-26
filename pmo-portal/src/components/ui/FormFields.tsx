@@ -129,7 +129,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
 /** The shared input visual shell (token-pure). */
 const inputBase =
   'h-8 w-full rounded-md border border-input bg-background px-[10px] text-[13.5px] text-foreground ' +
-  'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
+  'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground [@media(pointer:coarse)]:h-11 ' +
   'disabled:cursor-not-allowed';
 const inputInvalid = 'border-destructive';
 
