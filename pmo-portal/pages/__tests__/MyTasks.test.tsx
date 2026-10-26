@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -93,8 +93,8 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
       },
     ];
     renderMyTasks();
-    expect(screen.getByText('Review design specs')).toBeInTheDocument();
-    expect(screen.getByText('Northwind ERP')).toBeInTheDocument();
+    const taskRow = screen.getByText('Review design specs').closest('[role="listitem"]')!;
+    expect(within(taskRow).getByText('Northwind ERP')).toBeInTheDocument();
     // The status select should have the task's current status selected.
     const statusSelect = screen.getByRole('combobox', { name: /change status of review design specs/i });
     expect(statusSelect).toHaveValue('In Progress');
@@ -135,7 +135,7 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     expect(screen.queryByText('Prepare the agenda')).not.toBeInTheDocument();
   });
 
-  it('AC-002 #1325: the project group shows the short name, titles the contractual one, and search matches either', async () => {
+  it('AC-002 #1325: each task row shows its short project name, titles the contractual name, and search matches either', async () => {
     tasksState.isPending = false;
     tasksState.data = [
       { id: 't1', name: 'Prepare the agenda', status: 'To Do', assignee_id: 'u-self', project_id: 'p1', project_name: 'Tower', project_contractual_name: 'Contractual Tower Works', start_date: null, end_date: null },
@@ -176,7 +176,7 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     renderMyTasks();
     await user.type(screen.getByRole('searchbox', { name: 'Search your tasks' }), 'missing');
     expect(screen.getByText('No tasks match your search')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Clear filters' })).toBeInTheDocument();
   });
 
   it('CW-7: task dates render human-formatted, never raw ISO', () => {

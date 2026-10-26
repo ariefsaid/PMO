@@ -34,6 +34,7 @@ import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import WorkPageHeading from './WorkPageHeading';
 import type { ContactRow, ContactInput } from '@/src/lib/db/contacts';
 
 interface FormValues {
@@ -164,14 +165,17 @@ const Contacts: React.FC = () => {
 
   if (!canView) {
     return (
-      <AccessDenied
-        title={t('contacts.accessDenied.title', "You don't have access to Contacts")}
-        sub={t(
-          'contacts.accessDenied.sub',
-          'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('contacts.title', 'Contacts')} scope={t('contacts.description', 'People and their company relationships.')} />
+        <AccessDenied
+          title={t('contacts.accessDenied.title', "You don't have access to Contacts")}
+          sub={t(
+            'contacts.accessDenied.sub',
+            'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 

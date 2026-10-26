@@ -30,6 +30,7 @@ import {
 import { BackBar } from '@/src/components/shell';
 import { VendorTaxDefaultsCard } from './company/VendorTaxDefaultsCard';
 import { CompanyCollections } from '@/src/components/companies/CompanyCollections';
+import WorkPageHeading from './WorkPageHeading';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import {
@@ -66,7 +67,7 @@ import type { ContactInput } from '@/src/lib/db/contacts';
  * with company_id pre-filled + locked (the user is already on a company page).
  * JTBD T15/T16w3: Contacts section shows a proper error state (not "No contacts yet") on fetch error.
  * JTBD T17: Account activity timeline — aggregates crm_activities across all company contacts.
- * JTBD T18: Primary-contact link on the account card + related projects (RelatedList already renders).
+ * JTBD T18: every account contact remains reachable; no arbitrary primary-contact designation.
  */
 const typeOptions = (t: TFunction) => [
   { value: 'Client', label: t('companyDetail.type.client', 'Client') },
@@ -145,14 +146,17 @@ const CompanyDetail: React.FC = () => {
   // Rules of Hooks hold) — a denied role gets the shared access-denied surface.
   if (!canView) {
     return (
-      <AccessDenied
-        title={t('companyDetail.accessDenied.title', "You don't have access to Companies")}
-        sub={t(
-          'companyDetail.accessDenied.sub',
-          'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Accounts and project partners.')} />
+        <AccessDenied
+          title={t('companyDetail.accessDenied.title', "You don't have access to Companies")}
+          sub={t(
+            'companyDetail.accessDenied.sub',
+            'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 
@@ -161,6 +165,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
         <div data-testid="company-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -173,6 +178,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
         <ListState
           variant="error"
           title={t('companyDetail.error.title', "Couldn't load company")}
@@ -189,6 +195,7 @@ const CompanyDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('companyDetail.backToCompanies', 'Companies')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.company', 'Company')} scope={t('workPageHeading.companyScope', 'Account record')} />
         <div data-testid="company-not-found">
           <ListState
             variant="empty"
@@ -236,9 +243,11 @@ const CompanyDetail: React.FC = () => {
       {/* The ONE RecordHeader anatomy — icon + name + categorical company-type pill (CW-2
           registry) + the role-allowed action zone (Edit + Archive). */}
       <RecordHeader
+        sharedPageHeading
         name={companyDisplayName(company)}
         icon={(companyDisplayName(company).trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant={companyTypeVariant(company.type)}>{company.type}</StatusPill>}
+        meta={company.name !== companyDisplayName(company) ? <span>{company.name}</span> : undefined}
         actions={
           hasActions ? (
             <>
@@ -257,27 +266,24 @@ const CompanyDetail: React.FC = () => {
         }
       />
 
-      {/* Body — the company's fields (read-only; edit-in-modal). */}
+      {/* FR-CRM-008: contact reachability is the first account evidence. */}
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('companyDetail.sectionTitle', 'Company detail')}</CardHead>
+        <CardHead
+          actions={
+            canCreateContact && (
+              <Button variant="outline" size="sm" onClick={() => setAddContactOpen(true)}>
+                <Icon name="plus" />
+                {t('companyDetail.contacts.addContact', 'Add contact')}
+              </Button>
+            )
+          }
+        >
+          {t('companyDetail.contacts.title', 'Contacts')}
+        </CardHead>
         <CardPad>
-          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field label={t('companyDetail.field.name', 'Name')} value={company.name} />
-            <Field label={t('companies.form.shortName.label', 'Short name')} value={company.short_name || '—'} />
-            <Field label={t('companyDetail.field.type', 'Type')} value={company.type} />
-            {company.client_number_segment && (
-              <Field
-                label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
-                value={<span className="font-mono">{company.client_number_segment}</span>}
-              />
-            )}
-            {/* T18: Primary contact link — rendered in the account card when contacts exist. */}
-            <PrimaryContactField companyId={company.id} />
-          </dl>
+          <CompanyContactsList companyId={company.id} />
         </CardPad>
       </Card>
-      {/* #876 slice 2 (OD-VWH-1): the vendor's default tax treatment pre-fills its bills. */}
-      {company.type === 'Vendor' && <VendorTaxDefaultsCard company={company} />}
 
       {/* AC-IFW-COMPANY-01 + AC-G3C-CD-3: related projects (always) and procurement
           (always fetch; visible for Vendors or any type when vendor PRs exist). */}
@@ -292,29 +298,35 @@ const CompanyDetail: React.FC = () => {
         onAddContact={canCreateContact ? () => setAddContactOpen(true) : undefined}
       />
 
-      {/* FR-CRM-008: the company's non-archived contacts — moved here off the retired drawer.
-          T14: "Add contact" in-context button in the CardHead (CanWrite-gated). */}
-      <Card variant="bare">
-        <CardHead
-          actions={
-            canCreateContact && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setAddContactOpen(true)}
-              >
-                <Icon name="plus" />
-                {t('companyDetail.contacts.addContact', 'Add contact')}
-              </Button>
-            )
-          }
-        >
-          {t('companyDetail.contacts.title', 'Contacts')}
-        </CardHead>
-        <CardPad>
-          <CompanyContactsList companyId={company.id} />
-        </CardPad>
-      </Card>
+      {/* Account configuration is secondary to its people, projects and activity. */}
+      <details className="mb-4 rounded-xl border border-border bg-card px-4">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+          {t('companyDetail.sectionTitle', 'Details')}
+        </summary>
+        <dl className="grid grid-cols-1 gap-x-8 gap-y-4 pb-4 sm:grid-cols-2">
+          {company.name !== companyDisplayName(company) && (
+            <Field label={t('companyDetail.field.legalName', 'Legal name')} value={company.name} />
+          )}
+          {company.client_number_segment && (
+            <Field
+              label={t('companyDetail.field.clientNumberSegment', 'Client number segment')}
+              value={<span className="font-mono">{company.client_number_segment}</span>}
+            />
+          )}
+        </dl>
+      </details>
+
+      {/* Vendor tax defaults prefill bills; keep the edit affordance discoverable on demand. */}
+      {company.type === 'Vendor' && (
+        <details className="mb-4 rounded-xl border border-border bg-card px-4">
+          <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+            {t('companyDetail.taxDefaults.title', 'Tax defaults')}
+          </summary>
+          <div className="pb-4">
+            <VendorTaxDefaultsCard company={company} />
+          </div>
+        </details>
+      )}
 
       {/* #719 (spec D5): read-only change history — a collapsed Card section (this page has no tab bar). */}
       <HistorySection entityType="company" entityId={company.id} />
@@ -377,35 +389,6 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dd className="text-[13.5px] text-foreground">{value}</dd>
   </div>
 );
-
-// ── T18: Primary contact field ─────────────────────────────────────────────────
-
-/**
- * AC-CRM-CD-08: renders a "Primary contact" link in the account card when the company
- * has at least one contact. Uses the first contact from useContactsByCompany (sorted
- * alphabetically by the DAL). Absent when there are no contacts.
- */
-const PrimaryContactField: React.FC<{ companyId: string }> = ({ companyId }) => {
-  const { t } = useTranslation();
-  const { data, isPending } = useContactsByCompany(companyId);
-  if (isPending || !data || data.length === 0) return null;
-  const primary = data[0];
-  return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-        {t('companyDetail.field.primaryContact', 'Primary contact')}
-      </dt>
-      <dd className="text-[13.5px] text-foreground">
-        <Link
-          to={`/contacts/${primary.id}`}
-          className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {primary.full_name}
-        </Link>
-      </dd>
-    </div>
-  );
-};
 
 // ── RelatedList — shared presentational component for related-object lists ───
 //

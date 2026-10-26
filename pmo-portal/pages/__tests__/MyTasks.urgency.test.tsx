@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
@@ -37,7 +37,7 @@ vi.mock('@/src/hooks/useMyTasks', () => ({
 const PAST_DATE = '2024-01-01'; // safely in the past
 const FUTURE_DATE = '2099-12-31'; // safely in the future
 
-/** Three tasks for one project — server order: Done first (top), then future, then overdue. */
+/** Server order intentionally puts Done/future work before an overdue item. */
 const tasksForProject = [
   {
     id: 't-done',
@@ -68,10 +68,16 @@ const tasksForProject = [
   },
 ];
 
-const renderMyTasks = () =>
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <output data-testid="location-probe" data-search={location.search} />;
+};
+
+const renderMyTasks = (initialPath = '/my-tasks') =>
   render(
     <ImpersonationProvider realRole="Engineer">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <LocationProbe />
         <ToastProvider>
           {/* Import lazily after mock is set */}
           <MyTasksComponent />
@@ -91,16 +97,44 @@ beforeEach(() => {
 });
 
 describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => {
-  it('AC-IFW-TASKS-01: overdue task sorts before future task within a project group', () => {
+  it('AC-IFW-TASKS-01: overdue work sorts ahead of future work across projects', () => {
+    tasksState.data = [
+      { ...tasksForProject[1], id: 't-future-p1' },
+      { ...tasksForProject[2], id: 't-overdue-p2', project_id: 'p-2', project_name: 'Harbour Upgrade' },
+    ];
     renderMyTasks();
-    // Both tasks are within the "Solar Phase 1" group
     const overdueEl = screen.getByText('Overdue Task');
     const futureEl = screen.getByText('Future Task');
-    // compareDocumentPosition: 4 = FOLLOWING, 2 = PRECEDING
-    // Overdue Task should appear BEFORE Future Task in DOM
     const order = overdueEl.compareDocumentPosition(futureEl);
-    // 4 (DOCUMENT_POSITION_FOLLOWING) means futureEl is after overdueEl
     expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Solar Phase 1' })).not.toBeInTheDocument();
+  });
+
+  it('C-03: equal urgency and due dates use task name before project name', () => {
+    tasksState.data = [
+      { ...tasksForProject[1], id: 't-zulu', name: 'Zulu task', project_name: 'Alpha project' },
+      { ...tasksForProject[1], id: 't-alpha', name: 'Alpha task', project_name: 'Zulu project' },
+    ];
+    renderMyTasks();
+
+    const alpha = screen.getByText('Alpha task');
+    const zulu = screen.getByText('Zulu task');
+    expect(alpha.compareDocumentPosition(zulu) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('C-06: no-match recovery clears search, status and project while keeping sort', async () => {
+    const user = userEvent.setup();
+    renderMyTasks('/my-tasks?status=completed&project=p-2&q=missing&sort=due');
+    expect(screen.getByText('No tasks match your search')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /clear filters/i }));
+
+    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search'));
+    expect(params.get('status')).toBeNull();
+    expect(params.get('project')).toBeNull();
+    expect(params.get('q')).toBeNull();
+    expect(params.get('sort')).toBe('due');
+    expect(screen.getByText('Future Task')).toBeInTheDocument();
   });
 
   it('AC-IFW-TASKS-01: completed tasks stay out of the default open queue and remain reachable', async () => {
@@ -118,6 +152,29 @@ describe('MyTasks — urgency ordering + overdue flag (AC-IFW-TASKS-01)', () => 
     // Use exact match to avoid matching the task name "Overdue Task"
     const badges = screen.getAllByText(/^overdue$/i);
     expect(badges.length).toBeGreaterThan(0);
+  });
+
+  it('AC-WORK-TASKS-01: search, status, project and urgency controls persist their scope in the URL', async () => {
+    tasksState.data = [
+      { ...tasksForProject[1], id: 't-north', project_id: 'p-1' },
+      { ...tasksForProject[1], id: 't-south', name: 'South task', project_id: 'p-2', project_name: 'South project' },
+    ];
+    const user = userEvent.setup();
+    renderMyTasks();
+    const toolbar = screen.getByTestId('my-tasks-toolbar');
+    const controls = [
+      screen.getByRole('searchbox', { name: /Search your tasks/i }),
+      screen.getByRole('button', { name: /Open tasks/i }),
+      screen.getByLabelText(/Filter by project/i),
+      screen.getByLabelText(/Sort tasks/i),
+    ];
+    expect(controls.every((control) => toolbar.contains(control))).toBe(true);
+    await user.selectOptions(controls[2], 'p-1');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('project')).toBe('p-1');
+    expect(screen.getByText('Future Task')).toBeInTheDocument();
+    expect(screen.queryByText('South task')).not.toBeInTheDocument();
+    await user.selectOptions(controls[3], 'due');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('sort')).toBe('due');
   });
 
   it('AC-IFW-TASKS-01: Done task does NOT carry an "Overdue" flag even with past end_date', () => {

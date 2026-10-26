@@ -21,13 +21,18 @@ export interface LegalPageLayoutProps {
   title: string;
   /** Drives the sibling cross-link: terms→Privacy, privacy→Terms. */
   variant: 'terms' | 'privacy';
+  /** Ordered section titles also produce the section anchors below. */
+  sections: string[];
   children: React.ReactNode;
 }
+
+const sectionId = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
   eyebrow = 'Legal',
   title,
   variant,
+  sections,
   children,
 }) => {
   // Auth-aware back link (FR-LEG-005, AC-LEG-030). session===null → unauthed
@@ -68,11 +73,11 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
             page has no nav landmark — "AppShell does not render" (AC-LEG-001/002) is
             unambiguous and the icon/overflow gates see a clean structure. */}
         <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-          <Link to={back.to} className="font-medium text-primary-text hover:underline">
+          <Link to={back.to} className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
             {back.label}
           </Link>
           <span aria-hidden className="text-muted-foreground">·</span>
-          <Link to={crossLink.to} className="font-medium text-primary-text hover:underline">
+          <Link to={crossLink.to} className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
             {crossLink.label}
           </Link>
           {HELP_URL && (
@@ -83,13 +88,27 @@ export const LegalPageLayout: React.FC<LegalPageLayoutProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Contact support via WhatsApp"
-                className="font-medium text-primary-text hover:underline"
+                className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline"
               >
                 Help
               </a>
             </>
           )}
         </div>
+
+        <nav aria-label="Sections" className="my-5">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 sm:flex sm:flex-wrap">
+            {sections.map((section) => (
+              <a
+                key={section}
+                href={`#${sectionId(section)}`}
+                className="inline-flex min-h-11 min-w-0 items-center py-2 text-[13px] leading-5 font-medium text-primary-text hover:underline"
+              >
+                <span className="break-words">{section}</span>
+              </a>
+            ))}
+          </div>
+        </nav>
 
         <hr className="my-6 border-border" />
 
@@ -105,7 +124,7 @@ export const LegalSection: React.FC<{ title: string; children: React.ReactNode }
   title,
   children,
 }) => (
-  <section className="space-y-2">
+  <section id={sectionId(title)} className="scroll-mt-4 space-y-2">
     <h2 className="text-[20px] font-bold leading-[1.25] tracking-[-0.01em] text-foreground">
       {title}
     </h2>

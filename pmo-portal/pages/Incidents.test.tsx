@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -81,15 +81,21 @@ const seed = [
   },
 ];
 
-const renderPage = (role: Role = 'Admin') => {
+const renderPage = (role: Role = 'Admin', initialPath = '/incidents') => {
   realRole = role;
   return render(
     <ToastProvider>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialPath]}>
+          <LocationProbe />
         <Incidents />
       </MemoryRouter>
     </ToastProvider>,
   );
+};
+
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <output data-testid="location-probe" data-search={location.search} />;
 };
 
 beforeEach(() => {
@@ -156,30 +162,71 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
     expect(screen.getByText('Spill')).toBeInTheDocument();
   });
 
-  it('AC-IN-001: each severity renders a DISTINCT dot + label (Low/High/Critical differentiated)', () => {
+  it('AC-IN-001: opens with active incidents severity-first and closed incidents after them', () => {
     renderPage();
-    // S1 (ADR-0068): status is a quiet dot + label, no tint slab — severity is
-    // differentiated by the DOT hue (+ the label), so measure the dot background.
-    const dotBg = (label: string, rowType: string) => {
-      const row = screen.getByText(rowType).closest('tr')!;
-      const pill = within(row).getByText(label).closest('span')!;
-      return (pill.querySelector('[data-pill-dot]') as HTMLElement).style.background;
-    };
-    const low = dotBg('Low', 'Near Miss');
-    const high = dotBg('High', 'Equipment Damage');
-    const critical = dotBg('Critical', 'Spill');
-    // High = warn (amber); Critical = destructive (red); Low = quiet muted — all distinct.
-    expect(high).toBe('hsl(var(--warning))');
-    expect(critical).toBe('hsl(var(--destructive))');
-    expect(low).not.toBe(high);
-    expect(high).not.toBe(critical);
-    expect(low).not.toBe(critical);
-    // Freed-Blue Status Rule (CW-2): neither severity NOR workflow status renders the
-    // action-blue. "Open" status is the neutral grey `progress` treatment (muted dot).
-    const openDot = dotBg('Open', 'Near Miss');
-    [low, high, critical, openDot].forEach((d) =>
-      expect(d).not.toBe('hsl(var(--primary))'),
-    );
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
+      'Equipment Damage',
+      'Near Miss',
+      'Spill',
+    ]);
+  });
+
+  it('AC-IN-001: search, status, severity, sort, export and creation stay in that order', () => {
+    renderPage();
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const controls = [
+      screen.getByRole('searchbox', { name: /Search incidents/i }),
+      screen.getByRole('tab', { name: /^All$/i }),
+      screen.getByLabelText(/Filter by severity/i),
+      screen.getByLabelText(/Sort incidents/i),
+      screen.getByRole('button', { name: /Export/i }),
+      screen.getByRole('button', { name: /File incident/i }),
+    ];
+    expect(controls.every((control) => toolbar.contains(control))).toBe(true);
+    for (let index = 1; index < controls.length; index += 1) {
+      expect(Boolean(controls[index - 1].compareDocumentPosition(controls[index]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    }
+  });
+
+  it('C-01: status filters wrap within the toolbar instead of scrolling sideways', () => {
+    renderPage();
+    const statusFilters = screen.getByRole('tablist', { name: 'Filter by status' });
+    expect(statusFilters).toHaveClass('flex-wrap');
+    expect(statusFilters.parentElement).not.toHaveClass('overflow-x-auto');
+  });
+
+  it('C-06: clearing a no-match incident filter keeps the selected sort', async () => {
+    renderPage('Admin', '/incidents?q=missing&status=Closed&severity=Critical&sort=date');
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search'));
+    expect(params.get('q')).toBeNull();
+    expect(params.get('status')).toBeNull();
+    expect(params.get('severity')).toBeNull();
+    expect(params.get('sort')).toBe('date');
+    expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
+  });
+
+  it('AC-IN-001: a severity choice is reflected in the URL and the visible rows', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/Filter by severity/i), 'High');
+    expect(screen.getByTestId('location-probe').dataset.search).toContain('severity=High');
+    expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
+    expect(screen.queryByText('Near Miss')).not.toBeInTheDocument();
+  });
+
+  it('AC-IN-001: severity and workflow states remain readable as words in each row', () => {
+    renderPage();
+    const nearMiss = screen.getByText('Near Miss').closest('tr')!;
+    const equipment = screen.getByText('Equipment Damage').closest('tr')!;
+    const spill = screen.getByText('Spill').closest('tr')!;
+    expect(within(nearMiss).getByText('Low')).toBeInTheDocument();
+    expect(within(nearMiss).getByText('Open')).toBeInTheDocument();
+    expect(within(equipment).getByText('High')).toBeInTheDocument();
+    expect(within(equipment).getByText('Investigating')).toBeInTheDocument();
+    expect(within(spill).getByText('Critical')).toBeInTheDocument();
+    expect(within(spill).getByText('Closed')).toBeInTheDocument();
   });
 });
 

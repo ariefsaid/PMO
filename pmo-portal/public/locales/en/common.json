@@ -762,6 +762,12 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
+    "queueEmptyScopeTitle": "No {{scope}} awaiting your decision",
+    "showAllPending": "Show all pending",
+    "decisionTotal": "Decision total",
+    "lineItems": "Line items",
+    "openRequest": "Open request",
+    "unitRate": "{{quantity}} × {{rate}} per unit",
     "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
@@ -1808,6 +1814,7 @@
   },
   "myTasks": {
     "allProjects": "All projects",
+    "clearFilters": "Clear filters",
     "changeStatusOf": "Change status of",
     "due": "Due {{date}}",
     "empty": {
@@ -1840,7 +1847,66 @@
     "title": "My Tasks"
   },
   "incidents": {
-    "actions": { "file": "File incident" },
+    "actions": { "file": "File incident", "edit": "Edit", "delete": "Delete" },
+    "form": {
+      "title": { "create": "File incident", "edit": "Edit incident" },
+      "subtitle": {
+        "create": "Record what happened. You will be recorded as the reporter.",
+        "edit": "Update this incident report"
+      },
+      "section": "What happened",
+      "dateRequired": "Incident date is required.",
+      "typeRequired": "Incident type is required.",
+      "type": "Type",
+      "typePlaceholder": "e.g. Near Miss, Equipment Damage, Spill",
+      "locationPlaceholder": "e.g. Office or work site",
+      "projectNoun": "project",
+      "projectPlaceholder": "Optional — link a project…",
+      "description": "Description",
+      "descriptionPlaceholder": "What happened, who was involved, and any immediate action taken.",
+      "save": "Save incident",
+      "submit": "File incident"
+    },
+    "detail": {
+      "title": "Incident",
+      "scope": "Incident report",
+      "loadErrorTitle": "Couldn't load incident",
+      "loadErrorSub": "Something went wrong fetching the incident report.",
+      "notFoundTitle": "Incident not found",
+      "notFoundSub": "This incident either doesn't exist or isn't visible to you. Return to the register to find it.",
+      "reported": "Reported {{date}}",
+      "evidence": "Incident evidence",
+      "description": "Description",
+      "noDescription": "No description was recorded.",
+      "nextAction": "Next action",
+      "confirmFallbackTitle": "Advance incident?",
+      "transition": {
+        "investigating": {
+          "menu": "Start investigating",
+          "title": "Start investigating {{type}}?",
+          "body": "This moves the incident to Investigating so the team can record findings. You can close it once the investigation is complete.",
+          "confirm": "Start investigating"
+        },
+        "closed": {
+          "menu": "Close incident",
+          "title": "Close {{type}}?",
+          "body": "This marks the incident Closed. Closed is the final state; reopen by filing a follow-up if new information emerges.",
+          "confirm": "Close incident"
+        }
+      },
+      "toast": {
+        "closed": "Incident closed",
+        "investigating": "Investigation started",
+        "updated": "Incident updated",
+        "deleted": "Incident deleted",
+        "filed": "Incident filed"
+      },
+      "rowOpen": "Open {{type}}",
+      "deleteTitle": "Delete {{type}}?",
+      "deleteFallbackTitle": "Delete incident?",
+      "deleteDescription": "This permanently removes the incident report. This can't be undone; consider closing it instead to keep the audit trail.",
+      "deleteConfirm": "Delete incident"
+    },
     "columns": {
       "incident": "Incident", "project": "Project", "severity": "Severity",
       "status": "Status", "date": "Date", "location": "Location"
@@ -1862,6 +1928,7 @@
       "emptySub": "Try a different severity, status or search.",
       "clearFilters": "Clear filters"
     },
+    "notRecorded": "Not recorded",
     "title": "Incidents", "unlinked": "Unlinked", "viewProject": "View project"
   },
   "procurement": {
@@ -3404,7 +3471,7 @@
       "title": "No hours logged this week"
     },
     "emptyEdit": {
-      "sub": "Use “Add a project” above to start logging hours.",
+      "sub": "Choose a project above to start recording hours.",
       "title": "No hours logged this week"
     },
     "enterHoursToSubmit": "Enter hours to submit",
@@ -3683,18 +3750,40 @@
     "error": "Could not save your preferences. Please try again.",
     "invalidTimezone": "Choose a valid timezone before saving."
   },
+  "workPageHeading": {
+    "approvals": "Approvals",
+    "approvalsScope": "My decisions",
+    "company": "Company",
+    "companyScope": "Account record",
+    "contact": "Contact",
+    "contactScope": "Person record",
+    "incident": "Incident",
+    "incidentScope": "Incident report",
+    "meeting": "Meeting",
+    "meetingScope": "Meeting record",
+    "profile": "Profile & preferences",
+    "profileScope": "Personal preferences",
+    "tasks": "My tasks",
+    "tasksScope": "Assigned to you across projects",
+    "timesheets": "My time",
+    "timesheetsScope": "Your hours · {{week}} · {{status}}",
+    "views": "My views"
+  },
   "oauthConsent": {
     "allow": "Allow",
     "brand": "PMO Portal",
     "decideError": "Your answer could not be sent.",
     "deny": "Deny",
+    "errorTitle": "Sign-in request unavailable",
     "explain": "{{client}} will be able to read and change PMO records as you, with exactly your permissions. It can do nothing you cannot do yourself.",
     "loadError": "This sign-in request could not be loaded.",
     "loading": "Loading the sign-in request…",
+    "loadingTitle": "Sign-in request",
     "loopback": "After you answer, you return to a program on this computer.",
     "missingRequest": "This sign-in request is incomplete.",
     "restart": "Start the sign-in again from the application that sent you here.",
     "returning": "Returning you to the application…",
+    "returningTitle": "Returning to the application",
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
@@ -4176,6 +4265,8 @@
   },
   "viewRenderer": {
     "backToViews": "Back to saved views",
+    "checkingAccessTitle": "Checking access to saved view",
+    "checkingAccessDescription": "Confirming your access before opening this saved answer…",
     "savedViewTitle": "Saved view",
     "loadingTitle": "Opening saved view",
     "loadingDescription": "Loading the saved answer and its panels…",

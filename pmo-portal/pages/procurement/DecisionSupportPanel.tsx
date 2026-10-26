@@ -16,8 +16,9 @@
  *
  * Available = Budget − Committed − Reserved (the over-commitment-safe headroom).
  *
- * The five figures (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
+ * The five figures in ordinary procurement context (text-labelled, a11y: text-not-color-only per DESIGN.md §4):
  *   This request · Reserved (other) · Available · Project budget · After this request.
+ * Approval previews can hide project/request identity already shown in their decision header.
  * Over-budget is a non-blocking advisory (approval still permitted — OD-W5-4/OD-W5-5).
  *
  * Per-stage "After this request" math (ADR-0034 §5 — the double-count fix): when the
@@ -61,6 +62,10 @@ export interface DecisionSupportPanelProps {
   /** The procurement's own ISO-4217 currency (FR-L10N-020) — every figure here derives
    *  from `totalValue`/the project's budget rollups, which share this record's currency. */
   currency: string;
+  /** Hide project identity when the surrounding approval header already names the project. */
+  showProjectContext?: boolean;
+  /** Hide the request amount when the decision surface shows its own authoritative total. */
+  showRequestValue?: boolean;
 }
 
 export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
@@ -70,6 +75,8 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   projectLegalName,
   status,
   currency,
+  showProjectContext = true,
+  showRequestValue = true,
 }) => {
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
   // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
@@ -97,7 +104,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       <h3 className="text-[12.5px] font-semibold text-muted-foreground uppercase tracking-[0.06em]">
         Budget impact
       </h3>
-      {projectName ? (
+      {showProjectContext && projectName ? (
         <ProjectNameLink
           projectId={scopedProjectId}
           name={projectName}
@@ -197,17 +204,18 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     },
   ];
+  const visibleTiles = showRequestValue ? tiles : tiles.filter((tile) => tile.label !== 'This request');
 
   return (
     <Card variant="bare" className="mb-4">
       <CardPad>
         {heading}
 
-        {/* Five stat tiles — text-labelled, tabular-nums (a11y: not color-only).
+        {/* Budget figures — text-labelled, tabular-nums (a11y: not color-only).
             Available (Budget − Committed − Reserved) is the over-commitment-safe
             headroom; no progress bar — an uninformative single-segment 0% bar
-            misreads as broken (Wave-5 I1). columns=3 → a 3+2 strip for five tiles. */}
-        <StatTiles tiles={tiles} columns={5} />
+            misreads as broken (Wave-5 I1). */}
+        <StatTiles tiles={visibleTiles} columns={visibleTiles.length} />
 
         {/* Over-available advisory — non-blocking. ErrBanner is role="status" (gentle,
             not an alert) and carries the dollar overage in text (WCAG SC 1.4.1, not

@@ -6,8 +6,7 @@ import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 
 /**
- * Fix #5 — Procurement list: rows must support inline expand/preview
- * (asymmetry with /approvals which already has ProcurementApprovalRow expansion).
+ * Fix #5 — Procurement list: rows support inline expand/preview for its own review job.
  *
  * AC-FIX5-PREVIEW-01: each table row has a disclosure (expand) toggle button.
  * AC-FIX5-PREVIEW-02: clicking the toggle reveals the row's detail preview in place.

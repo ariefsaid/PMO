@@ -16,8 +16,8 @@ export interface ApprovalRowProps {
   /**
    * B (AC-JR-W3B-03): optional fully-custom subtitle that overrides the default
    * `{week} · {hours} h` line. When provided, `week` and `hours` are ignored.
-   * Used by ProcurementApprovalRow to render request-meta (code · amount · age)
-   * in the unified shell without being tied to the timesheet format.
+   * Used by invoice approvals to render a compact request identity without being
+   * tied to the timesheet format.
    */
   subtitle?: React.ReactNode;
   /** Request titles wrap ahead of status/meta; omitted keeps existing timesheet/invoice anatomy. */
@@ -28,7 +28,7 @@ export interface ApprovalRowProps {
    * Optional leading-edge disclosure affordance (AC-JR-W4-01 — ADR-0028).
    * Rendered at the very start of the row flex (before the avatar/name), so the
    * consumer can place a chevron-toggle or expand button at the left edge,
-   * matching the ProcurementApprovalRow layout.
+   * matching the selected timesheet queue layout.
    *
    * When omitted (existing callers) the avatar remains the first child — no
    * layout change for callers that don't pass this prop.

@@ -149,6 +149,8 @@ describe('UpdatePasswordPage', () => {
   it('AC-AUTHF-015: direct navigation (no params) renders the expired state, not the form', () => {
     window.history.replaceState({}, '', '/update-password');
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Password link unavailable');
     expect(screen.getByText(/invalid or expired/i)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /request a new link/i })).toHaveAttribute(
       'href',
@@ -166,6 +168,7 @@ describe('UpdatePasswordPage', () => {
     window.history.replaceState({}, '', '/update-password?type=recovery&token=stale');
     auth.getSession.mockResolvedValueOnce({ data: { session: null } });
     renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: /set a new password/i })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/invalid or expired/i)).toBeInTheDocument());
     expect(screen.queryByLabelText(/new password/i)).toBeNull();
   });
@@ -179,6 +182,7 @@ describe('UpdatePasswordPage', () => {
       data: { session: { user: { id: 'u1', user_metadata: { invite_pending: true } } } },
     });
     renderPage();
+    expect(await screen.findByRole('heading', { level: 1, name: /set your password/i })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText(/new password/i)).toBeVisible());
     expect(screen.getByLabelText(/confirm password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /set new password/i })).toBeInTheDocument();

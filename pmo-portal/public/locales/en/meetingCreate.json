@@ -5,5 +5,10 @@
   "denied": "You do not have permission to create meetings.",
   "minutesFailed": "Minutes could not be saved.",
   "partialSaveFailed": "Meeting saved, but some details were not saved. Save again to retry.",
+  "scopeHint": "Record the discussion, actions and attendees for one meeting.",
+  "scopeForProject": "For {{project}}",
+  "attendeeCount": "{{count}} added",
+  "optional": "Optional",
+  "identitySaved": "Meeting details are saved so actions can be linked. Finish the minutes and attendees, then save the meeting.",
   "save": "Save meeting"
 }

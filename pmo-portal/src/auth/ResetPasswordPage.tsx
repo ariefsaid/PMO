@@ -71,13 +71,13 @@ const ResetPasswordPage: React.FC = () => {
                 onChange={setEmail}
                 disabled={busy}
               />
-              <Button type="submit" variant="primary" loading={busy} disabled={busy} className="w-full">
+              <Button type="submit" variant="primary" loading={busy} disabled={busy} className="min-h-11 w-full">
                 Send reset link
               </Button>
             </form>
             <Link
               to="/login"
-              className="block text-center text-[12.5px] font-semibold text-primary-text hover:underline"
+              className="flex min-h-11 items-center justify-center text-[12.5px] font-semibold text-primary-text hover:underline"
             >
               Back to sign in
             </Link>

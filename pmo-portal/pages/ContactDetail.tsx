@@ -29,6 +29,7 @@ import { BackBar } from '@/src/components/shell';
 import { usePermission } from '@/src/auth/usePermission';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useContact, useContactActivities, useContactMeetings, useContactMutations } from '@/src/hooks/useContacts';
+import WorkPageHeading from './WorkPageHeading';
 import type { ContactMeetingRef } from '@/src/lib/db/meetings';
 import { useCompanies } from '@/src/hooks/useCompanies';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
@@ -101,14 +102,17 @@ const ContactDetail: React.FC = () => {
 
   if (!canView) {
     return (
-      <AccessDenied
-        title={t('contactDetail.accessDenied.title', "You don't have access to Contacts")}
-        sub={t(
-          'contactDetail.accessDenied.sub',
-          'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('contacts.title', 'Contacts')} scope={t('contacts.description', 'People and their company relationships.')} />
+        <AccessDenied
+          title={t('contactDetail.accessDenied.title', "You don't have access to Contacts")}
+          sub={t(
+            'contactDetail.accessDenied.sub',
+            'The CRM directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 
@@ -117,6 +121,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
         <div data-testid="contact-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -129,6 +134,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
         <ListState
           variant="error"
           title={t('contactDetail.error.title', "Couldn't load contact")}
@@ -145,6 +151,7 @@ const ContactDetail: React.FC = () => {
     return (
       <>
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.contact', 'Contact')} scope={t('workPageHeading.contactScope', 'Person record')} />
         <div data-testid="contact-not-found">
           <ListState
             variant="empty"
@@ -188,13 +195,27 @@ const ContactDetail: React.FC = () => {
         <BackBar label={t('contactDetail.backToContacts', 'Contacts')} onBack={goBack} />
       </div>
 
-      {/* The ONE RecordHeader anatomy — icon + name + categorical "Contact" pill + the
-          role-allowed action zone (Edit + Archive). The job title is the meta line. */}
+      {/* Name, job title and company sit together before the contact methods. */}
       <RecordHeader
+        sharedPageHeading
         name={contact.full_name}
         icon={(contact.full_name.trim().charAt(0) || '•').toUpperCase()}
         status={<StatusPill variant="violet">{t('contactDetail.pill', 'Contact')}</StatusPill>}
-        meta={contact.title ? <span>{contact.title}</span> : undefined}
+        meta={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {contact.title && <span>{contact.title}</span>}
+            {contact.company_id ? (
+              <Link
+                to={`/companies/${contact.company_id}`}
+                className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {companyName}
+              </Link>
+            ) : (
+              <span>{companyName}</span>
+            )}
+          </span>
+        }
         actions={
           hasActions ? (
             <>
@@ -213,27 +234,11 @@ const ContactDetail: React.FC = () => {
         }
       />
 
-      {/* Body — the contact's fields (read-only; edit-in-modal). */}
+      {/* Contact methods are the first useful evidence after identity. */}
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('contactDetail.sectionTitle', 'Contact detail')}</CardHead>
+        <CardHead>{t('contactDetail.methods.title', 'Contact methods')}</CardHead>
         <CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            <Field
-              label={t('contactDetail.field.company', 'Company')}
-              value={
-                contact.company_id ? (
-                  <Link
-                    to={`/companies/${contact.company_id}`}
-                    className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                  >
-                    {companyName}
-                  </Link>
-                ) : (
-                  companyName
-                )
-              }
-            />
-            <Field label={t('contactDetail.field.title', 'Title')} value={contact.title || '—'} />
             <Field
               label={t('contactDetail.field.email', 'Email')}
               value={
@@ -264,12 +269,18 @@ const ContactDetail: React.FC = () => {
                 )
               }
             />
-            {contact.notes && (
-              <Field label={t('contactDetail.field.notes', 'Notes')} value={contact.notes} />
-            )}
           </dl>
         </CardPad>
       </Card>
+
+      <details className="mb-4 rounded-xl border border-border bg-card px-4">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+          {t('contactDetail.field.notes', 'Notes')}
+        </summary>
+        <p className="pb-4 text-[13.5px] text-foreground">
+          {contact.notes || t('contactDetail.field.noNotes', 'No notes recorded.')}
+        </p>
+      </details>
 
       {/* CRM activity timeline + Log-activity form — moved here off the retired drawer. */}
       <Card variant="bare">

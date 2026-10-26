@@ -145,11 +145,35 @@ describe('ContactDetail', () => {
     expect(screen.getByText('jane@example.com')).toBeInTheDocument();
   });
 
+  it('AC-CRM-CD-10: keeps title and company with the contact identity and exposes notes by disclosure', () => {
+    renderPage();
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByText('Procurement Lead')).toBeInTheDocument();
+    expect(screen.getAllByText('Procurement Lead')).toHaveLength(1);
+    expect(within(header).getByRole('link', { name: 'Cascade Port Authority' })).toHaveAttribute(
+      'href',
+      '/companies/co1',
+    );
+    expect(screen.getByRole('link', { name: 'jane@example.com' })).toHaveAttribute(
+      'href',
+      'mailto:jane@example.com',
+    );
+    expect(screen.getByRole('link', { name: /\+1 555 010 0000/ })).toHaveAttribute(
+      'href',
+      'tel:+15550100000',
+    );
+    expect(screen.getByText('Key contact')).not.toBeVisible();
+    const notesDisclosure = screen.getByText('Notes', { selector: 'summary' }).closest('details');
+    expect(notesDisclosure).toBeInTheDocument();
+    expect(notesDisclosure).not.toHaveAttribute('open');
+  });
+
   it('CW-4b: shows the loading skeleton while the record is pending', () => {
     detailState.data = undefined;
     detailState.isPending = true;
     renderPage();
     expect(screen.getByTestId('contact-loading')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('CW-4b: shows a calm not-found state when the record is absent', () => {
@@ -157,12 +181,14 @@ describe('ContactDetail', () => {
     detailState.isPending = false;
     renderPage();
     expect(screen.getByTestId('contact-not-found')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('CW-4b: a transient load error offers Retry', async () => {
     detailState.data = undefined;
     detailState.isError = true;
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const retry = screen.getByRole('button', { name: /retry|try again/i });
     await userEvent.click(retry);
     expect(detailState.refetch).toHaveBeenCalled();
@@ -175,6 +201,7 @@ describe('ContactDetail', () => {
   ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
     Object.assign(detailState, s);
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const bar = screen.getByRole('button', { name: /back to contacts/i }).parentElement!;
     expect(bar.className).toContain('hidden');
     expect(bar.className).toContain('max-[920px]:flex');

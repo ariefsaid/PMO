@@ -8,6 +8,7 @@ import { resolveLocale } from '@/src/lib/locale/resolveLocale';
 import { isValidTimeZone, listTimeZoneIds } from '@/src/lib/locale/timezones';
 import { formatMoneyInputValue } from '@/src/lib/format';
 import { Button, Combobox, SelectField, type ComboboxOption } from '@/src/components/ui';
+import WorkPageHeading from './WorkPageHeading';
 
 type LocaleChoice = 'inherit' | 'id' | 'en';
 type NumberLocaleChoice = 'inherit' | 'id-ID' | 'en-US';
@@ -92,6 +93,7 @@ export const ProfileSettings: React.FC = () => {
   if (!currentUser) {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
+        <WorkPageHeading title={t('workPageHeading.profile', 'Profile & preferences')} scope={t('workPageHeading.profileScope', 'Personal preferences')} />
         <p className="text-[13.5px] text-muted-foreground">
           {t('profileSettings.loading', 'Loading profile…')}
         </p>
@@ -131,8 +133,6 @@ export const ProfileSettings: React.FC = () => {
     { value: 'id-ID', label: t('profileSettings.number.options.id', 'Indonesian (1.234.567,89)') },
     { value: 'en-US', label: t('profileSettings.number.options.en', 'English (1,234,567.89)') },
   ];
-  const effectiveLanguage = languageName(resolvedLocale.locale);
-  const effectiveNumberFormat = numberExample(resolvedLocale.numberLocale);
   // #684: the preview reflects what SAVING NOW would produce (the pending selection), never the
   // still-in-effect saved value — otherwise picking a new convention shows no visible feedback
   // until after Save + refresh.
@@ -173,18 +173,12 @@ export const ProfileSettings: React.FC = () => {
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 sm:px-6">
+      <WorkPageHeading
+        title={t('workPageHeading.profile', 'Profile & preferences')}
+        scope={t('workPageHeading.profileScope', 'Personal preferences')}
+      />
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <h1 className="text-xl font-bold tracking-[-0.01em] text-foreground">
-          {t('profileSettings.title', 'Profile & preferences')}
-        </h1>
-        <p className="mt-1 text-[13.5px] leading-[1.5] text-muted-foreground">
-          {t(
-            'profileSettings.description',
-            'Choose your language, number format, and timezone for this portal.',
-          )}
-        </p>
-
-        <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
             <SelectField
               label={t('profileSettings.language.label', 'Interface language')}
@@ -198,9 +192,6 @@ export const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.language.effective', { defaultValue: 'Effective language: {{value}}', value: effectiveLanguage })}
-            </p>
           </div>
 
           <div>
@@ -216,9 +207,6 @@ export const ProfileSettings: React.FC = () => {
               disabled={isSaving}
               fullWidth
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.number.effective', { defaultValue: 'Effective number format: {{value}}', value: effectiveNumberFormat })}
-            </p>
           </div>
 
           <div className="sm:col-span-2">
@@ -236,9 +224,6 @@ export const ProfileSettings: React.FC = () => {
               noun={t('profileSettings.timezone.noun', 'timezone')}
               disabled={isSaving}
             />
-            <p className="mt-2 text-[12px] leading-[1.5] text-muted-foreground">
-              {t('profileSettings.timezone.effective', { defaultValue: 'Effective timezone: {{value}}', value: resolvedLocale.timezone })}
-            </p>
           </div>
         </div>
 
@@ -250,7 +235,7 @@ export const ProfileSettings: React.FC = () => {
             disabled={isSaving}
             loading={isSaving}
           >
-            {t('profileSettings.save', 'Save')}
+            {t('profileSettings.save', 'Save preferences')}
           </Button>
         </div>
 

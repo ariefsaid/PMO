@@ -84,64 +84,88 @@ const LoginPage: React.FC = () => {
     setError(null);
     setNotice(null);
     setBusy(true);
-    const { error } = await signInWithPassword(email, password);
-    setBusy(false);
-    if (error) {
-      if (isEmailNotConfirmed(error)) {
-        trackAuthLoginFailed('password', 'email_not_confirmed'); // FR-AUTHF-061
-        setConfirmRequired(true);
+    try {
+      const { error } = await signInWithPassword(email, password);
+      if (error) {
+        if (isEmailNotConfirmed(error)) {
+          trackAuthLoginFailed('password', 'email_not_confirmed'); // FR-AUTHF-061
+          setConfirmRequired(true);
+          return;
+        }
+        trackAuthLoginFailed('password', authReasonCode(error));
+        setError(error);
         return;
       }
-      trackAuthLoginFailed('password', authReasonCode(error));
-      setError(error);
-      return;
+      trackAuthLoginSucceeded('password');
+      navigate(returnPath ?? '/', { replace: true });
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'Sign in could not be completed. Try again.';
+      trackAuthLoginFailed('password', authReasonCode(message));
+      setError(message);
+    } finally {
+      setBusy(false);
     }
-    trackAuthLoginSucceeded('password');
-    navigate(returnPath ?? '/', { replace: true });
   };
 
   const onResend = async () => {
     setError(null);
     setNotice(null);
     setResendBusy(true);
-    const { error } = await resendEmailConfirmation(email); // FR-AUTHF-041 — origin redirect
-    setResendBusy(false);
-    if (error) {
-      if (isRateLimited(error)) {
-        setRateLimited(true); // FR-AUTHF-042 — disable until retry
+    try {
+      const { error } = await resendEmailConfirmation(email); // FR-AUTHF-041 — origin redirect
+      if (error) {
+        if (isRateLimited(error)) {
+          setRateLimited(true); // FR-AUTHF-042 — disable until retry
+          return;
+        }
+        setError(error);
         return;
       }
-      setError(error);
-      return;
+      setNotice('Confirmation sent. Check your email.'); // FR-AUTHF-042 — role=status (SuccessNotice)
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : 'Confirmation could not be sent. Try again.');
+    } finally {
+      setResendBusy(false);
     }
-    setNotice('Confirmation sent. Check your email.'); // FR-AUTHF-042 — role=status (SuccessNotice)
   };
 
   const onMagicLink = async () => {
     setError(null);
     setNotice(null);
     setBusy(true);
-    const { error } = await signInWithMagicLink(email);
-    setBusy(false);
-    if (error) {
-      trackAuthLoginFailed('magic_link', authReasonCode(error));
-      setError(error);
-      return;
+    try {
+      const { error } = await signInWithMagicLink(email);
+      if (error) {
+        trackAuthLoginFailed('magic_link', authReasonCode(error));
+        setError(error);
+        return;
+      }
+      trackAuthLoginSucceeded('magic_link');
+      setNotice('Check your email for a sign-in link.');
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'A sign-in link could not be sent. Try again.';
+      trackAuthLoginFailed('magic_link', authReasonCode(message));
+      setError(message);
+    } finally {
+      setBusy(false);
     }
-    trackAuthLoginSucceeded('magic_link');
-    setNotice('Check your email for a sign-in link.');
   };
 
   const onMicrosoft = async () => {
     setError(null);
     setNotice(null);
     setBusy(true);
-    const { error } = await signInWithMicrosoft();
-    if (error) {
+    try {
+      const { error } = await signInWithMicrosoft();
+      if (!error) return;
       setBusy(false);
       trackAuthLoginFailed('microsoft', authReasonCode(error));
       setError(error);
-      return;
+    } catch (failure) {
+      setBusy(false);
+      const message = failure instanceof Error ? failure.message : 'Microsoft sign-in could not be started. Try again.';
+      trackAuthLoginFailed('microsoft', authReasonCode(message));
+      setError(message);
     }
     // Success = the browser is about to leave for Microsoft's login page; keep `busy` on so the
     // form stays inert during the redirect. Login success is observed post-redirect by the
@@ -150,7 +174,7 @@ const LoginPage: React.FC = () => {
 
   return (
     // Tinted ground (secondary/35%) — DESIGN.md neutral: "main scroll area uses secondary at 35%"
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <main id="main" className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         {/* Brand lockup — mark + wordmark, then heading + subtext. A subtitle reads more
             considered than a bare heading and sets expectation before the form. */}
@@ -200,7 +224,7 @@ const LoginPage: React.FC = () => {
                   variant="primary"
                   loading={resendBusy}
                   disabled={resendBusy || rateLimited}
-                  className="w-full"
+                  className="min-h-11 w-full"
                   onClick={onResend}
                 >
                   Resend confirmation
@@ -217,7 +241,7 @@ const LoginPage: React.FC = () => {
               variant="outline"
               onClick={onMicrosoft}
               disabled={busy}
-              className="w-full justify-center gap-2.5"
+              className="min-h-11 w-full justify-center gap-2.5"
             >
               <MicrosoftLogo className="size-[18px] shrink-0" />
               Continue with Microsoft
@@ -257,7 +281,7 @@ const LoginPage: React.FC = () => {
                 <div className="flex justify-end">
                   <Link
                     to="/reset-password"
-                    className="text-[12px] font-semibold text-primary-text hover:underline"
+                    className="inline-flex min-h-11 items-center text-[12px] font-semibold text-primary-text hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -270,7 +294,7 @@ const LoginPage: React.FC = () => {
                 variant="primary"
                 loading={busy}
                 disabled={busy}
-                className="w-full"
+                className="min-h-11 w-full"
               >
                 Sign in
               </Button>
@@ -284,7 +308,7 @@ const LoginPage: React.FC = () => {
                 type="button"
                 onClick={onMagicLink}
                 disabled={busy || !email}
-                className="font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                className="inline-flex min-h-11 items-center justify-center px-2 font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
               >
                 Email me a magic link
               </button>
@@ -313,7 +337,7 @@ const LoginPage: React.FC = () => {
                         setError(null);
                       }}
                       disabled={busy}
-                      className="min-h-8 py-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
+                      className="min-h-11 px-2 text-[11.5px] font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {label}
                     </button>
@@ -330,11 +354,11 @@ const LoginPage: React.FC = () => {
             Help opens the wa.me URL in a new tab; omitted entirely when HELP_WHATSAPP
             is unset so no broken link renders (FR-LEG-010). */}
         <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-[12px] text-muted-foreground">
-          <Link to="/terms" className="font-medium text-primary-text hover:underline">
+          <Link to="/terms" className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
             Terms
           </Link>
           <span aria-hidden>·</span>
-          <Link to="/privacy" className="font-medium text-primary-text hover:underline">
+          <Link to="/privacy" className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
             Privacy
           </Link>
           {HELP_URL && (
@@ -345,7 +369,7 @@ const LoginPage: React.FC = () => {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Contact support via WhatsApp"
-                className="font-medium text-primary-text hover:underline"
+                className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline"
               >
                 Help
               </a>
@@ -354,7 +378,7 @@ const LoginPage: React.FC = () => {
           <AppVersion />
         </footer>
       </div>
-    </div>
+    </main>
   );
 };
 

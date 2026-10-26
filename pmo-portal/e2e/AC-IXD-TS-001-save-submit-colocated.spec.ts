@@ -81,7 +81,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   await page.getByLabel('Add a project').selectOption({ label: 'P003 · Acme Internal Platform' });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })).toBeVisible({ timeout: 5_000 });
   await fillHourCell(page, PROJECT_NAME, 'Mon', '8');
-  await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText('8');
 
   // ── Step 4: Save → hours persist, QUIET toast, NO forced summary/view change ─
   await expect(saveBtn).toBeEnabled({ timeout: 5_000 });
@@ -93,7 +93,7 @@ test('AC-IXD-TS-001 engineer saves (stays editable) then submits a week — Save
   await expect(page.getByText('Draft — not submitted', { exact: true })).toBeVisible({ timeout: 10_000 });
   await expect(page.locator('tbody tr').filter({ hasText: PROJECT_NAME })
     .getByRole('textbox', { name: new RegExp(`${PROJECT_NAME}, Mon hours`, 'i') })).toBeVisible();
-  await expect(page.getByTestId('timesheets-weekly-total')).toContainText('8');
+  await expect(page.getByTestId('tsgrid-grand-total')).toContainText('8');
 
   // CW-6 (was AC-W3-N2): the approvals queue has ONE home at /approvals; Timesheets no longer
   // hosts an in-page queue. An Engineer (non-approver) sees neither the old queue toggle NOR the

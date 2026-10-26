@@ -104,10 +104,35 @@ describe('UserViewRenderer — guard states', () => {
     expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
   });
 
+  it('AC-VR-001: keeps a named loading state while the signed-in identity is unavailable', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: null,
+      role: null,
+      session: null,
+      loading: true,
+      profileError: null,
+      signInWithPassword: vi.fn(),
+      signInWithMagicLink: vi.fn(),
+      signOut: vi.fn(),
+    } as ReturnType<typeof mockUseAuth>);
+    mockUseUserView.mockReturnValue({
+      data: { id: 'abc', name: 'Private saved answer', spec: { version: 1, panels: [] }, archived_at: null, scope: 'private', org_id: 'org1', user_id: 'u1', description: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
+      isPending: false,
+      isError: false,
+    });
+
+    renderRenderer();
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Checking access to saved view' })).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Private saved answer' })).not.toBeInTheDocument();
+  });
+
   it('AC-VR-002: renders not-found state when useUserView returns null', () => {
     mockUseUserView.mockReturnValue({ data: null, isPending: false, isError: false });
     renderRenderer();
     expect(screen.getByText(/view not found/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('button', { name: /back to saved views/i })).toBeInTheDocument();
   });
 
@@ -119,6 +144,7 @@ describe('UserViewRenderer — guard states', () => {
     });
     renderRenderer();
     expect(screen.getByText(/view not found/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('AC-VR-004: renders spec-invalid error state when compileCompositionSpec throws', () => {
@@ -132,6 +158,7 @@ describe('UserViewRenderer — guard states', () => {
     });
     renderRenderer();
     expect(screen.getByText(/saved view cannot be shown/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.queryByText(/PieChart/i)).not.toBeInTheDocument(); // no partial render
   });
 
@@ -144,6 +171,7 @@ describe('UserViewRenderer — guard states', () => {
     mockCompile.mockReturnValue([]);
     renderRenderer();
     expect(screen.getByRole('heading', { name: 'Empty View' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByText(/this saved view has no panels yet/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /edit view/i })).toBeInTheDocument();
   });
@@ -153,6 +181,7 @@ describe('UserViewRenderer — guard states', () => {
     mockUseUserView.mockReturnValue({ data: undefined, isPending: false, isError: true, refetch: mockRefetch });
     renderRenderer();
     expect(screen.getByRole('heading', { level: 1, name: 'Saved view' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByText(/could not load saved view/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));
     expect(mockRefetch).toHaveBeenCalledTimes(1);

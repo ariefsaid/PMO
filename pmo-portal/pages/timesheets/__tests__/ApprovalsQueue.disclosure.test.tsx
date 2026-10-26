@@ -6,10 +6,8 @@
  * passed as `disclosure`, not as the first `children`. The structural check
  * reads the data-approval-row element's child order.
  *
- * AC-B1-SHELL: ApprovalsQueue wraps in the same Card component shell as
- * ProcurementApprovalSection (both render a bordered card div, not a raw
- * <section> element), so the leading edge of the chevron column aligns across
- * scope tabs regardless of which queue is active.
+ * AC-B1-SHELL: ApprovalsQueue retains its bordered Card shell while the
+ * separate queue types are combined on the route.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -114,9 +112,8 @@ describe('AC-JR-W3-01: ApprovalsQueue routes disclosure chevron via disclosure p
     expect(chevron).toBeInTheDocument();
   });
 
-  it('AC-B1-SHELL: outer shell is a Card component (div element) not a raw section — same shell as ProcurementApprovalSection', () => {
-    // Card renders a <div>; a raw <section> wrapper fails this. This ensures both
-    // approval queues share the same Card shell so the leading column aligns across tabs.
+  it('AC-B1-SHELL: outer shell is a Card component (div element) not a raw section', () => {
+    // Card renders a <div>; a raw <section> wrapper fails this.
     const { container } = renderPM();
     const outerShell = container.firstChild as HTMLElement;
     expect(outerShell.tagName).toBe('DIV');

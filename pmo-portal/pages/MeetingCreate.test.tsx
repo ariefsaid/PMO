@@ -4,8 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { Link, MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 
-const { mutations, permission } = vi.hoisted(() => ({
+const { mutations, permission, editorMethods } = vi.hoisted(() => ({
   permission: { allowed: true },
+  editorMethods: { insertActionItem: vi.fn() },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -28,16 +29,24 @@ vi.mock('@/src/lib/repositories', () => ({ repositories: { profile: { listOrgPro
 vi.mock('@/src/components/meetings/MinutesEditor', async () => {
   const React = await import('react');
   const liveDocument: never[] = [];
-  const EditorStub = React.forwardRef(({ onReady, onChange, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: () => void }>) => {
-    React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: () => undefined }), []);
+  const EditorStub = React.forwardRef(({ onReady, onChange, onRequestAction, editable }: { onReady: (blocks: never[]) => void; onChange: (blocks: never[]) => void; onRequestAction: (lineText: string) => void; editable: boolean }, ref: React.Ref<{ getDocument: () => never[]; insertActionItem: (taskId: string) => void }>) => {
+    React.useImperativeHandle(ref, () => ({ getDocument: () => liveDocument, insertActionItem: editorMethods.insertActionItem }), []);
     React.useEffect(() => {
       liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [] } as never);
       onReady([...liveDocument]);
     }, [onReady]);
-    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button></>;
+    return <><button type="button" disabled={!editable} onClick={() => { liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Minutes text' }] } as never); onChange([...liveDocument]); }}>Edit minutes</button><button type="button" disabled={!editable} onClick={() => liveDocument.splice(0, liveDocument.length, { type: 'paragraph', children: [], content: [{ text: 'Pending minutes' }] } as never)}>Edit pending minutes</button><button type="button" disabled={!editable} onClick={() => onRequestAction('Follow-up action')}>Create action from minutes</button></>;
   });
   return { default: EditorStub };
 });
+vi.mock('@/src/components/meetings/ActionItemModal', () => ({
+  default: ({ initialName, projectName, onCreate }: { initialName: string; projectName: string | null; onCreate: (input: { name: string; assigneeId: string; endDate: string }) => Promise<void> }) => (
+    <div role="dialog" aria-label="New action item">
+      <p>{initialName}</p><p data-testid="action-project">{projectName}</p>
+      <button type="button" onClick={() => void onCreate({ name: initialName, assigneeId: '', endDate: '' })}>Create task from minutes</button>
+    </div>
+  ),
+}));
 
 import MeetingCreate from './MeetingCreate';
 
@@ -49,6 +58,7 @@ const renderPage = (path = '/meetings/new') => render(<ToastProvider><MemoryRout
 
 beforeEach(() => {
   Object.values(mutations).forEach((mutation) => { mutation.mutateAsync.mockReset().mockResolvedValue(undefined); mutation.isPending = false; });
+  editorMethods.insertActionItem.mockReset();
   mutations.create.mutateAsync.mockResolvedValue({ id: 'meeting-new' });
   permission.allowed = true;
 });
@@ -61,6 +71,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
 
   it('AC-MTG1-001: shows inline header, minutes and attendees, but no saved-only sections', () => {
     renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'New meeting' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
     expect(screen.getByLabelText(/When/)).toBeInTheDocument();
     expect(screen.getByText('Minutes')).toBeInTheDocument();
@@ -74,6 +85,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByText('Attendees'));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
     await user.click(screen.getByRole('button', { name: /Add guest/i }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
@@ -116,6 +128,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     renderPage();
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByText('Attendees'));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
     await user.click(screen.getByRole('button', { name: /Add guest/i }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
@@ -134,6 +147,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByText('Attendees'));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
     await user.click(screen.getByRole('button', { name: /Add guest/i }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
@@ -161,6 +175,7 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     const user = userEvent.setup();
     await user.type(screen.getByLabelText(/Title/), 'Design review');
     await user.click(screen.getByRole('button', { name: 'Edit minutes' }));
+    await user.click(screen.getByText('Attendees'));
     await user.type(screen.getByLabelText(/External guest/), 'Guest One');
     await user.click(screen.getByRole('button', { name: /Add guest/i }));
     await user.click(screen.getByRole('button', { name: 'Save meeting' }));
@@ -189,5 +204,23 @@ describe('AC-MTG1-001 one-page meeting creation', () => {
     expect(screen.getByText('You do not have permission to create meetings.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save meeting' })).not.toBeInTheDocument();
     expect(mutations.create.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it('AC-MTG1-001: inherits a project from the source URL and keeps the action in that scope', async () => {
+    renderPage('/meetings/new?project=p1');
+    const user = userEvent.setup();
+    expect(await screen.findByText('For North Terminal')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Project/)).toHaveValue('p1');
+    await user.type(screen.getByLabelText(/Title/), 'Design review');
+    await user.click(screen.getByRole('button', { name: 'Create action from minutes' }));
+    await screen.findByRole('dialog', { name: 'New action item' });
+    expect(mutations.create.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ title: 'Design review', project_id: 'p1' }));
+    expect(screen.getByTestId('action-project')).toHaveTextContent('North Terminal');
+    mutations.createActionItem.mutateAsync.mockResolvedValueOnce({ id: 'task-created' });
+    await user.click(screen.getByRole('button', { name: 'Create task from minutes' }));
+    await waitFor(() => expect(mutations.createActionItem.mutateAsync).toHaveBeenCalledWith({
+      meetingId: 'meeting-new', projectId: 'p1', name: 'Follow-up action', assigneeId: null, endDate: null,
+    }));
+    expect(editorMethods.insertActionItem).toHaveBeenCalledWith('task-created');
   });
 });

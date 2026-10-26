@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
+import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import type { Role } from '@/src/auth/AuthContext';
@@ -70,14 +71,17 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'me', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-// IF-A: the procurement section now renders <ProcurementApprovalRow>, which expands
-// in place (react-query detail) instead of routing away. Mock its hooks like the row's
-// own unit test, so the page test stays hermetic (no real QueryClientProvider needed).
+// The mixed queue renders procurement evidence for the selected request. Mock its
+// detail/mutation hooks so the inbox stays hermetic (no real QueryClientProvider needed).
 vi.mock('@/src/hooks/useProcurementDetail', () => ({
   useProcurementDetail: () => ({
     data: {
       id: 'pr1',
       title: 'Steel beams',
+      project_id: 'pA',
+      status: 'Requested',
+      total_value: 48000,
+      currency: 'USD',
       project: { name: 'Apollo', code: 'PRJ-014' },
       vendor: null,
       items: [{ id: 'li1', name: 'Beam', quantity: 1, rate: 48000, amount: 48000, description: null }],
@@ -99,13 +103,18 @@ vi.mock('@/pages/procurement/DecisionSupportPanel', () => ({
 }));
 
 vi.mock('@/src/hooks/useExpenseClaims', () => ({ useExpenseClaimsAwaitingDecision: () => expenseState }));
-vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({ SalesInvoiceApprovalSection: () => null }));
+vi.mock('@/pages/approvals/SalesInvoiceApprovalSection', () => ({
+  SalesInvoiceApprovalSection: ({ selectedInvoiceId }: { selectedInvoiceId?: string }) => selectedInvoiceId
+    ? <div data-testid="selected-invoice">Invoice evidence · {selectedInvoiceId}</div>
+    : null,
+}));
 vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({ useInvoicesAwaitingViewer: () => invoiceState }));
 import ApprovalsPage from '../Approvals';
 
 const renderAs = (realRole: Role, initialPath = '/approvals') =>
   render(
     <MemoryRouter initialEntries={[initialPath]}>
+      <LocationProbe />
       <ImpersonationProvider realRole={realRole}>
         <ToastProvider>
           <ApprovalsPage />
@@ -113,6 +122,11 @@ const renderAs = (realRole: Role, initialPath = '/approvals') =>
       </ImpersonationProvider>
     </MemoryRouter>,
   );
+
+const LocationProbe: React.FC = () => {
+  const location = useLocation();
+  return <output data-testid="location-probe" data-search={location.search} />;
+};
 
 beforeEach(() => {
   navigateMock.mockReset();
@@ -138,21 +152,22 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Finance');
     const button = screen.getByRole('button', { name: new RegExp(title), pressed: true });
     const identity = within(button).getByText(title);
-    expect(identity.className).toContain('line-clamp-2');
-    expect(identity.className).not.toContain('truncate');
     expect(identity.parentElement).toContainElement(within(button).getByText('Requested'));
-    expect(button).toHaveAccessibleName(/Cable supply.*Apollo/);
+    expect(button).toHaveAccessibleName(/Cable supply.*PR-001/);
+    expect(button).not.toHaveTextContent('Apollo');
+    expect(button).not.toHaveTextContent('Sam Vendor');
+    expect(button).not.toHaveTextContent('$48,000');
     await userEvent.tab();
     await userEvent.click(button);
     expect(within(screen.getByRole('region', { name: /Approval preview/i })).getByRole('button', { name: /Approve/i })).toBeVisible();
     expect(navigateMock).not.toHaveBeenCalled();
   });
-  it('CW-6: the page title is "Approvals" (matches the rail label), with the "Needs my approval" subtitle', () => {
+  it('CW-6: the page title is "Approvals" (matches the rail label), with the "My decisions" scope', () => {
     renderAs('Project Manager');
     // The H1 reconciles with the rail's "Approvals" nav item — one canonical name.
     expect(screen.getByRole('heading', { level: 1, name: /^Approvals$/i })).toBeInTheDocument();
-    // "Needs my approval" survives as the subtitle (clarifies whose queue this is).
-    expect(screen.getByText(/Needs my approval/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(/^My decisions$/i)).toBeInTheDocument();
   });
 
   it('UXS-025: pending work precedes collapsed approved correction history', () => {
@@ -169,34 +184,61 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(history).toHaveTextContent('last 90 days');
   });
 
-  it('AC-UXS-005: All pending counts every eligible kind once and each kind filter uses the same population', async () => {
+  it('AC-UXS-005: kind counts remain available and All pending shows each eligible item', async () => {
     expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
     invoiceState.rows = [{ id: 'si1', created_at: '2026-06-04' }];
-    renderAs('Project Manager');
+    renderAs('Admin');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('3');
-    // The two-row queue contains procurement + timesheets; expenses and invoices render below it.
-    expect(within(screen.getByRole('region', { name: /Approvals queue/i })).getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /All pending/i })).not.toHaveTextContent('4');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).getByRole('button', { name: /Steel beams/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('button', { name: /Anita Rao/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /Purchase requests/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveTextContent('1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveTextContent('1');
-    expect(screen.queryByRole('tab', { name: /Customer invoices/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /Customer invoices/i })).toHaveTextContent('1');
+    expect(within(queue).queryByText('4', { exact: true })).toBeNull();
+    expect(within(queue).getByTestId('approval-item-expense-ex1')).toBeInTheDocument();
+    expect(within(queue).getByTestId('approval-item-invoice-si1')).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('tab', { name: /Expense claims/i }));
     expect(screen.getByRole('link', { name: 'EXP-1' })).toHaveAttribute('href', '/expenses/ex1');
     expect(screen.getByRole('tab', { name: /Expense claims/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(queue).queryByText('1', { exact: true })).toBeNull();
+
+    await userEvent.click(screen.getByRole('tab', { name: /Customer invoices/i }));
+    expect(screen.getByTestId('selected-invoice')).toHaveTextContent('si1');
   });
 
-  it('Finance All pending excludes hook-returned timesheets from its count and selectable queue', () => {
+  it('R-019: an empty Timesheets scope stays compact and returns to the populated mixed queue', async () => {
+    tsState.data = [];
+    renderAs('Project Manager');
+
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).getByRole('button', { name: /Steel beams/i })).toBeInTheDocument();
+    expect(within(queue).queryByText(/No timesheets awaiting your decision/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /Timesheets/i }));
+
+    const empty = within(queue).getByTestId('approval-scope-empty');
+    expect(empty).toHaveTextContent('No timesheets awaiting your decision');
+    expect(empty.className).not.toContain('border-dashed');
+    await userEvent.click(within(empty).getByRole('button', { name: 'Show all pending' }));
+    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveAttribute('aria-selected', 'true');
+    expect(within(queue).getByRole('button', { name: /Steel beams/i })).toBeInTheDocument();
+  });
+
+  it('Finance All pending excludes ineligible timesheets from its selectable queue', () => {
     procState.data = [];
     expenseState.data = [{ claim: { id: 'ex1', created_at: '2026-06-03', status: 'Submitted', claimant_id: 'other', claim_number: 'EXP-1', title: 'Travel', amount: 250, currency: 'USD', claimant: { full_name: 'Colleague' } }, route: { route: 'project', approvers: [{ id: 'me' }] } }];
     renderAs('Finance');
 
-    expect(screen.getByRole('tab', { name: /All pending/i })).toHaveTextContent('1');
+    expect(screen.getByRole('tab', { name: /All pending/i })).not.toHaveTextContent('1');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).queryByText('1', { exact: true })).toBeNull();
     expect(within(queue).queryByRole('button', { name: /Anita Rao/i })).not.toBeInTheDocument();
     expect(within(queue).queryByText('Timesheets')).not.toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Select an approval item/i);
+    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/EXP-1/);
   });
 
   it('keeps the desktop preview loading while an eligible expense read is pending', () => {
@@ -217,12 +259,13 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toBeInTheDocument();
   });
 
-  it('AC-MOBILE-OVERFLOW-001: the scope filter strip lives inside a dedicated horizontal scroller', () => {
+  it('AC-MOBILE-OVERFLOW-001: all queue scopes remain operable and switch the visible population', async () => {
     renderAs('Project Manager');
-    const scroll = screen.getByTestId('approvals-scope-scroll');
-    expect(scroll.className).toContain('min-w-0');
-    expect(scroll.className).toContain('overflow-x-auto');
-    expect(scroll.className).toContain('scroll-fade-x');
+    const scope = screen.getByRole('tab', { name: /Purchase requests/i });
+    await userEvent.click(scope);
+    expect(scope).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toHaveTextContent('Steel beams');
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).not.toHaveTextContent('Anita Rao');
   });
 
   it('L3-APPROVALS: desktop defaults to the unified triage queue with the first pending item selected', () => {
@@ -231,6 +274,49 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /All/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByRole('heading', { name: /Steel beams/i })).toBeInTheDocument();
+  });
+
+  it('AC-IXD-APP-01: the mixed queue places the oldest waiting request first across kinds', () => {
+    tsState.data = [{
+      id: 's-old', status: 'Submitted', week_start_date: '2026-05-25',
+      owner: { full_name: 'Anita Rao' },
+      entries: [{ project_id: 'pA', entry_date: '2026-05-25', hours: 8, project: { name: 'Apollo', code: 'PRJ-014' } }],
+    }];
+    renderAs('Project Manager');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    const olderTimesheet = within(queue).getByRole('button', { name: /Anita Rao/i });
+    const newerPurchase = within(queue).getByRole('button', { name: /Steel beams/i });
+    expect(Boolean(olderTimesheet.compareDocumentPosition(newerPurchase) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('AC-IXD-APP-02: selecting a mixed-queue item is reflected in the URL and restored on entry', async () => {
+    const user = userEvent.setup();
+    const first = renderAs('Project Manager');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    await user.click(within(queue).getByRole('button', { name: /Anita Rao/i }));
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('selected')).toBe('timesheets:s1');
+
+    first.unmount();
+    renderAs('Project Manager', '/approvals?scope=all&selected=timesheets%3As1');
+    const restored = within(screen.getByRole('region', { name: /Approvals queue/i })).getByRole('button', { name: /Anita Rao/i });
+    expect(restored).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('AC-IXD-APP-03: phone selection replaces the queue with evidence and Back to queue restores it', async () => {
+    vi.spyOn(window, 'matchMedia').mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList);
+    renderAs('Project Manager');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    await userEvent.click(within(queue).getByRole('button', { name: /Steel beams/i }));
+    expect(screen.queryByRole('region', { name: /Approvals queue/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Back to queue/i })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: /Approval preview/i })).toHaveTextContent(/Steel beams/i);
+    await userEvent.click(screen.getByRole('button', { name: /Back to queue/i }));
+    expect(screen.getByRole('region', { name: /Approvals queue/i })).toBeInTheDocument();
+    vi.restoreAllMocks();
   });
 
   it('L3-APPROVALS: clicking the Timesheets filter deep-links straight to that queue and preview', async () => {
@@ -282,6 +368,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.queryByText(/Purchase requests awaiting you/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Timesheets awaiting you/i)).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: /don't have access/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('both-empty → a single caught-up page-level empty state', () => {

@@ -15,7 +15,6 @@ async function renderStrip(locale: 'en' | 'id' = 'en', options?: { canSave?: boo
   return render(
     <I18nextProvider i18n={i18n}>
       <MobileActionStrip
-        total={13.5}
         canSave={options?.canSave ?? true}
         canSubmit={options?.canSubmit ?? true}
         showSubmitHint={options?.showSubmitHint}
@@ -37,9 +36,9 @@ describe('MobileActionStrip', () => {
     expect(getByTestId('timesheets-mobile-action-strip').style.paddingBottom).toContain('2.75rem');
   });
 
-  it('AC-UXS-023: presents the current week total and both existing completion actions', async () => {
+  it('AC-UXS-023: leaves the single week total in the grid and keeps both completion actions', async () => {
     await renderStrip();
-    expect(screen.getByText('13.5 hours this week')).toBeInTheDocument();
+    expect(screen.queryByText(/hours this week/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Submit week' })).toBeEnabled();
   });
@@ -56,9 +55,9 @@ describe('MobileActionStrip', () => {
     expect(screen.getByRole('button', { name: 'Submit week' })).toBeDisabled();
   });
 
-  it('localizes the total and action labels in Indonesian', async () => {
+  it('localizes the completion action labels in Indonesian', async () => {
     await renderStrip('id');
-    expect(screen.getByText('13,5 jam minggu ini')).toBeInTheDocument();
+    expect(screen.queryByText(/jam minggu ini/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan draf' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Ajukan minggu ini' })).toBeInTheDocument();
   });

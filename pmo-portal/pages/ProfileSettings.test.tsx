@@ -81,18 +81,19 @@ function languageSelect() {
 }
 
 describe('ProfileSettings (profile language settings slice)', () => {
-  it('UIP-012: keeps the resting preferences card flat, bordered, and keyboard-focusable', () => {
+  it('N-01: loading the account profile keeps one named page heading', () => {
+    currentUserState = null;
     renderPage();
 
-    const heading = screen.getByRole('heading', { name: /profile & preferences/i });
-    const card = heading.parentElement;
-    expect(card).not.toBeNull();
-    expect(card).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card', 'p-4', 'sm:p-6');
-    expect(card).not.toHaveClass('shadow-sm');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: /profile & preferences/i })).toBeInTheDocument();
+  });
 
+  it('keeps the language control keyboard reachable and exposes the preference save action', () => {
+    renderPage();
     languageSelect().focus();
     expect(document.activeElement).toBe(languageSelect());
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /^save preferences$/i })).toBeEnabled();
   });
 
   it('exposes exactly the three language options and reflects the current stored choice', () => {
@@ -130,7 +131,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 
     renderPage();
     fireEvent.change(languageSelect(), { target: { value: 'inherit' } });
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     await waitFor(() => expect(setLocalePreferences).toHaveBeenCalledWith('user-123', {
       locale: null,
@@ -151,10 +152,10 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     expect(languageSelect()).toBeDisabled();
-    expect(screen.getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /^save preferences$/i })).toBeDisabled();
     expect(screen.getByText(/saving your preference/i)).toBeInTheDocument();
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
 
@@ -168,7 +169,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: null });
 
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i));
     expect(screen.getByRole('alert')).not.toHaveTextContent(/db write failed/i);
@@ -185,7 +186,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
     refreshMock.mockResolvedValue({ error: 'profile refresh failed' });
 
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(/could not save your preference/i)
@@ -205,7 +206,7 @@ describe('ProfileSettings (profile language settings slice)', () => {
 });
 
 describe('ProfileSettings personal locale preferences', () => {
-  it('AC-PLC-001: shows stored inheritance separately from effective defaults and offers number previews', () => {
+  it('AC-PLC-001: shows inherited defaults in the controls and offers number previews', () => {
     currentUserState = {
       ...currentUserState,
       locale: null,
@@ -219,13 +220,13 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(languageSelect()).toHaveValue('inherit');
     expect(screen.getByLabelText(/number format/i)).toHaveValue('inherit');
     expect(screen.getByRole('combobox', { name: /timezone/i })).toHaveTextContent(/organization default/i);
-    expect(screen.getByText(/effective.*english/i)).toBeInTheDocument();
+    expect(screen.queryByText(/effective language/i)).not.toBeInTheDocument();
     // #684: the ONE labelled preview reflects the pending (here: inherited) choice — English,
     // not the currently effective saved convention ('id-ID' per resolvedLocaleState above).
     expect(screen.getByText('Preview: 1,234,567.89')).toBeInTheDocument();
   });
 
-  it('AC-PLC-001 (#684): the number-format preview reflects the PENDING choice, not the saved effective value', () => {
+  it('AC-PLC-001 (#684): the number-format preview reflects the PENDING choice without duplicate effective copy', () => {
     currentUserState = { ...currentUserState, locale: 'en', number_locale: 'en-US', timezone: 'Asia/Jakarta' };
     resolvedLocaleState.current = { locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' };
 
@@ -236,8 +237,7 @@ describe('ProfileSettings personal locale preferences', () => {
 
     // The preview updates immediately, before Save is pressed…
     expect(screen.getByText('Preview: 1.234.567,89')).toBeInTheDocument();
-    // …while the "effective" (currently saved) convention is unchanged until save + refresh.
-    expect(screen.getByText('Effective number format: 1,234,567.89')).toBeInTheDocument();
+    expect(screen.queryByText(/effective number format/i)).not.toBeInTheDocument();
   });
 
   it('AC-PLC-001: names the organization timezone on Organization default, not the user override', async () => {
@@ -278,8 +278,7 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(within(languageSelect()).getByRole('option', { name: 'Organization default — Bahasa Indonesia' })).toBeInTheDocument();
     const numberSelect = screen.getByLabelText(/number format/i) as HTMLSelectElement;
     expect(within(numberSelect).getByRole('option', { name: 'Organization default — 1.234.567,89' })).toBeInTheDocument();
-    // The effective line shows the convention's example, never a bare language tag like "id".
-    expect(screen.getByText('Effective number format: 1.234.567,89')).toBeInTheDocument();
+    expect(screen.queryByText(/effective number format/i)).not.toBeInTheDocument();
 
     // Choosing English as the language changes what "Organization default" number format would give.
     fireEvent.change(languageSelect(), { target: { value: 'en' } });
@@ -309,7 +308,7 @@ describe('ProfileSettings personal locale preferences', () => {
     fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'inherit' } });
     fireEvent.click(screen.getByRole('combobox', { name: /timezone/i }));
     fireEvent.click(await screen.findByRole('option', { name: 'Asia/Jakarta' }));
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     await waitFor(() => expect(setLocalePreferences).toHaveBeenCalledWith('user-123', {
       locale: 'en',
@@ -328,14 +327,14 @@ describe('ProfileSettings personal locale preferences', () => {
 
     renderPage();
     fireEvent.change(languageSelect(), { target: { value: 'id' } });
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(languageSelect()).toHaveValue('id');
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
 
     setLocalePreferences.mockResolvedValueOnce(undefined);
     refreshMock.mockResolvedValueOnce({ error: 'refresh failed' });
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(languageSelect()).toHaveValue('id');
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
@@ -349,7 +348,7 @@ describe('ProfileSettings personal locale preferences', () => {
     renderPage();
     fireEvent.change(languageSelect(), { target: { value: 'id' } });
     fireEvent.change(screen.getByLabelText(/number format/i), { target: { value: 'en-US' } });
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     // Failure: accessible alert, choices intact, no refresh, no success.
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not save your preference/i);
@@ -359,7 +358,7 @@ describe('ProfileSettings personal locale preferences', () => {
     expect(screen.queryByText(/preferences saved/i)).not.toBeInTheDocument();
 
     // Retry with the same retained choices.
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/preferences saved/i));
 
     expect(setLocalePreferences).toHaveBeenCalledTimes(2);
@@ -375,7 +374,7 @@ describe('ProfileSettings personal locale preferences', () => {
     setLocalePreferences.mockResolvedValue(undefined);
 
     renderPage();
-    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    fireEvent.click(screen.getByRole('button', { name: /^save preferences$/i }));
 
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(setLocalePreferences).not.toHaveBeenCalled();

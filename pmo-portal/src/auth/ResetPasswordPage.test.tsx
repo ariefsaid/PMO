@@ -46,6 +46,7 @@ beforeEach(() => {
 describe('ResetPasswordPage', () => {
   it('AC-AUTHF-001: renders email field, Send reset link action, and Back-to-sign-in link; no demo panel', () => {
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /send reset link/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /back to sign in/i })).toHaveAttribute('href', '/login');

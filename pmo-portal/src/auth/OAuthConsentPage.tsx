@@ -116,9 +116,6 @@ const OAuthConsentPage: React.FC = () => {
       const { clientName, userEmail, redirectUri } = view.request;
       body = (
         <div className="space-y-4">
-          <h1 className="text-[20px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-            {t('oauthConsent.title', 'Allow {{client}} to access your PMO account?', { client: clientName })}
-          </h1>
           <p className="text-[13px] font-medium text-foreground">
             {t('oauthConsent.signedInAs', 'Signed in as {{email}}', { email: userEmail })}
           </p>
@@ -138,12 +135,13 @@ const OAuthConsentPage: React.FC = () => {
             <ErrorBanner message={t('oauthConsent.decideError', 'Your answer could not be sent.')} />
           )}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => void decide('deny')}>
+            <Button className="min-h-11" type="button" variant="outline" disabled={busy} onClick={() => void decide('deny')}>
               {t('oauthConsent.deny', 'Deny')}
             </Button>
             <Button
               type="button"
               variant="primary"
+              className="min-h-11"
               loading={busy}
               disabled={busy}
               onClick={() => void decide('approve')}
@@ -157,8 +155,16 @@ const OAuthConsentPage: React.FC = () => {
     }
   }
 
+  const title = view.kind === 'consent'
+    ? t('oauthConsent.title', 'Allow {{client}} to access your PMO account?', { client: view.request.clientName })
+    : view.kind === 'loading'
+      ? t('oauthConsent.loadingTitle', 'Sign-in request')
+      : view.kind === 'leaving'
+        ? t('oauthConsent.returningTitle', 'Returning to the application')
+        : t('oauthConsent.errorTitle', 'Sign-in request unavailable');
+
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
           <div className="inline-flex items-center gap-2">
@@ -173,11 +179,12 @@ const OAuthConsentPage: React.FC = () => {
             </span>
           </div>
         </div>
+        <h1 className="mb-4 text-[24px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">{title}</h1>
         <Card>
           <CardPad>{body}</CardPad>
         </Card>
       </div>
-    </div>
+    </main>
   );
 };
 

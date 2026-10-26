@@ -101,10 +101,10 @@ export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showF
  * One PMO draft awaiting the viewer: the collapsed row reads customer, first line and amount; the disclosure opens the
  * full invoice with Approve at its foot, so an invoice is never approved unseen (I-1). Mirrors `ProcurementApprovalRow`.
  */
-export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove: (inv: SalesInvoiceRow) => void }> = ({ inv, onApprove }) => {
+export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove: (inv: SalesInvoiceRow) => void; initiallyExpanded?: boolean }> = ({ inv, onApprove, initiallyExpanded = false }) => {
   const { t } = useTranslation();
   const panelId = `si-approval-panel-${useId()}`;
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initiallyExpanded);
   const customer = inv.customer_name ?? '—';
 
   const subtitle = (

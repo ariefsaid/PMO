@@ -1,5 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useDeferredValue, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
@@ -43,6 +44,8 @@ const Meetings: React.FC = () => {
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sort = searchParams.get('sort') === 'date-asc' ? 'date-asc' : 'date-desc';
 
   // list-working-set-return (#683): `project`/`q` are URL-owned (AC-LRC-008). Search stays LOCAL
   // text (`search`, updated immediately per keystroke — see useUrlSearchInput's search contract)
@@ -59,6 +62,10 @@ const Meetings: React.FC = () => {
     search: deferredSearch.trim() || undefined,
   });
   const rows = useMemo(() => data ?? [], [data]);
+  const sortedRows = useMemo(() => [...rows].sort((a, b) => {
+    const byDate = a.occurred_at.localeCompare(b.occurred_at);
+    return (sort === 'date-asc' ? byDate : -byDate) || a.id.localeCompare(b.id);
+  }), [rows, sort]);
   // A filter/search change keeps the PREVIOUS query's rows on screen (placeholderData in the
   // hook). A kept-previous EMPTY result says nothing about the new query — e.g. right after Clear
   // filters it would read as "No meetings yet" — so the body shows loading until it lands.
@@ -210,29 +217,7 @@ const Meetings: React.FC = () => {
         'meetings.description',
         'Minuted meetings with attendees and action items. You see the meetings you attended, wrote, or were invited to read.',
       )}
-      primaryAction={
-        canCreate && (
-          <Button variant="primary" onClick={() => openRecord('/meetings/new')}>
-            <Icon name="plus" />
-            {t('meetings.actions.new', 'New meeting')}
-          </Button>
-        )
-      }
       filters={
-        state !== 'loading' && (
-          <SelectField
-            label={t('meetings.filters.projectLabel', 'Filter by project')}
-            hideLabel
-            value={projectFilter}
-            onChange={(v) => {
-              setWorkingSet((ws) => ({ ...ws, project: v }));
-              trackFilterApplied('project', projectOptions.length, 'meetings');
-            }}
-            options={projectFilterOptions}
-          />
-        )
-      }
-      search={
         state !== 'loading' && (
           <SearchMini
             placeholder={t('meetings.search.placeholder', 'Search notes and titles…')}
@@ -242,8 +227,48 @@ const Meetings: React.FC = () => {
             searchSurface="meetings-list"
             module="meetings"
             resultCount={rows.length}
-            containerClassName="max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:ml-auto sm:min-w-[220px]"
+            className="min-h-11"
+            containerClassName="min-h-11 w-full min-w-0 sm:w-auto sm:min-w-[220px] sm:flex-1"
           />
+        )
+      }
+      secondaryFilter={
+        state !== 'loading' && (
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <SelectField
+              label={t('meetings.filters.projectLabel', 'Filter by project')}
+              hideLabel
+              value={projectFilter}
+              onChange={(value) => {
+                setWorkingSet((ws) => ({ ...ws, project: value }));
+                trackFilterApplied('project', projectOptions.length, 'meetings');
+              }}
+              options={projectFilterOptions}
+              className="min-h-11 min-w-[170px]"
+            />
+            <SelectField
+              label={t('meetings.sort.label', 'Sort meetings')}
+              hideLabel
+              value={sort}
+              onChange={(value) => {
+                const next = new URLSearchParams(searchParams);
+                if (value === 'date-desc') next.delete('sort');
+                else next.set('sort', value);
+                setSearchParams(next, { replace: true });
+              }}
+              options={[
+                { value: 'date-desc', label: t('meetings.sort.latest', 'Latest meeting date') },
+                { value: 'date-asc', label: t('meetings.sort.oldest', 'Oldest meeting date') },
+              ]}
+              className="min-h-11 min-w-[190px]"
+            />
+            {canCreate && (
+              <Button className="touch-target min-h-11" variant="primary" onClick={() => openRecord('/meetings/new')}>
+                <Icon name="plus" />
+                {t('meetings.actions.new', 'New meeting')}
+              </Button>
+            )}
+          </div>
         )
       }
     >
@@ -287,7 +312,7 @@ const Meetings: React.FC = () => {
 
       {state === undefined && !awaitingRows && (
         <DataTable<MeetingWithRefs>
-          rows={rows}
+          rows={sortedRows}
           columns={columns}
           rowKey={(m) => m.id}
           // list-working-set-return (#683, AC-LRC-008): capture the current filtered/searched

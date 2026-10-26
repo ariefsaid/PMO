@@ -122,8 +122,7 @@ describe('Timesheets (real data)', () => {
     tsState.isPending = false;
     tsState.isError = false;
     renderPage();
-    // Weekly total remains visible alongside its localized unit label.
-    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('10 hours this week');
+    expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('10');
   });
 });
 
@@ -132,6 +131,7 @@ describe('Timesheets states', () => {
     tsState.isPending = true; tsState.isError = false;
     renderPage();
     expect(screen.getByTestId('timesheets-loading')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     tsState.isPending = false;
   });
 
@@ -157,6 +157,7 @@ describe('Timesheets states', () => {
     tsState.isError = true; tsState.isPending = false;
     renderPage();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     tsState.isError = false;
   });
   it('empty state when the current week has no entries (AC-604)', () => {
@@ -581,7 +582,7 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     expect(screen.getByRole('button', { name: /^save$/i })).not.toBeDisabled();
   });
 
-  it('AC-TSE-012: the header weekly total gates invalid cells to 0 (agrees with the grid footer, not a raw sum)', async () => {
+  it('AC-TSE-012: the single grid total gates invalid cells to 0, not a raw sum', async () => {
     // Empty editable week; add a project, type a VALID 6h Mon + an INVALID 25 Tue.
     // The header must route through computeTotals (invalid→0): 6.0h, NOT 31.0h.
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
@@ -591,8 +592,6 @@ describe('timesheet-entry: Save (Tasks 16–17)', () => {
     await userEvent.type(mon, '6');
     const tue = screen.getByLabelText('Acme Internal Platform, Tue hours');
     await userEvent.type(tue, '25');
-    // Header total gates the invalid cell to 0 → 6; the grid footer agrees.
-    expect(screen.getByTestId('timesheets-weekly-total')).toHaveTextContent('6 hours this week');
     expect(screen.getByTestId('tsgrid-grand-total')).toHaveTextContent('6');
   });
 
@@ -1060,7 +1059,7 @@ describe('Timesheets — the owner sees their own ERP push state (I-16/I-17)', (
   it('FR-TSP-173 no mirror row renders nothing — the badge never gates the page', async () => {
     ownPushState.data = null;
     renderPage();
-    await screen.findByTestId('timesheets-weekly-total');
+    await screen.findByTestId('tsgrid-grand-total');
     expect(screen.queryByText(/accounting (update|up to date)|updating accounting/i)).not.toBeInTheDocument();
   });
 

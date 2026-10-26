@@ -11,7 +11,6 @@ import {
   StatusPill,
   TimesheetGrid,
   MobileActionStrip,
-  PageHeading,
   Toolbar,
   AccessDenied,
   useToast,
@@ -41,9 +40,10 @@ import {
   saveToastForChangeCount,
 } from '@/src/lib/timesheet-edit';
 import { useAuth } from '@/src/auth/useAuth';
+import WorkPageHeading from './WorkPageHeading';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { formatFullDate, formatMonthDay, formatNumberExact, formatWeekday } from '@/src/lib/format';
+import { formatFullDate, formatMonthDay, formatWeekday } from '@/src/lib/format';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
@@ -443,11 +443,6 @@ const TimesheetsPage: React.FC = () => {
     return d.upserts.length + d.deletes.length > 0;
   }, [editRows, weekDateStrings, serverEntriesForDiff, currentTimesheet?.id]);
 
-  const weeklyTotal = useMemo(
-    () => currentWeekEntries.reduce((sum, e) => sum + e.hours, 0),
-    [currentWeekEntries]
-  );
-
   const stepWeek = (delta: number) => {
     const next = new Date(currentDate);
     next.setDate(next.getDate() + delta * 7);
@@ -455,6 +450,13 @@ const TimesheetsPage: React.FC = () => {
   };
 
   const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
+  const headingStatus = currentTimesheet?.status
+    ? t(`timesheets.status.${currentTimesheet.status}`, currentTimesheet.status)
+    : t('timesheets.status.draftNotSubmitted', 'Draft — not submitted');
+  const headingScope = t('workPageHeading.timesheetsScope', 'Your hours · {{week}} · {{status}}', {
+    week: weekRangeLabel,
+    status: headingStatus,
+  });
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
   const isOwner = currentTimesheet?.user_id === signedInUserId;
@@ -578,31 +580,24 @@ const TimesheetsPage: React.FC = () => {
   // shared access-denied surface, not a savable grid or the approvals queue.
   if (!canEnterTimesheet) {
     return (
-      <AccessDenied
-        title={t('timesheets.accessDenied.title', "You don't have access to Timesheets")}
-        sub={t(
-          'timesheets.accessDenied.sub',
-          'Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('workPageHeading.timesheets', 'My time')} scope={t('workPageHeading.timesheetsScope', 'Your hours for one week')} />
+        <AccessDenied
+          title={t('timesheets.accessDenied.title', "You don't have access to Timesheets")}
+          sub={t(
+            'timesheets.accessDenied.sub',
+            'Timesheets and approvals are part of the workforce surface. Finance work lives on your dashboard, projects, and procurement.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 
   // ── Page head + toolbar (shared by both views) ──────────────────────────────
   const head = (
     <>
-      <div className="mb-4">
-        <PageHeading
-          kind="review"
-          title={t('timesheets.title', 'Timesheets')}
-          scope={t(
-              'timesheets.subtitle',
-              'Week of {{range}}. Enter hours per project per day, then submit the whole week for your line manager to approve.',
-              { range: weekRangeLabel },
-          )}
-        />
-      </div>
+      <WorkPageHeading title={t('workPageHeading.timesheets', 'My time')} scope={headingScope} kind="review" />
 
       <Toolbar standalone>
         {/* CW-6: the approvals queue has ONE home at /approvals. Approvers get a cross-link
@@ -794,22 +789,11 @@ const TimesheetsPage: React.FC = () => {
                   : t('uxs28.save.nothing', 'Nothing to save yet')}
             </span>
           )}
-          <span
-            data-testid="timesheets-weekly-total"
-            className="ml-auto text-sm tabular text-muted-foreground"
-          >
-            {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-              hours: formatNumberExact(editable ? editTotals.weekly : weeklyTotal),
-            })}
-          </span>
         </div>
 
         {editable ? (
           editGridRows.length === 0 ? (
-            <div data-testid="timesheets-empty" className="px-3.5 py-8 text-center">
-              <p className="text-xl font-bold text-foreground">
-                {t('timesheets.emptyEdit.title', 'No hours logged this week')}
-              </p>
+            <div data-testid="timesheets-empty" className="px-3.5 py-3 text-center">
               {pickerOptions.length === 0 ? (
                 <>
                   <p className="mt-1 text-sm text-muted-foreground">
@@ -859,10 +843,15 @@ const TimesheetsPage: React.FC = () => {
             data-testid="timesheets-footer"
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
           >
+            {editGridRows.length === 0 && (
+              <span data-testid="timesheets-empty-week-total" className="mr-auto text-[13px] tabular text-muted-foreground">
+                {t('timesheets.weekTotal', 'Week total')} <span className="font-medium text-foreground">{editTotals.weekly} h</span>
+              </span>
+            )}
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
             {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
             {!canSubmit && (
-              <span className="mr-auto text-sm text-muted-foreground">
+              <span className={editGridRows.length === 0 ? 'text-[13px] text-muted-foreground' : 'mr-auto text-[13px] text-muted-foreground'}>
                 {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}
@@ -896,10 +885,10 @@ const TimesheetsPage: React.FC = () => {
 
       {editable && !isDesktop && (
         <MobileActionStrip
-          total={editTotals.weekly}
           canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending}
           canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
           showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
+          showEmptyWeekTotal={editGridRows.length === 0}
           saving={saveWeek.isPending}
           submitting={submit.isPending}
           onSave={commitSave}

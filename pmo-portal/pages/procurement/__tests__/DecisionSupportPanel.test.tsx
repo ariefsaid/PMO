@@ -98,6 +98,25 @@ describe('AC-JR-W1-06: DecisionSupportPanel heading project name links', () => {
     expect(budgetLink.getAttribute('href')).toBe('/projects/proj-42');
   });
 
+  it('R-018: approval context can keep one project identity and one decision total', () => {
+    wrap(
+      <DecisionSupportPanel
+        projectId="p1"
+        totalValue={25000}
+        projectName="Bridge Alpha"
+        status="Requested"
+        currency="USD"
+        showProjectContext={false}
+        showRequestValue={false}
+      />,
+    );
+
+    expect(screen.queryByRole('link', { name: /Open Bridge Alpha/i })).toBeNull();
+    expect(screen.queryByText('This request')).toBeNull();
+    expect(screen.getByText('Project budget')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /open project/i })).toHaveAttribute('href', '/projects/p1');
+  });
+
   it('AC-JR-W1-06: suppresses (returns null) when projectId is null', () => {
     const { container } = wrap(
       <DecisionSupportPanel

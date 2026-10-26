@@ -36,6 +36,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
+import WorkPageHeading from './WorkPageHeading';
 import type { CompanyTypeFilter } from '@/src/lib/listWorkingSet';
 import type { CompanyRow, CompanyType, CompanyInput } from '@/src/lib/db/companies';
 import { companyTypeVariant } from '@/src/lib/status/statusVariants';
@@ -165,14 +166,17 @@ const Companies: React.FC = () => {
   // shared access-denied surface, not the directory.
   if (!canView) {
     return (
-      <AccessDenied
-        title={t('companies.accessDenied.title', "You don't have access to Companies")}
-        sub={t(
-          'companies.accessDenied.sub',
-          'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('companies.title', 'Companies')} scope={t('companies.description', 'Accounts and project partners.')} />
+        <AccessDenied
+          title={t('companies.accessDenied.title', "You don't have access to Companies")}
+          sub={t(
+            'companies.accessDenied.sub',
+            'The company directory is shared master data for managers and finance. Your work lives on your dashboard, projects, and tasks.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 
@@ -288,8 +292,9 @@ const Companies: React.FC = () => {
             resultCount={filtered.length}
             containerClassName="w-full min-w-0 sm:min-w-[190px] sm:flex-1"
           />
-          <div className="min-w-0 max-sm:overflow-x-auto [&_button]:min-h-11">
+          <div className="min-w-0">
             <ViewToggle<TypeFilter>
+              className="max-w-full flex-wrap"
               options={TYPE_FILTERS.map((f) => ({ value: f, label: filterLabel(f) }))}
               value={filter}
               onChange={(v) => {

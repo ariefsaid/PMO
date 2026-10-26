@@ -58,6 +58,7 @@ const UpdatePasswordPage: React.FC = () => {
   const [phase, setPhase] = useState<'verifying' | 'active' | 'expired'>(
     hasRecoveryParams ? 'verifying' : 'expired'
   );
+  const [invitePendingSession, setInvitePendingSession] = useState(false);
 
   useEffect(() => {
     let settled = false;
@@ -72,6 +73,7 @@ const UpdatePasswordPage: React.FC = () => {
     // for the set-password form, so it's checked alongside hasRecoveryParams (spec-conformance fix).
     const checkSession = ({ session }: { session: { user?: { user_metadata?: Record<string, unknown> } } | null }) => {
       if (session?.user?.user_metadata?.invite_pending === true) {
+        setInvitePendingSession(true);
         activate();
         return true;
       }
@@ -105,7 +107,7 @@ const UpdatePasswordPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const wasInvite = session?.user?.user_metadata?.invite_pending === true;
+  const wasInvite = invitePendingSession || session?.user?.user_metadata?.invite_pending === true;
   const method: AuthMethod = wasInvite ? 'invite_accept' : 'password_reset';
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -117,15 +119,22 @@ const UpdatePasswordPage: React.FC = () => {
     }
     setConfirmError(null);
     setBusy(true);
-    const { error } = await updatePassword(password); // FR-AUTHF-035: clears invite_pending in the same call
-    setBusy(false);
-    if (error) {
-      trackAuthLoginFailed(method, classifyUpdateError(error)); // FR-AUTHF-025
-      setError(error);
-      return;
+    try {
+      const { error } = await updatePassword(password); // FR-AUTHF-035: clears invite_pending in the same call
+      if (error) {
+        trackAuthLoginFailed(method, classifyUpdateError(error)); // FR-AUTHF-025
+        setError(error);
+        return;
+      }
+      trackAuthLoginSucceeded(method); // FR-AUTHF-061
+      navigate('/', { replace: true }); // FR-AUTHF-024
+    } catch (failure) {
+      const message = failure instanceof Error ? failure.message : 'Your password could not be updated. Try again.';
+      trackAuthLoginFailed(method, classifyUpdateError(message));
+      setError(message);
+    } finally {
+      setBusy(false);
     }
-    trackAuthLoginSucceeded(method); // FR-AUTHF-061
-    navigate('/', { replace: true }); // FR-AUTHF-024
   };
 
   if (phase === 'expired') {
@@ -137,7 +146,7 @@ const UpdatePasswordPage: React.FC = () => {
               PMO Portal
             </p>
             <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-              Set your password
+              Password link unavailable
             </h1>
           </div>
           <Card>
@@ -145,12 +154,12 @@ const UpdatePasswordPage: React.FC = () => {
               <ErrorBanner message="This link is invalid or expired." />
               {/* Single <Link> styled as the primary button — NOT a <button> nested in an <a>
                   (invalid HTML; interactive-in-interactive; two tab stops, same name). */}
-              <Link to="/reset-password" className={buttonClasses('primary', 'default', 'w-full')}>
+              <Link to="/reset-password" className={buttonClasses('primary', 'default', 'min-h-11 w-full')}>
                 Request a new link
               </Link>
               <Link
                 to="/login"
-                className="block text-center text-[12.5px] font-semibold text-primary-text hover:underline"
+                className="flex min-h-11 items-center justify-center text-[12.5px] font-semibold text-primary-text hover:underline"
               >
                 Back to sign in
               </Link>
@@ -163,18 +172,25 @@ const UpdatePasswordPage: React.FC = () => {
 
   if (phase === 'verifying') {
     return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-label="Verifying your link…"
-        className="flex min-h-[100dvh] items-center justify-center bg-secondary/35"
-      >
-        <svg className="size-7 animate-spin text-primary" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
-          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-        </svg>
-        <span className="sr-only">Verifying your link…</span>
-      </div>
+      <main className="flex min-h-[100dvh] items-center justify-center bg-secondary/35 px-4 py-8">
+        <div className="w-full max-w-sm">
+          <div className="mb-5 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">PMO Portal</p>
+            <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
+              {wasInvite ? 'Set your password' : 'Set a new password'}
+            </h1>
+          </div>
+          <Card><CardPad>
+            <p role="status" aria-live="polite" className="flex min-h-11 items-center gap-3 text-[13.5px] text-muted-foreground">
+              <svg className="size-6 shrink-0 animate-spin text-primary" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+              Verifying your link…
+            </p>
+          </CardPad></Card>
+        </div>
+      </main>
     );
   }
 
@@ -219,14 +235,13 @@ const UpdatePasswordPage: React.FC = () => {
                   <span
                     id="confirm-err"
                     role="alert"
-                    className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium"
-                    style={{ color: 'hsl(0 72% 45%)' }}
+                    className="mt-1.5 flex items-center gap-1.5 text-[12px] font-medium text-destructive-text"
                   >
                     {confirmError}
                   </span>
                 )}
               </div>
-              <Button type="submit" variant="primary" loading={busy} disabled={busy} className="w-full">
+              <Button type="submit" variant="primary" loading={busy} disabled={busy} className="min-h-11 w-full">
                 Set new password
               </Button>
             </form>

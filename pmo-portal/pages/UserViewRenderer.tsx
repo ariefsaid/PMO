@@ -233,6 +233,24 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
     );
   }
 
+  // The query may resolve before the session profile is ready (for example during
+  // reauthentication). Keep the state generic until the viewer identity is known so
+  // a private view name never flashes to a signed-out or unresolved session.
+  if (!currentUser && view) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <SavedViewHeader
+          title={t('viewRenderer.checkingAccessTitle', 'Checking access to saved view')}
+          description={t('viewRenderer.checkingAccessDescription', 'Confirming your access before opening this saved answer…')}
+          onBack={backToViews}
+        />
+        <DashGrid>
+          <div className="min-[920px]:col-span-2"><ChartFrame state="loading">{null}</ChartFrame></div>
+        </DashGrid>
+      </div>
+    );
+  }
+
   // ── Not-found / no-access / archived (FR-VR-032, FR-VR-033, OD-1) ─────
   if (view === null || view === undefined || (view && view.archived_at !== null)) {
     return (
@@ -307,7 +325,21 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
   // compiledPanels.length === 0, and the loading/compiling guard above covers the
   // null / still-initializing case. The panelStates.length check is a safety net
   // in case of a React render cycle race.
-  if (!compiledPanels || panelStates.length === 0) return null;
+  if (!compiledPanels || panelStates.length === 0) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <SavedViewHeader
+          title={view.name}
+          description={view.description}
+          scope={scopeLabel}
+          onBack={backToViews}
+        />
+        <DashGrid>
+          <div className="min-[920px]:col-span-2"><ChartFrame state="loading">{null}</ChartFrame></div>
+        </DashGrid>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">

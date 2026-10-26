@@ -22,15 +22,15 @@ const NotFound: React.FC = () => (
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="alert" className="size-6" strokeWidth={1.75} />
     </span>
-    <div className="text-[15px] font-semibold">Page not found</div>
+    <h1 className="text-2xl font-bold tracking-tight">Page not found</h1>
     <div className="max-w-[44ch] text-[13px] text-muted-foreground">
       The page you're looking for doesn't exist or has been moved.
     </div>
     <Link
       to="/"
-      className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+      className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-md bg-primary px-3.5 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
     >
-      <Icon name="back" className="size-4" />
+      <Icon name="back" className="size-4" aria-hidden="true" />
       Back to Dashboard
     </Link>
   </section>

@@ -56,6 +56,7 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
   it('AC-CLI-006: shows a loading state while the request is fetched', () => {
     consent.getConsentDetails.mockReturnValue(new Promise(() => {}));
     renderAt('/oauth/consent?authorization_id=auth-1');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request' })).toBeInTheDocument();
     expect(screen.getByRole('status')).toHaveTextContent('Loading the sign-in request…');
     expect(screen.queryByRole('button')).toBeNull();
   });
@@ -179,6 +180,7 @@ describe('OAuthConsentPage (AC-CLI-006)', () => {
 
   it('AC-CLI-006: a link without an authorization_id is refused without calling Supabase', () => {
     renderAt('/oauth/consent');
+    expect(screen.getByRole('heading', { level: 1, name: 'Sign-in request unavailable' })).toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('This sign-in request is incomplete.');
     expect(consent.getConsentDetails).not.toHaveBeenCalled();
   });

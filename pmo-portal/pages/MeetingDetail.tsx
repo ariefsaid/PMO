@@ -12,16 +12,11 @@ import {
   StatusPill,
   ListState,
   ConfirmDialog,
-  EntityFormModal,
   TextField,
   SelectField,
-  FormSection,
-  FormGrid,
   GateNotice,
   Combobox,
-  useEntityForm,
   useToast,
-  type SubmitError,
   type ComboboxOption,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
@@ -37,9 +32,10 @@ import {
   useMeetingMutations,
 } from '@/src/hooks/useMeetings';
 import { useProjects } from '@/src/hooks/useProjects';
-import { useAssignableProfiles } from '@/src/hooks/useTasks';
 import { repositories } from '@/src/lib/repositories';
-import { classifyMutationError, isMeetingReadDenied } from '@/src/lib/classifyMutationError';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import ActionItemModal from '@/src/components/meetings/ActionItemModal';
+import WorkPageHeading from './WorkPageHeading';
 import {
   formatDateTime,
   formatDateOnly,
@@ -94,6 +90,8 @@ const MeetingDetail: React.FC = () => {
   // differ. `key={meeting.id}` remounts the editor when a different meeting loads.
   const meeting = query.data ?? null;
   const [headerDraft, setHeaderDraft] = useState({ title: '', occurredAt: '', location: '', projectId: '' });
+  const [isEditing, setIsEditing] = useState(false);
+  const [editorVersion, setEditorVersion] = useState(0);
   const headerDraftRef = useRef(headerDraft);
   headerDraftRef.current = headerDraft;
   const syncedHeaderRef = useRef<typeof headerDraft | null>(null);
@@ -132,6 +130,12 @@ const MeetingDetail: React.FC = () => {
     () => (meeting ? upgradeNotes(meeting.notes, meeting.notes_schema_version) : []),
     [meeting],
   );
+  const headerDirty = Boolean(meeting && (
+    headerDraft.title !== meeting.title ||
+    headerDraft.occurredAt !== instantToZonedDatetimeLocal(new Date(meeting.occurred_at)) ||
+    headerDraft.location !== (meeting.location ?? '') ||
+    headerDraft.projectId !== (meeting.project_id ?? '')
+  ));
   const minutesDirty = useMemo(
     () => blocks !== null && baseline !== null && JSON.stringify(blocks) !== baseline,
     [blocks, baseline],
@@ -140,7 +144,7 @@ const MeetingDetail: React.FC = () => {
   // FR-MTG-040 / DD-MTG-11: hold in-app exits while the minutes are unsaved. The held exit is a
   // callback, so Leave performs it exactly as asked (crumb/list-return router state intact).
   const holdLeave = useCallback((leave: () => void) => setPendingLeave(() => leave), []);
-  const guardLeave = useUnsavedChangesGuard({ dirty: minutesDirty, onBlocked: holdLeave });
+  const guardLeave = useUnsavedChangesGuard({ dirty: isEditing && (headerDirty || minutesDirty), onBlocked: holdLeave });
 
   const canEdit = may('edit', 'meeting', {
     currentUserId,
@@ -173,6 +177,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
         <div data-testid="meeting-loading">
           <ListState variant="loading" rows={5} />
         </div>
@@ -184,6 +189,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
         <ListState
           variant="error"
           title={t('meetingDetail.error.title', "Couldn't load meeting")}
@@ -198,6 +204,7 @@ const MeetingDetail: React.FC = () => {
     return (
       <>
         <BackBar label={backLabel} phoneOnly onBack={goBack} />
+        <WorkPageHeading title={t('workPageHeading.meeting', 'Meeting')} scope={t('workPageHeading.meetingScope', 'Meeting record')} />
         <div data-testid="meeting-not-found">
           <ListState
             variant="empty"
@@ -230,14 +237,39 @@ const MeetingDetail: React.FC = () => {
   const pmSuggestion =
     meeting.project?.pm && !hasAccess(meeting.project.pm.id) ? meeting.project.pm : null;
 
-  const onSaveMinutes = async () => {
+  const resetEditDraft = () => {
+    setHeaderDraft({ title: meeting.title, occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)), location: meeting.location ?? '', projectId: meeting.project_id ?? '' });
+    setBlocks(null);
+    setBaseline(null);
+    setIsEditing(false);
+    setEditorVersion((version) => version + 1);
+  };
+
+  const cancelEdit = () => {
+    if (headerDirty || minutesDirty) {
+      setPendingLeave(() => resetEditDraft);
+      return;
+    }
+    resetEditDraft();
+  };
+
+  const saveMeeting = async () => {
     try {
       const doc = editorRef.current?.getDocument() ?? blocks;
       if (!doc) return;
-      await update.mutateAsync({ id: meeting.id, patch: { notes: doc } });
+      const instant = zonedDatetimeLocalToInstant(headerDraft.occurredAt);
+      if (!instant || !headerDraft.title.trim()) return;
+      await update.mutateAsync({ id: meeting.id, patch: {
+        title: headerDraft.title.trim(),
+        occurred_at: instant.toISOString(),
+        location: headerDraft.location.trim() || null,
+        project_id: headerDraft.projectId || null,
+        notes: doc,
+      } });
       setBlocks(doc);
       setBaseline(JSON.stringify(doc));
-      toast(t('meetingDetail.toast.minutesSaved', 'Minutes saved'), meeting.title, 'success');
+      setIsEditing(false);
+      toast(t('meetingDetail.toast.updated', 'Meeting updated'), headerDraft.title.trim(), 'success');
     } catch (err) {
       onMutationError(err);
     }
@@ -337,23 +369,6 @@ const MeetingDetail: React.FC = () => {
       .map((p) => ({ value: p.id, label: p.full_name }));
   };
 
-  const headerDirty = Boolean(meeting && (
-    headerDraft.title !== meeting.title ||
-    headerDraft.occurredAt !== instantToZonedDatetimeLocal(new Date(meeting.occurred_at)) ||
-    headerDraft.location !== (meeting.location ?? '') ||
-    headerDraft.projectId !== (meeting.project_id ?? '')
-  ));
-  const saveHeader = async () => {
-    const instant = zonedDatetimeLocalToInstant(headerDraft.occurredAt);
-    if (!instant || !headerDraft.title.trim()) return;
-    try {
-      await update.mutateAsync({ id: meeting.id, patch: {
-        title: headerDraft.title.trim(), occurred_at: instant.toISOString(),
-        location: headerDraft.location.trim() || null, project_id: headerDraft.projectId || null,
-      } });
-      toast(t('meetingDetail.toast.updated', 'Meeting updated'), headerDraft.title.trim(), 'success');
-    } catch (err) { onMutationError(err); }
-  };
   const hasHeaderActions = canEdit || canArchive || canDelete;
 
   return (
@@ -363,7 +378,8 @@ const MeetingDetail: React.FC = () => {
       </div>
 
       <RecordHeader
-        name={canEdit ? (headerDraft.title || meeting.title) : meeting.title}
+        sharedPageHeading
+        name={isEditing ? (headerDraft.title || meeting.title) : meeting.title}
         icon={(meeting.title.trim().charAt(0) || '•').toUpperCase()}
         status={
           meeting.archived_at ? (
@@ -372,7 +388,7 @@ const MeetingDetail: React.FC = () => {
             <StatusPill variant="violet">{t('meetingDetail.pill.meeting', 'Meeting')}</StatusPill>
           )
         }
-        meta={canEdit ? (
+        meta={isEditing ? (
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <TextField id="meeting-header-title" label={t('meetingDetail.form.title.label', 'Title')} required value={headerDraft.title} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, title: value }))} error={!headerDraft.title.trim() ? t('meetingDetail.form.errors.titleRequired', 'Meeting title is required.') : undefined} />
             <TextField id="meeting-header-when" label={t('meetingDetail.form.when.label', 'When')} type="datetime-local" value={headerDraft.occurredAt} onChange={(value) => setHeaderDraft((draft) => ({ ...draft, occurredAt: value }))} error={!zonedDatetimeLocalToInstant(headerDraft.occurredAt) ? t('meetingDetail.form.errors.whenInvalid', 'Enter a valid date and time.') : undefined} />
@@ -389,10 +405,7 @@ const MeetingDetail: React.FC = () => {
         actions={
           hasHeaderActions ? (
             <>
-              {canEdit && headerDirty && <>
-                <Button variant="primary" size="sm" data-testid="meeting-header-save" disabled={update.isPending || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)} onClick={() => void saveHeader()}>{tMeetingCreate('save', 'Save meeting')}</Button>
-                <Button variant="outline" size="sm" data-testid="meeting-header-cancel" onClick={() => setHeaderDraft({ title: meeting.title, occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)), location: meeting.location ?? '', projectId: meeting.project_id ?? '' })}>{tMeetingCreate('cancel', 'Cancel')}</Button>
-              </>}
+              {canEdit && !isEditing && <Button variant="primary" size="sm" data-testid="meeting-edit" onClick={() => { setHeaderDraft({ title: meeting.title, occurredAt: instantToZonedDatetimeLocal(new Date(meeting.occurred_at)), location: meeting.location ?? '', projectId: meeting.project_id ?? '' }); setIsEditing(true); setEditorVersion((version) => version + 1); }}>{t('meetingDetail.edit', 'Edit meeting')}</Button>}
               {canArchive && !meeting.archived_at && (
                 <Button variant="ghost" size="sm" data-testid="meeting-archive" onClick={() => setArchiveOpen(true)}>
                   {t('meetingDetail.archive', 'Archive')}
@@ -412,23 +425,13 @@ const MeetingDetail: React.FC = () => {
       <Card variant="bare" className="mb-4">
         <CardHead
           actions={
-            canEdit && (
-              <Button
-                variant="primary"
-                size="sm"
-                data-testid="minutes-save"
-                disabled={!minutesDirty || update.isPending}
-                onClick={() => void onSaveMinutes()}
-              >
-                {t('meetingDetail.minutes.save', 'Save minutes')}
-              </Button>
-            )
+            isEditing && <span className="text-xs text-muted-foreground">{t('meetingDetail.editing', 'Editing meeting')}</span>
           }
         >
           {t('meetingDetail.minutes.title', 'Minutes')}
         </CardHead>
         <CardPad>
-          {tasksExternal && canEdit && (
+          {tasksExternal && isEditing && canEdit && (
             <GateNotice variant="blocked" className="mb-2" data-testid="minutes-external-gate">
               {t(
                 'meetingDetail.action.externalGate',
@@ -436,18 +439,18 @@ const MeetingDetail: React.FC = () => {
               )}
             </GateNotice>
           )}
-          {!canEdit && savedBlocks.length === 0 ? (
+          {!isEditing && savedBlocks.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {t('meetingDetail.minutes.empty', 'No minutes were recorded for this meeting.')}
             </p>
           ) : (
-            <div data-testid={canEdit ? 'minutes-editor' : 'minutes-readonly'}>
+            <div data-testid={isEditing ? 'minutes-editor' : 'minutes-readonly'}>
               <Suspense fallback={<ListState variant="loading" rows={3} />}>
                 <MinutesEditor
-                  key={meeting.id}
+                  key={`${meeting.id}:${editorVersion}`}
                   ref={editorRef}
                   initialBlocks={savedBlocks}
-                  editable={canEdit}
+                  editable={isEditing && canEdit}
                   tasksExternal={tasksExternal}
                   onReady={onEditorReady}
                   onChange={setBlocks}
@@ -456,6 +459,12 @@ const MeetingDetail: React.FC = () => {
                   onRequestAction={setActionLine}
                 />
               </Suspense>
+            </div>
+          )}
+          {isEditing && (
+            <div className="mt-4 flex justify-end gap-2 border-t border-border pt-3">
+              <Button variant="outline" data-testid="meeting-edit-cancel" disabled={update.isPending} onClick={cancelEdit}>{tMeetingCreate('cancel', 'Cancel')}</Button>
+              <Button variant="primary" data-testid="meeting-save" disabled={update.isPending || (!headerDirty && !minutesDirty) || !headerDraft.title.trim() || !zonedDatetimeLocalToInstant(headerDraft.occurredAt)} onClick={() => void saveMeeting()}>{tMeetingCreate('save', 'Save meeting')}</Button>
             </div>
           )}
         </CardPad>
@@ -510,8 +519,9 @@ const MeetingDetail: React.FC = () => {
 
       {/* ── Attendees (the read-access list — FR-MTG-031) ──────────────────── */}
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('meetingDetail.attendees.title', 'Attendees')}</CardHead>
-        <CardPad>
+        <details>
+          <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.attendees.title', 'Attendees')}</summary>
+          <CardPad>
           {attendees.length === 0 && (
             <p className="mb-2 text-sm text-muted-foreground">
               {t(
@@ -579,13 +589,15 @@ const MeetingDetail: React.FC = () => {
               </div>
             </div>
           )}
-        </CardPad>
+          </CardPad>
+        </details>
       </Card>
 
       {/* ── Share (view-only grants — OD-MTG-2 / FR-MTG-032..034) ──────────── */}
       <Card variant="bare" className="mb-4">
-        <CardHead>{t('meetingDetail.share.title', 'Sharing')}</CardHead>
-        <CardPad>
+        <details>
+          <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.share.title', 'Sharing')}</summary>
+          <CardPad>
           <p className="mb-3 text-sm text-muted-foreground">
             {t(
               'meetingDetail.share.explainer',
@@ -654,7 +666,8 @@ const MeetingDetail: React.FC = () => {
               noun={t('meetingDetail.share.memberNoun', 'member')}
             />
           </div>
-        </CardPad>
+          </CardPad>
+        </details>
       </Card>
 
       {/* ── /action task-create modal (DD-MTG-8) ───────────────────────────── */}
@@ -699,10 +712,10 @@ const MeetingDetail: React.FC = () => {
       <ConfirmDialog
         open={pendingLeave !== null}
         tone="default"
-        title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved minutes')}
+        title={t('meetingDetail.confirm.unsavedMinutes.title', 'Unsaved meeting changes')}
         description={t(
           'meetingDetail.confirm.unsavedMinutes.description',
-          'Your meeting minutes have unsaved changes. Leave this page and discard them?',
+          'Your meeting changes have not been saved. Leave and discard them?',
         )}
         confirmLabel={t('meetingDetail.confirm.unsavedMinutes.leave', 'Leave')}
         cancelLabel={t('meetingDetail.confirm.unsavedMinutes.stay', 'Stay')}
@@ -718,156 +731,5 @@ const MeetingDetail: React.FC = () => {
 };
 
 // ── /action task-create modal (DD-MTG-8) ────────────────────────────────────
-
-interface ActionItemModalProps {
-  /** The minute line's text — the PREFILL, fully editable (never silently published). */
-  initialName: string;
-  /** The meeting's project name, or null — the task's project is FIXED to it, shown not chosen. */
-  projectName: string | null;
-  onClose: () => void;
-  onCreate: (input: { name: string; assigneeId: string; endDate: string }) => Promise<void>;
-  onError: (err: unknown) => void;
-}
-
-/**
- * DD-MTG-8: `/action` is an informed authoring act. The minute line prefills the task name, the
- * author edits it freely, and only what they submit reaches `tasks.name` — a column the org-wide
- * `tasks_select` exposes to peers the attendance-keyed meeting read model excludes. Project is
- * fixed to the meeting's own project (the /action contract); meeting linkage is set on save.
- * Built on the shared form primitives, matching every other create modal.
- */
-const ActionItemModal: React.FC<ActionItemModalProps> = ({
-  initialName,
-  projectName,
-  onClose,
-  onCreate,
-  onError,
-}) => {
-  const { t } = useTranslation();
-  const { data: profiles, isPending: profilesPending, isError: profilesError } = useAssignableProfiles();
-  const form = useEntityForm<{ name: string; assigneeId: string; endDate: string }>({
-    initialValues: { name: initialName, assigneeId: '', endDate: '' },
-    validate: () => ({}), // an empty name is legal — FR-MTG-017's placeholder covers it on save
-    idPrefix: 'meeting-action-form',
-    module: 'meetings',
-  });
-  const nameField = form.fieldProps('name');
-  const assigneeField = form.fieldProps('assigneeId');
-  const endDateField = form.fieldProps('endDate');
-  const assigneeOptions: ComboboxOption[] = (profiles ?? []).map((profile) => ({
-    value: profile.id,
-    label: profile.full_name,
-    sub: profile.role,
-  }));
-  const selectedAssignee = assigneeOptions.find((option) => option.value === assigneeField.value) ?? null;
-  const [saveError, setSaveError] = useState<SubmitError | null>(null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    void form.handleSubmit(async (values) => {
-      try {
-        await onCreate(values);
-      } catch (err) {
-        // #526 security review: the 0206 trigger blocks linking a task to a meeting the caller
-        // can't read. This should never fire here — the modal only opens from a meeting already
-        // on screen — but if it does, name it plainly rather than as a generic role denial.
-        if (isMeetingReadDenied(err)) {
-          setSaveError({
-            headline: t('meetingDetail.action.readDeniedHeadline', 'Action item not created'),
-            detail: t(
-              'meetingDetail.action.readDeniedDetail',
-              'You can only create action items on meetings you can access.',
-            ),
-          });
-          onError(err);
-          return;
-        }
-        const { headline, detail } = classifyMutationError(err, undefined, {
-          module: 'meetings',
-          operation: 'create',
-          suppressCapture: true,
-        });
-        setSaveError({ headline, detail });
-        onError(err);
-      }
-    });
-  };
-
-  return (
-    <EntityFormModal
-      open
-      title={t('meetingDetail.action.modalTitle', 'New action item')}
-      subtitle={t(
-        'meetingDetail.action.modalSubtitle',
-        'This creates a real task. Its name is visible to everyone who can see tasks — edit it before publishing.',
-      )}
-      submitLabel={t('meetingDetail.action.modalSubmit', 'Create task')}
-      onSubmit={handleSubmit}
-      onClose={onClose}
-      loading={form.isSubmitting}
-      dirty={form.isDirty}
-      submitError={saveError}
-    >
-      <FormSection legend={t('meetingDetail.action.modalSection', 'Follow-up task')}>
-        <FormGrid>
-          <TextField
-            id={nameField.id}
-            label={t('meetingDetail.action.nameLabel', 'Task name')}
-            value={nameField.value}
-            onChange={nameField.onChange}
-            onBlur={nameField.onBlur}
-            placeholder={t('meetingDetail.action.placeholderName', 'Untitled action')}
-            helper={t(
-              'meetingDetail.action.nameHelper',
-              'Prefilled from the minute line. Left empty, the task is created with the placeholder name.',
-            )}
-            fullWidth
-          />
-          {profilesError && (
-            <p className="mt-1 text-[12px] text-muted-foreground">
-              {t(
-                'projectDetail.tasks.form.peopleLoadFailed',
-                'People could not be loaded; you can still save and assign later.',
-              )}
-            </p>
-          )}
-          <Combobox
-            label={t('meetingDetail.minutes.ownerLabel', 'Owner')}
-            value={assigneeField.value || null}
-            selectedOption={selectedAssignee}
-            loadOptions={async () => assigneeOptions}
-            onChange={(value) => assigneeField.onChange(value)}
-            placeholder={
-              profilesPending
-                ? t('projectDetail.tasks.form.loadingPeople', 'Loading people…')
-                : t('projectDetail.tasks.unassigned', 'Unassigned')
-            }
-            searchPlaceholder={t('projectDetail.tasks.form.searchPeople', 'Search people…')}
-            noun={t('meetingDetail.action.personNoun', 'person')}
-          />
-          <TextField
-            id={endDateField.id}
-            label={t('meetingDetail.minutes.dueLabel', 'Due date')}
-            type="date"
-            value={endDateField.value}
-            onChange={endDateField.onChange}
-            onBlur={endDateField.onBlur}
-          />
-          <div className="text-sm">
-            <div className="mb-1 font-medium text-muted-foreground">
-              {t('meetingDetail.action.projectLabel', 'Project')}
-            </div>
-            <p data-testid="action-modal-project">
-              {projectName ?? t('meetingDetail.action.projectNone', 'No project')}{' '}
-              <span className="text-muted-foreground">
-                {t('meetingDetail.action.projectFixed', '(fixed to this meeting’s project)')}
-              </span>
-            </p>
-          </div>
-        </FormGrid>
-      </FormSection>
-    </EntityFormModal>
-  );
-};
 
 export default MeetingDetail;

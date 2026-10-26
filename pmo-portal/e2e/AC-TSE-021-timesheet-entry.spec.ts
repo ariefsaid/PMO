@@ -120,7 +120,7 @@ test('AC-TSE-021 engineer logs, edits, deletes, submits a week through the real 
   await fillHourCell(page, 'Innovate Corp HQ Fit-Out', 'Wed', '4');
 
   // Live total should reflect 18h before saving across both projects.
-  const weeklyTotalSpan = page.getByTestId('timesheets-weekly-total');
+  const weeklyTotalSpan = page.getByTestId('tsgrid-grand-total');
   await expect(weeklyTotalSpan).toContainText('18');
 
   // ── Step 5: Save — Draft is created on first Save (FR-TSE-011) ──────────────

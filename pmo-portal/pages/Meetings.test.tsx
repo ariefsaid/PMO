@@ -189,6 +189,37 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
   });
 
+  it('AC-WORK-MTG-01: lists the latest meeting first and keeps search, project, sort and create ordered', () => {
+    renderPage();
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
+      'Supplier dispute call',
+      'Kickoff with Acme',
+    ]);
+    const toolbar = screen.getByTestId('list-page-toolbar');
+    const controls = [
+      screen.getByRole('searchbox', { name: /Search meetings/i }),
+      screen.getByLabelText(/Filter by project/i),
+      screen.getByLabelText(/Sort meetings/i),
+      screen.getByRole('button', { name: /New meeting/i }),
+    ];
+    expect(controls.every((control) => toolbar.contains(control))).toBe(true);
+    for (let index = 1; index < controls.length; index += 1) {
+      expect(Boolean(controls[index - 1].compareDocumentPosition(controls[index]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    }
+  });
+
+  it('AC-WORK-MTG-01: changing date order is stored in the list URL', async () => {
+    renderPage();
+    await userEvent.selectOptions(screen.getByLabelText(/Sort meetings/i), 'date-asc');
+    expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search')).get('sort')).toBe('date-asc');
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
+      'Kickoff with Acme',
+      'Supplier dispute call',
+    ]);
+  });
+
   it('the search box drives the SERVER query (DD-MTG-5 — notes are the find mechanism)', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search meetings/i), 'pipeline');

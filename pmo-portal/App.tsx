@@ -374,29 +374,31 @@ export const ShellChrome: React.FC = () => {
   const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
   const administrationRoute = pathname === '/administration' || pathname.startsWith('/administration/');
   const personalIntegrationsRoute = pathname === '/integrations';
-  const usesContentPageFrame =
-    pathname === '/' ||
-    pathname === '/projects' ||
-    pathname === '/sales' ||
-    projectRecordRoute ||
-    pathname === '/approvals' ||
-    pathname === '/timesheets' ||
-    administrationRoute ||
-    personalIntegrationsRoute;
-  const areaName =
-    pathname === '/'
-      ? t('shell.nav.dashboard', 'Dashboard')
-      : pathname === '/approvals'
-        ? t('shell.nav.approvals', 'Approvals')
-        : pathname === '/timesheets'
-          ? t('shell.nav.timesheets', 'Timesheets')
-          : pathname === '/sales'
-            ? t('shell.nav.sales', 'Sales Pipeline')
-            : administrationRoute
-            ? t('shell.nav.administration', 'Administration')
-            : personalIntegrationsRoute
-              ? t('shell.nav.integrations', 'My integrations')
-              : t('shell.nav.projects', 'Projects');
+  const workAreas: Array<[string, string]> = [
+    ['/approvals', t('shell.nav.approvals', 'Approvals')],
+    ['/timesheets', t('shell.nav.timesheets', 'Timesheets')],
+    ['/my-tasks', t('shell.nav.myTasks', 'My Tasks')],
+    ['/meetings', t('shell.nav.meetings', 'Meetings')],
+    ['/companies', t('shell.nav.companies', 'Companies')],
+    ['/contacts', t('shell.nav.contacts', 'Contacts')],
+    ['/incidents', t('shell.nav.incidents', 'Incidents')],
+    ['/views', t('workPageHeading.views', 'My views')],
+    ['/settings/profile', t('shell.nav.profileSettings', 'Profile & preferences')],
+  ];
+  const workArea = workAreas.find(([root]) => pathname === root || pathname.startsWith(`${root}/`));
+  const usesContentPageFrame = pathname === '/' || pathname === '/projects' || pathname === '/sales' || projectRecordRoute || Boolean(workArea) || administrationRoute || personalIntegrationsRoute;
+  const areaName = pathname === '/'
+    ? t('shell.nav.dashboard', 'Dashboard')
+    : pathname === '/sales'
+      ? t('shell.nav.sales', 'Sales Pipeline')
+      : administrationRoute
+      ? t('shell.nav.administration', 'Administration')
+      : personalIntegrationsRoute
+        ? t('shell.nav.integrations', 'My integrations')
+        : workArea?.[1] ?? t('shell.nav.projects', 'Projects');
+  const workReturnLabel = /^\/(companies|contacts|incidents|meetings)\/[^/]+$/u.test(pathname)
+    ? workArea?.[1]
+    : undefined;
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -485,8 +487,8 @@ export const ShellChrome: React.FC = () => {
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
         pageFrame={usesContentPageFrame ? {
           breadcrumb,
-          ...(projectRecordRoute ? {
-            returnLabel: t('shell.nav.projects', 'Projects'),
+          ...(projectRecordRoute || workReturnLabel ? {
+            returnLabel: workReturnLabel ?? t('shell.nav.projects', 'Projects'),
           } : {}),
         } : undefined}
       >

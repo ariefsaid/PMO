@@ -84,16 +84,24 @@ beforeEach(() => {
 });
 
 describe('IncidentDetail', () => {
-  it('AC-INC-002: renders the record header with the incident type, severity + status pills, and its fields', () => {
+  it('AC-INC-002: keeps identity, severity and status once with the incident evidence', () => {
     renderPage();
     const header = screen.getByTestId('record-header');
     expect(within(header).getByText('Near Miss')).toBeInTheDocument();
-    // Severity + workflow-status pills both surface in the header.
     expect(within(header).getByText('High')).toBeInTheDocument();
     expect(within(header).getByText('Open')).toBeInTheDocument();
-    // Body fields are present (the dead-end is gone — the record opens to a real page).
+    expect(screen.getAllByText('Near Miss')).toHaveLength(1);
+    expect(screen.getAllByText('High')).toHaveLength(1);
+    expect(screen.getAllByText('Open')).toHaveLength(1);
     expect(screen.getByText('Regional Site B')).toBeInTheDocument();
     expect(screen.getByText('Trip hazard near the scaffold')).toBeInTheDocument();
+  });
+
+  it('AC-INC-002: the next workflow action follows the reported evidence', () => {
+    renderPage();
+    const description = screen.getByText('Trip hazard near the scaffold');
+    const nextAction = screen.getByRole('button', { name: /start investigating/i });
+    expect(Boolean(description.compareDocumentPosition(nextAction) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it('AC-INC-002: shows the loading skeleton while the record is pending', () => {
@@ -101,6 +109,7 @@ describe('IncidentDetail', () => {
     detailState.isPending = true;
     renderPage();
     expect(screen.getByTestId('incident-loading')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('AC-INC-002: shows a calm not-found state when the record is absent', () => {
@@ -108,12 +117,14 @@ describe('IncidentDetail', () => {
     detailState.isPending = false;
     renderPage();
     expect(screen.getByTestId('incident-not-found')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('AC-INC-002: a transient load error offers Retry', async () => {
     detailState.data = undefined;
     detailState.isError = true;
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const retry = screen.getByRole('button', { name: /retry|try again/i });
     await userEvent.click(retry);
     expect(detailState.refetch).toHaveBeenCalled();
@@ -123,12 +134,12 @@ describe('IncidentDetail', () => {
     ['loading', { data: undefined, isPending: true, isError: false }],
     ['not-found', { data: null, isPending: false, isError: false }],
     ['error', { data: undefined, isPending: false, isError: true }],
-  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
+  ])('AC-INC-002: the %s state keeps a working return to the Incidents register', async (_n, s) => {
     Object.assign(detailState, s);
     renderPage();
-    const bar = screen.getByRole('button', { name: /back to incidents/i }).parentElement!;
-    expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    await userEvent.click(screen.getByRole('button', { name: /back to incidents/i }));
+    expect(screen.getByText('Incidents index')).toBeInTheDocument();
   });
 
   it('AC-INC-002: Back returns to the Incidents list', async () => {
@@ -196,12 +207,11 @@ describe('IncidentDetail', () => {
     expect(link).toHaveAttribute('href', '/projects/p1');
   });
 
-  it('AC-IN-PROJ-010: an unlinked incident shows the Project field em-dash, no link', () => {
+  it('AC-IN-PROJ-010: an unlinked incident names its project scope without a dead link', () => {
     detailState.data = { ...incident, project_id: null };
     renderPage('Admin');
     expect(screen.queryByRole('link', { name: /^open /i })).toBeNull();
-    // The Project field still renders (with its em-dash fallback).
-    expect(screen.getByText('Project')).toBeInTheDocument();
+    expect(screen.getByText('Unlinked')).toBeInTheDocument();
   });
 
   it('AC-INC-002: a Closed incident shows no advance action and renders an empty-description fallback', () => {
@@ -209,7 +219,7 @@ describe('IncidentDetail', () => {
     renderPage('Admin');
     expect(screen.queryByTestId('incident-advance')).toBeNull();
     expect(screen.getByText(/no description was recorded/i)).toBeInTheDocument();
-    // The empty location renders the em-dash fallback in the field list.
-    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+    // Missing incident location is named so it is not confused with an omitted field.
+    expect(screen.getByText('Not recorded')).toBeInTheDocument();
   });
 });

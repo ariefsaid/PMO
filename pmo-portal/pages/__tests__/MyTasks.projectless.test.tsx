@@ -93,15 +93,14 @@ describe('My Tasks — a task with no project (#525)', () => {
     expect(screen.getByText('Wire the inverters')).toBeInTheDocument();
   });
 
-  it('AC-FCT-041: groups it under a plain heading, and NEVER links to /projects/null', () => {
+  it('AC-FCT-041: shows a named projectless context and NEVER links to /projects/null', () => {
     renderPage();
-    const heading = screen.getByTestId('my-tasks-no-project-heading');
-    expect(heading).toBeInTheDocument();
-    expect(heading.tagName).not.toBe('A');
+    const taskRow = screen.getByText('Chase the permit office').closest('[role="listitem"]')!;
+    expect(within(taskRow).getByText('No project')).toBeInTheDocument();
     // The whole point: no anchor anywhere on the page points into a null project.
     const hrefs = screen.getAllByRole('link').map((a) => a.getAttribute('href') ?? '');
     expect(hrefs.some((h) => h.includes('/projects/null'))).toBe(false);
-    // …and the project-carrying group still links, so the fix did not flatten both cases.
+    // …and the project-carrying task retains a direct project link.
     expect(hrefs.some((h) => h === '/projects/p-abc/tasks')).toBe(true);
   });
 

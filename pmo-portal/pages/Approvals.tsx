@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, PageHeading, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
+import { AccessDenied, Button, Card, Checkbox, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -19,18 +19,20 @@ import { TimesheetBulkConfirm, TimesheetBulkSelect, TimesheetBulkToolbar, useTim
 import { ExpenseClaimApprovalSection } from './approvals/ExpenseClaimApprovalSection';
 import { SalesInvoiceApprovalSection } from './approvals/SalesInvoiceApprovalSection';
 import { useInvoicesAwaitingViewer } from '@/src/hooks/useInvoicesAwaitingViewer';
-import { ProcurementApprovalPreview } from './approvals/ProcurementApprovalRow';
-import { approvalPopulation, pendingProcurementApprovals, type ApprovalPopulationEntry, type ApprovalScope } from '@/src/lib/selectors/approvals';
+import { ProcurementApprovalPreview, ProcurementApprovalRow } from './approvals/ProcurementApprovalRow';
+import { pendingProcurementApprovals, type ApprovalScope } from '@/src/lib/selectors/approvals';
 import { useExpenseClaimsAwaitingDecision, type ExpenseClaimAwaiting } from '@/src/hooks/useExpenseClaims';
 import { claimsAwaitingViewer } from '@/src/lib/expenses/expenseRules';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrencyCents } from '@/src/lib/format';
 import { PushStateBadge } from '@/src/components/timesheets/PushStateBadge';
 import { EmployeeLinkConfirm } from '@/src/components/timesheets/EmployeeLinkConfirm';
 import { employeeChoiceLabels } from '@/src/components/timesheets/employeeChoiceLabels';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { REOPENABLE_WINDOW_DAYS } from '@/src/lib/db/timesheetTransition';
 import type { TimesheetAwaitingApproval } from '@/src/lib/db/timesheetTransition';
+import WorkPageHeading from './WorkPageHeading';
+import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
 /** `lg` breakpoint — the two-pane triage activates here. */
 const TRIAGE_QUERY = '(min-width: 1024px)';
@@ -39,7 +41,9 @@ type Scope = ApprovalScope;
 
 type QueueItem =
   | { key: string; kind: 'procurement'; row: ProcurementWithRefs }
-  | { key: string; kind: 'timesheets'; row: TimesheetAwaitingApproval };
+  | { key: string; kind: 'timesheets'; row: TimesheetAwaitingApproval }
+  | { key: string; kind: 'expense'; row: ExpenseClaimAwaiting }
+  | { key: string; kind: 'invoice'; row: SalesInvoiceRow };
 
 function useIsLargeScreen(): boolean {
   const [matches, setMatches] = useState(() => {
@@ -77,29 +81,45 @@ function QueueButton({
 }) {
   const { t } = useTranslation();
   if (item.kind === 'procurement') {
-    const row = item.row;
+    return <ProcurementApprovalRow row={item.row} selected={selected} onSelect={onSelect} />;
+  }
+
+  if (item.kind === 'expense' || item.kind === 'invoice') {
+    const expense = item.kind === 'expense' ? item.row.claim : null;
+    const invoice = item.kind === 'invoice' ? item.row : null;
+    const label = item.kind === 'expense'
+      ? t('approvals.group.expense.title', 'Expense claims')
+      : t('approvals.group.invoice.title', 'Customer invoices');
+    const identity = expense
+      ? expense.claim_number ?? expense.title
+      : invoice?.customer_name ?? t('approvals.unknownCustomer', 'Unknown customer');
+    const detail = expense
+      ? expense.claimant?.full_name ?? t('approvals.unknownOwner', 'Unknown')
+      : invoice?.reference_number ?? invoice?.si_number ?? t('approvals.noInvoiceReference', 'Invoice draft');
+    const amount = expense
+      ? formatCurrencyCents(Number(expense.amount), expense.currency)
+      : invoice?.amount != null ? formatCurrencyCents(invoice.amount, invoice.currency) : '—';
+    const status = expense?.status ?? invoice?.status ?? 'Submitted';
+
     return (
       <button
         type="button"
         onClick={onSelect}
         aria-pressed={selected}
+        data-testid={`approval-item-${item.kind}-${item.key.split(':')[1]}`}
         className={[
-          'w-full rounded-lg border px-3 py-3 text-left transition-colors',
+          'w-full min-h-11 rounded-lg border px-3 py-3 text-left transition-colors',
           selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
         ].join(' ')}
       >
-        <div className="min-w-0">
-          <div className="line-clamp-2 break-words text-sm font-medium" title={row.title}>{row.title}</div>
-          <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-            <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-            <span>·</span>
-            <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
-          </div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">{label}</div>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
+          <StatusPill variant={workflowVariant(status)}>{status}</StatusPill>
         </div>
-        <div className="mt-2 text-xs text-muted-foreground">
-          <span className="block break-words">{row.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
-          <span className="mt-1 block tabular font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</span>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span className="min-w-0 break-words">{detail}</span>
+          <span className="tabular font-medium text-foreground">{amount}</span>
         </div>
       </button>
     );
@@ -119,6 +139,9 @@ function QueueButton({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            {t('approvals.group.timesheets.title', 'Timesheets')}
+          </div>
           <div className="truncate text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
@@ -151,7 +174,6 @@ function QueueButton({
 
 function QueueGroup({
   title,
-  count,
   items,
   selectedKey,
   onSelect,
@@ -159,11 +181,10 @@ function QueueGroup({
   isError,
   onRetry,
   emptyTitle,
-  emptySub,
+  emptyAction,
   bulk,
 }: {
   title: string;
-  count: number;
   items: QueueItem[];
   selectedKey: string | null;
   onSelect: (key: string) => void;
@@ -171,7 +192,7 @@ function QueueGroup({
   isError: boolean;
   onRetry: () => void;
   emptyTitle: string;
-  emptySub: string;
+  emptyAction?: { label: string; onClick: () => void };
   bulk?: BulkController;
 }) {
   const { t } = useTranslation();
@@ -181,7 +202,6 @@ function QueueGroup({
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
           {title}
         </h2>
-        <Badge>{count}</Badge>
       </div>
 
       {isPending ? (
@@ -196,8 +216,17 @@ function QueueGroup({
           onRetry={onRetry}
         />
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border/80">
-          <ListState variant="empty" title={emptyTitle} sub={emptySub} className="px-4 py-8" />
+        <div
+          data-testid="approval-scope-empty"
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-secondary/40 px-3 py-2.5 text-[13px]"
+        >
+          <span>{emptyTitle}</span>
+          {emptyAction && (
+            <Button variant="ghost" size="sm" className="touch-target" onClick={emptyAction.onClick}>
+              {emptyAction.label}
+            </Button>
+          )}
         </div>
       ) : (
         <div className="space-y-1.5">
@@ -688,15 +717,10 @@ const ApprovalsPage: React.FC = () => {
   const invSettledEmpty = !invoices.isPending && !invoices.isError && pendingInv === 0;
   const expenseSettledEmpty = !expenseQuery.isPending && !expenseQuery.isError && pendingExpense === 0;
   const allCaughtUp = procSettledEmpty && tsSettledEmpty && invSettledEmpty && expenseSettledEmpty;
-  const allScopePending = (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (canShowExpenses && expenseQuery.isPending) || (canShowInvoices && invoices.isPending);
-
-  const allPopulation = useMemo(() => approvalPopulation<unknown>([
-    ...(canApproveProcurement ? procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, createdAt: row.created_at, row })) : []),
-    ...(canApproveTimesheets ? timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, createdAt: row.week_start_date, row })) : []),
-    ...(canShowExpenses ? expenseRows.map((entry: ExpenseClaimAwaiting) => ({ key: `expense:${entry.claim.id}`, kind: 'expense' as const, createdAt: entry.claim.created_at, row: entry })) : []),
-    ...(canShowInvoices ? invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, createdAt: row.created_at, row })) : []),
-  ], 'all'), [canApproveProcurement, canApproveTimesheets, canShowExpenses, canShowInvoices, procurementRows, timesheetRows, expenseRows, invoices.rows]);
-  const countFor = (kind: Scope) => allPopulation.filter((entry: ApprovalPopulationEntry) => entry.kind === kind).length;
+  const pendingRowsCount = (canApproveProcurement ? procurementRows.length : 0)
+    + (canApproveTimesheets ? timesheetRows.length : 0)
+    + (canShowExpenses ? expenseRows.length : 0)
+    + (canShowInvoices ? invoices.rows.length : 0);
   const scopeLabels: Record<Scope, string> = {
     all: t('approvals.scope.all', 'All pending'),
     procurement: t('approvals.scope.procurement', 'Purchase requests'),
@@ -720,58 +744,100 @@ const ApprovalsPage: React.FC = () => {
     if ((activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets) {
       items.push(...timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row })));
     }
-    return items;
-  }, [activeScope, canApproveProcurement, canApproveTimesheets, procurementRows, timesheetRows]);
+    if ((activeScope === 'all' || activeScope === 'expense') && canApproveExpenses) {
+      items.push(...expenseRows.map((row) => ({ key: `expense:${row.claim.id}`, kind: 'expense' as const, row })));
+    }
+    if ((activeScope === 'all' || activeScope === 'invoice') && canApproveInvoices && invoices.enabled !== false) {
+      items.push(...invoices.rows.map((row) => ({ key: `invoice:${row.id}`, kind: 'invoice' as const, row })));
+    }
+    return items.sort((a, b) => {
+      const timestamp = (item: QueueItem) => {
+        const date = item.kind === 'timesheets' ? item.row.week_start_date
+          : item.kind === 'expense' ? item.row.claim.created_at
+            : item.row.created_at;
+        const parsed = Date.parse(date);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      return timestamp(a) - timestamp(b) || a.key.localeCompare(b.key);
+    });
+  }, [activeScope, canApproveProcurement, canApproveTimesheets, canApproveExpenses, canApproveInvoices, invoices.enabled, invoices.rows, procurementRows, timesheetRows, expenseRows]);
 
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const selectedKey = searchParams.get('selected');
+  const setSelectedKey = useCallback((key: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (key) next.set('selected', key);
+    else next.delete('selected');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (queueItems.length === 0) {
+      if (selectedKey) setSelectedKey(null);
+      return;
+    }
+    if (selectedKey && !queueItems.some((item) => item.key === selectedKey)) {
       setSelectedKey(null);
       return;
     }
-    if (!selectedKey || !queueItems.some((item) => item.key === selectedKey)) {
+    if (isLargeScreen && !selectedKey) {
       setSelectedKey(queueItems[0].key);
     }
-  }, [queueItems, selectedKey]);
+  }, [isLargeScreen, queueItems, selectedKey, setSelectedKey]);
 
-  // One grammar at every width: below `lg` the preview stacks under the queue, so bring it into view.
-  const pickItem = (key: string) => {
-    setSelectedKey(key);
-    if (!isLargeScreen) document.getElementById('approvals-preview')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  };
+  const pickItem = (key: string) => setSelectedKey(key);
   const selectedItem = queueItems.find((item) => item.key === selectedKey) ?? null;
 
-  if (!canApproveProcurement && !canApproveTimesheets && !canShowInvoices) {
+  const stateForKind = (kind: Scope): { pending: boolean; error: boolean; retry: () => void } => {
+    switch (kind) {
+      case 'procurement': return { pending: procPending, error: procError, retry: () => void refetchProc() };
+      case 'timesheets': return { pending: tsPending, error: tsError, retry: () => void refetchTimesheets() };
+      case 'expense': return { pending: expenseQuery.isPending, error: expenseQuery.isError, retry: () => void expenseQuery.refetch() };
+      case 'invoice': return { pending: invoices.isPending, error: invoices.isError, retry: () => void invoices.refetch() };
+      case 'all': return { pending: false, error: false, retry: () => undefined };
+      default: return { pending: false, error: false, retry: () => undefined };
+    }
+  };
+  const scopeKinds = activeScope === 'all' ? availableKinds : activeScope ? [activeScope] : [];
+  const activeScopePending = scopeKinds.some((kind) => stateForKind(kind).pending);
+  const activeScopeError = scopeKinds.some((kind) => stateForKind(kind).error);
+  const retryActiveScope = () => scopeKinds.forEach((kind) => { if (stateForKind(kind).error) stateForKind(kind).retry(); });
+  const countAvailable = (scope: Scope) => !(scope === 'all' ? availableKinds : [scope]).some((kind) => {
+    const state = stateForKind(kind);
+    return state.pending || state.error;
+  });
+  const countFor = (scope: Scope) => ({
+    procurement: pendingProc,
+    timesheets: pendingTs,
+    expense: pendingExpense,
+    invoice: pendingInv,
+  }[scope as Exclude<Scope, 'all'>]);
+  const emptyQueueTitle = activeScope && activeScope !== 'all'
+    ? t('approvals.queueEmptyScopeTitle', 'No {{scope}} awaiting your decision', { scope: scopeLabels[activeScope].toLowerCase() })
+    : t('approvals.queueEmptyTitle', 'No requests awaiting your decision');
+  const emptyQueueAction = activeScope !== 'all' && availableScopes.includes('all')
+    ? { label: t('approvals.showAllPending', 'Show all pending'), onClick: () => selectScope('all') }
+    : undefined;
+
+  if (!canApproveProcurement && !canApproveTimesheets && !canApproveExpenses && !canApproveInvoices) {
     return (
-      <AccessDenied
-        title={t('approvals.accessDenied.title', "You don't have access to approvals")}
-        sub={t(
-          'approvals.accessDenied.sub',
-          'Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.',
-        )}
-        onBack={() => navigate('/')}
-      />
+      <>
+        <WorkPageHeading title={t('workPageHeading.approvals', 'Approvals')} scope={t('workPageHeading.approvalsScope', 'My decisions')} />
+        <AccessDenied
+          title={t('approvals.accessDenied.title', "You don't have access to approvals")}
+          sub={t(
+            'approvals.accessDenied.sub',
+            'Approvals are for the roles that sign off purchase requests or timesheets. Your work lives on your dashboard, projects, and tasks.',
+          )}
+          onBack={() => navigate('/')}
+        />
+      </>
     );
   }
 
   const previewFallback = (() => {
     if (queueItems.length > 0) return null;
-    const includesExpenses = (activeScope === 'all' || activeScope === 'expense') && canShowExpenses;
-    const includesInvoices = (activeScope === 'all' || activeScope === 'invoice') && canShowInvoices;
-    const currentPending = activeScope === 'procurement' ? procPending
-      : activeScope === 'timesheets' ? tsPending
-        : activeScope === 'expense' ? expenseQuery.isPending
-          : activeScope === 'invoice' ? invoices.isPending
-            : (canApproveProcurement && procPending) || (canApproveTimesheets && tsPending) || (includesExpenses && expenseQuery.isPending) || (includesInvoices && invoices.isPending);
-    const currentError = activeScope === 'procurement' ? procError
-      : activeScope === 'timesheets' ? tsError
-        : activeScope === 'expense' ? expenseQuery.isError
-          : activeScope === 'invoice' ? invoices.isError
-            : (canApproveProcurement && procError) || (canApproveTimesheets && tsError) || (includesExpenses && expenseQuery.isError) || (includesInvoices && invoices.isError);
-
-    if (currentPending) return <ListState variant="loading" rows={4} />;
-    if (currentError) {
+    if (activeScopePending) return <ListState variant="loading" rows={4} />;
+    if (activeScopeError) {
       return (
         <ListState
           variant="error"
@@ -796,32 +862,31 @@ const ApprovalsPage: React.FC = () => {
     );
   })();
 
+  const selectedPreview = selectedItem ? (
+    selectedItem.kind === 'procurement' ? <ProcurementApprovalPreview row={selectedItem.row} />
+      : selectedItem.kind === 'timesheets' ? <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" />
+        : selectedItem.kind === 'expense' ? <ExpenseClaimApprovalSection selectedClaimId={selectedItem.row.claim.id} />
+          : <SalesInvoiceApprovalSection selectedInvoiceId={selectedItem.row.id} />
+  ) : previewFallback;
+
   return (
     <div>
-      <div className="mb-4">
-        <PageHeading
-          kind="review"
-          title={t('approvals.title', 'Approvals')}
-          scope={t(
-            'approvals.subtitle',
-            'Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.',
-          )}
-        />
-      </div>
+      <WorkPageHeading
+        title={t('approvals.title', 'Approvals')}
+        scope={t('workPageHeading.approvalsScope', 'My decisions')}
+        kind="review"
+      />
 
       {hasTabs && !allCaughtUp && (
         <div className="mb-4 min-w-0">
-          <div
-            data-testid="approvals-scope-scroll"
-            className="min-w-0 overflow-x-auto scroll-fade-x lg:overflow-visible"
-          >
+          <div data-testid="approvals-scope-filters" className="min-w-0">
             <ViewToggle<Scope>
-              className="max-w-full"
+              className="max-w-full flex-wrap"
               options={availableScopes.map((scope) => ({
                 value: scope,
                 label: scopeLabels[scope],
                 icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
-                count: scope === 'all' ? allPopulation.length : countFor(scope),
+                ...(scope !== 'all' && countAvailable(scope) ? { count: countFor(scope) } : {}),
               }))}
               value={activeScope}
               onChange={selectScope}
@@ -847,12 +912,16 @@ const ApprovalsPage: React.FC = () => {
             )}
           </p>
         </div>
-      ) : activeScope === 'expense' || activeScope === 'invoice' ? (
-        <div className="space-y-5">
-          {activeScope === 'expense' && canShowExpenses && <ExpenseClaimApprovalSection />}
-          {activeScope === 'invoice' && canShowInvoices && <SalesInvoiceApprovalSection />}
-        </div>
       ) : (
+        <>
+        {!isLargeScreen && selectedItem ? (
+          <div className="space-y-3">
+            <Button variant="outline" size="sm" onClick={() => setSelectedKey(null)}>{t('approvals.backToQueue', 'Back to queue')}</Button>
+            <Card variant="bare" role="region" aria-label={t('approvals.previewRegionLabel', 'Approval preview')} id="approvals-preview" data-testid="approvals-preview-region" className="min-w-0">
+              {selectedPreview}
+            </Card>
+          </div>
+        ) : (
         <div className="grid gap-8 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)] lg:items-start">
           <Card
             variant="bare"
@@ -872,10 +941,10 @@ const ApprovalsPage: React.FC = () => {
                     'Select an item to preview its details and decision controls.',
                   )}
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t('approvals.oldestFirst', 'Oldest first')}</p>
               </div>
               <div className="flex items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
-                <Badge>{queueItems.length}</Badge>
               </div>
             </div>
 
@@ -886,78 +955,50 @@ const ApprovalsPage: React.FC = () => {
               </>
             )}
 
-            <div className="space-y-5">
-              {(activeScope === 'all' || activeScope === 'procurement') && canApproveProcurement && (
-                <QueueGroup
-                  title={t('approvals.group.procurement.title', 'Purchase requests')}
-                  count={pendingProc}
-                  items={procurementRows.map((row) => ({ key: `procurement:${row.id}`, kind: 'procurement' as const, row }))}
-                  selectedKey={selectedKey}
-                  onSelect={pickItem}
-                  isPending={procPending || (activeScope === 'all' && allScopePending && procurementRows.length === 0)}
-                  isError={procError}
-                  onRetry={() => refetchProc()}
-                  emptyTitle={t(
-                    'approvals.group.procurement.emptyTitle',
-                    'No requests awaiting your decision',
-                  )}
-                  emptySub={t(
-                    'approvals.group.procurement.emptySub',
-                    'Purchase requests that need your approval will appear here.',
-                  )}
-                />
-              )}
-
-              {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && (
-                <QueueGroup
-                  title={t('approvals.group.timesheets.title', 'Timesheets')}
-                  count={pendingTs}
-                  items={timesheetRows.map((row) => ({ key: `timesheets:${row.id}`, kind: 'timesheets' as const, row }))}
-                  selectedKey={selectedKey}
-                  onSelect={pickItem}
-                  isPending={tsPending || (activeScope === 'all' && allScopePending && timesheetRows.length === 0)}
-                  isError={tsError}
-                  onRetry={() => refetchTimesheets()}
-                  emptyTitle={t(
-                    'approvals.group.timesheets.emptyTitle',
-                    'No timesheets awaiting your decision',
-                  )}
-                  emptySub={t(
-                    'approvals.group.timesheets.emptySub',
-                    'Submitted timesheets from your reports will appear here for review.',
-                  )}
-                  bulk={timesheetBulk}
-                />
+            <div className="space-y-3">
+              <QueueGroup
+                title={t('approvals.queueItemsTitle', 'Pending work')}
+                items={queueItems}
+                selectedKey={selectedKey}
+                onSelect={pickItem}
+                isPending={activeScopePending && queueItems.length === 0}
+                isError={activeScopeError && queueItems.length === 0}
+                onRetry={retryActiveScope}
+                emptyTitle={emptyQueueTitle}
+                emptyAction={emptyQueueAction}
+                bulk={timesheetBulk}
+              />
+              {activeScopeError && queueItems.length > 0 && (
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-[13px]">
+                  <span>{t('approvals.queuePartialError', 'Some approval items could not be loaded.')}</span>
+                  <Button variant="outline" size="sm" onClick={retryActiveScope}>
+                    {t('approvals.queueRetry', 'Retry')}
+                  </Button>
+                </div>
               )}
             </div>
           </Card>
 
-          <Card
-            variant="bare"
-            role="region"
-            aria-label={t('approvals.previewRegionLabel', 'Approval preview')}
-            id="approvals-preview"
-            data-testid="approvals-preview-region"
-            className="min-w-0"
-          >
-            {selectedItem ? (
-              selectedItem.kind === 'procurement' ? (
-                <ProcurementApprovalPreview row={selectedItem.row} surface="panel" />
-              ) : (
-                <TimesheetApprovalPreview sheet={selectedItem.row} surface="panel" />
-              )
-            ) : (
-              previewFallback
-            )}
-          </Card>
+          {isLargeScreen && (
+            <Card
+              variant="bare"
+              role="region"
+              aria-label={t('approvals.previewRegionLabel', 'Approval preview')}
+              id="approvals-preview"
+              data-testid="approvals-preview-region"
+              className="min-w-0"
+            >
+              {selectedPreview}
+            </Card>
+          )}
         </div>
+        )}
+        </>
       )}
 
-      {activeScope === 'all' && canShowExpenses && <ExpenseClaimApprovalSection />}
-      {activeScope === 'all' && canShowInvoices && <SalesInvoiceApprovalSection />}
       {canApproveTimesheets && <PushAttentionSection />}
       {canApproveTimesheets && <EmployeeLinkConfirmSection />}
-      {canApproveTimesheets && <ReopenableApprovedSection hasPending={allPopulation.length > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
+      {canApproveTimesheets && <ReopenableApprovedSection hasPending={pendingRowsCount > 0 || procPending || tsPending || expenseQuery.isPending || invoices.isPending} />}
     </div>
   );
 };

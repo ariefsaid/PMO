@@ -1,15 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatNumberExact } from '@/src/lib/format';
 import { Button } from './Button';
 import { Icon } from './icons';
 import { MobileActionBar } from './MobileActionBar';
 
 export interface MobileActionStripProps {
-  total: number;
   canSave: boolean;
   canSubmit: boolean;
   showSubmitHint?: boolean;
+  showEmptyWeekTotal?: boolean;
   saving?: boolean;
   submitting?: boolean;
   onSave: () => void;
@@ -18,10 +17,10 @@ export interface MobileActionStripProps {
 
 /** Phone-only timesheet completion controls, kept clear of the device safe area. */
 export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
-  total,
   canSave,
   canSubmit,
   showSubmitHint = false,
+  showEmptyWeekTotal = false,
   saving = false,
   submitting = false,
   onSave,
@@ -40,11 +39,12 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
       }}
     >
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
-        <p className="text-center text-[13px] font-semibold tabular text-foreground">
-          {t('timesheets.hoursThisWeek', '{{hours}} hours this week', {
-            hours: formatNumberExact(total),
-          })}
-        </p>
+        {showEmptyWeekTotal && (
+          <p data-testid="timesheets-empty-week-total" className="text-center text-[13px] tabular text-muted-foreground">
+            <span>{t('timesheets.weekTotal', 'Week total')}</span>{' '}
+            <span className="font-medium text-foreground">0 h</span>
+          </p>
+        )}
         {showSubmitHint && (
           <p className="text-center text-[12px] text-muted-foreground">
             {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}

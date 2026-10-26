@@ -140,6 +140,7 @@ describe('CompanyDetail', () => {
     detailState.isPending = true;
     renderPage();
     expect(screen.getByTestId('company-loading')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('CW-4b: shows a calm not-found state when the record is absent', () => {
@@ -147,12 +148,14 @@ describe('CompanyDetail', () => {
     detailState.isPending = false;
     renderPage();
     expect(screen.getByTestId('company-not-found')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('CW-4b: a transient load error offers Retry', async () => {
     detailState.data = undefined;
     detailState.isError = true;
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const retry = screen.getByRole('button', { name: /retry|try again/i });
     await userEvent.click(retry);
     expect(detailState.refetch).toHaveBeenCalled();
@@ -165,6 +168,7 @@ describe('CompanyDetail', () => {
   ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
     Object.assign(detailState, s);
     renderPage();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const bar = screen.getByRole('button', { name: /back to companies/i }).parentElement!;
     expect(bar.className).toContain('hidden');
     expect(bar.className).toContain('max-[920px]:flex');

@@ -28,7 +28,7 @@ describe('AC-W3-F7: NotFound page component', () => {
       </MemoryRouter>,
     );
     // The copy must include "page not found" (case-insensitive).
-    expect(screen.getByText(/page not found/i)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: /page not found/i })).toBeInTheDocument();
   });
 
   it('renders a "Back to Dashboard" navigation link', () => {

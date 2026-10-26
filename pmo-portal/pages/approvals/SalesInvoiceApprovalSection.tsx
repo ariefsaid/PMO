@@ -15,7 +15,7 @@ import { SalesInvoiceApprovalRow } from './SalesInvoiceApprovalRow';
  * invoice before Approve (I-1); Approve stays behind a confirm. Hidden when none, when the viewer cannot approve, or once
  * an ERP owns revenue; a failed read says so rather than showing a false "nothing".
  */
-export const SalesInvoiceApprovalSection: React.FC = () => {
+export const SalesInvoiceApprovalSection: React.FC<{ selectedInvoiceId?: string }> = ({ selectedInvoiceId }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
   const { rows, isPending, isError, refetch } = useInvoicesAwaitingViewer();
@@ -32,7 +32,8 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
       </div>
     );
   }
-  if (rows.length === 0) return null;
+  const visibleRows = selectedInvoiceId ? rows.filter((row) => row.id === selectedInvoiceId) : rows;
+  if (visibleRows.length === 0) return null;
 
   const onConfirm = async () => {
     if (!target) return;
@@ -56,9 +57,9 @@ export const SalesInvoiceApprovalSection: React.FC = () => {
       </h2>
       <Card>
         <ul className="divide-y divide-border">
-          {rows.map((inv) => (
+          {visibleRows.map((inv) => (
             <li key={inv.id}>
-              <SalesInvoiceApprovalRow inv={inv} onApprove={setTarget} />
+              <SalesInvoiceApprovalRow inv={inv} onApprove={setTarget} initiallyExpanded={Boolean(selectedInvoiceId)} />
             </li>
           ))}
         </ul>

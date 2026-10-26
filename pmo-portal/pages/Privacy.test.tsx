@@ -34,8 +34,18 @@ describe('Privacy page', () => {
   it('AC-LEG-002: renders the bare Privacy page — title present, no AppShell chrome', () => {
     renderPrivacy();
     expect(screen.getByRole('heading', { level: 1, name: /privacy policy/i })).toBeInTheDocument();
-    expect(screen.queryByRole('navigation')).toBeNull();
+    expect(screen.getByRole('navigation', { name: 'Sections' })).toBeInTheDocument();
+    expect(screen.getAllByRole('navigation')).toHaveLength(1);
     expect(screen.queryByRole('banner')).toBeNull();
+  });
+
+  it('AC-LEG-002: section links navigate to their matching privacy sections', () => {
+    renderPrivacy();
+    const sectionLink = screen.getByRole('link', { name: 'Analytics and Cookies' });
+    expect(sectionLink).toHaveAttribute('href', '#analytics-and-cookies');
+    expect(document.getElementById('analytics-and-cookies')).toContainElement(
+      screen.getByRole('heading', { level: 2, name: 'Analytics and Cookies' }),
+    );
   });
 
   it('AC-LEG-013 / AC-LEG-027: one h1 + all 9 section headings as h2', () => {

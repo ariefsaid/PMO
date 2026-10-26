@@ -91,6 +91,22 @@ beforeEach(() => {
 });
 
 describe('LoginPage', () => {
+  it('AC-AUTHF-RESKIN-001: presents the work account path before email and keeps passwordless sign-in secondary', () => {
+    renderLogin();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    const microsoft = screen.getByRole('button', { name: /continue with microsoft/i });
+    const email = screen.getByLabelText(/email/i);
+    const password = screen.getByLabelText(/^password$/i);
+    const signIn = screen.getByRole('button', { name: /^sign in$/i });
+    const magicLink = screen.getByRole('button', { name: /email me a magic link/i });
+    const follows = (before: HTMLElement, after: HTMLElement) =>
+      (before.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    expect(follows(microsoft, email)).toBe(true);
+    expect(follows(email, password)).toBe(true);
+    expect(follows(password, signIn)).toBe(true);
+    expect(follows(signIn, magicLink)).toBe(true);
+  });
+
   it('shows an inline error on invalid credentials (AC-AUTH-004)', async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     renderLogin();
@@ -101,6 +117,14 @@ describe('LoginPage', () => {
       expect(screen.getByText(/invalid login credentials/i)).toBeInTheDocument()
     );
     expect(navigateSpy).not.toHaveBeenCalled();
+  });
+
+  it('AC-AUTH-004: keeps a recoverable alert when the sign-in request rejects', async () => {
+    auth.signInWithPassword.mockRejectedValueOnce(new Error('Connection interrupted. Try again.'));
+    renderLogin();
+    await userEvent.click(screen.getByRole('button', { name: /^sign in$/i }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Connection interrupted. Try again.');
+    expect(screen.getByRole('button', { name: /^sign in$/i })).toBeEnabled();
   });
 
   it('navigates to / on successful sign-in (FR-AUTH-020)', async () => {

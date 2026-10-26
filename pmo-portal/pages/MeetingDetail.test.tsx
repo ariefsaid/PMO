@@ -199,6 +199,15 @@ const renderPage = (role: Role = 'Engineer') => {
   );
 };
 
+const enterEdit = async () => {
+  await userEvent.click(screen.getByRole('button', { name: /Edit meeting/i }));
+  await waitFor(() => expect(screen.getByTestId('stub-editor')).toHaveAttribute('data-editable', 'true'));
+};
+
+const openDisclosure = async (name: string) => {
+  await userEvent.click(screen.getByText(name).closest('summary')!);
+};
+
 // list-working-set-return (#683): reads the URL a Meetings-index Route landed on, for the
 // AC-LRC-008 return-context tests below (a plain <MeetingDetail /> above has no Routes to land
 // anywhere, so those tests route it properly instead).
@@ -278,7 +287,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
   it('AC-MTG-301: pristine minutes breadcrumb reaches Meetings without a dialog', async () => {
     renderRoutedWithBreadcrumb();
     expect(await screen.findByTestId('stub-editor', {}, { timeout: 10_000 })).toBeInTheDocument();
-    expect(screen.getByTestId('minutes-save')).toBeDisabled();
+    expect(screen.queryByTestId('meeting-save')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
 
@@ -286,7 +295,7 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('AC-MTG-302: beforeunload is armed only while Save minutes is enabled', async () => {
+  it('AC-MTG-302: beforeunload is armed only while the combined meeting edit is dirty', async () => {
     renderPage('Engineer');
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
 
@@ -294,15 +303,17 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
     window.dispatchEvent(pristineEvent);
     expect(pristineEvent.defaultPrevented).toBe(false);
 
+    await enterEdit();
+    expect(screen.getByTestId('meeting-save')).toBeDisabled();
     await userEvent.click(screen.getByTestId('stub-type'));
-    expect(screen.getByTestId('minutes-save')).toBeEnabled();
+    expect(screen.getByTestId('meeting-save')).toBeEnabled();
     const dirtyEvent = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(dirtyEvent);
     expect(dirtyEvent.defaultPrevented).toBe(true);
     expect(dirtyEvent.returnValue).toBe(false);
 
-    await userEvent.click(screen.getByTestId('minutes-save'));
-    await waitFor(() => expect(screen.getByTestId('minutes-save')).toBeDisabled());
+    await userEvent.click(screen.getByTestId('meeting-save'));
+    await waitFor(() => expect(screen.queryByTestId('meeting-save')).not.toBeInTheDocument());
     const savedEvent = new Event('beforeunload', { cancelable: true });
     window.dispatchEvent(savedEvent);
     expect(savedEvent.defaultPrevented).toBe(false);
@@ -311,15 +322,16 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
   it('blocks ordinary same-origin anchor activation while dirty; Stay preserves edits', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Stay' }));
 
-    expect(screen.queryByRole('dialog', { name: 'Unsaved minutes' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Unsaved meeting changes' })).not.toBeInTheDocument();
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
-    expect(screen.getByTestId('minutes-save')).toBeEnabled();
+    expect(screen.getByTestId('meeting-save')).toBeEnabled();
   });
 
   it('the mobile Back to Meetings bar goes through the same guard: dialog while dirty; Leave returns to the captured list context', async () => {
@@ -333,10 +345,11 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
       },
     });
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('button', { name: /back to meetings/i }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     expect(screen.queryByTestId('meetings-index-probe')).not.toBeInTheDocument();
 
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
@@ -381,10 +394,11 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
       </ToastProvider>,
     );
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
 
     expect(await screen.findByTestId('state-probe')).toHaveTextContent('?project=p1|{"restoreScroll":120}');
@@ -393,10 +407,11 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
   it('navigates to the captured local destination after Leave without saving minutes', async () => {
     renderRoutedWithBreadcrumb();
     await screen.findByTestId('stub-editor', {}, { timeout: 10_000 });
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-type'));
 
     await userEvent.click(screen.getByRole('link', { name: 'Meetings' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Unsaved minutes' });
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
 
     expect(await screen.findByTestId('meetings-index-probe')).toHaveTextContent('Meetings index');
@@ -405,22 +420,51 @@ describe('MeetingDetail — unsaved minutes navigation guard', () => {
 });
 
 describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes their own meeting)', () => {
-  it('the AUTHOR sees the editable minutes editor — v1 lines upgraded to blocks — and a Save affordance', async () => {
+  it('AC-WORK-MTG-02: one explicit edit session saves metadata and minutes together after the evidence', async () => {
+    const user = userEvent.setup();
     renderPage('Engineer');
-    expect(await screen.findByTestId('stub-editor')).toHaveAttribute('data-editable', 'true');
-    expect(screen.getByTestId('minutes-editor')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Title$/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /Edit meeting/i }));
+    await waitFor(() => expect(screen.getByTestId('stub-editor')).toHaveAttribute('data-editable', 'true'));
+    await user.clear(screen.getByLabelText(/Title/i));
+    await user.type(screen.getByLabelText(/Title/i), 'Revised kickoff');
+    await user.click(screen.getByTestId('stub-type'));
+
+    const save = screen.getByRole('button', { name: /^Save meeting$/i });
+    expect(screen.queryByTestId('minutes-save')).not.toBeInTheDocument();
+    expect(Boolean(screen.getByTestId('stub-editor').compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    await user.click(save);
+
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledTimes(1));
+    expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'm1',
+      patch: expect.objectContaining({
+        title: 'Revised kickoff',
+        notes: expect.arrayContaining([expect.objectContaining({ content: [{ text: 'by Friday' }] })]),
+      }),
+    }));
+  });
+
+  it('the AUTHOR starts in read mode and enters one explicit edit session for v1 minutes', async () => {
+    renderPage('Engineer');
+    expect(await screen.findByTestId('stub-editor')).toHaveAttribute('data-editable', 'false');
+    expect(screen.getByTestId('minutes-readonly')).toBeInTheDocument();
     // AC-MTG-201: the v1 lines reach the editor as paragraphs with the same text — no data loss.
     expect(screen.getByText('Discussed the pipeline schedule')).toBeInTheDocument();
     expect(screen.getByText('Order the flange samples')).toBeInTheDocument();
-    expect(screen.getByTestId('minutes-save')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-save')).not.toBeInTheDocument();
+    await enterEdit();
+    expect(screen.getByTestId('minutes-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-save')).toBeDisabled();
   });
 
   it('Save is disabled until the document changes, then persists the BlockNote document through the repository', async () => {
     renderPage('Engineer');
     await screen.findByTestId('stub-editor');
-    expect(screen.getByTestId('minutes-save')).toBeDisabled();
+    await enterEdit();
+    expect(screen.getByTestId('meeting-save')).toBeDisabled();
     await userEvent.click(screen.getByTestId('stub-type'));
-    await userEvent.click(screen.getByTestId('minutes-save'));
+    await userEvent.click(screen.getByTestId('meeting-save'));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const call = mutations.update.mutateAsync.mock.calls[0][0];
     expect(call.id).toBe('m1');
@@ -434,9 +478,10 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
   it('AC-MRT-001 Save persists the live editor document, including an edit whose change notification is still pending', async () => {
     renderPage('Engineer');
     await screen.findByTestId('stub-editor');
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-type'));
     await userEvent.click(screen.getByTestId('stub-type-pending'));
-    await userEvent.click(screen.getByTestId('minutes-save'));
+    await userEvent.click(screen.getByTestId('meeting-save'));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const notes = mutations.update.mutateAsync.mock.calls[0][0].patch.notes;
     expect(notes).toHaveLength(4);
@@ -448,6 +493,7 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
   // author must consciously publish exactly the text they choose.
   it('/action opens the task-create modal PREFILLED from the line — no task exists yet (DD-MTG-8)', async () => {
     renderPage('Engineer');
+    await enterEdit();
     await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     expect(within(dialog).getByLabelText(/Task name/)).toHaveValue('Order the flange samples');
@@ -460,6 +506,7 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
   it('submitting the modal creates the task with the text the author EDITED and inserts a block referencing ONLY its id (DD-MTG-2)', async () => {
     mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');
+    await enterEdit();
     await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     const name = within(dialog).getByLabelText(/Task name/);
@@ -484,6 +531,7 @@ describe('MeetingDetail — author editing (OD-MTG-1: an Engineer author minutes
   it('an emptied name falls back to the FR-MTG-017 placeholder on save', async () => {
     mutations.createActionItem.mutateAsync.mockResolvedValue({ id: 'task-new' });
     renderPage('Engineer');
+    await enterEdit();
     await userEvent.click(await screen.findByTestId('stub-action'));
     const dialog = await screen.findByRole('dialog', { name: /New action item/ });
     await userEvent.clear(within(dialog).getByLabelText(/Task name/));
@@ -518,16 +566,19 @@ describe('MeetingDetail — non-author read-only (grants are VIEW-ONLY, OD-MTG-2
     expect(screen.getByText('Discussed the pipeline schedule')).toBeInTheDocument();
   });
 
-  it('Admin (break-glass) gets the editor on a meeting they did not author', async () => {
+  it('Admin (break-glass) can enter edit mode on a meeting they did not author', async () => {
     currentUserId = 'someone-else';
     renderPage('Admin');
-    expect(await screen.findByTestId('minutes-editor')).toBeInTheDocument();
+    expect(await screen.findByTestId('minutes-readonly')).toBeInTheDocument();
+    await enterEdit();
+    expect(screen.getByTestId('minutes-editor')).toBeInTheDocument();
   });
 });
 
 describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
   it('⚑ FR-MTG-034: pre-suggests the project PM as a ONE-CLICK add when they lack access', async () => {
     renderPage('Engineer');
+    await openDisclosure('Sharing');
     const suggest = screen.getByTestId('share-suggest-pm');
     expect(suggest).toHaveTextContent('Paula PM');
     await userEvent.click(suggest);
@@ -539,7 +590,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
     );
   });
 
-  it('the PM suggestion disappears once the PM already holds a grant (never a duplicate)', () => {
+  it('the PM suggestion disappears once the PM already holds a grant (never a duplicate)', async () => {
     grantsState.data = [
       {
         id: 'g1',
@@ -552,10 +603,11 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
       },
     ];
     renderPage('Engineer');
+    await openDisclosure('Sharing');
     expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
   });
 
-  it('the PM suggestion disappears when the PM is already an attendee', () => {
+  it('the PM suggestion disappears when the PM is already an attendee', async () => {
     attendeesState.data = [
       {
         id: 'a1',
@@ -568,6 +620,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
       },
     ];
     renderPage('Engineer');
+    await openDisclosure('Sharing');
     expect(screen.queryByTestId('share-suggest-pm')).not.toBeInTheDocument();
   });
 
@@ -585,6 +638,7 @@ describe('MeetingDetail — the share panel (FR-MTG-032..034)', () => {
       },
     ];
     renderPage('Finance');
+    await openDisclosure('Sharing');
     const list = screen.getByTestId('grants-list');
     expect(within(list).getByText('Paula PM')).toBeInTheDocument();
     await userEvent.click(screen.getByTestId('grant-revoke-g2'));
@@ -625,6 +679,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
     profilesState.data = [];
     profilesState.isError = true;
     renderPage('Engineer');
+    await enterEdit();
     await userEvent.click(screen.getByTestId('stub-action'));
     expect(await screen.findByText('People could not be loaded; you can still save and assign later.')).toBeInTheDocument();
     const createButton = screen.getByRole('button', { name: 'Create task' });
@@ -636,6 +691,7 @@ describe('MeetingDetail — action items + the external-tasks gate (spec §8.5)'
   it('when the tasks domain is externally owned, /action is not offered and the page explains why', async () => {
     routeTaskWriteMock.mockReturnValue('external');
     renderPage('Engineer');
+    await enterEdit();
     expect(await screen.findByTestId('stub-editor')).toHaveAttribute('data-tasks-external', 'true');
     expect(screen.getByTestId('minutes-external-gate')).toBeInTheDocument();
     expect(screen.queryByTestId('stub-action')).not.toBeInTheDocument();
@@ -648,6 +704,7 @@ describe('MeetingDetail — states', () => {
     renderPage('Engineer');
     expect(screen.getByTestId('meeting-not-found')).toBeInTheDocument();
     expect(screen.getByText('Meeting not found')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('loading renders the skeleton', () => {
@@ -655,6 +712,7 @@ describe('MeetingDetail — states', () => {
     meetingState.data = null;
     renderPage('Engineer');
     expect(screen.getByTestId('meeting-loading')).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 
   it('a query error renders the error state with retry', async () => {
@@ -662,6 +720,7 @@ describe('MeetingDetail — states', () => {
     meetingState.data = null;
     renderPage('Engineer');
     expect(screen.getByText("Couldn't load meeting")).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     await userEvent.click(screen.getByRole('button', { name: /Retry/i }));
     expect(meetingState.refetch).toHaveBeenCalled();
   });
@@ -673,6 +732,7 @@ describe('MeetingDetail — states', () => {
   ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
     Object.assign(meetingState, s);
     renderPage('Engineer');
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     const bar = screen.getByRole('button', { name: /^back to /i }).parentElement!;
     expect(bar.className).toContain('hidden');
     expect(bar.className).toContain('max-[920px]:flex');
@@ -691,26 +751,29 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByRole('link', { name: 'Harbour' })).toHaveAttribute('title', 'Harbour Upgrade');
   });
 
-  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', () => {
+  it('AC-002 #1325: meeting header project selector shows the short name only on the selected project id', async () => {
     renderPage('Engineer');
+    await enterEdit();
     const select = screen.getByLabelText(/Project/);
     expect(select).toHaveValue('p1');
     expect(within(select).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
   });
 
-  it('AC-MTG1-005: inline header edits show Save/Cancel only when dirty and Cancel restores values', async () => {
+  it('AC-MTG1-005: one Edit meeting session combines metadata and minutes on Save', async () => {
     renderPage('Engineer');
-    expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
+    await enterEdit();
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
-    expect(screen.getByTestId('meeting-header-save')).toBeInTheDocument();
-    await userEvent.click(screen.getByTestId('meeting-header-save'));
-    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', patch: expect.objectContaining({ title: 'Changed title' }) })));
+    expect(screen.getByTestId('meeting-save')).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-save'));
+    await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ id: 'm1', patch: expect.objectContaining({ title: 'Changed title', notes: expect.any(Array) }) })));
   });
 
   it('AC-MTG1-005: a meeting refetch does not overwrite a dirty header draft', async () => {
     const view = renderPage('Engineer');
+    await enterEdit();
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Typed title in progress');
@@ -719,19 +782,22 @@ describe('MeetingDetail — states', () => {
     expect(screen.getByLabelText(/Title/)).toHaveValue('Typed title in progress');
   });
 
-  it('AC-MTG1-005: Cancel restores the original inline header values', async () => {
+  it('AC-MTG1-005: Cancel asks before discarding combined meeting edits', async () => {
     renderPage('Engineer');
+    await enterEdit();
     const title = screen.getByLabelText(/Title/) as HTMLInputElement;
     await userEvent.clear(title);
     await userEvent.type(title, 'Changed title');
-    await userEvent.click(screen.getByTestId('meeting-header-cancel'));
-    expect(screen.getByLabelText(/Title/)).toHaveValue('Kickoff with Acme');
-    expect(screen.queryByTestId('meeting-header-save')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId('meeting-edit-cancel'));
+    const dialog = await screen.findByRole('dialog', { name: 'Unsaved meeting changes' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Leave' }));
+    expect(screen.queryByLabelText(/Title/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit meeting/ })).toBeInTheDocument();
   });
 
-  it('AC-MTG-029: a non-Admin author gets inline header editing + Archive but not Delete', () => {
+  it('AC-MTG-029: a non-Admin author gets Edit meeting + Archive but not Delete', () => {
     renderPage('Engineer');
-    expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Edit meeting/ })).toBeInTheDocument();
     expect(screen.getByTestId('meeting-archive')).toBeInTheDocument();
     expect(screen.queryByTestId('meeting-delete')).not.toBeInTheDocument();
   });
@@ -755,15 +821,17 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('prefills "When" with the same wall time the header displays, in the profile timezone', async () => {
     renderPage('Engineer');
+    await enterEdit();
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     expect(when.value).toBe('2026-06-14T21:15');
   });
 
   it('editing another header value keeps the occurrence instant in the profile timezone', async () => {
     renderPage('Engineer');
+    await enterEdit();
     await userEvent.clear(screen.getByLabelText(/Location/));
     await userEvent.type(screen.getByLabelText(/Location/), 'Updated room');
-    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await userEvent.click(screen.getByTestId('meeting-save'));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const call = mutations.update.mutateAsync.mock.calls[0][0];
     expect(call.patch.occurred_at).toBe('2026-06-14T14:15:00.000Z');
@@ -771,12 +839,13 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('editing to 10:00 saves 10:00 in the profile timezone', async () => {
     renderPage('Engineer');
+    await enterEdit();
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     // fireEvent-style direct value set + change, mirroring datetime-local input semantics.
     when.focus();
     await userEvent.clear(when);
     await userEvent.type(when, '2026-06-14T10:00');
-    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await userEvent.click(screen.getByTestId('meeting-save'));
     await waitFor(() => expect(mutations.update.mutateAsync).toHaveBeenCalled());
     const call = mutations.update.mutateAsync.mock.calls[0][0];
     // 10:00 Asia/Jakarta (UTC+7) is 03:00Z.
@@ -785,10 +854,11 @@ describe('AC-PLC-005/006 (#684): Edit "When" prefill and submit follow the PROFI
 
   it('clearing "When" blocks the save with a visible error, and never falls back to the old time', async () => {
     renderPage('Engineer');
+    await enterEdit();
     const when = screen.getByLabelText(/When/i) as HTMLInputElement;
     when.focus();
     await userEvent.clear(when);
-    await userEvent.click(screen.getByRole('button', { name: /Save meeting/ }));
+    await userEvent.click(screen.getByTestId('meeting-save'));
     expect(await screen.findByText(/valid date and time/i)).toBeInTheDocument();
     expect(mutations.update.mutateAsync).not.toHaveBeenCalled();
   });

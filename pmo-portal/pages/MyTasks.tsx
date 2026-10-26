@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState, SearchMini, StatusPill, SelectField, useToast, ViewToggle } from '@/src/components/ui';
 import { useMyTasks, useMyTaskMutations } from '@/src/hooks/useMyTasks';
@@ -7,10 +7,15 @@ import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer
 import { formatDateOnly } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import type { TaskStatus } from '@/src/lib/db/tasks';
+import WorkPageHeading from './WorkPageHeading';
 
 /** AC-IFW-TASKS-01: Today's ISO date string (YYYY-MM-DD) for overdue comparison. */
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /** AC-IFW-TASKS-01: True when a task is overdue (past due date, not Done/Blocked-complete). */
@@ -48,18 +53,30 @@ function urgencyKey(task: { end_date: string | null; status: string }): number {
 // Must match the `task_status` Postgres enum — see TasksTab.tsx for the same list.
 const TASK_STATUS_OPTIONS: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
 
-/** Map key for the project-less group. A sentinel, never a value that reaches a URL — the defect
- *  this replaces was keying on `t.project_id` directly and rendering `/projects/null/tasks`. */
-const NO_PROJECT = '\u0000no-project';
-
 const MyTasks: React.FC = () => {
   const { t } = useTranslation();
   const [commentsTask, setCommentsTask] = React.useState<{ id: string; name: string } | null>(null);
-  const [queue, setQueue] = React.useState<'open' | 'completed'>('open');
-  const [search, setSearch] = React.useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queue = searchParams.get('status') === 'completed' ? 'completed' : 'open';
+  const search = searchParams.get('q') ?? '';
+  const projectFilter = searchParams.get('project') ?? 'all';
+  const sort = searchParams.get('sort') === 'due' ? 'due' : 'urgency';
   const { data: tasks, isPending, isError, refetch } = useMyTasks();
   const { updateStatus } = useMyTaskMutations();
   const { toast } = useToast();
+
+  const setFilterParam = (key: string, value: string, defaultValue: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === defaultValue) next.delete(key);
+    else next.set(key, value);
+    setSearchParams(next, { replace: true });
+  };
+
+  const clearFilters = () => {
+    const next = new URLSearchParams(searchParams);
+    ['q', 'status', 'project'].forEach((key) => next.delete(key));
+    setSearchParams(next, { replace: true });
+  };
 
   // Display labels for the DB `task_status` enum. The VALUES stay the raw enum strings (they are
   // persisted); only the labels are translated. Static keys, one per member — a computed
@@ -77,95 +94,110 @@ const MyTasks: React.FC = () => {
     return tasks.filter((task) => {
       const isCompleted = task.status === 'Done';
       if (isCompleted !== (queue === 'completed')) return false;
+      if (projectFilter === 'none' && task.project_id) return false;
+      if (projectFilter !== 'all' && projectFilter !== 'none' && task.project_id !== projectFilter) return false;
       if (!normalizedSearch) return true;
       return `${task.name} ${task.project_name ?? ''} ${task.project_contractual_name ?? ''}`.toLocaleLowerCase().includes(normalizedSearch);
     });
-  }, [tasks, queue, search]);
+  }, [tasks, queue, search, projectFilter]);
 
-  // Keep project grouping/context and urgency ordering after search/status filtering.
-  // AC-IFW-TASKS-01: overdue open tasks precede other open work; dates sort soonest first.
-  const grouped = React.useMemo(() => {
-    if (!tasks) return [];
-    // #525 FR-FCT-041: a project-less task groups under its own heading. `NO_PROJECT` is a Map key
-    // only — it never reaches a URL, which is the bug it exists to prevent: the old code keyed on
-    // `task.project_id` directly and rendered `/projects/null/tasks` for a NULL one.
-    const map = new Map<string, { projectId: string | null; projectName: string; legalName?: string | null; items: typeof tasks }>();
-    for (const task of visibleTasks) {
-      const key = task.project_id ?? NO_PROJECT;
-      if (!map.has(key)) {
-        map.set(key, {
-          projectId: task.project_id,
-          projectName: task.project_name ?? t('myTasks.noProjectGroup', 'No project'),
-          legalName: task.project_contractual_name,
-          items: [],
+  const projectOptions = React.useMemo(() => {
+    const projects = new Map<string, { value: string; label: string }>();
+    for (const task of tasks ?? []) {
+      if (task.project_id && !projects.has(task.project_id)) {
+        projects.set(task.project_id, {
+          value: task.project_id,
+          label: String(task.project_name ?? t('myTasks.projectUnknown', 'Project')),
         });
       }
-      map.get(key)!.items.push(task);
     }
-    const groups = [...map.values()];
-    // Sort within each group
-    for (const g of groups) {
-      g.items.sort((a, b) => {
-        const ka = urgencyKey(a);
-        const kb = urgencyKey(b);
-        if (ka !== kb) return ka - kb;
-        // Secondary: end_date asc, nulls last
-        if (a.end_date === b.end_date) return 0;
-        if (!a.end_date) return 1;
-        if (!b.end_date) return -1;
-        return a.end_date < b.end_date ? -1 : 1;
-      });
+    return [
+      { value: 'all', label: t('myTasks.allProjects', 'All projects') },
+      { value: 'none', label: t('myTasks.noProjectGroup', 'No project') },
+      ...[...projects.values()].sort((a, b) => a.label.localeCompare(b.label)),
+    ];
+  }, [tasks, t]);
+
+  // A single urgency-first ordering makes urgent work visible across project boundaries.
+  const orderedTasks = React.useMemo(() => [...visibleTasks].sort((a, b) => {
+    if (sort === 'urgency') {
+      const urgency = urgencyKey(a) - urgencyKey(b);
+      if (urgency) return urgency;
     }
-    return groups;
-  }, [tasks, visibleTasks, t]);
+    if (a.end_date !== b.end_date) {
+      if (!a.end_date) return 1;
+      if (!b.end_date) return -1;
+      return a.end_date.localeCompare(b.end_date);
+    }
+    if (sort === 'due') {
+      const urgency = urgencyKey(a) - urgencyKey(b);
+      if (urgency) return urgency;
+    }
+    return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+  }), [visibleTasks, sort]);
 
   return (
     <div>
-      <div className="mb-4">
-        <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('myTasks.title', 'My Tasks')}</h1>
-        <p className="mt-0.5 text-sm text-muted-foreground">
-          {t('myTasks.subtitle', 'Your assigned tasks across all projects.')}
-        </p>
-      </div>
+      <WorkPageHeading
+        title={t('workPageHeading.tasks', 'My tasks')}
+        scope={t('workPageHeading.tasksScope', 'Assigned to you across projects')}
+      />
 
       {!isPending && !isError && tasks && tasks.length > 0 && (
-        <div className="mb-4 flex flex-col gap-3 border-b border-border pb-4 min-[640px]:flex-row min-[640px]:items-center min-[640px]:justify-between">
+        <div data-testid="my-tasks-toolbar" className="mb-4 flex flex-col gap-2 border-b border-border pb-4 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <SearchMini
+              aria-label={t('myTasks.searchLabel', 'Search your tasks')}
+              placeholder={t('myTasks.searchPlaceholder', 'Search your tasks')}
+              value={search}
+              onChange={(event) => setFilterParam('q', event.target.value, '')}
+              searchSurface="my-tasks-list"
+              module="tasks"
+              resultCount={orderedTasks.length}
+              className="min-h-11"
+              containerClassName="min-h-11 w-full min-w-0 sm:w-auto sm:min-w-[220px] sm:flex-1"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setFilterParam('q', '', '')}
+                className="touch-target inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('myTasks.clearSearch', 'Clear search')}
+              </button>
+            )}
+          </div>
           {/* DESIGN.md `seg`: the shared inline segmented control, `toggle` semantics — a queue
               filter with no tabpanels, so aria-pressed beats role="tab" (ViewToggle doc). */}
           <ViewToggle
             semantics="toggle"
             ariaLabel={t('myTasks.queueLabel', 'Task status')}
             value={queue}
-            onChange={setQueue}
+            onChange={(value) => setFilterParam('status', value, 'open')}
             options={[
               { value: 'open', label: t('myTasks.openTasks', 'Open tasks') },
               { value: 'completed', label: t('myTasks.completed', 'Completed') },
             ]}
           />
-          <div className="flex w-full items-center gap-2 min-[640px]:max-w-md">
-            {/* Shared list search (Companies/Projects pattern): DESIGN search shell + the
-                `search_used` analytics contract; `flex-1` fills the toolbar row, and below `sm`
-                the variant classes drop the base `min-w-[190px]` clip (clsx cannot merge). */}
-            <SearchMini
-              aria-label={t('myTasks.searchLabel', 'Search your tasks')}
-              placeholder={t('myTasks.searchPlaceholder', 'Search your tasks')}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              searchSurface="my-tasks-list"
-              module="tasks"
-              resultCount={visibleTasks.length}
-              containerClassName="flex-1 max-sm:w-full max-sm:min-w-0"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="touch-target h-8 shrink-0 rounded-lg px-2 text-[13px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {t('myTasks.clearSearch', 'Clear search')}
-              </button>
-            )}
-          </div>
+          <SelectField
+            label={t('myTasks.projectFilter', 'Filter by project')}
+            hideLabel
+            value={projectFilter}
+            onChange={(value) => setFilterParam('project', value, 'all')}
+            options={projectOptions}
+            className="min-h-11 min-w-[150px]"
+          />
+          <SelectField
+            label={t('myTasks.sortLabel', 'Sort tasks')}
+            hideLabel
+            value={sort}
+            onChange={(value) => setFilterParam('sort', value, 'urgency')}
+            options={[
+              { value: 'urgency', label: t('myTasks.sortUrgency', 'Urgency') },
+              { value: 'due', label: t('myTasks.sortDue', 'Due date') },
+            ]}
+            className="min-h-11 min-w-[130px]"
+          />
         </div>
       )}
 
@@ -199,136 +231,94 @@ const MyTasks: React.FC = () => {
               ? t('myTasks.noSearchResults', 'No tasks match your search')
               : t('myTasks.noTasksInView', 'No tasks in this view')}
           </p>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="touch-target mt-2 inline-flex min-h-8 items-center rounded-md px-2 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t('myTasks.clearFilters', 'Clear filters')}
+          </button>
         </div>
       )}
 
-      {!isPending && !isError && grouped.length > 0 && (
-        <div className="space-y-6">
-          {grouped.map((group) => (
-            <section key={group.projectId} aria-label={group.projectName}>
-              <h2 className="mb-2 text-[13px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                {/* CW-7: the Engineer's task entry point deep-links to the project's Tasks tab
-                    explicitly (/projects/:id/tasks) — the project URL default is role-invariant
-                    Overview, so this link carries the intent rather than mutating the default. */}
-                {group.projectId ? (
-                  <Link
-                    to={`/projects/${group.projectId}/tasks`}
-                    title={group.legalName && group.legalName !== group.projectName ? group.legalName : undefined}
-                    className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {group.projectName}
-                  </Link>
-                ) : (
-                  // FR-FCT-041: a heading, NOT a link — there is nothing to navigate to, and a link
-                  // to `/projects/null/tasks` is what this replaces.
-                  <span data-testid="my-tasks-no-project-heading">{group.projectName}</span>
-                )}
-              </h2>
-              <div className="rounded-lg border border-border bg-card divide-y divide-border">
-                {group.items.map((task) => (
-                  <div
-                    key={task.id}
-                    className="flex flex-col gap-2 px-4 py-3 min-[560px]:flex-row min-[560px]:items-center min-[560px]:justify-between"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 flex-col items-start gap-1 min-[560px]:flex-row min-[560px]:items-center min-[560px]:gap-2">
-                        {/* Fix #6 (AC-FIX6-NAV-01): task name opens the project's Tasks tab.
-                            No /tasks/:id route exists; navigating to /projects/:id/tasks is the
-                            lower-risk option — the tab is already deep-linkable (App.tsx). */}
-                        {/* AC-JR-T25: task name deep-links to the specific task row via
-                            #task-<id> anchor — TasksTab scrolls to and highlights it. */}
-                        {task.project_id || task.meeting_id ? (
-                          <Link
-                            to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded sm:truncate"
-                            title={task.name}
-                          >
-                            {task.name}
-                          </Link>
-                        ) : (
-                          <span
-                            className="block min-w-0 flex-1 break-words text-[13.5px] font-medium sm:truncate"
-                            title={task.name}
-                          >
-                            {task.name}
-                          </span>
-                        )}
-                        {/* AC-IFW-TASKS-01: overdue badge — color+shape, not color-only (WCAG AA). */}
-                        {isOverdueTask(task) && (
-                          <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>
-                        )}
-                      </div>
-                      {(task.start_date || task.end_date) && (
-                        <span className="mt-0.5 block text-[12px] text-muted-foreground">
-                          {task.start_date && (
-                            <span>
-                              {t('myTasks.start', 'Start {{date}}', {
-                                date: formatDateOnly(task.start_date),
-                              })}
-                            </span>
-                          )}
-                          {task.start_date && task.end_date && <span className="mx-1">·</span>}
-                          {task.end_date && (
-                            <span>
-                              {t('myTasks.due', 'Due {{date}}', {
-                                date: formatDateOnly(task.end_date),
-                              })}
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </div>
-                    {/* Action cluster: Log time + status control. */}
-                    <div className="flex flex-wrap items-center gap-2 min-[560px]:shrink-0 min-[560px]:justify-end">
-                      {/* #790: comments for ANY task of mine — also the only surface for a project-less task. */}
-                      <button
-                        type="button"
-                        aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
-                        onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                        className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      >
-                        {t('comments.open', 'Comments')}
-                      </button>
-                      {/* AC-IFW-TASKS-02: Log time → Timesheets pre-filled with this task's project.
-                          ⚑ FR-FCT-042: absent entirely on a project-less task. `timesheet_entries`
-                          keeps `project_id NOT NULL` (FR-FCT-005), so the destination CANNOT accept
-                          this task — offering the control and failing at the far end would be worse
-                          than not offering it. */}
-                      {task.project_id ? (
-                        <Link
-                          to={`/timesheets?project=${task.project_id}`}
-                          className="inline-flex h-7 items-center rounded-lg border border-input bg-background px-2.5 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {t('myTasks.logTime', 'Log time')}
-                        </Link>
-                      ) : null}
-                      {/* Fix #6 (AC-FIX6-NAV-02/03): use SelectField (app's shared status
-                          control, matching the TasksTab pattern) instead of a raw OS <select>.
-                          Engineer may set own task status per the `taskStatus` policy. */}
-                      <SelectField
-                        hideLabel
-                        label={`${t('myTasks.changeStatusOf', 'Change status of')} ${task.name}`}
-                        value={task.status}
-                        disabled={updateStatus.isPending}
-                        onChange={(v) =>
-                          updateStatus.mutate(
-                            { id: task.id, projectId: task.project_id, status: v as TaskStatus },
-                            {
-                              onError: (err) => {
-                                const { headline, detail } = classifyMutationError(err);
-                                toast(headline, detail, 'warning');
-                              },
-                            },
-                          )
-                        }
-                        options={TASK_STATUS_OPTIONS.map((s) => ({ value: s, label: statusLabels[s] }))}
-                        className="w-auto min-w-[120px]"
-                      />
-                    </div>
+      {!isPending && !isError && orderedTasks.length > 0 && (
+        <div role="list" aria-label={t('myTasks.listLabel', 'Assigned tasks')} className="divide-y divide-border rounded-xl border border-border bg-card">
+          {orderedTasks.map((task) => (
+            <div
+              key={task.id}
+              role="listitem"
+              className="flex min-w-0 flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  {task.project_id || task.meeting_id ? (
+                    <Link
+                      to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
+                      className="min-w-0 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={task.name}
+                    >
+                      {task.name}
+                    </Link>
+                  ) : (
+                    <span className="min-w-0 break-words text-[13.5px] font-medium" title={task.name}>{task.name}</span>
+                  )}
+                  {isOverdueTask(task) && <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>}
+                </div>
+                <div className="mt-1 text-[12px] text-muted-foreground">
+                  {task.project_id ? (
+                    <Link
+                      to={`/projects/${task.project_id}/tasks`}
+                      title={task.project_contractual_name && task.project_contractual_name !== task.project_name ? task.project_contractual_name : undefined}
+                      className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {task.project_name ?? t('myTasks.projectUnknown', 'Project')}
+                    </Link>
+                  ) : (
+                    <span>{t('myTasks.noProjectGroup', 'No project')}</span>
+                  )}
+                </div>
+                {(task.start_date || task.end_date) && (
+                  <div className="mt-1 text-[12px] text-muted-foreground">
+                    {task.start_date && t('myTasks.start', 'Start {{date}}', { date: formatDateOnly(task.start_date) })}
+                    {task.start_date && task.end_date && <span className="mx-1">·</span>}
+                    {task.end_date && t('myTasks.due', 'Due {{date}}', { date: formatDateOnly(task.end_date) })}
                   </div>
-                ))}
+                )}
               </div>
-            </section>
+              <div className="flex flex-wrap items-center gap-2 sm:shrink-0 sm:justify-end">
+                <button
+                  type="button"
+                  aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
+                  onClick={() => setCommentsTask({ id: task.id, name: task.name })}
+                  className="touch-target min-h-11 rounded-lg border border-input bg-background px-3 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t('comments.open', 'Comments')}
+                </button>
+                {task.project_id && (
+                  <Link
+                    to={`/timesheets?project=${task.project_id}`}
+                    className="touch-target inline-flex min-h-11 items-center rounded-lg border border-input bg-background px-3 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {t('myTasks.logTime', 'Log time')}
+                  </Link>
+                )}
+                <SelectField
+                  hideLabel
+                  label={`${t('myTasks.changeStatusOf', 'Change status of')} ${task.name}`}
+                  value={task.status}
+                  disabled={updateStatus.isPending}
+                  onChange={(value) => updateStatus.mutate(
+                    { id: task.id, projectId: task.project_id, status: value as TaskStatus },
+                    { onError: (err) => {
+                      const { headline, detail } = classifyMutationError(err);
+                      toast(headline, detail, 'warning');
+                    } },
+                  )}
+                  options={TASK_STATUS_OPTIONS.map((value) => ({ value, label: statusLabels[value] }))}
+                  className="min-h-11 min-w-[120px]"
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}

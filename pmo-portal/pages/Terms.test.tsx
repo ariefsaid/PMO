@@ -36,9 +36,19 @@ describe('Terms page', () => {
   it('AC-LEG-001: renders the bare Terms page — title present, no AppShell chrome', () => {
     renderTerms();
     expect(screen.getByRole('heading', { level: 1, name: /terms of service/i })).toBeInTheDocument();
-    // Bare public page (FR-LEG-003): no rail nav landmark, no ContextBar banner landmark.
-    expect(screen.queryByRole('navigation')).toBeNull();
+    // Bare public page (FR-LEG-003): section navigation only, no app shell or banner.
+    expect(screen.getByRole('navigation', { name: 'Sections' })).toBeInTheDocument();
+    expect(screen.getAllByRole('navigation')).toHaveLength(1);
     expect(screen.queryByRole('banner')).toBeNull();
+  });
+
+  it('AC-LEG-001: section links navigate to their matching legal sections', () => {
+    renderTerms();
+    const sectionLink = screen.getByRole('link', { name: 'Acceptance of Terms' });
+    expect(sectionLink).toHaveAttribute('href', '#acceptance-of-terms');
+    expect(document.getElementById('acceptance-of-terms')).toContainElement(
+      screen.getByRole('heading', { level: 2, name: 'Acceptance of Terms' }),
+    );
   });
 
   it('AC-LEG-004 / AC-LEG-027: one h1 + 8 h2 section headings', () => {

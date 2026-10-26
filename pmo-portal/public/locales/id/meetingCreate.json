@@ -5,5 +5,10 @@
   "denied": "Anda tidak memiliki izin untuk membuat rapat.",
   "minutesFailed": "Notulen tidak dapat disimpan.",
   "partialSaveFailed": "Rapat tersimpan, tetapi beberapa rincian belum tersimpan. Simpan lagi untuk mencoba kembali.",
+  "scopeHint": "Catat pembahasan, tindakan, dan peserta dalam satu rapat.",
+  "scopeForProject": "Untuk {{project}}",
+  "attendeeCount": "{{count}} peserta ditambahkan",
+  "optional": "Opsional",
+  "identitySaved": "Rincian rapat tersimpan agar tindakan dapat ditautkan. Selesaikan notulen dan peserta, lalu simpan rapat.",
   "save": "Simpan rapat"
 }

@@ -47,12 +47,13 @@ const ExpenseClaimEvidencePreview: React.FC<{ claim: ExpenseClaimAwaiting['claim
 
 /** "Expense claims awaiting you" on /approvals (FR-EXP-066). Decisions happen on the record page. Hidden when none;
  *  a failed read shows an error rather than a false "nothing waiting" (the AwaitingApprovalTile lesson). */
-export const ExpenseClaimApprovalSection: React.FC = () => {
+export const ExpenseClaimApprovalSection: React.FC<{ selectedClaimId?: string }> = ({ selectedClaimId }) => {
   const { t } = useTranslation();
   const userId = useAuth().currentUser?.id;
   const { realRole } = useEffectiveRole();
   const { data, isPending, isError, refetch } = useExpenseClaimsAwaitingDecision();
-  const rows = useMemo(() => claimsAwaitingViewer(data ?? [], userId, realRole), [data, userId, realRole]);
+  const rows = useMemo(() => claimsAwaitingViewer(data ?? [], userId, realRole)
+    .filter(({ claim }) => !selectedClaimId || claim.id === selectedClaimId), [data, userId, realRole, selectedClaimId]);
   const [evidenceClaimId, setEvidenceClaimId] = useState<string | null>(null);
   if (isPending) return <div className="mb-4"><ListState variant="loading" rows={3} /></div>;
   if (isError) {
@@ -67,7 +68,7 @@ export const ExpenseClaimApprovalSection: React.FC = () => {
   return (
     <section aria-label={t('expenses.approvals.label', 'Expense claims awaiting you')} className="mb-4">
       <Card seam>
-        <CardHead className="rounded-t-lg">{t('expenses.approvals.heading', 'Expense claims awaiting you ({{count}})', { count: rows.length })}</CardHead>
+        <CardHead className="rounded-t-lg">{selectedClaimId ? t('expenses.approvals.previewHeading', 'Review expense claim') : t('expenses.approvals.heading', 'Expense claims awaiting you ({{count}})', { count: rows.length })}</CardHead>
         <ul className="divide-y divide-border rounded-b-lg border-t border-border">
           {rows.map(({ claim }) => (
             <li key={claim.id} className="px-4 py-2.5 text-sm">

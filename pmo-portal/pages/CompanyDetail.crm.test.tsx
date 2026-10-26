@@ -16,7 +16,7 @@ import { ToastProvider } from '@/src/components/ui';
  * AC-CRM-CD-05 (T17): "Log activity" form is visible for writers, hidden for read-only roles
  * AC-CRM-CD-06 (T17): "Log activity" submits with contact_id (requires contact selection or defaults)
  * AC-CRM-CD-07 (T17): Activity timeline error state offers retry
- * AC-CRM-CD-08 (T18): Primary-contact link renders in the account card when a contact is flagged/first
+ * AC-CRM-CD-08 (T18): every account contact remains reachable without an invented primary designation
  * AC-CRM-CD-09 (T18): Related opportunities card renders when company has associated projects
  */
 
@@ -382,22 +382,20 @@ describe('CompanyDetail — account activity timeline (AC-CRM-CD-04, AC-CRM-CD-0
 
 // ── T18: Primary contact + related opportunities ──────────────────────────────
 
-describe('CompanyDetail — primary contact + related opportunities (AC-CRM-CD-08, AC-CRM-CD-09)', () => {
-  it('AC-CRM-CD-08: company detail card shows a "Primary contact" link when contacts exist', () => {
+describe('CompanyDetail — account contacts + related opportunities (AC-CRM-CD-08, AC-CRM-CD-09)', () => {
+  it('AC-CRM-CD-08: every contact opens from the Contacts section without a false primary designation', () => {
     contactsState.data = contacts;
     renderPage();
-    // The first contact (alphabetically or by order) should appear as primary contact
-    expect(screen.getByText(/primary contact/i)).toBeInTheDocument();
-    // Should be a link navigating to the contact's page
-    const link = screen.getByRole('link', { name: /jane doe/i });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/contacts/ct1');
-    expect(link.className).toContain('text-primary-text');
+    const contactList = screen.getByRole('list', { name: /Contacts list/i });
+    expect(within(contactList).getByRole('button', { name: /Open Jane Doe/i })).toBeInTheDocument();
+    expect(within(contactList).getByRole('button', { name: /Open John Roe/i })).toBeInTheDocument();
+    expect(screen.queryByText(/primary contact/i)).not.toBeInTheDocument();
   });
 
-  it('AC-CRM-CD-08: "Primary contact" section is absent when company has no contacts', () => {
+  it('AC-CRM-CD-08: an empty Contacts section names the next useful step', () => {
     contactsState.data = [];
     renderPage();
+    expect(screen.getByText(/No contacts yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/primary contact/i)).not.toBeInTheDocument();
   });
 

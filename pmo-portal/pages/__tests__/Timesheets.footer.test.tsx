@@ -126,8 +126,8 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     renderPage();
 
     // The h1 header region must NOT contain a Submit affordance.
-    const heading = screen.getByRole('heading', { name: /timesheets/i });
-    const headerRegion = heading.closest('div')?.parentElement as HTMLElement;
+    const heading = screen.getByRole('heading', { name: /my time/i });
+    const headerRegion = heading.closest('header') as HTMLElement;
     expect(within(headerRegion).queryByRole('button', { name: /submit timesheet/i })).toBeNull();
     // Exactly one Submit control overall (it lives only in the footer).
     expect(screen.getAllByRole('button', { name: /submit timesheet/i })).toHaveLength(1);
@@ -171,7 +171,7 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
     expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
   });
 
-  it('AC-IXD-TS-002: the footer Save is secondary and Submit is the primary action', () => {
+  it('AC-IXD-TS-002: the footer keeps both decision actions after the hours evidence', () => {
     tsState.data = draftSheet([
       { id: 'e1', timesheet_id: 'ts-draft', project_id: 'pr1', entry_date: currentWeekStartStr(), hours: 8,
         notes: null, project: { name: 'Alpha Project', code: 'A001' } },
@@ -181,10 +181,10 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 
     const footer = screen.getByTestId('timesheets-footer');
     const submitBtn = within(footer).getByRole('button', { name: /submit timesheet/i });
-    // The primary blue One-Blue variant renders bg-primary; the secondary Save does not.
-    expect(submitBtn.className).toMatch(/bg-primary/);
     const saveBtn = within(footer).getByRole('button', { name: /^save$/i });
-    expect(saveBtn.className).not.toMatch(/bg-primary/);
+    const total = screen.getByTestId('tsgrid-grand-total');
+    expect(Boolean(total.compareDocumentPosition(saveBtn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(Boolean(saveBtn.compareDocumentPosition(submitBtn) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });
 
@@ -193,6 +193,27 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 // ---------------------------------------------------------------------------
 describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week', () => {
   afterEach(() => vi.unstubAllGlobals());
+
+  it('R-023 / R-024: an empty phone week has one compact total beside submit and one short instruction', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
+      matches: false,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    tsState.data = [];
+    tsState.isPending = false;
+    tsState.isError = false;
+
+    renderPage();
+
+    const strip = screen.getByTestId('timesheets-mobile-action-strip');
+    expect(within(strip).getByText('Week total')).toBeInTheDocument();
+    expect(within(strip).getByText('0 h')).toBeInTheDocument();
+    expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeDisabled();
+    expect(screen.getByTestId('timesheets-empty')).toHaveTextContent('Choose a project above to start recording hours.');
+    expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 hours this week')).not.toBeInTheDocument();
+  });
 
   it('keeps the total and both actions available for a two-project mobile week', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
@@ -216,11 +237,14 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
     renderPage();
 
     const strip = screen.getByTestId('timesheets-mobile-action-strip');
-    expect(strip).toHaveAttribute('data-mobile-action-bar');
-    expect(within(strip).getByText('10 hours this week')).toBeInTheDocument();
+    const total = screen.getByTestId('tsgrid-grand-total');
+    expect(total).toHaveTextContent('10');
+    expect(screen.queryByTestId('timesheets-weekly-total')).not.toBeInTheDocument();
+    expect(screen.queryByText('10 hours this week')).not.toBeInTheDocument();
     expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeDisabled();
     expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeEnabled();
     expect(screen.queryByTestId('timesheets-footer')).not.toBeInTheDocument();
+    expect(Boolean(total.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();
     expect(screen.getByLabelText('Beta Project, Sun hours')).toBeInTheDocument();
   });

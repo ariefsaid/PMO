@@ -762,6 +762,12 @@
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
     "queueHeading": "Antrean persetujuan",
+    "queueEmptyScopeTitle": "Tidak ada {{scope}} yang menunggu keputusan Anda",
+    "showAllPending": "Tampilkan semua yang menunggu",
+    "decisionTotal": "Total keputusan",
+    "lineItems": "Rincian item",
+    "openRequest": "Buka permintaan",
+    "unitRate": "{{quantity}} × {{rate}} per unit",
     "queueHint": "Pilih item untuk melihat detail dan kontrol keputusannya.",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
@@ -1808,6 +1814,7 @@
   },
   "myTasks": {
     "allProjects": "Semua proyek",
+    "clearFilters": "Hapus filter",
     "changeStatusOf": "Ubah status",
     "due": "Tenggat {{date}}",
     "empty": {
@@ -1840,7 +1847,66 @@
     "title": "Tugas Saya"
   },
   "incidents": {
-    "actions": { "file": "Laporkan insiden" },
+    "actions": { "file": "Laporkan insiden", "edit": "Ubah", "delete": "Hapus" },
+    "form": {
+      "title": { "create": "Laporkan insiden", "edit": "Ubah insiden" },
+      "subtitle": {
+        "create": "Catat kejadian yang terjadi. Nama Anda akan dicatat sebagai pelapor.",
+        "edit": "Perbarui laporan insiden ini"
+      },
+      "section": "Kejadian",
+      "dateRequired": "Tanggal insiden wajib diisi.",
+      "typeRequired": "Jenis insiden wajib diisi.",
+      "type": "Jenis",
+      "typePlaceholder": "mis. Nyaris celaka, Kerusakan peralatan, Tumpahan",
+      "locationPlaceholder": "mis. Kantor atau lokasi kerja",
+      "projectNoun": "proyek",
+      "projectPlaceholder": "Opsional — tautkan proyek…",
+      "description": "Deskripsi",
+      "descriptionPlaceholder": "Apa yang terjadi, siapa yang terlibat, dan tindakan awal yang sudah dilakukan.",
+      "save": "Simpan insiden",
+      "submit": "Laporkan insiden"
+    },
+    "detail": {
+      "title": "Insiden",
+      "scope": "Laporan insiden",
+      "loadErrorTitle": "Tidak dapat memuat insiden",
+      "loadErrorSub": "Terjadi kesalahan saat memuat laporan insiden.",
+      "notFoundTitle": "Insiden tidak ditemukan",
+      "notFoundSub": "Insiden ini tidak ada atau tidak terlihat oleh Anda. Kembali ke daftar untuk menemukannya.",
+      "reported": "Dilaporkan {{date}}",
+      "evidence": "Bukti insiden",
+      "description": "Deskripsi",
+      "noDescription": "Tidak ada deskripsi yang dicatat.",
+      "nextAction": "Tindakan berikutnya",
+      "confirmFallbackTitle": "Lanjutkan status insiden?",
+      "transition": {
+        "investigating": {
+          "menu": "Mulai penyelidikan",
+          "title": "Mulai menyelidiki {{type}}?",
+          "body": "Status insiden akan berubah menjadi Diselidiki agar tim dapat mencatat temuan. Anda dapat menutupnya setelah penyelidikan selesai.",
+          "confirm": "Mulai penyelidikan"
+        },
+        "closed": {
+          "menu": "Tutup insiden",
+          "title": "Tutup {{type}}?",
+          "body": "Insiden akan ditandai Ditutup. Status Ditutup adalah status akhir; ajukan tindak lanjut jika ada informasi baru.",
+          "confirm": "Tutup insiden"
+        }
+      },
+      "toast": {
+        "closed": "Insiden ditutup",
+        "investigating": "Penyelidikan dimulai",
+        "updated": "Insiden diperbarui",
+        "deleted": "Insiden dihapus",
+        "filed": "Insiden dilaporkan"
+      },
+      "rowOpen": "Buka {{type}}",
+      "deleteTitle": "Hapus {{type}}?",
+      "deleteFallbackTitle": "Hapus insiden?",
+      "deleteDescription": "Laporan insiden akan dihapus permanen dan tidak dapat dipulihkan. Pertimbangkan untuk menutupnya agar riwayat tetap tersimpan.",
+      "deleteConfirm": "Hapus insiden"
+    },
     "columns": {
       "incident": "Insiden", "project": "Proyek", "severity": "Keparahan",
       "status": "Status", "date": "Tanggal", "location": "Lokasi"
@@ -1862,6 +1928,7 @@
       "emptySub": "Coba keparahan, status, atau pencarian lain.",
       "clearFilters": "Hapus filter"
     },
+    "notRecorded": "Belum dicatat",
     "title": "Insiden", "unlinked": "Belum ditautkan", "viewProject": "Lihat proyek"
   },
   "procurement": {
@@ -3404,7 +3471,7 @@
       "title": "Belum ada jam tercatat minggu ini"
     },
     "emptyEdit": {
-      "sub": "Gunakan “Tambahkan proyek” di atas untuk mulai mencatat jam.",
+      "sub": "Pilih proyek di atas untuk mulai mencatat jam.",
       "title": "Belum ada jam tercatat minggu ini"
     },
     "enterHoursToSubmit": "Isi jam untuk mengajukan",
@@ -3683,18 +3750,40 @@
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
     "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
   },
+  "workPageHeading": {
+    "approvals": "Persetujuan",
+    "approvalsScope": "Keputusan saya",
+    "company": "Perusahaan",
+    "companyScope": "Catatan akun",
+    "contact": "Kontak",
+    "contactScope": "Catatan orang",
+    "incident": "Insiden",
+    "incidentScope": "Laporan insiden",
+    "meeting": "Rapat",
+    "meetingScope": "Catatan rapat",
+    "profile": "Profil & preferensi",
+    "profileScope": "Preferensi pribadi",
+    "tasks": "Tugas saya",
+    "tasksScope": "Tugas yang diberikan kepada Anda di semua proyek",
+    "timesheets": "Waktu saya",
+    "timesheetsScope": "Jam kerja Anda · {{week}} · {{status}}",
+    "views": "Tampilan saya"
+  },
   "oauthConsent": {
     "allow": "Izinkan",
     "brand": "PMO Portal",
     "decideError": "Jawaban Anda tidak dapat dikirim.",
     "deny": "Tolak",
+    "errorTitle": "Permintaan masuk tidak tersedia",
     "explain": "{{client}} akan dapat membaca dan mengubah catatan PMO atas nama Anda, dengan izin yang sama persis dengan izin Anda. Aplikasi ini tidak dapat melakukan apa pun yang tidak dapat Anda lakukan sendiri.",
     "loadError": "Permintaan masuk ini tidak dapat dimuat.",
     "loading": "Memuat permintaan masuk…",
+    "loadingTitle": "Permintaan masuk",
     "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
     "missingRequest": "Permintaan masuk ini tidak lengkap.",
     "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
     "returning": "Mengembalikan Anda ke aplikasi…",
+    "returningTitle": "Kembali ke aplikasi",
     "signedInAs": "Masuk sebagai {{email}}",
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
@@ -4176,6 +4265,8 @@
   },
   "viewRenderer": {
     "backToViews": "Kembali ke tampilan tersimpan",
+    "checkingAccessTitle": "Memeriksa akses ke tampilan tersimpan",
+    "checkingAccessDescription": "Memastikan akses Anda sebelum membuka jawaban tersimpan ini…",
     "savedViewTitle": "Tampilan tersimpan",
     "loadingTitle": "Membuka tampilan tersimpan",
     "loadingDescription": "Memuat jawaban tersimpan dan panelnya…",
