@@ -364,6 +364,8 @@ const SalesInvoices: React.FC = () => {
   // Search and status live in the list URL so a record address can retain and restore the exact context.
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(() => searchParams.get('q') ?? '');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const requestedCustomerId = searchParams.get('customer');
   const selectedCustomer = requestedCustomerId
     ? customerOptionsQuery.data?.find((option) => option.value === requestedCustomerId) ?? null
@@ -372,6 +374,11 @@ const SalesInvoices: React.FC = () => {
   const statusFilter: StatusFilter = requestedStatus && statusFilters.includes(requestedStatus as StatusFilter)
     ? requestedStatus as StatusFilter
     : 'All';
+  const appliedFilterCount = Number(statusFilter !== 'All')
+    + Number(Boolean(requestedCustomerId))
+    + Number(Boolean(searchParams.get('project')))
+    + Number(Boolean(searchParams.get('attribution') && searchParams.get('attribution') !== 'all'))
+    + Number(searchParams.get('overdue') === 'true');
   const requestedSort = searchParams.get('sort');
   const invoiceSort = isInvoiceSort(requestedSort) ? requestedSort : invoiceStatusDefaultSort(statusFilter);
   useEffect(() => {
@@ -1123,7 +1130,19 @@ const SalesInvoices: React.FC = () => {
           className="min-h-11"
           containerClassName="min-h-11 w-full md:w-64"
         />
-        <div className="flex min-w-0 flex-col gap-2 md:flex-1">
+        <div className="flex min-w-0 items-center gap-2 md:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={filtersOpen}
+            aria-controls="invoice-collection-filters"
+            className="min-h-11 flex-1"
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            {t('filters', 'Filters')}{appliedFilterCount > 0 ? ` · ${appliedFilterCount}` : ''}
+          </Button>
+        </div>
+        <div id="invoice-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-col gap-2 md:flex md:flex-1`}>
           <div
             role="region"
             aria-label={t('financeCopy.filterByStatus', 'Filter by status')}
@@ -1201,7 +1220,16 @@ const SalesInvoices: React.FC = () => {
             <option value="invoice-date-desc">{t('moneyIn:financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
           </select>
         </label>
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row md:ml-auto">
+        <div className="flex min-w-0 items-center gap-2 md:ml-auto">
+          <Button
+            type="button"
+            variant="outline"
+            aria-expanded={moreActionsOpen}
+            aria-controls="invoice-collection-more-actions"
+            className="min-h-11 flex-1 md:hidden"
+            onClick={() => setMoreActionsOpen((open) => !open)}
+          >{t('moreActions', 'More actions')}</Button>
+          <div id="invoice-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
           <ExportButton
             rows={sortedInvoices}
             columns={exportColumns}
@@ -1210,6 +1238,7 @@ const SalesInvoices: React.FC = () => {
             disabled={state === 'loading' || state === 'error'}
             className="min-h-11"
           />
+          </div>
           {mode !== undefined && !createRequested && canCreate && (
             <Button variant="primary" onClick={openNewInvoice} className="min-h-11">
               <Icon name="plus" />

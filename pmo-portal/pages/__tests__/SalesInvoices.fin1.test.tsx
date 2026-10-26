@@ -184,6 +184,17 @@ describe('invoice list evidence', () => {
     expect(exportAction.compareDocumentPosition(create) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
+  it('keeps secondary filters collapsed on phone and reports the active filter count', async () => {
+    renderAt('/sales-invoices?status=Unpaid&project=project-1');
+    const filters = screen.getByRole('button', { name: 'Filters · 2' });
+    expect(filters).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.setup().click(filters);
+
+    expect(filters).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('project-1');
+  });
+
   it('orders by due date by default, leaves unknown due dates last and uses invoice IDs for ties', () => {
     h.invoices.data = [
       invoice('INV-LATER', { erp_due_date: '2026-11-01' }),
