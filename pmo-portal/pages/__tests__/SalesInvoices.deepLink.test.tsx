@@ -244,7 +244,10 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices');
     const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
     expect(row).toHaveTextContent('Partly paid');
-    expect(row).toHaveTextContent('USD1');
+    const outstandingIndex = screen.getAllByRole('columnheader').findIndex((header) => header.textContent?.trim() === 'Outstanding gross');
+    expect(outstandingIndex).toBeGreaterThanOrEqual(0);
+    const outstanding = within(row as HTMLElement).getAllByRole('cell')[outstandingIndex];
+    expect(outstanding).toHaveTextContent('USD 1');
   });
 
   it('invoice identity is a direct record link that retains the list query', () => {

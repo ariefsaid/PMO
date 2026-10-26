@@ -97,11 +97,11 @@ beforeEach(async () => {
 });
 
 describe('SalesInvoices e-Faktur details', () => {
-  it('shows whole-unit invoice and outstanding amounts with an explicit currency field', () => {
+  it('shows whole-unit invoice and outstanding amounts prefixed with the row currency', () => {
+    h.invoices[0] = { ...h.invoices[0], amount: 1057500000, erp_outstanding_amount: 1057500000 };
     renderAs('Finance');
-    expect(screen.getAllByRole('columnheader').map((header) => header.textContent?.trim())).toContain('Currency');
-    expect(cellOf('SI-one', 'Invoice gross')).toHaveTextContent('100');
-    expect(cellOf('SI-one', 'Outstanding gross')).toHaveTextContent('100');
+    expect(cellOf('SI-one', 'Invoice gross')).toHaveTextContent('IDR 1,057,500,000');
+    expect(cellOf('SI-one', 'Outstanding gross')).toHaveTextContent('IDR 1,057,500,000');
     expect(cellOf('SI-one', 'Invoice gross')).not.toHaveTextContent('.00');
   });
 
