@@ -164,7 +164,8 @@
     "sourceCurrency": "{{currency}} source",
     "categoryCoverage": "{{known}}/{{total}} categories",
     "comparisonUnavailable": "Actual comparisons need complete source coverage in the project budget currency.",
-    "reviewAccountingEvidence": "Review accounting evidence"
+    "reviewAccountingEvidence": "Review accounting evidence",
+    "exactPayables": "Exact payable total"
   },
   "pm": {
     "deliveryProjects": "My delivery projects",

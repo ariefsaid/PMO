@@ -228,7 +228,10 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
     const arCard = section('Customer collections (AR)');
     expect(within(arCard).getAllByText('Unavailable')).toHaveLength(1);
-    expect(within(arCard).getAllByText('—')).toHaveLength(5);
+    const row = within(arCard).getByRole('row', { name: /C-0001/ });
+    // All six money slots remain unavailable when the source currency is missing.
+    expect(within(row).getAllByText('—')).toHaveLength(6);
+    expect(within(row).queryByText('0', { exact: true })).not.toBeInTheDocument();
     expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
     expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
     expect(within(arCard).getByText(/Posting Date/)).toBeInTheDocument();

@@ -131,7 +131,7 @@ describe('ExecutiveDashboard (real data)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
     renderPage();
     expect(screen.getByText('Risk is not checked for 2 delivery projects')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
     expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(within(pipeline).getByText('—')).toBeInTheDocument();
@@ -153,7 +153,9 @@ describe('ExecutiveDashboard (real data)', () => {
       const delivery = screen.getByRole('region', { name: 'Delivery book' });
       expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('3,400,000');
       expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('USD 3.4M');
-      expect(delivery).toHaveTextContent('IDR 373,500,000,000');
+      const idr = within(delivery).getByTestId('dashboard-delivery-position-IDR');
+      expect(idr).toHaveTextContent('IDR');
+      expect(idr).toHaveTextContent('373,500,000,000');
     } finally {
       orgState.currency = 'USD';
     }
@@ -175,8 +177,8 @@ describe('ExecutiveDashboard (real data)', () => {
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
     expect(within(delivery).getByTestId('dashboard-delivery-position-IDR')).toHaveTextContent('—');
     expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('—');
-    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR').textContent?.match(/IDR/g)).toHaveLength(1);
-    expect(within(delivery).getByTestId('dashboard-delivery-position-USD').textContent?.match(/USD/g)).toHaveLength(1);
+    expect(within(within(delivery).getByTestId('dashboard-delivery-position-IDR')).getAllByRole('link', { name: /IDR:/ }).length).toBeGreaterThan(0);
+    expect(within(within(delivery).getByTestId('dashboard-delivery-position-USD')).getAllByRole('link', { name: /USD:/ }).length).toBeGreaterThan(0);
   });
 
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
@@ -238,7 +240,7 @@ describe('ExecutiveDashboard (real data)', () => {
 
   it('AC-701 keeps active project count and exact contract value in the delivery book', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
     expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('8,000,000');
   });
 
@@ -265,7 +267,7 @@ describe('ExecutiveDashboard (real data)', () => {
   });
   it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
   });
   it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
     renderPage();

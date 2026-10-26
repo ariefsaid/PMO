@@ -281,7 +281,8 @@ describe('CompanyDetail — customer collections (AC-S36-003)', () => {
 
     expect(screen.getByRole('heading', { name: 'Customer collections' })).toBeInTheDocument();
     expect(screen.getByText('Customer:C-0001')).toBeInTheDocument();
-    expect(screen.getByRole('row', { name: /Customer:C-0001/ })).toHaveTextContent('$250');
+    expect(screen.getByRole('row', { name: /Customer:C-0001/ })).toHaveTextContent('250');
+    expect(screen.getByRole('heading', { name: 'USD' })).toBeInTheDocument();
     // SL-F: report date and ageing basis once per card.
     expect(screen.getByText('Report date: 2026-10-18 · Ageing basis: Due Date')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open invoices' })).toHaveAttribute(

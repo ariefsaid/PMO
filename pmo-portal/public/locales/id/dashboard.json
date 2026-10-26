@@ -164,7 +164,8 @@
     "sourceCurrency": "Sumber {{currency}}",
     "categoryCoverage": "{{known}}/{{total}} kategori",
     "comparisonUnavailable": "Perbandingan aktual memerlukan cakupan sumber yang lengkap dalam mata uang anggaran proyek.",
-    "reviewAccountingEvidence": "Tinjau bukti akuntansi"
+    "reviewAccountingEvidence": "Tinjau bukti akuntansi",
+    "exactPayables": "Total utang persis"
   },
   "pm": {
     "deliveryProjects": "Proyek pengiriman saya",

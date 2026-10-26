@@ -109,7 +109,8 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     renderExec();
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
     expect(delivery).toHaveTextContent('6,000,000');
-    expect(delivery).toHaveTextContent('$8,000,000');
+    expect(delivery).toHaveTextContent('USD');
+    expect(delivery).toHaveTextContent('8,000,000');
     expect(delivery.querySelector('a[href="/projects?filter=Ongoing"]')).toBeNull();
     expect(screen.getByRole('link', { name: 'Negotiation' })).toHaveAttribute('href', '/sales?status=Negotiation');
   });

@@ -222,6 +222,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
           return (
             <section key={groupCurrency} aria-label={heading}>
               <h3 className="mb-2 text-xl font-bold tabular">{heading}</h3>
+              <p className="mb-2 text-sm tabular">{t('dashboard:finance.exactPayables', 'Exact payable total')} · {total.complete ? formatNumberExact(total.value) : <span aria-label={compactTotal.unavailableReason}>—</span>}</p>
               <p className="mb-2 text-xs font-semibold text-muted-foreground">
                 {t('dashboard:finance.payablesCount', '{{count}} vendor invoices', { count: total.count })}
               </p>
@@ -447,6 +448,7 @@ export const FinanceDashboard: React.FC = () => {
       minSize: 280,
       cell: (p) => {
         return (
+          <div>
           <Link
               to={`/projects/${p.id}/budget`}
               aria-label={t('dashboard.budgetReviewLink', 'Review {{project}} budget', { project: p.name })}
@@ -454,6 +456,11 @@ export const FinanceDashboard: React.FC = () => {
             >
               {p.name}
           </Link>
+          {!canCompareActual(p) && <details className="mt-1 text-muted-foreground">
+            <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.viewSourceDetails', 'View source details')}</summary>
+            <p className="text-sm">{p.actual_currency && t('dashboard:finance.sourceCurrency', '{{currency}} source', { currency: p.actual_currency })}{' · '}{t('dashboard:finance.categoryCoverage', '{{known}}/{{total}} categories', { known: p.actual_coverage_count ?? '—', total: p.actual_coverage_total ?? '—' })}</p>
+          </details>}
+          </div>
         );
       },
     },

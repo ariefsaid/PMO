@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
@@ -63,7 +62,7 @@ function projectAtRisk(project: PMDashboardProject): boolean {
 }
 
 function compareProjectsByName(a: PMDashboardProject, b: PMDashboardProject): number {
-  return projectDisplayName(a).localeCompare(projectDisplayName(b)) || a.id.localeCompare(b.id);
+  return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
 }
 
 export const PMDashboard: React.FC = () => {
@@ -206,7 +205,7 @@ export const PMDashboard: React.FC = () => {
           ) : (
             <ol aria-labelledby="pm-delivery-projects-heading" className="divide-y divide-border/70">
               {mineSorted.map((project) => {
-                const name = projectDisplayName(project);
+                const name = project.name;
                 const isActive = ACTIVE_PROJECT_STATUSES.has(project.status);
                 const isRiskUnknown = isActive && !riskBasisIsKnown(project);
                 const isAtRisk = projectAtRisk(project);

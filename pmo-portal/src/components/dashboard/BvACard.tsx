@@ -6,7 +6,6 @@ import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { pillVariantForProjectStatus } from '@/components/projects';
@@ -56,7 +55,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           to={`/projects/${project.id}`}
           className="inline-flex min-h-11 min-w-0 items-center text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          <span className="break-words">{projectDisplayName(project)}</span>
+          <span className="break-words">{project.name}</span>
         </Link>
       ),
     },
@@ -108,7 +107,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
         return (
           <div className="min-w-[7rem] space-y-1">
             {actual === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-actual-note" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see coverage note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
-            {progress !== null && <ProgressBar value={progress} widthless className="w-full [&>span:first-child]:flex-1" aria-label={t('dashboard:exec.actualOfContract', '{{project}}: {{percent}}% of contract', { project: projectDisplayName(project), percent: progress })} />}
+            {progress !== null && <ProgressBar value={progress} widthless className="w-full [&>span:first-child]:flex-1" aria-label={t('dashboard:exec.actualOfContract', '{{project}}: {{percent}}% of contract', { project: project.name, percent: progress })} />}
           </div>
         );
       },
@@ -132,7 +131,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
       cell: (project) => (
         <Link
           to={`/projects/${project.id}`}
-          aria-label={t('dashboard:exec.openProject', 'Open {{project}}', { project: projectDisplayName(project) })}
+          aria-label={t('dashboard:exec.openProject', 'Open {{project}}', { project: project.name })}
           className={buttonClasses('outline', 'default', 'min-h-11 px-3')}
         >
           {t('dashboard:exec.open', 'Open')}

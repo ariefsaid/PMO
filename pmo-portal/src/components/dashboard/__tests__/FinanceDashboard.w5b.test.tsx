@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, within, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -185,9 +185,10 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
 
   it('AC-IXD-DASH-W5-C2B-N16-4: shows Value column with tabular currency amounts', () => {
     renderPane();
-    // $250,000 may appear in both KPI tile and the table — getAllByText is correct
-    expect(screen.getAllByText('$250,000').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('$80,000').length).toBeGreaterThan(0);
+    const payables = screen.getByTestId('ready-to-pay-total');
+    expect(payables).toHaveTextContent('USD');
+    expect(within(payables).getByText('250,000')).toBeInTheDocument();
+    expect(within(payables).getByText('80,000')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-5: each row has an explicit link to PR detail', () => {
