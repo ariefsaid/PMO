@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
@@ -23,6 +23,7 @@ const RecordContextProbe = () => {
 };
 
 beforeEach(() => { h.aging.isError = false; h.aging.isPending = false; });
+afterEach(() => vi.unstubAllGlobals());
 
 describe('AdvanceAgingCard', () => {
   it('AC-806 shows outstanding advances oldest paid date first, leaves unknown dates last, and keeps exact amounts without bucket totals', () => {
@@ -41,13 +42,18 @@ describe('AdvanceAgingCard', () => {
     expect(screen.queryByTestId(/aging-IDR-/)).not.toBeInTheDocument();
   });
   it('AC-EXP-063 keeps advance details in cards on phones', () => {
-    h.aging.data = { rows: [row({})], truncated: false };
+    h.aging.data = { rows: [row({ projectName: 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru', outstanding: 2226648000 })], truncated: false };
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
     renderCard();
     const cards = screen.getByTestId('dt-card-branch');
-    expect(within(cards).getByRole('link', { name: 'ADV-1' })).toHaveAttribute('href', '/expenses/a1');
-    expect(within(cards).getByText(formatNumber(100))).toBeInTheDocument();
-    vi.unstubAllGlobals();
+    const item = within(cards).getAllByRole('listitem').find((candidate) => within(candidate).queryByRole('link', { name: 'ADV-1' }))!;
+    expect(within(item).getByRole('link', { name: 'ADV-1' })).toHaveAttribute('href', '/expenses/a1');
+    expect(within(item).getByRole('link', { name: 'Open ADV-1' })).toBeInTheDocument();
+    expect(within(item).getByText(formatNumber(2226648000))).toBeInTheDocument();
+    expect(item.querySelector('time')).toHaveAttribute('datetime', '2026-09-01');
+    expect(within(item).getByText('Details · 2 fields')).toBeInTheDocument();
+    expect(within(item).getByText('Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
+    expect(item.querySelector('details')).not.toHaveAttribute('open');
   });
   it('AC-806 groups outstanding advance balances by currency without adding currency totals', () => {
     h.aging.data = { rows: [

@@ -83,6 +83,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
           tableId="procurement-linked-erp-documents"
           accessibleName={t('erpLinks.linkedTitle', 'Documents from ERPNext')}
           groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
+          groupHeadingClassName="text-xl font-bold leading-tight"
         />
       )}
       <ConfirmDialog

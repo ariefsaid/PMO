@@ -1455,12 +1455,15 @@
         "advance": "Advance",
         "age": "Age (days)",
         "claimant": "Claimant",
+        "paidOn": "Paid on",
         "outstanding": "Outstanding",
         "project": "Project"
       },
       "errorSub": "The rest of the expense register is unaffected. Try again.",
       "errorTitle": "Couldn't load outstanding advances",
+      "mobileDetails": "Details · 2 fields",
       "title": "Outstanding advances",
+      "unknownPayoutDate": "Not available",
       "truncated": "Showing up to {{count}} advances from the bounded outstanding list. Search and filters apply within this set."
     },
     "approvals": {

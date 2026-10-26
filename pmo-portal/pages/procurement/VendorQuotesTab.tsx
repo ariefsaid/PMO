@@ -251,7 +251,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           } },
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} />
+          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
         </>;
       })()}
 

@@ -1455,12 +1455,15 @@
         "advance": "Uang muka",
         "age": "Umur (hari)",
         "claimant": "Pengaju",
+        "paidOn": "Tanggal pencairan",
         "outstanding": "Belum diselesaikan",
         "project": "Proyek"
       },
       "errorSub": "Bagian lain dari daftar biaya tidak terpengaruh. Coba lagi.",
       "errorTitle": "Gagal memuat uang muka yang belum diselesaikan",
+      "mobileDetails": "Detail · 2 bidang",
       "title": "Uang muka yang belum diselesaikan",
+      "unknownPayoutDate": "Tidak tersedia",
       "truncated": "Menampilkan hingga {{count}} uang muka dari daftar terbatas. Pencarian dan filter berlaku pada kumpulan ini."
     },
     "approvals": {

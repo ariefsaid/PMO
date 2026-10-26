@@ -254,6 +254,7 @@ const ExpenseClaims: React.FC = () => {
             onActivate={(r) => openRecord(r.id)}
             tableId="expenseclaims-table"
             groupBy={(r) => r.currency || t('common:notAvailable', 'Not available')}
+            groupHeadingClassName="text-xl font-bold leading-tight"
           />
         </>
       )}

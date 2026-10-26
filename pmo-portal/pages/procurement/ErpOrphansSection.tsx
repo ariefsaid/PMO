@@ -214,6 +214,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         tableId={tableId ?? 'erp-orphans-table'}
         accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
         groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
+        groupHeadingClassName="text-xl font-bold leading-tight"
       />
       {dialogDocs && (
         <LinkErpDocumentsDialog
