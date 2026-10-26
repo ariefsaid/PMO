@@ -1,9 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Card,
-  CardHead,
-  CardPad,
   Button,
   Icon,
   StatusPill,
@@ -206,22 +203,18 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
   const bestIds = canSelect ? bestValueIds(quotations) : new Set<string>();
 
   return (
-    <Card data-testid="vendor-quotes">
-      <CardHead
-        actions={
-          canAdd && !adding && (
-            <Button size="sm" variant="outline" className="min-h-11 min-[921px]:min-h-8" onClick={() => setAdding(true)} data-testid="add-quotation">
-              <Icon name="plus" width="1em" height="1em" />
-              {t('procurement:quotes.add', 'Add quotation')}
-            </Button>
-          )
-        }
-      >
-        {t('procurement:quotes.heading', 'Bid comparison')}
-        <span className="ml-2 text-[13px] font-normal text-muted-foreground">
-          {t('procurement:quotes.description', 'Compare and select a vendor quote')}
-        </span>
-      </CardHead>
+    <section data-testid="vendor-quotes" aria-labelledby="vendor-quotes-heading">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 id="vendor-quotes-heading" className="text-xl font-bold leading-tight text-foreground">
+          {t('procurement:quotes.heading', 'Bid comparison')}
+        </h2>
+        {canAdd && !adding && (
+          <Button size="sm" variant="outline" className="min-h-11 text-xs font-semibold" onClick={() => setAdding(true)} data-testid="add-quotation">
+            <Icon name="plus" width="1em" height="1em" />
+            {t('procurement:quotes.add', 'Add quotation')}
+          </Button>
+        )}
+      </div>
 
       {/* ── Empty state ─────────────────────────────────────────────────── */}
       {quotations.length === 0 && (
@@ -250,14 +243,42 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             return selectable ? <Button size="sm" variant="outline" className="min-h-11 min-[921px]:min-h-8" onClick={() => setSelectTarget(q)} aria-label={t('procurement:quotes.selectAria', 'Select quote {{vendor}}', { vendor })}>{t('procurement:quotes.select', 'Select')}</Button> : null;
           } },
         ];
+        const mobileRow = (q: QuotationRow) => {
+          const vendor = vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote');
+          const selected = isRowSelected(q, selectedId);
+          const selectable = canSelect && !selected;
+          const status = selected
+            ? t('procurement:quotes.selected', 'Selected')
+            : bestIds.has(q.id) ? t('procurement:quotes.bestValueInCurrency', 'Best in currency') : t('procurement:quotes.notSelected', 'Not selected');
+          return (
+            <div className="grid gap-3 p-3">
+              <div className="min-w-0">
+                <div className="break-words text-sm text-foreground">{vendor}</div>
+                <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">
+                  {q.reference ? `${q.reference} · ` : ''}{q.vq_number ?? q.system_number}
+                </div>
+              </div>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                <StatusPill variant={selected || bestIds.has(q.id) ? 'won' : 'neutral'}>{status}</StatusPill>
+                <span className="text-xs font-semibold text-muted-foreground">{t('procurement:quotes.columns.validUntil', 'Valid until')}</span>
+                <time dateTime={q.valid_until ?? undefined} className="text-sm text-muted-foreground">{formatDateOnly(q.valid_until)}</time>
+              </div>
+              <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
+                <span className="whitespace-nowrap text-sm tabular text-foreground">{q.total_amount == null || !q.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span>
+                {selectable && <Button size="sm" variant="outline" className="min-h-11 text-xs font-semibold" onClick={() => setSelectTarget(q)} aria-label={t('procurement:quotes.selectAria', 'Select quote {{vendor}}', { vendor })}>{t('procurement:quotes.select', 'Select')}</Button>}
+              </div>
+              <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} />
+            </div>
+          );
+        };
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
+          <DataTable rows={sorted} columns={columns} mobileRow={mobileRow} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
         </>;
       })()}
 
       {/* ── Inline-add quotation entry ───────────────────────────────────── */}
       {adding && (
-        <CardPad>
+        <div className="mt-4">
           <div
             className="flex flex-wrap items-end gap-3 rounded-[calc(var(--radius)-2px)] border border-border bg-secondary/35 p-3"
             data-testid="add-quotation-form"
@@ -315,7 +336,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               {t('procurement:quotes.add', 'Add quotation')}
             </Button>
           </div>
-        </CardPad>
+        </div>
       )}
 
       {/* ── Select-quote confirm dialog ──────────────────────────────────── */}
@@ -336,7 +357,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
         onConfirm={() => void confirmSelect()}
         onCancel={() => setSelectTarget(null)}
       />
-    </Card>
+    </section>
   );
 };
 

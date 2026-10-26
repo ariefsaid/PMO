@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -43,6 +43,7 @@ const quote = (n: number) => ({
 });
 
 beforeEach(() => listFiles.mockClear());
+afterEach(() => vi.unstubAllGlobals());
 
 describe('AC-OVERFETCH-003 VendorQuotesTab reuses the files the detail query embeds', () => {
   it('fires no per-quote file-list query and shows each quote\'s non-archived embedded files', () => {
@@ -109,5 +110,36 @@ describe('AC-OVERFETCH-003 VendorQuotesTab reuses the files the detail query emb
     expect(usdBest).toHaveTextContent('Best in currency');
     expect(idrNext).not.toHaveTextContent('Best in currency');
     expect(idrBest).not.toHaveTextContent('IDR');
+  });
+
+  it('AC-806 phone comparison rows show vendor/reference/status/date/value/evidence before Select', () => {
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }));
+    const qc = new QueryClient();
+    render(
+      <QueryClientProvider client={qc}>
+        <VendorQuotesTab
+          quotations={[{ ...quote(1), currency: 'IDR', total_amount: 2226648000, valid_until: '2026-12-31', reference: 'RFQ-4472' }] as never}
+          canAdd={false}
+          canSelect
+          onAdd={vi.fn()}
+          onSelect={vi.fn()}
+          onError={vi.fn()}
+          procurementId="proc-1"
+          currency="IDR"
+          canManageFiles={false}
+          currentUserId="u1"
+          vendorMap={{ v1: 'Vendor Nusantara' }}
+        />
+      </QueryClientProvider>,
+    );
+    const cards = screen.getByTestId('dt-card-branch');
+    const item = within(cards).getAllByRole('listitem').find((candidate) => within(candidate).queryByText('Vendor Nusantara'))!;
+    expect(item).toHaveTextContent('RFQ-4472');
+    expect(within(item).getByText('Best in currency')).toBeInTheDocument();
+    expect(item.querySelector('time')).toHaveAttribute('datetime', '2026-12-31');
+    expect(within(item).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(item).getByRole('button', { name: 'Select quote Vendor Nusantara' })).toBeInTheDocument();
+    expect(within(item).getByText('doc-1.pdf')).toBeInTheDocument();
+    expect(item).not.toHaveTextContent('IDR');
   });
 });

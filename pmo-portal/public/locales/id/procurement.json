@@ -82,6 +82,7 @@
       "select": "Pilih"
     },
     "selected": "Dipilih",
+    "notSelected": "Belum dipilih",
     "bestValueInCurrency": "Terbaik dalam mata uang",
     "selectedBestValue": "Dipilih · nilai terbaik",
     "bestValue": "Nilai terbaik",
@@ -140,6 +141,24 @@
     "approval_before_orderHelp": "Jika aktif, pesanan memerlukan permintaan yang disetujui lebih dulu.",
     "receipt_before_invoiceHelp": "Jika aktif, faktur vendor memerlukan penerimaan barang lebih dulu.",
     "approval_before_paymentHelp": "Jika aktif, pembayaran memerlukan jumlah yang disetujui lebih dulu."
+  },
+  "files": {
+    "headingCount": "Bukti · {{count}}",
+    "attach": "Lampirkan bukti",
+    "uploading": "Mengunggah {{percent}}%",
+    "loading": "Memuat bukti…",
+    "loadError": "Bukti tidak dapat dimuat.",
+    "empty": "Belum ada bukti terlampir.",
+    "attached": "Bukti dilampirkan",
+    "removed": "Bukti dihapus",
+    "preview": "Pratinjau {{name}}",
+    "previewAction": "Pratinjau",
+    "download": "Unduh {{name}}",
+    "downloadAction": "Unduh",
+    "remove": "Hapus {{name}}",
+    "removeAction": "Hapus",
+    "removeTitle": "Hapus bukti ini?",
+    "removeBody": "Ini menghapus \"{{name}}\" dari catatan ini. Bukti dapat diunggah lagi bila diperlukan."
   },
   "documents": {
     "attachTo": "Lampirkan ke",

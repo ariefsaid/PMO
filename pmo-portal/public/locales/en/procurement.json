@@ -82,6 +82,7 @@
       "select": "Select"
     },
     "selected": "Selected",
+    "notSelected": "Not selected",
     "bestValueInCurrency": "Best in currency",
     "selectedBestValue": "Selected · best value",
     "bestValue": "Best value",
@@ -140,6 +141,24 @@
     "approval_before_orderHelp": "When on, an order needs an approved request first.",
     "receipt_before_invoiceHelp": "When on, a vendor invoice needs a goods receipt first.",
     "approval_before_paymentHelp": "When on, a payment needs an approved amount first."
+  },
+  "files": {
+    "headingCount": "Evidence · {{count}}",
+    "attach": "Attach evidence",
+    "uploading": "Uploading {{percent}}%",
+    "loading": "Loading evidence…",
+    "loadError": "Couldn't load evidence.",
+    "empty": "No evidence attached.",
+    "attached": "Evidence attached",
+    "removed": "Evidence removed",
+    "preview": "Preview {{name}}",
+    "previewAction": "Preview",
+    "download": "Download {{name}}",
+    "downloadAction": "Download",
+    "remove": "Remove {{name}}",
+    "removeAction": "Remove",
+    "removeTitle": "Remove this evidence?",
+    "removeBody": "This removes \"{{name}}\" from this record. It can be uploaded again if needed."
   },
   "documents": {
     "attachTo": "Attach to",

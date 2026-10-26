@@ -72,22 +72,22 @@ describe('AC-PF-012 ProcurementFilesSubsection write affordances', () => {
 
     const { unmount } = renderSub({ canWrite: true });
     // Writer: an upload control exists.
-    expect(screen.getByLabelText(/attach a file/i)).toBeTruthy();
+    expect(screen.getByLabelText(/attach evidence/i)).toBeTruthy();
     // Writer: an archive (remove) control exists for the existing file.
-    expect(screen.getByRole('button', { name: /remove file/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /remove q\.pdf/i })).toBeTruthy();
     unmount();
 
     // Non-writer: no upload, no archive — download only.
     renderSub({ canWrite: false });
-    expect(screen.queryByLabelText(/attach a file/i)).toBeNull();
-    expect(screen.queryByRole('button', { name: /remove file/i })).toBeNull();
-    expect(screen.getByRole('button', { name: /download file/i })).toBeTruthy();
+    expect(screen.queryByLabelText(/attach evidence/i)).toBeNull();
+    expect(screen.queryByRole('button', { name: /remove q\.pdf/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /download .*\.pdf/i })).toBeTruthy();
   });
 
   it('AC-PF-012: empty state renders for a writer with no files', () => {
     hookState.files = [];
     renderSub({ canWrite: true });
-    expect(screen.getByText(/no files attached/i)).toBeTruthy();
+    expect(screen.getByText(/no evidence attached/i)).toBeTruthy();
   });
 });
 
@@ -99,10 +99,10 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     // File name shown.
     expect(screen.getByText(/report\.pdf/i)).toBeTruthy();
     // Download affordance present.
-    expect(screen.getByRole('button', { name: /download file/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /download .*\.pdf/i })).toBeTruthy();
 
     // Click archive → a ConfirmDialog appears, NOT an immediate archive.
-    fireEvent.click(screen.getByRole('button', { name: /remove file/i }));
+    fireEvent.click(screen.getByRole('button', { name: /remove .*report\.pdf/i }));
     expect(hookState.archive.mutate).not.toHaveBeenCalled();
     expect(await screen.findByRole('alertdialog')).toBeTruthy();
 
@@ -116,7 +116,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
 
   it('AC-PF-013: picking a file triggers upload.mutate with the chosen file', () => {
     renderSub({ canWrite: true });
-    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/attach evidence/i) as HTMLInputElement;
     const f = new File(['data'], 'spec.pdf', { type: 'application/pdf' });
     fireEvent.change(input, { target: { files: [f] } });
     expect(hookState.upload.mutate).toHaveBeenCalled();
@@ -127,7 +127,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     hookState.files = [{ id: 'f1', file_path: 'org-1/proc-1/quotation/file-1/report.pdf', title: null }];
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
     renderSub({ canWrite: false });
-    fireEvent.click(screen.getByRole('button', { name: /download file/i }));
+    fireEvent.click(screen.getByRole('button', { name: /download .*report\.pdf/i }));
     await waitFor(() => expect(hookState.download).toHaveBeenCalledWith(
       'org-1/proc-1/quotation/file-1/report.pdf',
       { download: true },
@@ -139,7 +139,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
   it('AC-PF-013: loading and error list states render', () => {
     hookState.isPending = true;
     const { unmount } = renderSub();
-    expect(screen.getByText(/loading attachments/i)).toBeTruthy();
+    expect(screen.getByText(/loading evidence/i)).toBeTruthy();
     unmount();
 
     hookState.isPending = false;
@@ -152,7 +152,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     hookState.files = [{ id: 'f1', file_path: 'org-1/proc-1/quotation/file-1/scan.png', title: null }];
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
     renderSub({ canWrite: false });
-    fireEvent.click(screen.getByRole('button', { name: /preview file/i }));
+    fireEvent.click(screen.getByRole('button', { name: /preview .*scan\.png/i }));
     await waitFor(() =>
       expect(hookState.download).toHaveBeenCalledWith(
         'org-1/proc-1/quotation/file-1/scan.png',
@@ -166,7 +166,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
     hookState.files = [{ id: 'f1', file_path: 'org-1/proc-1/quotation/file-1/q.pdf', title: null }];
     hookState.download.mockRejectedValueOnce(new Error('no signed url'));
     renderSub({ canWrite: false });
-    fireEvent.click(screen.getByRole('button', { name: /download file/i }));
+    fireEvent.click(screen.getByRole('button', { name: /download q\.pdf/i }));
     await waitFor(() => expect(hookState.download).toHaveBeenCalled());
     // no throw — the component caught it; the row is still present.
     expect(screen.getByText(/q\.pdf/i)).toBeTruthy();
@@ -179,7 +179,7 @@ describe('AC-PF-013 ProcurementFilesSubsection list + archive confirm', () => {
       opts?.onError?.(new Error('boom'));
     });
     renderSub({ canWrite: true });
-    const input = screen.getByLabelText(/attach a file/i) as HTMLInputElement;
+    const input = screen.getByLabelText(/attach evidence/i) as HTMLInputElement;
     const f = new File(['data'], 'spec.pdf', { type: 'application/pdf' });
     fireEvent.change(input, { target: { files: [f] } });
     expect(hookState.upload.mutate).toHaveBeenCalled();
