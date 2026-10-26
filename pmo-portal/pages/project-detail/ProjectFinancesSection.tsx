@@ -140,7 +140,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
   const invoiceBalanceNote = t(
     'projectFinances.invoiceBalanceClearedNote',
-    'Calculated as invoiced less ERP outstanding; receipt-backed cash is shown separately above.',
+    'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.',
   );
   const field = (label: string, value: React.ReactNode, basis?: React.ReactNode, labelTitle?: string) => (
     <div className="min-w-0">

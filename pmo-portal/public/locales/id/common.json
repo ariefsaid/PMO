@@ -4366,7 +4366,7 @@
   "projectFinances": {
     "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
     "clearedAgainstInvoices":"Terselesaikan menurut saldo tagihan",
-    "invoiceBalanceClearedNote":"Dihitung dari total tagihan dikurangi saldo terutang ERP; kas berbasis kuitansi ditampilkan terpisah di atas.",
+    "invoiceBalanceClearedNote":"Nilai yang dikliringkan ERP dihitung dari tagihan dikurangi saldo terutang ERP; jumlah ini dapat mencakup penyelesaian nonkas. Kas berbasis kuitansi ditampilkan terpisah di atas.",
     "stillToInvoice":"Belum ditagihkan", "exactRemaining":"Sisa pasti",
     "viewInvoices":"Lihat faktur", "invoiceRecordsInBilling":"Rincian faktur tersedia pada bagian Penagihan.",
     "margin":"Margin",

@@ -149,7 +149,7 @@ describe('ProjectFinancesSection reading states', () => {
     expect(within(cleared).getByText('100')).toBeInTheDocument();
     expect(within(outstanding).getByText('0')).toBeInTheDocument();
     expect(within(cash).getByText('USD 40')).toBeInTheDocument();
-    expect(billing.getByText(/Calculated as invoiced less ERP outstanding/)).toBeInTheDocument();
+    expect(billing.getByText(/ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement/)).toBeInTheDocument();
   });
 
   it('AC-PFIN-015 renders the Overview Billing and Spending groups in English and Indonesian without raw keys', async () => {
@@ -606,8 +606,8 @@ describe('ProjectFinancesSection reading states', () => {
         expect(cashField).toHaveTextContent(scope);
         expect(screen.getByText(language === 'en' ? 'Cleared against invoices' : localeI18n.t('projectFinances.clearedAgainstInvoices'))).toBeInTheDocument();
         expect(screen.getByText(language === 'en'
-          ? 'Calculated as invoiced less ERP outstanding; receipt-backed cash is shown separately above.'
-          : 'Dihitung dari total tagihan dikurangi saldo terutang ERP; kas berbasis kuitansi ditampilkan terpisah di atas.')).toBeInTheDocument();
+          ? 'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.'
+          : 'Nilai yang dikliringkan ERP dihitung dari tagihan dikurangi saldo terutang ERP; jumlah ini dapat mencakup penyelesaian nonkas. Kas berbasis kuitansi ditampilkan terpisah di atas.')).toBeInTheDocument();
         expect(screen.getAllByText(formatProjectDetailAmount('120.00', 'USD', language)!)).not.toHaveLength(0);
 
         if (reading.kind === 'zero') {
