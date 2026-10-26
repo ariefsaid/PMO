@@ -8,6 +8,8 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
+import { PageFrame } from '@/src/components/shell';
+import { breadcrumbForPath } from '@/src/components/shell/routeMatch';
 import { ToastProvider } from '@/src/components/ui';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -153,14 +155,18 @@ vi.mock('react-router', async (orig) => {
 // ── render helper ────────────────────────────────────────────────────────────
 const freshClient = () => new QueryClient({ defaultOptions: { queries: { retry: false } } });
 const renderAt = async (path: string) => {
+  const pathname = path.split('?')[0];
+  const breadcrumb = breadcrumbForPath(pathname, oppRecord.name, navigate, true);
   const view = render(
     <QueryClientProvider client={freshClient()}>
       <MemoryRouter initialEntries={[path]}>
         <ToastProvider>
-          <Routes>
-            <Route path="/projects/:projectId" element={<ProjectDetail />} />
-            <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
-          </Routes>
+          <PageFrame breadcrumb={breadcrumb} returnLabel="Projects">
+            <Routes>
+              <Route path="/projects/:projectId" element={<ProjectDetail />} />
+              <Route path="/projects/:projectId/:tab" element={<ProjectDetail />} />
+            </Routes>
+          </PageFrame>
         </ToastProvider>
       </MemoryRouter>
     </QueryClientProvider>,

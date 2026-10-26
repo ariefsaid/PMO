@@ -3,7 +3,7 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, useToast } from '@/src/components/ui';
+import { Button, ListState, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
@@ -15,9 +15,8 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
-import { listReturnNavigation } from '@/src/lib/listReturnContext';
-import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
-import PipelineLens from './PipelineLens';
+import ProjectDetailHeader from './ProjectDetailHeader';
+import PipelineLens, { type PipelinePrimaryAction } from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectSectionNavigation, { type ProjectSectionGroup } from './ProjectSectionNavigation';
@@ -229,7 +228,7 @@ const ProjectDetail: React.FC = () => {
     ? 'overview'
     : requestedTab === 'billing' && !canSeeBilling ? 'tasks' : requestedTab;
   const showPipelinePrimaryAction = pipelineGroup === 'pipeline' && tab === 'overview' && may('edit', 'project');
-  const [pipelinePrimaryActionTarget, setPipelinePrimaryActionTarget] = useState<HTMLDivElement | null>(null);
+  const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
   const setTab = (next: PTab) => {
     trackProjectTabViewed(next);
     // Preserve collection return context, section-level query state and task/WO anchors.
@@ -325,8 +324,7 @@ const ProjectDetail: React.FC = () => {
             {isPipelineRecord && (
               <PipelineLens
                 project={project}
-                primaryActionInHeader={showPipelinePrimaryAction}
-                primaryActionTarget={pipelinePrimaryActionTarget}
+                onPrimaryActionChange={showPipelinePrimaryAction ? setPipelinePrimaryAction : undefined}
                 phasePlanner={pipelineGroup === 'pipeline'
                   ? <MilestoneStrip projectId={project.id} compactWhenEmpty />
                   : undefined}
@@ -388,12 +386,22 @@ const ProjectDetail: React.FC = () => {
 
   return (
     <div className="min-w-0">
+      <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectDetailHeader
         project={project}
         onEditProject={openEditProject}
         isOverview={tab === 'overview'}
         showPipelinePrimaryAction={showPipelinePrimaryAction}
-        onPipelinePrimaryActionTargetChange={setPipelinePrimaryActionTarget}
+        primaryAction={showPipelinePrimaryAction && pipelinePrimaryAction && (
+          <Button
+            variant="primary"
+            disabled={pipelinePrimaryAction.disabled}
+            onClick={pipelinePrimaryAction.activate}
+            className="min-h-11 max-[920px]:w-full"
+          >
+            {pipelinePrimaryAction.label}
+          </Button>
+        )}
       />
 
       <div className="grid min-w-0 grid-cols-1 gap-5 min-[921px]:grid-cols-[13rem_minmax(0,1fr)] min-[921px]:gap-8">

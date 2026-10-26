@@ -106,6 +106,29 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Negotiation'));
   });
 
+  it('publishes the available win decision for the shared title slot at Negotiation', async () => {
+    const onPrimaryActionChange = vi.fn();
+    render(
+      <ImpersonationProvider realRole="Project Manager">
+        <ToastProvider>
+          <PipelineLens
+            project={{ ...dealRow, status: 'Negotiation' } as ProjectWithRefs}
+            onPrimaryActionChange={onPrimaryActionChange}
+          />
+        </ToastProvider>
+      </ImpersonationProvider>,
+    );
+
+    await waitFor(() => expect(onPrimaryActionChange).toHaveBeenLastCalledWith({
+      label: 'Mark won',
+      disabled: false,
+      activate: expect.any(Function),
+    }));
+    expect(screen.queryByRole('button', { name: 'Mark won' })).not.toBeInTheDocument();
+    onPrimaryActionChange.mock.calls.at(-1)?.[0].activate();
+    expect(await screen.findByLabelText('Customer contract reference')).toBeInTheDocument();
+  });
+
   it('AC-IXD-WP-004: clicking "Advance to <stage>" fires the transition on a SINGLE click — no confirm dialog', async () => {
     renderLens();
     const advance = screen.getByRole('button', { name: /Advance to/i });

@@ -2,7 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { TaxRateFields } from '@/src/components/ui/TaxRateFields';
 import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
 import React, { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import {
   RecordHeader,
@@ -39,7 +39,6 @@ import type { Role } from '@/src/auth/AuthContext';
 import { LEGAL_PROJECT_TRANSITIONS, ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
-import { listReturnNavigation, readListReturnContext } from '@/src/lib/listReturnContext';
 import { SALES_COLUMNS } from '../../components/salesPipeline';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 
@@ -66,7 +65,7 @@ export interface ProjectDetailHeaderProps {
   onEditProject?: () => void;
   isOverview?: boolean;
   showPipelinePrimaryAction?: boolean;
-  onPipelinePrimaryActionTargetChange?: (target: HTMLDivElement | null) => void;
+  primaryAction?: React.ReactNode;
 }
 
 /**
@@ -87,7 +86,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   onEditProject,
   isOverview = false,
   showPipelinePrimaryAction = false,
-  onPipelinePrimaryActionTargetChange,
+  primaryAction,
 }) => {
   const { t } = useTranslation();
   const projectStatusLabel = useProjectStatusLabel();
@@ -98,7 +97,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const { toast } = useToast();
   const { archive, remove, setContractValue } = useProjectMutations();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -300,25 +298,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       </div>
     </details>
   ) : null;
-  const actions = showPipelinePrimaryAction || statusIsPrimary || moreActions ? (
+  const actions = primaryAction || statusIsPrimary || moreActions ? (
     <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
-      {showPipelinePrimaryAction && <div
-        ref={onPipelinePrimaryActionTargetChange}
-        data-testid="pipeline-primary-action-slot"
-        className="w-full min-w-0 flex-1 [&>button]:min-h-11 [&>button]:w-full sm:w-auto sm:flex-none sm:[&>button]:w-auto"
-      />}
+      {primaryAction}
       {statusIsPrimary && <ProjectStatusControl project={project} triggerVariant="primary" />}
       {moreActions}
     </div>
   ) : undefined;
-
-  const salesReturn = readListReturnContext(location.state, 'sales');
-  const projectsReturn = readListReturnContext(location.state, 'projects');
-  const returnList = isPipelineRecord && (salesReturn || !projectsReturn) ? 'sales' : 'projects';
-  const returnNavigation = listReturnNavigation(location.state, returnList);
-  const returnLabel = returnList === 'sales'
-    ? t('projectDetail.pipeline.backToSalesPipeline', '← Back to Sales Pipeline')
-    : t('projectDetail.backToProjects', '← Back to Projects');
 
   /** Contract-value editor fields and SoD context appear only during an authorized edit. */
   const sodRow = isDelivery ? (
@@ -437,13 +423,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   return (
     <>
-      <Link
-        to={returnNavigation.path}
-        state={returnNavigation.state}
-        className="touch-target mb-1 inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-      >
-        {returnLabel}
-      </Link>
       <RecordHeader
         icon={(project.name.trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
