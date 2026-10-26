@@ -64,7 +64,11 @@
     "valueUnavailable": "Unavailable value; see portfolio data note",
     "withinBudget": "Within budget",
     "weightedPipeline": "Weighted pipeline",
-    "weightedPipelineCompact": "Weighted pipeline · {{figure}}"
+    "weightedPipelineCompact": "Weighted pipeline · {{figure}}",
+    "viewSourceDetails": "View source details",
+    "viewContractDetails": "View contract details",
+    "activeDelivery": "Active delivery",
+    "pipelineMarginUnavailableNote": "Pipeline forecast margin needs complete active budgets and a positive contract value in the same currency. Review open-project budgets."
   },
   "finance": {
     "account": "Account",

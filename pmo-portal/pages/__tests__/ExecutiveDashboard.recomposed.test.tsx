@@ -148,6 +148,27 @@ beforeEach(() => {
 });
 
 describe('Executive and Admin dashboard recomposition', () => {
+  it('D-2 divides the seed-shaped forecast margin amount by same-currency pipeline value', () => {
+    view.data = { ...dashboard, pipeline_projected_margin: null, pipeline_total_value_by_currency: [
+      { currency: 'USD', total_value: 4_000_000, weighted_value: 1_600_000, forecast_margin: 400_000, no_active_budget: 0 },
+    ] };
+    renderPage();
+    const pipeline = screen.getByTestId('dashboard-pipeline');
+    expect(pipeline).toHaveTextContent('10.0%');
+    expect(pipeline).not.toHaveTextContent('40000000.0%');
+  });
+
+  it('D-2 keeps forecast margin unavailable when any budget basis is missing', () => {
+    view.data = { ...dashboard, pipeline_projected_margin: null, pipeline_total_value_by_currency: [
+      { currency: 'USD', total_value: 4_000_000, weighted_value: 1_600_000, forecast_margin: 400_000, no_active_budget: 1 },
+    ] };
+    renderPage();
+    const pipeline = screen.getByTestId('dashboard-pipeline');
+    expect(pipeline).toHaveTextContent('—');
+    expect(pipeline).not.toHaveTextContent('40000000.0%');
+    expect(pipeline).not.toHaveTextContent('0.0%');
+  });
+
   it('AC-806-EXEC-ORDER-001 keeps attention, delivery, invoiceable work, pipeline, and purchasing in target order', () => {
     renderPage();
     const attention = screen.getByRole('heading', { name: 'Attention and approvals' });
@@ -197,7 +218,7 @@ describe('Executive and Admin dashboard recomposition', () => {
     expect(within(delivery).getByText('How figures are measured')).toBeInTheDocument();
   });
 
-  it('AC-806-EXEC-HIERARCHY-001 sets one currency in each position head and keeps exact rows unit-free', () => {
+  it('AC-806-EXEC-HIERARCHY-001 keeps currency identity on mixed-currency figures and unavailable slots', () => {
     view.data = {
       ...dashboard,
       total_contract_value: null,
@@ -214,10 +235,11 @@ describe('Executive and Admin dashboard recomposition', () => {
     renderPage();
     const usd = screen.getByTestId('dashboard-delivery-position-USD');
     const idr = screen.getByTestId('dashboard-delivery-position-IDR');
-    expect(usd.textContent?.match(/USD/g)).toHaveLength(1);
-    expect(idr.textContent?.match(/IDR/g)).toHaveLength(1);
+    expect(usd).toHaveTextContent('USD');
+    expect(idr).toHaveTextContent('IDR');
+    expect(within(idr).getAllByRole('link', { name: /IDR:/ }).length).toBeGreaterThan(0);
     expect(within(idr).getByText('2,226,648,000')).toBeInTheDocument();
-    expect(within(usd).getByText('5,000')).toBeInTheDocument();
+    expect(within(usd).getAllByText('5,000').length).toBeGreaterThan(0);
   });
 
   it('AC-806-EXEC-SPEND-001 puts known risk first, names unknown risk, and preserves the project destination', () => {

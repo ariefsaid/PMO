@@ -64,7 +64,11 @@
     "valueUnavailable": "Nilai tidak tersedia; lihat catatan data portofolio",
     "withinBudget": "Dalam anggaran",
     "weightedPipeline": "Pipeline tertimbang",
-    "weightedPipelineCompact": "Pipeline tertimbang · {{figure}}"
+    "weightedPipelineCompact": "Pipeline tertimbang · {{figure}}",
+    "viewSourceDetails": "Lihat detail sumber",
+    "viewContractDetails": "Lihat detail kontrak",
+    "activeDelivery": "Pelaksanaan aktif",
+    "pipelineMarginUnavailableNote": "Margin proyeksi pipeline memerlukan anggaran aktif lengkap dan nilai kontrak positif dalam mata uang yang sama. Tinjau anggaran proyek terbuka."
   },
   "finance": {
     "account": "Akun",

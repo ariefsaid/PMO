@@ -12,6 +12,20 @@ export async function screenshotMainContent(page, file) {
     return { mainHeight, headerHeight };
   });
 
+  // Keep overlapping captures of the real scrollport as review evidence. Expanding
+  // the shell alone can miss content painted only when its original scroller moves.
+  const originalScrollTop = await main.evaluate((element) => element.scrollTop);
+  const viewportHeight = await main.evaluate((element) => element.clientHeight);
+  const step = Math.max(1, viewportHeight - 96);
+  let part = 1;
+  for (let top = 0; top < dimensions.mainHeight; top += step) {
+    await main.evaluate((element, offset) => { element.scrollTop = offset; }, top);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await main.screenshot({ path: file.replace(/\.png$/, `-part-${String(part++).padStart(2, '0')}.png`) });
+    if (top + viewportHeight >= dimensions.mainHeight) break;
+  }
+  await main.evaluate((element, top) => { element.scrollTop = top; }, originalScrollTop);
+
   await shell.evaluate((element, { mainHeight, headerHeight }) => {
     element.style.setProperty('height', 'auto', 'important');
     element.style.setProperty('min-height', '0', 'important');

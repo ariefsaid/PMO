@@ -78,6 +78,13 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('Executive dashboard localized figures', () => {
+  it('D-1 renders the active-project row without raw interpolation placeholders', () => {
+    renderDashboard();
+    const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
+    expect(delivery.textContent).not.toContain('{{');
+    expect(delivery).toHaveTextContent('1 proyek aktif');
+  });
+
   it('formats a complete Actual using the organization number locale and preserves its currency', () => {
     renderDashboard();
     const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });

@@ -108,7 +108,7 @@ const ExecutiveAttention: React.FC<{
 
   return (
     <section aria-labelledby="executive-attention-title" className="border-b border-border pb-4" data-testid="dashboard-attention">
-      <h2 id="executive-attention-title" className="mb-2 text-xl font-bold">
+      <h2 id="executive-attention-title" className="mb-2 text-xs font-semibold text-muted-foreground">
         {t('uxs03.attentionAndApprovals', 'Attention and approvals')}
       </h2>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-6">
@@ -165,8 +165,8 @@ const DeliveryBook: React.FC<{
     .some((row) => row.value === null || !Number.isFinite(row.value));
   const remainingUnavailable = remaining.some((row) => row.value === null || !Number.isFinite(row.value));
   const marginUnavailable = margin.some((row) => row.value === null || !Number.isFinite(row.value));
-  const incompleteMargin = (data?.on_hand_realized_margin_by_currency ?? []).some((row) => row.unknown_projects > 0)
-    || (data?.pipeline_total_value_by_currency ?? []).some((row) => row.forecast_margin === null || row.no_active_budget > 0);
+  const incompleteMargin = (data?.on_hand_realized_margin_by_currency ?? []).some((row) => row.unknown_projects > 0);
+  const pipelineMarginUnavailable = (data?.pipeline_total_value_by_currency ?? []).some((row) => row.forecast_margin === null || row.no_active_budget > 0 || row.total_value <= 0);
   const mapNote = canManageAccounting
     ? <Link to="/administration/accounting#budget-account-map" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-2 hover:underline">{t('uxs03.openAccountingMap', 'Review accounting mappings')}</Link>
     : <span>{t('exec.askAdministrator', 'Ask an administrator to complete missing budget or accounting data.')}</span>;
@@ -179,6 +179,9 @@ const DeliveryBook: React.FC<{
       : null,
     remainingUnavailable
       ? t('exec.remainingUnavailableNote', 'Contract remaining needs complete Actual in the same currency.')
+      : null,
+    pipelineMarginUnavailable
+      ? t('exec.pipelineMarginUnavailableNote', 'Pipeline forecast margin needs complete active budgets and a positive contract value in the same currency. Review open-project budgets.')
       : null,
     incompleteMargin || marginUnavailable
       ? t('exec.incompleteMarginNote', 'Margin on billed work excludes projects whose Actual, billing, or budget basis is incomplete.')
@@ -196,16 +199,16 @@ const DeliveryBook: React.FC<{
     value === null || value === undefined || !Number.isFinite(value)
       ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end underline underline-offset-2" href={href} title={reason} aria-label={reason}>—</a>
       : <span>{formatNumberExact(value)}</span>;
-  const fact = (label: string, value: number | null | undefined, reason: string, href?: string) => (
-    <div key={label} className="flex min-w-0 items-baseline justify-between gap-3">
+  const fact = (label: string, value: number | null | undefined, reason: string, href?: string, currencyCode?: string, options: { fullLine?: boolean; testId?: string } = {}) => (
+    <div key={label} data-testid={options.testId} className={`${options.fullLine ? 'col-span-2 sm:col-span-1 ' : ''}grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-3`}>
       <dt className="min-w-0 text-xs font-semibold text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 text-right text-sm tabular">{exactValue(value, reason, href)}</dd>
+      <dd className="min-w-0 whitespace-nowrap text-sm tabular sm:text-right">{currencyRows.length > 1 && currencyCode && (value === null || value === undefined || !Number.isFinite(value)) && <span>{currencyCode}{' '}</span>}{exactValue(value, currencyCode ? `${currencyCode}: ${reason}` : reason, href)}</dd>
     </div>
   );
 
   return (
     <section aria-labelledby="executive-delivery-title" className="space-y-4" data-testid="dashboard-delivery-book">
-      <h2 id="executive-delivery-title" className="text-xl font-bold">{t('exec.deliveryBook', 'Delivery book')}</h2>
+      <h2 id="executive-delivery-title" className="text-xs font-semibold text-muted-foreground">{t('exec.deliveryBook', 'Delivery book')}</h2>
       {isPending && !data ? (
         <ListState variant="loading" rows={5} />
       ) : isError && !data ? (
@@ -232,23 +235,20 @@ const DeliveryBook: React.FC<{
                   <h3 id={groupId} className={`mb-3 text-xl font-bold tabular ${index === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
                     {t('dashboard:exec.contractValueOnHandCompact', 'Contract value on hand · {{figure}}', { figure: compactFigure })}
                   </h3>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                    {fact(t('dashboard:exec.exactContractValueOnHand', 'Exact on-hand value'), primary, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
-                    {hasActive && <div className="contents">
-                      {fact(t('uxs03.activeContractValue', 'Active contract value'), valueFor(activeContracts), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
-                      <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:kpi.activeProjectsCount', 'Active projects')}</dt>
-                      <dd className="text-right text-sm tabular">{formatNumber(data.active_projects)}</dd>
-                    </div>}
-                    <div className="contents" data-testid={index === 0 ? 'dashboard-known-actual' : undefined}>
-                      {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}
-                    </div>
-                    {fact(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
+                    {fact(t('dashboard:exec.exactContractValueOnHand', 'Exact on-hand value'), primary, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode, { fullLine: true })}
+                    {hasActive && <>
+                      {fact(t('uxs03.activeContractValue', 'Active contract value'), valueFor(activeContracts), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode)}
+                      <div><dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.activeDelivery', 'Active delivery')}</dt><dd className="text-sm">{t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}</dd></div>
+                    </>}
+                    {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note', currencyCode, { testId: index === 0 ? 'dashboard-known-actual' : undefined })}
+                    {fact(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode)}
                     {fact(
                       (data.on_hand_realized_margin_by_currency ?? []).some((row) => row.currency === currencyCode && row.unknown_projects > 0)
                         ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
                         : t('uxs03.realizedMargin', 'Margin on billed work'),
                       valueFor(margin),
-                      t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'),
+                      t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode,
                     )}
                   </dl>
                 </section>
@@ -257,13 +257,13 @@ const DeliveryBook: React.FC<{
           </div>
           {actualIncomplete && (
             <aside id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="pt-3 text-sm text-muted-foreground">
-              <p className="text-xs font-semibold text-foreground">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')}</p>
+              <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')} · {t('dashboard:exec.viewSourceDetails', 'View source details')}</summary>
               <p className="mt-1">
                 {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
                 {' · '}
                 {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
                 {' · '}{mapNote}
-              </p>
+              </p></details>
             </aside>
           )}
 
@@ -288,8 +288,8 @@ const DeliveryBook: React.FC<{
           </div>}
 
           <details className="group border-t border-border pt-2">
-          <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              {t('dashboard:exec.howFiguresMeasured', 'How figures are measured')}
+          <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              <span>{t('dashboard:exec.howFiguresMeasured', 'How figures are measured')}</span> · {t('dashboard:exec.viewSourceDetails', 'View source details')}
             </summary>
             <dl className="grid gap-x-6 gap-y-3 py-3 text-sm sm:grid-cols-2">
               <div><dt className="text-xs font-semibold">{t('uxs03.contractValueOnHand', 'Contract value on hand')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.onHandDefinition', 'Contract value for won, on-hold, delivery, and closed-out work, shown by currency.')}</dd></div>
@@ -331,7 +331,8 @@ const PipelineSection: React.FC<{
     currency: row.currency,
     weightedValue: row.weighted_value,
     grossValue: row.total_value,
-    forecastMargin: row.forecast_margin,
+    forecastMargin: row.no_active_budget === 0 && row.forecast_margin !== null && Number.isFinite(row.forecast_margin) && row.total_value > 0
+      ? row.forecast_margin / row.total_value : null,
   }));
   const mixedCurrency = currencyTotals.length > 1;
 
@@ -350,9 +351,9 @@ const PipelineSection: React.FC<{
             <ListState variant="loading" rows={4} />
           ) : pipeline ? (
             <ProjectedMarginBars
-              projectedMargin={mixedCurrency ? null : data?.pipeline_projected_margin ?? null}
+              projectedMargin={currencyTotals.length ? (currencyTotals.length === 1 ? currencyTotals[0].forecastMargin : null) : data?.pipeline_projected_margin ?? null}
               stages={pipeline.stages}
-              currency={currency}
+              currency={currencyTotals.length === 1 ? currencyTotals[0].currency : currency}
               currencyTotals={currencyTotals}
               allowStageBars={!mixedCurrency}
             />

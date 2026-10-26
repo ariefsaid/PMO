@@ -11,6 +11,7 @@ import { isActualComplete } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { pillVariantForProjectStatus } from '@/components/projects';
 import type { TopProject } from '@/src/lib/db/dashboard';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
 import { executiveRiskState, sortExecutiveProjects } from './executiveProjectOrder';
 
 export interface BvACardProps {
@@ -26,6 +27,7 @@ export interface BvACardProps {
 export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending = false, isError = false, onRetry }) => {
   const { t } = useTranslation();
   const statusLabel = useProjectStatusLabel();
+  const narrow = useIsNarrow();
   const rows = useMemo(() => sortExecutiveProjects(projects), [projects]);
   const groups = useMemo(() => {
     const grouped = new Map<string, TopProject[]>();
@@ -146,6 +148,24 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           <h3 id={`executive-spending-${groupCurrency.toLowerCase()}`} className="mb-2 text-xl font-bold">
             {t('dashboard:exec.spendingCurrencyGroup', '{{currency}} spending comparison', { currency: groupCurrency })}
           </h3>
+          {narrow && !isPending && !isError ? (
+            <ul aria-label={t('dashboard:exec.spendingComparisonForCurrency', '{{currency}} spending comparison', { currency: groupCurrency })} className="divide-y divide-border">
+              {groupRows.map((project) => {
+                const columns = columnsFor(groupCurrency);
+                return <li key={project.id} className="space-y-2 py-3 text-sm">
+                  <div className="font-semibold">{columns[0].cell(project)}</div>
+                  {columns[1].cell(project)}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                    <div className="min-w-0"><span className="text-xs font-semibold text-muted-foreground">{columns[2].header}</span>{columns[2].cell(project)}</div>
+                    {columns[4].cell(project)}
+                  </div>
+                  <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.viewContractDetails', 'View contract details')}</summary>
+                    <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3"><dt className="text-xs font-semibold text-muted-foreground">{columns[3].header}</dt><dd className="text-right tabular">{columns[3].cell(project)}</dd></dl>
+                  </details>
+                </li>;
+              })}
+            </ul>
+          ) : (
           <DataTable<TopProject>
             rows={groupRows}
             columns={columnsFor(groupCurrency)}
@@ -157,6 +177,7 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
             onRetry={onRetry}
             tableId={`components-dashboard-executive-delivery-v2-${groupCurrency.toLowerCase()}`}
           />
+          )}
         </section>
       ))}
       {groups.length === 0 && (isPending || isError || projects.length === 0) && (
