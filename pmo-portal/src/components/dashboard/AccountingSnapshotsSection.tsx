@@ -1,11 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
-import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
 import { AccountingSnapshotProvenance } from '@/src/components/AccountingSnapshotProvenance';
-import { formatCurrency } from '@/src/lib/format';
+import { formatNumberExact } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
@@ -27,6 +26,8 @@ export interface AccountingSnapshotsSectionProps {
   showApAging?: boolean;
   showArAging?: boolean;
   compactEmpty?: boolean;
+  /** One named path to the scoped report remedy when the visible collections block is empty. */
+  compactEmptyAction?: React.ReactNode;
   ariaLabel?: string;
   arTitle?: string;
   actuals: ErpActualsSnapshotRow[];
@@ -51,8 +52,19 @@ const agingValue = (value: number | null, currency: string | null, unavailable: 
   if (value === null || !currency || !/^[A-Z]{3}$/.test(currency)) {
     return <span className="text-muted-foreground">{unavailable}</span>;
   }
-  return <span>{formatCurrency(value, currency)}</span>;
+  return <span>{formatNumberExact(value)}</span>;
 };
+
+function groupAgingRows(rows: ErpAgingSnapshotRow[]) {
+  const groups = new Map<string, ErpAgingSnapshotRow[]>();
+  for (const row of rows) {
+    const currency = row.currency && /^[A-Z]{3}$/.test(row.currency) ? row.currency : 'Unavailable';
+    const group = groups.get(currency) ?? [];
+    group.push(row);
+    groups.set(currency, group);
+  }
+  return [...groups.entries()];
+}
 
 const agingRowKey = (row: ErpAgingSnapshotRow) => [
   row.snapshotId,
@@ -154,13 +166,13 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
   },
   {
     key: 'net',
-    header: t('dashboard:finance.net', 'Net'),
+    header: `${t('dashboard:finance.net', 'Net')} · ${orgCurrency}`,
     align: 'num',
     cell: (r) => r.net === null || !Number.isFinite(r.net) ? (
       <span className="text-muted-foreground" title={t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
         —<span className="sr-only"> {t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
       </span>
-    ) : <span className="font-semibold">{formatCurrency(r.net, orgCurrency)}</span>,
+    ) : <span className="font-semibold">{formatNumberExact(r.net)}</span>,
   },
 ];
 
@@ -182,6 +194,8 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   errorLabel,
   detail,
   compactEmpty,
+  compactEmptyAction,
+  currencyGroups,
 }: {
   title: string;
   emptyLabel: string;
@@ -199,34 +213,50 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
   compactEmpty?: boolean;
+  compactEmptyAction?: React.ReactNode;
+  currencyGroups?: [string, Row[]][];
 }) {
   const first = rows[0];
   return (
-    <Card seam>
-      <CardHead className="rounded-t-lg">{title}</CardHead>
-      <div className="px-4 pb-4 pt-2">
+    <section aria-label={title} className="space-y-4">
+      <h3 className="text-xl font-bold">{title}</h3>
         {first && (
           <AccountingSnapshotProvenance
             asOf={first.asOf}
             sourceReport={first.sourceReport}
             reportVersion={reportVersion}
-            className={detail ? 'mb-1' : 'mb-2.5'}
+            className={detail ? '' : 'mb-2.5'}
           />
         )}
-        {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
+        {first && detail && <p className="text-[0.6875rem] font-semibold text-muted-foreground">{detail}</p>}
         {isError ? (
           <ListState variant="error" title={errorLabel} onRetry={onRetry} />
         ) : pending ? (
           <ListState variant="loading" rows={3} />
         ) : rows.length === 0 ? (
           compactEmpty
-            ? <p role="status" data-testid="accounting-snapshot-empty" className="text-sm text-muted-foreground">{emptyLabel}</p>
+            ? <p role="status" data-testid="accounting-snapshot-empty" className="text-sm text-muted-foreground">{emptyLabel}{compactEmptyAction && <> · {compactEmptyAction}</>}</p>
             : <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
+        ) : currencyGroups ? (
+          <div className="space-y-4">
+            {currencyGroups.map(([groupCurrency, groupRows]) => (
+              <section key={groupCurrency} aria-label={`${title} · ${groupCurrency}`}>
+                <h4 className="mb-2 text-xl font-bold">{groupCurrency}</h4>
+                <DataTable<Row>
+                  rows={groupRows}
+                  columns={columns}
+                  rowKey={rowKey}
+                  accessibleName={`${title} · ${groupCurrency}`}
+                  className="rounded-none border-0 bg-transparent"
+                  tableId={`${tableId}-${groupCurrency.toLowerCase()}`}
+                />
+              </section>
+            ))}
+          </div>
         ) : (
           <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
         )}
-      </div>
-    </Card>
+    </section>
   );
 }
 
@@ -249,6 +279,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   showApAging = true,
   showArAging = true,
   compactEmpty = false,
+  compactEmptyAction,
   ariaLabel,
   arTitle,
 }) => {
@@ -337,6 +368,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
+      currencyGroups={groupAgingRows(orderedApAging)}
       reportVersion={apAging[0]?.reportVersion}
       detail={agingDetail(apAging)}
       compactEmpty={compactEmpty}
@@ -354,9 +386,11 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}
+      currencyGroups={groupAgingRows(orderedArAging)}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
       compactEmpty={compactEmpty}
+      compactEmptyAction={compactEmptyAction}
     />}
   </section>
   );

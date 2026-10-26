@@ -5,6 +5,8 @@ import { BahasaProvider } from '@/test/bahasa';
 import { MemoryRouter } from 'react-router';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
+const section = (name: string) => screen.getByRole('region', { name });
+
 // FR-L10N-020: aging rows carry the ERP document's own (nullable) currency; actuals fall back
 // to the org currency. Org mocked to USD — assertions stay `$…` for USD-denominated rows.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
@@ -99,6 +101,12 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
     expect(screen.queryByText(/No actuals snapshot yet.*snapshot/i)).not.toBeInTheDocument();
   });
 
+  it('offers the named collection remedy once inside the compact empty result', () => {
+    render(<AccountingSnapshotsSection {...emptyProps} compactEmpty compactEmptyAction={<a href="/companies/oldest#collections">Review collections</a>} />);
+    expect(screen.getAllByRole('status')).toHaveLength(3);
+    expect(screen.getByRole('link', { name: 'Review collections' })).toHaveAttribute('href', '/companies/oldest#collections');
+  });
+
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot without repeating the page remedy', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
     expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
@@ -111,7 +119,7 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
 describe('AccountingSnapshotsSection — populated state', () => {
   it('AC-RD-FIN-001: keeps a missing Net unknown with a non-visible reason', () => {
     render(<AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, net: null }]} />);
-    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const actuals = section('Actuals (ERP ledger)');
     expect(within(actuals).getByText('—')).toHaveAttribute('title', 'The source snapshot did not supply a Net value.');
     expect(within(actuals).getByText(/source snapshot did not supply a net value/i)).toHaveClass('sr-only');
     expect(within(actuals).queryByText('$0')).not.toBeInTheDocument();
@@ -119,7 +127,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
   it('AC-RD-FIN-002: identifies the project for each actuals row and never exposes an unknown UUID', () => {
     render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={[{ ...actualsRows[0]!, projectId: 'project-17' }]} actualProjectNames={new Map([['project-17', 'Synthetic Project']])} /></MemoryRouter>);
-    const actuals = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const actuals = section('Actuals (ERP ledger)');
     expect(within(actuals).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(within(actuals).getByRole('link', { name: 'Synthetic Project' })).toHaveAttribute('href', '/projects/project-17');
 
@@ -149,7 +157,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
     );
     // Ledger-sourced-display rule (ADR-0048): the mirrored `net`/`total_outstanding` figures render
     // verbatim — no PMO-side recomputation.
-    expect(screen.getByText('$10,000')).toBeInTheDocument();
+    expect(within(section('Actuals (ERP ledger)')).getByText('10,000')).toBeInTheDocument();
     expect(screen.getByText('Acme Vendor')).toBeInTheDocument();
     expect(screen.getByText('Beta Client')).toBeInTheDocument();
   });
@@ -160,9 +168,9 @@ describe('AccountingSnapshotsSection — populated state', () => {
       bucket0to30: 0, bucket31to60: 0, bucket61to90: 0, bucketOver90: 0,
     }];
     render(<AccountingSnapshotsSection {...emptyProps} apAging={zeroRows} />);
-    const apCard = screen.getByText('No outstanding balance').closest('.rounded-lg.border') as HTMLElement;
+    const apCard = section('Vendor payables (AP) · USD');
     expect(within(apCard).queryByText(/No aging data to show yet/i)).not.toBeInTheDocument();
-    expect(within(apCard).getAllByText('$0')).toHaveLength(6);
+    expect(within(apCard).getAllByText('0')).toHaveLength(6);
   });
 
   it('AC-806-FIN-AGING-001 sorts customer aging by oldest bucket within currency with stable party ties', () => {
@@ -173,7 +181,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
       { ...arRows[0]!, party: 'Customer:Older tie', bucket0to30: 0, bucket61to90: 40, bucketOver90: 0 },
     ];
     render(<AccountingSnapshotsSection {...emptyProps} arAging={rows} />);
-    const card = screen.getByText('Customer collections (AR)').closest('.rounded-lg.border') as HTMLElement;
+    const card = section('Customer collections (AR) · USD');
     const parties = Array.from(within(card).getByRole('table').querySelectorAll('tbody tr'))
       .map((row) => row.textContent ?? '');
     expect(parties[0]).toContain('Customer:Severe');
@@ -189,7 +197,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
       { ...actualsRows[0]!, projectId: 'p1', account: 'A account', fiscalYear: '2026' },
     ];
     render(<MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={rows} actualProjectNames={new Map([['p1', 'Alpha'], ['p2', 'Beta']])} /></MemoryRouter>);
-    const actualsCard = screen.getByText('Actuals (ERP ledger)').closest('.rounded-lg.border') as HTMLElement;
+    const actualsCard = section('Actuals (ERP ledger)');
     const ordered = Array.from(within(actualsCard).getByRole('table').querySelectorAll('tbody tr'))
       .map((row) => row.textContent ?? '');
     expect(ordered[0]).toContain('Alpha');
@@ -218,7 +226,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
     render(<AccountingSnapshotsSection {...emptyProps} arAging={[unknownRow]} />);
 
-    const arCard = screen.getByText('C-0001').closest('.rounded-lg.border') as HTMLElement;
+    const arCard = section('Customer collections (AR)');
     expect(within(arCard).getAllByText('Unavailable').length).toBeGreaterThanOrEqual(6);
     expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
     expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
@@ -233,7 +241,7 @@ describe('AccountingSnapshotsSection — populated state', () => {
       ...arRows[0]!, party, reportDate: '2026-07-11', ageingBasedOn: 'Posting Date',
     }));
     render(<AccountingSnapshotsSection {...emptyProps} arAging={rows} />);
-    const arCard = screen.getByText('C-1').closest('.rounded-lg.border') as HTMLElement;
+    const arCard = section('Customer collections (AR)');
     expect(within(arCard).getAllByText(/2026-07-11/)).toHaveLength(1);
     expect(within(arCard).getAllByText(/Posting Date/)).toHaveLength(1);
     expect(within(arCard).queryByText(/ERP ranges/)).not.toBeInTheDocument();
@@ -250,12 +258,29 @@ describe('AccountingSnapshotsSection — populated state', () => {
 
     render(<AccountingSnapshotsSection {...emptyProps} arAging={sharedPartyRows} />);
 
-    expect(screen.queryByText('USD')).not.toBeInTheDocument();
-    expect(screen.queryByText('CAD')).not.toBeInTheDocument();
-    expect(screen.getByText('$100')).toBeInTheDocument();
-    expect(screen.getByText('CA$200')).toBeInTheDocument();
-    const arCard = screen.getAllByText('Shared ERP Party')[0]!.closest('.rounded-lg.border') as HTMLElement;
-    expect(within(arCard).getAllByRole('row')).toHaveLength(3);
+    expect(screen.getByRole('region', { name: 'Customer collections (AR) · USD' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Customer collections (AR) · CAD' })).toBeInTheDocument();
+    expect(within(section('Customer collections (AR) · USD')).getByText('100')).toBeInTheDocument();
+    expect(within(section('Customer collections (AR) · CAD')).getByText('200')).toBeInTheDocument();
+    expect(within(section('Customer collections (AR) · USD')).getAllByRole('row')).toHaveLength(2);
+    expect(within(section('Customer collections (AR) · CAD')).getAllByRole('row')).toHaveLength(2);
+  });
+
+  it('keeps currency and basis in one group head and shows exact unitless amounts in the rows', () => {
+    const mixedRows: ErpAgingSnapshotRow[] = [
+      { ...arRows[0]!, party: 'Customer IDR', currency: 'IDR', totalOutstanding: 2_226_648_000 },
+      { ...arRows[0]!, party: 'Customer USD', currency: 'USD', totalOutstanding: 38_500 },
+    ];
+    render(<AccountingSnapshotsSection {...emptyProps} arAging={mixedRows} />);
+
+    const idr = section('Customer collections (AR) · IDR');
+    const usd = section('Customer collections (AR) · USD');
+    expect(within(idr).getByRole('heading', { name: 'IDR' })).toBeInTheDocument();
+    expect(within(idr).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(usd).getByRole('heading', { name: 'USD' })).toBeInTheDocument();
+    expect(within(usd).getByText('38,500')).toBeInTheDocument();
+    expect(within(idr).queryByText(/IDR.*2,226,648,000/)).not.toBeInTheDocument();
+    expect(within(usd).queryByText(/USD.*38,500/)).not.toBeInTheDocument();
   });
 
   it('renders the AccountingSnapshotProvenance strip for each populated snapshot', () => {
