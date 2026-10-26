@@ -1,0 +1,15 @@
+/* Work route controls use separated phone targets; desktop control tokens stay intact. */
+@media (max-width: 767px) {
+  .work-surface :is(button, select, input:not([type="checkbox"]):not([type="radio"]), summary, [role="combobox"], [role="tab"]) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  .work-surface summary {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+  }
+  .work-surface button.touch-target::before {
+    content: none;
+  }
+}

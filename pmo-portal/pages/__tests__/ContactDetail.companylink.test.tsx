@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -110,11 +110,7 @@ describe('ContactDetail — Company field link (AC-JR-W1-13)', () => {
     // No matching company — shows em-dash
     renderPage();
     expect(screen.queryByRole('link', { name: /apex corp/i })).not.toBeInTheDocument();
-    // "—" present in the Company dd
-    const companyDt = screen.getByText('Company');
-    const companyDd =
-      companyDt.closest('[class]')?.querySelector('dd') ??
-      companyDt.parentElement?.querySelector('dd');
-    expect(companyDd?.textContent).toBe('—');
+    // The company now belongs to record scope, without a duplicate fact row.
+    expect(within(screen.getByTestId('record-header')).getByText('—')).toBeInTheDocument();
   });
 });

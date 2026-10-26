@@ -107,6 +107,18 @@ describe('LoginPage', () => {
     expect(follows(signIn, magicLink)).toBe(true);
   });
 
+  it('R-048/R-049: keeps demo sign-in closed and labels the primary entry in the selected locale', async () => {
+    vi.stubEnv('VITE_DEMO_MODE', 'true');
+    renderLogin();
+    const details = screen.getByText('Show demo sign-in options').closest('details');
+    expect(details).not.toHaveAttribute('open');
+    expect(within(details as HTMLElement).queryByText(/Demo password/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Email')).toBeInTheDocument();
+    expect(screen.getByLabelText('Password')).toBeInTheDocument();
+    await userEvent.click(screen.getByText('Show demo sign-in options'));
+    expect(within(details as HTMLElement).getByText(/Demo password/i)).toBeInTheDocument();
+  });
+
   it('shows an inline error on invalid credentials (AC-AUTH-004)', async () => {
     auth.signInWithPassword.mockResolvedValue({ error: { message: 'Invalid login credentials' } });
     renderLogin();
@@ -240,10 +252,11 @@ describe('LoginPage', () => {
   it('demo panel: shows the demo password and admin fill button (VITE_DEMO_MODE)', async () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
-    // Password hint is visible
-    expect(screen.getByText(/password: Passw0rd!dev/i)).toBeInTheDocument();
-    // Admin persona button is present (matched by visible label) and fills admin@ credentials
-    await userEvent.click(screen.getByRole('button', { name: /Admin/i }));
+    const disclosure = screen.getByText('Show demo sign-in options');
+    expect(disclosure.closest('details')).not.toHaveAttribute('open');
+    await userEvent.click(disclosure);
+    expect(screen.getByText(/Demo password: Passw0rd!dev/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Admin demo sign-in/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('admin@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
     vi.unstubAllEnvs();
@@ -263,6 +276,7 @@ describe('LoginPage', () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
 
+    await userEvent.click(screen.getByText('Show demo sign-in options'));
     // All 5 persona fill buttons must be present — matched by visible label (WCAG 2.5.3)
     const personas = [
       { email: 'exec@acme.test',     label: /Executive/i },
@@ -277,12 +291,12 @@ describe('LoginPage', () => {
     }
 
     // Clicking Executive button fills exec@ credentials
-    await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Executive demo sign-in/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('exec@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
 
     // Clicking Engineer button switches credentials
-    await userEvent.click(screen.getByRole('button', { name: /Engineer/i }));
+    await userEvent.click(screen.getByRole('button', { name: /Engineer demo sign-in/i }));
     expect(screen.getByLabelText(/email/i)).toHaveValue('engineer@acme.test');
     expect(screen.getByLabelText(/password/i)).toHaveValue('Passw0rd!dev');
 
@@ -302,7 +316,8 @@ describe('LoginPage', () => {
     vi.stubEnv('VITE_DEMO_MODE', 'true');
     renderLogin();
 
-    await userEvent.click(screen.getByRole('button', { name: /Executive/i }));
+    await userEvent.click(screen.getByText('Show demo sign-in options'));
+    await userEvent.click(screen.getByRole('button', { name: /Executive demo sign-in/i }));
 
     expect(trackHelpers.trackDemoPersonaSelected).toHaveBeenCalledWith('Executive');
     // Verify no PII leaks through any of the tracking helpers

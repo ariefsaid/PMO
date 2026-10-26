@@ -2,6 +2,7 @@ import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
+  MobileToolbarDisclosure,
   SearchMini,
   ListState,
   DataTable,
@@ -299,13 +300,14 @@ const Contacts: React.FC = () => {
             ]}
             className="max-sm:min-h-11"
           />
-          <ExportButton rows={sorted} columns={columns} entity="Contacts" className="max-sm:min-h-11" />
-          <ImportButton
-            entity="contact"
-            descriptor={importDescriptor}
-            onImported={() => void refetch()}
-            className="max-sm:min-h-11"
-          />
+          <MobileToolbarDisclosure label={t('work:contacts.moreActions', 'More')} className="sm:hidden">
+            <ExportButton rows={sorted} columns={columns} entity="Contacts" className="w-full justify-start" />
+            <ImportButton entity="contact" descriptor={importDescriptor} onImported={() => void refetch()} className="w-full justify-start" />
+          </MobileToolbarDisclosure>
+          <div className="hidden items-center gap-2 sm:flex">
+            <ExportButton rows={sorted} columns={columns} entity="Contacts" />
+            <ImportButton entity="contact" descriptor={importDescriptor} onImported={() => void refetch()} />
+          </div>
           {canCreate && (
             <Button variant="primary" className="max-sm:min-h-11" onClick={() => setFormTarget({ contact: null })}>
               <Icon name="plus" />

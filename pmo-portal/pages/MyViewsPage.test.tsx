@@ -161,6 +161,15 @@ describe('MyViewsPage — "Compose with AI" entry (FR-AS-014)', () => {
     await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveTextContent('/views?utm=work&sort=name-desc'));
   });
 
+  it('R-046: keeps descriptions behind a named disclosure while retaining scope and open identity', () => {
+    mockUseUserViews.mockReturnValue({ data: viewSeed, isPending: false, isError: false, refetch: vi.fn() });
+    renderMyViews();
+    const row = screen.getByText('Alpha delivery').closest('tr')!;
+    expect(within(row).getByText('Shared with me')).toBeInTheDocument();
+    expect(within(row).getByText('View description')).toBeInTheDocument();
+    expect(within(row).getByText('Open work by owner')).not.toBeVisible();
+  });
+
   it('AC-WORK-V-03: identifies owned and shared rows and restricts shared-row actions', async () => {
     mockUseUserViews.mockReturnValue({ data: viewSeed, isPending: false, isError: false, refetch: vi.fn() });
     renderMyViews();

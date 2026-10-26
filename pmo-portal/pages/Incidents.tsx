@@ -1,8 +1,10 @@
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import React, { useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
+  MobileToolbarDisclosure,
   SearchMini,
   ViewToggle,
   ListState,
@@ -13,7 +15,6 @@ import {
   Button,
   Icon,
   SelectField,
-  ProjectNameLink,
   type Column,
   type RowMenuItem,
 } from '@/src/components/ui';
@@ -27,6 +28,7 @@ import type { IncidentRow, IncidentStatus } from '@/src/lib/db/incidents';
 import { severityVariant, workflowVariant } from '@/src/lib/status/statusVariants';
 import { NEXT_STATUS, type AdvanceStatus } from '@/src/lib/incidents/transitions';
 import { formatDateOnly } from '@/src/lib/format';
+import { useProjects } from '@/src/hooks/useProjects';
 import { IncidentFormModal } from '@/components/IncidentFormModal';
 
 /** Status filter segments: All + the three incident_status enum values. */
@@ -54,12 +56,15 @@ interface TransitionTarget {
 }
 
 const Incidents: React.FC = () => {
+  const isDesktop = useIsDesktop();
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncidents();
+  const { data: projects } = useProjects();
+  const projectNames = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project.name])), [projects]);
   const { create, update, transition, remove } = useIncidentMutations();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -183,7 +188,7 @@ const Incidents: React.FC = () => {
       key: 'project',
       header: t('work:incidents.columns.project', 'Project'),
       cell: (i) => i.project_id
-        ? <ProjectNameLink projectId={i.project_id} name={t('work:incidents.viewProject', 'View project')} />
+        ? <Link className="block whitespace-normal break-words font-medium text-foreground hover:underline" to={`/projects/${i.project_id}`}>{projectNames.get(i.project_id) ?? t('work:incidents.projectUnavailable', 'Project unavailable')}</Link>
         : <span className="text-muted-foreground">{t('work:incidents.unlinked', 'Unlinked')}</span>,
       exportValue: (i) => i.project_id ?? '',
     },
@@ -209,14 +214,42 @@ const Incidents: React.FC = () => {
       key: 'location',
       header: t('work:incidents.columns.location', 'Location'),
       cell: (i) => (
-        <span className="break-words text-muted-foreground">
-          {i.location || t('work:incidents.notRecorded', 'Not recorded')}
-        </span>
+        <details className="group">
+          <summary className="min-h-11 cursor-pointer break-words font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('work:incidents.rowDetails', 'More details')}
+          </summary>
+          <span className="block break-words text-muted-foreground">
+            {i.location || t('work:incidents.notRecorded', 'Not recorded')}
+          </span>
+        </details>
       ),
       exportValue: (i) => i.location ?? '',
       colClassName: 'hidden lg:table-cell',
     },
   ];
+
+  const mobileColumns: Column<IncidentRow>[] = [{
+    ...columns[0],
+    cell: (incident) => (
+      <div className="space-y-2">
+        <Link className="block min-h-11 break-words text-xl font-bold text-foreground hover:underline" to={`/incidents/${incident.id}`}>{incident.type}</Link>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <StatusPill variant={severityVariant(incident.severity)}>{severityLabels[incident.severity]}</StatusPill>
+          <StatusPill variant={workflowVariant(incident.status)}>{statusLabels[incident.status]}</StatusPill>
+          <span className="text-sm font-normal tabular text-muted-foreground">{formatDateOnly(incident.incident_date)}</span>
+        </div>
+        {incident.project_id ? (
+          <Link className="block break-words text-sm font-normal text-primary-text hover:underline" to={`/projects/${incident.project_id}`}>
+            {projectNames.get(incident.project_id) ?? t('work:incidents.projectUnavailable', 'Project unavailable')}
+          </Link>
+        ) : <span className="block text-sm font-normal text-muted-foreground">{t('work:incidents.unlinked', 'Unlinked')}</span>}
+        <details>
+          <summary className="min-h-11 text-xs font-semibold">{t('work:incidents.rowDetails', 'More details')}</summary>
+          <p className="break-words text-sm font-normal text-muted-foreground">{incident.location || t('work:incidents.notRecorded', 'Not recorded')}</p>
+        </details>
+      </div>
+    ),
+  }];
 
   const rowMenu = (i: IncidentRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -323,7 +356,10 @@ const Incidents: React.FC = () => {
               ]}
               className="min-h-11 min-w-[150px] sm:min-h-8"
             />
-            <ExportButton rows={sorted} columns={columns} entity="Incidents" />
+            <MobileToolbarDisclosure label={t('work:incidents.moreActions', 'More')} className="sm:hidden">
+              <ExportButton rows={sorted} columns={columns} entity="Incidents" className="w-full justify-start" />
+            </MobileToolbarDisclosure>
+            <div className="hidden sm:block"><ExportButton rows={sorted} columns={columns} entity="Incidents" /></div>
             {canCreate && (
               <Button
                 variant="primary"
@@ -374,13 +410,13 @@ const Incidents: React.FC = () => {
       {state === undefined && (
         <DataTable<IncidentRow>
           rows={sorted}
-          columns={columns}
+          columns={isDesktop ? columns : mobileColumns}
           rowKey={(i) => i.id}
           // CW-4a: rows now OPEN the routable `/incidents/:id` detail page (they were inert — a
           // functional dead-end). Create/edit-in-modal are unchanged; only the row-open behavior
           // is added. RLS scopes which records the detail page can read.
           onActivate={(i) => navigate(`/incidents/${i.id}`)}
-          rowLabel={(i) => t('work:incidents.detail.rowOpen', 'Open {{type}}', { type: i.type })}
+          rowLabel={isDesktop ? (i) => t('work:incidents.detail.rowOpen', 'Open {{type}}', { type: i.type }) : undefined}
           rowMenu={canRowWrite ? rowMenuOrNone : undefined}
           state={sorted.length === 0 ? 'empty' : undefined}
           emptyTitle={t('work:incidents.table.emptyTitle', 'No incidents match')}

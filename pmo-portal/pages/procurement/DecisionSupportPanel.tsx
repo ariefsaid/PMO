@@ -27,6 +27,7 @@
  * subtract thisRequest again). Otherwise (Draft/Requested) After = Available − thisRequest.
  */
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import { Card, CardPad } from '@/src/components/ui/Card';
 import { ErrBanner } from '@/src/components/ui/ErrBanner';
@@ -35,7 +36,7 @@ import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectCommittedSpend, useProjectReservedSpend } from '@/src/hooks/useProcurements';
 import { usePermission } from '@/src/auth/usePermission';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
-import { formatNumberWhole } from '@/src/lib/format';
+import { formatNumberWhole, formatNumberExact } from '@/src/lib/format';
 import { computeBudgetSignal } from './computeBudgetSignal';
 
 /** Pre-Ordered statuses where the panel is a live decision-support tool (ADR-0034 §6). */
@@ -63,6 +64,8 @@ export interface DecisionSupportPanelProps {
   currency: string;
   /** Hide project identity when the surrounding approval header already names the project. */
   showProjectContext?: boolean;
+  /** A surrounding decision group may already name the currency. */
+  showCurrency?: boolean;
   /** Hide the request amount when the decision surface shows its own authoritative total. */
   showRequestValue?: boolean;
 }
@@ -76,7 +79,9 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   currency,
   showProjectContext = true,
   showRequestValue = true,
+  showCurrency = true,
 }) => {
+  const { t } = useTranslation();
   // Committed and Reserved sum every request on the project. A role that reads only the requests it
   // raised (Engineer, migration 0350) would get a partial sum and an overstated Available, so the
   // panel is not offered to it and its reads are not issued.
@@ -101,7 +106,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const heading = (
     <div className="mb-3 flex items-baseline gap-1">
       <h3 className="text-xl font-bold text-foreground">
-        Budget impact · {currency}
+        {t('work:budgetImpact.title', 'Budget impact')}{showCurrency && ` · ${currency}`}
       </h3>
       {showProjectContext && projectName ? (
         <ProjectNameLink
@@ -139,7 +144,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <CardPad>
           {heading}
           <p className="text-sm text-muted-foreground">
-            Budget unavailable — budget impact can&apos;t be shown right now.
+            {t('work:budgetImpact.unavailable', "Budget unavailable — budget impact can't be shown right now.")}
           </p>
         </CardPad>
       </Card>
@@ -155,7 +160,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         <CardPad>
           {heading}
           <p className="text-sm text-muted-foreground">
-            No active budget set for this project — budget impact can&apos;t be shown.
+            {t('work:budgetImpact.noBudget', "No active budget set for this project — budget impact can't be shown.")}
           </p>
         </CardPad>
       </Card>
@@ -180,11 +185,11 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const afterPct = budgetAmount > 0 ? (afterRequest / budgetAmount) * 100 : 0;
 
   const facts = [
-    ...(showRequestValue ? [{ label: 'This request', value: totalValue }] : []),
-    { label: 'Reserved · approved, not yet ordered', value: otherReserved },
-    { label: 'Available', value: available, negative: available < 0 },
-    { label: 'Project budget', value: budgetAmount },
-    { label: 'Committed', value: committedSpend },
+    ...(showRequestValue ? [{ label: t('work:budgetImpact.thisRequest', 'This request'), value: totalValue }] : []),
+    { label: t('work:budgetImpact.reserved', 'Reserved · approved, not yet ordered'), value: otherReserved },
+    { label: t('work:budgetImpact.available', 'Available'), value: available, negative: available < 0 },
+    { label: t('work:budgetImpact.budget', 'Project budget'), value: budgetAmount },
+    { label: t('work:budgetImpact.committed', 'Committed'), value: committedSpend },
   ];
 
   return (
@@ -198,13 +203,13 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             misreads as broken (Wave-5 I1). */}
         {otherCurrencyCommitted && (
             <p data-testid="budget-impact-other-currencies" className="mb-3 text-sm text-muted-foreground">
-            Not counting commitments in other currencies: {otherCurrencyCommitted}
+            {t('work:budgetImpact.otherCurrencies', 'Not counting commitments in other currencies: {{amounts}}', { amounts: otherCurrencyCommitted })}
           </p>
         )}
         <section aria-label="Budget figures" className="mb-4">
           <div data-testid="budget-impact-primary" className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-xs font-semibold text-muted-foreground">
-              After this request · {afterPct.toFixed(1)}% headroom remaining
+              {t('work:budgetImpact.afterRequest', 'After this request · {{percent}}% headroom remaining', { percent: formatNumberExact(Math.round(afterPct * 10) / 10) })}
             </span>
             <span className={`text-xl font-bold tabular text-right ${afterRequest < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
               {formatNumberWhole(afterRequest)}
@@ -235,12 +240,10 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overAvailable && (
           <ErrBanner
             className="mt-3 mb-0"
-            title="Over available budget"
+            title={t('work:budgetImpact.overAvailable', 'Over available budget')}
             sub={
               <>
-                This request exceeds available budget by{' '}
-                <strong className="tabular">{formatNumberWhole(overAvailableAmount)}</strong>. Approval
-                is still permitted — this is an advisory only.
+                {t('work:budgetImpact.overAvailableBody', 'This request exceeds available budget by {{amount}}. Approval is still permitted — this is an advisory only.', { amount: formatNumberWhole(overAvailableAmount) })}
               </>
             }
           />
@@ -251,12 +254,10 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overBudgetReserved && (
           <ErrBanner
             className="mt-3 mb-0"
-            title="Project over budget"
+            title={t('work:budgetImpact.overBudget', 'Project over budget')}
             sub={
               <>
-                This project is over budget by{' '}
-                <strong className="tabular">{formatNumberWhole(-available)}</strong> across committed
-                and reserved demand. This is an advisory only.
+                {t('work:budgetImpact.overBudgetBody', 'This project is over budget by {{amount}} across committed and reserved demand. This is an advisory only.', { amount: formatNumberWhole(-available) })}
               </>
             }
           />
@@ -270,7 +271,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             to={`/projects/${scopedProjectId}`}
             className="touch-target inline-flex min-h-11 items-center gap-1 text-xs font-semibold text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
-            Open project
+            {t('work:budgetImpact.openProject', 'Open project')}
           </Link>
         </div>
       </CardPad>

@@ -202,10 +202,10 @@ describe('AC-IXD-TS-002: Save and Submit are co-located in the grid footer (no s
 // ---------------------------------------------------------------------------
 // AC-IXD-TS-004 — redundant rollup panels removed from the entry screen
 // ---------------------------------------------------------------------------
-describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week', () => {
+describe('R-032–R-034: timesheet completion follows the week evidence in normal flow', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('R-023 / R-024: an empty phone week has one compact total beside submit and one short instruction', () => {
+  it('R-033/R-034: an empty phone week has a compact entry area, one status and one total before its actions', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
       matches: false,
       addEventListener: vi.fn(),
@@ -217,16 +217,17 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
 
     renderPage();
 
-    const strip = screen.getByTestId('timesheets-mobile-action-strip');
-    expect(within(strip).getByText('Week total · hours')).toBeInTheDocument();
-    expect(within(strip).getByText('0')).toBeInTheDocument();
-    expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeDisabled();
+    const footer = screen.getByTestId('timesheets-footer');
+    expect(within(footer).getByText('Week total · hours')).toBeInTheDocument();
+    expect(within(footer).getByText('0')).toBeInTheDocument();
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeDisabled();
+    expect(screen.getAllByText(/draft — not submitted/i)).toHaveLength(1);
     expect(screen.getByTestId('timesheets-empty')).toHaveTextContent('Choose a project above to start recording hours.');
     expect(screen.queryByText('No hours logged this week')).not.toBeInTheDocument();
     expect(screen.queryByText('0 hours this week')).not.toBeInTheDocument();
   });
 
-  it('keeps the total and both actions available for a two-project mobile week', () => {
+  it('R-032: keeps final-day input, notes, the single total and actions in document flow', () => {
     vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({
       matches: false,
       addEventListener: vi.fn(),
@@ -247,15 +248,14 @@ describe('AC-UXS-023 / UX-063: mobile timesheet completion stays with the week',
 
     renderPage();
 
-    const strip = screen.getByTestId('timesheets-mobile-action-strip');
+    const footer = screen.getByTestId('timesheets-footer');
     const total = screen.getByTestId('tsgrid-grand-total');
     expect(total).toHaveTextContent('10');
     expect(screen.queryByTestId('timesheets-weekly-total')).not.toBeInTheDocument();
     expect(screen.queryByText('10 hours this week')).not.toBeInTheDocument();
-    expect(within(strip).getByRole('button', { name: 'Save draft' })).toBeDisabled();
-    expect(within(strip).getByRole('button', { name: 'Submit week' })).toBeEnabled();
-    expect(screen.queryByTestId('timesheets-footer')).not.toBeInTheDocument();
-    expect(Boolean(total.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(within(footer).getByRole('button', { name: /^save$/i })).toBeDisabled();
+    expect(within(footer).getByRole('button', { name: /submit timesheet/i })).toBeEnabled();
+    expect(Boolean(total.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     expect(screen.getByLabelText('Alpha Project, Sun hours')).toBeInTheDocument();
     expect(screen.getByLabelText('Beta Project, Sun hours')).toBeInTheDocument();
   });

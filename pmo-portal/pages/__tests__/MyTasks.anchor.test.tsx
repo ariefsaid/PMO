@@ -90,9 +90,10 @@ describe('AC-JR-T25: MyTasks task name links carry #task-<id> anchor', () => {
     expect(link2).toHaveAttribute('href', '/projects/proj-xyz/tasks#task-t-def-456');
   });
 
-  it('AC-JR-T25: project-header link still points to /projects/:projectId/tasks (no anchor)', () => {
+  it('AC-JR-T25: each project-context link still points to /projects/:projectId/tasks (no anchor)', () => {
     renderMyTasks();
-    const projectLink = screen.getByRole('link', { name: 'Solar Site Alpha' });
-    expect(projectLink).toHaveAttribute('href', '/projects/proj-xyz/tasks');
+    const projectLinks = screen.getAllByRole('link', { name: 'Solar Site Alpha' });
+    expect(projectLinks).toHaveLength(2);
+    for (const link of projectLinks) expect(link).toHaveAttribute('href', '/projects/proj-xyz/tasks');
   });
 });

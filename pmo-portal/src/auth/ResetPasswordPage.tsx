@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useAuth } from './useAuth';
@@ -14,6 +15,7 @@ import { ErrorBanner, SuccessNotice, AuthInput } from './authFormPrimitives';
 // -----------------------------------------------------------------------
 
 const ResetPasswordPage: React.FC = () => {
+  const { t } = useTranslation();
   const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +36,7 @@ const ResetPasswordPage: React.FC = () => {
       setSent(true); // FR-AUTHF-012 — stay on page; do NOT navigate.
       setBusy(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong'); // FR-AUTHF-014
+      setError(err instanceof Error ? err.message : t('work:resetPassword.error', "Something went wrong")); // FR-AUTHF-014
       setBusy(false);
     }
   };
@@ -47,7 +49,7 @@ const ResetPasswordPage: React.FC = () => {
             PMO Portal
           </p>
           <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-            Reset your password
+            {t('work:resetPassword.title', 'Reset your password')}
           </h1>
         </div>
         <Card>
@@ -56,14 +58,13 @@ const ResetPasswordPage: React.FC = () => {
             {/* FR-AUTHF-012/013: identical notice whether or not the email exists (D-AUTHF-7). */}
             {sent && (
               <SuccessNotice>
-                Check your email — if an account exists for that address, a reset link is on its
-                way.
+                {t('work:resetPassword.sent', 'Check your email — if an account exists for that address, a reset link is on its way.')}
               </SuccessNotice>
             )}
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <AuthInput
                 id="email"
-                label="Email"
+                label={t('work:resetPassword.email', "Email")}
                 type="email"
                 autoComplete="email"
                 required
@@ -72,14 +73,14 @@ const ResetPasswordPage: React.FC = () => {
                 disabled={busy}
               />
               <Button type="submit" variant="primary" loading={busy} disabled={busy} className="min-h-11 w-full">
-                Send reset link
+                {t('work:resetPassword.send', "Send reset link")}
               </Button>
             </form>
             <Link
               to="/login"
               className="flex min-h-11 items-center justify-center text-[12.5px] font-semibold text-primary-text hover:underline"
             >
-              Back to sign in
+              {t('work:resetPassword.back', "Back to sign in")}
             </Link>
           </CardPad>
         </Card>

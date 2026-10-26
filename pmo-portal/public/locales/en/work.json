@@ -11,6 +11,9 @@
       },
       "timesheets": {
         "hoursTitle": "Timesheets · hours"
+      },
+      "procurement": {
+        "title": "Purchase requests"
       }
     },
     "lineItems": "Line items",
@@ -27,7 +30,27 @@
     },
     "showAllPending": "Show all pending",
     "unitRate": "{{quantity}} × {{rate}}",
-    "unknownCustomer": "Unknown customer"
+    "unknownCustomer": "Unknown customer",
+    "requestApproved": "Request approved",
+    "requestRejected": "Request rejected",
+    "requestApprovedDetail": "{{request}} has been approved",
+    "requestRejectedDetail": "{{request}} has been rejected",
+    "decision": {
+      "approveRequest": "Approve request {{request}}",
+      "approveRequestLabel": "Approve request",
+      "rejectRequest": "Reject request {{request}}",
+      "rejectRequestLabel": "Reject request",
+      "approveTimesheet": "Approve timesheet",
+      "returnTimesheet": "Return timesheet",
+      "approveTimesheetNamed": "Approve {{name}}’s timesheet for {{week}}",
+      "returnTimesheetNamed": "Return {{name}}’s timesheet for {{week}}"
+    },
+    "requestLoadError": "Couldn't load request details",
+    "confirmApprove": "Approve {{request}}?",
+    "confirmReject": "Reject {{request}}?",
+    "confirmApproveBody": "Approve {{request}} — {{amount}}? This will advance the request to the ordering stage.",
+    "confirmRejectBody": "Reject {{request}}? The requester will be notified and may revise and resubmit.",
+    "waitingSince": "Waiting since {{date}}"
   },
   "common": {
     "history": "History"
@@ -77,7 +100,8 @@
       "label": "Sort contacts",
       "nameAz": "Name A–Z",
       "nameZa": "Name Z–A"
-    }
+    },
+    "moreActions": "More"
   },
   "expenses": {
     "approvals": {
@@ -98,7 +122,8 @@
     "scope": "Scope",
     "searchViews": "Search saved views…",
     "sharedWithMe": "Shared with me",
-    "sortViews": "Sort saved views"
+    "sortViews": "Sort saved views",
+    "viewDescription": "View description"
   },
   "incidents": {
     "actions": {
@@ -203,7 +228,10 @@
     },
     "title": "Incidents",
     "unlinked": "Unlinked",
-    "viewProject": "View project"
+    "viewProject": "View project",
+    "projectUnavailable": "Project unavailable",
+    "rowDetails": "More details",
+    "moreActions": "More"
   },
   "meetingDetail": {
     "action": {
@@ -216,7 +244,10 @@
       "label": "Sort meetings",
       "latest": "Latest meeting date",
       "oldest": "Oldest meeting date"
-    }
+    },
+    "openProject": "Open project",
+    "noProject": "Not linked",
+    "timezoneContext": "Times shown in {{timezone}}"
   },
   "myTasks": {
     "allProjects": "All projects",
@@ -286,6 +317,46 @@
     "timesheets": "My time",
     "timesheetsDeniedScope": "Your hours for one week",
     "timesheetsScope": "Your hours · {{week}} · {{status}}",
-    "views": "My views"
+    "views": "My views",
+    "timesheetsWeekScope": "Week of {{week}}"
+  },
+  "resetPassword": {
+    "title": "Reset your password",
+    "sent": "Check your email — if an account exists for that address, a reset link is on its way.",
+    "email": "Email",
+    "send": "Send reset link",
+    "back": "Back to sign in",
+    "error": "Something went wrong"
+  },
+  "updatePassword": {
+    "unavailable": "Password link unavailable",
+    "invalid": "This link is invalid or expired.",
+    "request": "Request a new link",
+    "back": "Back to sign in",
+    "inviteTitle": "Set your password",
+    "title": "Set a new password",
+    "verifying": "Verifying your link…",
+    "newPassword": "New password",
+    "confirm": "Confirm password",
+    "submit": "Set new password",
+    "mismatch": "Passwords do not match",
+    "error": "Your password could not be updated. Try again."
+  },
+  "budgetImpact": {
+    "title": "Budget impact",
+    "unavailable": "Budget unavailable — budget impact can't be shown right now.",
+    "noBudget": "No active budget set for this project — budget impact can't be shown.",
+    "thisRequest": "This request",
+    "reserved": "Reserved · approved, not yet ordered",
+    "available": "Available",
+    "budget": "Project budget",
+    "committed": "Committed",
+    "openProject": "Open project",
+    "otherCurrencies": "Not counting commitments in other currencies: {{amounts}}",
+    "afterRequest": "After this request · {{percent}}% headroom remaining",
+    "overAvailable": "Over available budget",
+    "overAvailableBody": "This request exceeds available budget by {{amount}}. Approval is still permitted — this is an advisory only.",
+    "overBudget": "Project over budget",
+    "overBudgetBody": "This project is over budget by {{amount}} across committed and reserved demand. This is an advisory only."
   }
 }

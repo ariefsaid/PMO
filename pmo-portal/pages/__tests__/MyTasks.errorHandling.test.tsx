@@ -85,7 +85,7 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
     renderMyTasks();
 
     // The task row should show a SelectField for status
-    const selects = screen.getAllByRole('combobox');
+    const selects = [screen.getByRole('combobox', { name: 'Change status of Fix the login bug' })];
     expect(selects.length).toBeGreaterThan(0);
 
     // Change status to trigger mutation
@@ -111,7 +111,7 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
 
     renderMyTasks();
 
-    const selects = screen.getAllByRole('combobox');
+    const selects = [screen.getByRole('combobox', { name: 'Change status of Fix the login bug' })];
     fireEvent.change(selects[0], { target: { value: 'Done' } });
 
     await waitFor(() => {
@@ -124,7 +124,7 @@ describe('MyTasks — status mutation error handling (W2-2)', () => {
 
     renderMyTasks();
 
-    const selects = screen.getAllByRole('combobox');
+    const selects = [screen.getByRole('combobox', { name: 'Change status of Fix the login bug' })];
     // The status select for this task should be disabled
     expect(selects[0]).toBeDisabled();
   });

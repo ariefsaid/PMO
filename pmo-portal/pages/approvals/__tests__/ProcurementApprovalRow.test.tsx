@@ -139,6 +139,16 @@ beforeEach(() => {
 // ── AC-IFW-PROC-01: compact selectable queue identity ───────────────────────
 
 describe('AC-IFW-PROC-01: queue row identity', () => {
+  it('R-025: queue rows include project and waiting date while requester stays in selected evidence', async () => {
+    renderAs();
+    const button = screen.getByRole('button', { name: /Inverter Units/i });
+    expect(button).toHaveTextContent('Solar Alpha');
+    expect(button).toHaveTextContent(/Waiting since/i);
+    expect(button).not.toHaveTextContent('Diego Ramirez');
+    renderPreview();
+    expect(screen.getByText('Diego Ramirez')).toBeInTheDocument();
+  });
+
   it('R-018: unselected queue rows show their native whole amount for phone triage', async () => {
     renderAs();
     const button = screen.getByRole('button', { name: /Inverter Units/i });
@@ -203,8 +213,11 @@ describe('AC-IFW-PROC-01: selected preview — budget impact + line items + acti
   it('R-018: selected request facts appear once and decision actions follow the evidence', () => {
     renderPreview();
 
-    expect(screen.getByRole('heading', { name: 'Decision total · USD' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Line items · USD per unit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Decision total' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Line items · per unit' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Decision total' }).nextElementSibling).toHaveClass('text-xl');
+    expect(screen.getByRole('heading', { name: /Budget impact · USD/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Decision total' })).not.toHaveTextContent('USD');
     expect(screen.queryByText('Request details')).not.toBeInTheDocument();
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('Solar Alpha');
     expect(screen.getByTestId('decision-support')).not.toHaveTextContent('This request');

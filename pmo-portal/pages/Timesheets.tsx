@@ -10,7 +10,6 @@ import {
   SelectField,
   StatusPill,
   TimesheetGrid,
-  MobileActionStrip,
   Toolbar,
   AccessDenied,
   useToast,
@@ -44,7 +43,6 @@ import WorkPageHeading from './WorkPageHeading';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { formatFullDate, formatMonthDay, formatWeekday, formatNumberExact } from '@/src/lib/format';
-import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 // ── Date helpers (preserved verbatim — week logic unchanged) ─────────────────
 const getWeekStartDate = (date: Date): Date => {
@@ -71,7 +69,6 @@ const PICKER_NAME_MAX = 36;
 const TimesheetsPage: React.FC = () => {
   const { t } = useTranslation();
   const { t: tTimesheets } = useTranslation('timesheets');
-  const isDesktop = useIsDesktop();
   const { data: sheets, isPending, isError, refetch } = useTimesheets();
   const { submit, reopen } = useTimesheetMutations();
   const { currentUser } = useAuth();
@@ -450,12 +447,8 @@ const TimesheetsPage: React.FC = () => {
   };
 
   const weekRangeLabel = `${formatMonthDay(weekStartDate)} – ${formatFullDate(weekDates[6])}`;
-  const headingStatus = currentTimesheet?.status
-    ? t(`timesheets.status.${currentTimesheet.status}`, currentTimesheet.status)
-    : t('timesheets.status.draftNotSubmitted', 'Draft — not submitted');
-  const headingScope = t('work:workPageHeading.timesheetsScope', 'Your hours · {{week}} · {{status}}', {
+  const headingScope = t('work:workPageHeading.timesheetsWeekScope', 'Week of {{week}}', {
     week: weekRangeLabel,
-    status: headingStatus,
   });
 
   // Submit affordance (FR-TS-004): only the owner of a Draft sheet for this week.
@@ -731,10 +724,7 @@ const TimesheetsPage: React.FC = () => {
         />
       )}
 
-      <Card
-        clip
-        className={editable ? 'pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-0' : undefined}
-      >
+      <Card clip>
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-3.5 py-2.5">
           <StatusPill variant={status ? workflowVariant(status) : 'neutral'}>
             {status === TimesheetStatus.Draft || !status
@@ -838,7 +828,7 @@ const TimesheetsPage: React.FC = () => {
           <TimesheetGrid days={gridDays} rows={gridRows} />
         )}
 
-        {editable && isDesktop && (
+        {editable && (
           <div
             data-testid="timesheets-footer"
             className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-3.5 py-2.5"
@@ -886,18 +876,7 @@ const TimesheetsPage: React.FC = () => {
         )}
       </Card>
 
-      {editable && !isDesktop && (
-        <MobileActionStrip
-          canSave={dirty && editValid && !saveWeek.isPending && !deleteRow.isPending}
-          canSubmit={canSubmit && !submit.isPending && !deleteRow.isPending}
-          showSubmitHint={!editBufferHasHours && currentWeekEntries.length === 0}
-          showEmptyWeekTotal={editGridRows.length === 0}
-          saving={saveWeek.isPending}
-          submitting={submit.isPending}
-          onSave={commitSave}
-          onSubmit={() => setConfirmSubmit(true)}
-        />
-      )}
+
 
       {/* AC-IXD-TS-004: the per-project + recent-entries rollup panels are removed — the grid's own
           TOTAL column + daily-total row + header weekly total are the single source of truth; the

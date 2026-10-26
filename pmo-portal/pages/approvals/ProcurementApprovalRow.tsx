@@ -29,7 +29,7 @@ import {
   useProcurementMutations,
 } from '@/src/hooks/useProcurementDetail';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency, formatDate, formatNumberWhole } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { DecisionSupportPanel } from '@/pages/procurement/DecisionSupportPanel';
 import { useAuth } from '@/src/auth/useAuth';
@@ -45,15 +45,6 @@ export interface ProcurementApprovalRowProps {
 
 export interface ProcurementApprovalPreviewProps {
   row: ProcurementWithRefs;
-}
-
-/** Whole days since an ISO timestamp. */
-function daysAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '—';
-  const days = Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
-  if (days === 0) return 'today';
-  return `${days}d ago`;
 }
 
 export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProps> = ({ row }) => {
@@ -77,10 +68,10 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           setPending(null);
           queryClient.invalidateQueries({ queryKey: ['procurements', currentUser?.org_id] });
           toast(
-            pending === 'Approved' ? 'Request approved' : 'Request rejected',
+            pending === 'Approved' ? t('work:approvals.requestApproved', 'Request approved') : t('work:approvals.requestRejected', 'Request rejected'),
             pending === 'Approved'
-              ? `${row.title} has been approved`
-              : `${row.title} has been rejected`,
+              ? t('work:approvals.requestApprovedDetail', '{{request}} has been approved', { request: row.title })
+              : t('work:approvals.requestRejectedDetail', '{{request}} has been rejected', { request: row.title }),
             'success',
           );
         },
@@ -98,23 +89,23 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
       <Button
         variant="primary"
         size="sm"
-        aria-label={`Approve request ${row.title}`}
+        aria-label={t('work:approvals.decision.approveRequest', 'Approve request {{request}}', { request: row.title })}
         className="touch-target"
         onClick={() => setPending('Approved')}
         loading={transition.isPending}
       >
         <Icon name="check" />
-        Approve
+        {t('work:approvals.decision.approveRequestLabel', 'Approve request')}
       </Button>
       <Button
         variant="outline"
         size="sm"
-        aria-label={`Reject request ${row.title}`}
+        aria-label={t('work:approvals.decision.rejectRequest', 'Reject request {{request}}', { request: row.title })}
         className="touch-target"
         onClick={() => setPending('Rejected')}
         loading={transition.isPending}
       >
-        Reject
+        {t('work:approvals.decision.rejectRequestLabel', 'Reject request')}
       </Button>
     </>
   ) : null;
@@ -125,26 +116,33 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         <div className="border-b border-border pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-muted-foreground">
-                <span className="font-mono">{row.code ?? row.id.slice(0, 8)}</span>
+              <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                <span className="break-words">{row.code ?? row.id.slice(0, 8)}</span>
                 <span>·</span>
                 <ProjectNameLink
                   projectId={row.project_id}
                   name={row.project ? projectDisplayName(row.project) : null}
                   legalName={row.project?.name}
-                  className="text-[11px] font-semibold"
+                  className="text-xs font-semibold"
                 />
                 <span>·</span>
-                <span>{daysAgo(row.created_at)}</span>
+                <span>{formatDate(row.created_at)}</span>
               </div>
               <h2 className="break-words text-xl font-bold">{row.title}</h2>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
                 <span>{row.requested_by?.full_name ?? t('approvals.unknownRequester', 'Unknown requester')}</span>
-                <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
+                <StatusPill variant={workflowVariant(row.status)}>{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
               </div>
             </div>
           </div>
         </div>
+
+        {detail.data && (
+          <section className="mt-4 flex flex-wrap items-baseline justify-between gap-2" aria-label={t('work:approvals.decisionTotal', 'Decision total')}>
+            <h3 className="text-xs font-semibold text-muted-foreground">{t('work:approvals.decisionTotal', 'Decision total')} · {row.currency}</h3>
+            <p className="text-right text-xl font-bold tabular text-foreground">{formatNumberWhole(detail.data.total_value)}</p>
+          </section>
+        )}
 
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pt-4">
           {detail.isPending ? (
@@ -152,7 +150,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
           ) : detail.isError ? (
             <ListState
               variant="error"
-              title="Couldn't load request details"
+              title={t('work:approvals.requestLoadError', "Couldn't load request details")}
               sub="Something went wrong fetching the budget impact and line items."
               onRetry={() => detail.refetch()}
             />
@@ -167,12 +165,13 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 currency={detail.data.currency}
                 showProjectContext={false}
                 showRequestValue={false}
+                showCurrency={false}
               />
 
               {detail.data.items.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-xl font-bold text-foreground">
-                    {t('work:approvals.lineItems', 'Line items')} · {row.currency} {t('approvals.unitBasis', 'per unit')}
+                    {t('work:approvals.lineItems', 'Line items')} · {t('approvals.unitBasis', 'per unit')}
                   </h3>
                   <ul className="space-y-1.5" aria-label="Line items">
                     {detail.data.items.map((item) => (
@@ -193,14 +192,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
                 </section>
               )}
 
-              <section className="flex flex-wrap items-baseline justify-between gap-2 border-t border-border pt-3">
-                <h3 className="text-xl font-bold text-foreground">
-                  {t('work:approvals.decisionTotal', 'Decision total')} · {detail.data.currency}
-                </h3>
-                <p className="text-right text-sm tabular text-foreground">
-                  {formatNumberWhole(detail.data.total_value)}
-                </p>
-              </section>
+
             </>
           ) : null}
         </div>
@@ -208,7 +200,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         <div data-testid="approval-decision-actions" className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-3">
           <Link
             to={`/procurement/${row.id}`}
-            aria-label="Open request"
+            aria-label={t('work:approvals.openRequest', 'Open request')}
             className="touch-target inline-flex min-h-11 items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
           >
             {t('work:approvals.openRequest', 'Open request')}
@@ -221,13 +213,13 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
         <ConfirmDialog
           open
           tone={pending === 'Approved' ? 'default' : 'destructive'}
-          title={pending === 'Approved' ? `Approve ${row.title}?` : `Reject ${row.title}?`}
+          title={pending === 'Approved' ? t('work:approvals.confirmApprove', 'Approve {{request}}?', { request: row.title }) : t('work:approvals.confirmReject', 'Reject {{request}}?', { request: row.title })}
           description={
             pending === 'Approved'
-              ? `Approve ${row.title} — ${formatCurrency(row.total_value, row.currency)}? This will advance the request to the ordering stage.`
-              : `Reject ${row.title}? The requester will be notified and may revise and resubmit.`
+              ? t('work:approvals.confirmApproveBody', 'Approve {{request}} — {{amount}}? This will advance the request to the ordering stage.', { request: row.title, amount: formatCurrency(row.total_value, row.currency) })
+              : t('work:approvals.confirmRejectBody', 'Reject {{request}}? The requester will be notified and may revise and resubmit.', { request: row.title })
           }
-          confirmLabel={pending === 'Approved' ? 'Approve' : 'Reject request'}
+          confirmLabel={pending === 'Approved' ? t('work:approvals.decision.approveRequestLabel', 'Approve request') : t('work:approvals.decision.rejectRequestLabel', 'Reject request')}
           loading={transition.isPending}
           onCancel={() => setPending(null)}
           onConfirm={handleConfirm}
@@ -250,18 +242,20 @@ export const ProcurementApprovalRow: React.FC<ProcurementApprovalRowProps> = ({ 
         selected ? 'border-foreground/20 bg-secondary/70' : 'border-transparent hover:border-border hover:bg-secondary/40',
       ].join(' ')}
     >
-      <div className="mb-1 text-xs font-semibold text-muted-foreground">
-        {t('approvals.group.procurement.title', 'Purchase requests')}
-      </div>
-      <div className="break-words text-sm font-medium">{row.title}</div>
-      <StatusPill variant={workflowVariant(row.status)} className="mt-1">{row.status}</StatusPill>
+      <div className="break-words text-sm font-normal">{row.title}</div>
+      <StatusPill variant={workflowVariant(row.status)} className="mt-1">{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
       {!selected && (
         <div className="mt-2 flex items-baseline justify-between gap-3 text-sm">
           <span className="text-xs font-semibold text-muted-foreground">{row.currency}</span>
-          <span className="tabular font-medium text-foreground">{formatNumberWhole(row.total_value)}</span>
+          <span className="tabular font-normal text-foreground">{formatNumberWhole(row.total_value)}</span>
         </div>
       )}
-      <div className="mt-2 break-words font-mono text-[11px] font-semibold text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span className="min-w-0 break-words">{row.project ? projectDisplayName(row.project) : t('approvals.noProjectLinked', 'No project linked')}</span>
+        <span aria-hidden="true">·</span>
+        <span>{t('work:approvals.waitingSince', 'Waiting since {{date}}', { date: formatDate(row.created_at) })}</span>
+      </div>
+      <div className="mt-1 break-words font-mono text-xs font-semibold text-muted-foreground">{row.code ?? row.id.slice(0, 8)}</div>
     </button>
   );
 };

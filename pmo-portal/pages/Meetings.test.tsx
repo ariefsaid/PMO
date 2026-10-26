@@ -190,6 +190,13 @@ describe('Meetings index — list (FR-MTG-028/029)', () => {
     expect(screen.getByTestId('location-probe').dataset.pathname).toBe('/meetings/m1');
   });
 
+  it('R-038/R-039: puts project identity before the dated group and names the active timezone', () => {
+    renderPage();
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent?.trim());
+    expect(headers.indexOf('Project')).toBeLessThan(headers.indexOf('When'));
+    expect(screen.getByTestId('meetings-timezone')).toHaveTextContent(/UTC|Asia\//);
+  });
+
   it('AC-WORK-MTG-01: lists the latest meeting first and keeps search, project, sort and create ordered', () => {
     renderPage();
     const rows = screen.getAllByRole('row').slice(1);
@@ -264,10 +271,11 @@ describe('Meetings — row menu gating', () => {
 });
 
 describe('Meetings — states', () => {
-  it('empty state renders with the create affordance', () => {
+  it('R-037: empty guidance does not duplicate the toolbar creation action', () => {
     listState.data = [];
     renderPage();
     expect(screen.getByText('No meetings yet')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'New meeting' })).toHaveLength(1);
   });
 
   it('error state renders with retry', async () => {

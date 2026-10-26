@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { supabase } from '@/src/lib/supabase/client';
@@ -44,6 +45,7 @@ const classifyUpdateError = (message: string): AuthFailureReason => {
 };
 
 const UpdatePasswordPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { session, updatePassword } = useAuth();
 
@@ -114,7 +116,7 @@ const UpdatePasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
     if (password !== confirm || !password) {
-      setConfirmError('Passwords do not match'); // FR-AUTHF-022
+      setConfirmError(t('work:updatePassword.mismatch', "Passwords do not match")); // FR-AUTHF-022
       return;
     }
     setConfirmError(null);
@@ -129,7 +131,7 @@ const UpdatePasswordPage: React.FC = () => {
       trackAuthLoginSucceeded(method); // FR-AUTHF-061
       navigate('/', { replace: true }); // FR-AUTHF-024
     } catch (failure) {
-      const message = failure instanceof Error ? failure.message : 'Your password could not be updated. Try again.';
+      const message = failure instanceof Error ? failure.message : t('work:updatePassword.error', "Your password could not be updated. Try again.");
       trackAuthLoginFailed(method, classifyUpdateError(message));
       setError(message);
     } finally {
@@ -146,22 +148,22 @@ const UpdatePasswordPage: React.FC = () => {
               PMO Portal
             </p>
             <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-              Password link unavailable
+              {t('work:updatePassword.unavailable', "Password link unavailable")}
             </h1>
           </div>
           <Card>
             <CardPad className="space-y-4">
-              <ErrorBanner message="This link is invalid or expired." />
+              <ErrorBanner message={t('work:updatePassword.invalid', "This link is invalid or expired.")} />
               {/* Single <Link> styled as the primary button — NOT a <button> nested in an <a>
                   (invalid HTML; interactive-in-interactive; two tab stops, same name). */}
               <Link to="/reset-password" className={buttonClasses('primary', 'default', 'min-h-11 w-full')}>
-                Request a new link
+                {t('work:updatePassword.request', "Request a new link")}
               </Link>
               <Link
                 to="/login"
                 className="flex min-h-11 items-center justify-center text-[12.5px] font-semibold text-primary-text hover:underline"
               >
-                Back to sign in
+                {t('work:updatePassword.back', "Back to sign in")}
               </Link>
             </CardPad>
           </Card>
@@ -177,7 +179,7 @@ const UpdatePasswordPage: React.FC = () => {
           <div className="mb-5 text-center">
             <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">PMO Portal</p>
             <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-              {wasInvite ? 'Set your password' : 'Set a new password'}
+              {wasInvite ? t('work:updatePassword.inviteTitle', "Set your password") : t('work:updatePassword.title', "Set a new password")}
             </h1>
           </div>
           <Card><CardPad>
@@ -186,7 +188,7 @@ const UpdatePasswordPage: React.FC = () => {
                 <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
                 <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
               </svg>
-              Verifying your link…
+              {t('work:updatePassword.verifying', "Verifying your link…")}
             </p>
           </CardPad></Card>
         </div>
@@ -202,7 +204,7 @@ const UpdatePasswordPage: React.FC = () => {
             PMO Portal
           </p>
           <h1 className="mt-1 text-[22px] font-bold leading-[1.2] tracking-[-0.02em] text-foreground">
-            {wasInvite ? 'Set your password' : 'Set a new password'}
+            {wasInvite ? t('work:updatePassword.inviteTitle', "Set your password") : t('work:updatePassword.title', "Set a new password")}
           </h1>
         </div>
         <Card>
@@ -211,7 +213,7 @@ const UpdatePasswordPage: React.FC = () => {
             <form onSubmit={onSubmit} className="space-y-4" noValidate>
               <AuthInput
                 id="new-password"
-                label="New password"
+                label={t('work:updatePassword.newPassword', "New password")}
                 type="password"
                 autoComplete="new-password"
                 required
@@ -222,7 +224,7 @@ const UpdatePasswordPage: React.FC = () => {
               <div>
                 <AuthInput
                   id="confirm-password"
-                  label="Confirm password"
+                  label={t('work:updatePassword.confirm', "Confirm password")}
                   type="password"
                   autoComplete="new-password"
                   required
@@ -242,7 +244,7 @@ const UpdatePasswordPage: React.FC = () => {
                 )}
               </div>
               <Button type="submit" variant="primary" loading={busy} disabled={busy} className="min-h-11 w-full">
-                Set new password
+                {t('work:updatePassword.submit', "Set new password")}
               </Button>
             </form>
           </CardPad>

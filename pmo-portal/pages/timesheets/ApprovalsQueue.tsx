@@ -95,7 +95,6 @@ export interface TimesheetApprovalPreviewProps {
 export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> = ({
   sheet,
   surface = 'panel',
-  showSodNotice = surface === 'panel',
 }) => {
   const { t } = useTranslation();
   const { approve, reject } = useTimesheetMutations();
@@ -107,6 +106,8 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
   const name = sheet.owner?.full_name ?? 'Unknown';
   const { days, rows } = buildGrid(sheet);
   const isInline = surface === 'inline';
+  const approveLabel = t('work:approvals.decision.approveTimesheet', 'Approve timesheet');
+  const returnLabel = t('work:approvals.decision.returnTimesheet', 'Return timesheet');
 
   const commitApproval = () => {
     if (!pending) return;
@@ -138,23 +139,23 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <Button
           variant="primary"
           size="sm"
-          aria-label={`Approve ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
+          aria-label={t('work:approvals.decision.approveTimesheetNamed', 'Approve {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
           onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
           loading={approve.isPending}
         >
           <Icon name="check" />
-          Approve
+          {approveLabel}
         </Button>
       )}
       {actions.reject && (
         <Button
           variant="outline"
           size="sm"
-          aria-label={`Return ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
+          aria-label={t('work:approvals.decision.returnTimesheetNamed', 'Return {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
           onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
           loading={reject.isPending}
         >
-          Return
+          {returnLabel}
         </Button>
       )}
     </div>
@@ -168,16 +169,11 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
                 <span>{weekLabel(sheet.week_start_date)}</span>
-                <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
+                <StatusPill variant={workflowVariant(sheet.status)}>{t(`approvals.status.${sheet.status.toLowerCase()}`, sheet.status)}</StatusPill>
               </div>
               <h2 className="break-words text-xl font-bold">{name}</h2>
             </div>
           </div>
-          {!isInline && showSodNotice && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
-            </p>
-          )}
         </div>
 
         <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
@@ -194,21 +190,23 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
               <Button
                 variant="primary"
                 size="sm"
+                aria-label={t('work:approvals.decision.approveTimesheetNamed', 'Approve {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
                 onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
                 loading={approve.isPending}
               >
                 <Icon name="check" />
-                Approve
+                {approveLabel}
               </Button>
             )}
             {actions.reject && (
               <Button
                 variant="outline"
                 size="sm"
+                aria-label={t('work:approvals.decision.returnTimesheetNamed', 'Return {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
                 onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
                 loading={reject.isPending}
               >
-                Return
+                {returnLabel}
               </Button>
             )}
           </div>
@@ -327,9 +325,7 @@ export const ApprovalsQueue: React.FC = () => {
         <TimesheetBulkControls controller={bulk} sheets={sheets} />
       </div>
 
-      <p className="mb-3 text-sm text-muted-foreground">
-        {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
-      </p>
+
 
 
 
@@ -358,7 +354,7 @@ export const ApprovalsQueue: React.FC = () => {
                   week={weekLabel(sheet.week_start_date)}
                   hours={total}
                   onActivate={() => toggleExpanded(sheet.id)}
-                  status={<StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>}
+                  status={<StatusPill variant={workflowVariant(sheet.status)}>{t(`approvals.status.${sheet.status.toLowerCase()}`, sheet.status)}</StatusPill>}
                   disclosure={
                     <Button
                       variant="ghost"
@@ -388,23 +384,23 @@ export const ApprovalsQueue: React.FC = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                aria-label={`Approve ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
+                aria-label={t('work:approvals.decision.approveTimesheetNamed', 'Approve {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
                       onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
                       loading={approve.isPending}
                     >
                       <Icon name="check" />
-                      Approve
+                      {t('work:approvals.decision.approveTimesheet', 'Approve timesheet')}
                     </Button>
                   )}
                   {actions.reject && !selecting && (
                     <Button
                       variant="outline"
                       size="sm"
-                aria-label={`Return ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
+                aria-label={t('work:approvals.decision.returnTimesheetNamed', 'Return {{name}}’s timesheet for {{week}}', { name, week: weekLabel(sheet.week_start_date) })}
                       onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
                       loading={reject.isPending}
                     >
-                      Return
+                      {t('work:approvals.decision.returnTimesheet', 'Return timesheet')}
                     </Button>
                   )}
                 </ApprovalRow>

@@ -91,6 +91,13 @@ describe('ProfileSettings (profile language settings slice)', () => {
     expect(screen.getByRole('heading', { level: 1, name: /profile & preferences/i })).toBeInTheDocument();
   });
 
+  it('R-047: shares the page left axis and names a return path and settings topic', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Back to work' })).toHaveAttribute('href', '/');
+    expect(screen.getByRole('region', { name: 'Display preferences' })).toBeInTheDocument();
+    expect(document.querySelector('.mx-auto')).toBeNull();
+  });
+
   it('keeps the language control keyboard reachable and exposes the preference save action', () => {
     renderPage();
     languageSelect().focus();

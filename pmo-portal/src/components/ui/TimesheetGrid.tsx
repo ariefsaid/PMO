@@ -152,7 +152,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       header: t('timesheets.projectColumn', 'Project'),
       kind: 'text',
       stickyLeft: true,
-      size: 240,
+      size: editable ? 240 : 216,
       minSize: 160,
       cell: (r) => editable ? (
         // Editable: name/code/note on the left, delete on the RIGHT of the same sticky
@@ -226,7 +226,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       ),
       kind: 'number',
       align: 'center',
-      size: 72,
+      size: editable ? 72 : 64,
       minSize: 64,
       // `weekend` is the marker class on header + cells; the visible tint is drawn inside the cell (see `tint`).
       colClassName: d.weekend ? 'weekend' : undefined,
@@ -288,7 +288,7 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
       header: t('timesheets.totalColumn', 'Total'),
       kind: 'number',
       align: 'center',
-      size: 80,
+      size: editable ? 80 : 64,
       minSize: 64,
       cell: (r) => {
         const rowTotal = rowTotals.get(r.id) ?? 0;

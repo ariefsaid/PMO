@@ -1,5 +1,7 @@
 import { routeDomainWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
+import { MobileToolbarDisclosure } from '@/src/components/ui/MobileToolbarDisclosure';
+import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import React, { useMemo, useState } from 'react';
 import {
   ListPage,
@@ -88,6 +90,7 @@ const makeValidate =
   };
 
 const Companies: React.FC = () => {
+  const isDesktop = useIsDesktop();
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -186,9 +189,9 @@ const Companies: React.FC = () => {
       header: t('companies.columns.name', 'Company'),
       cell: (c) => (
         <div className="min-w-0">
-          <span className="block break-words font-semibold">{companyDisplayName(c)}</span>
+          <span className="block break-words text-xl font-bold md:text-sm md:font-normal">{companyDisplayName(c)}</span>
           {c.short_name?.trim() && c.short_name.trim() !== c.name && (
-            <span className="block break-words text-sm text-muted-foreground">{c.name}</span>
+            <span className="block break-words text-sm font-normal text-muted-foreground">{c.name}</span>
           )}
         </div>
       ),
@@ -203,6 +206,16 @@ const Companies: React.FC = () => {
       exportValue: (c) => c.type,
     },
   ];
+
+  const mobileColumns: Column<CompanyRow>[] = [{
+    ...columns[0],
+    cell: (company) => (
+      <div className="space-y-2">
+        {columns[0].cell(company)}
+        <StatusPill variant={companyTypeVariant(company.type)}>{typeLabel[company.type]}</StatusPill>
+      </div>
+    ),
+  }];
 
   const rowMenu = (c: CompanyRow): RowMenuItem[] => {
     const items: RowMenuItem[] = [];
@@ -320,13 +333,12 @@ const Companies: React.FC = () => {
             <ExportButton rows={filtered} columns={columns} entity="Companies" />
             <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
           </div>
-          <details className="relative sm:hidden">
-            <summary className="touch-target flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-xs font-semibold">{t('work:companies.actions.more', 'More')}</summary>
-            <div className="absolute right-0 z-10 mt-1 flex min-w-40 flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-md">
+          <MobileToolbarDisclosure label={t('work:companies.actions.more', 'More')} className="sm:hidden">
+            <div className="flex min-w-40 flex-col gap-2">
               <ExportButton rows={filtered} columns={columns} entity="Companies" />
               <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
             </div>
-          </details>
+          </MobileToolbarDisclosure>
           {canCreate && (
             <Button variant="primary" className="min-h-11 w-full sm:w-auto" onClick={() => setFormTarget({ company: null })}>
               <Icon name="plus" />
@@ -364,21 +376,14 @@ const Companies: React.FC = () => {
           stateId="companies-empty"
           role={realRole ?? undefined}
           module="companies"
-          action={
-            canCreate
-              ? {
-                  label: t('companies.actions.new', 'New company'),
-                  onClick: () => setFormTarget({ company: null }),
-                }
-              : undefined
-          }
+
         />
       )}
 
       {state === undefined && (
         <DataTable<CompanyRow>
           rows={filtered}
-          columns={columns}
+          columns={isDesktop ? columns : mobileColumns}
           rowKey={(c) => c.id}
           // CW-4b: rows now NAVIGATE to the routable `/companies/:id` record page (the
           // drawer-as-record is retired). Create/edit-in-modal are unchanged.

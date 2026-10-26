@@ -29,6 +29,10 @@ vi.mock('@/src/hooks/useIncidents', () => ({
   useIncidentMutations: () => mutations,
 }));
 
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => ({ data: [{ id: 'project-1', name: 'Long Contract Project Identity' }] }),
+}));
+
 // The shared IncidentFormModal now reads the project FK options for its optional project link.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
@@ -53,6 +57,7 @@ const seed = [
     description: 'Trip hazard',
     status: 'Open',
     reported_by: 'u1',
+    project_id: 'project-1',
     created_at: '2026-03-15T00:00:00Z',
   },
   {
@@ -124,6 +129,7 @@ describe('Incidents index — rows + badges + filters (AC-IN-001)', () => {
   it('AC-IN-001: renders seeded incidents with type, severity + status badges', () => {
     renderPage();
     expect(screen.getByText('Near Miss')).toBeInTheDocument();
+    expect(screen.getByText('Long Contract Project Identity')).toHaveAttribute('href', '/projects/project-1');
     expect(screen.getByText('Equipment Damage')).toBeInTheDocument();
     // severity badge
     expect(screen.getAllByText('Low').length).toBeGreaterThan(0);

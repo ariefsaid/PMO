@@ -723,9 +723,7 @@
     },
     "entryOne": "entry",
     "entryOther": "entries",
-
     "noProjectLinked": "No project linked",
-
     "previewEmpty": {
       "sub": "When a pending request is available, its preview and actions appear here.",
       "title": "Select an approval item"
@@ -745,7 +743,6 @@
       "loadErrorSub": "Try again to refresh this queue."
     },
     "queueHeading": "Approvals queue",
-
     "queueHint": "Select an item to preview its details and decision controls.",
     "queueRegionLabel": "Approvals queue",
     "reopen": {
@@ -780,7 +777,16 @@
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of"
+    "weekOf": "Week of",
+    "unitBasis": "per unit",
+    "status": {
+      "requested": "Requested",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "submitted": "Submitted",
+      "draft": "Draft",
+      "returned": "Returned"
+    }
   },
   "combobox": {
     "search": {
@@ -808,7 +814,6 @@
       "archive": "Archive",
       "delete": "Delete",
       "edit": "Edit",
-
       "new": "New company"
     },
     "columns": {
@@ -832,7 +837,6 @@
       "all": "All",
       "ariaLabel": "Filter by type"
     },
-
     "form": {
       "editSubmit": "Save company",
       "editSubtitle": "Update this company record",
@@ -1162,7 +1166,6 @@
       "deleteDescription": "This permanently removes the contact and all of their logged activity. This cannot be undone — archive instead to keep the history.",
       "deleteTitle": "Delete contact?"
     },
-
     "filters": {
       "allCompanies": "All companies",
       "companyLabel": "Filter by company",
@@ -1211,7 +1214,6 @@
       "ariaLabel": "Search contacts",
       "placeholder": "Search contacts…"
     },
-
     "states": {
       "emptyAction": "Add your first contact",
       "emptySub": "Add your first contact to start logging calls and emails against the people you work with.",
@@ -1377,7 +1379,6 @@
       "errorTitle": "Couldn't load expense claims awaiting you",
       "heading": "Expense claims awaiting you ({{count}})",
       "label": "Expense claims awaiting you",
-
       "noReceipts": "No receipts attached.",
       "previewEvidence": "Preview claim evidence",
       "receiptsError": "Couldn't load receipts.",
@@ -1629,7 +1630,6 @@
     },
     "delete": "Delete",
     "edit": "Edit meeting",
-
     "error": {
       "sub": "Something went wrong fetching this meeting.",
       "title": "Couldn't load meeting"
@@ -1752,7 +1752,6 @@
       "ariaLabel": "Search meetings",
       "placeholder": "Search notes and titles…"
     },
-
     "states": {
       "emptySub": "Minute your first meeting to capture notes, attendees and action items in one place.",
       "emptyTitle": "No meetings yet",
@@ -1773,7 +1772,6 @@
     }
   },
   "myTasks": {
-
     "changeStatusOf": "Change status of",
     "due": "Due {{date}}",
     "empty": {
@@ -1785,11 +1783,9 @@
       "title": "Couldn't load your tasks"
     },
     "logTime": "Log time",
-
     "noProjectGroup": "No project",
     "overdue": "Overdue",
     "openTasks": "Open tasks",
-
     "completed": "Completed",
     "queueLabel": "Task status",
     "searchLabel": "Search your tasks",
@@ -1797,9 +1793,9 @@
     "clearSearch": "Clear search",
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
-    "start": "Start {{date}}"
+    "start": "Start {{date}}",
+    "projectContextLabel": "Project"
   },
-
   "procurement": {
     "columns": {
       "request": "Request",
@@ -3352,7 +3348,6 @@
     "addNotePlaceholder": "Add a note",
     "submitWeek": "Submit week",
     "weekTotal": "Week total",
-
     "dailyTotal": "Daily total",
     "rowTotal": "Row total",
     "projectColumn": "Project",
@@ -3613,24 +3608,22 @@
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
     "error": "Could not save your preferences. Please try again.",
-    "invalidTimezone": "Choose a valid timezone before saving."
+    "invalidTimezone": "Choose a valid timezone before saving.",
+    "returnToWork": "Back to work",
+    "topic": "Display preferences"
   },
-
   "oauthConsent": {
     "allow": "Allow",
     "brand": "PMO Portal",
     "decideError": "Your answer could not be sent.",
     "deny": "Deny",
-
     "explain": "{{client}} will be able to read and change PMO records as you, with exactly your permissions. It can do nothing you cannot do yourself.",
     "loadError": "This sign-in request could not be loaded.",
     "loading": "Loading the sign-in request…",
-
     "loopback": "After you answer, you return to a program on this computer.",
     "missingRequest": "This sign-in request is incomplete.",
     "restart": "Start the sign-in again from the application that sent you here.",
     "returning": "Returning you to the application…",
-
     "signedInAs": "Signed in as {{email}}",
     "title": "Allow {{client}} to access your PMO account?"
   },
@@ -3806,7 +3799,6 @@
     "backToDashboard": "Back to dashboard",
     "invoice": "Invoice #",
     "customerPO": "Customer PO",
-    "customer": "Customer",
     "status": "Status",
     "outstanding": "Outstanding",
     "date": "Date",
@@ -3828,7 +3820,6 @@
     "submitInvoice": "Submit invoice",
     "pushingToERPNext": "Pushing to ERPNext…",
     "selectOrSearchCustomer": "Select or search customer…",
-    "project": "Project",
     "selectProjectOptional": "Select project (optional)…",
     "itemCode": "Item code",
     "iTEM001": "ITEM-001",
@@ -3863,7 +3854,6 @@
     "invoicesWithAmountsWillAppearHere": "Invoices with amounts will appear here.",
     "name": "Name",
     "updated": "Updated",
-
     "composeViewWithAI": "Compose view with AI",
     "composeWithAI": "Compose with AI",
     "newView": "New view",
@@ -3906,7 +3896,6 @@
     "statusAll": "All",
     "statusSubmitted": "Submitted",
     "statusUnpaid": "Unpaid",
-    "statusPaid": "Paid",
     "statusCancelled": "Cancelled",
     "customerRequired": "Customer is required.",
     "invoiceLineRequired": "At least one line item is required.",
@@ -4011,10 +4000,8 @@
     "viewNotFound": "View not found.",
     "viewNotFoundDescription": "This view may have been archived or you don't have access.",
     "goToMyViews": "Go to My Views",
-
     "newView": "New view",
     "editView": "Edit view",
-
     "aiDraftReview": "AI-composed draft — review before saving",
     "composeWithAi": "Compose view with AI",
     "cancel": "Cancel",
@@ -4087,7 +4074,6 @@
     "generating": "Generating…",
     "generate": "Generate"
   },
-
   "projectClassification": {
     "tooLong": "Use {{max}} characters or fewer.",
     "title": "Classification",
@@ -4715,5 +4701,41 @@
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
     "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
     "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
+  },
+  "login": {
+    "demoPersona": {
+      "executive": "Executive",
+      "projectManager": "Project Manager",
+      "finance": "Finance",
+      "engineer": "Engineer",
+      "admin": "Admin"
+    },
+    "signInFailed": "Sign in could not be completed. Try again.",
+    "confirmationSent": "Confirmation sent. Check your email.",
+    "confirmationFailed": "Confirmation could not be sent. Try again.",
+    "magicLinkSent": "Check your email for a sign-in link.",
+    "magicLinkFailed": "A sign-in link could not be sent. Try again.",
+    "microsoftFailed": "Microsoft sign-in could not be started. Try again.",
+    "title": "Sign in to your account",
+    "intro": "Welcome back. Use your work account or email to continue.",
+    "confirmRequired": "Confirm your email to finish signing in. We can resend the confirmation link.",
+    "rateLimited": "Too many requests — please try again in a minute.",
+    "resendConfirmation": "Resend confirmation",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "emailDivider": "or continue with email",
+    "emailLabel": "Email",
+    "passwordLabel": "Password",
+    "forgotPassword": "Forgot password?",
+    "submit": "Sign in",
+    "noPassword": "No password?",
+    "magicLink": "Email me a magic link",
+    "demoDisclosure": "Show demo sign-in options",
+    "demoHeading": "Demo sign-in",
+    "demoPassword": "Demo password: {{password}}",
+    "demoPersonaAria": "{{persona}} demo sign-in",
+    "terms": "Terms",
+    "privacy": "Privacy",
+    "contactSupport": "Contact support via WhatsApp",
+    "help": "Help"
   }
 }

@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
@@ -25,6 +25,7 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import { useListSearchWorkingSet } from '@/src/hooks/useListSearchWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { formatDateTime } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { MeetingWithRefs } from '@/src/lib/db/meetings';
 
 /**
@@ -135,23 +136,24 @@ const Meetings: React.FC = () => {
       exportValue: (m) => m.title,
     },
     {
+      key: 'project',
+      header: t('meetings.columns.project', 'Project'),
+      cell: (m) => m.project ? (
+        <Link className="block break-words text-sm text-primary-text hover:underline" to={`/projects/${m.project.id}`}>
+          {m.title.includes(m.project.name)
+            ? projectDisplayName(m.project) !== m.project.name
+              ? projectDisplayName(m.project)
+              : t('work:meetings.openProject', 'Open project')
+            : m.project.name}
+        </Link>
+      ) : <span className="text-sm text-muted-foreground">{t('work:meetings.noProject', 'Not linked')}</span>,
+      exportValue: (m) => m.project?.name ?? '',
+    },
+    {
       key: 'occurred_at',
       header: t('meetings.columns.when', 'When'),
       cell: (m) => <span className="whitespace-nowrap">{formatDateTime(new Date(m.occurred_at))}</span>,
       exportValue: (m) => m.occurred_at,
-    },
-    {
-      key: 'project',
-      header: t('meetings.columns.project', 'Project'),
-      cell: (m) => (
-        <span className="break-words">
-          {m.project ? projectDisplayName(m.project) : '—'}
-          {m.project && m.project.name !== projectDisplayName(m.project) && (
-            <span className="block break-words text-sm text-muted-foreground">{m.project.name}</span>
-          )}
-        </span>
-      ),
-      exportValue: (m) => m.project?.name ?? '',
     },
     {
       key: 'location',
@@ -279,6 +281,9 @@ const Meetings: React.FC = () => {
         )
       }
     >
+      <p className="mb-2 text-sm text-muted-foreground" data-testid="meetings-timezone">
+        {t('work:meetings.timezoneContext', 'Times shown in {{timezone}}', { timezone: getActiveLocale().timezone })}
+      </p>
       {(state === 'loading' || (state === undefined && awaitingRows)) && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -306,14 +311,6 @@ const Meetings: React.FC = () => {
           stateId="meetings-empty"
           role={realRole ?? undefined}
           module="meetings"
-          action={
-            canCreate
-              ? {
-                  label: t('meetings.actions.new', 'New meeting'),
-                  onClick: () => openRecord('/meetings/new'),
-                }
-              : undefined
-          }
         />
       )}
 

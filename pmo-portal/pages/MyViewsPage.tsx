@@ -111,9 +111,14 @@ const MyViewsPage: React.FC = () => {
     {
       key: 'description',
       header: t('financeCopy.description', "Description"),
-      cell: (row) => (
-        <span className="text-muted-foreground">{row.description ?? '—'}</span>
-      ),
+      cell: (row) => row.description ? (
+        <details>
+          <summary className="min-h-11 cursor-pointer font-medium text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+            {t('work:financeCopy.viewDescription', 'View description')}
+          </summary>
+          <span className="block whitespace-normal break-words text-muted-foreground">{row.description}</span>
+        </details>
+      ) : <span className="text-muted-foreground">—</span>,
     },
     {
       key: 'updated_at',

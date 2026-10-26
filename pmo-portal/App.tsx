@@ -1,3 +1,4 @@
+import './pages/workSurface.css';
 import React, { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, useRoutes, type RouteObject } from 'react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -150,27 +151,27 @@ export const appRouteConfig: RouteObject[] = [
   //   (defaults to the Overview tab); :tab deep-links a panel.
   { path: '/procurement/:procurementId', element: <ProcurementDetails /> },
   { path: '/procurement/:procurementId/:tab', element: <ProcurementDetails /> },
-  { path: '/timesheets', element: <TimesheetsPage /> },
-  { path: '/approvals', element: <ApprovalsPage /> },
-  { path: '/companies', element: <CompaniesPage /> },
+  { path: '/timesheets', element: <div className="work-surface contents"><TimesheetsPage /></div> },
+  { path: '/approvals', element: <div className="work-surface contents"><ApprovalsPage /></div> },
+  { path: '/companies', element: <div className="work-surface contents"><CompaniesPage /></div> },
   // CW-4b: /companies/:id — the routable Company record page (retires the drawer-as-record).
-  { path: '/companies/:companyId', element: <CompanyDetailPage /> },
-  { path: '/contacts', element: <ContactsPage /> },
+  { path: '/companies/:companyId', element: <div className="work-surface contents"><CompanyDetailPage /></div> },
+  { path: '/contacts', element: <div className="work-surface contents"><ContactsPage /></div> },
   // CW-4b: /contacts/:id — the routable Contact record page (retires the drawer-as-record).
-  { path: '/contacts/:contactId', element: <ContactDetailPage /> },
+  { path: '/contacts/:contactId', element: <div className="work-surface contents"><ContactDetailPage /></div> },
   // Incidents is hidden behind the interim `incidents` UI feature flag (UI-hide-first):
   //   FeatureRoute renders the page when enabled, else redirects deep-links to home instead of
   //   404. CW-4a: /incidents/:id is the routable detail page when the module is on.
-  { path: '/incidents', element: <FeatureRoute feature="incidents" element={<IncidentsPage />} /> },
-  { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<IncidentDetailPage />} /> },
+  { path: '/incidents', element: <FeatureRoute feature="incidents" element={<div className="work-surface contents"><IncidentsPage /></div>} /> },
+  { path: '/incidents/:incidentId', element: <FeatureRoute feature="incidents" element={<div className="work-surface contents"><IncidentDetailPage /></div>} /> },
   // B-1 (AC-W2-IXD-001/002): My Tasks — IC-scoped own-assigned cross-project task list.
-  { path: '/my-tasks', element: <MyTasksPage /> },
+  { path: '/my-tasks', element: <div className="work-surface contents"><MyTasksPage /></div> },
   // #526: Meetings — minuted meetings with attendees, action items and view-only shares.
   //   Reads are RLS-scoped (attendance ∪ author ∪ grant ∪ Admin, migration 0205), so the routes
   //   exist for every role; the detail renders a calm not-found for an unshared meeting.
-  { path: '/meetings', element: <MeetingsPage /> },
-  { path: '/meetings/new', element: <MeetingCreatePage /> },
-  { path: '/meetings/:meetingId', element: <MeetingDetailPage /> },
+  { path: '/meetings', element: <div className="work-surface contents"><MeetingsPage /></div> },
+  { path: '/meetings/new', element: <div className="work-surface contents"><MeetingCreatePage /></div> },
+  { path: '/meetings/:meetingId', element: <div className="work-surface contents"><MeetingDetailPage /></div> },
   // #775: expense claims and cash advances.
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
@@ -202,18 +203,18 @@ export const appRouteConfig: RouteObject[] = [
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.
   { path: '/integrations', element: <IntegrationsPage /> },
   // I4: My Views list (/views) — before /:viewId to avoid wildcard collision.
-  { path: '/views', element: <FeatureRoute feature="user_views" element={<MyViewsPage />} /> },
+  { path: '/views', element: <FeatureRoute feature="user_views" element={<div className="work-surface contents"><MyViewsPage /></div>} /> },
   // I4: Create builder — literal 'new' before /:viewId param.
-  { path: '/views/new', element: <FeatureRoute feature="user_views" element={<ViewBuilderPage mode="create" />} /> },
+  { path: '/views/new', element: <FeatureRoute feature="user_views" element={<div className="work-surface contents"><ViewBuilderPage mode="create" /></div>} /> },
   // I4: Edit builder — /:viewId/edit is more specific than /:viewId alone.
-  { path: '/views/:viewId/edit', element: <FeatureRoute feature="user_views" element={<ViewBuilderPage mode="edit" />} /> },
+  { path: '/views/:viewId/edit', element: <FeatureRoute feature="user_views" element={<div className="work-surface contents"><ViewBuilderPage mode="edit" /></div>} /> },
   // I3: User-view renderer: /views/:viewId. Declared after /views/new and /views/:viewId/edit to
   //   avoid wildcard collision.
-  { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<UserViewRenderer />} /> },
+  { path: '/views/:viewId', element: <FeatureRoute feature="user_views" element={<div className="work-surface contents"><UserViewRenderer /></div>} /> },
   // Personal profile language settings (RIS slice): every signed-in user's interface-language
   //   override. Declared before the `*` catch-all so it resolves to a real route.
-  { path: '/settings/profile', element: <ProfileSettingsPage /> },
-  { path: '*', element: <NotFoundPage /> },
+  { path: '/settings/profile', element: <div className="work-surface contents"><ProfileSettingsPage /></div> },
+  { path: '*', element: <div className="work-surface contents"><NotFoundPage /></div> },
 ];
 
 export const AppRoutes: React.FC = () => (
@@ -565,16 +566,16 @@ const App: React.FC = () => (
           <BrowserRouter>
             <AnalyticsProvider>
               <Routes>
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/terms" element={<TermsPage />} />
-                <Route path="/privacy" element={<PrivacyPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
-                <Route path="/update-password" element={<UpdatePasswordPage />} />
+                <Route path="/login" element={<div className="work-surface contents"><LoginPage /></div>} />
+                <Route path="/terms" element={<div className="work-surface contents"><TermsPage /></div>} />
+                <Route path="/privacy" element={<div className="work-surface contents"><PrivacyPage /></div>} />
+                <Route path="/reset-password" element={<div className="work-surface contents"><ResetPasswordPage /></div>} />
+                <Route path="/update-password" element={<div className="work-surface contents"><UpdatePasswordPage /></div>} />
                 <Route element={<RequireAuth />}>
                   <Route element={<RequireInviteAccepted />}>
                     {/* #728: Supabase's OAuth server sends the browser here to approve an outside
                         client (the PMO CLI). Signed-in only, but outside the app shell. */}
-                    <Route path="/oauth/consent" element={<OAuthConsentPage />} />
+                    <Route path="/oauth/consent" element={<div className="work-surface contents"><OAuthConsentPage /></div>} />
                     <Route path="/*" element={<Shell />} />
                   </Route>
                 </Route>

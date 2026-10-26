@@ -11,6 +11,9 @@
       },
       "timesheets": {
         "hoursTitle": "Timesheet · jam"
+      },
+      "procurement": {
+        "title": "Permintaan pembelian"
       }
     },
     "lineItems": "Rincian item",
@@ -27,7 +30,27 @@
     },
     "showAllPending": "Tampilkan semua yang menunggu",
     "unitRate": "{{quantity}} × {{rate}}",
-    "unknownCustomer": "Pelanggan tidak diketahui"
+    "unknownCustomer": "Pelanggan tidak diketahui",
+    "requestApproved": "Permintaan disetujui",
+    "requestRejected": "Permintaan ditolak",
+    "requestApprovedDetail": "{{request}} telah disetujui",
+    "requestRejectedDetail": "{{request}} telah ditolak",
+    "decision": {
+      "approveRequest": "Setujui permintaan {{request}}",
+      "approveRequestLabel": "Setujui permintaan",
+      "rejectRequest": "Tolak permintaan {{request}}",
+      "rejectRequestLabel": "Tolak permintaan",
+      "approveTimesheet": "Setujui lembar waktu",
+      "returnTimesheet": "Kembalikan lembar waktu",
+      "approveTimesheetNamed": "Setujui lembar waktu {{name}} untuk {{week}}",
+      "returnTimesheetNamed": "Kembalikan lembar waktu {{name}} untuk {{week}}"
+    },
+    "requestLoadError": "Tidak dapat memuat detail permintaan",
+    "confirmApprove": "Setujui {{request}}?",
+    "confirmReject": "Tolak {{request}}?",
+    "confirmApproveBody": "Setujui {{request}} — {{amount}}? Permintaan akan dilanjutkan ke tahap pemesanan.",
+    "confirmRejectBody": "Tolak {{request}}? Pemohon akan diberi tahu dan dapat merevisi serta mengajukan ulang.",
+    "waitingSince": "Menunggu sejak {{date}}"
   },
   "common": {
     "history": "Riwayat"
@@ -77,7 +100,8 @@
       "label": "Urutkan kontak",
       "nameAz": "Nama A–Z",
       "nameZa": "Nama Z–A"
-    }
+    },
+    "moreActions": "Lainnya"
   },
   "expenses": {
     "approvals": {
@@ -98,7 +122,8 @@
     "scope": "Cakupan",
     "searchViews": "Cari tampilan tersimpan…",
     "sharedWithMe": "Dibagikan kepada saya",
-    "sortViews": "Urutkan tampilan tersimpan"
+    "sortViews": "Urutkan tampilan tersimpan",
+    "viewDescription": "Lihat deskripsi"
   },
   "incidents": {
     "actions": {
@@ -203,7 +228,10 @@
     },
     "title": "Insiden",
     "unlinked": "Belum ditautkan",
-    "viewProject": "Lihat proyek"
+    "viewProject": "Lihat proyek",
+    "projectUnavailable": "Proyek tidak tersedia",
+    "rowDetails": "Detail lainnya",
+    "moreActions": "Lainnya"
   },
   "meetingDetail": {
     "action": {
@@ -216,7 +244,10 @@
       "label": "Urutkan rapat",
       "latest": "Tanggal rapat terbaru",
       "oldest": "Tanggal rapat terlama"
-    }
+    },
+    "openProject": "Buka proyek",
+    "noProject": "Tidak ditautkan",
+    "timezoneContext": "Waktu ditampilkan dalam {{timezone}}"
   },
   "myTasks": {
     "allProjects": "Semua proyek",
@@ -286,6 +317,46 @@
     "timesheets": "Waktu saya",
     "timesheetsDeniedScope": "Jam kerja Anda untuk satu minggu",
     "timesheetsScope": "Jam kerja Anda · {{week}} · {{status}}",
-    "views": "Tampilan saya"
+    "views": "Tampilan saya",
+    "timesheetsWeekScope": "Minggu {{week}}"
+  },
+  "resetPassword": {
+    "title": "Atur ulang kata sandi Anda",
+    "sent": "Periksa email Anda — jika akun dengan alamat tersebut ada, tautan pengaturan ulang sedang dikirim.",
+    "email": "Email",
+    "send": "Kirim tautan pengaturan ulang",
+    "back": "Kembali untuk masuk",
+    "error": "Terjadi kesalahan"
+  },
+  "updatePassword": {
+    "unavailable": "Tautan kata sandi tidak tersedia",
+    "invalid": "Tautan ini tidak valid atau sudah kedaluwarsa.",
+    "request": "Minta tautan baru",
+    "back": "Kembali untuk masuk",
+    "inviteTitle": "Buat kata sandi Anda",
+    "title": "Buat kata sandi baru",
+    "verifying": "Memverifikasi tautan Anda…",
+    "newPassword": "Kata sandi baru",
+    "confirm": "Konfirmasi kata sandi",
+    "submit": "Simpan kata sandi baru",
+    "mismatch": "Kata sandi tidak cocok",
+    "error": "Kata sandi Anda tidak dapat diperbarui. Coba lagi."
+  },
+  "budgetImpact": {
+    "title": "Dampak anggaran",
+    "unavailable": "Anggaran tidak tersedia — dampak anggaran belum dapat ditampilkan.",
+    "noBudget": "Belum ada anggaran aktif untuk proyek ini — dampak anggaran tidak dapat ditampilkan.",
+    "thisRequest": "Permintaan ini",
+    "reserved": "Dicadangkan · disetujui, belum dipesan",
+    "available": "Tersedia",
+    "budget": "Anggaran proyek",
+    "committed": "Terikat",
+    "openProject": "Buka proyek",
+    "otherCurrencies": "Tidak termasuk komitmen dalam mata uang lain: {{amounts}}",
+    "afterRequest": "Setelah permintaan ini · sisa ruang anggaran {{percent}}%",
+    "overAvailable": "Melebihi anggaran yang tersedia",
+    "overAvailableBody": "Permintaan ini melebihi anggaran yang tersedia sebesar {{amount}}. Persetujuan tetap diperbolehkan — ini hanya informasi.",
+    "overBudget": "Proyek melebihi anggaran",
+    "overBudgetBody": "Proyek ini melebihi anggaran sebesar {{amount}} dari kebutuhan terikat dan dicadangkan. Ini hanya informasi."
   }
 }

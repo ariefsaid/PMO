@@ -95,9 +95,22 @@ describe('MyTasks page — component states (B-1, AC-W2-IXD-002)', () => {
     renderMyTasks();
     const taskRow = screen.getByText('Review design specs').closest<HTMLElement>('[role="listitem"]')!;
     expect(within(taskRow).getByText('Northwind ERP')).toBeInTheDocument();
+    expect(within(taskRow).getByText('Review design specs').className).toMatch(/font-semibold/);
+    expect(within(taskRow).getByText('Project')).toBeInTheDocument();
     // The status select should have the task's current status selected.
     const statusSelect = screen.getByRole('combobox', { name: /change status of review design specs/i });
     expect(statusSelect).toHaveValue('In Progress');
+  });
+
+  it('R-036: translates each displayed status option while preserving the enum value', () => {
+    tasksState.isPending = false;
+    tasksState.data = [
+      { id: 't1', name: 'Prepare the agenda', status: 'In Progress', assignee_id: 'u-self', project_id: 'p1', project_name: 'North project', start_date: null, end_date: null },
+    ];
+    renderMyTasks();
+    const select = screen.getByRole('combobox', { name: /change status of prepare the agenda/i });
+    expect(within(select).getByRole('option', { name: 'In Progress' })).toHaveValue('In Progress');
+    expect(within(select).getByRole('option', { name: 'Blocked' })).toHaveValue('Blocked');
   });
 
   it('CW-7: the project header deep-links to the project Tasks tab (role-invariant default is Overview)', () => {

@@ -254,27 +254,30 @@ const MyTasks: React.FC = () => {
                   {task.project_id || task.meeting_id ? (
                     <Link
                       to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                      className="min-w-0 break-words text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-w-0 break-words text-xl font-bold text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       title={task.name}
                     >
                       {task.name}
                     </Link>
                   ) : (
-                    <span className="min-w-0 break-words text-sm" title={task.name}>{task.name}</span>
+                    <span className="min-w-0 break-words text-xl font-bold text-foreground" title={task.name}>{task.name}</span>
                   )}
                   {isOverdueTask(task) && <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>}
                 </div>
-                <div className="mt-1 text-sm text-muted-foreground">
+                <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {t('myTasks.projectContextLabel', 'Project')}
+                  </span>
                   {task.project_id ? (
                     <Link
                       to={`/projects/${task.project_id}/tasks`}
                       title={task.project_contractual_name && task.project_contractual_name !== task.project_name ? task.project_contractual_name : undefined}
-                      className="rounded hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-w-0 break-words rounded text-sm text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {task.project_name ?? t('work:myTasks.projectUnknown', 'Project')}
                     </Link>
                   ) : (
-                    <span>{t('myTasks.noProjectGroup', 'No project')}</span>
+                    <span className="text-sm text-muted-foreground">{t('myTasks.noProjectGroup', 'No project')}</span>
                   )}
                 </div>
                 {(task.start_date || task.end_date) && (

@@ -259,7 +259,6 @@ describe('Approvals page states', () => {
     queryState.data = [];
     procState.data = [];
     renderPage();
-    expect(screen.getByText(/customer invoices/i)).toBeInTheDocument();
     expect(screen.getByTestId('approvals-caught-up')).not.toHaveTextContent(/customer invoices/i);
   });
 
@@ -303,21 +302,14 @@ describe('Approvals page data', () => {
     renderPage();
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     // 8 hours in entries
-    expect(within(preview).getByText(/8\.0/)).toBeInTheDocument();
+    expect(within(preview).getByTestId('tsgrid-grand-total')).toHaveTextContent(/^8$/);
   });
 
   it('FR-L10N-020: a procurement queue row renders its OWN currency, not USD', () => {
     procState.data = [{ id: 'pr1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
-    render(
-      <MemoryRouter initialEntries={['/approvals?scope=procurement']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <ToastProvider>
-            <ApprovalsPage />
-          </ToastProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-    expect(screen.getAllByText('€1,000').length).toBeGreaterThan(0);
+    renderPage('procurement', false);
+    expect(screen.getAllByText('1,000').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('EUR').length).toBeGreaterThan(0);
     expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
   });
 });
@@ -408,7 +400,7 @@ describe('Approvals desktop bulk actions (AC-912)', () => {
 // desktop (stacked), preserving each type's evidence and decision rules.
 // ---------------------------------------------------------------------------
 describe('S-18 UX-060: phone width renders the unified queue + preview grammar', () => {
-  it('procurement and timesheet items share ONE queue region and ONE preview region — no second queue system', () => {
+  it('procurement and timesheet items share ONE queue and open the selected evidence on phone', async () => {
     queryState.data = submittedSheets;
     procState.data = [{ id: 'pr-1', title: 'Structural steel', status: 'Requested', requested_by_id: 'someone', total_value: 1000, currency: 'EUR' }];
     renderPage('all', false);
@@ -422,7 +414,8 @@ describe('S-18 UX-060: phone width renders the unified queue + preview grammar',
     expect(screen.queryByText(/team approvals queue/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/purchase requests awaiting you/i)).not.toBeInTheDocument();
 
-    // The same preview region as desktop, with the first pending item already previewed.
+    // Phone selection replaces the queue; opening the record precedes its evidence.
+    await userEvent.click(within(queue).getByRole('button', { name: /Structural steel/i }));
     const preview = screen.getByTestId('approvals-preview-region');
     expect(within(preview).getByRole('heading', { name: /Structural steel/i })).toBeInTheDocument();
   });

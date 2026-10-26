@@ -723,9 +723,7 @@
     },
     "entryOne": "entri",
     "entryOther": "entri",
-
     "noProjectLinked": "Tidak ada proyek tertaut",
-
     "previewEmpty": {
       "sub": "Saat ada permintaan yang menunggu, pratinjau dan tindakannya muncul di sini.",
       "title": "Pilih item persetujuan"
@@ -745,7 +743,6 @@
       "loadErrorSub": "Coba lagi untuk memuat ulang antrean ini."
     },
     "queueHeading": "Antrean persetujuan",
-
     "queueHint": "Pilih item untuk melihat detail dan kontrol keputusannya.",
     "queueRegionLabel": "Antrean persetujuan",
     "reopen": {
@@ -780,7 +777,16 @@
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu"
+    "weekOf": "Minggu",
+    "unitBasis": "per unit",
+    "status": {
+      "requested": "Diajukan",
+      "approved": "Disetujui",
+      "rejected": "Ditolak",
+      "submitted": "Diajukan",
+      "draft": "Draf",
+      "returned": "Dikembalikan"
+    }
   },
   "combobox": {
     "search": {
@@ -808,7 +814,6 @@
       "archive": "Arsipkan",
       "delete": "Hapus",
       "edit": "Edit",
-
       "new": "Perusahaan baru"
     },
     "columns": {
@@ -832,7 +837,6 @@
       "all": "Semua",
       "ariaLabel": "Filter berdasarkan tipe"
     },
-
     "form": {
       "editSubmit": "Simpan perusahaan",
       "editSubtitle": "Perbarui data perusahaan ini",
@@ -1162,7 +1166,6 @@
       "deleteDescription": "Tindakan ini menghapus kontak beserta seluruh aktivitas yang tercatat secara permanen. Tindakan ini tidak dapat dibatalkan — arsipkan saja untuk menyimpan riwayatnya.",
       "deleteTitle": "Hapus kontak ini?"
     },
-
     "filters": {
       "allCompanies": "Semua perusahaan",
       "companyLabel": "Filter berdasarkan perusahaan",
@@ -1211,7 +1214,6 @@
       "ariaLabel": "Cari kontak",
       "placeholder": "Cari kontak…"
     },
-
     "states": {
       "emptyAction": "Tambahkan kontak pertama Anda",
       "emptySub": "Tambahkan kontak pertama Anda untuk mulai mencatat telepon dan email dengan orang yang bekerja sama dengan Anda.",
@@ -1377,7 +1379,6 @@
       "errorTitle": "Gagal memuat klaim biaya yang menunggu Anda",
       "heading": "Klaim biaya menunggu Anda ({{count}})",
       "label": "Klaim biaya menunggu Anda",
-
       "noReceipts": "Tidak ada bukti terlampir.",
       "previewEvidence": "Pratinjau bukti klaim",
       "receiptsError": "Gagal memuat bukti.",
@@ -1629,7 +1630,6 @@
     },
     "delete": "Hapus",
     "edit": "Edit rapat",
-
     "error": {
       "sub": "Terjadi kesalahan saat mengambil rapat ini.",
       "title": "Gagal memuat rapat"
@@ -1752,7 +1752,6 @@
       "ariaLabel": "Cari rapat",
       "placeholder": "Cari notulen dan judul…"
     },
-
     "states": {
       "emptySub": "Buat notulen rapat pertama Anda untuk mencatat catatan, peserta, dan action item di satu tempat.",
       "emptyTitle": "Belum ada rapat",
@@ -1773,7 +1772,6 @@
     }
   },
   "myTasks": {
-
     "changeStatusOf": "Ubah status",
     "due": "Tenggat {{date}}",
     "empty": {
@@ -1785,11 +1783,9 @@
       "title": "Gagal memuat tugas Anda"
     },
     "logTime": "Catat jam",
-
     "noProjectGroup": "Tanpa proyek",
     "overdue": "Terlambat",
     "openTasks": "Tugas aktif",
-
     "completed": "Selesai",
     "queueLabel": "Status tugas",
     "searchLabel": "Cari tugas Anda",
@@ -1797,9 +1793,9 @@
     "clearSearch": "Hapus pencarian",
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
-    "start": "Mulai {{date}}"
+    "start": "Mulai {{date}}",
+    "projectContextLabel": "Proyek"
   },
-
   "procurement": {
     "columns": {
       "request": "Permintaan",
@@ -3294,10 +3290,10 @@
   },
   "task": {
     "status": {
-      "blocked": "Blocked",
-      "done": "Done",
-      "inProgress": "In Progress",
-      "toDo": "To Do"
+      "blocked": "Terhambat",
+      "done": "Selesai",
+      "inProgress": "Sedang dikerjakan",
+      "toDo": "Belum dikerjakan"
     }
   },
   "tax": {
@@ -3352,7 +3348,6 @@
     "addNotePlaceholder": "Tambahkan catatan",
     "submitWeek": "Ajukan minggu ini",
     "weekTotal": "Total minggu",
-
     "dailyTotal": "Total harian",
     "rowTotal": "Total baris",
     "projectColumn": "Proyek",
@@ -3613,24 +3608,22 @@
     "saving": "Menyimpan preferensi Anda…",
     "saved": "Preferensi disimpan",
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
-    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
+    "returnToWork": "Kembali ke pekerjaan",
+    "topic": "Preferensi tampilan"
   },
-
   "oauthConsent": {
     "allow": "Izinkan",
     "brand": "PMO Portal",
     "decideError": "Jawaban Anda tidak dapat dikirim.",
     "deny": "Tolak",
-
     "explain": "{{client}} akan dapat membaca dan mengubah catatan PMO atas nama Anda, dengan izin yang sama persis dengan izin Anda. Aplikasi ini tidak dapat melakukan apa pun yang tidak dapat Anda lakukan sendiri.",
     "loadError": "Permintaan masuk ini tidak dapat dimuat.",
     "loading": "Memuat permintaan masuk…",
-
     "loopback": "Setelah Anda menjawab, Anda akan kembali ke program di komputer ini.",
     "missingRequest": "Permintaan masuk ini tidak lengkap.",
     "restart": "Mulai proses masuk lagi dari aplikasi yang mengarahkan Anda ke sini.",
     "returning": "Mengembalikan Anda ke aplikasi…",
-
     "signedInAs": "Masuk sebagai {{email}}",
     "title": "Izinkan {{client}} mengakses akun PMO Anda?"
   },
@@ -3806,7 +3799,6 @@
     "backToDashboard": "Kembali ke dasbor",
     "invoice": "No. Faktur",
     "customerPO": "PO Pelanggan",
-    "customer": "Pelanggan",
     "status": "Status",
     "outstanding": "Belum dibayar",
     "date": "Tanggal",
@@ -3828,7 +3820,6 @@
     "submitInvoice": "Ajukan faktur",
     "pushingToERPNext": "Mengirim ke ERPNext…",
     "selectOrSearchCustomer": "Pilih atau cari pelanggan…",
-    "project": "Proyek",
     "selectProjectOptional": "Pilih proyek (opsional)…",
     "itemCode": "Kode item",
     "iTEM001": "ITEM-001",
@@ -3863,7 +3854,6 @@
     "invoicesWithAmountsWillAppearHere": "Faktur dengan jumlah akan muncul di sini.",
     "name": "Nama",
     "updated": "Diperbarui",
-
     "composeViewWithAI": "Buat tampilan dengan AI",
     "composeWithAI": "Buat dengan AI",
     "newView": "Tampilan baru",
@@ -3906,7 +3896,6 @@
     "statusAll": "Semua",
     "statusSubmitted": "Diajukan",
     "statusUnpaid": "Belum dibayar",
-    "statusPaid": "Dibayar",
     "statusCancelled": "Dibatalkan",
     "customerRequired": "Pelanggan wajib diisi.",
     "invoiceLineRequired": "Minimal satu item baris diperlukan.",
@@ -4011,10 +4000,8 @@
     "viewNotFound": "Tampilan tidak ditemukan.",
     "viewNotFoundDescription": "Tampilan ini mungkin telah diarsipkan atau Anda tidak memiliki akses.",
     "goToMyViews": "Buka Tampilan Saya",
-
     "newView": "Tampilan baru",
     "editView": "Edit tampilan",
-
     "aiDraftReview": "Draf buatan AI — tinjau sebelum disimpan",
     "composeWithAi": "Susun tampilan dengan AI",
     "cancel": "Batal",
@@ -4087,7 +4074,6 @@
     "none": "— tidak ada —",
     "select": "— pilih —"
   },
-
   "projectClassification": {
     "tooLong": "Gunakan maksimal {{max}} karakter.",
     "title": "Klasifikasi",
@@ -4715,5 +4701,41 @@
     "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
     "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien.",
     "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
+  },
+  "login": {
+    "demoPersona": {
+      "executive": "Eksekutif",
+      "projectManager": "Manajer Proyek",
+      "finance": "Keuangan",
+      "engineer": "Teknisi",
+      "admin": "Admin"
+    },
+    "signInFailed": "Proses masuk tidak dapat diselesaikan. Coba lagi.",
+    "confirmationSent": "Konfirmasi terkirim. Periksa email Anda.",
+    "confirmationFailed": "Konfirmasi tidak dapat dikirim. Coba lagi.",
+    "magicLinkSent": "Periksa email Anda untuk tautan masuk.",
+    "magicLinkFailed": "Tautan masuk tidak dapat dikirim. Coba lagi.",
+    "microsoftFailed": "Proses masuk Microsoft tidak dapat dimulai. Coba lagi.",
+    "title": "Masuk ke akun Anda",
+    "intro": "Selamat datang kembali. Gunakan akun kerja atau email Anda untuk melanjutkan.",
+    "confirmRequired": "Konfirmasikan email Anda untuk menyelesaikan proses masuk. Kami dapat mengirim ulang tautan konfirmasi.",
+    "rateLimited": "Terlalu banyak permintaan — coba lagi dalam satu menit.",
+    "resendConfirmation": "Kirim ulang konfirmasi",
+    "continueWithMicrosoft": "Lanjutkan dengan Microsoft",
+    "emailDivider": "atau lanjutkan dengan email",
+    "emailLabel": "Email",
+    "passwordLabel": "Kata sandi",
+    "forgotPassword": "Lupa kata sandi?",
+    "submit": "Masuk",
+    "noPassword": "Belum memiliki kata sandi?",
+    "magicLink": "Kirim tautan masuk ke email saya",
+    "demoDisclosure": "Tampilkan pilihan masuk demo",
+    "demoHeading": "Masuk demo",
+    "demoPassword": "Kata sandi demo: {{password}}",
+    "demoPersonaAria": "Masuk demo {{persona}}",
+    "terms": "Ketentuan",
+    "privacy": "Privasi",
+    "contactSupport": "Hubungi dukungan melalui WhatsApp",
+    "help": "Bantuan"
   }
 }

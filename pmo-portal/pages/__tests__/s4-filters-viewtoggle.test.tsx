@@ -119,7 +119,6 @@ vi.mock('@/src/hooks/useIncidents', () => ({
 import Projects from '../Projects';
 import Procurement from '../Procurement';
 import { readProcurementView } from '@/src/hooks/useProcurementView';
-import Incidents from '../Incidents';
 
 const renderProjects = () =>
   render(
@@ -129,11 +128,6 @@ const renderProjects = () =>
 const renderProcurement = () =>
   render(
     <ToastProvider><MemoryRouter><Procurement /></MemoryRouter></ToastProvider>,
-  );
-
-const renderIncidents = () =>
-  render(
-    <MemoryRouter><ToastProvider><Incidents /></ToastProvider></MemoryRouter>,
   );
 
 // ── AC-2: shared status filter scroll container ──────────────────────────────
@@ -155,13 +149,7 @@ describe('AC-2: status filter is wrapped in an overflow-x-auto scroll container'
     expect(scrollWrapper!.className).not.toContain('hidden');
   });
 
-  it('Incidents: status-filter tablist sits inside an overflow-x-auto container (AC-2)', () => {
-    renderIncidents();
-    const statusFilter = screen.getByRole('tablist', { name: /filter by status/i });
-    const scrollWrapper = statusFilter.closest('[data-testid="status-filter-scroll"]');
-    expect(scrollWrapper).toBeInTheDocument();
-    expect(scrollWrapper!.className).toContain('overflow-x-auto');
-  });
+  // Incidents filters now wrap; selection and URL behavior is covered by Incidents.test.tsx.
 });
 
 // ── AC-MOB-VT: Projects keeps all four view choices reachable on a phone ────

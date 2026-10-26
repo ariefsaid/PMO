@@ -115,7 +115,7 @@ function QueueButton({
         <div className="mb-1 text-xs font-semibold text-muted-foreground">{label}</div>
         <div className="flex flex-wrap items-start justify-between gap-2">
           <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
-          <StatusPill variant={workflowVariant(status)}>{status}</StatusPill>
+          <StatusPill variant={workflowVariant(status)}>{t(`approvals.status.${status.toLowerCase()}`, status)}</StatusPill>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span className="min-w-0 break-words">{detail}</span>
@@ -139,9 +139,6 @@ function QueueButton({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="mb-1 text-xs font-semibold text-muted-foreground">
-            {t('work:approvals.group.timesheets.hoursTitle', 'Timesheets · hours')}
-          </div>
           <div className="break-words text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
@@ -151,7 +148,7 @@ function QueueButton({
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
           </div>
         </div>
-        <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
+        <StatusPill variant={workflowVariant(row.status)}>{t(`approvals.status.${row.status.toLowerCase()}`, row.status)}</StatusPill>
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
         <span>
@@ -198,12 +195,6 @@ function QueueGroup({
   const { t } = useTranslation();
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-xl font-bold text-foreground">
-          {title}
-        </h2>
-      </div>
-
       {isPending ? (
         <ListState variant="loading" rows={2} className="rounded-lg border border-border/70 p-0" />
       ) : isError ? (
@@ -229,15 +220,24 @@ function QueueGroup({
           )}
         </div>
       ) : (
-        <div className="space-y-1.5">
-          {items.map((item) => (
-            <QueueButton
-              key={item.key}
-              item={item}
-              selected={selectedKey === item.key}
-              onSelect={() => onSelect(item.key)}
-              bulk={bulk}
-            />
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <React.Fragment key={item.key}>
+              {(index === 0 || items[index - 1].kind !== item.kind) && (
+                <h3 className="text-xl font-bold text-foreground">
+                  {item.kind === 'procurement' ? t('work:approvals.group.procurement.title', 'Purchase requests')
+                    : item.kind === 'timesheets' ? t('work:approvals.group.timesheets.hoursTitle', 'Timesheets · hours')
+                      : item.kind === 'expense' ? t('work:approvals.group.expense.title', 'Expense claims')
+                        : t('work:approvals.group.invoice.title', 'Customer invoices')}
+                </h3>
+              )}
+              <QueueButton
+                item={item}
+                selected={selectedKey === item.key}
+                onSelect={() => onSelect(item.key)}
+                bulk={bulk}
+              />
+            </React.Fragment>
           ))}
         </div>
       )}
@@ -806,11 +806,12 @@ const ApprovalsPage: React.FC = () => {
     return state.pending || state.error;
   });
   const countFor = (scope: Scope) => ({
+    all: pendingProc + pendingTs + pendingExpense + pendingInv,
     procurement: pendingProc,
     timesheets: pendingTs,
     expense: pendingExpense,
     invoice: pendingInv,
-  }[scope as Exclude<Scope, 'all'>]);
+  }[scope]);
   const emptyQueueTitle = activeScope && activeScope !== 'all'
     ? t('work:approvals.queueEmptyScopeTitle', 'No {{scope}} awaiting your decision', { scope: scopeLabels[activeScope].toLowerCase() })
     : t('work:approvals.queueEmptyTitle', 'No requests awaiting your decision');
@@ -886,7 +887,7 @@ const ApprovalsPage: React.FC = () => {
                 value: scope,
                 label: scopeLabels[scope],
                 icon: ({ all: 'grid', procurement: 'cart', timesheets: 'clock', expense: 'file', invoice: 'file' } as const)[scope],
-                ...(scope !== 'all' && countAvailable(scope) ? { count: countFor(scope) } : {}),
+                ...(countAvailable(scope) ? { count: countFor(scope) } : {}),
               }))}
               value={activeScope}
               onChange={selectScope}
@@ -935,12 +936,6 @@ const ApprovalsPage: React.FC = () => {
                 <h2 className="text-xl font-bold">
                   {t('approvals.queueHeading', 'Approvals queue')}
                 </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {t(
-                    'approvals.queueHint',
-                    'Select an item to preview its details and decision controls.',
-                  )}
-                </p>
                 <p className="mt-1 text-sm text-muted-foreground">{t('work:approvals.oldestFirst', 'Oldest first')}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -957,7 +952,7 @@ const ApprovalsPage: React.FC = () => {
 
             <div className="space-y-3">
               <QueueGroup
-                title={t('work:approvals.queueItemsTitle', 'Pending work')}
+                title={t('approvals.queueHeading', 'Approvals queue')}
                 items={queueItems}
                 selectedKey={selectedKey}
                 onSelect={pickItem}

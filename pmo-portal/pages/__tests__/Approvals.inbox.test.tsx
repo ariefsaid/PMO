@@ -278,6 +278,16 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(within(preview).getByRole('heading', { name: /Steel beams/i })).toBeInTheDocument();
   });
 
+  it('R-028/029: groups queue kinds and avoids a redundant queue title/helper', () => {
+    renderAs('Project Manager');
+    const queue = screen.getByRole('region', { name: /Approvals queue/i });
+    expect(within(queue).getByRole('heading', { name: /Purchase requests/i })).toBeInTheDocument();
+    expect(within(queue).getByRole('heading', { name: /Timesheets · hours/i })).toBeInTheDocument();
+    expect(within(queue).queryByRole('heading', { name: 'Pending work' })).not.toBeInTheDocument();
+    expect(within(queue).queryByText(/Select an item to preview/i)).not.toBeInTheDocument();
+    expect(within(queue).getAllByRole('heading', { name: /Purchase requests/i })).toHaveLength(1);
+  });
+
   it('AC-IXD-APP-01: the mixed queue places the oldest waiting request first across kinds', () => {
     tsState.data = [{
       id: 's-old', status: 'Submitted', week_start_date: '2026-05-25',
@@ -330,12 +340,12 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     expect(screen.queryByText(/Steel beams/i)).not.toBeInTheDocument();
   });
 
-  it('L3-APPROVALS: ?scope=timesheets deep-links straight to the timesheets queue with neutral policy guidance', () => {
+  it('R-030: timesheet queue opens without standing policy guidance', () => {
     renderAs('Project Manager', '/approvals?scope=timesheets');
     const preview = screen.getByRole('region', { name: /Approval preview/i });
     expect(screen.getByRole('tab', { name: /Timesheets/i })).toHaveAttribute('aria-selected', 'true');
     expect(within(preview).getByText(/Anita Rao/i)).toBeInTheDocument();
-    expect(within(preview).getByText('Policy: a different person approves each timesheet.')).toBeInTheDocument();
+    expect(within(preview).queryByText(/Policy: a different person approves each timesheet/i)).not.toBeInTheDocument();
     expect(within(preview).getAllByText('Hours')).toHaveLength(1);
     expect(within(preview).queryByText('8.0 h')).not.toBeInTheDocument();
     expect(within(preview).getByTestId('tsgrid-grand-total').className).toContain('text-xl');
@@ -346,7 +356,7 @@ describe('AC-IXD-PROC-W5-3: Approvals inbox — role-aware sections', () => {
     renderAs('Project Manager');
     const queue = screen.getByRole('region', { name: /Approvals queue/i });
     const sheet = within(queue).getByRole('button', { name: /Anita Rao/i });
-    expect(within(sheet).getByText('Timesheets · hours')).toBeInTheDocument();
+    expect(within(queue).getByRole('heading', { name: 'Timesheets · hours' })).toBeInTheDocument();
     expect(within(sheet).getByText('8')).toBeInTheDocument();
     expect(within(sheet).queryByText(/8(?:\.0)? h\b/i)).not.toBeInTheDocument();
   });
