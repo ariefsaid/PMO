@@ -310,7 +310,7 @@ describe('AC-IXD-DASH-W5-C2C — I3: at-risk rows convey budget utilization reas
       .closest('td,[role="cell"]') as HTMLElement;
     expect(budgetUsedCell).toHaveTextContent('95%');
     expect(budgetUsedCell).not.toHaveTextContent('of $500,000.00');
-    expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', '$475,000.00 of $500,000.00 Active budget');
+    expect(budgetUsedCell.querySelector('[title]')).toHaveAttribute('title', 'USD 475,000 of USD 500,000 Active budget');
   });
 
   it('C2C-I3-2: the at-risk pill in the project cell is text+dot (not color-only) — a11y', () => {

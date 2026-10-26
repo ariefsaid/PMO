@@ -25,6 +25,8 @@ import { Icon } from './icons';
 export interface MobileToolbarDisclosureProps {
   /** Accessible + visible label for the trigger and the panel region. */
   label: string;
+  /** Use a named More icon on phones when the collection toolbar is space-constrained. */
+  compactOnMobile?: boolean;
   /** The disclosure panel body (e.g. filter fields or bulk-action buttons). */
   children: React.ReactNode;
   /** Optional count badge on the trigger (e.g. active secondary-filter count). */
@@ -68,6 +70,7 @@ function hasActiveDialog(): boolean {
 
 export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = ({
   label,
+  compactOnMobile = false,
   children,
   count,
   className,
@@ -176,11 +179,14 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
         data-mobile-toolbar-disclosure-trigger
         type="button"
         variant="outline"
+        title={compactOnMobile ? label : undefined}
+        className={compactOnMobile ? 'max-md:w-11 max-md:px-0' : undefined}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setOpen(!isOpen)}
       >
-        <span className="flex items-center gap-1.5">
+        {compactOnMobile && <Icon name="menu" className="size-4 md:hidden" />}
+        <span className={cn('flex items-center gap-1.5', compactOnMobile && 'max-md:sr-only')}>
           {label}
           {typeof count === 'number' && count > 0 && (
             <span
@@ -212,6 +218,7 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
               mobileOverlayAlign === 'end' ? 'right-0' : 'left-0',
               'md:static md:mt-2 md:max-h-none md:w-full md:max-w-full md:overflow-visible md:shadow-none',
             ],
+            compactOnMobile && mobileOverlay && 'max-md:fixed! max-md:inset-x-4! max-md:top-auto! max-md:w-auto! max-md:max-w-none!',
             panelClassName,
           )}
         >

@@ -239,7 +239,8 @@ function alignClass(align?: ColAlign) {
 }
 
 function columnMinSize<Row>(column: Column<Row>): number | undefined {
-  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
+  // Full-wrap identities can use an explicit compact track without losing their text.
+  const contractMin = column.kind === 'primary' ? (column.primaryClamp === false ? column.minSize ?? 240 : 240) : column.kind === 'status' ? 112 : undefined;
   return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
 }
 
@@ -882,11 +883,11 @@ export function DataTable<Row>({
   );
 }
 
-function PrimaryCell({ title, titleText, secondary, secondaryWrap = false, primaryClamp = true }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode; secondaryWrap?: boolean; primaryClamp?: boolean }) {
+function PrimaryCell({ title, titleText, secondary, primaryClamp = false }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode; secondaryWrap?: boolean; primaryClamp?: boolean }) {
   const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
   return <span className="block min-w-0">
-    <span title={accessibleTitle} className={cn('block break-words font-semibold text-foreground', primaryClamp && 'line-clamp-2')}>{title}</span>
-    {secondary != null && <span className={cn('block text-sm font-normal text-muted-foreground', secondaryWrap ? 'whitespace-normal break-words' : 'truncate')}>{secondary}</span>}
+    <span title={accessibleTitle} className={cn('block whitespace-normal break-words text-sm text-foreground', primaryClamp && 'line-clamp-2')}>{title}</span>
+    {secondary != null && <span className={'block whitespace-normal break-words text-[0.6875rem] font-semibold text-muted-foreground'}>{secondary}</span>}
   </span>;
 }
 

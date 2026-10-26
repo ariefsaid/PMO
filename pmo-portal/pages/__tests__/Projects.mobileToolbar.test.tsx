@@ -176,6 +176,7 @@ describe('AC-PRJUX-001 — loaded mobile composition', () => {
     expect(open).toBeVisible();
     expect(within(row).getByText('Ongoing Project')).toBeVisible();
     expect(within(row).getByText('USD 1,000,000')).toBeVisible();
+    expect(within(row).getByRole('button', { name: 'Open' })).toBeVisible();
     expect(within(row).queryByText('Alice Manager')).not.toBeVisible();
 
     await user.click(within(row).getByText(/More project details/));

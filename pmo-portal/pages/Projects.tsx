@@ -455,9 +455,9 @@ const Projects: React.FC = () => {
       key: 'project',
       header: t('projects.columns.project', 'Project'),
       kind: 'primary',
-      size: 248,
-      minSize: 240,
-      maxSize: 520,
+      size: 180,
+      minSize: 160,
+      maxSize: 220,
       primaryClamp: false,
       secondaryWrap: true,
       exportValue: (p) => p.name,
@@ -510,8 +510,8 @@ const Projects: React.FC = () => {
       header: t('projects:columns.pmTable', 'Project manager'),
       kind: 'meta',
       colClassName: 'whitespace-normal break-words leading-tight',
-      size: 124,
-      minSize: 112,
+      size: 104,
+      minSize: 96,
       maxSize: 220,
       // FR-PRJUX-004/005: an assigned blank-name profile exports its readable fallback,
       // and is never exported as "unassigned".
@@ -536,8 +536,8 @@ const Projects: React.FC = () => {
       key: 'status',
       header: t('projects:columns.statusAndEndTable', 'Status / end date'),
       kind: 'status',
-      size: 144,
-      minSize: 128,
+      size: 128,
+      minSize: 120,
       maxSize: 196,
       headerClassName: 'h-auto min-h-[38px] py-2 whitespace-normal break-words leading-tight',
       colClassName: 'whitespace-normal break-words leading-tight',
@@ -571,7 +571,7 @@ const Projects: React.FC = () => {
         const detailsId = `contract-tax-details-${p.id}`;
         return (
           <div className="flex min-w-0 flex-col items-end gap-0.5" aria-describedby={detailsId}>
-            <span>{p.currency} {formatExactMoney(String(p.contract_value), p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}</span>
+            <span className="whitespace-nowrap text-sm font-semibold text-foreground">{p.currency} {formatExactMoney(String(p.contract_value), p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}</span>
             <TaxBasisLabel
               treatment={p.tax_treatment}
               showDetails={false}
@@ -599,7 +599,7 @@ const Projects: React.FC = () => {
       minSize: 144,
       maxSize: 260,
       align: 'num',
-      colClassName: 'xl:pr-4 whitespace-normal',
+      colClassName: 'xl:pr-4 whitespace-normal [&>span>span]:text-sm! [&>span>span]:font-semibold [&>span>span]:text-foreground!',
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
         if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
@@ -629,15 +629,15 @@ const Projects: React.FC = () => {
         }
         const actualCurrency = actualPosition.currency || p.currency;
         const formattedActual = formatExactMoney(actual, actualCurrency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false });
-        return formattedActual == null ? linkedDataState(p, t('uxs02.unavailable', 'Unavailable')) : <span className="text-muted-foreground">{actualCurrency} {formattedActual}</span>;
+        return formattedActual == null ? linkedDataState(p, t('uxs02.unavailable', 'Unavailable')) : <span className="whitespace-nowrap font-semibold text-foreground">{actualCurrency} {formattedActual}</span>;
       },
     },
     {
       key: 'progress',
       header: t('projects:columns.delivery', 'Delivery'),
       kind: 'percent',
-      size: 96,
-      minSize: 88,
+      size: 88,
+      minSize: 80,
       maxSize: 140,
       colClassName: 'xl:pl-4',
       cell: (p) => {
@@ -653,7 +653,7 @@ const Projects: React.FC = () => {
         const roundedDelivery = Math.round(summary.deliveryPct);
         return (
           <div className="flex flex-col gap-0.5">
-            <ProgressBar value={roundedDelivery} showValue compact tone={roundedDelivery >= 100 ? 'success' : 'primary'} aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: roundedDelivery })} />
+            <ProgressBar value={roundedDelivery} showValue compact className="[&>span:last-child]:text-sm! [&>span:last-child]:text-foreground" tone={roundedDelivery >= 100 ? 'success' : 'primary'} aria-label={t('projects.card.deliveryPercent', 'Delivery {{percent}}%', { percent: roundedDelivery })} />
           </div>
         );
       },
@@ -662,11 +662,11 @@ const Projects: React.FC = () => {
       key: 'budget-used',
       header: t('projects.columns.budgetUsed', 'Budget used'),
       kind: 'money',
-      size: 132,
-      minSize: 120,
+      size: 128,
+      minSize: 112,
       maxSize: 220,
       headerClassName: 'h-auto min-h-[38px] py-2 whitespace-normal break-words leading-tight',
-      colClassName: 'whitespace-normal break-words leading-tight',
+      colClassName: 'whitespace-normal break-words leading-tight [&>span>span]:text-sm! [&>span>span]:font-semibold [&>span>span]:text-foreground!',
       cell: (p) => {
         if (moneyPending) return <span className="text-xs text-muted-foreground">{t('projects:data.loading', 'Loading…')}</span>;
         const money = projectMoney?.[p.id];
@@ -701,7 +701,7 @@ const Projects: React.FC = () => {
         const atRisk = isAtRiskActual(p);
         return (
           <div title={t('uxs02.budgetSummary', '{{actual}} of {{budget}} Active budget', { actual: `${money.actuals.currency || p.currency} ${formatExactMoney(money.actuals.total, money.actuals.currency || p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}`, budget: `${money.activeBudgetCurrency ?? p.currency} ${formatExactMoney(money.activeBudgetAmount, money.activeBudgetCurrency ?? p.currency, getNumberLocale(), { trimZeroFraction: true, includeCurrency: false })}` })}>
-            <ProgressBar value={percent} showValue compact tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
+            <ProgressBar value={percent} showValue compact className="[&>span:last-child]:text-sm! [&>span:last-child]:text-foreground" tone={atRisk ? 'destructive' : percent >= 70 ? 'warning' : undefined} aria-label={t('uxs02.budgetUsed', '{{percent}}% of Active budget', { percent })} />
           </div>
         );
       },
@@ -709,6 +709,9 @@ const Projects: React.FC = () => {
   ];
   const columnOrder = ['project', 'pm', 'status', 'progress', 'contract', 'actual', 'budget-used'];
   columns.sort((left, right) => columnOrder.indexOf(left.key) - columnOrder.indexOf(right.key));
+  columns.forEach((column) => {
+    column.headerClassName = 'h-auto! min-h-[38px] py-2 whitespace-normal! break-words leading-tight';
+  });
 
   // AC-L10N-052: the download carries each row's own ISO code beside contract (export-only).
   const exportColumns = withCurrencyColumn(columns, 'contract', (r) => r.currency);
@@ -724,13 +727,13 @@ const Projects: React.FC = () => {
       </button>
     ) : null;
   const toolbar = (
-    <div className="grid w-full min-w-0 grid-cols-2 items-end gap-x-2 gap-y-2 md:contents">
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_44px_44px] items-end gap-2 md:contents">
       <SearchMini id="projects-search" placeholder={t('projects.search.placeholder', 'Search projects…')}
         aria-label={t('projects.search.ariaLabel', 'Search projects')} value={search}
         onChange={(event) => setSearch(event.target.value)} searchSurface="projects-list" module="projects"
         resultCount={filtered.length} className="h-full touch-target"
-        containerClassName="col-span-2 h-11 min-w-0 w-full md:col-auto md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
-      <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:col-auto md:flex md:w-auto">
+        containerClassName="col-span-4 h-11 min-w-0 w-full md:col-auto md:h-8 md:w-auto md:min-w-[220px] md:max-w-[360px] md:flex-1" />
+      <div className="col-span-4 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2 md:col-auto md:flex md:w-auto">
         <div className="min-w-0 md:min-w-[144px] md:flex-1 md:flex-none">
         <SelectField label={t('projects:filters.scopeLabel', 'Scope')} hideLabel value={filter}
             onChange={(value) => { setWorkingSet((ws) => ({ ...ws, filter: value as StatusFilter })); trackFilterApplied('status', FILTERS.length, 'projects'); }}
@@ -788,6 +791,7 @@ const Projects: React.FC = () => {
           ]} className="touch-target min-w-0" />
       </div>
       <MobileToolbarDisclosure label={t('uxs14.moreActions', 'More actions')} open={moreOpen}
+        compactOnMobile
         className="min-w-0 [&>button]:touch-target [&_button]:touch-target [&_input]:touch-target [&_select]:touch-target"
         mobileOverlay mobileOverlayAlign="end"
         onOpenChange={(next) => { setMoreOpen(next); if (next) setFiltersOpen(false); }}>
@@ -797,7 +801,7 @@ const Projects: React.FC = () => {
           <ImportButton entity="budgetLine" label={t('projects.importBudgets', 'Import budgets')} descriptor={budgetImportDescriptor} onImported={() => void refetch()} />
         </div>
       </MobileToolbarDisclosure>
-      <div className="flex min-w-0 justify-end md:contents">{primaryAction}</div>
+      <div className="flex min-w-0 justify-end max-md:[&_button]:w-11 max-md:[&_button]:px-0 max-md:[&_button>span]:sr-only md:contents">{primaryAction}</div>
     </div>
   );
   const activeChips: Array<{ label: string; remove: () => void }> = [];
@@ -840,9 +844,10 @@ const Projects: React.FC = () => {
     moneyError ? t('projects:data.moneyUnavailable', 'Actual and Active budget are unavailable.') : null,
   ].filter((issue): issue is string => Boolean(issue)) : [];
   const abnormalNote = dataIssues.length > 0 ? (
-    <div role="status" id={partialCoverageNoteId} data-testid="projects-data-note" className="flex min-w-0 flex-wrap items-center justify-between gap-2 border-y border-border py-2 text-sm text-muted-foreground">
+    <details id={partialCoverageNoteId} data-testid="projects-data-note" className="min-w-0 border-y border-border text-sm text-muted-foreground">
+      <summary className="touch-target min-h-11 cursor-pointer py-2 text-xs font-semibold text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</summary>
+      <div role="status" className="flex min-w-0 flex-wrap items-center justify-between gap-2 pb-2">
       <div className="min-w-0 flex-1">
-        <p className="break-words text-xs font-semibold leading-4 text-foreground">{t('projects:data.noteTitle', 'Some project data needs attention')}</p>
         <p className="break-words">{dataIssues.join(' · ')}</p>
       </div>
       <div className="flex flex-wrap gap-2">
@@ -850,7 +855,8 @@ const Projects: React.FC = () => {
       {collectionShowsMoney && deliveryError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchDelivery()}>{t('projects:data.retryDelivery', 'Retry delivery')}</Button>}
         {collectionShowsMoney && moneyError && <Button variant="ghost" size="sm" className="touch-target" onClick={() => void refetchMoney()}>{t('projects:data.retryMoney', 'Retry financial data')}</Button>}
       </div>
-    </div>
+      </div>
+    </details>
   ) : null;
   const columnCell = (key: string, project: ProjectWithRefs) => columns.find((column) => column.key === key)?.cell(project);
   const mobileProjectRow = (project: ProjectWithRefs) => {
@@ -872,22 +878,26 @@ const Projects: React.FC = () => {
       [t('projects:columns.budgetUsed', 'Budget used'), columnCell('budget-used', project)],
     ];
     return (
-    <div className="min-w-0 space-y-2">
+    <div className="min-w-0 space-y-4">
+      <div className="min-w-0 space-y-1">
       <button type="button" onClick={() => onOpen(project)}
         className="touch-target block min-h-11 w-full break-words text-left text-xl font-bold underline underline-offset-2 hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         aria-label={t('projects:kanban.openProject', 'Open project {{name}}', { name: displayName })}
         title={project.name}>
         {displayName}
       </button>
+      {isAtRiskActual(project) && <StatusPill variant="warn">{t('projects.atRiskPill', 'At risk')}</StatusPill>}
       <div className="min-w-0 space-y-0.5 text-sm text-muted-foreground">
         <p className="break-words">{project.client?.name ?? t('projects:customerUnavailable', 'Customer unavailable')}</p>
         {project.end_client && <p className="break-words">{t('projects:endCustomer', 'End customer')}: {project.end_client.name}</p>}
       </div>
+      </div>
       <div className="min-w-0 text-sm">{columnCell('status', project)}</div>
-      <dl className="grid min-w-0 grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t border-border pt-2">
+      <dl className="grid min-w-0 grid-cols-1 gap-y-1 border-t border-border pt-2">
         <dt className="text-xs font-semibold text-muted-foreground">{t('projects:columns.contract', 'Contract')}</dt>
-        <dd className="min-w-0 break-words text-sm font-normal tabular">{columnCell('contract', project)}</dd>
+        <dd className="min-w-0 break-words text-sm font-semibold tabular text-foreground [&>div]:items-start! [&>div]:text-left!">{columnCell('contract', project)}</dd>
       </dl>
+      <Button variant="outline" className="touch-target min-h-11" onClick={() => onOpen(project)}>{t('common:meetings.actions.open', 'Open')}</Button>
       <details className="min-w-0" aria-label={t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}>
         <summary className="touch-target min-h-11 cursor-pointer break-words text-xs font-semibold text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           {t('projects:mobile.moreDetailsSummary', 'More project details · {{count}}', { count: detailFacts.length })}
@@ -896,7 +906,7 @@ const Projects: React.FC = () => {
           <caption className="sr-only">{t('projects:mobile.detailsFor', 'Details for {{name}}', { name: project.name })}</caption>
           <tbody>{detailFacts.map(([label, value]) => <tr key={label} className="border-b border-border/70 last:border-b-0">
             <th scope="row" className="w-1/3 py-2 pr-3 text-left align-top text-xs font-semibold text-muted-foreground">{label}</th>
-            <td className="min-w-0 break-words py-2 align-top text-sm font-normal tabular">{value}</td>
+            <td className="min-w-0 break-words py-2 align-top text-sm font-semibold tabular text-foreground [&>div]:items-start! [&>div]:text-left! [&>span]:items-start! [&>span]:text-left! [&>span>span]:text-sm! [&>span>span]:font-semibold [&>span>span]:text-foreground!">{value}</td>
           </tr>)}</tbody>
         </table>
       </details>
@@ -1052,7 +1062,7 @@ const newProjectAction = (canCreate: boolean | undefined, onNew: () => void, lab
   canCreate ? (
     <Button variant="primary" className="touch-target h-11 md:h-8" onClick={onNew}>
       <Icon name="plus" />
-      {label}
+      <span>{label}</span>
     </Button>
   ) : undefined;
 

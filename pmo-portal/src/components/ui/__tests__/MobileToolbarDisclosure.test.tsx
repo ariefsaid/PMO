@@ -31,6 +31,15 @@ const renderOpenSubject = () => {
 };
 
 describe('MobileToolbarDisclosure (AC-PRJUX-003)', () => {
+  it('AC-PRJUX-003: compact More keeps its accessible name and opens its actions', async () => {
+    const user = userEvent.setup();
+    render(<MobileToolbarDisclosure label="More actions" compactOnMobile><button type="button">Export</button></MobileToolbarDisclosure>);
+    const trigger = screen.getByRole('button', { name: 'More actions' });
+    await user.click(trigger);
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Export' })).toHaveFocus();
+  });
+
   it('AC-PRJUX-003: closed trigger exposes aria-expanded=false and a stable aria-controls target', () => {
     const { container } = renderOpenSubject();
     const trigger = screen.getByRole('button', { name: /Filters/i });
