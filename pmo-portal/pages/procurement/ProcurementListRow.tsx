@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 /**
  * Fix #5 — Inline expand/preview for the procurement list (AC-FIX5-PREVIEW-*).
  *
@@ -13,7 +12,7 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, StatusPill, ProjectNameLink } from '@/src/components/ui';
+import { Button, Icon, ListState, StatusPill } from '@/src/components/ui';
 import { trackProcurementDetailOpened } from '@/src/lib/analytics';
 import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
@@ -46,7 +45,7 @@ export const ProcurementListColumns: React.FC = () => {
     actions: t('procurement:collection.column.actions', 'Actions'),
   };
   return (
-    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
+    <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground md:grid`}>
       {columnFields.map(({ key, span }) => <span key={key} className={span}>{labels[key]}</span>)}
     </div>
   );
@@ -91,7 +90,7 @@ const ExpandedPanel: React.FC<{
       ) : detail.isError ? (
         <ListState
           variant="error"
-          title={t('procurement.preview.loadErrorTitle', "Couldn't load request details")}
+          title={t('procurement:collection.preview.loadErrorTitle', "Couldn't load request details")}
           sub={t('procurement.preview.loadErrorSub', 'Something went wrong fetching the preview.')}
           onRetry={() => detail.refetch()}
         />
@@ -100,22 +99,22 @@ const ExpandedPanel: React.FC<{
           {/* Budget impact */}
           <div className="mb-4 grid grid-cols-2 gap-4 md:hidden">
             <h4 className="col-span-2 text-xl font-bold leading-tight text-foreground">
-              {t('procurement.preview.requestDetails', 'Request details')}
+              {t('procurement:collection.preview.requestDetails', 'Request details')}
             </h4>
             <div className="min-w-0">
               <div className="text-xs font-semibold text-muted-foreground">{t('procurement.columns.project', 'Project')}</div>
-              <div className="break-words text-sm text-foreground">{row.project?.name ?? t('common:notAvailable', 'Not available')}</div>
+              <div className="break-words text-sm text-foreground">{row.project?.name ?? t('procurement:shared.notAvailable', 'Not available')}</div>
             </div>
             <div className="min-w-0">
               <div className="text-xs font-semibold text-muted-foreground">{t('procurement.columns.requester', 'Requester')}</div>
-              <div className="break-words text-sm text-foreground">{row.requested_by?.full_name ?? t('common:notAvailable', 'Not available')}</div>
+              <div className="break-words text-sm text-foreground">{row.requested_by?.full_name ?? t('procurement:shared.notAvailable', 'Not available')}</div>
             </div>
           </div>
 
           <DecisionSupportPanel
             projectId={detail.data.project_id}
             totalValue={detail.data.total_value}
-            projectName={detail.data.project ? projectDisplayName(detail.data.project) : undefined}
+            projectName={detail.data.project?.name}
             projectLegalName={detail.data.project?.name}
             status={detail.data.status}
             currency={detail.data.currency}
@@ -127,7 +126,7 @@ const ExpandedPanel: React.FC<{
           {detail.data.items.length > 0 && (
             <div className="mb-3">
               <h4 className="mb-2 text-xl font-bold leading-tight text-foreground">
-                {t('procurement.preview.requestedItemsCurrency', 'Requested items · {{currency}}', { currency: detail.data.currency })}
+                {t('procurement:collection.preview.requestedItemsCurrency', 'Requested items · {{currency}}', { currency: detail.data.currency })}
               </h4>
               <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>
                 {detail.data.items.map((item) => {
@@ -139,7 +138,7 @@ const ExpandedPanel: React.FC<{
                     >
                       <span className="min-w-0 break-words text-foreground">{item.name}</span>
                       <span className="shrink-0 tabular text-muted-foreground">
-                        {item.quantity} × {formatNumber(item.rate)} = <span className="font-medium text-foreground">{formatNumber(lineTotal)}</span>
+                        {item.quantity} × {formatNumber(item.rate)} = <span className="font-normal text-foreground">{formatNumber(lineTotal)}</span>
                       </span>
                     </li>
                   );
@@ -162,7 +161,7 @@ const ExpandedPanel: React.FC<{
                 e.preventDefault();
                 onOpen(`/procurement/${row.id}`);
               }}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-xs font-semibold text-foreground transition-colors hover:bg-accent"
             >
               {t('procurement.preview.viewFullRequest', 'View full request')}
               <Icon name="chev" aria-hidden />
@@ -225,7 +224,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           }
         >
           <Icon name="chev" />
-          <span>{t('procurement.preview.details', 'Details')}</span>
+          <span>{t('procurement:collection.preview.details', 'Details')}</span>
         </Button>
 
         {/* Request info — title is a Link so clicking the row title navigates (AC-NAV-006) */}
@@ -243,12 +242,12 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
               e.preventDefault();
               openRecord(`/procurement/${row.id}`);
             }}
-            className="block break-words font-semibold text-sm text-foreground hover:underline rounded"
+            className="block break-words text-sm font-normal text-foreground hover:underline rounded"
             title={row.title}
           >
             {row.title}
           </Link>
-          <div className="font-mono text-[12px] text-muted-foreground">
+          <div className="font-mono text-[11px] font-semibold text-muted-foreground">
             {row.code ?? row.id.slice(0, 8)}
           </div>
         </div>
@@ -256,35 +255,40 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
         </div>
         <dl className="contents">
           <div className={`${columnFields[1].span} min-w-0 break-words`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
-            <dd><ProjectNameLink projectId={row.project_id} name={row.project ? projectDisplayName(row.project) : null} legalName={row.project?.name} className="block whitespace-normal break-words" /></dd>
+            <dt className="text-xs font-semibold md:sr-only">{t('procurement.columns.project', 'Project')}</dt>
+            <dd>{row.project?.name ? (
+              <Link to={`/projects/${row.project_id}`} aria-label={t('projects:openProject', 'Open {{name}}', { name: row.project.name })}
+                className="block min-w-0 break-words text-sm text-foreground hover:underline">
+                {row.project.name}
+              </Link>
+            ) : <span>{t('procurement:shared.notAvailable', 'Not available')}</span>}</dd>
           </div>
           <div className={`${columnFields[2].span} min-w-0 break-words`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
+            <dt className="text-xs font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
             <dd>{row.requested_by?.full_name ?? '—'}</dd>
           </div>
           <div className={`${columnFields[3].span} min-w-0`}>
-            <dt className="font-semibold md:sr-only">{t('procurement:collection.column.statusDate', 'Status and request date')}</dt>
+            <dt className="text-xs font-semibold md:sr-only">{t('procurement:collection.column.statusDate', 'Status and request date')}</dt>
             <dd className="space-y-1.5">
               <StatusPill variant={pillVariantForStatus(status)}>
                 {statusLabel(status)}
               </StatusPill>
-              <time dateTime={row.created_at} className="block text-xs text-muted-foreground">
+              <time dateTime={row.created_at} className="block text-sm text-muted-foreground">
                 {formatInstantDate(row.created_at)}
               </time>
               {nextStep && (
-                <span data-testid="procurement-next-step" className="hidden break-words text-xs text-muted-foreground md:block">
+                <span data-testid="procurement-next-step" className="hidden break-words text-sm text-muted-foreground md:block">
                   {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
                 </span>
               )}
             </dd>
           </div>
           <div data-procurement-value className={`${columnFields[4].span} min-w-0 tabular`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.column.value', 'Value')}</dt>
-            <dd className="break-words font-medium text-foreground">{formatNumber(row.total_value)}</dd>
+            <dt className="text-xs font-semibold md:sr-only">{t('procurement.column.value', 'Value')}</dt>
+            <dd className="break-words font-normal text-foreground">{formatNumber(row.total_value)}</dd>
           </div>
           <div className={`${columnFields[5].span} flex min-w-0 items-center justify-start md:justify-end`}>
-            <dt className="font-semibold md:sr-only">{t('procurement:collection.column.actions', 'Actions')}</dt>
+            <dt className="text-xs font-semibold md:sr-only">{t('procurement:collection.column.actions', 'Actions')}</dt>
             <dd>
               <Link
                 to={`/procurement/${row.id}`}
@@ -295,7 +299,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
                   e.preventDefault();
                   openRecord(`/procurement/${row.id}`);
                 }}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('procurement:collection.open', 'Open')}
               </Link>

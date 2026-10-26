@@ -547,7 +547,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       className="flex flex-col gap-3 rounded-md border border-border/60 bg-card p-3"
       aria-label={t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
     >
-      <p className="text-[12px] font-semibold text-muted-foreground">
+      <p className="text-xs font-semibold text-muted-foreground">
         {t('procurementDetail.captureForm', 'Capture {{record}}', { record: label })}
       </p>
 
@@ -555,7 +555,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       <div className="flex flex-col gap-1">
         <label
           htmlFor={`${formId}-ref`}
-          className="text-[12px] font-semibold text-muted-foreground"
+          className="text-xs font-semibold text-muted-foreground"
         >
           {kind === 'payment'
             ? t('procurementDetail.externalRefOptional', 'External ref (optional)')
@@ -571,7 +571,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           maxLength={64}
           placeholder={cfg.refPlaceholder}
           data-testid={cfg.refTestId}
-          className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         />
       </div>
 
@@ -580,7 +580,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         <div className="flex flex-col gap-1">
           <label
             htmlFor={`${formId}-group-ref`}
-            className="text-[12px] font-semibold text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             {t('procurementDetail.groupRef.label', 'Group ref')}{' '}
             <span className="font-normal">{t('procurementDetail.groupRef.optional', '(optional)')}</span>
@@ -593,7 +593,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             maxLength={100}
             placeholder={t('procurementDetail.groupRef.placeholder', 'e.g. PRQ-0026100001')}
             data-testid={`${kind}-group-ref-input`}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </div>
       )}
@@ -604,7 +604,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         <div className="flex min-w-[140px] flex-1 flex-col gap-1">
           <label
             htmlFor={`${formId}-date`}
-            className="text-[12px] font-semibold text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             {kind === 'vendor_invoice'
               ? t('procurementDetail.vendorInvoice.invoiceDate', 'Invoice date')
@@ -618,7 +618,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             value={date}
             onChange={(e) => setDate(e.target.value)}
             data-testid={cfg.dateTestId}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
         </div>
 
@@ -646,7 +646,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
         <div className="flex flex-col gap-1">
           <label
             htmlFor={`${formId}-amount`}
-            className="text-[12px] font-semibold text-muted-foreground"
+            className="text-xs font-semibold text-muted-foreground"
           >
             {kind === 'vendor_invoice' ? t('procurementDetail.vendorInvoice.amountOptional', 'Amount (optional)') : t('procurementDetail.amountOptional', 'Amount (optional)')}
             {currency ? ` · ${currency}` : null}
@@ -662,7 +662,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
             aria-describedby={amountError ? `${formId}-amount-error` : undefined}
             placeholder="0.00"
             data-testid={cfg.amountTestId}
-            className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           />
           <FieldError id={`${formId}-amount-error`}>{amountError}</FieldError>
         </div>
@@ -715,7 +715,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
           <div className="flex min-w-[140px] flex-1 flex-col gap-1">
             <label
               htmlFor={`${formId}-tax-amount`}
-              className="text-[12px] font-semibold text-muted-foreground"
+              className="text-xs font-semibold text-muted-foreground"
             >
               {t('procurementDetail.vendorInvoice.taxAmount', 'Tax amount')}
             </label>
@@ -730,7 +730,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
               placeholder="0.00"
               data-testid={VI_FIELD_TEST_IDS.taxAmount}
               aria-describedby={nativeTax.vatSuggestion ? `${formId}-tax-amount-basis` : undefined}
-              className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             <TaxSuggestedFrom id={`${formId}-tax-amount-basis`} suggestion={nativeTax.vatSuggestion} />
           </div>
@@ -739,7 +739,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       {pmoAuthorsTax && <NativeWithholdingField formId={formId} tax={nativeTax} />}
 
       {isVendorInvoice && parsedTax === null && (
-        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-[12px] text-muted-foreground">
+        <p data-testid={VI_FIELD_TEST_IDS.taxRequiredHint} className="text-sm text-muted-foreground">
           {VI_TAX_REQUIRED_HINT}
         </p>
       )}
@@ -798,7 +798,7 @@ export const RecordCaptureForm: React.FC<RecordCaptureFormProps> = ({
       )}
 
       {isVendorInvoice && pmoAuthorsTax && !amountStr && vendorTax?.pphType && taxIncomplete && (
-        <p role="status" className="text-[12px] text-muted-foreground">
+        <p role="status" className="text-sm text-muted-foreground">
           {t('procurementDetail.withholdingNeedsAmount', 'Enter the bill amount to calculate the vendor withholding.')}
         </p>
       )}
@@ -869,7 +869,7 @@ export const RecordCaptureTrigger: React.FC<RecordCaptureTriggerProps> = ({
       type="button"
       data-testid={testId}
       onClick={onOpen}
-      className="inline-flex items-center gap-1.5 rounded-md px-0 text-[13px] font-medium text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-0 text-xs font-semibold text-primary-text underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="plus" className="size-3.5" />
       {label}

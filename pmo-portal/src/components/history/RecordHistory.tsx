@@ -104,7 +104,7 @@ function describeChange(
   }
   return (
     <>
-      <span className="font-medium text-foreground">{label}</span>
+      <span className="text-foreground">{label}</span>
       <span className="text-muted-foreground">: </span>
       <span>{`${formatValue(t, enumLabel, ev, column, change.old, refs)} → ${formatValue(t, enumLabel, ev, column, change.new, refs)}`}</span>
     </>
@@ -118,7 +118,7 @@ const RecordName: React.FC<{ ev: HistoryEvent; refs: RefMaps; kinds: Record<stri
   const name = source ? refs[source].get(ev.entityId) : undefined;
   const kind = kinds[ev.entityType] ?? humanizeColumn(ev.entityType);
   return (
-    <span className="min-w-0 break-words text-xs text-muted-foreground">
+    <span className="min-w-0 break-words text-[11px] font-semibold text-muted-foreground">
       {kind} ·{' '}
       {name && ev.entityType === 'procurement' ? (
         <Link to={`/procurement/${ev.entityId}`} className="text-foreground underline-offset-2 hover:underline">
@@ -148,12 +148,12 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
   const absolute = formatInstant(ev.createdAt);
   return (
     <li data-testid="history-event" className="border-b border-border py-3 last:border-b-0 min-w-0">
-      <p data-testid="history-summary" className="break-words text-sm font-semibold text-foreground">
+      <p data-testid="history-summary" className="break-words text-sm font-normal text-foreground">
         {historyEventSummary(t, ev)}
       </p>
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
-        <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
+        <time dateTime={ev.createdAt} title={absolute} className="text-sm text-muted-foreground">
           {formatRelativeTime(ev.createdAt)}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
@@ -355,7 +355,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
               aria-pressed={kind === k.key}
               onClick={() => setKind(k.key)}
               className={
-                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors ' +
+                'inline-flex min-h-11 items-center rounded-full border px-2.5 text-xs font-semibold transition-colors min-[921px]:h-7 min-[921px]:min-h-7 ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
                 (kind === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'

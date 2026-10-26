@@ -32,6 +32,13 @@ describe('AC-JR-W1-01: ProjectNameLink', () => {
     expect(link.className).toContain('hover:');
     expect(link.className).toContain('focus-visible:');
   });
+
+  it('AC-806 preserves a long money-out project identity without truncation', () => {
+    const identity = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    wrap(<ProjectNameLink projectId="p1" name={identity} fullIdentity />);
+    const link = screen.getByRole('link', { name: `Open ${identity}` });
+    expect(link).toHaveTextContent(identity);
+  });
 });
 
 describe('AC-002 #1325: ProjectNameLink with a short name', () => {

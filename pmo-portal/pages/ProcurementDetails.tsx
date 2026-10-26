@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useLayoutEffect, useState } from 'react';
 import { Link, useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
@@ -11,7 +10,6 @@ import {
   Combobox,
   StatusPill,
   ListState,
-  Icon,
   ConfirmDialog,
   useToast,
   ProjectNameLink,
@@ -118,45 +116,71 @@ const ProcurementSectionNavigation: React.FC<{
   sections: ProcurementSection[];
   active: ProcTab;
   label: string;
+  sectionHeading: string;
   selectLabel: string;
+  recordTitle: string;
   onSelect: (section: ProcTab) => void;
-}> = ({ sections, active, label, selectLabel, onSelect }) => (
-  <div className="mb-5 min-w-0">
-    <nav aria-label={label} className="hidden flex-wrap border-b border-border sm:flex">
-      {sections.map((section) => (
-        <Link
-          key={section.value}
-          to={section.value === 'overview' ? './overview' : `./${section.value}`}
-          aria-current={active === section.value ? 'page' : undefined}
-          onClick={(event) => {
-            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-            event.preventDefault();
-            onSelect(section.value);
-          }}
-          className={[
-            'inline-flex min-h-11 items-center border-b-2 px-3 text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
-            active === section.value ? 'border-primary text-primary-text' : 'border-transparent text-muted-foreground hover:text-foreground',
-          ].join(' ')}
+}> = ({ sections, active, label, sectionHeading, selectLabel, recordTitle, onSelect }) => {
+  const [showStickyIdentity, setShowStickyIdentity] = React.useState(false);
+  React.useEffect(() => {
+    const identity = document.querySelector<HTMLElement>('[data-money-out-record-identity]');
+    const scrollport = identity?.closest<HTMLElement>('.main-scroll');
+    if (!identity || !scrollport || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(([entry]) => setShowStickyIdentity(!entry.isIntersecting), {
+      root: scrollport,
+      threshold: 0,
+    });
+    observer.observe(identity);
+    return () => observer.disconnect();
+  }, [recordTitle]);
+
+  const sectionLinks = sections.map((section) => (
+    <Link
+      key={section.value}
+      to={section.value === 'overview' ? './overview' : `./${section.value}`}
+      aria-current={active === section.value ? 'page' : undefined}
+      onClick={(event) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        onSelect(section.value);
+      }}
+      className={[
+        'inline-flex min-h-11 items-center border-l-2 px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
+        active === section.value ? 'border-primary text-primary-text' : 'border-transparent text-muted-foreground hover:text-foreground',
+      ].join(' ')}
+    >
+      {section.label}
+    </Link>
+  ));
+
+  return (
+    <div className="min-w-0">
+      <aside className="sticky top-4 hidden min-w-0 self-start min-[921px]:block">
+        <h2 className="mb-3 text-xl font-bold leading-tight text-foreground">{sectionHeading}</h2>
+        <nav aria-label={label} className="flex min-w-0 flex-col border-l border-border">
+          {sectionLinks}
+        </nav>
+      </aside>
+      <div className="sticky top-0 z-20 -mx-4 min-w-0 border-b border-border bg-background px-4 py-2 min-[921px]:hidden">
+        <p aria-hidden="true" className={showStickyIdentity ? 'mb-2 break-words text-sm text-foreground' : 'sr-only'}>
+          {recordTitle}
+        </p>
+        <label htmlFor="procurement-section-select" className="mb-1 block text-xs font-semibold text-muted-foreground">
+          {selectLabel}
+        </label>
+        <select
+          id="procurement-section-select"
+          aria-label={selectLabel}
+          value={active}
+          onChange={(event) => onSelect(event.currentTarget.value as ProcTab)}
+          className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground"
         >
-          {section.label}
-        </Link>
-      ))}
-    </nav>
-    <div className="sm:hidden">
-      <label htmlFor="procurement-section-select" className="mb-1 block text-sm font-medium text-foreground">
-        {selectLabel}
-      </label>
-      <select
-        id="procurement-section-select"
-        value={active}
-        onChange={(event) => onSelect(event.currentTarget.value as ProcTab)}
-        className="min-h-11 w-full rounded-lg border border-input bg-background px-3 text-foreground"
-      >
-        {sections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
-      </select>
+          {sections.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
+        </select>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
 
@@ -453,7 +477,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isPending) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
         <div data-testid="procurement-loading">
           <ListState variant="loading" rows={6} />
         </div>
@@ -478,7 +502,7 @@ const ProcurementDetails: React.FC = () => {
   if (isNoAccess || (!detailQuery.isError && !detailQuery.data)) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
         {/* BackBar above already carries the "Back to Procurement" escape route,
             so the empty state does not repeat it (avoids a duplicate control). */}
         <div data-testid="procurement-no-access">
@@ -500,7 +524,7 @@ const ProcurementDetails: React.FC = () => {
   if (detailQuery.isError) {
     return (
       <>
-        <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} phoneOnly onBack={goBack} />
+        <BackBar label={t('procurementDetail.backToProcurement', 'Back to procurement')} phoneOnly onBack={goBack} />
         <ListState
           variant="error"
           title={t('procurementDetail.error.title', "Couldn't load procurement")}
@@ -655,7 +679,7 @@ const ProcurementDetails: React.FC = () => {
         values={{ amount: moneyAmount, name: moneyRequester }}
         components={{
           amount: <b />,
-          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} />,
+          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} fullIdentity />,
           person: <i />,
         }}
       />
@@ -666,7 +690,7 @@ const ProcurementDetails: React.FC = () => {
         values={{ amount: moneyAmount }}
         components={{
           amount: <b />,
-          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} />,
+          project: <ProjectNameLink projectId={p.project_id} name={moneyProject} fullIdentity />,
         }}
       />
     )
@@ -857,7 +881,7 @@ const ProcurementDetails: React.FC = () => {
     mutations.captureVendorInvoice.isPending;
 
   const selectedQuoteAmount = selectedQuote
-    ? { amount: Number(selectedQuote.total_amount), currency: selectedQuote.currency }
+    ? { amount: selectedQuote.total_amount == null ? null : Number(selectedQuote.total_amount), currency: selectedQuote.currency }
     : null;
   const firstOrder = p.purchase_orders?.[0] as { amount?: number | null; currency?: string | null } | undefined;
   const orderedAmount = firstOrder
@@ -867,19 +891,19 @@ const ProcurementDetails: React.FC = () => {
   const currentStatusAt = [...(p.statusEvents ?? [])].reverse().find((event) => event.to_status === p.status)?.created_at;
   const statusDate = currentStatusAt
     ? formatInstantDate(currentStatusAt)
-    : t('procurementDetail.statusDateUnavailable', 'Date not available');
+    : t('procurement:detail.statusDateUnavailable', 'Date not available');
   const recordScope = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
-    <span key="status-date">{t('procurementDetail.statusAsOf', 'Status as of')} {statusDate}</span>,
+    <span key="status-date">{t('procurement:detail.statusAsOf', 'Status as of')} {statusDate}</span>,
     p.project?.name && p.project_id
-      ? <ProjectNameLink key="project" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} />
-      : <span key="project-missing">{t('procurementDetail.detail.notLinked', 'Project not linked')}</span>,
+      ? <ProjectNameLink key="project" projectId={p.project_id} name={p.project.name} legalName={p.project.name} fullIdentity />
+      : <span key="project-missing">{t('procurementDetail.detail.notLinked', 'Not linked')}</span>,
     p.requested_by?.full_name
       ? <span key="requester">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span>
       : null,
     p.vendor?.name
       ? <CompanyNameLink key="vendor" companyId={p.vendor_id} name={p.vendor.name} />
-      : <span key="vendor-missing">{t('procurementDetail.vendorNotSelected', 'Vendor not selected')}</span>,
+      : <span key="vendor-missing">{t('procurement:detail.vendorNotSelected', 'Vendor not selected')}</span>,
   ].filter((part): part is React.ReactElement => part !== null);
 
   // Progression-history events — transition-centric merge (buildProgressionTimeline):
@@ -912,11 +936,11 @@ const ProcurementDetails: React.FC = () => {
     })),
   ];
   const procSections: ProcurementSection[] = [
-    { value: 'overview', label: t('procurementDetail.sections.review', 'Review') },
-    { value: 'items', label: t('procurementDetail.sections.items', 'Items') },
-    { value: 'documents', label: t('procurementDetail.sections.documents', 'Documents') },
-    { value: 'quotes', label: t('procurementDetail.sections.quotes', 'Quotes') },
-    { value: 'activity', label: t('procurementDetail.sections.activity', 'Activity') },
+    { value: 'overview', label: t('procurement:detail.sections.review', 'Review') },
+    { value: 'items', label: t('procurement:detail.sections.items', 'Items') },
+    { value: 'documents', label: t('procurement:detail.sections.documents', 'Documents') },
+    { value: 'quotes', label: t('procurement:detail.sections.quotes', 'Quotes') },
+    { value: 'activity', label: t('procurement:detail.sections.activity', 'Activity') },
   ];
 
   return (
@@ -932,7 +956,7 @@ const ProcurementDetails: React.FC = () => {
         }
         scope={recordScope}
         returnAction={{
-          label: t('procurementDetail.backToProcurement', 'Procurement'),
+          label: t('procurementDetail.backToProcurement', 'Back to procurement'),
           onReturn: goBack,
           phoneOnly: true,
         }}
@@ -974,15 +998,19 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      <ProcurementSectionNavigation
-        sections={procSections}
-        active={tab}
-        onSelect={setTab}
-        label={t('procurementDetail.tabsLabel', 'Procurement sections')}
-        selectLabel={t('procurementDetail.sectionSelect', 'Section')}
-      />
+      <div className="grid min-w-0 gap-6 min-[921px]:grid-cols-[14rem_minmax(0,1fr)]">
+        <ProcurementSectionNavigation
+          sections={procSections}
+          active={tab}
+          onSelect={setTab}
+          label={t('procurementDetail.tabsLabel', 'Procurement sections')}
+          sectionHeading={t('procurement:detail.sectionIndex', 'Sections')}
+          selectLabel={t('procurement:detail.sectionSelect', 'Section')}
+          recordTitle={p.title}
+        />
 
-      <div data-testid={`procurement-section-${tab}`}>
+        <div className="min-w-0">
+          <div data-testid={`procurement-section-${tab}`} className="min-w-0">
         {tab === 'overview' && (
           <ProcurementOverviewTab
             requestAmount={Number(p.total_value)}
@@ -997,7 +1025,7 @@ const ProcurementDetails: React.FC = () => {
               amount: item.amount == null ? null : Number(item.amount),
             }))}
             projectId={p.project_id}
-            projectName={p.project ? projectDisplayName(p.project) : null}
+            projectName={p.project?.name ?? null}
             projectLegalName={p.project?.name ?? null}
             totalValue={Number(p.total_value)}
             status={p.status}
@@ -1033,7 +1061,7 @@ const ProcurementDetails: React.FC = () => {
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
             ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
         {tab === 'documents' && (
-          <Card variant="bare">
+          <section className="min-w-0">
             <ProcurementLedger
               detail={p}
               rows={ledgerRows}
@@ -1110,7 +1138,7 @@ const ProcurementDetails: React.FC = () => {
             )}
             <LinkedErpDocuments procurementId={p.id} />
             <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} targets={attachTargets} />
-          </Card>
+          </section>
         )}
 
         {/* ░░ Vendor quotes tab — Slice 3: VendorQuotesTab (bid comparison).
@@ -1121,8 +1149,8 @@ const ProcurementDetails: React.FC = () => {
             children roll up here — the project reaches them on read through this procurement. */}
         {tab === 'activity' && (
           <section aria-labelledby="procurement-activity-heading" className="min-w-0">
-            <h2 id="procurement-activity-heading" className="mb-5 text-xl font-semibold">
-              {t('procurementDetail.sections.activity', 'Activity')}
+            <h2 id="procurement-activity-heading" className="mb-5 text-xl font-bold leading-tight">
+              {t('procurement:detail.sections.activity', 'Activity')}
             </h2>
             <RecordHistory
               entityType="procurement"
@@ -1179,11 +1207,10 @@ const ProcurementDetails: React.FC = () => {
             }}
           />
         )}
-      </div>
+          </div>
 
-      {/* One responsive decision area follows the request value and financial evidence.
-          The same controls serve desktop and phone; no mirrored mobile approval button. */}
-      <ProcurementDecisionZone
+          {/* The one decision area follows the selected section's complete evidence. */}
+          <ProcurementDecisionZone
         p={p}
         actions={actions}
         gateMsg={gateMsg}
@@ -1208,8 +1235,10 @@ const ProcurementDetails: React.FC = () => {
         setMutationError={setMutationError}
         mutationError={mutationError}
         onActionClick={onActionClick}
-        mutations={mutations}
-      />
+            mutations={mutations}
+          />
+        </div>
+      </div>
 
       {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
@@ -1233,7 +1262,7 @@ const ProcurementDetails: React.FC = () => {
         <Card className="mt-4">
           <CardHead>{t('procurementDetail.approvalNotes', 'Approval notes')}</CardHead>
           <CardPad>
-            <p className="text-[13.5px]">{p.approval_notes}</p>
+            <p className="text-sm">{p.approval_notes}</p>
           </CardPad>
         </Card>
       )}
@@ -1241,7 +1270,7 @@ const ProcurementDetails: React.FC = () => {
         <Card className="mt-4">
           <CardHead>{t('procurementDetail.rejectionNotes', 'Rejection notes')}</CardHead>
           <CardPad>
-            <p className="text-[13.5px] text-destructive">{p.rejection_notes}</p>
+            <p className="text-sm text-destructive-text">{p.rejection_notes}</p>
           </CardPad>
         </Card>
       )}

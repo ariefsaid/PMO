@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -22,7 +21,6 @@ import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { expenseKindLabel, expenseStatusLabel, agingBucketLabel } from './expenses/expenseLabels';
 import { MoneyOutListPage } from './procurement/MoneyOutHeader';
 
-const OWNED_QUERY_KEYS = ['q', 'status', 'kind', 'category', 'project', 'sort', 'advanceSort', 'view', 'age'] as const;
 const AGE_FILTERS = ['All', '0-30', '31-60', '61-90', '90+', 'unknown'] as const;
 
 /** Expenses and advances share one register; each view keeps its own URL-owned sort and filters. */
@@ -76,7 +74,7 @@ const ExpenseClaims: React.FC = () => {
     state: { recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } },
   });
   const rows = data?.rows ?? [];
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
 
   const statusOptions = [
     { value: '', label: t('expenses.filters.allStatuses', 'All statuses') },
@@ -102,25 +100,25 @@ const ExpenseClaims: React.FC = () => {
   }));
 
   const columns: Column<ExpenseClaimWithRefs>[] = [
-    { key: 'claim', header: t('expenses.columns.claim', 'Claim'), kind: 'primary',
+    { key: 'claim', header: t('expenseClaims:register.columns.claim', 'Claim'), kind: 'primary', fullIdentity: true,
       primaryTitle: (r) => r.title,
-      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="font-medium text-primary-text hover:underline">{r.title}</Link>,
+      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="text-sm font-normal text-primary-text hover:underline">{r.title}</Link>,
       secondaryCell: (r) => <span>{r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}</span>,
       exportValue: (r) => r.claim_number ?? r.title },
     { key: 'project', header: t('expenses.columns.project', 'Project'),
-      cell: (r) => r.project ? <span title={r.project.name}>{projectDisplayName(r.project)}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
+      cell: (r) => r.project ? <span className="break-words">{r.project.name}</span> : t('expenses.overhead', 'Overhead'), exportValue: (r) => r.project?.name ?? '' },
     { key: 'claimant', header: t('expenses.columns.claimant', 'Claimant'),
       cell: (r) => r.claimant?.full_name ?? '—', exportValue: (r) => r.claimant?.full_name ?? '' },
     { key: 'budget_category', header: t('expenses.columns.category', 'Budget category'),
       cell: (r) => (r.budget_category ? budgetCategoryLabel(r.budget_category, t) : '—'), exportValue: (r) => r.budget_category ?? '' },
-    { key: 'statusDate', header: t('expenses.columns.statusDate', 'Status and created date'), kind: 'status',
-      cell: (r) => <div className="flex min-w-0 flex-col items-start gap-1"><StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill><time dateTime={r.created_at} className="text-xs text-muted-foreground">{formatInstantDate(r.created_at)}</time></div>,
+    { key: 'statusDate', header: t('expenseClaims:register.columns.statusDate', 'Status and created date'), kind: 'status',
+      cell: (r) => <div className="flex min-w-0 flex-col items-start gap-1"><StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill><time dateTime={r.created_at} className="text-sm text-muted-foreground">{formatInstantDate(r.created_at)}</time></div>,
       exportValue: (r) => `${expenseStatusLabel(r.status, t)} · ${r.created_at}` },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), kind: 'money', align: 'num',
-      cell: (r) => <span className="tabular-nums">{r.amount == null || !r.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(r.amount))}</span>,
+      cell: (r) => <span className="tabular-nums">{r.amount == null || !r.currency ? t('expenseClaims:shared.notAvailable', 'Not available') : formatNumber(Number(r.amount))}</span>,
       exportValue: (r) => Number(r.amount) },
-    { key: 'actions', header: t('expenses.columns.actions', 'Actions'), kind: 'actions',
-      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent">{t('expenseClaims:register.table.open', 'Open')}</Link>,
+    { key: 'actions', header: t('expenseClaims:register.columns.actions', 'Actions'), kind: 'actions',
+      cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent">{t('expenseClaims:register.table.open', 'Open')}</Link>,
       exportValue: () => '' },
   ];
   const mobileRow = (r: ExpenseClaimWithRefs) => {
@@ -129,8 +127,8 @@ const ExpenseClaims: React.FC = () => {
     return (
       <div className="grid gap-3 p-3">
         <div className="min-w-0">
-          <Link to={recordPath} state={recordState} className="block break-words text-sm font-semibold text-foreground hover:underline">{r.title}</Link>
-          <div className="mt-1 break-words text-xs text-muted-foreground">
+          <Link to={recordPath} state={recordState} className="block break-words text-sm text-foreground hover:underline">{r.title}</Link>
+          <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">
             {r.claim_number ?? t('expenses.draftNumber', 'Draft')} · {expenseKindLabel(r.kind, t)}
           </div>
         </div>
@@ -139,12 +137,12 @@ const ExpenseClaims: React.FC = () => {
           <time dateTime={r.created_at} className="text-sm text-muted-foreground">{formatInstantDate(r.created_at)}</time>
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-          <span className="whitespace-nowrap text-sm font-semibold tabular text-foreground">
-            {r.amount == null || !r.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(r.amount))}
+          <span className="whitespace-nowrap text-sm tabular text-foreground">
+            {r.amount == null || !r.currency ? t('expenseClaims:shared.notAvailable', 'Not available') : formatNumber(Number(r.amount))}
           </span>
           <Link to={recordPath} state={recordState}
             aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })}
-            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             {t('expenseClaims:register.table.open', 'Open')}
           </Link>
         </div>
@@ -154,8 +152,8 @@ const ExpenseClaims: React.FC = () => {
           </summary>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
             <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{r.project?.name ?? t('expenses.overhead', 'Overhead')}</dd></div>
-            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.claimant', 'Claimant')}</dt><dd className="break-words text-sm text-foreground">{r.claimant?.full_name ?? t('common:notAvailable', 'Not available')}</dd></div>
-            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.category', 'Budget category')}</dt><dd className="break-words text-sm text-foreground">{r.budget_category ? budgetCategoryLabel(r.budget_category, t) : t('common:notAvailable', 'Not available')}</dd></div>
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.claimant', 'Claimant')}</dt><dd className="break-words text-sm text-foreground">{r.claimant?.full_name ?? t('expenseClaims:shared.notAvailable', 'Not available')}</dd></div>
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.columns.category', 'Budget category')}</dt><dd className="break-words text-sm text-foreground">{r.budget_category ? budgetCategoryLabel(r.budget_category, t) : t('expenseClaims:shared.notAvailable', 'Not available')}</dd></div>
           </dl>
         </details>
       </div>
@@ -203,10 +201,10 @@ const ExpenseClaims: React.FC = () => {
             onClick={() => setParam(view === 'claims' ? 'sort' : 'advanceSort', isNewest ? 'oldest' : 'newest')}
           >{sortLabel}</Button>
           <div role="group" aria-label={t('expenseClaims:register.view.label', 'Expense register view')} className="flex min-w-0 flex-wrap gap-2">
-            <Button variant={view === 'claims' ? 'secondary' : 'outline'} className="min-h-11" aria-pressed={view === 'claims'} onClick={() => setParam('view', 'claims')}>
+            <Button variant="outline" className={view === 'claims' ? 'min-h-11 border-primary bg-secondary' : 'min-h-11'} aria-pressed={view === 'claims'} onClick={() => setParam('view', 'claims')}>
               {t('expenseClaims:register.view.claims', 'Claims and advances')}
             </Button>
-            <Button variant={view === 'outstanding' ? 'secondary' : 'outline'} className="min-h-11" aria-pressed={view === 'outstanding'} onClick={() => setParam('view', 'outstanding')}>
+            <Button variant="outline" className={view === 'outstanding' ? 'min-h-11 border-primary bg-secondary' : 'min-h-11'} aria-pressed={view === 'outstanding'} onClick={() => setParam('view', 'outstanding')}>
               {t('expenseClaims:register.view.outstanding', 'Outstanding advances')}
             </Button>
           </div>
@@ -244,7 +242,7 @@ const ExpenseClaims: React.FC = () => {
       ) : (
         <>
           {data.truncated && <p role="status" className="mb-2 text-sm text-muted-foreground">
-            {t('expenses.truncated', 'Showing the latest {{count}} matching records. Refine search or filters to find other records.', { count: EXPENSE_LIST_LIMIT })}
+            {t('expenses.truncated', 'Showing the latest {{count}}. Narrow the filters to see older records.', { count: EXPENSE_LIST_LIMIT })}
           </p>}
           <DataTable<ExpenseClaimWithRefs>
             rows={rows}
@@ -253,7 +251,7 @@ const ExpenseClaims: React.FC = () => {
             rowKey={(r) => r.id}
             onActivate={(r) => openRecord(r.id)}
             tableId="expenseclaims-table"
-            groupBy={(r) => r.currency || t('common:notAvailable', 'Not available')}
+            groupBy={(r) => r.currency || t('expenseClaims:shared.notAvailable', 'Not available')}
             groupHeadingClassName="text-xl font-bold leading-tight"
           />
         </>

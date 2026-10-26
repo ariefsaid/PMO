@@ -228,14 +228,14 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length > 0 && (() => {
         const columns: Column<QuotationRow>[] = [
           {
-            key: 'vendor', header: t('procurement:quotes.columns.vendor', 'Vendor / reference'), kind: 'primary', size: 320, minSize: 240,
+            key: 'vendor', header: t('procurement:quotes.columns.vendor', 'Vendor / reference'), kind: 'primary', fullIdentity: true, size: 320, minSize: 240,
             primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
             cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
           { key: 'valueStatus', header: t('procurement:quotes.columns.selection', 'Selection status'), kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">{t('procurement:quotes.selected', 'Selected')}</StatusPill> : bestIds.has(q.id) ? <StatusPill variant="won">{t('procurement:quotes.bestValueInCurrency', 'Best in currency')}</StatusPill> : null },
           { key: 'validUntil', header: t('procurement:quotes.columns.validUntil', 'Valid until'), kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
-          { key: 'amount', header: t('procurement:quotes.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{q.total_amount == null || !q.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span> },
+          { key: 'amount', header: t('procurement:quotes.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="text-sm font-normal">{q.total_amount == null || !q.currency ? t('procurement:shared.notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span> },
           { key: 'attachments', header: t('procurement:quotes.columns.attachments', 'Evidence'), kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> },
           { key: 'select', header: t('procurement:quotes.columns.select', 'Select'), kind: 'select', size: 88, minSize: 88, maxSize: 120, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
@@ -255,7 +255,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               <div className="min-w-0">
                 <div className="break-words text-sm text-foreground">{vendor}</div>
                 <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">
-                  {q.reference ? `${q.reference} · ` : ''}{q.vq_number ?? q.system_number}
+                  {q.reference ? `${q.reference} · ` : ''}{q.vq_number}
                 </div>
               </div>
               <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -264,7 +264,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                 <time dateTime={q.valid_until ?? undefined} className="text-sm text-muted-foreground">{formatDateOnly(q.valid_until)}</time>
               </div>
               <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                <span className="whitespace-nowrap text-sm tabular text-foreground">{q.total_amount == null || !q.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span>
+                <span className="whitespace-nowrap text-sm tabular text-foreground">{q.total_amount == null || !q.currency ? t('procurement:shared.notAvailable', 'Not available') : formatNumber(Number(q.total_amount))}</span>
                 {selectable && <Button size="sm" variant="outline" className="min-h-11 text-xs font-semibold" onClick={() => setSelectTarget(q)} aria-label={t('procurement:quotes.selectAria', 'Select quote {{vendor}}', { vendor })}>{t('procurement:quotes.select', 'Select')}</Button>}
               </div>
               <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} />
@@ -272,7 +272,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           );
         };
         return <>
-          <DataTable rows={sorted} columns={columns} mobileRow={mobileRow} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('common:notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
+          <DataTable rows={sorted} columns={columns} mobileRow={mobileRow} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} groupBy={(q) => q.currency || t('procurement:shared.notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
         </>;
       })()}
 
@@ -316,7 +316,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               // never a fake-working CTA); the wrapping span's own click still
               // reports intent, since a `disabled` element cannot dispatch one.
               onClick={() => trackComingSoonClicked('vendor-quote-file-upload', 'procurement')}
-              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-[12.5px] text-muted-foreground"
+              className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-sm text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />
               {t('procurement:quotes.capture.attachFileUnavailable', 'Attach file unavailable')}

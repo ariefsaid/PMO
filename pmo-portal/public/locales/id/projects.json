@@ -22,8 +22,13 @@
     "statusAndEndTable": "Status / target selesai"
   },
   "breadcrumb": "Jejak navigasi",
-  "area": { "delivery": "Pelaksanaan" },
-  "identifiers": { "summary": "ID Proyek ({{count}})", "detailsLabel": "Referensi proyek" },
+  "area": {
+    "delivery": "Pelaksanaan"
+  },
+  "identifiers": {
+    "summary": "ID Proyek ({{count}})",
+    "detailsLabel": "Referensi proyek"
+  },
   "customerUnavailable": "Klien tidak tersedia",
   "coverage": {
     "partial": "Aktual belum lengkap pada {{partial}} dari {{total}} proyek.",
@@ -150,5 +155,6 @@
     "phaseEventAriaLabel": "{{project}} — Target fase: {{phase}}",
     "startAriaLabel": "{{project}} — Mulai",
     "endAriaLabel": "{{project}} — Selesai"
-  }
+  },
+  "openProject": "Buka {{name}}"
 }

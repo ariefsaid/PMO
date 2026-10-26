@@ -9,6 +9,8 @@ export interface ProjectNameLinkProps {
   name: string | null | undefined;
   /** Contractual title behind a short `name`: hover title + accessible description (#1325). */
   legalName?: string | null;
+  /** Render the complete identity without ellipsis in money-out records and collections. */
+  fullIdentity?: boolean;
   className?: string;
 }
 
@@ -28,6 +30,7 @@ export const ProjectNameLink: React.FC<ProjectNameLinkProps> = ({
   projectId,
   name,
   legalName,
+  fullIdentity = false,
   className,
 }) => {
   const legalId = useId();
@@ -49,7 +52,8 @@ export const ProjectNameLink: React.FC<ProjectNameLinkProps> = ({
       aria-describedby={legal ? legalId : undefined}
       title={legal}
       className={cn(
-        'truncate font-medium text-foreground underline-offset-2',
+        fullIdentity ? 'min-w-0 break-words font-normal' : 'truncate font-medium',
+        'text-foreground underline-offset-2',
         'hover:text-primary-text hover:underline',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
         className,

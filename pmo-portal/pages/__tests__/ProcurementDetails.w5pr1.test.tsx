@@ -203,25 +203,6 @@ const selfRequestedBase = {
   requested_by_id: 'u-alice', // u-alice is the currentUser mock
 };
 
-// Draft with Cancel available (Draft → Cancelled is valid for requester)
-const draftWithCancelBase = {
-  ...base,
-  status: 'Draft' as const,
-  requested_by_id: 'u-alice', // requester = currentUser
-  items: [
-    {
-      id: 'it1',
-      org_id: 'org-1',
-      procurement_id: 'proc-001',
-      name: 'Laptop',
-      description: null,
-      quantity: 1,
-      rate: 1000,
-      amount: 1000,
-    },
-  ],
-};
-
 // Named-section route (`/procurement/:id/:section?`); legacy section URLs remain valid.
 const renderPage = (tab?: string) =>
   render(

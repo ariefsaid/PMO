@@ -78,19 +78,6 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     held: t('expenses.postings.state.held', 'Needs an operator'),
     pushed: t('expenses.postings.state.pushed', 'Posted'),
   };
-  const summaryCounts = data?.reduce((counts, row) => {
-    const state = row.erpCancelledAt ? 'cancelledInErp' : row.pushState;
-    counts[state] = (counts[state] ?? 0) + 1;
-    return counts;
-  }, {} as Partial<Record<ExpensePushState | 'cancelledInErp', number>>);
-  const summaryStateLabels = [
-    ['pushed', 'Posted: {{count}}'],
-    ['pending', 'Queued: {{count}}'],
-    ['failed', 'Failed: {{count}}'],
-    ['held', 'Operator review: {{count}}'],
-    ['cancelledInErp', 'Cancelled in ERPNext: {{count}}'],
-  ] as const;
-
   if (isPending) return null;
   if (isError) {
     return (
@@ -108,7 +95,7 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     // nothing is posted. Display only — nothing is queued or retried from here.
     if (readiness === 'checking' || readiness === 'ready') return null;
     return (
-      <p role="status" className="mb-4 text-[13px] text-muted-foreground">
+      <p role="status" className="mb-4 text-sm text-muted-foreground">
         {readiness === 'unavailable'
           ? t('uxs12.expensePosting.cardUnknown', "Couldn't check whether this claim will reach accounting.")
           : t('uxs12.expensePosting.cardInactive', "Not posted to accounting: expense posting isn't active for this organization.")}
@@ -118,25 +105,17 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
   return (
     <Card variant="bare" className="mb-4">
       <details>
-        <summary className="group flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 border-b border-transparent px-4 py-2 font-semibold open:border-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring">
-          <span id="expense-postings-heading" role="heading" aria-level={2}>{t('expenseClaims:postings.accountingActivity', 'Accounting activity')}</span>
-          <span className="font-normal text-muted-foreground">
+        <summary className="group flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 border-b border-transparent px-4 py-2 text-sm text-foreground open:border-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring">
+          <span id="expense-postings-heading" role="heading" aria-level={2} className="text-xl font-bold leading-tight">{t('expenseClaims:postings.accountingActivity', 'Accounting activity')}</span>
+          <span className="text-sm font-normal text-muted-foreground">
             {t('expenseClaims:postings.summary.count', 'Entries: {{count}}', { count: data.length })}
           </span>
-          {summaryStateLabels.map(([key, label]) => {
-            const count = summaryCounts?.[key] ?? 0;
-            return count > 0 ? (
-              <span key={key} className="font-normal text-muted-foreground">
-                {t(`expenseClaims:postings.summary.${key}`, label, { count })}
-              </span>
-            ) : null;
-          })}
         </summary>
         <CardPad>
           <ul className="flex flex-col gap-2">
             {data.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13.5px]">
-                <span className="font-medium">{postingLabel[row.posting]}</span>
+              <li key={row.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                <span>{postingLabel[row.posting]}</span>
                 {row.erpCancelledAt
                   ? <StatusPill variant="superseded">{t('expenses.postings.state.cancelledInErp', 'Cancelled in ERPNext')}</StatusPill>
                   : <StatusPill variant={STATE_VARIANT[row.pushState]}>{stateLabel[row.pushState]}</StatusPill>}

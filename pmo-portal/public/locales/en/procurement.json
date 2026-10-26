@@ -27,7 +27,8 @@
     "add": "Add",
     "removeDescription": "This removes the line item from the request. You can add it again while the request is a draft.",
     "removeItem": "Remove item",
-    "searchItem": "Search item code or name…"
+    "searchItem": "Search item code or name…",
+    "remove": "Remove"
   },
   "create": {
     "heading": "New purchase request",
@@ -194,7 +195,47 @@
       "requesterGate": "This request was raised by {{requester}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.",
       "receiptGate": "To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.",
       "you": "you"
-    }
+    },
+    "budget": {
+      "advisoryOnly": "Approval is still permitted — this is an advisory only.",
+      "afterRequest": "After this request",
+      "available": "Available",
+      "headroomRemaining": "{{percent}}% headroom remaining",
+      "openProject": "Open project",
+      "otherCurrencies": "Not included in available budget: {{amounts}}",
+      "overAvailable": "Over available budget",
+      "overAvailableSub": "This request exceeds available budget by",
+      "projectBudget": "Project budget",
+      "projectOverBudget": "Project over budget",
+      "projectOverBudgetDetail": " across committed and reserved demand. This is an advisory only.",
+      "projectOverBudgetSub": "This project is over budget by",
+      "request": "This request",
+      "reserved": "Reserved",
+      "reservedSub": "approved, not yet ordered"
+    },
+    "budgetImpactWithCurrency": "Budget impact · {{currency}}",
+    "review": {
+      "amountUnavailable": "Not available",
+      "amountsWithPrimary": "Purchase amount · {{compact}}",
+      "itemsWithCurrency": "Requested items · {{currency}}",
+      "noItems": "No items have been recorded on this request yet.",
+      "orderedAmount": "Ordered amount",
+      "otherAmountsWithCurrency": "Other purchase amounts · {{currency}}",
+      "requestAmount": "Requested amount",
+      "selectedQuote": "Selected quote amount"
+    },
+    "sectionIndex": "Sections",
+    "sectionSelect": "Section",
+    "sections": {
+      "activity": "Activity",
+      "documents": "Documents",
+      "items": "Items",
+      "quotes": "Quotes",
+      "review": "Review"
+    },
+    "statusAsOf": "Status as of",
+    "statusDateUnavailable": "Date not available",
+    "vendorNotSelected": "Vendor not selected"
   },
   "activity": {
     "document": {
@@ -239,6 +280,18 @@
       "oldest": "Oldest requests",
       "newestCreated": "Newest created",
       "oldestCreated": "Oldest created"
+    },
+    "preview": {
+      "details": "Details",
+      "loadErrorTitle": "Couldn't load request details",
+      "requestDetails": "Request details",
+      "requestedItemsCurrency": "Requested items · {{currency}}"
     }
+  },
+  "shared": {
+    "notAvailable": "Not available"
+  },
+  "actions": {
+    "cancel": "Cancel"
   }
 }

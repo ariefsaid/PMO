@@ -10,15 +10,15 @@ import { formatMoneyInputValue } from '@/src/lib/format';
 import type { ErpVendorTax, NativeVendorTax, TaxSuggestion, WithholdingDraft } from '@/src/hooks/useVendorBillTax';
 import { VI_VENDOR_TAX_TEST_IDS } from './vendorInvoiceTestIds';
 
-const LABEL = 'text-[12px] font-semibold text-muted-foreground';
-const INPUT = 'h-8 w-full rounded-md border border-input bg-background px-2.5 text-[13.5px] tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
+const LABEL = 'text-xs font-semibold text-muted-foreground';
+const INPUT = 'h-8 w-full max-[767px]:h-11 rounded-md border border-input bg-background px-2.5 text-sm tabular-nums outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
 
 /** The tax-basis label under a pre-filled amount: which rate, applied to which base. */
 export const TaxSuggestedFrom: React.FC<{ suggestion: TaxSuggestion | null; id?: string }> = ({ suggestion, id }) => {
   const { t } = useTranslation();
   if (!suggestion) return null;
   return (
-    <p id={id} data-testid={VI_VENDOR_TAX_TEST_IDS.suggestedFrom} className="text-[12px] text-muted-foreground">
+    <p id={id} data-testid={VI_VENDOR_TAX_TEST_IDS.suggestedFrom} className="text-sm text-muted-foreground">
       {t('procurementDetail.vendorTax.suggestedFrom', 'Vendor default {{rate}}% of {{base}}', {
         rate: formatMoneyInputValue(suggestion.rate),
         base: formatMoneyInputValue(suggestion.base),
@@ -121,7 +121,7 @@ export const ErpTaxAmountFields: React.FC<{ formId: string; tax: ErpVendorTax }>
   return (
     <div data-testid={VI_VENDOR_TAX_TEST_IDS.erpFields} className="flex flex-col gap-3">
       {tax.itemsNet !== null && (
-        <p data-testid={VI_VENDOR_TAX_TEST_IDS.itemsNet} className="text-[12px] text-muted-foreground">
+        <p data-testid={VI_VENDOR_TAX_TEST_IDS.itemsNet} className="text-sm text-muted-foreground">
           {t('procurementDetail.vendorTax.itemsNet', 'Items total, before tax: {{amount}}', { amount: formatMoneyInputValue(tax.itemsNet) })}
         </p>
       )}
@@ -144,7 +144,7 @@ export const ErpTaxAmountFields: React.FC<{ formId: string; tax: ErpVendorTax }>
         />
       </div>
       {tax.amounts === null && (
-        <p data-testid={VI_VENDOR_TAX_TEST_IDS.erpRequiredHint} className="text-[12px] text-muted-foreground">
+        <p data-testid={VI_VENDOR_TAX_TEST_IDS.erpRequiredHint} className="text-sm text-muted-foreground">
           {t('procurementDetail.vendorTax.erpRequiredHint', "Enter the VAT amount from the vendor's invoice (0 if none) and, if tax is withheld, its type and amount.")}
         </p>
       )}

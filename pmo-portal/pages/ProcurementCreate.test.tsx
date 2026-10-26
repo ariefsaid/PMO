@@ -17,9 +17,9 @@ vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typ
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => mocks.canCreate }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({ data: [{ value: 'p1', label: 'Project One' }] }),
   useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Vendor One' }] }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Project One', archived_at: null }] }) }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
   useCreateProcurementItem: () => ({ mutateAsync: mocks.createItem, isPending: false }),
@@ -203,13 +203,15 @@ describe('AC-PROC1 one-page request creation', () => {
     await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
   });
 
-  it('AC-PROC1-008 formats draft line totals in the organization currency', () => {
+  it('AC-PROC1-008 keeps the currency in the line section head and shows an exact whole-unit total', () => {
     mocks.currency = 'IDR';
     renderCreate();
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
     fireEvent.change(screen.getByLabelText('New item unit price'), { target: { value: '10' } });
-    expect(screen.getByLabelText('New line total')).toHaveTextContent('IDR');
+    expect(screen.getByRole('heading', { name: 'Line items · IDR' })).toBeInTheDocument();
+    expect(screen.getByLabelText('New line total')).toHaveTextContent('20');
+    expect(screen.getByLabelText('New line total')).not.toHaveTextContent('IDR');
     expect(screen.getByLabelText('New line total')).not.toHaveTextContent('$');
   });
 

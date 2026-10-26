@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { matchRoutes } from 'react-router';
 import React from 'react';
-import { appRouteConfig, contentPageFrameReturnKey, usesContentPageFramePath } from './App';
+import { appRouteConfig } from './App';
+import { contentPageFrameReturnKey, usesContentPageFramePath } from './src/lib/pageFrameRouting';
 
 describe('Application route table', () => {
   it('opts all money-out routes into the shared frame and supplies parent labels for phone returns', () => {

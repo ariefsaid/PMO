@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Card, CardHead, CardPad, Button, Icon, ConfirmDialog, FieldError, Combobox, DataTable,
+  CardPad, Button, Icon, ConfirmDialog, FieldError, Combobox, DataTable,
   useMoneyInputMask,
   type Column,
 } from '@/src/components/ui';
@@ -52,7 +52,7 @@ export interface LineItemsSectionProps {
 }
 const CellInput: React.FC<React.ComponentPropsWithRef<'input'> & { numeric?: boolean }> = ({ numeric, className = '', ...rest }) => (
   <input {...rest} type="text" inputMode={numeric ? 'decimal' : undefined}
-    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
+    className={'h-8 w-full rounded-md border border-input bg-background px-2 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring ' + (numeric ? 'tabular text-right ' : '') + className} />
 );
 
 export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, editable, onAdd, onUpdate, onDelete, onError, busy, currency, erpItems }) => {
@@ -105,13 +105,13 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
 
   const columns: Column<ProcurementItemRow>[] = [
     {
-      key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', size: 320, minSize: 200,
+      key: 'description', header: erpItems ? t('lineItems.itemDescription', 'Item / description') : t('lineItems.description', 'Description'), kind: 'primary', fullIdentity: true, size: 320, minSize: 200,
       cell: (it) => {
         if (editable && editingId === it.id) return erpItems ? <div className="space-y-2">
           <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" searchPlaceholder={t('lineItems.searchItem', 'Search item code or name…')} />
           <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
         </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />;
-        return <span className="font-medium">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
+        return <span className="text-sm font-normal">{it.name}{erpItems && it.description && <span className="mt-1 block font-normal text-muted-foreground">{it.description}</span>}</span>;
       },
     },
     { key: 'quantity', header: t('lineItems.quantity', 'Qty'), kind: 'number', align: 'num', size: 88, cell: (it) => editable && editingId === it.id ? <div className="space-y-1"><CellInput numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div> : Number(it.quantity) },
@@ -120,14 +120,51 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       const amount = editable && editingId === it.id
         ? itemsNetTotal([{ quantity: parseMoneyInputAtScale(editDraft.quantity, 2), rate: parseMoneyInputAtScale(editDraft.rate, 2) }])
         : itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
-      return <span className="font-medium">{amount === null ? '—' : formatNumber(amount)}</span>;
+      return <span className="text-sm font-normal">{amount === null ? '—' : formatNumber(amount)}</span>;
     } },
   ];
   if (editable) columns.push({ key: 'actions', header: t('lineItems.rowActions', 'Row actions'), kind: 'actions', size: 150, cell: (it) => editingId === it.id ? <div className="flex gap-1"><Button size="sm" variant="primary" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button><Button size="sm" variant="ghost" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button></div> : <div className="flex gap-1"><Button size="sm" variant="ghost" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button><Button size="sm" variant="ghost" iconOnly aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}><Icon name="x" /></Button></div> });
   const columnsTotal = { amount: total === null ? '—' : formatNumber(total) };
-  return <Card className="mb-4" data-testid="line-items-section">
-    <CardHead>{t('lineItems.headingWithCurrency', 'Line items · {{currency}}', { currency })}</CardHead>
+  const mobileRow = (it: ProcurementItemRow) => {
+    if (editable && editingId === it.id) return (
+      <div className="grid gap-3 p-3">
+        {erpItems ? <div className="grid gap-2">
+          <Combobox label={t('lineItems.erpItem', 'ERP item')} value={editDraft.name || null} selectedOption={editDraft.name ? { value: editDraft.name, label: editDraft.name } : null} onChange={(name) => setEditDraft((d) => ({ ...d, name }))} loadOptions={erpItems.loadOptions} noun="ERP item" />
+          <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.description ?? ''} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, description: e.target.value }))} />
+        </div> : <CellInput aria-label={`Edit description for ${it.name}`} value={editDraft.name} className="!h-11" onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} />}
+        <div className="grid min-w-0 grid-cols-2 gap-3">
+          <div className="min-w-0"><label htmlFor={`edit-quantity-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</label><CellInput id={`edit-quantity-${it.id}`} numeric aria-label={`Edit quantity for ${it.name}`} value={editDraft.quantity} className="!h-11" onChange={(e) => { setEditDraft((d) => ({ ...d, quantity: e.target.value })); setEditErrors((p) => ({ ...p, quantity: undefined })); }} /><FieldError>{editErrors.quantity}</FieldError></div>
+          <div className="min-w-0"><label htmlFor={`edit-rate-${it.id}`} className="mb-1 block text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</label><CellInput id={`edit-rate-${it.id}`} numeric aria-label={`Edit unit price for ${it.name}`} ref={editRateMask.ref} value={editDraft.rate} className="!h-11" onChange={editRateMask.onChange} /><FieldError>{editErrors.rate}</FieldError></div>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="ghost" className="min-h-11" onClick={() => setEditingId(null)}>{t('lineItems.cancel', 'Cancel')}</Button>
+          <Button variant="primary" className="min-h-11" loading={busy} onClick={() => void submitEdit(it.id)}>{t('lineItems.save', 'Save')}</Button>
+        </div>
+      </div>
+    );
+
+    const amount = itemsNetTotal([{ quantity: it.quantity, rate: it.rate }]);
+    return (
+      <div className="grid gap-3 p-3">
+        <p className="min-w-0 break-words text-sm text-foreground">{it.name}</p>
+        {erpItems && it.description && <p className="min-w-0 break-words text-sm text-muted-foreground">{it.description}</p>}
+        <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3">
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.quantity', 'Quantity')}</dt><dd className="break-words text-sm tabular text-foreground">{formatNumber(Number(it.quantity))}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.unitPrice', 'Unit price')}</dt><dd className="break-words text-sm tabular text-foreground">{formatNumber(Number(it.rate))}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('lineItems.lineTotal', 'Line total')}</dt><dd className="whitespace-nowrap text-sm tabular text-foreground">{amount === null ? '—' : formatNumber(amount)}</dd></div>
+        </dl>
+        {editable && <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" className="min-h-11" aria-label={`Edit ${it.name}`} onClick={() => startEdit(it)}>{t('lineItems.edit', 'Edit')}</Button>
+          <Button variant="ghost" className="min-h-11" aria-label={`Remove ${it.name}`} onClick={() => setDeleteTarget(it)}>{t('procurement:lineItems.remove', 'Remove')}</Button>
+        </div>}
+      </div>
+    );
+  };
+
+  return <section className="mb-6 min-w-0" data-testid="line-items-section">
+    <h2 className="mb-4 break-words text-xl font-bold leading-tight text-foreground">{t('lineItems.headingWithCurrency', 'Line items · {{currency}}', { currency })}</h2>
     <DataTable rows={items} columns={columns} rowKey={(it) => it.id} tableId="procurement-line-items" accessibleName="Line items"
+      mobileRow={mobileRow}
       state={items.length === 0 ? 'empty' : undefined} emptyTitle={editable ? t('lineItems.emptyEditable', 'No line items yet. Add one below.') : t('lineItems.empty', 'No line items yet.')}
       totals={[{ key: 'estimated', label: t('lineItems.estimatedTotal', 'Estimated total'), values: columnsTotal }]} />
     {editable && <CardPad>
@@ -139,6 +176,6 @@ export const LineItemsSection: React.FC<LineItemsSectionProps> = ({ items, edita
       </div>
     </CardPad>}
     <ConfirmDialog open={!!deleteTarget} tone="destructive" title={deleteTarget ? `Remove ${deleteTarget.name}?` : 'Remove line item?'} description={t('lineItems.removeDescription', 'This removes the line item from the request. You can add it again while the request is a draft.')} confirmLabel={t('lineItems.removeItem', 'Remove item')} loading={busy} onConfirm={confirmDelete} onCancel={() => setDeleteTarget(null)} />
-  </Card>;
+  </section>;
 };
 LineItemsSection.displayName = 'LineItemsSection';

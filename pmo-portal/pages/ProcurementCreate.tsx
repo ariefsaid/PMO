@@ -7,7 +7,8 @@ import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useVendorOptions } from '@/src/hooks/useFkOptions';
+import { useProjects } from '@/src/hooks/useProjects';
 import { useCreateProcurement, useCreateProcurementItem } from '@/src/hooks/useProcurementCrud';
 import type { NewProcurementInput, ProcurementItemRow } from '@/src/lib/db/procurementCrud';
 import { ProcurementError } from '@/src/lib/db/procurementLifecycle';
@@ -37,7 +38,9 @@ export default function ProcurementCreate() {
   const createItem = useCreateProcurementItem();
   const orgCurrency = useOrgCurrency();
   const projectId = new URLSearchParams(location.search).get('project');
-  const { data: projects = [] } = useProjectOptions();
+  const { data: projectRows = [] } = useProjects();
+  const projects = useMemo(() => projectRows.filter((project) => project.archived_at == null)
+    .map((project) => ({ value: project.id, label: project.name })), [projectRows]);
   const { data: vendors = [] } = useVendorOptions();
   const [title, setTitle] = useState('');
   const [selectedProject, setSelectedProject] = useState<string | null>(projectId);
@@ -153,7 +156,7 @@ export default function ProcurementCreate() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl p-4 md:p-6">
+    <div className="mx-auto w-full max-w-7xl p-4 md:p-6">
       <MoneyOutPageHeader
         title={t('procurement:create.heading', 'New purchase request')}
         scope={[
@@ -243,7 +246,7 @@ export default function ProcurementCreate() {
         </fieldset>
         <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
           <Button type="button" variant="outline" className="min-h-11" onClick={() => guardLeave(() => returnToList('procurement'))}>
-            {t('common.cancel', 'Cancel')}
+            {t('procurement:actions.cancel', 'Cancel')}
           </Button>
           <Button type="submit" variant="primary" className="min-h-11" loading={saving || create.isPending || createItem.isPending}>
             {t('procurement:create.saveDraft', 'Save draft')}
@@ -260,6 +263,6 @@ export default function ProcurementCreate() {
         onConfirm={() => { const leave = pendingLeave; setPendingLeave(null); leave?.(); }}
         onCancel={() => setPendingLeave(null)}
       />
-    </main>
+    </div>
   );
 }

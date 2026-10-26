@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   SearchMini,
@@ -244,7 +243,7 @@ const ProcurementPage: React.FC = () => {
   const currencyGroups = useMemo(() => {
     const groups = new Map<string, ProcurementWithRefs[]>();
     for (const row of filtered) {
-      const currency = row.currency || t('common:notAvailable', 'Not available');
+      const currency = row.currency || t('procurement:shared.notAvailable', 'Not available');
       const group = groups.get(currency);
       if (group) group.push(row);
       else groups.set(currency, [row]);
@@ -273,10 +272,10 @@ const ProcurementPage: React.FC = () => {
       header: t('procurement.column.request', 'Request'),
       cell: (r) => (
         <div className="min-w-0">
-          <div className="truncate font-semibold" title={r.title}>
+          <div className="min-w-0 break-words text-sm font-normal" title={r.title}>
             {r.title}
           </div>
-          <div className="truncate font-mono text-[11px] text-muted-foreground">
+          <div className="min-w-0 break-words font-mono text-[11px] font-semibold text-muted-foreground">
             {r.code ?? r.id.slice(0, 8)}
           </div>
         </div>
@@ -286,7 +285,7 @@ const ProcurementPage: React.FC = () => {
     {
       key: 'project',
       header: t('procurement.column.project', 'Project'),
-      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project ? projectDisplayName(r.project) : undefined} legalName={r.project?.name} className="text-muted-foreground" />,
+      cell: (r) => <ProjectNameLink projectId={r.project_id} name={r.project?.name} legalName={r.project?.name} fullIdentity className="text-muted-foreground" />,
       exportValue: (r) => r.project?.name ?? '',
     },
     {
@@ -296,11 +295,11 @@ const ProcurementPage: React.FC = () => {
         <span className="flex items-center gap-2">
           <span
             aria-hidden
-            className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
+            className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground"
           >
             {(r.requested_by?.full_name ?? '?').trim().charAt(0).toUpperCase() || '?'}
           </span>
-          <span className="truncate">
+          <span className="break-words">
             {r.requested_by?.full_name ?? t('procurement.unknownRequester', 'Unknown')}
           </span>
         </span>
@@ -322,7 +321,7 @@ const ProcurementPage: React.FC = () => {
           <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
             {statusLabel(r.status as ProcurementStatus)}
           </StatusPill>
-          <time dateTime={r.created_at} className="text-xs text-muted-foreground">
+          <time dateTime={r.created_at} className="text-sm text-muted-foreground">
             {formatInstantDate(r.created_at)}
           </time>
         </div>
@@ -390,7 +389,7 @@ const ProcurementPage: React.FC = () => {
                       event.preventDefault();
                       navigateWithReturn('/erp-purchases');
                     }}
-                    className="font-medium text-primary hover:underline"
+                    className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline"
                   >
                     {tf('erpLinks.bannerLink', 'ERPNext documents not in a purchase')}
                   </Link>
@@ -449,8 +448,8 @@ const ProcurementPage: React.FC = () => {
             </Button>
             <ViewToggle<'table' | 'board'>
               options={[
-                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table' },
-                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols' },
+                { value: 'table', label: t('procurement.view.table', 'Table'), icon: 'table', optionClassName: 'max-[767px]:min-h-11' },
+                { value: 'board', label: t('procurement.view.board', 'Board'), icon: 'cols', optionClassName: 'max-[767px]:min-h-11' },
               ]}
               value={view}
               onChange={onViewChange}

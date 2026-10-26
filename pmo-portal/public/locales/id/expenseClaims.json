@@ -66,18 +66,36 @@
       "open": "Buka",
       "openClaim": "Buka {{title}}"
     },
-    "mobileDetails": "Detail · 3 bidang"
+    "mobileDetails": "Detail · 3 bidang",
+    "columns": {
+      "actions": "Tindakan",
+      "claim": "Klaim",
+      "statusDate": "Status dan tanggal dibuat"
+    }
   },
   "record": {
     "backToRegister": "Kembali ke pengeluaran",
     "purposeAndAmount": "Tujuan dan jumlah · {{currency}}",
     "primaryAmount": "{{label}} · {{compact}}",
     "primaryAmountUnavailable": "{{label}} · Tidak tersedia",
-    "outstandingUnavailable": "Tidak tersedia — muat ulang data ini untuk memeriksa kembali."
+    "outstandingUnavailable": "Tidak tersedia — muat ulang data ini untuk memeriksa kembali.",
+    "lines": {
+      "titleWithCurrency": "Rincian · {{currency}}"
+    }
   },
   "capture": {
     "projectScope": "Cakupan proyek",
     "currencyScope": "Mata uang",
     "additionalLines": "Rincian tambahan"
+  },
+  "aging": {
+    "columns": {
+      "paidOn": "Tanggal pembayaran"
+    },
+    "mobileDetails": "Detail · 2 bidang",
+    "unknownPayoutDate": "Tidak tersedia"
+  },
+  "shared": {
+    "notAvailable": "Tidak tersedia"
   }
 }

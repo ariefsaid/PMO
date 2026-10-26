@@ -41,7 +41,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
 
   const columns: Column<ErpPurchaseRow>[] = [
     {
-      key: 'document', header: t('erpPurchases.column.document', 'Document'), kind: 'primary',
+      key: 'document', header: t('erpPurchases.column.document', 'Document'), kind: 'primary', fullIdentity: true,
       primaryTitle: (d) => d.name,
       cell: (d) => <span className="font-mono">{d.name}</span>,
       secondaryCell: (d) => (
@@ -70,7 +70,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
 
   return (
     <section aria-labelledby={headingId} className="mt-6 border-t border-border pt-4">
-      <h2 id={headingId} className="mb-2 px-1 text-[14px] font-semibold text-foreground">
+      <h2 id={headingId} className="mb-4 px-1 text-xl font-bold leading-tight text-foreground">
         {t('erpLinks.linkedTitle', 'Documents from ERPNext')}
       </h2>
       {query.isError ? (
@@ -82,7 +82,7 @@ export const LinkedErpDocuments: React.FC<{ procurementId: string }> = ({ procur
           rowKey={(d) => d.id}
           tableId="procurement-linked-erp-documents"
           accessibleName={t('erpLinks.linkedTitle', 'Documents from ERPNext')}
-          groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')}
+          groupBy={(row) => row.currency || t('procurement:shared.notAvailable', 'Not available')}
           groupHeadingClassName="text-xl font-bold leading-tight"
         />
       )}

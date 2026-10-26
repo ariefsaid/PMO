@@ -66,4 +66,18 @@ describe('AC-S19-002: procurement daily row', () => {
     expect(screen.getByRole('region', { name: 'Pratinjau untuk Lighting package' })).toBeInTheDocument();
     expect(screen.queryByRole('region', { name: /^Preview for/i })).not.toBeInTheDocument();
   });
+
+  it('AC-806 keeps the full project identity visible when a shorter project label exists', () => {
+    const projectName = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    render(
+      <MemoryRouter>
+        <ProcurementListRow row={{
+          ...row,
+          project: { name: projectName, short_name: 'Gedung Layanan' },
+        } as ProcurementWithRefs} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole('link', { name: `Open ${projectName}` })).toHaveTextContent(projectName);
+  });
 });

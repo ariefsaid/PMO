@@ -104,7 +104,7 @@ const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle
     return (
       <span
         role="alert"
-        className="inline-flex items-center gap-1 text-[12px] text-destructive"
+        className="inline-flex items-center gap-1 text-sm text-destructive"
         title={inlineError}
       >
         <Icon name="file" className="size-3.5 shrink-0" />
@@ -120,7 +120,7 @@ const SingleFileButton: React.FC<SingleFileButtonProps> = ({ fileHref, fileTitle
       disabled={busy}
       aria-label={label}
       title={fileTitle}
-      className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="inline-flex items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
     >
       <Icon name="file" className="size-3.5 shrink-0" />
       <span className="truncate max-w-[120px]">{fileTitle}</span>
@@ -184,7 +184,7 @@ const AttachButton: React.FC<AttachButtonProps> = ({
         disabled={upload.isPending}
         aria-label="Attach file"
         title="Attach file"
-        className="inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5 shrink-0" />
         {upload.isPending ? (
@@ -220,7 +220,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
         type="button"
         onClick={onOpenFiles}
         aria-label={`${fileCount} files for ${systemNumber ?? type} — click to view all`}
-        className="inline-flex items-center gap-1 text-[12.5px] font-medium text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex items-center gap-1 text-xs font-semibold text-primary-text hover:underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="file" className="size-3.5 shrink-0" />
         <span>{fileCount} files</span>
@@ -252,7 +252,7 @@ export const LedgerFileCell: React.FC<LedgerFileCellProps> = ({
   }
 
   // No file + read-only → dash
-  return <span className="text-[12px] text-muted-foreground">—</span>;
+  return <span className="text-sm text-muted-foreground">—</span>;
 };
 
 LedgerFileCell.displayName = 'LedgerFileCell';

@@ -42,10 +42,10 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
       });
   }, [age, data?.rows, projectId, query, sortOrder]);
   const columns = useMemo<Column<ExpenseAdvanceAgingRow>[]>(() => [
-    { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}${location.search}`} state={{ recordContext: { listPath: returnPath } }} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
+    { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', fullIdentity: true, cell: (row) => <Link to={`/expenses/${row.advanceId}${location.search}`} state={{ recordContext: { listPath: returnPath } }} className="break-words text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
     { key: 'claimant', header: t('expenses.aging.columns.claimant', 'Claimant'), kind: 'text', cell: (row) => row.claimantName ?? '—' },
     { key: 'project', header: t('expenses.aging.columns.project', 'Project'), kind: 'text', cell: (row) => row.projectName ?? t('expenses.overhead', 'Overhead') },
-    { key: 'paidOn', header: t('expenses.aging.columns.paidOn', 'Paid on'), kind: 'date', cell: (row) => row.paidOn ? formatDateOnly(row.paidOn) : t('expenses.aging.unknownPayoutDate', 'Not available') },
+    { key: 'paidOn', header: t('expenseClaims:aging.columns.paidOn', 'Paid on'), kind: 'date', cell: (row) => row.paidOn ? formatDateOnly(row.paidOn) : t('expenseClaims:aging.unknownPayoutDate', 'Not available') },
     { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatNumber(row.outstanding) },
     { key: 'age', header: t('expenses.aging.columns.age', 'Age (days)'), kind: 'number', align: 'num', cell: (row) => row.ageDays ?? '—' },
   ], [location.search, returnPath, t]);
@@ -55,12 +55,12 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
     return (
       <div className="grid gap-3 p-3">
         <div className="min-w-0">
-          <Link to={href} state={state} className="block break-words text-sm text-foreground hover:underline">{row.claimNumber ?? t('common:notAvailable', 'Not available')}</Link>
-          <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">{row.claimantName ?? t('common:notAvailable', 'Not available')}</div>
+          <Link to={href} state={state} className="block break-words text-sm text-foreground hover:underline">{row.claimNumber ?? t('expenseClaims:shared.notAvailable', 'Not available')}</Link>
+          <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">{row.claimantName ?? t('expenseClaims:shared.notAvailable', 'Not available')}</div>
         </div>
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          <span className="text-xs font-semibold">{t('expenses.aging.columns.paidOn', 'Paid on')}</span>
-          {row.paidOn ? <time dateTime={row.paidOn}>{formatDateOnly(row.paidOn)}</time> : <span>{t('expenses.aging.unknownPayoutDate', 'Not available')}</span>}
+          <span className="text-xs font-semibold">{t('expenseClaims:aging.columns.paidOn', 'Paid on')}</span>
+          {row.paidOn ? <time dateTime={row.paidOn}>{formatDateOnly(row.paidOn)}</time> : <span>{t('expenseClaims:aging.unknownPayoutDate', 'Not available')}</span>}
         </div>
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
           <span className="whitespace-nowrap text-sm tabular text-foreground">{formatNumber(row.outstanding)}</span>
@@ -71,11 +71,11 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
         </div>
         <details>
           <summary className="flex min-h-11 cursor-pointer items-center break-words text-xs font-semibold text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-            {t('expenses.aging.mobileDetails', 'Details · 2 fields')}
+            {t('expenseClaims:aging.mobileDetails', 'Details · 2 fields')}
           </summary>
           <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
             <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{row.projectName ?? t('expenses.overhead', 'Overhead')}</dd></div>
-            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.age', 'Age (days)')}</dt><dd className="break-words text-sm text-foreground">{row.ageDays ?? t('common:notAvailable', 'Not available')}</dd></div>
+            <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('expenses.aging.columns.age', 'Age (days)')}</dt><dd className="break-words text-sm text-foreground">{row.ageDays ?? t('expenseClaims:shared.notAvailable', 'Not available')}</dd></div>
           </dl>
         </details>
       </div>
@@ -97,7 +97,7 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
     <section aria-labelledby="advance-aging-heading">
       <h2 id="advance-aging-heading" className="mb-4 text-xl font-bold leading-tight text-foreground">{t('expenses.aging.title', 'Outstanding advances')}</h2>
       <div>
-          <DataTable rows={rows} columns={columns} mobileRow={mobileRow} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Advances outstanding')} groupBy={(row) => row.currency || t('common:notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
+          <DataTable rows={rows} columns={columns} mobileRow={mobileRow} rowKey={(row) => row.advanceId} tableId="advance-aging" accessibleName={t('expenses.aging.title', 'Outstanding advances')} groupBy={(row) => row.currency || t('expenseClaims:shared.notAvailable', 'Not available')} groupHeadingClassName="text-xl font-bold leading-tight" />
           {data.truncated && (
             <p role="status" className="mt-2 text-sm text-muted-foreground">
               {t('expenses.aging.truncated', 'Showing up to {{count}} advances from the bounded outstanding list. Search and filters apply within this set.', { count: AGING_LIMIT })}

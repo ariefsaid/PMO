@@ -113,8 +113,8 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('AC-S19-002: request rows show status and date without a lifecycle stepper', () => {
     renderPage();
-    const row = screen.getByRole('link', { name: 'Workstations & AV' }).closest('[data-row-activate]');
-    expect(row).not.toBeNull();
+    const row = screen.getByRole('link', { name: 'Workstations & AV' }).closest('[data-row-activate]') as HTMLElement | null;
+    if (!row) throw new Error('The request link should be inside an active row');
     expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
     expect(within(row!).getByText('Vendor Quote')).toBeInTheDocument();
     expect(within(row!).getByText((_, element) => element?.tagName === 'TIME')).toHaveAttribute('dateTime', seed[0].created_at);
@@ -149,10 +149,10 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage();
     expect(screen.getByRole('heading', { name: /IDR · 1 requests/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /USD · 2 requests/ })).toBeInTheDocument();
-    const request = screen.getByRole('link', { name: 'Long lead equipment package' }).closest('[data-row-activate]');
-    expect(request).not.toBeNull();
-    expect(within(request!).getByText('2,226,648,000')).toBeInTheDocument();
-    expect(within(request!).queryByText(/IDR/)).not.toBeInTheDocument();
+    const request = screen.getByRole('link', { name: 'Long lead equipment package' }).closest('[data-row-activate]') as HTMLElement | null;
+    if (!request) throw new Error('The request link should be inside an active row');
+    expect(within(request).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(request).queryByText(/IDR/)).not.toBeInTheDocument();
   });
 
   it('AC-806 carries project scope and the full register return context into request capture', async () => {

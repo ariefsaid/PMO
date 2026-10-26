@@ -217,6 +217,16 @@ describe('ProcurementDetails — named record sections', () => {
     });
   });
 
+  it('AC-806 lets phone users change record sections from the single section selector', async () => {
+    renderAt('/procurement/proc-001');
+    const selector = screen.getByRole('combobox', { name: 'Section' });
+    await userEvent.selectOptions(selector, 'items');
+    expect(navigate).toHaveBeenCalledWith('/procurement/proc-001/items', {
+      replace: true,
+      state: { pmoTabSwitch: true },
+    });
+  });
+
   it('moves a legacy History URL to Activity while retaining its query and return context', async () => {
     const returnContext = { list: 'procurement', pathname: '/procurement', search: '?status=Requested' };
     render(

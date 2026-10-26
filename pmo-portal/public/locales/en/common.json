@@ -722,8 +722,7 @@
         "projectRequired": "Choose a project.",
         "save": "Add"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -1455,15 +1454,12 @@
         "advance": "Advance",
         "age": "Age (days)",
         "claimant": "Claimant",
-        "paidOn": "Paid on",
         "outstanding": "Outstanding",
         "project": "Project"
       },
       "errorSub": "The rest of the expense register is unaffected. Try again.",
       "errorTitle": "Couldn't load outstanding advances",
-      "mobileDetails": "Details · 2 fields",
       "title": "Outstanding advances",
-      "unknownPayoutDate": "Not available",
       "truncated": "Showing up to {{count}} advances from the bounded outstanding list. Search and filters apply within this set."
     },
     "approvals": {
@@ -1477,17 +1473,10 @@
       "receiptsLoading": "Loading receipts…"
     },
     "columns": {
-      "claim": "Claim",
       "amount": "Amount",
       "category": "Budget category",
       "claimant": "Claimant",
-      "kind": "Type",
-      "number": "Number",
-      "project": "Project",
-      "statusDate": "Status and created date",
-      "actions": "Actions",
-      "status": "Status",
-      "title": "Title"
+      "project": "Project"
     },
     "confirm": {
       "approveTitle": "Approve {{number}} for {{amount}}?",
@@ -1563,7 +1552,7 @@
         "placeholder": "What the money was for"
       },
       "sections": {
-        "details": "Details"
+        "details": "Claim details"
       },
       "submitCreate": "Create",
       "submitSave": "Save",
@@ -1604,7 +1593,6 @@
       "save": "Save line",
       "sectionLegend": "Expense",
       "title": "Lines",
-      "titleWithCurrency": "Lines · {{currency}}",
       "type": "Type"
     },
     "overhead": "Overhead",
@@ -1644,8 +1632,7 @@
     },
     "table": {
       "emptySub": "File a claim after the work, or request an advance before it.",
-      "emptyTitle": "No expenses here yet",
-      "rowLabel": "Open {{title}}"
+      "emptyTitle": "No expenses here yet"
     },
     "title": "Expenses",
     "toast": {
@@ -1896,14 +1883,11 @@
       "request": "Request",
       "project": "Project",
       "requester": "Requester",
-      "value": "Value",
-      "age": "Age",
-      "status": "Status"
+      "value": "Value"
     },
     "preview": {
       "region": "Preview for {{title}}",
       "toggle": "Show preview for {{title}}",
-      "loadErrorTitle": "Couldn't load request details",
       "loadErrorSub": "Something went wrong fetching the preview.",
       "lineItems": "Line items",
       "viewFullRequest": "View full request"
@@ -1912,7 +1896,6 @@
       "project": "Project",
       "request": "Request",
       "requestedBy": "Requested by",
-      "status": "Status",
       "value": "Value"
     },
     "empty": {
@@ -2088,24 +2071,7 @@
       "viTitle": "Record this vendor invoice?"
     },
     "detail": {
-      "approvedBy": "Approved by",
-      "notLinked": "Not linked",
-      "notYetSelected": "Not yet selected",
-      "pending": "Pending",
-      "project": "Project",
-      "requestedBy": "Requested by",
-      "vendor": "Vendor"
-    },
-    "review": {
-      "amountsWithCurrency": "Purchase amounts · {{currency}}",
-      "amountsWithPrimary": "Purchase amount · {{compact}}",
-      "otherAmountsWithCurrency": "Other purchase amounts · {{currency}}",
-      "requestAmount": "Requested amount",
-      "selectedQuote": "Selected quote amount",
-      "orderedAmount": "Ordered amount",
-      "itemsWithCurrency": "Requested items · {{currency}}",
-      "noItems": "No items have been recorded on this request yet.",
-      "amountUnavailable": "Not available"
+      "notLinked": "Not linked"
     },
     "editHeader": "Edit",
     "error": {
@@ -2117,49 +2083,11 @@
       "optional": "(optional)",
       "placeholder": "e.g. PRQ-0026100001"
     },
-    "lifecycleLabel": "Procurement lifecycle",
-    "budgetImpactWithCurrency": "Budget impact · {{currency}}",
-    "budget": {
-      "request": "This request",
-      "reserved": "Reserved",
-      "reservedSub": "approved, not yet ordered",
-      "available": "Available",
-      "projectBudget": "Project budget",
-      "afterRequest": "After this request",
-      "headroomRemaining": "{{percent}}% headroom remaining",
-      "otherCurrencies": "Not included in available budget: {{amounts}}",
-      "overAvailable": "Over available budget",
-      "overAvailableSub": "This request exceeds available budget by",
-      "advisoryOnly": "Approval is still permitted — this is advisory only.",
-      "projectOverBudget": "Project over budget",
-      "projectOverBudgetSub": "This project is over budget by",
-      "projectOverBudgetDetail": " across committed and reserved demand. This is advisory only.",
-      "openProject": "Open project"
-    },
     "meta": {
       "requestedBy": "requested by"
     },
     "rejectionNotes": "Rejection notes",
-    "tabs": {
-      "documents": "Documents",
-      "lineItems": "Line items",
-      "overview": "Overview",
-      "vendorQuotes": "Vendor quotes",
-      "history": "History"
-    },
     "tabsLabel": "Procurement sections",
-    "quotes": {
-      "emptyTitle": "No quotes recorded. Add a vendor quote to compare bids."
-    },
-    "tile": {
-      "goodsReceived": "Goods received",
-      "poCommitted": "PO committed",
-      "prValue": "PR value",
-      "receiptOne": "receipt",
-      "receiptOther": "receipts",
-      "selectedFallback": "selected",
-      "selectedQuote": "Selected quote"
-    },
     "toast": {
       "grRecorded": "Goods receipt recorded",
       "headerSaved": "Header saved",
@@ -3112,7 +3040,6 @@
       "placeholder": "Assign a PM…",
       "noun": "manager"
     },
-    "code": {},
     "stage": {
       "label": "Origination stage",
       "helper": "On-hand is reached only by winning a project in the pipeline, never created directly."
@@ -4735,8 +4662,7 @@
     "deliveryChartEmpty": "No delivery projects to compare yet",
     "financeDashboardTitle": "Finance Dashboard",
     "financeProjectColumn": "Project",
-    "financeReadyToPay": "Ready to pay",
-    "marginToDate": "Margin to date"
+    "financeReadyToPay": "Ready to pay"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} or {{fourth}}",

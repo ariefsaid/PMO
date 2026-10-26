@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -42,7 +41,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const { update } = useExpenseClaimMutations();
   const { data: projects } = useProjects();
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
-  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: p.name })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
   const returnAction = { label: t('expenseClaims:record.backToRegister', 'Back to expenses'), onReturn: closeRecord, phoneOnly: true };
 

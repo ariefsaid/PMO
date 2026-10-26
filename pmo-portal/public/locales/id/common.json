@@ -722,8 +722,7 @@
         "projectRequired": "Pilih proyek.",
         "save": "Tambah"
       }
-    },
-    "vendorTaxAccounts": {}
+    }
   },
   "approvals": {
     "salesInvoices": {
@@ -1455,15 +1454,12 @@
         "advance": "Uang muka",
         "age": "Umur (hari)",
         "claimant": "Pengaju",
-        "paidOn": "Tanggal pencairan",
         "outstanding": "Belum diselesaikan",
         "project": "Proyek"
       },
       "errorSub": "Bagian lain dari daftar biaya tidak terpengaruh. Coba lagi.",
       "errorTitle": "Gagal memuat uang muka yang belum diselesaikan",
-      "mobileDetails": "Detail · 2 bidang",
       "title": "Uang muka yang belum diselesaikan",
-      "unknownPayoutDate": "Tidak tersedia",
       "truncated": "Menampilkan hingga {{count}} uang muka dari daftar terbatas. Pencarian dan filter berlaku pada kumpulan ini."
     },
     "approvals": {
@@ -1477,17 +1473,10 @@
       "receiptsLoading": "Memuat bukti…"
     },
     "columns": {
-      "claim": "Klaim",
       "amount": "Jumlah",
       "category": "Kategori anggaran",
       "claimant": "Pengaju",
-      "kind": "Jenis",
-      "number": "Nomor",
-      "project": "Proyek",
-      "statusDate": "Status dan tanggal dibuat",
-      "actions": "Tindakan",
-      "status": "Status",
-      "title": "Judul"
+      "project": "Proyek"
     },
     "confirm": {
       "approveTitle": "Setujui {{number}} sebesar {{amount}}?",
@@ -1563,7 +1552,7 @@
         "placeholder": "Untuk apa uang ini"
       },
       "sections": {
-        "details": "Detail"
+        "details": "Detail klaim"
       },
       "submitCreate": "Buat",
       "submitSave": "Simpan",
@@ -1604,7 +1593,6 @@
       "save": "Simpan rincian",
       "sectionLegend": "Pengeluaran",
       "title": "Rincian",
-      "titleWithCurrency": "Rincian · {{currency}}",
       "type": "Jenis"
     },
     "overhead": "Overhead",
@@ -1644,8 +1632,7 @@
     },
     "table": {
       "emptySub": "Ajukan klaim setelah pekerjaan, atau uang muka sebelumnya.",
-      "emptyTitle": "Belum ada biaya",
-      "rowLabel": "Buka {{title}}"
+      "emptyTitle": "Belum ada biaya"
     },
     "title": "Biaya",
     "toast": {
@@ -1896,14 +1883,11 @@
       "request": "Permintaan",
       "project": "Proyek",
       "requester": "Pemohon",
-      "value": "Nilai",
-      "age": "Umur",
-      "status": "Status"
+      "value": "Nilai"
     },
     "preview": {
       "region": "Pratinjau untuk {{title}}",
       "toggle": "Tampilkan pratinjau untuk {{title}}",
-      "loadErrorTitle": "Detail permintaan tidak dapat dimuat",
       "loadErrorSub": "Terjadi kesalahan saat mengambil pratinjau.",
       "lineItems": "Rincian barang",
       "viewFullRequest": "Lihat permintaan lengkap"
@@ -1912,7 +1896,6 @@
       "project": "Proyek",
       "request": "Permintaan",
       "requestedBy": "Diminta oleh",
-      "status": "Status",
       "value": "Nilai"
     },
     "empty": {
@@ -2088,73 +2071,18 @@
       "viTitle": "Catat invoice vendor ini?"
     },
     "detail": {
-      "approvedBy": "Disetujui oleh",
-      "notLinked": "Tidak tertaut",
-      "notYetSelected": "Belum dipilih",
-      "pending": "Menunggu",
-      "project": "Proyek",
-      "requestedBy": "Diminta oleh",
-      "vendor": "Vendor"
-    },
-    "review": {
-      "amountsWithCurrency": "Jumlah pengadaan · {{currency}}",
-      "amountsWithPrimary": "Jumlah pengadaan · {{compact}}",
-      "otherAmountsWithCurrency": "Jumlah pengadaan lainnya · {{currency}}",
-      "requestAmount": "Jumlah yang diminta",
-      "selectedQuote": "Jumlah penawaran terpilih",
-      "orderedAmount": "Jumlah pesanan",
-      "itemsWithCurrency": "Item yang diminta · {{currency}}",
-      "noItems": "Belum ada item yang tercatat pada permintaan ini.",
-      "amountUnavailable": "Tidak tersedia"
+      "notLinked": "Tidak tertaut"
     },
     "editHeader": "Edit",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil detail pengadaan.",
       "title": "Gagal memuat pengadaan"
     },
-    "lifecycleLabel": "Siklus pengadaan",
-    "budgetImpactWithCurrency": "Dampak anggaran · {{currency}}",
-    "budget": {
-      "request": "Permintaan ini",
-      "reserved": "Dicadangkan",
-      "reservedSub": "disetujui, belum dipesan",
-      "available": "Tersedia",
-      "projectBudget": "Anggaran proyek",
-      "afterRequest": "Setelah permintaan ini",
-      "headroomRemaining": "{{percent}}% sisa anggaran",
-      "otherCurrencies": "Tidak termasuk dalam anggaran tersedia: {{amounts}}",
-      "overAvailable": "Melebihi anggaran tersedia",
-      "overAvailableSub": "Permintaan ini melebihi anggaran tersedia sebesar",
-      "advisoryOnly": "Persetujuan tetap dapat diberikan — ini hanya pemberitahuan.",
-      "projectOverBudget": "Anggaran proyek terlampaui",
-      "projectOverBudgetSub": "Anggaran proyek terlampaui sebesar",
-      "projectOverBudgetDetail": " dari komitmen dan kebutuhan yang dicadangkan. Ini hanya pemberitahuan.",
-      "openProject": "Buka proyek"
-    },
     "meta": {
       "requestedBy": "diminta oleh"
     },
     "rejectionNotes": "Catatan penolakan",
-    "tabs": {
-      "documents": "Dokumen",
-      "lineItems": "Rincian item",
-      "overview": "Ringkasan",
-      "vendorQuotes": "Penawaran vendor",
-      "history": "Riwayat"
-    },
     "tabsLabel": "Bagian pengadaan",
-    "quotes": {
-      "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran vendor untuk membandingkannya."
-    },
-    "tile": {
-      "goodsReceived": "Barang diterima",
-      "poCommitted": "Komitmen PO",
-      "prValue": "Nilai PR",
-      "receiptOne": "penerimaan",
-      "receiptOther": "penerimaan",
-      "selectedFallback": "dipilih",
-      "selectedQuote": "Penawaran terpilih"
-    },
     "toast": {
       "grRecorded": "Penerimaan barang dicatat",
       "headerSaved": "Header disimpan",
@@ -3112,7 +3040,6 @@
       "placeholder": "Tetapkan PM…",
       "noun": "manajer"
     },
-    "code": {},
     "stage": {
       "label": "Tahap awal",
       "helper": "Status on-hand hanya dicapai dengan memenangkan proyek di Pipeline Penjualan, tidak pernah dibuat langsung."
@@ -4735,8 +4662,7 @@
     "deliveryChartEmpty": "Belum ada proyek pelaksanaan untuk dibandingkan",
     "financeDashboardTitle": "Dasbor Keuangan",
     "financeProjectColumn": "Proyek",
-    "financeReadyToPay": "Siap dibayar",
-    "marginToDate": "Margin hingga saat ini"
+    "financeReadyToPay": "Siap dibayar"
   },
   "uxs32": {
     "roleList": "{{first}}, {{second}}, {{third}} atau {{fourth}}",

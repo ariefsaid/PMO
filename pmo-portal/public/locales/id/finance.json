@@ -59,7 +59,8 @@
       "total": "Total belum dibayar",
       "sharedExcluded_one": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini.",
       "sharedExcluded_other": "{{count}} faktur belum dibayar yang dibagi dengan proyek lain tidak termasuk dalam angka ini."
-    }
+    },
+    "reference": "Referensi"
   },
   "budgetCategory": {
     "travelAccommodation": "Perjalanan & akomodasi",
@@ -154,5 +155,8 @@
     "supplierCount": "{{count}} pemasok",
     "loadError": "Gagal memuat dokumen ERPNext yang belum masuk pembelian",
     "agingTitle": "Tagihan ERPNext yang belum dibayar (termasuk yang ditautkan)"
+  },
+  "shared": {
+    "notAvailable": "Tidak tersedia"
   }
 }

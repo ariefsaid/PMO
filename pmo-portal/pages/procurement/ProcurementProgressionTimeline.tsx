@@ -64,7 +64,7 @@ export const ProcurementProgressionEvent: React.FC<{ event: ProgressionEvent }> 
 
   return (
     <li data-testid="procurement-activity-event" className="min-w-0 border-b border-border py-3 last:border-b-0">
-      <p className="break-words text-sm font-semibold text-foreground">
+      <p className="break-words text-sm font-normal text-foreground">
         {label}
         {event.docRef && event.docHref && (
           <>

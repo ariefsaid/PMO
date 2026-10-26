@@ -175,11 +175,11 @@ describe('ExpenseClaimDetail', () => {
     expect(receipts.compareDocumentPosition(routeNote) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('AC-002 #1325: the header project link shows the short name and titles the contractual one', () => {
+  it('AC-806: the header project link shows the complete project identity', () => {
     h.claim = { ...base, project_id: 'project-1', project: { name: 'Contractual Project one', short_name: 'North Terminal' } };
     as('eng', 'Engineer');
     renderAt();
-    expect(screen.getByRole('link', { name: 'North Terminal' })).toHaveAttribute('title', 'Contractual Project one');
+    expect(screen.getByRole('link', { name: 'Contractual Project one' })).toHaveTextContent('Contractual Project one');
   });
 
   it('AC-EXP-061 the claimant of a Draft can add lines and submit', () => {
@@ -285,7 +285,7 @@ describe('ExpenseClaimDetail', () => {
     const selects = within(dialog).getAllByRole('combobox');
     expect(textboxes[0]).toHaveValue('Original visit');
     expect(selects[0]).toHaveValue('project-1');
-    expect(within(selects[0]).getByRole('option', { name: 'North Terminal' })).toHaveValue('project-1');
+    expect(within(selects[0]).getByRole('option', { name: 'Contractual Project one' })).toHaveValue('project-1');
     expect(selects[1]).toHaveValue('Special expenses');
     expect(textboxes[1]).toHaveValue('Original purpose');
     expect(selects[2]).toHaveValue('advance-1');

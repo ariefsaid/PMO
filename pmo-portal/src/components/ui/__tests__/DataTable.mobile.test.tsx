@@ -251,6 +251,18 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(screen.getByText('Beta Ltd')).toBeInTheDocument();
   });
 
+  it('AC-806 keeps a full record identity readable in the phone card', () => {
+    mockViewport(false);
+    const identity = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    const identityRows = [{ ...rows[0], name: identity }];
+    const identityColumns: Column<Row>[] = [
+      { key: 'name', header: 'Request', kind: 'primary', fullIdentity: true, cell: (row) => row.name },
+      ...columns.slice(1),
+    ];
+    render(<DataTable rows={identityRows} columns={identityColumns} rowKey={(row) => row.id} />);
+    expect(screen.getByText(identity)).toBeInTheDocument();
+  });
+
   it('remaining columns render as <dt>/<dd> pairs in the card <dl>', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);

@@ -111,6 +111,9 @@ describe('ProcurementBoard — by-stage kanban (Issue 3)', () => {
     const poCol = screen.getByTestId('prstage-po');
     expect(poCol).toHaveTextContent('€1,000');
     expect(poCol).not.toHaveTextContent('$1,000');
+    const card = screen.getByRole('button', { name: /Open Structural steel/i });
+    expect(card).toHaveTextContent('EUR 1K');
+    expect(card).toHaveTextContent('1,000');
   });
 
   /**

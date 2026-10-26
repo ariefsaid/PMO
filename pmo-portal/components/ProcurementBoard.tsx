@@ -1,7 +1,6 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
 import { Kanban, KanbanColumn, KanbanCard } from '@/src/components/ui';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatNumber, formatShortMoney } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { useTranslation } from 'react-i18next';
@@ -23,7 +22,7 @@ const Initial: React.FC<{ name: string | undefined }> = ({ name }) => {
     <span
       aria-hidden
       title={name ?? undefined}
-      className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-bold text-muted-foreground"
+      className="grid size-[22px] shrink-0 place-items-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground"
     >
       {initial}
     </span>
@@ -37,25 +36,29 @@ const PrCard: React.FC<{
   onActivate: () => void;
 }> = ({ pr, selected, onActivate }) => (
   <KanbanCard selected={selected} onActivate={onActivate} aria-label={`Open ${pr.title}`}>
-    <div className="line-clamp-2 text-[13px] font-semibold leading-snug" title={pr.title}>
+    <div className="min-w-0 break-words text-sm text-foreground" title={pr.title}>
       {pr.title}
     </div>
-    <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+    <div className="mt-1 min-w-0 break-words font-mono text-[11px] font-semibold text-muted-foreground">
       {pr.code ?? pr.id.slice(0, 8)}
     </div>
-    <div className="mt-2 text-[15px] font-bold tabular">{formatCurrency(pr.total_value, pr.currency)}</div>
-    <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
+    <div className="mt-4 min-w-0 border-t border-border/70 pt-3">
+      <p className="break-words text-xl font-bold leading-tight text-foreground">
+        {formatShortMoney(pr.total_value, pr.currency, { code: true })}
+      </p>
+      <p className="mt-1 break-words text-sm tabular text-foreground">{formatNumber(pr.total_value)}</p>
+    </div>
+    <div className="mt-3 flex min-w-0 items-center gap-2">
       <Initial name={pr.requested_by?.full_name} />
       {/* C-PR-2/E-2: render project as INERT text (not a Link) so the card has
           a single activation target and there is no nested interactive element
           inside the role=button KanbanCard (invalid HTML). Navigate to the project
           via the procurement detail page which already links there. */}
       <span
-        aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
-        title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
-        className="truncate text-[11px] text-muted-foreground"
+        aria-label={pr.project?.name ? `Project: ${pr.project.name}` : undefined}
+        className="min-w-0 break-words text-xs font-semibold text-muted-foreground"
       >
-        {pr.project ? projectDisplayName(pr.project) : '—'}
+        {pr.project ? pr.project.name : '—'}
       </span>
     </div>
   </KanbanCard>
@@ -120,7 +123,7 @@ const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpe
                 items.length > 0 ? (
                   <span data-testid={`prstage-${stage.key}-totals`} className="flex flex-col items-end">
                     {stageTotals.map(([code, sum]) => (
-                      <span key={code} className="text-[13px] font-bold tabular">
+                      <span key={code} className="text-sm font-normal tabular">
                         {formatCurrency(sum, code)}
                       </span>
                     ))}

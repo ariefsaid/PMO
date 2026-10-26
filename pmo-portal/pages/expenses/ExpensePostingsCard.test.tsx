@@ -38,12 +38,9 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
     renderCard();
     const summaryLabel = await screen.findByText('Accounting activity');
     const summary = summaryLabel.closest('summary');
-    expect(summary).not.toBeNull();
+    if (!summary) throw new Error('Accounting activity should be a disclosure summary');
     expect(summary).toHaveTextContent('Entries: 4');
-    expect(summary).toHaveTextContent('Posted: 1');
-    expect(summary).toHaveTextContent('Failed: 1');
-    expect(summary).toHaveTextContent('Queued: 1');
-    expect(summary).toHaveTextContent('Operator review: 1');
+    expect(summary).not.toHaveTextContent(/Posted:|Failed:|Queued:|Operator review:/);
     expect(summary.closest('details')).not.toHaveAttribute('open');
     expect(listMock).toHaveBeenCalledWith('claim-1');
     await userEvent.click(summaryLabel);
@@ -90,7 +87,8 @@ describe('ExpensePostingsCard (AC-EXP-131)', () => {
       erpCancelledAt: '2026-10-08T00:00:00Z', createdAt: 't1' }]);
     renderCard();
     expect(await screen.findByText('Accounting activity')).toBeInTheDocument();
-    expect(screen.getByText('Cancelled in ERPNext: 1')).toBeInTheDocument();
+    expect(screen.getByText('Entries: 1')).toBeInTheDocument();
+    expect(screen.queryByText('Cancelled in ERPNext: 1')).toBeNull();
     await userEvent.click(await screen.findByText('Accounting activity'));
     expect(await screen.findByText('Cancelled in ERPNext')).toBeInTheDocument();
     expect(screen.queryByText('Posted')).toBeNull();

@@ -1,4 +1,3 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -70,10 +69,10 @@ const ExpenseClaimNew: React.FC = () => {
   const [blockedLeave, setBlockedLeave] = useState<(() => void) | null>(null);
   const dirty = Boolean(title || advanceId || (projectId && projectId !== inheritedProjectId) || categoryEdited || purpose || receipt || lines.some((line) => line.date || line.type || line.description || line.amount));
   const guardLeave = useUnsavedChangesGuard({ dirty, onBlocked: (leave) => setBlockedLeave(() => leave) });
-  const projectOptions = useMemo(() => (projects ?? []).map((project) => ({ value: project.id, label: projectDisplayName(project) })), [projects]);
+  const projectOptions = useMemo(() => (projects ?? []).map((project) => ({ value: project.id, label: project.name })), [projects]);
   const selectedProject = projects?.find((project) => project.id === projectId);
   const currency = selectedProject?.currency ?? (!projectId && orgCurrency.isResolved ? orgCurrency.currency : null);
-  const scopeProject = selectedProject ? projectDisplayName(selectedProject)
+  const scopeProject = selectedProject ? selectedProject.name
     : projectId ? t('expenseClaims:new.projectLoading', 'Project scope loading') : t('expenses.form.project.none', 'Overhead (no project)');
   const scopeCurrency = currency ?? t('expenseClaims:new.currencyUnavailable', 'Currency not available; check the project or organization currency settings.');
   const categoryPrecedents = useMemo(() => {
@@ -169,14 +168,14 @@ const ExpenseClaimNew: React.FC = () => {
             if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : '');
           }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...projectOptions]} />
           <p className="min-h-11 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground" aria-label={t('expenseClaims:capture.currencyScope', 'Currency')}>
-            {t('expenseClaims:capture.currencyScope', 'Currency')}: <span className="font-medium text-foreground">{scopeCurrency}</span>
+            {t('expenseClaims:capture.currencyScope', 'Currency')}: <span className="font-normal text-foreground">{scopeCurrency}</span>
           </p>
         </div>
       </FormSection>
       <FormSection legend={t('uxs29.expenseCapture.firstExpense', 'First expense')}>
         <div className="mb-3 flex min-w-0 flex-wrap items-center gap-3">
-          <label className="text-sm font-medium" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label>
-          <input id="new-expense-receipt" className="min-h-11 min-w-0 max-w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:font-medium" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => {
+          <label className="text-xs font-semibold" htmlFor="new-expense-receipt">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</label>
+          <input id="new-expense-receipt" className="min-h-11 min-w-0 max-w-full text-sm file:mr-3 file:min-h-11 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:text-xs file:font-semibold" type="file" accept={RECEIPT_INPUT_ACCEPT} onChange={(event) => {
             const file = event.target.files?.[0] ?? null;
             setReceipt(file);
             if (file && !lines[0]?.description.trim()) suggestTitle(file.name.replace(/\.[^.]+$/, ''), 'receipt');

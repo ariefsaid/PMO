@@ -112,7 +112,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
     r.projectIds.map((id) => projectNames?.get(id)).filter(Boolean).join(', ') || t('erpPurchases.noProject', 'No project');
   const amountOf = (r: ErpPurchaseRow) => {
     const amount = erpPreTaxAmount(r);
-    return amount === null || !r.currency ? '—' : formatNumber(amount);
+    return amount === null || !r.currency ? '—' : `${r.currency} ${formatNumber(amount)}`;
   };
 
   const columns: Column<ErpPurchaseRow>[] = [
@@ -120,6 +120,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
       key: 'document',
       header: t('erpPurchases.column.document', 'Document'),
       kind: 'primary',
+      fullIdentity: true,
       size: 240,
       minSize: 220,
       primaryTitle: (r) => r.name,
@@ -172,12 +173,12 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         <div className="min-w-0 flex-1">
           <div className="break-all text-sm text-foreground">{r.name}</div>
           <div className="mt-1 break-words text-xs font-semibold text-muted-foreground">
-            {erpDoctypeLabel(t, r.doctype)}{r.billNo ? ` · ${t('erpPurchases.reference', 'Reference')} ${r.billNo}` : ''}
+            {erpDoctypeLabel(t, r.doctype)}{r.billNo ? ` · ${t('finance:erpPurchases.reference', 'Reference')} ${r.billNo}` : ''}
           </div>
         </div>
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <StatusPill variant="neutral">{r.erpStatus ?? t('common:notAvailable', 'Not available')}</StatusPill>
+        <StatusPill variant="neutral">{r.erpStatus ?? t('finance:shared.notAvailable', 'Not available')}</StatusPill>
         <time dateTime={r.docDate ?? undefined} className="text-sm text-muted-foreground">{formatDate(r.docDate)}</time>
       </div>
       <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
@@ -189,7 +190,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
           {t('erpLinks.mobileDetails', 'Details · 2 fields')}
         </summary>
         <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3">
-          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.supplier', 'Supplier')}</dt><dd className="break-words text-sm text-foreground">{r.supplier ?? t('common:notAvailable', 'Not available')}</dd></div>
+          <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.supplier', 'Supplier')}</dt><dd className="break-words text-sm text-foreground">{r.supplier ?? t('finance:shared.notAvailable', 'Not available')}</dd></div>
           <div className="min-w-0"><dt className="text-xs font-semibold text-muted-foreground">{t('erpPurchases.column.project', 'Project')}</dt><dd className="break-words text-sm text-foreground">{projectLabel(r)}</dd></div>
         </dl>
       </details>
@@ -209,11 +210,11 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             label={t('erpLinks.selectAll', 'Select all {{count}} documents', { count: rows.length })}
           />
           {selecting ? (
-            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-[12px] font-semibold tabular text-muted-foreground">
+            <span className="inline-flex items-center rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold tabular text-muted-foreground">
               {t('erpLinks.selectedCount', '{{count}} selected', { count: chosen.length })}
             </span>
           ) : (
-            <span className="text-[13px] text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
+            <span className="text-sm text-muted-foreground">{t('erpLinks.selectHint', 'Select documents to link several at once.')}</span>
           )}
           <span className="flex-1" />
           {selecting && (
@@ -231,7 +232,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
             </>
           )}
           {selecting && bulkNewBlocked && (
-            <p className="basis-full text-[12.5px] text-muted-foreground">
+            <p className="basis-full text-sm text-muted-foreground">
               {t('erpLinks.bulkNeedsProject', 'Open the project to add documents split across several projects.')}
             </p>
           )}
@@ -245,7 +246,7 @@ export const ErpOrphansSection: React.FC<ErpOrphansSectionProps> = ({ rows, proj
         rowKey={(r) => r.id}
         tableId={tableId ?? 'erp-orphans-table'}
         accessibleName={t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
-        groupBy={(row) => `${row.currency || t('common:notAvailable', 'Not available')} · ${t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}`}
+        groupBy={(row) => `${row.currency || t('finance:shared.notAvailable', 'Not available')} · ${t('erpPurchases.column.amountPreTax', 'Amount (pre-tax)')}`}
         groupHeadingClassName="text-xl font-bold leading-tight"
       />
       {dialogDocs && (
@@ -270,8 +271,8 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   const { t } = useTranslation('finance');
   if (outcome.kind === 'error') {
     return (
-      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]">
-        <p className="font-semibold text-destructive-text">{outcome.headline}</p>
+      <div role="alert" className="mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm">
+        <p className="text-xs font-semibold text-destructive-text">{outcome.headline}</p>
         {outcome.detail && <p className="mt-1 text-muted-foreground">{outcome.detail}</p>}
       </div>
     );
@@ -283,8 +284,8 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
   return (
     <div role={refused.length > 0 ? 'alert' : 'status'}
       className={refused.length > 0
-        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px]'
-        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-[13px]'}>
+        ? 'mb-3 rounded-lg border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm'
+        : 'mb-3 rounded-lg border border-border bg-card px-3.5 py-3 text-sm'}>
       {made > 0 && (
         <p className="text-foreground">
           {verb === 'added'
@@ -293,7 +294,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
           {targets.map((id, i) => (
             <React.Fragment key={id}>
               {i > 0 && ', '}
-              <Link to={`/procurement/${id}`} className="font-medium text-primary hover:underline">{targetName(i)}</Link>
+              <Link to={`/procurement/${id}`} className="inline-flex min-h-11 items-center text-xs font-semibold text-primary hover:underline">{targetName(i)}</Link>
             </React.Fragment>
           ))}
           {refused.length > 0 && '.'}
@@ -301,7 +302,7 @@ const OutcomeNotice: React.FC<{ outcome: Outcome }> = ({ outcome }) => {
       )}
       {refused.length > 0 && (
         <>
-          <p className="font-semibold text-destructive-text">
+          <p className="text-xs font-semibold text-destructive-text">
             {verb === 'added'
               ? t('erpLinks.notAdded', '{{count}} not added:', { count: refused.length })
               : t('erpLinks.notLinked', '{{count}} not linked:', { count: refused.length })}

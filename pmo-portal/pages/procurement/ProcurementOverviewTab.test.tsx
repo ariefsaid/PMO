@@ -59,6 +59,29 @@ describe('Procurement review evidence', () => {
     expect(within(amounts).getByText(formatNumber(486000))).toBeInTheDocument();
   });
 
+  it('labels unknown selected and ordered amounts instead of formatting them as zero', () => {
+    render(
+      <ImpersonationProvider realRole="Project Manager">
+        <MemoryRouter>
+          <ProcurementOverviewTab
+            requestAmount={486000}
+            requestCurrency="USD"
+            selectedQuote={{ amount: null, currency: 'USD' }}
+            orderedAmount={{ amount: null, currency: 'USD' }}
+            items={[]}
+            projectId={null}
+            projectName={null}
+            totalValue={486000}
+            status="Requested"
+            currency="USD"
+          />
+        </MemoryRouter>
+      </ImpersonationProvider>,
+    );
+
+    expect(screen.getAllByText('Not available')).toHaveLength(2);
+  });
+
   it('shows project budget evidence only when a project is linked', () => {
     const { rerender } = renderReview();
     expect(screen.getByRole('heading', { name: /Budget impact/i })).toBeInTheDocument();

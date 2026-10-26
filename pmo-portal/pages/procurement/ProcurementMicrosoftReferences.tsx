@@ -128,7 +128,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         <>
           <LinkedDocumentCell reference={reference} owner={{ kind: 'procurement', id: row.id }} />
           {row.ms_linked_at && (
-            <span className="text-[12px] text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               {t('m365Documents:procurement.linkedOn', 'Linked {{date}}', { date: formatInstantDate(row.ms_linked_at) })}
             </span>
           )}
@@ -138,15 +138,15 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     const href = safeExternalUrl(row.link);
     return (
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="break-words text-[13px] font-medium text-foreground">{row.type}</span>
-        <span className="text-[12px] text-muted-foreground">{t('m365Documents:procurement.legacyNote', 'Plain link, not from Microsoft 365')}</span>
+        <span className="break-words text-sm font-normal text-foreground">{row.type}</span>
+        <span className="text-sm text-muted-foreground">{t('m365Documents:procurement.legacyNote', 'Plain link, not from Microsoft 365')}</span>
         {href ? (
-          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 break-all text-[13px] text-primary hover:underline">
+          <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 break-all text-sm text-primary hover:underline">
             <Icon name="eye" className="shrink-0" />
             {t('m365Documents:procurement.openLegacy', 'Open linked document')}
           </a>
         ) : (
-          <span className="text-[12px] text-muted-foreground">{t('m365Documents:procurement.legacyUnsafe', 'This link cannot be opened.')}</span>
+          <span className="text-sm text-muted-foreground">{t('m365Documents:procurement.legacyUnsafe', 'This link cannot be opened.')}</span>
         )}
       </div>
     );
@@ -185,7 +185,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
   return (
     <section aria-labelledby="proc-case-references-heading" className="mt-6 border-t border-border pt-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 px-1">
-        <h2 id="proc-case-references-heading" className="min-w-0 break-words text-[14px] font-semibold text-foreground">
+        <h2 id="proc-case-references-heading" className="min-w-0 break-words text-xl font-bold leading-tight text-foreground">
           {listName}
         </h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -202,7 +202,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           )}
         </div>
       </div>
-      <p className="mt-1 px-1 text-[12px] text-muted-foreground">
+      <p className="mt-1 px-1 text-sm text-muted-foreground">
         {t('m365Documents:procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
       <div className="mt-2">
@@ -229,14 +229,14 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
                 ? <ul aria-label={listName} className="divide-y divide-border">{plain.map(renderItem)}</ul>
                 : (
                   <div role="group" aria-label={thisPurchase}>
-                    <p className="px-1 text-[12px] font-semibold text-muted-foreground">{thisPurchase}</p>
+                    <p className="px-1 text-xs font-semibold text-muted-foreground">{thisPurchase}</p>
                     <ul className="divide-y divide-border">{plain.map(renderItem)}</ul>
                   </div>
                 )
             )}
             {groups.map((g) => (
               <div key={g.value} role="group" aria-label={g.label} className="mt-3">
-                <p className="px-1 text-[12px] font-semibold text-muted-foreground">{g.label}</p>
+                <p className="px-1 text-xs font-semibold text-muted-foreground">{g.label}</p>
                 <ul className="divide-y divide-border">{g.rows.map(renderItem)}</ul>
               </div>
             ))}

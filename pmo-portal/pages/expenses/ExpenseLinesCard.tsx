@@ -30,7 +30,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   const columns = useMemo<Column<ExpenseClaimLineRow>[]>(() => [
     { key: 'date', header: t('expenses.lines.columns.date', 'Date'), kind: 'date', cell: (line) => formatDateOnly(line.expense_date) },
     { key: 'type', header: t('expenses.lines.columns.type', 'Type'), kind: 'text', cell: (line) => expenseTypeLabel(line.expense_type, t) },
-    { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', cell: (line) => line.description, primaryTitle: (line) => line.description },
+    { key: 'description', header: t('expenses.lines.columns.description', 'Description'), kind: 'primary', fullIdentity: true, cell: (line) => line.description, primaryTitle: (line) => line.description },
     { key: 'amount', header: t('expenses.lines.columns.amount', 'Amount'), kind: 'money', align: 'num', cell: (line) => formatNumber(Number(line.amount)) },
     ...(editable ? [{
       key: 'actions', header: t('table.actions', 'Actions'), kind: 'actions' as const, size: 140, minSize: 140, maxSize: 140,
@@ -45,7 +45,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
         </Button>
       </div>,
     }] : []),
-  ], [currency, editable, t]);
+  ], [editable, t]);
   const mobileRow = (line: ExpenseClaimLineRow) => (
     <div className="grid gap-3 p-3">
       <div className="min-w-0">
@@ -80,7 +80,7 @@ export const ExpenseLinesCard: React.FC<ExpenseLinesCardProps> = ({ claimId, lin
   return (
     <section aria-labelledby="expense-lines-heading" className="mb-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 id="expense-lines-heading" className="text-xl font-bold leading-tight text-foreground">{t('expenses.lines.titleWithCurrency', 'Lines · {{currency}}', { currency })}</h2>
+        <h2 id="expense-lines-heading" className="text-xl font-bold leading-tight text-foreground">{t('expenseClaims:record.lines.titleWithCurrency', 'Lines · {{currency}}', { currency })}</h2>
         {editable && <Button variant="outline" size="sm" className="min-h-11 text-xs font-semibold" onClick={() => setEditing('new')}>{t('expenses.lines.add', 'Add line')}</Button>}
       </div>
         {isPending ? (

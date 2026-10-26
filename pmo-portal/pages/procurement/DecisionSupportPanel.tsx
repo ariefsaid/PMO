@@ -102,7 +102,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const heading = (
     <div className="mb-4 flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 id={headingId} className="break-words text-xl font-bold text-foreground">
-        {t('procurementDetail.budgetImpactWithCurrency', 'Budget impact · {{currency}}', { currency })}
+        {t('procurement:detail.budgetImpactWithCurrency', 'Budget impact · {{currency}}', { currency })}
       </h2>
       {showProjectName && projectName ? (
         <ProjectNameLink
@@ -110,6 +110,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
           name={projectName}
           legalName={projectLegalName}
           className="break-words text-sm text-foreground"
+          fullIdentity
         />
       ) : null}
     </div>
@@ -176,25 +177,25 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   const formattedHeadroom = formatNumber(Math.round(afterPct * 10) / 10);
 
   const facts = [
-    ...(showRequestValue ? [{ label: t('procurementDetail.budget.request', 'This request'), value: formatNumber(totalValue) }] : []),
+    ...(showRequestValue ? [{ label: t('procurement:detail.budget.request', 'This request'), value: formatNumber(totalValue) }] : []),
     {
-      label: t('procurementDetail.budget.reserved', 'Reserved'),
+      label: t('procurement:detail.budget.reserved', 'Reserved'),
       value: formatNumber(otherReserved),
-      sub: t('procurementDetail.budget.reservedSub', 'approved, not yet ordered'),
+      sub: t('procurement:detail.budget.reservedSub', 'approved, not yet ordered'),
     },
     {
-      label: t('procurementDetail.budget.available', 'Available'),
+      label: t('procurement:detail.budget.available', 'Available'),
       value: formatNumber(available),
       tone: available < 0 ? ('neg' as const) : undefined,
       // 0373: committed spend in another currency is not subtracted (no conversion); say so rather than hide it.
     },
-    { label: t('procurementDetail.budget.projectBudget', 'Project budget'), value: formatNumber(budgetAmount) },
+    { label: t('procurement:detail.budget.projectBudget', 'Project budget'), value: formatNumber(budgetAmount) },
     {
-      label: t('procurementDetail.budget.afterRequest', 'After this request'),
+      label: t('procurement:detail.budget.afterRequest', 'After this request'),
       value: formatNumber(afterRequest),
       // I4 (design-review): afterPct is headroom remaining (afterRequest/budget),
       // NOT utilization — labelled "% headroom remaining" for honest spend control.
-      sub: t('procurementDetail.budget.headroomRemaining', '{{percent}}% headroom remaining', { percent: formattedHeadroom }),
+      sub: t('procurement:detail.budget.headroomRemaining', '{{percent}}% headroom remaining', { percent: formattedHeadroom }),
       tone: afterRequest < 0 ? ('neg' as const) : undefined,
     },
   ];
@@ -215,7 +216,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
       </dl>
       {otherCurrencyCommitted && (
         <p role="note" className="mt-4 break-words text-sm text-muted-foreground">
-          {t('procurementDetail.budget.otherCurrencies', 'Not included in available budget: {{amounts}}', { amounts: otherCurrencyCommitted })}
+          {t('procurement:detail.budget.otherCurrencies', 'Not included in available budget: {{amounts}}', { amounts: otherCurrencyCommitted })}
         </p>
       )}
 
@@ -223,12 +224,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overAvailable && (
           <ErrBanner
             className="mt-3 mb-0"
-            title={t('procurementDetail.budget.overAvailable', 'Over available budget')}
+            title={t('procurement:detail.budget.overAvailable', 'Over available budget')}
             sub={
               <>
-                {t('procurementDetail.budget.overAvailableSub', 'This request exceeds available budget by')}{' '}
+                {t('procurement:detail.budget.overAvailableSub', 'This request exceeds available budget by')}{' '}
                 <strong className="tabular-nums">{formatNumber(overAvailableAmount)}</strong>.{' '}
-                {t('procurementDetail.budget.advisoryOnly', 'Approval is still permitted — this is an advisory only.')}
+                {t('procurement:detail.budget.advisoryOnly', 'Approval is still permitted — this is an advisory only.')}
               </>
             }
           />
@@ -239,12 +240,12 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
         {overBudgetReserved && (
           <ErrBanner
             className="mt-3 mb-0"
-            title={t('procurementDetail.budget.projectOverBudget', 'Project over budget')}
+            title={t('procurement:detail.budget.projectOverBudget', 'Project over budget')}
             sub={
               <>
-                {t('procurementDetail.budget.projectOverBudgetSub', 'This project is over budget by')}{' '}
+                {t('procurement:detail.budget.projectOverBudgetSub', 'This project is over budget by')}{' '}
                 <strong className="tabular-nums">{formatNumber(-available)}</strong> across committed
-                {t('procurementDetail.budget.projectOverBudgetDetail', ' across committed and reserved demand. This is an advisory only.')}
+                {t('procurement:detail.budget.projectOverBudgetDetail', ' across committed and reserved demand. This is an advisory only.')}
               </>
             }
           />
@@ -258,7 +259,7 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
             to={`/projects/${scopedProjectId}`}
             className="inline-flex min-h-11 items-center gap-1 text-sm text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring underline-offset-4"
           >
-            {t('procurementDetail.budget.openProject', 'Open project')}
+            {t('procurement:detail.budget.openProject', 'Open project')}
           </Link>
         </div>
     </section>

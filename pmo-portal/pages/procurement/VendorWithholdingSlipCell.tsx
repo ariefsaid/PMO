@@ -27,7 +27,7 @@ export function VendorWithholdingSlipCell({ row, isLoading = false, isError = fa
   };
   const isActive = Boolean(row.active_slip_id);
   return <div className="flex max-w-[14rem] flex-col items-end gap-0.5 text-right text-xs">
-    <span className={row.coverage_state === 'needs-review' ? 'font-medium text-foreground' : 'text-muted-foreground'}>{labels[row.coverage_state] ?? labels.unavailable}</span>
+    <span className={row.coverage_state === 'needs-review' ? 'text-xs font-semibold text-foreground' : 'text-xs font-semibold text-muted-foreground'}>{labels[row.coverage_state] ?? labels.unavailable}</span>
     {isActive && <>
       <span className="max-w-full break-all font-mono">{row.slip_number ?? ''}</span>
       {row.slip_date && <span className="text-muted-foreground">{formatDateOnly(row.slip_date)}</span>}

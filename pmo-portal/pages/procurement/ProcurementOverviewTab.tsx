@@ -5,7 +5,7 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import { formatNumber, formatShortMoney } from '@/src/lib/format';
 
 interface AmountFact {
-  amount: number;
+  amount: number | null;
   currency: string;
 }
 
@@ -46,9 +46,9 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
 }) => {
   const { t } = useTranslation();
   const amounts: Array<{ label: string; fact: AmountFact }> = [
-    { label: t('procurementDetail.review.requestAmount', 'Requested amount'), fact: { amount: requestAmount, currency: requestCurrency } },
-    ...(selectedQuote ? [{ label: t('procurementDetail.review.selectedQuote', 'Selected quote amount'), fact: selectedQuote }] : []),
-    ...(orderedAmount ? [{ label: t('procurementDetail.review.orderedAmount', 'Ordered amount'), fact: orderedAmount }] : []),
+    { label: t('procurement:detail.review.requestAmount', 'Requested amount'), fact: { amount: requestAmount, currency: requestCurrency } },
+    ...(selectedQuote ? [{ label: t('procurement:detail.review.selectedQuote', 'Selected quote amount'), fact: selectedQuote }] : []),
+    ...(orderedAmount ? [{ label: t('procurement:detail.review.orderedAmount', 'Ordered amount'), fact: orderedAmount }] : []),
   ];
   const amountGroups = new Map<string, typeof amounts>();
   for (const amount of amounts) {
@@ -63,8 +63,8 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
         <section key={groupCurrency} aria-labelledby={`procurement-review-amounts-${groupCurrency}`}>
           <h2 id={`procurement-review-amounts-${groupCurrency}`} className="mb-4 break-words text-xl font-bold">
             {groupCurrency === requestCurrency
-              ? t('procurementDetail.review.amountsWithPrimary', 'Purchase amount · {{compact}}', { compact: formatShortMoney(requestAmount, requestCurrency, { code: true }) })
-              : t('procurementDetail.review.otherAmountsWithCurrency', 'Other purchase amounts · {{currency}}', { currency: groupCurrency })}
+              ? t('procurement:detail.review.amountsWithPrimary', 'Purchase amount · {{compact}}', { compact: formatShortMoney(requestAmount, requestCurrency, { code: true }) })
+              : t('procurement:detail.review.otherAmountsWithCurrency', 'Other purchase amounts · {{currency}}', { currency: groupCurrency })}
           </h2>
           <dl className="grid min-w-0 grid-cols-2 gap-x-8 gap-y-4 lg:grid-cols-3">
             {facts.map(({ label, fact }) => {
@@ -72,7 +72,9 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
                 <div key={label} className="min-w-0">
                   <dt className="break-words text-xs font-semibold text-muted-foreground">{label}</dt>
                   <dd className="mt-2 break-words text-sm font-normal tabular-nums">
-                    {formatNumber(fact.amount)}
+                    {fact.amount === null
+                      ? t('procurement:detail.review.amountUnavailable', 'Not available')
+                      : formatNumber(fact.amount)}
                   </dd>
                 </div>
               );
@@ -94,11 +96,11 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
 
       <section aria-labelledby="procurement-review-items">
         <h2 id="procurement-review-items" className="mb-4 break-words text-xl font-bold">
-          {t('procurementDetail.review.itemsWithCurrency', 'Requested items · {{currency}}', { currency })}
+          {t('procurement:detail.review.itemsWithCurrency', 'Requested items · {{currency}}', { currency })}
         </h2>
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            {t('procurementDetail.review.noItems', 'No items have been recorded on this request yet.')}
+            {t('procurement:detail.review.noItems', 'No items have been recorded on this request yet.')}
           </p>
         ) : (
           <ul className="divide-y divide-border border-y border-border">
@@ -110,9 +112,9 @@ export const ProcurementOverviewTab: React.FC<ProcurementOverviewTabProps> = ({
                     {item.quantity} × {formatNumber(item.rate)}
                   </p>
                 </div>
-                <p className="shrink-0 text-right font-medium tabular-nums">
+                <p className="shrink-0 text-right text-sm font-normal tabular-nums">
                   {item.amount === null
-                    ? t('procurementDetail.review.amountUnavailable', 'Not available')
+                    ? t('procurement:detail.review.amountUnavailable', 'Not available')
                     : formatNumber(item.amount)}
                 </p>
               </li>

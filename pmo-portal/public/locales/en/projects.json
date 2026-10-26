@@ -22,8 +22,13 @@
     "statusAndEndTable": "Status / end date"
   },
   "breadcrumb": "Breadcrumb",
-  "area": { "delivery": "Delivery" },
-  "identifiers": { "summary": "Project IDs ({{count}})", "detailsLabel": "Project references" },
+  "area": {
+    "delivery": "Delivery"
+  },
+  "identifiers": {
+    "summary": "Project IDs ({{count}})",
+    "detailsLabel": "Project references"
+  },
   "customerUnavailable": "Customer unavailable",
   "coverage": {
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",
@@ -150,5 +155,6 @@
     "phaseEventAriaLabel": "{{project}} — Phase target: {{phase}}",
     "startAriaLabel": "{{project}} — Start",
     "endAriaLabel": "{{project}} — End"
-  }
+  },
+  "openProject": "Open {{name}}"
 }

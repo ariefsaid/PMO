@@ -117,7 +117,7 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     key: 'date',
     header: <LedgerHeader translationKey="procurementLedger.date" fallback="Date" />,
     cell: (row) => (
-      <span className="text-[13px] text-muted-foreground">
+      <span className="text-sm text-muted-foreground">
         {formatBusinessDate(row.date)}
       </span>
     ),
@@ -136,9 +136,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.systemNumber" fallback="System #" />,
     cell: (row) =>
       row.systemNumber ? (
-        <span className="font-mono text-[12.5px] font-semibold">{row.systemNumber}</span>
+        <span className="font-mono text-[11px] font-semibold">{row.systemNumber}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -146,9 +146,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <LedgerHeader translationKey="procurementLedger.externalRef" fallback="External ref" />,
     cell: (row) =>
       row.externalRef ? (
-        <span className="font-mono text-[12.5px] text-muted-foreground">{row.externalRef}</span>
+        <span className="font-mono text-[11px] font-semibold text-muted-foreground">{row.externalRef}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -156,9 +156,9 @@ const STATIC_COLUMNS: Column<LedgerRow>[] = [
     header: <GroupRefHeader />,
     cell: (row) =>
       row.groupRef ? (
-        <span className="font-mono text-[12.5px] text-muted-foreground">{row.groupRef}</span>
+        <span className="font-mono text-[11px] font-semibold text-muted-foreground">{row.groupRef}</span>
       ) : (
-        <span className="text-[12px] text-muted-foreground">—</span>
+        <span className="text-sm text-muted-foreground">—</span>
       ),
   },
   {
@@ -348,7 +348,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
   const amountColumn = useMemo<Column<LedgerRow>>(() => ({
     key: 'amount', header: <LedgerHeader translationKey="procurementLedger.amount" fallback="Amount" />, align: 'num',
     cell: (row) => {
-      if (row.amount == null) return <span className="text-[12px] text-muted-foreground">—</span>;
+      if (row.amount == null) return <span className="text-sm text-muted-foreground">—</span>;
       const total = <span className="inline-flex items-baseline justify-end gap-1.5"><span className="tabular-nums">{formatCurrency(row.amount, row.currency)}</span><TaxBasisLabel treatment={row.taxTreatment} taxBaseUnknown={row.taxBaseUnknown} taxRate={row.taxRate} taxBaseNumerator={row.taxBaseNumerator} taxBaseDenominator={row.taxBaseDenominator} /></span>;
       const figures = row.type === 'Invoice' ? withholdingFigures(row.amount, row.taxAmount, row.withheldAmount, row.taxTreatment) : null;
       const invoice = row.type === 'Invoice' ? invoices.find((item) => item.id === row.recordId) : undefined;
@@ -441,7 +441,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
     <div data-testid="procurement-ledger">
       {/* Toolbar: card-head + filter chips */}
       <div className="mb-0 flex flex-wrap items-center justify-between gap-3 rounded-t-lg border border-b-0 border-border bg-card px-4 py-3">
-        <span className="text-[13px] font-semibold">{t('procurementLedger.title', 'Case ledger')}</span>
+        <h2 className="text-xl font-bold leading-tight">{t('procurementLedger.title', 'Case ledger')}</h2>
         {/* Filter chips — DESIGN.md §6: seg-style 28px, rounded-full, aria-pressed */}
         <div
           role="group"
@@ -458,7 +458,7 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
                 aria-pressed={active}
                 onClick={() => setFilter(chip.value)}
                 className={[
-                  'inline-flex h-7 items-center rounded-full border px-[10px] text-[12px] font-medium transition-colors',
+                  'inline-flex min-h-11 items-center rounded-full border px-[10px] text-xs font-semibold transition-colors min-[921px]:h-7 min-[921px]:min-h-7',
                   'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
                   active
                     ? 'border-primary/30 bg-primary/10 text-[hsl(var(--nav-active-text))]'
@@ -546,11 +546,11 @@ const ProcurementLedgerContent: React.FC<ProcurementLedgerProps> = ({
           onCreate={handleCreate}
         />
         {billsHiddenForRole && (
-          <p className="mt-3 text-[12px] text-muted-foreground" data-testid="ledger-bills-hidden-note">
+          <p className="mt-3 text-sm text-muted-foreground" data-testid="ledger-bills-hidden-note">
             {t('procurement:ledger.billsHiddenForRole', 'Vendor bills and payments are not shown for your role.')}
           </p>
         )}
-        <p className="mt-3 text-[11px] text-muted-foreground">
+        <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
           {t('procurementLedger.ledgerNote', 'Every record appears once, chronological. Empty record types have no row.')}
         </p>
       </CardPad>

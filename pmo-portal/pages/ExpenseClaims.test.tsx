@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   list: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   aging: { data: { rows: [] as unknown[], truncated: false }, isPending: false, isError: false, refetch: vi.fn() },
   create: { mutateAsync: vi.fn(), isPending: false },
+  projects: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }],
   capture: { capture: vi.fn(), cleanupUnlinkedAttachment: vi.fn(), recovery: null as null | Record<string, unknown>, progress: null as number | null },
 }));
 vi.mock('@/src/hooks/useExpenseClaims', () => ({
@@ -39,7 +40,7 @@ vi.mock('@/src/hooks/useExpenseCapture', async () => {
     },
   };
 });
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Engineer', effectiveRole: 'Engineer' }) }));
 
@@ -67,6 +68,7 @@ beforeEach(() => {
   h.capture.capture.mockReset();
   h.capture.cleanupUnlinkedAttachment.mockReset();
   h.capture.recovery = null;
+  h.projects = [{ id: 'p1', name: 'Harbour Upgrade', short_name: 'North Terminal' }];
   h.list.data = { rows: [ROW], truncated: false };
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -119,17 +121,15 @@ describe('ExpenseClaims page', () => {
     expect(row.querySelector('details')).not.toHaveAttribute('open');
   });
 
-  it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {
-    h.list.data = { rows: [{ ...ROW, project: { name: 'Harbour Upgrade', short_name: 'Harbour' } }], truncated: false };
+  it('AC-806 shows the complete project identity in the collection and advance project chooser', async () => {
+    const projectName = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
+    h.projects = [{ id: 'p1', name: projectName, short_name: 'Gedung Layanan' }];
+    h.list.data = { rows: [{ ...ROW, project: { name: projectName, short_name: 'Gedung Layanan' } }], truncated: false };
     renderPage();
     const row = screen.getByRole('row', { name: /Site visit/ });
-    expect(within(row).getByTitle('Harbour Upgrade')).toHaveTextContent('Harbour');
-  });
-
-  it('AC-002 #1325: advance request project options show the short name only', async () => {
-    renderPage();
+    expect(within(row).getByText(projectName)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /request advance/i }));
-    expect(within(screen.getByRole('dialog')).getByRole('option', { name: 'North Terminal' })).toHaveValue('p1');
+    expect(within(screen.getByRole('dialog')).getByRole('option', { name: projectName })).toHaveValue('p1');
   });
 
   it('AC-806 replays search, filters and sort from the URL into the server query', () => {

@@ -252,7 +252,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
           </p>
           <FormGrid>
             <div className="col-span-full flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</span>
+              <span className="text-xs font-semibold">{t('uxs29.expenseCapture.receipt', 'Receipt (optional)')}</span>
               <input
                 ref={receiptInputRef}
                 type="file"
@@ -274,7 +274,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
               </Button>
               {receiptFile && (
                 <span className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-                  <span className="max-w-52 truncate" title={receiptFile.name}>{receiptFile.name}</span>
+                  <span className="min-w-0 break-words" title={receiptFile.name}>{receiptFile.name}</span>
                   <Button variant="ghost" size="sm" disabled={recoveryPending} onClick={() => {
                     setReceiptFile(null);
                     if (!form.values.expenseDescription.trim()) setSuggestedTitle('');
@@ -305,7 +305,7 @@ export const ExpenseClaimFormModal: React.FC<ExpenseClaimFormModalProps> = ({
           </FormGrid>
         </FormSection>
       )}
-      <FormSection legend={t('expenses.form.sections.details', 'Details')}>
+      <FormSection legend={t('expenses.form.sections.details', 'Claim details')}>
         <FormGrid>
           <TextField id={titleField.id} label={t('expenses.form.title.label', 'Title')} required value={titleField.value}
             onChange={(value) => { setTitleManuallyEdited(true); titleField.onChange(value); }} onBlur={titleField.onBlur} error={titleField.error}

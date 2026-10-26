@@ -62,18 +62,15 @@ describe('AC-JR-W1-03: ProcurementListRow meta — project name links', () => {
     wrap(makeRow({ project: undefined, project_id: null }));
     // No project-name link; title link still present
     const links = screen.getAllByRole('link');
-    const projectLinks = links.filter((l) =>
-      l.getAttribute('aria-label')?.startsWith('Open '),
-    );
+    const projectLinks = links.filter((link) => link.getAttribute('href')?.startsWith('/projects/'));
     expect(projectLinks).toHaveLength(0);
   });
 });
 
-describe('AC-002 #1325: ProcurementListRow shows the short name', () => {
-  it('links the short name and describes it by the contractual title', () => {
+describe('AC-806: ProcurementListRow shows the complete project identity', () => {
+  it('links the complete project name', () => {
     wrap(makeRow({ project: { name: 'Harbour Bridge Contractual', short_name: 'Harbour', code: 'HB-01' } }));
-    const link = screen.getByRole('link', { name: 'Open Harbour' });
-    expect(link).toHaveAccessibleDescription('Harbour Bridge Contractual');
-    expect(link).toHaveAttribute('title', 'Harbour Bridge Contractual');
+    const link = screen.getByRole('link', { name: 'Open Harbour Bridge Contractual' });
+    expect(link).toHaveTextContent('Harbour Bridge Contractual');
   });
 });

@@ -140,7 +140,7 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
       disabledReason={t('erpLinks.choosePurchaseFirst', 'Choose a purchase first.')}
       submitError={submitError}
     >
-      <p className="mb-3 text-[13px] text-foreground tabular">{summary}</p>
+      <p className="mb-3 text-sm text-foreground tabular">{summary}</p>
       <Combobox
         label={t('erpLinks.purchase', 'Purchase')}
         noun={t('erpLinks.purchaseNoun', 'open purchase')}
@@ -152,7 +152,7 @@ export const LinkErpDocumentsDialog: React.FC<LinkErpDocumentsDialogProps> = ({ 
         required
       />
       {awaiting > 0 && (
-        <p className="mt-2 text-[12.5px] text-muted-foreground">
+        <p className="mt-2 text-sm text-muted-foreground">
           {projectId
             ? t('erpLinks.awaitingApprovalProject', '{{count}} purchases on this project are waiting for approval. They can take documents once approved.', { count: awaiting })
             : t('erpLinks.awaitingApproval', '{{count}} purchases are waiting for approval. They can take documents once approved.', { count: awaiting })}

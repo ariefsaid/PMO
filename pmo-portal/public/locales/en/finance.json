@@ -59,7 +59,8 @@
       "total": "Unpaid total",
       "sharedExcluded_one": "{{count}} unpaid invoice shared with other projects is not in these figures.",
       "sharedExcluded_other": "{{count}} unpaid invoices shared with other projects are not in these figures."
-    }
+    },
+    "reference": "Reference"
   },
   "budgetCategory": {
     "travelAccommodation": "Travel & accommodation",
@@ -154,5 +155,8 @@
     "supplierCount": "{{count}} suppliers",
     "loadError": "Couldn't load the ERPNext documents not in a purchase",
     "agingTitle": "Unpaid ERPNext invoices (incl. linked)"
+  },
+  "shared": {
+    "notAvailable": "Not available"
   }
 }

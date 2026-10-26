@@ -25,7 +25,7 @@ export const MoneyOutPageHeader: React.FC<MoneyOutPageHeaderProps> = ({
     <header className="mb-6 flex min-w-0 flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-          <h1 className="min-w-0 break-words text-2xl font-semibold tracking-tight">{title}</h1>
+      <h1 data-money-out-record-identity className="min-w-0 break-words text-2xl font-bold tracking-[-0.02em]">{title}</h1>
           {status}
         </div>
         {scope && <p className="mt-1 flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-sm text-muted-foreground">{scope}</p>}

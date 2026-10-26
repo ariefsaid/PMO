@@ -45,6 +45,8 @@ export interface Column<Row> {
   kind?: ColumnKind;
   /** Optional plain-text title for the `title` attribute when the primary cell is a React node. */
   primaryTitle?: (row: Row) => string;
+  /** Keep the complete record identity visible instead of the default two-line primary preview. */
+  fullIdentity?: boolean;
   /** Render this cell as the row's accessible header rather than a data cell. */
   rowHeader?: boolean;
   /** Optional muted second line for a primary identity cell. */
@@ -635,7 +637,7 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    <th scope="row" className={cn('px-3 text-left text-xl font-bold text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    <th scope="row" className={cn('px-3 text-left text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -779,7 +781,7 @@ export function DataTable<Row>({
             : <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className={cn('bg-secondary/40 px-4 py-2 text-xl font-bold text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className={cn('bg-secondary/40 px-4 py-2 text-xl font-bold leading-tight text-foreground', groupHeadingClassName)}><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 text-sm font-normal text-muted-foreground">{entry.count}</span></button></li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;

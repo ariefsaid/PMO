@@ -27,7 +27,8 @@
     "add": "Tambah",
     "removeDescription": "Item ini akan dihapus dari permintaan. Anda dapat menambahkannya kembali selama permintaan masih berupa draf.",
     "removeItem": "Hapus item",
-    "searchItem": "Cari kode atau nama item…"
+    "searchItem": "Cari kode atau nama item…",
+    "remove": "Hapus"
   },
   "create": {
     "heading": "Permintaan pembelian baru",
@@ -194,7 +195,47 @@
       "requesterGate": "Permintaan ini diajukan oleh {{requester}}. Pengguna lain dengan peran Project-Manager, Finance, atau Executive harus meninjaunya — pemohon tidak dapat menyetujui permintaannya sendiri.",
       "receiptGate": "Untuk melanjutkan dari Purchase Order ke Penerimaan Barang, pemohon atau Project-Manager harus mengonfirmasi penerimaan barang.",
       "you": "Anda"
-    }
+    },
+    "budget": {
+      "advisoryOnly": "Persetujuan tetap diizinkan — ini hanya bersifat saran.",
+      "afterRequest": "Setelah permintaan ini",
+      "available": "Tersedia",
+      "headroomRemaining": "{{percent}}% anggaran tersisa",
+      "openProject": "Buka proyek",
+      "otherCurrencies": "Tidak termasuk dalam anggaran tersedia: {{amounts}}",
+      "overAvailable": "Melebihi anggaran tersedia",
+      "overAvailableSub": "Permintaan ini melebihi anggaran tersedia sebesar",
+      "projectBudget": "Anggaran proyek",
+      "projectOverBudget": "Proyek melebihi anggaran",
+      "projectOverBudgetDetail": " dari kebutuhan yang telah digunakan dan dicadangkan. Ini hanya bersifat saran.",
+      "projectOverBudgetSub": "Proyek ini melebihi anggaran sebesar",
+      "request": "Permintaan ini",
+      "reserved": "Dicadangkan",
+      "reservedSub": "disetujui, belum dipesan"
+    },
+    "budgetImpactWithCurrency": "Dampak anggaran · {{currency}}",
+    "review": {
+      "amountUnavailable": "Tidak tersedia",
+      "amountsWithPrimary": "Jumlah pembelian · {{compact}}",
+      "itemsWithCurrency": "Rincian barang · {{currency}}",
+      "noItems": "Belum ada item yang dicatat pada permintaan ini.",
+      "orderedAmount": "Jumlah yang dipesan",
+      "otherAmountsWithCurrency": "Jumlah pembelian lainnya · {{currency}}",
+      "requestAmount": "Jumlah yang diminta",
+      "selectedQuote": "Jumlah penawaran terpilih"
+    },
+    "sectionIndex": "Bagian",
+    "sectionSelect": "Bagian",
+    "sections": {
+      "activity": "Aktivitas",
+      "documents": "Dokumen",
+      "items": "Item",
+      "quotes": "Penawaran",
+      "review": "Tinjau"
+    },
+    "statusAsOf": "Status per",
+    "statusDateUnavailable": "Tanggal tidak tersedia",
+    "vendorNotSelected": "Vendor belum dipilih"
   },
   "activity": {
     "document": {
@@ -239,6 +280,18 @@
       "oldest": "Permintaan terlama",
       "newestCreated": "Dibuat terbaru",
       "oldestCreated": "Dibuat paling awal"
+    },
+    "preview": {
+      "details": "Detail",
+      "loadErrorTitle": "Detail permintaan tidak dapat dimuat",
+      "requestDetails": "Detail permintaan",
+      "requestedItemsCurrency": "Rincian barang · {{currency}}"
     }
+  },
+  "shared": {
+    "notAvailable": "Tidak tersedia"
+  },
+  "actions": {
+    "cancel": "Batal"
   }
 }
