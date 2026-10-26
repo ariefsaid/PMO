@@ -94,6 +94,7 @@
       "contract": "Kontrak",
       "cost": "Biaya",
       "noActiveBudget": "Tidak ada anggaran aktif",
+      "spending": "Pengeluaran",
       "title": "Posisi keuangan"
     },
     "tasks": {

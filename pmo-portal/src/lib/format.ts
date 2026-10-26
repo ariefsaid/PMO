@@ -121,6 +121,38 @@ export function formatExactMoney(
   }
 }
 
+/** Format an exact decimal inside a named currency group without repeating its currency mark. */
+export function formatExactNumber(
+  value: string | null,
+  locale: string,
+  opts: { trimZeroFraction?: boolean } = {},
+): string | null {
+  if (value === null || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
+  const negative = value.startsWith('-');
+  const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  const whole = BigInt(wholeText);
+  const cents = BigInt(fraction.padEnd(2, '0'));
+  const trim = opts.trimZeroFraction === true && cents === 0n;
+  try {
+    const wholeParts = numberFormatterFor('exact-number-whole', locale, undefined, {
+      style: 'decimal', useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0,
+    }).formatToParts(whole);
+    let body = wholeParts.map((part) => part.value).join('');
+    if (!trim) {
+      const fractionParts = numberFormatterFor('exact-number-fraction', locale, undefined, {
+        style: 'decimal', useGrouping: false, minimumFractionDigits: 2, maximumFractionDigits: 2,
+      }).formatToParts(Number(cents) / 100);
+      const decimal = fractionParts.find((part) => part.type === 'decimal')?.value;
+      const fractionText = fractionParts.find((part) => part.type === 'fraction')?.value;
+      if (!decimal || !fractionText) return null;
+      body += `${decimal}${fractionText}`;
+    }
+    return negative ? `−${body}` : body;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse a user-typed money / numeric-field string to a number, or `null` when it is not a valid
  * number. **The single parse used for BOTH validation and persistence** (Wave 3 input integrity):

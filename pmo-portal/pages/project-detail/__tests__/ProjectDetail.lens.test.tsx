@@ -4,6 +4,8 @@ import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
+import { PageFrame } from '@/src/components/shell';
+import { breadcrumbForPath } from '@/src/components/shell/routeMatch';
 import ProjectDetail from '../ProjectDetail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -161,12 +163,16 @@ const pipelineRow = {
 // (A-1 gate = Admin·Exec·PM). The role reaches usePermission via the mocked useEffectiveRole
 // (above) → 'Project Manager', so the journey (lifecycle controls shown) is preserved.
 const renderAt = async (path: string | { pathname: string; state?: unknown }) => {
+  const pathname = typeof path === 'string' ? path.split('?')[0] : path.pathname;
+  const breadcrumb = breadcrumbForPath(pathname, 'Acme Tender Bid', navigate, true);
   const view = render(
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
-        <Routes>
-          <Route path="/projects/:projectId" element={<ProjectDetail />} />
-        </Routes>
+        <PageFrame breadcrumb={breadcrumb} returnLabel="Projects">
+          <Routes>
+            <Route path="/projects/:projectId" element={<ProjectDetail />} />
+          </Routes>
+        </PageFrame>
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -221,11 +227,9 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });
 
-  // list-working-set-return (#682, AC-LRC-004): ProjectDetail forwards its OWN router
-  // location.state down to PipelineLens, so a project opened from a narrowed Sales Pipeline
-  // resolves its quiet Sales link to that captured URL end-to-end (not just at PipelineLens's
-  // own isolated-render level, proven separately in wave5-c3-pr2.test.tsx).
-  it('AC-LRC-004: ProjectDetail forwards the captured Sales list-return context to the PipelineLens Sales link', async () => {
+  // The shared frame owns record wayfinding (AC-NAV-004); a Sales list state must not recreate a
+  // competing return link inside the project page.
+  it('R-002 / AC-NAV-004: the shared frame returns to Projects even with a captured Sales list context', async () => {
     projectsState.data = [pipelineRow];
     pipelineState.data = {
       stages: [],
@@ -235,7 +239,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
       pathname: '/projects/d1',
       state: { pmoListReturn: { list: 'sales', path: '/sales?status=Tender+Submitted' } },
     });
-    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
-    expect(link).toHaveAttribute('href', '/sales?status=Tender+Submitted');
+    expect(screen.getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('link', { name: /back to sales pipeline/i })).not.toBeInTheDocument();
   });
 });

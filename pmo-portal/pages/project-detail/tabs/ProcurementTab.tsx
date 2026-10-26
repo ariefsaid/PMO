@@ -80,7 +80,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           <StatusPill variant={pillVariantForStatus(row.status as ProcurementStatus)}>
             {statusLabel(row.status as ProcurementStatus)}
           </StatusPill>
-          <time dateTime={row.created_at} className="text-[12px] text-muted-foreground">
+          <time dateTime={row.created_at} className="text-xs text-muted-foreground">
             {formatInstantDate(row.created_at)}
           </time>
         </div>
@@ -138,7 +138,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           aria-label={t('project:projectDetail.procurement.toolbar.statusFilter', 'Status filter')}
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as ProcurementStatus | 'all')}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="all">{t('project:projectDetail.procurement.toolbar.allStatuses', 'All statuses')}</option>
           {PROCUREMENT_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
@@ -147,7 +147,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
           aria-label={t('project:projectDetail.procurement.toolbar.sortRequests', 'Sort requests')}
           value={sortOrder}
           onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="newest">{t('project:projectDetail.procurement.toolbar.newest', 'Newest request date')}</option>
           <option value="oldest">{t('project:projectDetail.procurement.toolbar.oldest', 'Oldest request date')}</option>
@@ -166,7 +166,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       </Toolbar>
 
       <section aria-labelledby="project-procurement-heading">
-        <h2 id="project-procurement-heading" className="mb-3.5 text-[16px] font-bold tracking-[-0.01em]">
+        <h2 id="project-procurement-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
           {t('projectDetail.procurement.title', 'Purchase Requests')}
         </h2>
         <DataTable<ProcurementWithRefs>

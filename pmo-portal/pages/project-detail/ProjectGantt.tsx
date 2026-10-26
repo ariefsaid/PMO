@@ -265,7 +265,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
     <div className="rounded-lg border border-border bg-card">
       {/* Toolbar: caption + zoom toggle (D6) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
-        <span className="text-[12px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {t('projectDetail.gantt.tasksOnTimeline', {
             count: tasksCount,
             defaultValue_one: '{{count}} task on the timeline',
@@ -327,7 +327,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
                   key={row.key}
                   role="row"
                   data-row-kind="lane"
-                  className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-3 text-[12px] font-semibold text-muted-foreground"
+                  className="flex items-center gap-2 border-b border-border/70 bg-secondary/30 px-3 text-xs font-semibold text-muted-foreground"
                   style={{ height: LANE_HEADER_H }}
                 >
                   <span role="gridcell" className="truncate">{row.label}</span>
@@ -468,10 +468,10 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
     <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
       <Icon name="cal" className="size-6" strokeWidth={1.75} />
     </span>
-    <h3 className="text-[15px] font-semibold">
+    <h3 className="text-sm font-semibold">
       {t('projectDetail.gantt.mobileTitle', 'Open on a larger screen')}
     </h3>
-    <div className="max-w-[44ch] text-[13px] text-muted-foreground">
+    <div className="max-w-[44ch] text-sm text-muted-foreground">
       {t(
         'projectDetail.gantt.mobileSub',
         'The timeline is best viewed on a wider screen. Switch to a view that fits your device:',
@@ -530,7 +530,7 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth })
     )}
     {todayLeft != null && (
       <span
-        className="absolute bottom-0 text-[10px] font-semibold text-primary"
+        className="absolute bottom-0 text-[11px] font-semibold text-primary"
         style={{ left: todayLeft * contentWidth, transform: 'translateX(-50%)' }}
       >
         {t('projectDetail.gantt.today', 'Today')}
@@ -640,7 +640,7 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
         onClick={onActivate}
         onKeyDown={handleKeyDown}
         title={label}
-        className={`absolute -translate-x-1/2 -translate-y-1/2 text-[14px] text-violet${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
+        className={`absolute -translate-x-1/2 -translate-y-1/2 text-sm text-violet${onActivate ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring' : ''}`}
         style={{ left: box.xStart, top: box.y + box.h / 2 }}
       >
         ◆
@@ -669,7 +669,7 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
       }}
     >
       {showInBarLabel && (
-        <span className="truncate text-[11.5px] font-semibold leading-none text-foreground">
+        <span className="truncate text-[11px] font-semibold leading-none text-foreground">
           {bar.name}
         </span>
       )}
@@ -743,7 +743,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
     >
       <span
         role="gridcell"
-        className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground"
+        className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
         title={bar.name}
       >
         {bar.name}
@@ -755,7 +755,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       </span>
       <span
         role="gridcell"
-        className="hidden shrink-0 whitespace-nowrap text-[10.5px] tabular-nums text-muted-foreground sm:block"
+        className="hidden shrink-0 whitespace-nowrap text-[11px] tabular-nums text-muted-foreground sm:block"
       >
         {dates}
       </span>
@@ -774,7 +774,7 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }
   const { t } = useTranslation();
   return (
   <div className="border-t border-border px-4 py-3">
-    <div className="mb-1.5 text-[12px] font-semibold text-muted-foreground">
+    <div className="mb-1.5 text-xs font-semibold text-muted-foreground">
       {`${t('projectDetail.gantt.undated', 'Undated')} (${undated.length})`}
     </div>
     <ul className="flex flex-wrap gap-2">
@@ -799,7 +799,7 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }
                 }
               : undefined
           }
-          className={`rounded border border-border bg-secondary/40 px-2 py-0.5 text-[12px] text-muted-foreground${onActivateTask ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring hover:bg-secondary/60' : ''}`}
+          className={`rounded border border-border bg-secondary/40 px-2 py-0.5 text-xs text-muted-foreground${onActivateTask ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring hover:bg-secondary/60' : ''}`}
         >
           {u.name}
         </li>

@@ -66,7 +66,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   return (
     <div className="flex flex-col gap-2">
       {sorted.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.empty', 'No BASTs yet')}</p>
+        <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.empty', 'No BASTs yet')}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map((a) => {
@@ -79,27 +79,27 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
             const canConfirm = draft && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
             return (
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
-                <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="tabular font-semibold">{formatDateOnly(a.acceptance_date)}</span>
                   <StatusPill variant={a.is_final ? 'progress' : 'draft'}>
                     {a.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}
                   </StatusPill>
                   <StatusPill variant={STATUS_VARIANT[a.status]}>{statusLabel(a.status)}</StatusPill>
                 </div>
-                {a.lines.length > 0 && <p className="text-[12px] tabular text-muted-foreground">{linesText(a)}</p>}
-                <p className="text-[12px] text-muted-foreground">
+                {a.lines.length > 0 && <p className="text-xs tabular text-muted-foreground">{linesText(a)}</p>}
+                <p className="text-xs text-muted-foreground">
                   {document
                     ? t('projectTabs:contractQuantities.workOrders.acceptances.document', 'Signed BAST: {{title}}', { title: document.title })
                     : t('projectTabs:contractQuantities.workOrders.acceptances.noDocument', 'No signed BAST document linked')}
                 </p>
                 {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {t('projectTabs:contractQuantities.workOrders.acceptances.soleOperator', 'Confirmed by the only active member')}
                   </p>
                 )}
-                {a.note && <p className="text-[12px]">{a.note}</p>}
+                {a.note && <p className="text-xs">{a.note}</p>}
                 {draft && canConfirm && preparedByMe && (
-                  <p className="text-[12px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {t('projectTabs:contractQuantities.workOrders.acceptances.selfConfirmHint', 'You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.')}
                   </p>
                 )}

@@ -4365,7 +4365,10 @@
   },
   "projectFinances": {
     "invoiced":"Ditagihkan", "settled":"Diselesaikan", "outstanding":"Belum dibayar",
-    "settlementNote":"Penyelesaian tagihan (kas, potongan pajak, dan kredit), bukan kas diterima.",
+    "settledAgainstInvoices":"Diselesaikan terhadap tagihan",
+    "settlementNote":"Penyelesaian mencakup kas, potongan pajak, dan kredit; kas diterima ditampilkan di atas.",
+    "stillToInvoice":"Belum ditagihkan", "exactRemaining":"Sisa pasti",
+    "viewInvoices":"Lihat faktur", "invoiceRecordsInBilling":"Rincian faktur tersedia pada bagian Penagihan.",
     "margin":"Margin",
     "differentCurrencies":"Tidak tersedia — mata uang berbeda", "workUnavailable":"Pendapatan pekerjaan ditagihkan belum tersedia",
     "restricted":"Aktual tidak mencakup baris terbatas", "actualsUnavailable":"Belum tersedia",

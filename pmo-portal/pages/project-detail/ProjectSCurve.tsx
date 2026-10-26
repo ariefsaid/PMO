@@ -162,7 +162,7 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
             </LineChart>
           </ResponsiveContainer>
 
-          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11.5px] text-muted-foreground">
+          <figcaption className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground">
             <span className="inline-flex items-center gap-1.5">
               <span
                 data-testid="legend-dot"

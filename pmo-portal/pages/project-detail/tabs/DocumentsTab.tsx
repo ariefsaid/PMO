@@ -272,7 +272,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden sm:table-cell w-[96px]',
       cell: (d) =>
         d.code ? (
-          <span className="font-mono text-[12.5px] text-muted-foreground" title={d.code}>
+          <span className="font-mono text-xs text-muted-foreground" title={d.code}>
             {d.code}
           </span>
         ) : (
@@ -286,7 +286,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden md:table-cell w-[112px]',
       cell: (d) => isMicrosoftFolder(d)
         ? <span className="text-muted-foreground">{'—'}</span>
-        : <span className="text-[13px] text-muted-foreground">{d.category}</span>,
+        : <span className="text-sm text-muted-foreground">{d.category}</span>,
     },
     {
       key: 'revision',
@@ -295,7 +295,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden md:table-cell w-[88px]',
       cell: (d) => isMicrosoftFolder(d) || !d.revision
         ? <span className="text-muted-foreground">{'—'}</span>
-        : <span className="text-[13px] text-muted-foreground">{`${t('projectDetail.documents.revLabel', 'Rev')} ${d.revision}`}</span>,
+        : <span className="text-sm text-muted-foreground">{`${t('projectDetail.documents.revLabel', 'Rev')} ${d.revision}`}</span>,
     },
     {
       key: 'status',
@@ -314,7 +314,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       colClassName: 'hidden lg:table-cell w-[108px]',
       cell: (d) =>
         d.doc_date ? (
-          <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">{d.doc_date}</span>
+          <span className="tabular whitespace-nowrap text-sm text-muted-foreground">{d.doc_date}</span>
         ) : (
           <span className="text-muted-foreground">{'—'}</span>
         ),
@@ -609,7 +609,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         )}
       </Toolbar>
 
-      <h2 className="mb-3.5 text-[16px] font-bold tracking-[-0.01em]">
+      <h2 className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
         {t('projectDetail.documents.heading', 'Document register')}
       </h2>
 
@@ -984,7 +984,7 @@ const DocField: React.FC<{ label: string; children: React.ReactNode }> = ({ labe
     <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[14px] text-foreground">{children}</dd>
+    <dd className="text-sm text-foreground">{children}</dd>
   </div>
 );
 
@@ -1049,7 +1049,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
           <>
             <DocField label={t('projectDetail.documents.field.code', 'Code')}>
               {doc.code ? (
-                <span className="font-mono text-[13px]">{doc.code}</span>
+                <span className="font-mono text-sm">{doc.code}</span>
               ) : (
                 <span className="text-muted-foreground">{'—'}</span>
               )}
@@ -1273,7 +1273,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
       errorSummary={errorSummary.length ? errorSummary : undefined}
     >
       {reference && (
-        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-[13px]">
+        <div data-testid="document-linked-item" className="mb-3 flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
           <Icon name={reference.item_kind === 'folder' ? 'folder' : 'doc'} className="shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 break-words font-medium text-foreground" title={reference.name}>{reference.name}</span>
           {onChangeReference && (
@@ -1371,8 +1371,9 @@ const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect
   let notice: React.ReactNode;
   if (!connection && isPending) {
     notice = (
-      <p role="status" className="text-[13px] text-muted-foreground">
+      <p role="status" className="text-sm text-muted-foreground">
         {t('m365Documents:checkingConnection', 'Checking your Microsoft 365 connection…')}
+
       </p>
     );
   } else if (!connection) {

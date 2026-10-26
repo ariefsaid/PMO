@@ -280,20 +280,25 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             {t('projectDetail.header.action.edit', 'Edit')}
           </Button>
         )}
-        {canArchive && (
-          <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>
-            {t('projectDetail.header.action.archive', 'Archive')}
-          </Button>
-        )}
-        {canDelete && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
-            onClick={() => setDeleteOpen(true)}
-          >
-            {t('projectDetail.header.action.delete', 'Delete')}
-          </Button>
+        {(canArchive || canDelete) && (
+          <details className="min-w-0">
+            <summary className="flex min-h-11 cursor-pointer items-center rounded-md px-3 text-sm font-medium hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+              {t('projectDetail.header.action.archive', 'Archive')}
+            </summary>
+            <div className="flex flex-col gap-1 pl-3">
+              {canArchive && <Button variant="ghost" size="sm" className="min-h-11 justify-start" onClick={() => setArchiveOpen(true)}>
+                {t('projectDetail.header.archiveConfirm.confirm', 'Archive project')}
+              </Button>}
+              {canDelete && <Button
+                variant="ghost"
+                size="sm"
+                className="min-h-11 justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
+                onClick={() => setDeleteOpen(true)}
+              >
+                {t('projectDetail.header.action.delete', 'Delete')}
+              </Button>}
+            </div>
+          </details>
         )}
       </div>
     </details>

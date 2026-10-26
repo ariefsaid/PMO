@@ -4365,7 +4365,10 @@
   },
   "projectFinances": {
     "invoiced":"Invoiced", "settled":"Settled", "outstanding":"Outstanding",
-    "settlementNote":"Settled against invoices (cash, withholding and credits), not cash received.",
+    "settledAgainstInvoices":"Settled against invoices",
+    "settlementNote":"Settled includes cash, withholding and credits; cash received is shown above.",
+    "stillToInvoice":"Still to invoice", "exactRemaining":"Exact remaining",
+    "viewInvoices":"View invoices", "invoiceRecordsInBilling":"Invoice records are in the Billing section.",
     "margin":"Margin",
     "differentCurrencies":"Unavailable — different currencies", "workUnavailable":"Billed-work revenue unavailable",
     "restricted":"Actuals exclude restricted rows", "actualsUnavailable":"Not available yet",

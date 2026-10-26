@@ -64,7 +64,7 @@ const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, atta
     >
       <FormSection legend={t('projectDetail.billing.evidence.title', 'Attach billing evidence')}>
         {eligible.length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t('projectDetail.billing.evidence.none', 'No issued or approved document with a file on this project.')}
           </p>
         ) : (

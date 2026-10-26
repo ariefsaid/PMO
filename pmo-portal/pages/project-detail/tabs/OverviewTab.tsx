@@ -1,7 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, TaxBasisLabel, Icon } from '@/src/components/ui';
+import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -13,13 +13,10 @@ import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { buildProjectMoneyPosition } from '@/src/lib/projectFinances';
 import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
-import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
+import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import ProjectDrawdown from '../ProjectDrawdown';
-import FxEquivalent from '@/src/components/fx/FxEquivalent';
-import { UnknownFigure } from '../UnknownFigure';
-import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
 import { projectSectionHeading, projectSubsectionHeading } from '../typography';
+import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -53,13 +50,10 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
-  const [lockReasonOpen, setLockReasonOpen] = useState(false);
   // The delivery money position has no job on pipeline/lost records, whose figures belong to
   // PipelineLens. Keep the project-wide finance read scoped to the delivery surface as well.
   const group = projectStatusGroup(project.status as never);
   const isDelivery = showMoneyPosition && (group === 'onHand' || group === 'internal');
-  const contractValueLocked = ON_HAND_STATUSES.includes(project.status as string) &&
-    !may('editContractValue', 'project', { record: { status: project.status } });
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
@@ -81,7 +75,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
     spent: actualSpend, actualCurrency: actualPosition.currency,
     actualComplete: actualPosition.complete,
   }) ? budgetUtilPctValue : null;
-  const exactMoney = (value: number) => formatProjectDetailMoney(value, project.currency, i18n.language)
+  const exactMoney = (value: number) => formatProjectDetailAmount(value, project.currency, i18n.language)
     ?? t('projectFinances.unavailable', 'Unavailable');
 
   // T14/T15 — Procurement summary (project-filtered server-side)
@@ -153,50 +147,19 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      {isDelivery && <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(15rem,1fr)]">
-        <section role="region" aria-label={t('project:projectDetail.moneyPosition.title', 'Money position')} className="min-w-0 space-y-4">
-          <h2 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.title', 'Money position')}</h2>
-          <div data-testid="money-position-groups" className="grid min-w-0 gap-4 lg:grid-cols-3">
-            <div role="group" aria-label={t('project:projectDetail.moneyPosition.contract', 'Contract')} className="min-w-0 space-y-3">
-              <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.contract', 'Contract')}</h3>
-              <div className="min-w-0">
-                <dt className="text-xs text-muted-foreground">{t('projectDetail.overview.finance.contract', 'Contract')}</dt>
-                <dd data-testid="overview-contract-value" className="break-words font-semibold tabular-nums">
-                  {project.contract_value == null
-                    ? <UnknownFigure reason={t('uxs01.actualUnavailable', 'Unavailable')} />
-                    : formatProjectDetailMoney(project.contract_value, project.currency, i18n.language)
-                      ?? <UnknownFigure reason={t('uxs01.actualUnavailable', 'Unavailable')} />}
-                </dd>
-                <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
-                <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails testId="overview-contract-tax-basis" />
-              </div>
-              {contractValueLocked && <div className="space-y-1">
-                <button
-                  type="button"
-                  aria-expanded={lockReasonOpen}
-                  aria-controls="overview-contract-value-lock-reason"
-                  onClick={() => setLockReasonOpen((open) => !open)}
-                  className="inline-flex min-h-11 items-center gap-1 rounded-full bg-secondary px-3 text-xs font-semibold text-muted-foreground"
-                >
-                  <Icon name="lock" className="size-3" />
-                  {t('projectDetail.header.readOnly', 'Read-only')}
-                  <Icon name="chev" className="size-3 rotate-90" />
-                </button>
-                {lockReasonOpen && <p id="overview-contract-value-lock-reason" className="text-xs text-muted-foreground">
-                  {t('projectDetail.header.sodLockedNote', 'Once a project is won, the contract value is locked for your role. Only Executive or Finance can change it, and the change is recorded.')}
-                </p>}
-              </div>}
-              <ProjectDrawdown projectId={project.id} headingLevel={4} />
-            </div>
-            {may('view', 'salesInvoice')
-              ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} />
-              : <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">{budgetPositionSupplement}</div>}
-          </div>
-        </section>
-        {phaseSummary && <div className="min-w-0">{phaseSummary}</div>}
-      </div>}
+      {isDelivery && (may('view', 'salesInvoice')
+        ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} />
+        : <section role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
+          <h2 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')} · {project.currency}</h2>
+          {budgetPositionSupplement}
+        </section>)}
+      {isDelivery && <section aria-label={t('project:projectDetail.sectionNav.delivery', 'Delivery')} className="min-w-0 space-y-4">
+        <h2 className={projectSectionHeading}>{t('project:projectDetail.sectionNav.delivery', 'Delivery')}</h2>
+        {phaseSummary}
+        {phasePlanner}
+      </section>}
       {!isDelivery && phaseSummary}
-      {phasePlanner}
+      {!isDelivery && phasePlanner}
       {showProc && <div data-testid="overview-procurement-summary" className="min-w-0">
         {/* T14/T15 — Procurement summary card */}
         {showProc && <Card variant="bare">
@@ -232,7 +195,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
               </div>
 
               {/* Committed total */}
-              <div className="text-[12px] text-muted-foreground">
+              <div className="text-xs text-muted-foreground">
                 {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
                 <Trans
                   i18nKey="uxs01.totalRequestValueAcross"
@@ -246,7 +209,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                         : t('projectDetail.overview.procSummary.requestOther', 'requests'),
                   }}
                   components={{
-                    amount: <span className="font-semibold tabular text-foreground text-[14px]" />,
+                    amount: <span className="font-semibold tabular text-foreground text-sm" />,
                   }}
                 />
               </div>
@@ -263,7 +226,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                       >
                         <div className="min-w-0 flex-1">
                           <div className="flex items-baseline gap-1.5 min-w-0">
-                            <span className="truncate text-[13px] font-semibold">{pr.title}</span>
+                            <span className="truncate text-sm font-semibold">{pr.title}</span>
                             {pr.code && (
                               <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{pr.code}</span>
                             )}
@@ -274,7 +237,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                             </StatusPill>
                           </div>
                         </div>
-                        <span className="shrink-0 text-[13px] font-semibold tabular text-foreground">
+                        <span className="shrink-0 text-sm font-semibold tabular text-foreground">
                           {formatCurrency(Number(pr.total_value), project.currency)}
                         </span>
                       </button>
@@ -288,7 +251,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                 <button
                   type="button"
                   onClick={() => setTab('procurement')}
-                  className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
+                  className="text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
                   {t('projectDetail.overview.procSummary.viewAll', 'View all procurement')}
                 </button>

@@ -94,6 +94,7 @@
       "contract": "Contract",
       "cost": "Cost",
       "noActiveBudget": "No active budget",
+      "spending": "Spending",
       "title": "Money position"
     },
     "tasks": {

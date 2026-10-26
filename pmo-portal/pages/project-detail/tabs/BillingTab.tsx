@@ -53,8 +53,8 @@ function thisMonth(): string {
 
 const Figure: React.FC<{ testId: string; label: string; value: string; note?: string }> = ({ testId, label, value, note }) => (
   <div>
-    <dt className="text-[12px] text-muted-foreground">{label}</dt>
-    <dd className="tabular text-[15px] font-semibold" data-testid={testId}>{value}</dd>
+    <dt className="text-xs text-muted-foreground">{label}</dt>
+    <dd className="tabular text-sm font-semibold" data-testid={testId}>{value}</dd>
     {note && <dd className="text-[11px] text-muted-foreground">{note}</dd>}
   </div>
 );
@@ -350,7 +350,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-base"
+        className="text-sm"
         actions={
           <>
             {may('create', 'boqItem') && (
@@ -382,7 +382,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
     <Card variant="bare">
       <CardHead
         level={2}
-        className="text-base"
+        className="text-sm"
         actions={
           canBill && !canStartInvoice && (
             <Button variant="outline" size="sm" onClick={() => setClaimFormOpen(true)}>{t('projectDetail.billing.claims.new', 'New claim')}</Button>
@@ -413,7 +413,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <Card variant="bare">
         <CardHead
           level={2}
-          className="text-base"
+          className="text-sm"
           actions={
             canStartInvoice ? (
               <ProjectBillingStart
@@ -434,7 +434,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           }
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
-          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{excl}</span>
+          <span className="ml-2 text-xs font-normal text-muted-foreground">{excl}</span>
         </CardHead>
         <CardPad>
           {billing.isPending ? (
@@ -469,7 +469,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
             </dl>
           )}
           {summary && lineProject && !summary.assessment && (
-            <p className="mt-3 text-[12px] text-muted-foreground" data-testid="billing-unassessed">
+            <p className="mt-3 text-xs text-muted-foreground" data-testid="billing-unassessed">
               {t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}
             </p>
           )}
@@ -478,7 +478,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
 
       {quantityEmpty ? (
         <details className="group">
-          <summary className="cursor-pointer rounded text-base font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
             {t('projectTabs:billing.quantity', 'Quantity billing')}
           </summary>
           <div className="mt-3 space-y-6">

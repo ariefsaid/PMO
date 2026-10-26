@@ -17,7 +17,7 @@ export function AttributedSpendingNote({ projectId }: { projectId: string }) {
   const amount = split && actuals?.currency ? formatExactMoney(split.attributed, actuals.currency, i18n.language) : null;
   if (!amount) return null;
   return (
-    <p className="text-[12px] text-muted-foreground" data-testid="budget-attributed-note">
+    <p className="text-xs text-muted-foreground" data-testid="budget-attributed-note">
       {t('costAttribution:split.budget', 'Across all years, {{attributed}} of recorded spending is attributed by cost rules, not tagged to this project in the ERP.', { attributed: amount })}
     </p>
   );

@@ -197,7 +197,7 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
           data-testid={compactWhenEmpty ? 'prewin-compact-planner' : 'milestone-strip-empty'}
           className="flex items-center gap-2 py-1"
         >
-          <span className="flex-1 text-[13px] text-muted-foreground">
+          <span className="flex-1 text-sm text-muted-foreground">
             {compactWhenEmpty
               ? t('projectDetail.milestones.prewinPlaceholder', 'Phase planning starts once this is won')
               : t('projectDetail.milestones.emptyReadOnly', 'No delivery phases yet')}
@@ -228,10 +228,10 @@ const MilestoneStrip: React.FC<MilestoneStripProps> = ({ projectId, compactWhenE
                 'Project delivery',
               )} ${deliveryRollup}%`}
             >
-              <span className="text-[12px] text-muted-foreground">
+              <span className="text-xs text-muted-foreground">
                 {t('projectDetail.milestones.rollupLabel', 'Project delivery')}
               </span>
-              <span className="text-[23px] font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
+              <span className="text-sm font-bold leading-none tabular text-foreground">{pct(deliveryRollup)}</span>
             </div>
             {canCreate && (
               <Button variant="ghost" size="sm" onClick={() => setFormTarget({ milestone: null })}>
@@ -396,7 +396,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
 
       <div className="min-w-0">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-          <span className={`text-[13px] font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
+          <span className={`text-sm font-semibold ${overdue ? 'text-warning-foreground' : 'text-foreground'}`}>
             {milestone.name}
           </span>
           {isCurrent && (
@@ -426,7 +426,7 @@ const MilestoneMobileRow: React.FC<MilestoneMobileRowProps> = ({
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        <span className="text-[14px] font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
+        <span className="text-sm font-bold tabular text-foreground">{pct(milestone.effective_pct)}</span>
         {canEdit && (
           <button
             type="button"
@@ -540,7 +540,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
           {isOverdue && (
             <Link
               to={`/projects/${projectId}/tasks`}
-              className="mt-1 inline-block text-[12px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
+              className="mt-1 inline-block text-xs font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 rounded-sm"
             >
               {t('projectDetail.milestones.viewBlockingTasks', 'View blocking tasks')}
             </Link>
@@ -558,14 +558,14 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               className="touch-target inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
               onClick={() => setMenuOpen((open) => !open)}
             >
-              <span aria-hidden="true" className="text-[18px] leading-none">⋯</span>
+              <span aria-hidden="true" className="text-sm leading-none">⋯</span>
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-9 z-10 min-w-[176px] rounded-md border border-border bg-card p-1 shadow-sm">
                 {canEdit && (
                   <button
                     type="button"
-                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm hover:bg-accent"
                     onClick={() => {
                       setMenuOpen(false);
                       onEditDetails();
@@ -577,7 +577,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
                 {canDelete && (
                   <button
                     type="button"
-                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] text-destructive hover:bg-accent"
+                    className="flex w-full rounded-sm px-2.5 py-1.5 text-left text-sm text-destructive hover:bg-accent"
                     aria-label={`${t(
                       'projectDetail.milestones.deleteMilestone',
                       'Delete phase',
@@ -604,7 +604,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               min={0}
               max={100}
               aria-label={t('projectDetail.milestones.editInputPct', 'Edit progress override')}
-              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-[13px] tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              className="h-8 w-[72px] rounded-md border border-input bg-background px-2.5 text-sm tabular focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={inputVal}
               onChange={(e) => {
                 setInputVal(e.target.value);
@@ -643,7 +643,7 @@ const MilestonePhaseCard: React.FC<MilestonePhaseCardProps> = ({
               {t('projectDetail.milestones.cancel', 'Cancel')}
             </Button>
           </div>
-          {inputError && <span className="text-[11.5px] text-destructive">{inputError}</span>}
+          {inputError && <span className="text-[11px] text-destructive">{inputError}</span>}
         </div>
       )}
     </section>

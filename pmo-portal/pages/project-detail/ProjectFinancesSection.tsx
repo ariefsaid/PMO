@@ -6,16 +6,14 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
-import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate, formatShortMoney } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { UnknownFigure } from './UnknownFigure';
-import { formatProjectDetailMoney } from './formatProjectDetailMoney';
-import { projectSubsectionHeading } from './typography';
+import { formatProjectDetailAmount } from './formatProjectDetailMoney';
+import { projectSectionHeading } from './typography';
 
 export interface ProjectFinancesSectionProps {
   project: ProjectWithRefs;
@@ -33,29 +31,28 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
   const commitments = useProjectCommittedSpend(project.id, true);
   const unknown = t('projectFinances.unavailable', 'Unavailable');
   const moneyText = (value: string | null, currency: string | null, reason = unknown) =>
-    (currency ? formatProjectDetailMoney(value, currency, i18n.language) : null) ?? reason;
+    (currency ? formatProjectDetailAmount(value, currency, i18n.language) : null) ?? reason;
   const money = (value: string | null, currency: string | null, reason = unknown): React.ReactNode => {
-    const formatted = currency ? formatProjectDetailMoney(value, currency, i18n.language) : null;
+    const formatted = currency ? formatProjectDetailAmount(value, currency, i18n.language) : null;
     return formatted ?? <UnknownFigure reason={reason} />;
   };
-  const NestedHeading = 'h4';
 
   if (query.isPending) return (
     <>
-      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
+      <div role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
+        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')}</h3>
         {costSupplement}
         <ListState variant="loading" rows={2} loadingLabel={t('projectFinances.loading', 'Loading project finances…')} className="min-h-24" />
       </div>
       <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
+        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
   );
   if (query.isError || !query.data) return (
     <>
-      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
+      <div role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
+        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')}</h3>
         {costSupplement}
         <div role="alert" className="flex flex-wrap items-center gap-2">
           {t('projectFinances.error', "Couldn't load project finances.")}
@@ -63,7 +60,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
         </div>
       </div>
       <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
+        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
       </div>
     </>
   );
@@ -74,7 +71,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
     committedSpend: commitments.data, commitmentPending: commitments.isPending, commitmentError: commitments.isError,
     projectCurrency: project.currency, actuals, contractValue: project.contract_value, activeBudget: undefined });
   const actualPosition = moneyPosition.actual;
-  const contractAfterCost = formatProjectDetailMoney(moneyPosition.contractAfterCost, project.currency, i18n.language);
+  const contractAfterCost = formatProjectDetailAmount(moneyPosition.contractAfterCost, project.currency, i18n.language);
   const mappedCategories = moneyPosition.coverage.mapped;
   const hasCoverage = moneyPosition.coverage.total > 0;
   const partialCategoryCoverage = hasCoverage && mappedCategories < actuals.categories.length;
@@ -83,7 +80,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
   const missingSpendingDate = !actualPosition.asOf && actualPosition.amount !== null;
   const needsSpendingExplanation = actualPosition.basis === 'erp' &&
     (noSpendingReading || missingSpendingDate || !hasCoverage || partialCategoryCoverage);
-  const spendingExplanation = (() => {
+  const spendingExplanation = actualPosition.basis === 'erp' ? (() => {
     if (noSpendingReading) {
       if (!hasCoverage) return t(
         'project:spendingNoUpdateNoCategories',
@@ -111,7 +108,7 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       { mapped: mappedCategories, total: actuals.categories.length },
     );
     return null;
-  })();
+  })() : null;
   const knownCategories: typeof actuals.categories = [];
   const unavailableCategories: typeof actuals.categories = [];
   for (const row of actuals.categories) {
@@ -123,42 +120,59 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
   const split = actualPosition.basis === 'erp' && actualPosition.complete
     ? attributedSplit({ tagged: actuals.tagged_total, attributed: actuals.attributed_total })
     : null;
-  const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
-  const onHand = ON_HAND_STATUSES.includes(project.status as string);
   const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
   const cashInvalid = t('uxs01.cashReceivedInvalid', 'Unavailable — receipt-backed cash data could not be verified');
   const cashReading = data.cash_received ?? { state: 'unavailable' as const, buckets: [], reason: 'not-reported' as const };
   const cashKnown = cashReading.state === 'known';
   const cashValue = cashReading.state === 'known'
     ? cashReading.buckets.length === 0
-      ? formatProjectDetailMoney('0.00', project.currency, i18n.language) ?? cashInvalid
+      ? `${project.currency} ${formatProjectDetailAmount('0.00', project.currency, i18n.language) ?? cashInvalid}`
       : (() => {
-        const amounts = cashReading.buckets.map(({ amount, currency }) => formatProjectDetailMoney(amount, currency, i18n.language));
+        const amounts = cashReading.buckets.map(({ amount, currency }) => {
+          const formatted = formatProjectDetailAmount(amount, currency, i18n.language);
+          return formatted === null ? null : `${currency} ${formatted}`;
+        });
         return amounts.every((amount): amount is string => amount !== null) ? amounts.join(' · ') : cashInvalid;
       })()
     : cashReading.state === 'incomplete'
       ? t('uxs01.cashReceivedIncomplete', 'Incomplete — receipt allocation cannot establish cash')
       : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
-  const settlementNote = t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.');
+  const settlementNote = t('projectFinances.settlementNote', 'Settled includes cash, withholding and credits; cash received is shown above.');
   const field = (label: string, value: React.ReactNode, basis?: React.ReactNode, labelTitle?: string) => (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground" title={labelTitle}>{label}</dt>
-      <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
+      <dt className="text-xs font-semibold text-muted-foreground" title={labelTitle}>{label}</dt>
+      <dd className="break-words text-sm font-normal tabular-nums">{value}</dd>
       {basis && <dd>{basis}</dd>}
     </div>
   );
   // PD-C: an unknown cash reading is a dash; the reason sits in the title (and for screen readers).
   const cashField = (
     <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{t('uxs01.cashReceived', 'Cash received')}</dt>
-      <dd className="break-words text-sm font-semibold tabular-nums">
+      <dt className="text-xs font-semibold text-muted-foreground">{t('uxs01.cashReceived', 'Cash received')}</dt>
+      <dd className="break-words text-sm font-normal tabular-nums">
         {cashKnown && cashValue !== cashInvalid ? cashValue : <UnknownFigure reason={cashValue} />}
       </dd>
-      <dd><span className="text-xs text-muted-foreground">{cashScope}</span></dd>
+      <dd><span className="text-[11px] font-semibold text-muted-foreground">{cashScope}</span></dd>
     </div>
   );
   const hasInvoices = data.invoices.length > 0;
+  const remainingExact = formatProjectDetailAmount(data.remaining_to_invoice, project.currency, i18n.language);
+  const remainingCompact = remainingExact === null
+    ? null
+    : formatShortMoney(Number(data.remaining_to_invoice), project.currency, { code: true });
+  const primaryContent = (
+    <section className="min-w-0 space-y-4" aria-label={t('projectFinances.stillToInvoice', 'Still to invoice')}>
+      <h2 className={projectSectionHeading} data-primary-figure="true">
+        {t('projectFinances.stillToInvoice', 'Still to invoice')}
+        {remainingCompact ? ` · ${remainingCompact}` : ` · ${project.currency}`}
+      </h2>
+      <dl className="grid min-w-0 grid-cols-2 gap-4">
+        {field(t('projectFinances.exactRemaining', 'Exact remaining'), remainingExact ?? <UnknownFigure reason={unknown} />)}
+        {cashField}
+      </dl>
+    </section>
+  );
 
   const billingContent = (
     <>
@@ -167,75 +181,55 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
         {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
       </p>}
-      {hasInvoices && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {cashField}
-        {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
-          isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
-        {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),
-          isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-remaining-basis" />)}
-      </dl>}
-      {data.invoices.map((bucket) => {
-        const margin = deriveMargin(bucket, actuals);
+      {hasInvoices && <>
+        <p className="text-sm text-muted-foreground">{settlementNote}</p>
+        {data.invoices.map((bucket) => {
         const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
-        const reasons = {
-          'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
-          'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
-          'actuals-unavailable': t('projectFinances.actualsUnavailable', 'Not available yet'),
-          'restricted-rows': t('projectFinances.restricted', 'Actuals exclude restricted rows'),
-        };
         return (
-          <div key={bucket.currency} className="min-w-0 space-y-2" data-testid={`project-finances-${bucket.currency}`}>
-            <div>
-              <NestedHeading className={projectSubsectionHeading}>{bucket.currency}</NestedHeading>
-              <p className="text-xs text-muted-foreground">{t('financeCopy.invoiceCount', '{{count}} invoices', { count: bucket.invoice_count })}</p>
-            </div>
-            <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
+          <section key={bucket.currency} className="min-w-0 space-y-4" data-testid={`project-finances-${bucket.currency}`}>
+            <h4 className={projectSectionHeading}>
+              {t('project:projectDetail.moneyPosition.billing', 'Billing')} · {bucket.currency} · {bucket.tax_basis === 'mixed'
+                ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
+                : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
+            </h4>
+            <dl className="grid min-w-0 grid-cols-2 gap-4 sm:grid-cols-3">
               {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0
+              {field(t('projectFinances.settledAgainstInvoices', 'Settled against invoices'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
-                : money(bucket.settled, bucket.currency),
-                undefined, hasSettlement ? settlementNote : undefined)}
+                : money(bucket.settled, bucket.currency))}
               {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0
                 ? <UnknownFigure reason={incomplete} />
                 : money(bucket.outstanding, bucket.currency))}
-              {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency, reasons['work-unavailable']),
-                undefined, t('project:billedWorkQualifier', 'Net of tax; advances excluded'))}
-              {field(t('projectFinances.margin', 'Margin'), margin.reason
-                ? <UnknownFigure reason={reasons[margin.reason]} />
-                : money(margin.amount, bucket.currency))}
             </dl>
-            <div className="text-xs text-muted-foreground">
-              {bucket.tax_basis === 'mixed'
-                ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
-                : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
-            </div>
-          </div>
+            <details className="min-w-0">
+              <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                {t('projectFinances.viewInvoices', 'View invoices')} · {bucket.invoice_count}
+              </summary>
+              <p className="text-sm text-muted-foreground">
+                {t('projectFinances.invoiceRecordsInBilling', 'Invoice records are in the Billing section.')}
+              </p>
+            </details>
+          </section>
         );
-      })}
+        })}
+      </>}
     </>
   );
   const spendingContent = (
     <div className="min-w-0 space-y-2">
-        <NestedHeading className={projectSubsectionHeading}>
-          {t('uxs01.recordedSpending', 'Recorded spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
-        </NestedHeading>
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
-        <p className="break-words font-semibold tabular-nums">
-          {money(actualPosition.amount, actualPosition.currency, spendingExplanation ?? unknown)}
-          {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
-            {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
-          </span>}
-        </p>
+        <dl className="grid min-w-0 grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <dt className="text-xs font-semibold text-muted-foreground">{t('uxs01.recordedSpending', 'Recorded spending')}</dt>
+            <dd className="break-words text-sm font-normal tabular-nums">{money(actualPosition.amount, actualPosition.currency, unknown)}</dd>
+          </div>
+        </dl>
         {contractAfterCost !== null && <p className="text-sm">
           <span className="text-xs text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</span>
           <span data-testid="contract-after-cost" className="ml-2 font-semibold tabular-nums">{contractAfterCost}</span>
         </p>}
-        {actualPosition.basis === 'pmo'
-          ? <p className="text-xs text-muted-foreground">
-            {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
-            <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
-          </p> : null}
+        {actualPosition.basis === 'pmo' && <OtherCurrencyCommitments positions={commitments.otherCurrencies} />}
         {split && (
           <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
@@ -322,20 +316,56 @@ export function ProjectFinancesSection({ project, costSupplement }: ProjectFinan
       </div>
   );
 
+  const marginContent = data.invoices.map((bucket) => {
+    const margin = deriveMargin(bucket, actuals);
+    const reasons = {
+      'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
+      'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
+      'actuals-unavailable': t('projectFinances.actualsUnavailable', 'Not available yet'),
+      'restricted-rows': t('projectFinances.restricted', 'Actuals exclude restricted rows'),
+    };
+    return (
+      <section key={bucket.currency} className="min-w-0 space-y-4">
+        <h4 className={projectSectionHeading}>
+          {t('projectFinances.margin', 'Margin')} · {bucket.currency} · {bucket.tax_basis === 'mixed'
+            ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
+            : <TaxBasisLabel treatment={bucket.tax_basis} showDetails={false} />}
+          {' · '}{t('project:billedWorkQualifier', 'Net of tax; advances excluded')}
+        </h4>
+        <dl className="grid min-w-0 grid-cols-2 gap-4">
+          {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency, reasons['work-unavailable']))}
+          {field(t('projectFinances.margin', 'Margin'), margin.reason
+            ? <UnknownFigure reason={reasons[margin.reason]} />
+            : money(margin.amount, bucket.currency))}
+        </dl>
+      </section>
+    );
+  });
+
   return (
-    <>
-      <div role="group" aria-label={t('project:projectDetail.moneyPosition.cost', 'Cost')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.cost', 'Cost')}</h3>
-        {costSupplement}
-        {spendingContent}
-      </div>
-      <div role="group" data-testid="project-finances" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
-        <h3 className={projectSubsectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
+    <div className="min-w-0 space-y-8" data-testid="money-position-groups">
+      {primaryContent}
+      <section role="group" aria-label={t('project:projectDetail.moneyPosition.billing', 'Billing')} className="min-w-0 space-y-4">
+        <h3 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.billing', 'Billing')}</h3>
         {billingContent}
         {hasInvoices && <p className="text-xs text-muted-foreground" data-testid="project-invoicing-scope">
           {t('project:invoiceScope', 'Only invoices linked to this project are included.')}
         </p>}
-      </div>
-    </>
+      </section>
+      <section role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
+        <h3 className={projectSectionHeading}>
+          {t('project:projectDetail.moneyPosition.spending', 'Spending')}{actualPosition.currency ? ` · ${actualPosition.currency}` : ''}
+          {actualPosition.basis === 'erp' && actualPosition.asOf
+            ? ` · ${t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}`
+            : actualPosition.basis === 'pmo' ? ` · ${t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}` : ''}
+        </h3>
+        {costSupplement}
+        {spendingContent}
+      </section>
+      <section role="group" data-testid="project-finances" aria-label={t('projectFinances.margin', 'Margin')} className="min-w-0 space-y-4">
+        <h3 className={projectSectionHeading}>{t('projectFinances.margin', 'Margin')}</h3>
+        {marginContent}
+      </section>
+    </div>
   );
 }

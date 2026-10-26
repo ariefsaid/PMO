@@ -429,7 +429,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   return (
     <div>
       <div className="mb-3.5">
-        <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+        <h2 className="text-xl font-bold tracking-[-0.01em]">
           {t('projectDetail.tasks.heading', 'Tasks')}
         </h2>
       </div>
@@ -446,7 +446,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           aria-label={t('project:projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
           value={phaseFilter}
           onChange={(event) => setPhaseFilter(event.target.value)}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="all">{t('project:projectDetail.tasks.toolbar.allPhases', 'All phases')}</option>
           {[...milestoneList]
@@ -458,7 +458,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           aria-label={t('project:projectDetail.tasks.toolbar.statusFilter', 'Status filter')}
           value={statusFilter}
           onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="all">{t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
           {STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
@@ -467,7 +467,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           aria-label={t('project:projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
           value={dueSort}
           onChange={(event) => setDueSort(event.target.value as DueSort)}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <option value="soonest">{t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
           <option value="latest">{t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
@@ -711,8 +711,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             className="flex min-w-0 flex-col rounded-lg border border-border bg-secondary/50"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 pb-2.5 pt-[11px]">
-              <span className="text-[13px] font-bold tracking-[-0.01em]">{s}</span>
-              <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11.5px] font-bold text-muted-foreground tabular">
+              <span className="text-sm font-bold tracking-[-0.01em]">{s}</span>
+              <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11px] font-bold text-muted-foreground tabular">
                 {col.length}
               </span>
             </div>
@@ -728,14 +728,14 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold" title={task.name}>
+                      <span className="truncate text-sm font-semibold" title={task.name}>
                         {task.name}
                       </span>
                       {externallyOwned && (
                         <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
                       )}
                     </div>
-                    <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
+                    <div className="mt-1 truncate text-[11px] text-muted-foreground">
                       {task.assignee
                         ? task.assignee.full_name
                         : t('projectDetail.tasks.unassigned', 'Unassigned')}
@@ -1079,7 +1079,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
         </FormGrid>
         {profilesError && (
-          <p className="mt-1 text-[12px] text-muted-foreground">
+          <p className="mt-1 text-xs text-muted-foreground">
             {t(
               'projectDetail.tasks.form.peopleLoadFailed',
               'People could not be loaded; you can still save and assign later.',
@@ -1092,7 +1092,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       {isEdit && (
         <FormSection legend={t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}>
           {deps.length === 0 ? (
-            <p className="text-[12.5px] text-muted-foreground">
+            <p className="text-xs text-muted-foreground">
               {t(
                 'projectDetail.tasks.form.noDependencies',
                 'No dependencies. Add a task that must finish first.',
@@ -1103,7 +1103,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               {deps.map((d) => (
                 <li
                   key={d}
-                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-[13px]"
+                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-sm"
                 >
                   <span className="min-w-0 flex-1 truncate">{taskName(d)}</span>
                   <Button
@@ -1215,7 +1215,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
       >
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           {isUngrouped ? (
-            <span className="text-[12px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {t('projectDetail.tasks.noMilestone', 'No phase')}
             </span>
           ) : (
@@ -1250,7 +1250,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             tableId="project-detail-tabs-taskstab-2-table"
           />
         ) : (
-          <p className="py-2 text-center text-[12px] text-muted-foreground">
+          <p className="py-2 text-center text-xs text-muted-foreground">
             {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}
           </p>
         )}

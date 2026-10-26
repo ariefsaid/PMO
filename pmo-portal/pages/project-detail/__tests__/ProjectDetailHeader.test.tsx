@@ -151,7 +151,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });
 
-  it('R-002 / AC-LRC-004: puts the source-aware return above identity and links the customer parent', () => {
+  it('R-002: leaves route return to the shared frame and links the customer parent', () => {
     roleBox.value = 'Project Manager';
     render(
       <MemoryRouter initialEntries={[{
@@ -161,29 +161,27 @@ describe('ProjectDetailHeader — content', () => {
         <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
       </MemoryRouter>,
     );
-    const returnLink = screen.getByRole('link', { name: /Back to Sales Pipeline/i });
-    expect(returnLink).toHaveAttribute('href', '/sales?stage=Tender+Submitted&view=table');
+    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
     const header = screen.getByTestId('record-header');
-    expect(returnLink.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(within(screen.getByRole('group', { name: 'Project scope' })).getByRole('link', { name: 'Innovate Corp' }))
       .toHaveAttribute('href', '/companies/c2');
   });
 
-  it('R-002 / AC-LRC-011: honors a Projects source and uses stage-aware direct-entry fallbacks', () => {
+  it('R-002: keeps route return out of the identity header for pipeline and delivery stages', () => {
     const projectContext = { pmoListReturn: { list: 'projects', path: '/projects?status=Leads' } };
     const { rerender } = render(
       <MemoryRouter initialEntries={[{ pathname: '/projects/p1', state: projectContext }] }>
         <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
       </MemoryRouter>,
     );
-    expect(screen.getByRole('link', { name: /Back to Projects/i })).toHaveAttribute('href', '/projects?status=Leads');
+    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
 
     rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider></MemoryRouter>);
-    expect(screen.getByRole('link', { name: /Back to Sales Pipeline/i })).toHaveAttribute('href', '/sales');
+    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
 
     rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} /></ToastProvider></MemoryRouter>);
-    expect(screen.getByRole('link', { name: /Back to Projects/i })).toHaveAttribute('href', '/projects');
+    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
   });
 
   it('CW-3a: the Project detail opens with the shared RecordHeader (icon + name + status + action zone)', () => {
@@ -255,6 +253,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Admin sees the hard-Delete action', async () => {
     await renderHeaderWithMore('Admin', onHand);
+    expect(screen.queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
@@ -268,6 +268,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
     await renderHeaderWithMore('Admin', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
@@ -279,6 +280,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
     await renderHeaderWithMore('Admin', onHand);
+    await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
@@ -306,6 +308,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole('button', { name: /^Archive project$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /Archive project/i }));
     await waitFor(() => expect(projectMutations.archive.mutateAsync).toHaveBeenCalledWith('p1'));

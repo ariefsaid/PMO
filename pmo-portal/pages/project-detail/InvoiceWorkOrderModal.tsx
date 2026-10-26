@@ -204,7 +204,7 @@ const InvoiceWorkOrderModal: React.FC<InvoiceWorkOrderModalProps> = ({
     >
       {/* DD-BWO-8: the work order's client PO goes on the ERP invoice. Shown, read-only, so the user knows what the client
           will see — never an input (it is the work order's, not this invoice's). */}
-      <p data-testid="invoice-wo-client-po" className="mb-3 text-[12.5px] text-muted-foreground">
+      <p data-testid="invoice-wo-client-po" className="mb-3 text-xs text-muted-foreground">
         {t('projectDetail.workOrders.billing.modal.clientPo', 'Client PO on the invoice')}
         <span className="ml-2 font-semibold tabular text-foreground">
           {workOrder.client_po_number || t('projectDetail.workOrders.billing.modal.clientPoNone', 'None on this work order')}

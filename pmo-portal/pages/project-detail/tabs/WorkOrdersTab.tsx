@@ -241,7 +241,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       }
       if (billing.isError || !f) {
         return (
-          <span data-testid={`wo-billing-${row.id}`} className="text-[12px] text-muted-foreground">
+          <span data-testid={`wo-billing-${row.id}`} className="text-xs text-muted-foreground">
             {t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
           </span>
         );
@@ -707,7 +707,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               ] as const).map(([testId, label, value]) => (
                 <div key={testId} data-testid={testId}>
                   <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
-                  <dd className="mt-0.5 text-[15px] font-bold tabular">
+                  <dd className="mt-0.5 text-sm font-bold tabular">
                     {totals.complete
                       ? formatCurrencyCents(value, currency)
                       : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
@@ -716,7 +716,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               ))}
             </dl>
             {!totals.complete && (
-              <p className="mt-2 text-[12px] text-muted-foreground">
+              <p className="mt-2 text-xs text-muted-foreground">
                 {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
               </p>
             )}
@@ -736,7 +736,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <>
             {billingPosition}
             {dpNotice !== null && (
-              <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
+              <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
                 {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
                   '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
                   { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
@@ -759,7 +759,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             aria-label={t('project:projectDetail.workOrders.toolbar.statusFilter', 'Filter work orders by status')}
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
-            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <option value="all">{t('project:projectDetail.workOrders.toolbar.allStatuses', 'All statuses')}</option>
             {WORK_ORDER_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
@@ -768,7 +768,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             aria-label={t('project:projectDetail.workOrders.toolbar.sortOrders', 'Sort work orders')}
             value={sortOrder}
             onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
-            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-[13px] text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <option value="newest">{t('project:projectDetail.workOrders.toolbar.newest', 'Newest order date')}</option>
             <option value="oldest">{t('project:projectDetail.workOrders.toolbar.oldest', 'Oldest order date')}</option>
@@ -793,7 +793,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </div>
         )}
 
-        <h2 id="project-work-orders-heading" className="mb-3.5 text-[16px] font-bold tracking-[-0.01em]">
+        <h2 id="project-work-orders-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
           {t('projectDetail.workOrders.title', 'Work orders')}
         </h2>
         {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
@@ -829,7 +829,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
       {showQuantities && rows.length > 0 && (
         <Card variant="bare" data-testid="wo-quantities">
-          <CardHead level={2} className="text-base">
+          <CardHead level={2} className="text-sm">
             {t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities')}
           </CardHead>
           <CardPad>
@@ -844,7 +844,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
                 return (
                   <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
-                    <summary className="cursor-pointer rounded text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                    <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                       {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
                       <span className="ml-2 font-normal text-muted-foreground">
                         {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
@@ -852,13 +852,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     </summary>
                     <div className="mt-3 flex flex-col gap-4">
                       <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
-                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                           {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
                         </h3>
                         {mine.length === 0 ? (
-                          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
+                          <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
                         ) : (
-                          <ul className="flex flex-col gap-0.5 text-[13px]" data-testid={`wo-lines-${row.id}`}>
+                          <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
                             {mine.map((l) => {
                               const item = boqRows.find((b) => b.id === l.boq_item_id);
                               return (
@@ -879,7 +879,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         )}
                       </section>
                       <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
-                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
                           {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
                         </h3>
                         <WorkOrderAcceptances
