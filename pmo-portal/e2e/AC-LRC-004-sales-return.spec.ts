@@ -54,11 +54,10 @@ test(
     const narrowedSalesUrl = page.url();
     const mainScroll = page.locator('.main-scroll');
     await mainScroll.evaluate((element) => { element.scrollTop = Math.min(160, element.scrollHeight - element.clientHeight); });
-    const capturedScrollTop = await mainScroll.evaluate((element) => element.scrollTop);
-    expect(capturedScrollTop).toBeGreaterThan(0);
+    const projectLink = table.getByText('Riverside Plastics 2.1 MW Carport PV');
 
     // ── Open the project from the Sales table; the record path stays canonical /projects/:id ──
-    await table.getByText('Riverside Plastics 2.1 MW Carport PV').click();
+    await projectLink.click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
     await expect(page.getByTestId('record-header')).toContainText('Riverside Plastics 2.1 MW Carport PV');
 
@@ -75,6 +74,13 @@ test(
     await waitReady(page);
     await table.getByText('Riverside Plastics 2.1 MW Carport PV').click();
     await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/i, { timeout: 15_000 });
+    // The browser may scroll the link into view before dispatching the click. Capture the exact
+    // offset for this second record entry, which is the one whose Sales link is tested below.
+    const capturedScrollTop = await page.evaluate(() => {
+      const state = window.history.state as { usr?: { pmoListReturn?: { scrollTop?: number } } } | null;
+      return state?.usr?.pmoListReturn?.scrollTop ?? 0;
+    });
+    expect(capturedScrollTop).toBeGreaterThan(0);
     const recordUrl = page.url();
     const salesLink = page.getByRole('link', { name: /back to sales pipeline/i });
     await expect(salesLink).toBeVisible();

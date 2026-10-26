@@ -7,7 +7,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 
-const LONG_AMOUNT_SHAPE = /[\p{Sc}]\s?\d{1,3}(?:[.,]\d{3})+/u;
+const LONG_AMOUNT_SHAPE = /\d{1,3}(?:[.,]\d{3})+/u;
 const FUNNEL_VIEWPORT_WIDTH = 768;
 
 async function openSummary(page: Page) {
@@ -24,8 +24,18 @@ test.describe('AC-SFA-001 sales summary amount geometry at the 768px desktop bre
     await openSummary(page);
     await waitForFonts(page);
 
-    const amounts = await page.locator('[data-funnel-stage-amount]').allTextContents();
-    expect(amounts.some((text) => LONG_AMOUNT_SHAPE.test(text)), `expected a grouped amount, got: ${amounts.join(' | ')}`).toBe(true);
+    const stageSummaries = await page.locator('[data-funnel-stage]').evaluateAll((stages) => stages.map((stage) => ({
+      head: stage.querySelector(':scope > div')?.textContent ?? '',
+      amount: stage.querySelector('[data-funnel-stage-amount]')?.textContent?.trim() ?? '',
+    })));
+    expect(
+      stageSummaries.some(({ head, amount }) => (head.includes('IDR') || head.includes('USD')) && LONG_AMOUNT_SHAPE.test(amount)),
+      `expected a single-currency stage head and grouped whole-unit amount, got: ${JSON.stringify(stageSummaries)}`,
+    ).toBe(true);
+    expect(
+      stageSummaries.some(({ head, amount }) => !head.includes('IDR') && !head.includes('USD') && amount === '—'),
+      `mixed-currency stage must remain unavailable, got: ${JSON.stringify(stageSummaries)}`,
+    ).toBe(true);
 
     const idrProbeAmounts = await page.evaluate(() => {
       const idr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(1_250_000_000_000);
