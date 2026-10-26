@@ -89,11 +89,8 @@ const ALL_ITEMS: NavItem[] = [
   { to: '/sales-invoices', text: 'Sales Invoices', icon: 'invoices', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/incoming-payments', text: 'Incoming Payments', icon: 'payments', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
   { to: '/procurement', text: 'Procurement', icon: 'procurement', group: 'Manage money', feature: 'procurement', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
-  { to: '/revenue-by-project', text: 'Revenue by Project', icon: 'table', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
+  { to: '/financial-statements?section=project-revenue', text: 'Project revenue', icon: 'table', group: 'Manage money', feature: 'revenue', roles: [UserRole.ProjectManager] },
   { to: '/financial-statements', text: 'Financial statements', icon: 'table', group: 'Manage money', realRoleOnly: true, roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance] },
-  // #765: the Reports module's first report — the monthly management pack. Same read set and the same
-  // `revenue` entitlement as the other Finance items (it is built from sales invoices).
-  { to: '/reports', text: 'Management pack', icon: 'reports', group: 'Manage money', feature: 'revenue', roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin] },
 ];
 
 const GROUP_ORDER: NavItem['group'][] = [
@@ -191,9 +188,8 @@ export const Rail: React.FC<RailProps> = ({ onNavigate, collapsed = false, onTog
     '/my-tasks': t('shell.nav.myTasks', 'My Tasks'),
     '/sales-invoices': t('shell.nav.salesInvoices', 'Sales Invoices'),
     '/incoming-payments': t('shell.nav.incomingPayments', 'Incoming Payments'),
-    '/revenue-by-project': t('shell.nav.revenueByProject', 'Revenue by Project'),
+    '/financial-statements?section=project-revenue': t('moneyIn:uxs42.projectRevenue', 'Project revenue'),
     '/financial-statements': t('shell.nav.financialStatements', 'Financial statements'),
-    '/reports': t('shell.nav.managementPack', 'Management pack'),
   };
   const navLabels: Record<string, string> = Object.fromEntries(
     items.map((item) => {

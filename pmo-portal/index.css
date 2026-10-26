@@ -791,10 +791,3 @@
   body:has(.project-detail-record) [role="menu"] button { min-height: 44px; }
 }
 
-/* These report destinations now resolve into Financial statements → Project revenue. Keep the
-   merged home in the shared shell and remove only its retired destination links from both the rail
-   and phone drawer; legacy URLs remain routable for bookmarks and external links. */
-nav[aria-label="Primary navigation"] a[href="/revenue-by-project"],
-nav[aria-label="Primary navigation"] a[href="/reports"] {
-  display: none;
-}
