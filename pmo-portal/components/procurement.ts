@@ -1,26 +1,22 @@
-import type { StatusVariant, LifecycleStep } from '@/src/components/ui';
+import type { StatusVariant } from '@/src/components/ui';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import type { Tables } from '@/src/lib/supabase/database.types';
 
 /**
  * IA-3 procurement lifecycle model (master plan §4.2; Wave-1 Area-5 tasks 22-24).
- * Six visible stages — PR → VQ → PO → GR → VI → Paid — collapse the eleven-value
- * `procurements.status` enum into the operator-facing journey shown in the table
- * pips, the by-stage board, and the detail-page node stepper.
+ * Six board stages — PR → VQ → PO → GR → VI → Paid — group the eleven-value
+ * `procurements.status` enum for collection scanning. The record's current status
+ * and dated progression are shown in its identity and Activity chronology.
  *
  * **Approval is a GATE, not a stage** (owner directive 2026-06-21, reversing the
- * prior PROC-002 "Approved is its own node" decision). An approval is a quality
+ * prior PROC-002 classification). An approval is a quality
  * gate that sits across the PR step — it does not mint a document and is not a
- * place a request "rests". So there is NO Approved node. But approval must still
- * be VISIBLE (the original PROC-002 concern — an Approve must not leave the bar
- * stuck on step 1): we make it visible by **advancing the bar on approval** — at
- * status `Approved` the PR node is `done` and the Vendor-Quote node is `current`
- * (VQ is the next action even though no quote exists yet). The status pill
- * ("Approved" vs "Vendor Quote") differentiates the two PR-done/VQ-current states.
+ * place a request "rests". So approval has no separate board column. An Approved
+ * request groups with Vendor Quote because quote sourcing is its next useful step;
+ * the record still displays the exact Approved status.
  *
- * Other rule (unchanged): **Quote Selected folds into the Vendor-Quote node**
- * (PROC-003), not the PO node. Selecting a quote no longer pre-jumps the badge to
- * "Purchase Order" before a PO genuinely exists; the PO node is reached only at
+ * **Quote Selected groups with Vendor Quote** (PROC-003), not Purchase Order.
+ * Selecting a quote does not imply that a PO exists; that board stage begins at
  * Ordered.
  *
  * This is presentation only — `LEGAL_TRANSITIONS` and the RPC stay the single
@@ -31,7 +27,7 @@ export interface PrStage {
   key: 'pr' | 'vq' | 'po' | 'gr' | 'vi' | 'paid';
   /** Compact label (table pip tooltip / board column short). */
   label: string;
-  /** Full stage name (detail node label / status pill text). */
+  /** Full stage name used for board grouping and explanatory labels. */
   full: string;
 }
 
@@ -45,11 +41,9 @@ export const PR_STAGES: readonly PrStage[] = [
 ] as const;
 
 /**
- * Maps every in-flight `procurements.status` to its 0-based stage index.
- * Draft/Requested → PR (0); **Approved advances the bar to the VQ node** (1 — the
- * approval gate moves the journey on to its next action, it is not its own node);
- * Vendor Quoted AND Quote Selected → the VQ node (1, PROC-003 — no PO pre-jump);
- * Ordered → PO (2).
+ * Maps each procurement status to its 0-based collection board stage.
+ * Draft/Requested → PR (0); Approved, Vendor Quoted and Quote Selected → VQ (1);
+ * Ordered → PO (2). Approval remains visible as the record status, not a stage.
  */
 const STATUS_TO_STAGE: Record<string, number> = {
   Draft: 0,
@@ -62,19 +56,6 @@ const STATUS_TO_STAGE: Record<string, number> = {
   'Vendor Invoiced': 4,
   Paid: 5,
 };
-
-/**
- * Statuses whose canonical user-facing label (AC-IXD-PROC-001) IS the honest name
- * of the stage NODE they currently occupy — so when they are the active step, the
- * current node renames to that status label instead of the generic stage name.
- *
- * `Quote Selected` qualifies: it sits on the VQ node (PROC-003) and "Quote
- * Selected" is the honest sub-state of that node. `Approved` does NOT qualify: it
- * occupies the VQ node only because approval ADVANCED the bar to the next action
- * — the VQ node must stay labelled "Vendor Quote", never "Approved" (that would
- * mislabel the node for a request that has no quote yet).
- */
-const STATUS_RENAMES_CURRENT_NODE = new Set<string>(['Quote Selected']);
 
 // ---------------------------------------------------------------------------
 // AC-IXD-PROC-001 — ONE canonical user-facing label per state (IxD #13).
@@ -130,12 +111,11 @@ export function toastStateLabel(to: ProcurementStatus): string {
   return STATUS_LABEL[to as string] ?? (to as string);
 }
 
-/** Terminal off-track statuses — no stage position (the lifecycle was abandoned). */
+/** Terminal statuses do not appear in an in-flight board stage. */
 const TERMINAL_OFF_TRACK = new Set<string>(['Rejected', 'Cancelled']);
 
 /**
- * The stage index (0..5) for a status, or `-1` for the terminal off-track
- * statuses (Rejected / Cancelled) which never reach a lifecycle node.
+ * The board stage index (0..5) for a status, or `-1` for terminal statuses.
  */
 export function stageIndexForStatus(status: ProcurementStatus): number {
   const s = status as string;
@@ -147,13 +127,8 @@ export function stageIndexForStatus(status: ProcurementStatus): number {
  * StatusPill variant: Paid → won, Rejected/Cancelled → lost, Draft → draft, all
  * other in-flight statuses → `progress` (the quiet neutral pill).
  *
- * I1 fix: the list pill shows each record's OWN stage (not a board column), so
- * there is no single "active" stage to render blue — collapsing every in-flight
- * status to the blue `open` produced three identical blue pills (Purchase
- * Request / Vendor Quote / Purchase Order). They are now neutral `progress`,
- * differentiated from each other by their distinct `stageLabelForStatus` label
- * and the row's lifecycle pip stepper (color-not-only). The blue `open` variant
- * is retained for surfaces with a genuine single active item (e.g. sales).
+ * In-flight statuses use the neutral `progress` pill; their exact state text
+ * carries the meaning, while the collection board provides stage grouping.
  */
 export function pillVariantForStatus(status: ProcurementStatus): StatusVariant {
   const s = status as string;
@@ -168,10 +143,8 @@ export function pillVariantForStatus(status: ProcurementStatus): StatusVariant {
  * state (AC-IXD-PROC-001). Reads `STATUS_LABEL` so the badge can never disagree
  * with the success toast or the button verb that reached the state.
  *
- * Note: this is the per-STATUS label (e.g. Quote Selected → "Quote Selected"),
- * which is intentionally distinct from the macro stage NODE's full name (Quote
- * Selected shares the Vendor-Quote node for stepper position, PROC-003, but the
- * pill still reads the honest status the user transitioned to).
+ * This is the per-status label (for example, Quote Selected remains Quote
+ * Selected even though the collection board groups it with Vendor Quote).
  */
 export function stageLabelForStatus(status: ProcurementStatus): string {
   const s = status as string;
@@ -239,7 +212,7 @@ export function selectedQuotation(
   if (flagged) return flagged;
 
   // Below the flag-drift fallback only applies once a quote is genuinely committed —
-  // i.e. the PR has reached the VQ node's selected sub-state or beyond (Quote Selected → Paid).
+  // i.e. the PR has reached the VQ stage's selected sub-state or beyond (Quote Selected → Paid).
   // `Vendor Quoted` (idx 2 but not selected) and earlier carry NO committed quote.
   const committed =
     status !== 'Vendor Quoted' && stageIndexForStatus(status) >= stageIndexForStatus('Quote Selected' as ProcurementStatus);
@@ -258,90 +231,6 @@ export function selectedQuotation(
 
   // 3. A single quotation on a committed PR is the selected one by elimination.
   return quotations.length === 1 ? quotations[0] : undefined;
-}
-
-/** The reached doc references, keyed by stage, read from the procurement record. */
-export interface DocRefs {
-  pr_number?: string | null;
-  vq_number?: string | null;
-  po_number?: string | null;
-  gr_number?: string | null;
-  vi_number?: string | null;
-}
-
-/**
- * Builds the six-step lifecycle for the LifecycleStepper (node + inline variants).
- * Stages before the current index are `done`, the current is `current`, later are
- * `upcoming`. A Paid procurement marks the whole track done + the final node `paid`;
- * a terminal off-track procurement (Rejected/Cancelled) marks PR `current` and the
- * rest `skipped` (the lifecycle was abandoned). Doc refs decorate reached nodes.
- * Approval is a gate (no node) — it advances an `Approved` request to PR=done,
- * VQ=current (visible on the bar; see the module header).
- */
-export function lifecycleSteps(status: ProcurementStatus, refs?: DocRefs): LifecycleStep[] {
-  const idx = stageIndexForStatus(status);
-  const s = status as string;
-  // Aligned to PR_STAGES: PR · VQ · PO · GR · VI · Paid.
-  const refByStage: (string | null | undefined)[] = [
-    refs?.pr_number,
-    refs?.vq_number,
-    refs?.po_number,
-    refs?.gr_number,
-    refs?.vi_number,
-    undefined, // Paid node carries no minted doc ref
-  ];
-
-  if (s === 'Paid') {
-    return PR_STAGES.map((st, i) => ({
-      label: st.full,
-      state: i === PR_STAGES.length - 1 ? 'paid' : 'done',
-      ref: refByStage[i] ?? undefined,
-    }));
-  }
-
-  if (TERMINAL_OFF_TRACK.has(s)) {
-    return PR_STAGES.map((st, i) => ({
-      label: st.full,
-      state: i === 0 ? 'current' : 'skipped',
-      ref: i === 0 ? (refByStage[0] ?? undefined) : undefined,
-    }));
-  }
-
-  return PR_STAGES.map((st, i) => {
-    const state: LifecycleStep['state'] = i < idx ? 'done' : i === idx ? 'current' : 'upcoming';
-    // PROC-001: the ACTIVE node names the SAME canonical state the badge + toast show — BUT only
-    // when that status canonically belongs to this node. 'Quote Selected' does (PROC-003: it is the
-    // honest sub-state of the VQ node → the current node reads "Quote Selected"). 'Approved' does
-    // NOT — it occupies the VQ node only because the approval gate advanced the bar, so the node
-    // must stay "Vendor Quote" (never "Approved" for a request with no quote yet).
-    const label =
-      state === 'current' && STATUS_RENAMES_CURRENT_NODE.has(s) ? stageLabelForStatus(status) : st.full;
-    return {
-      label,
-      state,
-      ref: i <= idx ? (refByStage[i] ?? undefined) : undefined,
-    };
-  });
-}
-
-/** Which of the five document steps have a record on the purchase (PR · quote · PO · receipt · invoice). */
-export type StepRecords = Record<'pr' | 'vq' | 'po' | 'gr' | 'vi', boolean>;
-
-/**
- * Flexible-entry progress bar (ADR-0093): a purchase may start at any step, so the bar shows only the steps that
- * actually have a record, the current step, and the single next step — never an earlier step once a later document
- * exists. A Rejected/Cancelled track (`skipped` steps) is returned unchanged.
- */
-export function visibleLifecycleSteps(steps: LifecycleStep[], records: StepRecords): LifecycleStep[] {
-  if (steps.some((s) => s.state === 'skipped')) return steps;
-  let nextShown = false;
-  return steps.filter((s, i) => {
-    if (s.state === 'current' || s.state === 'paid') return true;
-    if (s.state === 'done') return records[PR_STAGES[i].key as keyof StepRecords] === true;
-    if (nextShown) return false;
-    nextShown = true;
-    return true;
-  });
 }
 
 /**

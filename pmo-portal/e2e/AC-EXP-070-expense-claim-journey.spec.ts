@@ -61,9 +61,7 @@ test('AC-EXP-070 a field claim is filed, approved by the project approver, paid 
   await signIn(page, 'engineer@acme.test');
   await page.goto('/expenses');
   await page.getByRole('button', { name: 'New claim' }).click();
-  await page.getByRole('textbox', { name: 'Title' }).fill(`${tag} site visit`);
   await page.getByLabel('Project').selectOption({ label: tag });
-  await page.getByLabel('Budget category').selectOption({ label: 'Special expenses' });
   await page.getByLabel(/^Date/).fill('2026-10-01');
   await page.getByLabel(/^Type/).selectOption('Travel');
   await page.getByLabel(/^Description/).fill('Taxi to site');
@@ -74,7 +72,10 @@ test('AC-EXP-070 a field claim is filed, approved by the project approver, paid 
   await page.getByLabel(/^Type/).nth(1).selectOption('Travel');
   await page.getByLabel(/^Description/).nth(1).fill('Rail fare');
   await page.getByRole('textbox', { name: 'Amount' }).nth(1).fill('10000');
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'More claim details' }).click();
+  await page.getByRole('textbox', { name: 'Title' }).fill(`${tag} site visit`);
+  await page.getByLabel('Budget category').selectOption({ label: 'Special expenses' });
+  await page.getByRole('button', { name: 'Save draft' }).click();
   await expect(page).toHaveURL(/\/expenses\/[0-9a-f-]{36}$/, { timeout: 15_000 });
   const claimUrl = page.url();
 

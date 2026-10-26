@@ -61,7 +61,10 @@ const effRole = { value: 'Project Manager' as string | null };
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: effRole.value, realRole: effRole.value }),
 }));
-const RouteProbe = () => <output data-testid="route-path">{useLocation().pathname + useLocation().search}</output>;
+const RouteProbe = () => {
+  const location = useLocation();
+  return <output data-testid="route-path" data-state={JSON.stringify(location.state ?? null)}>{location.pathname + location.search}</output>;
+};
 
 // list-working-set-return (#682): the list-return seam captures context only from the list's own
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
@@ -108,13 +111,36 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
-  it('AC-S19-002: daily rows show the request state and next step without repeating lifecycle pips', () => {
+  it('AC-S19-002: request rows show status and date without a lifecycle stepper', () => {
     renderPage();
-    expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: 'Workstations & AV' }).closest('[data-row-activate]');
+    expect(row).not.toBeNull();
     expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText('Vendor Quote')).toBeInTheDocument();
+    expect(within(row!).getByText('Vendor Quote')).toBeInTheDocument();
+    expect(within(row!).getByText((_, element) => element?.tagName === 'TIME')).toHaveAttribute('dateTime', seed[0].created_at);
+    expect(within(row!).getByRole('link', { name: 'Open Workstations & AV' })).toHaveAttribute('href', '/procurement/pc1');
     expect(screen.getByText('Next: Select quote')).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /lifecycle/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-806: procurement columns keep identity and scope before dated status and amount', () => {
+    renderPage();
+    const headers = Array.from(screen.getByTestId('procurement-list-columns').children).map((header) => header.textContent?.trim());
+    expect(headers.indexOf('Request')).toBeLessThan(headers.indexOf('Project'));
+    expect(headers.indexOf('Project')).toBeLessThan(headers.indexOf('Requester'));
+    expect(headers.indexOf('Requester')).toBeLessThan(headers.indexOf('Status and request date'));
+    expect(headers.indexOf('Status and request date')).toBeLessThan(headers.indexOf('Value'));
+    expect(headers.indexOf('Value')).toBeLessThan(headers.indexOf('Actions'));
+  });
+
+  it('AC-806 carries project scope and the full register return context into request capture', async () => {
+    const listPath = `/procurement?status=Needs+approval&project=${PROJECT_ONE}&sort=reverse&view=board&q=invoice`;
+    renderPage(listPath);
+    await userEvent.click(screen.getByRole('button', { name: 'Raise request' }));
+
+    expect(screen.getByTestId('route-path')).toHaveTextContent(`/procurement/new?project=${PROJECT_ONE}`);
+    const state = JSON.parse(screen.getByTestId('route-path').getAttribute('data-state') ?? '{}');
+    expect(state.pmoListReturn).toEqual({ list: 'procurement', path: listPath, focusTarget: 'procurement:raise-request' });
   });
 
   it('AC-806: collection order is search, filters, sort, view, More, then Raise request', async () => {
@@ -196,6 +222,12 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(screen.getByText('Langkah berikutnya: Pilih penawaran')).toBeInTheDocument();
   });
 
+  it('AC-806 localizes request sort and dated status column in Bahasa', () => {
+    renderPageInLocale('id');
+    expect(screen.getByRole('button', { name: 'Urutkan permintaan: Permintaan terbaru' })).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-list-columns')).toHaveTextContent('Status dan tanggal permintaan');
+  });
+
   it('search filters real rows by title/code (AC-504)', async () => {
     renderPage();
     await userEvent.type(screen.getByPlaceholderText(/Filter requests/i), 'zzz');
@@ -242,9 +274,10 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage('/procurement?status=Needs+approval');
     const previews = screen.getAllByRole('button', { name: /Show preview for/i });
     expect(previews[0]).toHaveAccessibleName('Show preview for Older request');
-    expect(screen.getByRole('button', { name: /Sort requests: Oldest requests/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Sort requests: Oldest created/i })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /Sort requests:/i }));
+    expect(screen.getByRole('button', { name: /Sort requests: Newest created/i })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /Show preview for/i })[0]).toHaveAccessibleName('Show preview for Newer request');
   });
 

@@ -18,10 +18,9 @@
  * Charts are measured AFTER a settle wait so we test the steady state, not the recharts
  * ResponsiveContainer mount-flash (tracked separately).
  *
- * AC-PR-027 UPDATE: the procurement-detail route is now a tabbed record shell
- * (`/procurement/:id/:tab` — Overview · Line items · Documents · Vendor quotes).
- * Each tab renders different content; ALL FOUR tabs must pass the no-bleed gate.
- * The old single `/procurement/:id` entry is replaced by four explicit tab entries.
+ * Procurement detail uses named sections (`/procurement/:id/:section` — Review · Items ·
+ * Documents · Quotes · Activity). Each section renders different content; every section
+ * remains in the phone no-bleed sweep.
  */
 // @e2e-isolation: read-only — viewport sweep + bleed measurement; login + nav to seeded routes; no DB writes.
 import { test, expect, type Page, type Locator } from '@playwright/test';
@@ -52,12 +51,12 @@ const ROUTES: {
   { path: `/projects/${MERIDIAN}/tasks`, label: 'project-tasks' },
   { path: `/projects/${PIPELINE_LENS}`, label: 'project-pipeline-lens (AC-RAM-003)', ready: (p) => p.getByLabel('Project stage journey') },
   { path: '/procurement', label: 'procurement-list' },
-  // AC-PR-027: the procurement-detail tabbed shell — all four tabs swept.
-  // Each tab renders distinct content (stepper+timeline / line-items / ledger / quotes).
+  // Procurement named sections — each route renders distinct evidence.
   { path: `/procurement/${PROC_SHOWCASE}/overview`, label: 'procurement-detail-overview' },
   { path: `/procurement/${PROC_SHOWCASE}/items`, label: 'procurement-detail-items' },
   { path: `/procurement/${PROC_SHOWCASE}/documents`, label: 'procurement-detail-documents' },
   { path: `/procurement/${PROC_SHOWCASE}/quotes`, label: 'procurement-detail-quotes' },
+  { path: `/procurement/${PROC_SHOWCASE}/activity`, label: 'procurement-detail-activity' },
   { path: '/timesheets', label: 'timesheets' },
   { path: '/approvals', label: 'approvals' },
   // AC-MTG-021: the meeting routes join the EXISTING sweep, never a fork (spec §6 traceability).

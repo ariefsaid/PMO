@@ -19,7 +19,7 @@ import { login } from './helpers';
  *
  * RBAC authority: docs/design/rbac-visibility.md §E/§E2.
  *
- * TABBED-SHELL UPDATE: the saved line is verified in the "Line items" tab of the detail page.
+ * SECTION-NAVIGATION UPDATE: the saved line is verified in the named Items section.
  * The goal-oracle is unchanged: the item appears in the line-items section with its
  * derived total.
  */
@@ -65,7 +65,7 @@ test(
     await addRow.getByLabel(/new item quantity/i).fill('24');
     await addRow.getByLabel(/new item unit price/i).fill('86');
     await addRow.getByRole('button', { name: /add line item/i }).click();
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save draft' }).click();
 
     // GOAL ORACLE: we land on the new PR's detail page in Draft.
     await waitDetailReady(page);
@@ -77,9 +77,9 @@ test(
     await expect(page.getByRole('heading', { name: prTitle })).toBeVisible({ timeout: 10_000 });
 
     // AC-PROC1: the line captured before Save is present on the saved request.
-    const lineItemsTab = page.getByRole('tab', { name: /Line items/i });
-    await expect(lineItemsTab).toBeVisible({ timeout: 10_000 });
-    await lineItemsTab.click();
+    const itemsSection = page.getByRole('link', { name: 'Items', exact: true });
+    await expect(itemsSection).toBeVisible({ timeout: 10_000 });
+    await itemsSection.click();
 
     // GOAL ORACLE: the item appears in the line-items table with its derived line
     // total ($2,064). Scope to the line-items section + its table cell so the

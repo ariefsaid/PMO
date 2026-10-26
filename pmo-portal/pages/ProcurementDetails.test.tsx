@@ -61,6 +61,19 @@ vi.mock('@/pages/procurement/ProcurementFilesSubsection', () => ({
   ProcurementFilesSubsection: () => null,
 }));
 
+vi.mock('@/src/components/history/RecordHistory', () => ({
+  RecordHistory: (props: {
+    additionalTimelineItems?: { key: string; at: string; content: React.ReactNode }[];
+    listLabel?: string;
+  }) => (
+    <ul aria-label={props.listLabel}>
+      {[...(props.additionalTimelineItems ?? [])]
+        .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
+        .map((item) => <React.Fragment key={item.key}>{item.content}</React.Fragment>)}
+    </ul>
+  ),
+}));
+
 // LedgerFileCell's AttachButton calls useProcurementFiles → useQuery → needs a QueryClient.
 // Stub the hook so ProcurementDetails tests stay QueryClient-free.
 vi.mock('@/src/hooks/useProcurementFiles', () => ({
@@ -122,7 +135,11 @@ vi.mock('@/src/hooks/useProcurementCrud', () => ({
 // hooks; stub them so the detail test needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'proj-1', label: 'HQ Fit-Out' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Apex Supply', sub: 'Vendor' }] }),
+  useVendorOptions: () => ({ data: [
+    { value: 'v1', label: 'Apex Supply', sub: 'Vendor' },
+    { value: 'v-syn', label: 'Synergy Systems', sub: 'Vendor' },
+    { value: 'v-apx', label: 'Apex Supply', sub: 'Vendor' },
+  ] }),
 }));
 
 vi.mock('@/src/auth/useAuth', () => ({
@@ -206,8 +223,7 @@ const baseProcurement = {
   quotations: [],
   receipts: [],
   invoices: [],
-  // I1/I3 (design-review): the ERP-canonical record arrays are required for stepper
-  // refs and sparse tile derivation. Base fixture starts empty (no records yet).
+  // Activity references come from real related records. Base fixture starts empty.
   purchase_requests: [],
   rfqs: [],
   purchase_orders: [],
@@ -249,7 +265,7 @@ const orderedProcurement = {
     },
   ],
   invoices: [],
-  // I1 (design-review): stepper PO ref now comes from purchase_orders, not po_number header column.
+  // Activity references come from the canonical purchase-order record, not the header column.
   purchase_requests: [
     {
       id: 'pr-rec-1',
@@ -417,18 +433,6 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
     expect(screen.getByRole('button', { name: /Back to Procurement/i })).toBeInTheDocument();
   });
 
-  it.each([
-    ['loading', { isPending: true, isError: false }],
-    ['not-found', { isPending: false, isError: false }],
-    ['error', { isPending: false, isError: true }],
-  ])('#707: the %s state shows the Back bar only at phone width (hidden on desktop)', (_n, s) => {
-    Object.assign(detailState, s);
-    renderPage();
-    const bar = screen.getByRole('button', { name: /Back to Procurement/i }).parentElement!;
-    expect(bar.className).toContain('hidden');
-    expect(bar.className).toContain('max-[920px]:flex');
-  });
-
   it('AC-NAV-007: "Back to Procurement" navigates to the Procurement module index (no tab)', async () => {
     // Director ruling (2026-09-29): the destination stays canonical `/procurement` while a
     // direct link with no captured list context now additionally carries validated clean
@@ -442,10 +446,9 @@ describe('AC-804: ProcurementDetails loading/empty/error states (NFR-PROC-UI-001
 });
 
 // ---------------------------------------------------------------------------
-// Batch-A cleanup: E4 (no disabled Audit trail), H2 (no success BackBar),
-// G5 (stat tiles use "Pending"/"None yet", not em-dash)
+// E4 — no disabled Audit trail stub is exposed.
 // ---------------------------------------------------------------------------
-describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
+describe('ProcurementDetails — audit trail affordance cleanup', () => {
   beforeEach(() => {
     detailState.data = { ...baseProcurement };
     detailState.isPending = false;
@@ -455,60 +458,19 @@ describe('ProcurementDetails — Batch-A cleanup (E4 / H2 / G5)', () => {
 
   it('CW-3a: the Procurement detail opens with the shared RecordHeader (icon + name + status)', () => {
     renderPage();
-    const header = screen.getByTestId('record-header');
-    expect(header).toBeInTheDocument();
-    expect(within(header).getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
-    // the status pill is part of the one shared header anatomy
-    expect(within(header).getByTestId('procurement-status-badge')).toBeInTheDocument();
-  });
-
-  it('CW-3a: the procurement lifecycle renders the bar stepper, NOT the retired circle-node stepper', () => {
-    renderPage();
-    // The lifecycle is rendered as the canonical even-flex BAR stepper (.jstep steps)…
-    expect(document.querySelector('.jstep')).toBeInTheDocument();
-    // …and the retired numbered-circle node stepper (.pstep) is gone.
-    expect(document.querySelector('.pstep')).toBeNull();
-  });
-
-  it('H2: the success render has no ALWAYS-VISIBLE BackBar; the mobile BackBar (≤920px) is CSS-hidden on desktop', () => {
-    renderPage();
-    // The record is loaded; the RecordHeader heading is present.
     expect(screen.getByRole('heading', { name: /Workstations for HQ/i })).toBeInTheDocument();
-    // C-IMP-1 (AC-S6-3): a mobile BackBar IS in the DOM for mobile back-nav (≤920px),
-    // but it is wrapped in `hidden max-[920px]:block` — CSS-only, single render.
-    // The wrapper must carry `hidden` to keep desktop unchanged (I7 intent preserved).
-    const mobileBackBarWrapper = screen.getByTestId('mobile-back-bar');
-    expect(mobileBackBarWrapper).toBeInTheDocument();
-    expect(mobileBackBarWrapper.className).toContain('hidden');
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested');
   });
 
   it('E4: the success render has no disabled "Audit trail" stub action', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: /Audit trail/i })).toBeNull();
   });
-
-  it('G5 / I3 (design-review): absent stat tiles are OMITTED rather than showing "Pending" / "None yet"', () => {
-    renderPage();
-    // I3 fix: baseProcurement has no selected quote, no PO, no receipts.
-    // The revamp removes placeholder tiles — only the PR value tile is present.
-    // "Pending" and "None yet" must NOT appear as tile values (sparse layout).
-    const strips = screen.getAllByTestId('stat-tiles');
-    const mainStrip = strips[0]; // first stat-tiles = the overview bento tiles
-    const tileText = within(mainStrip).getAllByTestId('stat-tile').map((el) => el.textContent ?? '');
-    expect(tileText.some((t) => t.includes('Pending'))).toBe(false);
-    expect(tileText.some((t) => t.toLowerCase().includes('none yet'))).toBe(false);
-    // PR value tile must still be present
-    expect(tileText.some((t) => t.includes('$50,000'))).toBe(true);
-    // no em-dash in tile area
-    expect(tileText.some((t) => t.includes('—'))).toBe(false);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-004 — the selected-quote tile + row pill bind from Quote Selected
-// (PROC-004 re-review). Before the fix the binding only appeared at Ordered/Paid
-// (keyed off the PO-committed quote), so a freshly-selected quote read
-// "Pending — N received" and no row carried the "Selected" pill.
+// AC-IXD-PROC-004 — the selected amount and selected quotation remain bound from
+// Quote Selected through the Review and Quotes sections.
 // ---------------------------------------------------------------------------
 describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PROC-004)', () => {
   beforeEach(() => {
@@ -519,24 +481,19 @@ describe('AC-IXD-PROC-004: selected-quote binds on the Quote Selected state (PRO
     mockEffectiveRole = 'Finance';
   });
 
-  it('PROC-004: the "Selected quote" tile shows the chosen quote vendor + amount (not "Pending")', () => {
-    renderPage();
-    const tileLabel = screen.getByText('Selected quote');
-    const tile = tileLabel.closest('[data-testid="stat-tile"]') as HTMLElement;
-    // The selected quote is $148,000 from Synergy Systems — bound from this state.
-    expect(within(tile).getByText('$148,000')).toBeInTheDocument();
-    expect(within(tile).getByText('Synergy Systems')).toBeInTheDocument();
-    // It must NOT read the pre-selection "Pending" / "N received" placeholder.
-    expect(within(tile).queryByText('Pending')).toBeNull();
-    expect(within(tile).queryByText(/received/i)).toBeNull();
+  it('PROC-004: Review keeps the chosen quote amount as a distinct fact', () => {
+    renderPage('proc-001', 'overview');
+    const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
+    expect(fact).toHaveTextContent('$148,000');
   });
 
   it('PROC-004: the selected quotation row carries the "Selected · best value" pill', () => {
     renderPage('proc-001', 'quotes');
     // VendorQuotesTab (Slice 3) replaced QuotationsSection — testid is now vendor-quotes.
     const section = screen.getByTestId('vendor-quotes');
-    // The chosen $148,000 (VQ-2602050001) row shows "Selected · best value"; the $152,000 one does not.
-    // Both desktop + mobile branches render the pill so at least one match expected.
+    // The chosen $148,000 (VQ-2602050001) row keeps its vendor, amount and selection state.
+    expect(within(section).getAllByText('Synergy Systems').length).toBeGreaterThanOrEqual(1);
+    expect(within(section).getAllByText('$148,000').length).toBeGreaterThanOrEqual(1);
     expect(within(section).getAllByText(/Selected · best value/i).length).toBeGreaterThanOrEqual(1);
     // The VQ number is present in the section
     expect(within(section).getAllByText('VQ-2602050001').length).toBeGreaterThanOrEqual(1);
@@ -569,38 +526,34 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.getByRole('button', { name: /reject/i })).toBeInTheDocument();
   });
 
-  it('AC-S20-001: one complete decision area follows request identity, value and budget evidence in keyboard order', async () => {
+  it('AC-S20-001: reviewers can navigate decision controls in keyboard order with amount and budget evidence available', async () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    expect(document.querySelector('[data-testid="mobile-sticky-action"]')).toBeNull();
     const budgetEvidence = screen.getByRole('heading', { name: /budget impact/i });
-    const requestValue = screen.getByText('PR value').closest('[data-testid="stat-tile"]')!;
-    const decision = screen.getByTestId('decision-card');
+    const requestValue = screen.getByText('Requested amount').parentElement!;
+    expect(requestValue).toHaveTextContent('$50,000');
     expect(screen.getByText('Workstations for HQ')).toBeInTheDocument();
     expect(screen.getByText('PROC-2026-001')).toBeInTheDocument();
-    expect(requestValue.compareDocumentPosition(budgetEvidence) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(budgetEvidence.compareDocumentPosition(decision) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(decision).getAllByRole('button', { name: /approve/i })).toHaveLength(1);
-    expect(within(decision).getAllByRole('button', { name: /reject/i })).toHaveLength(1);
-    expect(within(decision).getAllByRole('button', { name: /cancel request/i })).toHaveLength(1);
+    expect(budgetEvidence).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /approve/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /reject/i })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /cancel request/i })).toHaveLength(1);
 
-    within(decision).getByRole('button', { name: /add a note/i }).focus();
+    screen.getByRole('button', { name: /add a note/i }).focus();
     await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /approve/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /approve/i })).toHaveFocus();
     await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /reject/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /reject/i })).toHaveFocus();
     await userEvent.tab();
-    expect(within(decision).getByRole('button', { name: /cancel request/i })).toHaveFocus();
+    expect(screen.getByRole('button', { name: /cancel request/i })).toHaveFocus();
   });
 
-  it('AC-S20-002: policy and separation-of-duties detail follows financial evidence without losing its explanation', () => {
+  it('AC-S20-002: eligible reviewers receive separation-of-duties guidance', () => {
     mockEffectiveRole = 'Finance';
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
     renderPage();
-    const evidence = screen.getByRole('heading', { name: /budget impact/i });
-    const policy = screen.getByTestId('sod-ready-hint');
-    expect(evidence.compareDocumentPosition(policy) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const policy = screen.getByTestId('sod-action-guidance');
     expect(policy).toHaveTextContent(/requester cannot self-approve/i);
   });
 
@@ -628,21 +581,6 @@ describe('AC-805: role-gated transition actions (FR-PROC-006, UI gate)', () => {
     expect(screen.queryByRole('button', { name: /mark as paid/i })).not.toBeInTheDocument();
   });
 
-  it('item G: a destructive action is a quiet OUTLINE at rest; the solid red is only in the confirm dialog', async () => {
-    mockEffectiveRole = 'Finance';
-    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
-    const rejectBtn = screen.getByRole('button', { name: /reject/i });
-    // at rest: outline (background fill + input border), NOT the solid destructive fill
-    expect(rejectBtn.className).toContain('border-input');
-    expect(rejectBtn.className).toContain('bg-background');
-    expect(rejectBtn.className).not.toContain('bg-destructive');
-    // opening the confirm dialog surfaces the solid red confirm (the only solid fill)
-    await userEvent.click(rejectBtn);
-    const dialog = await screen.findByRole('alertdialog');
-    const confirm = within(dialog).getByRole('button', { name: /reject/i });
-    expect(confirm.className).toContain('bg-destructive');
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -766,9 +704,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
   });
 
   it('renders PR number from an actual purchase_request record (I1: not the header column)', () => {
-    // I1 (design-review): the stepper derives its PR ref from the purchase_request
-    // record array, not the denormalized pr_number header column. The test now
-    // requires an actual purchase_request row for the PR# to appear in the stepper.
+    // Activity references come from purchase_request records, not the denormalized header.
     detailState.data = {
       ...baseProcurement,
       status: 'Requested',
@@ -787,15 +723,14 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
         },
       ],
     };
-    renderPage();
-    // PR# appears in the lifecycle bar stepper (from the purchase_request record).
+    renderPage('proc-001', 'activity');
     expect(screen.getAllByText('PR-2606040001').length).toBeGreaterThanOrEqual(1);
   });
 
   it('renders VQ number, PO number, GR number and status from Ordered procurement', () => {
     detailState.data = orderedProcurement;
     renderPage('proc-001', 'documents');
-    // Numbers may appear in both the doc-trail panel and the section body — use getAllByText
+    // Document identity and status are visible in the ledger section — use getAllByText
     expect(screen.getAllByText('PO-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('VQ-2601100001').length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText('GR-2601100001').length).toBeGreaterThanOrEqual(1);
@@ -804,7 +739,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
 
   it('renders VI number and status from Paid procurement', () => {
     detailState.data = paidProcurement;
-    renderPage();
+    renderPage('proc-001', 'documents');
     expect(screen.getAllByText('VI-2601100001').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -812,7 +747,7 @@ describe('Document trail renders PR/VQ/PO/GR/VI numbers (AC-816 data)', () => {
     detailState.data = { ...baseProcurement, total_value: 50000, currency: 'USD' };
     renderPage();
     // formatCurrency(50000) = "$50,000"
-    // May appear in multiple places (header + DecisionSupportPanel stat tiles) — any occurrence is proof.
+    // The amount remains a formatted financial fact in Review.
     expect(screen.getAllByText('$50,000').length).toBeGreaterThanOrEqual(1);
   });
 
@@ -1363,7 +1298,7 @@ describe('CRUD slice: line items, quotations, header-edit, documents (AC-PROC-00
 });
 
 // ---------------------------------------------------------------------------
-// UI-POLISH — One-Blue + copy disambiguation + no-access deep-link
+// UI-POLISH — cancellation copy + no-access deep-link
 // ---------------------------------------------------------------------------
 describe('UI-POLISH: procurement detail surface refinements', () => {
   beforeEach(() => {
@@ -1375,26 +1310,6 @@ describe('UI-POLISH: procurement detail surface refinements', () => {
     mockEffectiveRole = 'Finance';
   });
 
-  // Polish #1 — Approve is the single primary blue; Reject stays a quiet outline.
-  it('polish#1: Approve renders as the PRIMARY blue (not success-green)', () => {
-    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
-    const approve = screen.getByRole('button', { name: /^approve$/i });
-    expect(approve.className).toContain('bg-primary');
-    expect(approve.className).not.toContain('bg-success');
-  });
-
-  it('polish#1: Reject stays a quiet outline at rest (no solid fill competing with Approve)', () => {
-    detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-other' };
-    renderPage();
-    const reject = screen.getByRole('button', { name: /^reject$/i });
-    expect(reject.className).toContain('border-input');
-    expect(reject.className).not.toContain('bg-destructive');
-    expect(reject.className).not.toContain('bg-success');
-  });
-
-  // Polish #2 — the three "Cancel"s disambiguate: page action = "Cancel request",
-  // and the confirm dialog's dismiss = "Keep request" (not "Cancel").
   it('polish#2: the PR cancel confirm dismiss reads "Keep request", not "Cancel"', async () => {
     detailState.data = { ...baseProcurement, status: 'Requested', requested_by_id: 'u-alice' };
     renderPage();
@@ -1515,16 +1430,19 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
       received_date: '2026-06-01', file_url: null,
     }],
   });
-  const selectFirstQuote = async () => {
+  const selectFirstQuote = async (expectedAmount: number) => {
     fireEvent.click(screen.getAllByRole('button', { name: /select quote vq-9/i })[0]);
-    fireEvent.click(await screen.findByRole('button', { name: 'Select quote' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent('VQ-9');
+    expect(dialog).toHaveTextContent(`$${expectedAmount.toLocaleString('en-US')}`);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Select quote' }));
     await waitFor(() => expect(mockSelectQuote).toHaveBeenCalledWith('q9'));
   };
 
   it('AC-SEC-221: selecting a quote above the approved amount says the request went back for approval', async () => {
     detailState.data = quoted(1500);
     renderPage('proc-001', 'quotes');
-    await selectFirstQuote();
+    await selectFirstQuote(1500);
     await waitFor(() => expect(toast).toHaveBeenCalledWith(
       'Quote selected',
       'The quote is above the approved amount, so the request went back for approval.',
@@ -1535,7 +1453,7 @@ describe('0349: approved-amount ceiling and quote re-route (AC-SEC-220/221)', ()
   it('AC-SEC-221: selecting a quote within the approved amount still reports Quote Selected', async () => {
     detailState.data = quoted(900);
     renderPage('proc-001', 'quotes');
-    await selectFirstQuote();
+    await selectFirstQuote(900);
     await waitFor(() => expect(toast).toHaveBeenCalledWith('Quote selected', 'The request advanced to Quote Selected', 'success'));
   });
 });

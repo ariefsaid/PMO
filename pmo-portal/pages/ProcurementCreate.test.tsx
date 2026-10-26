@@ -29,9 +29,10 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
   useToast: () => ({ toast: mocks.toast }),
 }));
 
-function renderCreate(path = '/procurement/new') {
+function renderCreate(path = '/procurement/new', state?: unknown) {
+  const target = new URL(path, 'http://local.test');
   return render(
-    <MemoryRouter initialEntries={[path]}>
+    <MemoryRouter initialEntries={[{ pathname: target.pathname, search: target.search, state }]}>
       <Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes>
     </MemoryRouter>,
   );
@@ -94,6 +95,30 @@ describe('AC-PROC1 one-page request creation', () => {
     unmount();
     expect(mocks.createRequest).not.toHaveBeenCalled();
     expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it('AC-806 returns to the exact procurement working set after capture is cancelled', () => {
+    const listPath = '/procurement?status=Needs+approval&project=p1&sort=reverse&view=board';
+    const recordContext = { pmoListReturn: { list: 'procurement', path: listPath, scrollTop: 240 } };
+    renderCreate('/procurement/new?project=p1', recordContext);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back to procurement' }));
+    expect(mocks.navigate).toHaveBeenCalledWith(listPath, {
+      state: { pmoListScrollRestore: { list: 'procurement', path: listPath, scrollTop: 240 } },
+    });
+  });
+
+  it('AC-806 carries the originating procurement return context into the saved record', async () => {
+    const listPath = '/procurement?status=Needs+approval&project=p1&sort=reverse&view=board';
+    const recordContext = { pmoListReturn: { list: 'procurement', path: listPath, scrollTop: 240 } };
+    renderCreate('/procurement/new?project=p1', recordContext);
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', {
+      replace: true,
+      state: recordContext,
+    }));
   });
 
   it('AC-PROC1-004 required title error is inline and blocks creation', () => {
@@ -191,20 +216,20 @@ describe('AC-PROC1 one-page request creation', () => {
   it('AC-PROC1-006 keeps the create permission gate on the route', () => {
     mocks.canCreate = false;
     renderCreate();
-    expect(screen.getByRole('heading', { name: /do not have permission/i })).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(/do not have permission/i);
     expect(screen.queryByLabelText(/title/i)).not.toBeInTheDocument();
   });
 
   it('AC-PROC1-007 holds Back behind a confirm once something is typed, creates nothing', () => {
     renderCreate();
     fireEvent.click(screen.getByRole('button', { name: /procurement/i }));
-    expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
+    expect(mocks.navigate).toHaveBeenCalledWith('/procurement', { state: {} });
     mocks.navigate.mockClear();
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
     fireEvent.click(screen.getByRole('button', { name: /procurement/i }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
-    expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
+    expect(mocks.navigate).toHaveBeenCalledWith('/procurement', { state: {} });
     expect(mocks.createRequest).not.toHaveBeenCalled();
   });
 

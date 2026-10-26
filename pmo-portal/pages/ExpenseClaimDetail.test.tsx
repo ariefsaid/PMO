@@ -128,6 +128,31 @@ describe('ExpenseClaimDetail', () => {
     expect(await screen.findByText('Returned to the expense register')).toBeInTheDocument();
   });
 
+  it('AC-EXP-061 follows a linked advance and returns to the claim before its register', async () => {
+    const listPath = '/expenses?status=Submitted&project=p1&sort=oldest';
+    h.claim = { ...base, advance_id: 'adv-1' };
+    as('eng', 'Engineer');
+    render(
+      <MemoryRouter initialEntries={[
+        listPath,
+        { pathname: '/expenses/c1', search: '?status=Submitted&project=p1&sort=oldest', state: { recordContext: { listPath } } },
+      ]} initialIndex={1}>
+        <ToastProvider>
+          <Routes>
+            <Route path="/expenses" element={<p>Expense register</p>} />
+            <Route path="/expenses/:claimId" element={<ExpenseClaimDetail />} />
+          </Routes>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const advance = screen.getByRole('link', { name: 'Settles a cash advance' });
+    expect(advance).toHaveAttribute('href', '/expenses/adv-1?status=Submitted&project=p1&sort=oldest');
+    await userEvent.click(advance);
+    await userEvent.click(screen.getByRole('button', { name: 'Back to expenses' }));
+    expect(screen.queryByText('Expense register')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Site visit' })).toBeInTheDocument();
+  });
+
   it('AC-EXP-061 places approval routing after receipt evidence', () => {
     h.claim = { ...base, status: 'Submitted' };
     h.route = { claimId: 'c1', route: 'project', reason: 'within_budget', approvers: [{ id: 'pma', fullName: 'Ayu Approver' }], requestAmount: 300, lineBudget: 500, lineUsed: 0 };

@@ -66,6 +66,38 @@
   "quoteSelection": {
     "reroutedDetail": "The quote is above the approved amount, so the request went back for approval."
   },
+  "quotes": {
+    "heading": "Bid comparison",
+    "description": "Compare and select a vendor quote",
+    "add": "Add quotation",
+    "emptyTitle": "No quotes recorded. Add a vendor quote to compare bids.",
+    "vendorFallback": "Vendor quote",
+    "columns": {
+      "vendor": "Vendor / reference",
+      "selection": "Selection status",
+      "amount": "Amount",
+      "validUntil": "Valid until",
+      "attachments": "Evidence"
+    },
+    "selectedBestValue": "Selected · best value",
+    "bestValue": "Best value",
+    "select": "Select",
+    "selectAria": "Select quote {{vendor}}",
+    "tableLabel": "Vendor bid comparison",
+    "capture": {
+      "vendor": "Vendor",
+      "selectVendor": "Select a vendor…",
+      "quotedTotal": "Quoted total",
+      "amountPlaceholder": "0.00",
+      "invalidAmount": "Enter a quoted total greater than zero with no more than two decimal places.",
+      "fileUploadUnavailable": "File upload is not available yet",
+      "attachFileUnavailable": "Attach file unavailable",
+      "cancel": "Cancel"
+    },
+    "selectionTitle": "Select this quote?",
+    "selectionDescription": "The {{vendor}} quote for {{amount}} will set the request value and vendor. If it exceeds the approved amount, the request returns for approval.",
+    "selectConfirm": "Select quote"
+  },
   "ledger": {
     "paymentInErp": "Record the payment in ERPNext; it links here on the next sync.",
     "billsHiddenForRole": "Vendor bills and payments are not shown for your role.",
@@ -122,6 +154,67 @@
     }
   },
   "detail": {
-    "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
+    "paidNeedsValue": "Add a line item or a document with an amount before marking this paid.",
+    "noActions": "No further lifecycle actions are available to you at this stage.",
+    "itemsRequired": "Add at least one line item before submitting.",
+    "notes": {
+      "add": "Add a note",
+      "label": "Notes",
+      "placeholder": "Add a note for the approval or rejection…"
+    },
+    "sod": {
+      "gateLabel": "Separation-of-duties gate.",
+      "authorNotice": "Submitting hands this to another approver — you can't approve your own request.",
+      "reviewerGuidance": "You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.",
+      "paymentApproverGuidance": "Payment must be released by a different finance user — the approver can't also pay this request.",
+      "paymentReleaseGuidance": "Releasing payment — the approver can't also pay (separation of duties). You may mark this as paid below.",
+      "requesterGate": "This request was raised by {{requester}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.",
+      "receiptGate": "To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.",
+      "you": "you"
+    }
+  },
+  "activity": {
+    "document": {
+      "invoice": "Vendor invoice",
+      "payment": "Payment",
+      "purchaseOrder": "Purchase order",
+      "purchaseRequest": "Purchase request",
+      "quote": "Quote",
+      "receipt": "Goods receipt",
+      "rfq": "Request for quotes"
+    },
+    "listLabel": "Purchase activity",
+    "noEvents": "No activity recorded yet.",
+    "noEventsDescription": "Procurement changes appear here.",
+    "stage": {
+      "approved": "Approved",
+      "cancelled": "Cancelled",
+      "draft": "Draft",
+      "ordered": "Ordered",
+      "paid": "Paid",
+      "quoteSelected": "Quote selected",
+      "received": "Received",
+      "rejected": "Rejected",
+      "requested": "Requested",
+      "vendorInvoiced": "Vendor invoiced",
+      "vendorQuoted": "Vendor quoted"
+    }
+  },
+  "collection": {
+    "column": {
+      "statusDate": "Status and request date",
+      "actions": "Actions"
+    },
+    "open": "Open",
+    "openRequest": "Open {{title}}",
+    "projectFilter": "Project",
+    "projectFilterAll": "All projects",
+    "sort": {
+      "toggle": "Sort requests: {{order}}",
+      "newest": "Newest requests",
+      "oldest": "Oldest requests",
+      "newestCreated": "Newest created",
+      "oldestCreated": "Oldest created"
+    }
   }
 }

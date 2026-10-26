@@ -30,6 +30,8 @@ export interface UseListReturnOptions {
 export interface UseListReturnResult {
   /** Capture the active list entry and navigate to a canonical record route. */
   openRecord: (recordPath: string, owner?: ListName) => boolean;
+  /** Capture the active list entry and navigate to a local capture or utility route. */
+  navigateWithReturn: (target: string) => boolean;
   /** Navigate to validated list context or the record owner's index (pushes a new entry). */
   returnToList: (owner?: ListName) => string;
 }
@@ -150,6 +152,17 @@ export function useListReturn({
   const navigate = useNavigate();
   const path = `${location.pathname}${location.search}`;
 
+  const captureCurrentList = useCallback(() => {
+    const main = scrollElement();
+    const offset = main && Number.isFinite(main.scrollTop) && main.scrollTop >= 0 ? main.scrollTop : undefined;
+    const focused = document.activeElement instanceof HTMLElement
+      ? document.activeElement.closest<HTMLElement>('[data-list-return-focus]')?.dataset.listReturnFocus
+      : undefined;
+    const context = createListReturnContext(list, path, offset, focused);
+    if (context && offset !== undefined) saveEntryScroll(location.key, path, offset, context.focusTarget);
+    return context;
+  }, [list, location.key, path]);
+
   const openRecord = useCallback(
     (recordPath: string, owner: ListName = list): boolean => {
       if (!canCaptureFromList(list, owner)) {
@@ -172,19 +185,24 @@ export function useListReturn({
         return false;
       }
 
-      const main = scrollElement();
-      const offset =
-        main && Number.isFinite(main.scrollTop) && main.scrollTop >= 0 ? main.scrollTop : undefined;
-      const focused = document.activeElement instanceof HTMLElement
-        ? document.activeElement.closest<HTMLElement>('[data-list-return-focus]')?.dataset.listReturnFocus
-        : undefined;
-      const context = createListReturnContext(list, path, offset, focused);
+      const context = captureCurrentList();
       if (!context) return false;
-      if (offset !== undefined) saveEntryScroll(location.key, path, offset, context.focusTarget);
       navigate(destination, { state: withListReturnContext(location.state, context) });
       return true;
     },
-    [list, location.key, location.state, navigate, path],
+    [captureCurrentList, list, location.state, navigate],
+  );
+
+  const navigateWithReturn = useCallback(
+    (target: string): boolean => {
+      const destination = safeLocalPath(target);
+      if (!destination) return false;
+      const context = captureCurrentList();
+      if (!context) return false;
+      navigate(destination, { state: withListReturnContext(location.state, context) });
+      return true;
+    },
+    [captureCurrentList, location.state, navigate],
   );
 
   const returnToList = useCallback(
@@ -237,5 +255,5 @@ export function useListReturn({
     return () => window.clearTimeout(timer);
   }, [contentReady, list, location.key, location.pathname, location.search, location.state]);
 
-  return { openRecord, returnToList };
+  return { openRecord, navigateWithReturn, returnToList };
 }

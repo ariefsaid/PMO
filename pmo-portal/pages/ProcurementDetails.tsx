@@ -4,7 +4,6 @@ import { Link, useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
-  RecordHeader,
   Card,
   CardHead,
   CardPad,
@@ -20,7 +19,7 @@ import {
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { ProcurementOverviewTab } from './procurement/ProcurementOverviewTab';
-import { ProcurementProgressionTimeline } from './procurement/ProcurementProgressionTimeline';
+import { ProcurementProgressionEvent } from './procurement/ProcurementProgressionTimeline';
 import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
@@ -108,7 +107,7 @@ function tabFromParam(param: string | undefined): ProcTab {
 }
 
 const PROCUREMENT_ACTIVITY_OMIT_FIELD_CHANGES = { procurement: ['status'] } as const;
-const PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES = ['purchase_request', 'rfq', 'purchase_order', 'payment'] as const;
+const PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES = ['purchase_request', 'rfq', 'purchase_order', 'payment', 'procurement_invoice'] as const;
 
 interface ProcurementSection {
   value: ProcTab;
@@ -333,20 +332,20 @@ function sortActions(
 }
 
 /** Whether the effective role/identity may not yet advance — drives the SoD gate copy. */
-function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean): string | null {
+function sodGateMessage(p: ProcurementDetail, role: string, isRequester: boolean, t: TFunction): string | null {
   // Approval gate: a Requested PR awaiting a non-requester approver.
   if (p.status === 'Requested' && isRequester) {
-    return `This request was raised by ${p.requested_by?.full_name ?? 'you'}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.`;
+    return t('procurement:detail.sod.requesterGate', 'This request was raised by {{requester}}. A different user holding the Project-Manager, Finance, or Executive role must review it — the requester cannot self-approve their own request.', { requester: p.requested_by?.full_name ?? t('procurement:detail.sod.you', 'you') });
   }
   // Receipt gate: an Ordered PR where the viewer cannot confirm receipt.
   if (p.status === 'Ordered' && !(isRequester || RECEIPT_ROLES.has(role))) {
-    return 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.';
+    return t('procurement:detail.sod.receiptGate', 'To advance from Purchase Order to Goods Receipt, the requester or a Project-Manager must confirm receipt of the goods.');
   }
   return null;
 }
 
 const ProcurementDetails: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
   const { procurementId, tab: tabParam } = useParams<{ procurementId: string; tab?: string }>();
   // Active section from the URL :tab param (deep-linkable, role-invariant default Review).
   const tab = tabFromParam(tabParam);
@@ -597,7 +596,7 @@ const ProcurementDetails: React.FC = () => {
   const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
     && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
-  const gateMsg = sodGateMessage(p, role, isRequester)
+  const gateMsg = sodGateMessage(p, role, isRequester, t)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
@@ -887,6 +886,11 @@ const ProcurementDetails: React.FC = () => {
   // transitions are the spine; each matching record is folded in as a docRef annotation
   // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
   const historyEvents = buildProgressionTimeline(p, p.id);
+  const activityTimelineItems = historyEvents.map((event, index) => ({
+    key: `progression-${index}-${event.at}`,
+    at: event.at,
+    content: <ProcurementProgressionEvent event={event} />,
+  }));
 
   const ledgerRows = buildLedgerRows(p);
   // FR-PFE-038: a SharePoint link can be attached to any record of the purchase or a linked ERP document.
@@ -1120,26 +1124,17 @@ const ProcurementDetails: React.FC = () => {
             <h2 id="procurement-activity-heading" className="mb-5 text-xl font-semibold">
               {t('procurementDetail.sections.activity', 'Activity')}
             </h2>
-            <div className="space-y-6">
-              <div>
-                <h3 className="mb-3 text-base font-semibold">
-                  {t('procurementDetail.activity.progression', 'Progression')}
-                </h3>
-                <ProcurementProgressionTimeline events={historyEvents} />
-              </div>
-              <div className="border-t border-border pt-5">
-                <h3 className="mb-3 text-base font-semibold">
-                  {t('procurementDetail.activity.recordChanges', 'Record changes')}
-                </h3>
-                <RecordHistory
-                  entityType="procurement"
-                  entityId={p.id}
-                  includeChildren
-                  omitFieldChanges={PROCUREMENT_ACTIVITY_OMIT_FIELD_CHANGES}
-                  omitInsertEntities={PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES}
-                />
-              </div>
-            </div>
+            <RecordHistory
+              entityType="procurement"
+              entityId={p.id}
+              includeChildren
+              omitFieldChanges={PROCUREMENT_ACTIVITY_OMIT_FIELD_CHANGES}
+              omitInsertEntities={PROCUREMENT_ACTIVITY_OMIT_INSERT_ENTITIES}
+              additionalTimelineItems={activityTimelineItems}
+              listLabel={t('procurement:activity.listLabel', 'Purchase activity')}
+              emptyTitle={t('procurement:activity.noEvents', 'No activity recorded yet.')}
+              emptyDescription={t('procurement:activity.noEventsDescription', 'Procurement changes appear here.')}
+            />
           </section>
         )}
 

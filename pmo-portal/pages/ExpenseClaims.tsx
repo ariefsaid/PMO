@@ -27,7 +27,7 @@ const AGE_FILTERS = ['All', '0-30', '31-60', '61-90', '90+', 'unknown'] as const
 
 /** Expenses and advances share one register; each view keeps its own URL-owned sort and filters. */
 const ExpenseClaims: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const navigate = useNavigate();
   const location = useLocation();
   const { openRecord } = useRecordContext('/expenses');
@@ -72,7 +72,9 @@ const ExpenseClaims: React.FC = () => {
   const advanceOptions = useOwnAdvanceOptions();
   const [formKind, setFormKind] = useState<ExpenseKind | null>(null);
   const canCreate = may('create', 'expenseClaim');
-  const goToNewClaim = () => navigate(`/expenses/new${project !== 'All' ? `?project=${encodeURIComponent(project)}` : ''}`);
+  const goToNewClaim = () => navigate(`/expenses/new${project !== 'All' ? `?project=${encodeURIComponent(project)}` : ''}`, {
+    state: { recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } },
+  });
   const rows = data?.rows ?? [];
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
 
@@ -90,13 +92,13 @@ const ExpenseClaims: React.FC = () => {
     ...Constants.public.Enums.budget_category.map((c) => ({ value: c, label: budgetCategoryLabel(c, t) })),
   ];
   const projectFilterOptions = [
-    { value: 'All', label: t('expenses.filters.allProjects', 'All projects') },
+    { value: 'All', label: t('expenseClaims:register.filters.allProjects', 'All projects') },
     ...projectOptions,
   ];
   const ageOptions = AGE_FILTERS.map((value) => ({
     value,
-    label: value === 'All' ? t('expenses.filters.allAges', 'All ages') : value === 'unknown'
-      ? t('expenses.filters.unknownAge', 'Unknown payout date') : agingBucketLabel(value, t),
+    label: value === 'All' ? t('expenseClaims:register.filters.allAges', 'All ages') : value === 'unknown'
+      ? t('expenseClaims:register.filters.unknownAge', 'Unknown payout date') : agingBucketLabel(value, t),
   }));
 
   const columns: Column<ExpenseClaimWithRefs>[] = [
@@ -131,52 +133,54 @@ const ExpenseClaims: React.FC = () => {
   const hasFilters = Boolean(search || status || kind || category || project !== 'All' || (view === 'outstanding' && age !== 'All'));
   const isNewest = view === 'claims' ? sort === 'newest' : advanceSort === 'newest';
   const sortLabel = view === 'claims'
-    ? (isNewest ? t('expenses.sort.newestClaims', 'Newest claims') : t('expenses.sort.oldestClaims', 'Oldest claims'))
-    : (isNewest ? t('expenses.sort.newestPayouts', 'Newest payout date') : t('expenses.sort.oldestPayouts', 'Oldest payout date'));
+    ? (isNewest ? t('expenseClaims:register.sort.newestClaims', 'Newest claims') : t('expenseClaims:register.sort.oldestClaims', 'Oldest claims'))
+    : (isNewest ? t('expenseClaims:register.sort.newestPayouts', 'Newest payout date') : t('expenseClaims:register.sort.oldestPayouts', 'Oldest payout date'));
 
   return (
     <MoneyOutListPage
       title={t('expenses.title', 'Expenses')}
       scope={t('expenses.description', 'Expense claims and cash advances. You see your own; approvers see the whole team.')}
-      primaryAction={canCreate && (
-        <span className="flex flex-wrap gap-2 max-sm:w-full">
-          <Button variant="outline" className="min-h-11" onClick={() => setFormKind('advance')}>{t('expenses.actions.requestAdvance', 'Request advance')}</Button>
-          <Button variant="primary" className="min-h-11 max-sm:flex-1" onClick={goToNewClaim}>
-            <Icon name="plus" />{t('expenses.actions.newClaim', 'New claim')}
-          </Button>
-        </span>
-      )}
       filters={
         <div data-testid="money-out-toolbar" className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <SearchMini
-            placeholder={view === 'claims' ? t('expenses.searchPlaceholder', 'Search claim titles') : t('expenses.searchOutstandingPlaceholder', 'Search outstanding advances')}
-            aria-label={view === 'claims' ? t('expenses.searchLabel', 'Search expenses') : t('expenses.searchOutstandingLabel', 'Search outstanding advances')}
+            placeholder={view === 'claims' ? t('expenseClaims:register.search.placeholder', 'Search claim titles') : t('expenseClaims:register.search.outstandingPlaceholder', 'Search outstanding advances')}
+            aria-label={view === 'claims' ? t('expenseClaims:register.search.label', 'Search expenses') : t('expenseClaims:register.search.outstandingLabel', 'Search outstanding advances')}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             containerClassName="h-11 min-w-0 flex-[1_1_14rem]"
           />
           {view === 'claims' && <>
-            <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={(value) => setParam('status', value)} options={statusOptions} className="min-h-11 min-w-36 max-w-full" />
+          <SelectField label={t('expenses.filters.status', 'Status')} hideLabel value={status} onChange={(value) => setParam('status', value)} options={statusOptions} className="min-h-11 min-w-36 max-w-full" />
             <SelectField label={t('expenses.filters.kind', 'Type')} hideLabel value={kind} onChange={(value) => setParam('kind', value)} options={kindOptions} className="min-h-11 min-w-36 max-w-full" />
             <SelectField label={t('expenses.filters.category', 'Budget category')} hideLabel value={category} onChange={(value) => setParam('category', value)} options={categoryOptions} className="min-h-11 min-w-40 max-w-full" />
           </>}
-          <SelectField label={t('expenses.filters.project', 'Project')} hideLabel value={project} onChange={(value) => setParam('project', value)} options={projectFilterOptions} className="min-h-11 min-w-36 max-w-full" />
-          {view === 'outstanding' && <SelectField label={t('expenses.filters.age', 'Payout age')} hideLabel value={age} onChange={(value) => setParam('age', value)} options={ageOptions} className="min-h-11 min-w-36 max-w-full" />}
+          <SelectField label={t('expenseClaims:register.filters.project', 'Project')} hideLabel value={project} onChange={(value) => setParam('project', value)} options={projectFilterOptions} className="min-h-11 min-w-36 max-w-full" />
+          {view === 'outstanding' && <SelectField label={t('expenseClaims:register.filters.age', 'Payout age')} hideLabel value={age} onChange={(value) => setParam('age', value)} options={ageOptions} className="min-h-11 min-w-36 max-w-full" />}
           <Button
             variant="outline"
             className="min-h-11"
             aria-label={sortLabel}
             onClick={() => setParam(view === 'claims' ? 'sort' : 'advanceSort', isNewest ? 'oldest' : 'newest')}
           >{sortLabel}</Button>
-          <div role="group" aria-label={t('expenses.view.label', 'Expense register view')} className="flex min-w-0 flex-wrap gap-2">
+          <div role="group" aria-label={t('expenseClaims:register.view.label', 'Expense register view')} className="flex min-w-0 flex-wrap gap-2">
             <Button variant={view === 'claims' ? 'secondary' : 'outline'} className="min-h-11" aria-pressed={view === 'claims'} onClick={() => setParam('view', 'claims')}>
-              {t('expenses.view.claims', 'Claims and advances')}
+              {t('expenseClaims:register.view.claims', 'Claims and advances')}
             </Button>
             <Button variant={view === 'outstanding' ? 'secondary' : 'outline'} className="min-h-11" aria-pressed={view === 'outstanding'} onClick={() => setParam('view', 'outstanding')}>
-              {t('expenses.view.outstanding', 'Outstanding advances')}
+              {t('expenseClaims:register.view.outstanding', 'Outstanding advances')}
             </Button>
           </div>
-          {hasFilters && <Button variant="ghost" className="min-h-11" onClick={clearFilters}>{t('expenses.filters.clear', 'Clear filters')}</Button>}
+          {hasFilters && <Button variant="ghost" className="min-h-11" onClick={clearFilters}>{t('expenseClaims:register.filters.clear', 'Clear filters')}</Button>}
+          {canCreate && (
+            <span className="flex flex-wrap gap-2 sm:ml-auto max-sm:w-full">
+              <Button variant="outline" className="min-h-11 max-sm:flex-1" onClick={() => setFormKind('advance')}>
+                {t('expenses.actions.requestAdvance', 'Request advance')}
+              </Button>
+              <Button variant="primary" className="min-h-11 max-sm:flex-1" onClick={goToNewClaim}>
+                <Icon name="plus" />{t('expenses.actions.newClaim', 'New claim')}
+              </Button>
+            </span>
+          )}
         </div>
       }
     >
@@ -194,9 +198,8 @@ const ExpenseClaims: React.FC = () => {
       ) : rows.length === 0 ? (
         <ListState
           variant="empty"
-          title={hasFilters ? t('expenses.table.noMatch', 'No expenses match these filters') : t('expenses.table.emptyTitle', 'No expenses here yet')}
+          title={hasFilters ? t('expenseClaims:register.table.noMatch', 'No expenses match these filters') : t('expenses.table.emptyTitle', 'No expenses here yet')}
           sub={hasFilters ? undefined : t('expenses.table.emptySub', 'File a claim after the work, or request an advance before it.')}
-          action={!hasFilters && canCreate ? { label: t('expenses.actions.newClaim', 'New claim'), onClick: goToNewClaim } : undefined}
         />
       ) : (
         <>

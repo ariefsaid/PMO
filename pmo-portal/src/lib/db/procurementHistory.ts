@@ -257,7 +257,7 @@ function resolveActorName(ev: StatusEventWithActor): string | null {
 }
 
 /**
- * Builds the de-noised progression timeline for the Overview bento.
+ * Builds the de-noised progression timeline for the record Activity section.
  *
  * The primary spine is the `statusEvents` log (one row per lifecycle transition).
  * Each transition that has a matching record folds the record's system number in as

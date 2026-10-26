@@ -13,7 +13,10 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => ({ data: 
 
 import ErpPurchasesPage from './ErpPurchases';
 
-const RouteProbe = () => <output data-testid="route-query">{useLocation().search}</output>;
+const RouteProbe = () => {
+  const location = useLocation();
+  return <output data-testid="route-query" data-path={location.pathname} data-state={JSON.stringify(location.state ?? {})}>{location.search}</output>;
+};
 const renderPage = (path = '/erp-purchases') => render(<MemoryRouter initialEntries={[path]}><RouteProbe /><ErpPurchasesPage /></MemoryRouter>);
 const row = { id: 'r1', doctype: 'Purchase Order', name: 'PUR-ORD-9', supplier: 'Acme', docDate: '2026-01-05', dueDate: null, billNo: null,
   currency: 'IDR', grandTotal: 900, netTotal: 800, outstanding: null, erpStatus: 'To Bill', isReturn: false, projectIds: ['p1'],
@@ -22,7 +25,7 @@ const row = { id: 'r1', doctype: 'Purchase Order', name: 'PUR-ORD-9', supplier: 
 beforeEach(() => {
   mayMock.mockReset().mockReturnValue(true);
   projectsMock.mockReset().mockReturnValue({ data: [{ id: 'p1', name: 'Tower Retrofit' }] });
-  purchasesMock.mockReset();
+  purchasesMock.mockReset().mockReturnValue({ data: [] });
 });
 
 describe('ErpPurchases page', () => {
@@ -92,6 +95,23 @@ describe('ErpPurchases page', () => {
     rows = screen.getAllByRole('row').slice(1);
     expect(rows[0]).toHaveTextContent('PUR-ORD-9');
     expect(screen.getByRole('button', { name: /Sort by document date: Oldest document date/i })).toBeInTheDocument();
+  });
+
+  it('returns to the originating procurement working set from the ERP evidence child view', async () => {
+    const listPath = '/procurement?status=Needs+approval&project=p1&sort=reverse&view=board';
+    render(
+      <MemoryRouter initialEntries={[
+        '/procurement',
+        { pathname: '/erp-purchases', state: { pmoListReturn: { list: 'procurement', path: listPath } } },
+      ]} initialIndex={1}>
+        <RouteProbe />
+        <ErpPurchasesPage />
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /procurement requests/i }));
+    expect(screen.getByTestId('route-query')).toHaveAttribute('data-path', listPath.split('?')[0]);
+    expect(screen.getByTestId('route-query')).toHaveTextContent(listPath.split('?')[1]);
+    expect(screen.getByTestId('route-query')).toHaveAttribute('data-state', '{}');
   });
 
   it('when nothing is waiting, says so instead of an empty table', () => {

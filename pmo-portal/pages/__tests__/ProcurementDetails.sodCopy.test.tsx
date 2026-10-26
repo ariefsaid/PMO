@@ -1,24 +1,17 @@
 /**
- * AC-SOD-COPY — SoD-aware gate copy per lifecycle status (Fix I5).
+ * AC-SOD-COPY — decision-relevant SoD guidance remains beside lifecycle actions.
  *
- * The "Ready to advance" GateNotice must carry per-status SoD teaching
- * rather than generic copy. Assertions:
+ * Ordinary eligible states do not repeat readiness instructions. Assertions:
  *
- * (a) Draft → Requested (author viewing): GateNotice "ready" mentions SoD
- *     (requester≠approver). The existing `sod-pre-announce` paragraph also
- *     remains; this test focuses on the GateNotice variant="ready" copy.
+ * (a) Draft author sees the approval hand-off guidance.
  *
- * (b) Requested (approver viewing, non-requester Finance role): the GateNotice
- *     "ready" copy mentions the SoD note — the approver sees why they can act.
+ * (b) Requested approver sees the SoD note explaining why they can act.
  *
- * (c) Vendor Invoiced → Paid (Finance, non-approver): GateNotice "ready"
- *     mentions "approver can't also pay" / separation of duties teaching.
+ * (c) Vendor Invoiced payer sees the approver/payer separation.
  *
- * (d) Ordered (PM viewing, who is the requester): GateNotice "ready" copy
- *     for a non-SoD stage is concise + does NOT still say the generic
- *     "You may move this request to its next lifecycle stage below."
+ * (d) Approved viewer retains the eligible action without a redundant hint.
  *
- * These are display-only copy changes; no enforcement logic is touched.
+ * These are display-only copy changes; transition eligibility is unchanged.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
@@ -176,10 +169,10 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// (a) Draft author: the GateNotice "ready" variant carries SoD teaching
+// (a) Draft author: the hand-off message carries SoD teaching
 // ---------------------------------------------------------------------------
-describe('AC-SOD-COPY (a): Draft author GateNotice "ready" mentions SoD (requester≠approver)', () => {
-  it('AC-SOD-COPY-a: Draft author sees a GateNotice ready that references the approval hand-off', () => {
+describe('AC-SOD-COPY (a): Draft author sees the approval hand-off guidance', () => {
+  it('AC-SOD-COPY-a: Draft author sees guidance that references the approval hand-off', () => {
     mockRole = 'Engineer';
     mockUserId = 'u-pm'; // u-pm IS the requester
     detailState.data = {
@@ -189,12 +182,12 @@ describe('AC-SOD-COPY (a): Draft author GateNotice "ready" mentions SoD (request
     };
     renderPage();
     const card = screen.getByTestId('decision-card');
-    // The GateNotice "ready" must reference passing to an approver / not self-approving
+    // The hand-off guidance must reference passing to an approver / not self-approving.
     const cardText = card.textContent ?? '';
     expect(cardText).toMatch(/approver|hands this|can.?t approve your own/i);
   });
 
-  it('AC-SOD-COPY-a: Draft author gate does NOT use the old generic "You may move this request" copy', () => {
+  it('AC-SOD-COPY-a: Draft author gate does NOT use generic lifecycle guidance', () => {
     mockRole = 'Engineer';
     mockUserId = 'u-pm';
     detailState.data = {
@@ -210,10 +203,10 @@ describe('AC-SOD-COPY (a): Draft author GateNotice "ready" mentions SoD (request
 });
 
 // ---------------------------------------------------------------------------
-// (b) Requested (approver viewing): ready GateNotice should mention SoD
+// (b) Requested (approver viewing): action guidance names SoD
 // ---------------------------------------------------------------------------
-describe('AC-SOD-COPY (b): Requested + Finance-approver sees SoD-aware ready copy', () => {
-  it('AC-SOD-COPY-b: the GateNotice at Requested (approver view) mentions separation of duties', () => {
+describe('AC-SOD-COPY (b): Requested + Finance approver sees SoD guidance', () => {
+  it('AC-SOD-COPY-b: the Requested decision controls explain separation of duties', () => {
     mockRole = 'Finance';
     mockUserId = 'u-finance'; // not the requester (u-pm)
     detailState.data = {
@@ -245,9 +238,9 @@ describe('AC-SOD-COPY (b): Requested + Finance-approver sees SoD-aware ready cop
 });
 
 // ---------------------------------------------------------------------------
-// (c) Vendor Invoiced → Paid: SoD-b payer≠approver teaching in ready copy
+// (c) Vendor Invoiced → Paid: SoD-b payer≠approver guidance
 // ---------------------------------------------------------------------------
-describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver cannot pay)', () => {
+describe('AC-SOD-COPY (c): Vendor Invoiced payer sees SoD-b guidance', () => {
   it('AC-SOD-COPY-c: the permitted payer gets a blue Mark-as-Paid primary action', () => {
     mockRole = 'Finance';
     mockUserId = 'u-finance'; // NOT the approver
@@ -273,7 +266,7 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
     expect(button.className).toMatch(/bg-primary/);
   });
 
-  it('AC-SOD-COPY-c: the GateNotice at Vendor Invoiced (Finance non-approver) mentions payer≠approver', () => {
+  it('AC-SOD-COPY-c: Vendor Invoiced decision controls mention payer≠approver', () => {
     mockRole = 'Finance';
     mockUserId = 'u-finance'; // NOT the approver
     detailState.data = {
@@ -354,10 +347,10 @@ describe('AC-SOD-COPY (c): Vendor Invoiced + payer sees SoD-b teaching (approver
 });
 
 // ---------------------------------------------------------------------------
-// (d) Non-SoD stage (Approved → PM can request quotes): concise ready copy
+// (d) Ordinary eligible states do not repeat a readiness instruction
 // ---------------------------------------------------------------------------
-describe('AC-SOD-COPY (d): non-SoD stage (Approved) ready copy is concise — no old generic copy', () => {
-  it('AC-SOD-COPY-d: Approved + PM viewer sees a ready GateNotice without the old generic verbatim', () => {
+describe('AC-SOD-COPY (d): Approved action has no redundant readiness instruction', () => {
+  it('AC-SOD-COPY-d: Approved + PM viewer keeps the eligible action without a readiness hint', () => {
     mockRole = 'Project Manager';
     mockUserId = 'u-pm-viewer';
     detailState.data = {
@@ -368,8 +361,9 @@ describe('AC-SOD-COPY (d): non-SoD stage (Approved) ready copy is concise — no
     };
     renderPage();
     const card = screen.getByTestId('decision-card');
-    // New copy: anything other than the old generic verbatim is fine
-    expect(card.textContent).not.toMatch(/You may move this request to its next lifecycle stage below/i);
+    expect(screen.getByRole('button', { name: /request vendor quotes/i })).toBeInTheDocument();
+    expect(screen.queryByTestId('sod-action-guidance')).toBeNull();
+    expect(card.textContent).not.toMatch(/Ready to advance|Ready to submit/i);
   });
 });
 

@@ -18,5 +18,60 @@
   },
   "accountMap": {
     "projectDirectCost": "Biaya langsung proyek"
+  },
+  "postings": {
+    "accountingActivity": "Aktivitas akuntansi",
+    "summary": {
+      "cancelledInErp": "Dibatalkan di ERPNext: {{count}}",
+      "count": "Entri: {{count}}",
+      "failed": "Gagal: {{count}}",
+      "held": "Perlu ditinjau operator: {{count}}",
+      "pending": "Dalam antrean: {{count}}",
+      "pushed": "Terposting: {{count}}"
+    }
+  },
+  "register": {
+    "outstanding": {
+      "emptyTitle": "Tidak ada uang muka yang belum diselesaikan",
+      "emptySub": "Uang muka yang sudah dibayar dengan saldo tersisa akan muncul di sini.",
+      "noMatch": "Tidak ada uang muka yang cocok dengan filter ini"
+    },
+    "search": {
+      "label": "Cari biaya",
+      "placeholder": "Cari judul klaim",
+      "outstandingLabel": "Cari uang muka yang belum diselesaikan",
+      "outstandingPlaceholder": "Cari uang muka yang belum diselesaikan"
+    },
+    "sort": {
+      "newestClaims": "Klaim terbaru",
+      "oldestClaims": "Klaim terlama",
+      "oldestPayouts": "Tanggal pencairan terlama",
+      "newestPayouts": "Tanggal pencairan terbaru"
+    },
+    "view": {
+      "label": "Tampilan daftar biaya",
+      "claims": "Klaim dan uang muka",
+      "outstanding": "Uang muka belum diselesaikan"
+    },
+    "filters": {
+      "allProjects": "Semua proyek",
+      "allAges": "Semua umur",
+      "age": "Umur pencairan",
+      "clear": "Hapus filter",
+      "project": "Proyek",
+      "unknownAge": "Tanggal pencairan tidak diketahui"
+    },
+    "table": {
+      "noMatch": "Tidak ada biaya yang cocok dengan filter ini"
+    }
+  },
+  "record": {
+    "backToRegister": "Kembali ke pengeluaran",
+    "purposeAndAmount": "Tujuan dan jumlah"
+  },
+  "capture": {
+    "projectScope": "Cakupan proyek",
+    "currencyScope": "Mata uang",
+    "additionalLines": "Rincian tambahan"
   }
 }

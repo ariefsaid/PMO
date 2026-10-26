@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import React from 'react';
 import { formatCurrencyAuto } from '@/src/lib/format';
 
@@ -16,6 +17,10 @@ const row = (o: Record<string, unknown>) => ({
   currency: 'IDR', amount: 500, settled: 0, returned: 0, outstanding: 100, paidOn: '2026-09-01', ageDays: 10, bucket: '0-30', ...o,
 });
 const renderCard = (props: React.ComponentProps<typeof AdvanceAgingCard> = { active: true }) => render(<MemoryRouter><AdvanceAgingCard {...props} /></MemoryRouter>);
+const RecordContextProbe = () => {
+  const location = useLocation();
+  return <p data-testid="record-context-probe">{`${location.pathname}${location.search} ${JSON.stringify(location.state)}`}</p>;
+};
 
 beforeEach(() => { h.aging.isError = false; h.aging.isPending = false; });
 
@@ -80,5 +85,22 @@ describe('AdvanceAgingCard', () => {
     h.aging.data = { rows: [row({})], truncated: true };
     renderCard();
     expect(screen.getByText(/Showing up to 500 advances from the bounded outstanding list/)).toBeInTheDocument();
+  });
+
+  it('AC-806 carries the outstanding register working set into the opened advance', async () => {
+    h.aging.data = { rows: [row({ projectId: 'p1', projectName: 'Harbour', ageDays: 45, bucket: '31-60' })], truncated: false };
+    render(
+      <MemoryRouter initialEntries={['/expenses?view=outstanding&project=p1&age=31-60&advanceSort=oldest']}>
+        <Routes>
+          <Route path="/expenses" element={<AdvanceAgingCard active projectId="p1" age="31-60" sortOrder="oldest" />} />
+          <Route path="/expenses/:claimId" element={<RecordContextProbe />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole('link', { name: 'ADV-1' }));
+    const probe = await screen.findByTestId('record-context-probe');
+    expect(probe).toHaveTextContent('/expenses/a1?view=outstanding&project=p1&age=31-60&advanceSort=oldest');
+    expect(probe).toHaveTextContent('/expenses?view=outstanding&project=p1&age=31-60&advanceSort=oldest');
   });
 });

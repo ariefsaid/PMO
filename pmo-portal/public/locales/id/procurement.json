@@ -66,6 +66,38 @@
   "quoteSelection": {
     "reroutedDetail": "Penawaran melebihi jumlah yang disetujui, sehingga permintaan dikembalikan untuk persetujuan."
   },
+  "quotes": {
+    "heading": "Perbandingan penawaran",
+    "description": "Bandingkan dan pilih penawaran vendor",
+    "add": "Tambah penawaran",
+    "emptyTitle": "Belum ada penawaran. Tambahkan penawaran vendor untuk membandingkan harga.",
+    "vendorFallback": "Penawaran vendor",
+    "columns": {
+      "vendor": "Vendor / referensi",
+      "selection": "Status pilihan",
+      "amount": "Jumlah",
+      "validUntil": "Berlaku sampai",
+      "attachments": "Bukti"
+    },
+    "selectedBestValue": "Dipilih · nilai terbaik",
+    "bestValue": "Nilai terbaik",
+    "select": "Pilih",
+    "selectAria": "Pilih penawaran {{vendor}}",
+    "tableLabel": "Perbandingan penawaran vendor",
+    "capture": {
+      "vendor": "Vendor",
+      "selectVendor": "Pilih vendor…",
+      "quotedTotal": "Total penawaran",
+      "amountPlaceholder": "0,00",
+      "invalidAmount": "Masukkan total penawaran lebih dari nol dengan paling banyak dua angka desimal.",
+      "fileUploadUnavailable": "Unggah file belum tersedia",
+      "attachFileUnavailable": "Lampiran file belum tersedia",
+      "cancel": "Batal"
+    },
+    "selectionTitle": "Pilih penawaran ini?",
+    "selectionDescription": "Penawaran {{vendor}} sebesar {{amount}} akan menetapkan nilai dan vendor permintaan. Jika melebihi jumlah yang disetujui, permintaan akan kembali untuk persetujuan.",
+    "selectConfirm": "Pilih penawaran"
+  },
   "ledger": {
     "paymentInErp": "Catat pembayaran di ERPNext; akan tertaut di sini pada sinkronisasi berikutnya.",
     "billsHiddenForRole": "Tagihan vendor dan pembayaran tidak ditampilkan untuk peran Anda.",
@@ -122,6 +154,67 @@
     }
   },
   "detail": {
-    "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas."
+    "paidNeedsValue": "Tambahkan item baris atau dokumen bernilai sebelum menandai lunas.",
+    "noActions": "Tidak ada tindakan lanjutan yang tersedia bagi Anda pada tahap ini.",
+    "itemsRequired": "Tambahkan setidaknya satu item baris sebelum mengajukan.",
+    "notes": {
+      "add": "Tambahkan catatan",
+      "label": "Catatan",
+      "placeholder": "Tambahkan catatan untuk persetujuan atau penolakan…"
+    },
+    "sod": {
+      "gateLabel": "Pembatasan pemisahan tugas.",
+      "authorNotice": "Setelah diajukan, permintaan diteruskan kepada pemberi persetujuan lain — Anda tidak dapat menyetujui permintaan sendiri.",
+      "reviewerGuidance": "Anda dapat menyetujui atau menolak permintaan ini. Pemohon tidak dapat menyetujui permintaannya sendiri — peninjau harus orang lain.",
+      "paymentApproverGuidance": "Pembayaran harus dilepas oleh pengguna Finance lain — pemberi persetujuan tidak boleh membayar permintaan ini.",
+      "paymentReleaseGuidance": "Melepas pembayaran — pemberi persetujuan tidak boleh membayar (pemisahan tugas). Anda dapat menandai lunas di bawah.",
+      "requesterGate": "Permintaan ini diajukan oleh {{requester}}. Pengguna lain dengan peran Project-Manager, Finance, atau Executive harus meninjaunya — pemohon tidak dapat menyetujui permintaannya sendiri.",
+      "receiptGate": "Untuk melanjutkan dari Purchase Order ke Penerimaan Barang, pemohon atau Project-Manager harus mengonfirmasi penerimaan barang.",
+      "you": "Anda"
+    }
+  },
+  "activity": {
+    "document": {
+      "invoice": "Faktur vendor",
+      "payment": "Pembayaran",
+      "purchaseOrder": "Purchase order",
+      "purchaseRequest": "Permintaan pembelian",
+      "quote": "Penawaran",
+      "receipt": "Penerimaan barang",
+      "rfq": "Permintaan penawaran"
+    },
+    "listLabel": "Aktivitas pengadaan",
+    "noEvents": "Belum ada aktivitas pengadaan.",
+    "noEventsDescription": "Perubahan pengadaan akan muncul di sini.",
+    "stage": {
+      "approved": "Disetujui",
+      "cancelled": "Dibatalkan",
+      "draft": "Draf",
+      "ordered": "Dipesan",
+      "paid": "Dibayar",
+      "quoteSelected": "Penawaran dipilih",
+      "received": "Diterima",
+      "rejected": "Ditolak",
+      "requested": "Diajukan",
+      "vendorInvoiced": "Vendor menagih",
+      "vendorQuoted": "Vendor memberi penawaran"
+    }
+  },
+  "collection": {
+    "column": {
+      "statusDate": "Status dan tanggal permintaan",
+      "actions": "Tindakan"
+    },
+    "open": "Buka",
+    "openRequest": "Buka {{title}}",
+    "projectFilter": "Proyek",
+    "projectFilterAll": "Semua proyek",
+    "sort": {
+      "toggle": "Urutkan permintaan: {{order}}",
+      "newest": "Permintaan terbaru",
+      "oldest": "Permintaan terlama",
+      "newestCreated": "Dibuat terbaru",
+      "oldestCreated": "Dibuat paling awal"
+    }
   }
 }

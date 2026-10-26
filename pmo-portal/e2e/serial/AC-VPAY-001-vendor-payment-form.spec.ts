@@ -203,7 +203,7 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     await login(page, FINANCE_EMAIL);
     await page.goto(`/procurement/${s.procurementId}`);
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-    await page.getByRole('tab', { name: /Documents/i }).click();
+    await page.getByRole('link', { name: 'Documents', exact: true }).click();
 
     // The ledger capture offers Payment at Vendor Invoiced (ledgerCapture.ts) — the dashed
     // prompt's "Capture Payment" affordance (ledger-capture-open; the LedgerCaptureRow one).
@@ -257,7 +257,7 @@ test('AC-VPAY-001 finance pays an ERP-owned bill through the ledger form: PE lan
     // ── The ledger renders the Payment row (and the bill's Paid state) ──
     await page.reload();
     await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
-    await page.getByRole('tab', { name: /Documents/i }).click();
+    await page.getByRole('link', { name: 'Documents', exact: true }).click();
     const ledger = page.getByTestId('procurement-ledger');
     await expect(ledger.getByText(String((payRow as Doc).pay_number), { exact: false })).toBeVisible({ timeout: 15_000 });
     await expect(ledger.getByText('Paid', { exact: true }).first()).toBeVisible();

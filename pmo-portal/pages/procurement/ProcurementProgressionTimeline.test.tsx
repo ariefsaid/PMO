@@ -1,195 +1,117 @@
 import { afterEach, describe, it, expect } from 'vitest';
+import { I18nextProvider } from 'react-i18next';
+import i18next from 'i18next';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { ProgressionEvent } from '@/src/lib/db/procurementHistory';
-import { ProcurementProgressionTimeline } from './ProcurementProgressionTimeline';
+import { ProcurementProgressionEvent } from './ProcurementProgressionTimeline';
 
-// buildProgressionTimeline returns events ASCENDING by time; the bento timeline
-// presents them NEWEST-FIRST with a current-state ring on the latest event.
+const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8'));
+const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8'));
+const enProcurementCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/procurement.json'), 'utf8'));
+const idProcurementCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/procurement.json'), 'utf8'));
+
 const ASC_EVENTS: ProgressionEvent[] = [
   { kind: 'transition', label: 'Requested', actor: 'D. Okafor', actorName: 'Diana Okafor', at: '2026-04-28T09:00:00Z', docRef: 'PR-2026-0142', docHref: '/procurement/proc-1/documents' },
   { kind: 'transition', label: 'Ordered', actor: 'A. Reyes', actorName: 'Ana Reyes', at: '2026-05-06T10:00:00Z', docRef: 'PO-2026-0077', docHref: '/procurement/proc-1/documents' },
   { kind: 'transition', label: 'Paid', actor: 'L. Chen', actorName: 'Lena Chen', at: '2026-05-14T12:00:00Z', docRef: 'PAY-2026-0033', docHref: '/procurement/proc-1/documents' },
 ];
 
-// 9 events — more than the default cap of 6
-const LONG_EVENTS: ProgressionEvent[] = Array.from({ length: 9 }, (_, i) => ({
-  kind: 'transition' as const,
-  label: `Step ${i + 1}`,
-  actor: null,
-  actorName: null,
-  at: `2026-05-0${i + 1}T10:00:00Z`,
-  docRef: null,
-  docHref: null,
-}));
+const renderEvents = (events: ProgressionEvent[]) => render(
+  <MemoryRouter>
+    <ul aria-label="Purchase activity">
+      {events.map((event, index) => <ProcurementProgressionEvent key={`${event.at}-${index}`} event={event} />)}
+    </ul>
+  </MemoryRouter>,
+);
 
-const renderTimeline = (events: ProgressionEvent[]) =>
-  render(
-    <MemoryRouter>
-      <ProcurementProgressionTimeline events={events} />
-    </MemoryRouter>,
-  );
-
-describe('ProcurementProgressionTimeline (Overview bento slot)', () => {
-  it('renders an empty taught-state when there are no events', () => {
-    renderTimeline([]);
-    expect(screen.getByText(/No history yet/i)).toBeInTheDocument();
-    // No list rendered when empty
-    expect(screen.queryByRole('list')).toBeNull();
+describe('Procurement progression rows in the combined Activity list', () => {
+  it('renders status, actor, timestamp, and its supporting record link', () => {
+    renderEvents([ASC_EVENTS[2]]);
+    const row = screen.getByTestId('procurement-activity-event');
+    expect(within(row).getByText(/^Paid/)).toBeInTheDocument();
+    expect(within(row).getByText('Lena Chen')).toBeInTheDocument();
+    expect(within(row).getByRole('link', { name: 'PAY-2026-0033' })).toHaveAttribute('href', '/procurement/proc-1/documents');
+    expect(within(row).getByText((_, element) => element?.tagName === 'TIME')).toHaveAttribute('dateTime', '2026-05-14T12:00:00Z');
   });
 
-  it('renders a semantic ordered list labelled "Progression history" (a11y NFR-PR-A11Y-002)', () => {
-    renderTimeline(ASC_EVENTS);
-    const list = screen.getByRole('list', { name: /Progression history/i });
-    expect(list.tagName).toBe('OL');
-    // 3 events, all within cap — all 3 visible
-    expect(within(list).getAllByRole('listitem')).toHaveLength(3);
+  it('labels goods-receipt records with their full document name', () => {
+    renderEvents([{ kind: 'record', label: 'GR', actor: null, actorName: null, at: '2026-05-12', docRef: 'GR-2026-0012', docHref: null }]);
+    expect(screen.getByText('Goods receipt')).toBeInTheDocument();
   });
 
-  it('presents events NEWEST-FIRST (the latest event renders first)', () => {
-    renderTimeline(ASC_EVENTS);
-    const items = screen.getAllByRole('listitem');
-    // ASC last = Paid → must be first in the rendered (newest-first) order.
-    expect(within(items[0]).getByText(/Paid/)).toBeInTheDocument();
-    expect(within(items[2]).getByText(/Requested/)).toBeInTheDocument();
+  it('AC-PR-PROG-008 keeps a transition without a record reference as plain text', () => {
+    renderEvents([{ kind: 'transition', label: 'Approved', actor: 'u1', actorName: 'Luigi Marchetti', at: '2026-05-02T10:00:00Z', docRef: null, docHref: null }]);
+    const row = screen.getByTestId('procurement-activity-event');
+    expect(within(row).getByText('Approved')).toBeInTheDocument();
+    expect(within(row).queryByRole('link')).toBeNull();
   });
 
-  it('marks the latest (current-state) event with data-current + a decorative ring (text conveys "current" by being first)', () => {
-    renderTimeline(ASC_EVENTS);
-    const items = screen.getAllByRole('listitem');
-    expect(items[0]).toHaveAttribute('data-current', 'true');
-    expect(items[1]).not.toHaveAttribute('data-current');
-  });
-
-  it('shows actorName (resolved full name, not UUID) + a machine-readable <time> for each event (text, not color-only)', () => {
-    renderTimeline(ASC_EVENTS);
-    const items = screen.getAllByRole('listitem');
-    // newest event actorName (resolved full name)
-    expect(within(items[0]).getByText(/Lena Chen/)).toBeInTheDocument();
-    const time = within(items[0]).getByText((_, el) => el?.tagName === 'TIME');
-    expect(time).toHaveAttribute('dateTime', '2026-05-14T12:00:00Z');
-  });
-
-  it('AC-PR-PROG-012: renders actorName from resolved profile, not raw UUID', () => {
-    const events: ProgressionEvent[] = [
-      {
-        kind: 'transition',
-        label: 'Requested',
-        actor: '00000000-0000-0000-0000-0000000000a2',
-        actorName: 'Aiko Tanaka',
-        at: '2025-09-10T09:00:00Z',
-        docRef: null,
-        docHref: null,
+  it('AC-806 localizes event labels and missing actor information in Indonesian', async () => {
+    const i18n = i18next.createInstance();
+    await i18n.init({
+      lng: 'id',
+      fallbackLng: 'en',
+      defaultNS: 'common',
+      resources: {
+        en: { common: enCatalogue, procurement: enProcurementCatalogue },
+        id: { common: idCatalogue, procurement: idProcurementCatalogue },
       },
-    ];
-    renderTimeline(events);
-    // Must show the name, not the UUID
-    expect(screen.getByText(/Aiko Tanaka/)).toBeInTheDocument();
-    expect(screen.queryByText(/00000000-0000-0000-0000-0000000000a2/)).toBeNull();
-  });
-
-  it('AC-PR-PROG-007: renders docRef as a link (<a>) within the event row', () => {
-    renderTimeline(ASC_EVENTS);
-    const items = screen.getAllByRole('listitem');
-    // The Paid event (first, newest) should have a link for PAY-2026-0033
-    const link = within(items[0]).getByRole('link', { name: /PAY-2026-0033/i });
-    expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/procurement/proc-1/documents');
-    expect(link.className).toContain('text-foreground');
-    expect(link.className).not.toContain('text-primary-text');
-  });
-
-  it('AC-PR-PROG-008: event without docRef renders the label as plain text (no link)', () => {
-    const noRefEvents: ProgressionEvent[] = [
-      { kind: 'transition', label: 'Approved', actor: 'L. Marchetti', actorName: 'Luigi Marchetti', at: '2026-05-02T10:00:00Z', docRef: null, docHref: null },
-    ];
-    renderTimeline(noRefEvents);
-    // Should render "Approved" as text but NOT as a link
-    expect(screen.getByText('Approved')).toBeInTheDocument();
-    expect(screen.queryByRole('link')).toBeNull();
-  });
-
-  it('AC-PR-PROG-009: shows only the latest 6 events by default when more than 6 events exist', () => {
-    renderTimeline(LONG_EVENTS);
-    // 9 events, only 6 visible by default (newest 6 = Step 4–9)
-    const items = screen.getAllByRole('listitem');
-    expect(items).toHaveLength(6);
-    // Newest (Step 9) should be first
-    expect(within(items[0]).getByText('Step 9')).toBeInTheDocument();
-  });
-
-  it('AC-PR-PROG-010: "Show N earlier" button reveals the hidden events (keyboard-operable, aria-expanded)', () => {
-    renderTimeline(LONG_EVENTS);
-    // 9 - 6 = 3 hidden; button should say "Show 3 earlier"
-    const btn = screen.getByRole('button', { name: /Show 3 earlier/i });
-    expect(btn).toHaveAttribute('aria-expanded', 'false');
-
-    fireEvent.click(btn);
-
-    // After expanding: all 9 visible
-    const items = screen.getAllByRole('listitem');
-    expect(items).toHaveLength(9);
-    expect(btn).toHaveAttribute('aria-expanded', 'true');
-  });
-
-  it('AC-PR-PROG-011: no expander when total events ≤ 6', () => {
-    renderTimeline(ASC_EVENTS); // 3 events
-    expect(screen.queryByRole('button', { name: /Show .* earlier/i })).toBeNull();
+      interpolation: { escapeValue: false },
+      initImmediate: false,
+      react: { useSuspense: false },
+    });
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MemoryRouter>
+          <ul aria-label="Aktivitas pengadaan">
+            <ProcurementProgressionEvent event={{ kind: 'transition', label: 'Paid', actor: null, actorName: null, at: '2026-05-14T12:00:00Z', docRef: null, docHref: null }} />
+            <ProcurementProgressionEvent event={{ kind: 'record', label: 'GR', actor: null, actorName: null, at: '2026-05-12', docRef: null, docHref: null }} />
+          </ul>
+        </MemoryRouter>
+      </I18nextProvider>,
+    );
+    const rows = screen.getAllByTestId('procurement-activity-event');
+    expect(within(rows[0]).getByText('Dibayar')).toBeInTheDocument();
+    expect(within(rows[0]).getByText('Sistem')).toBeInTheDocument();
+    expect(within(rows[0]).queryByText('Paid')).toBeNull();
+    expect(screen.getByText('Penerimaan barang')).toBeInTheDocument();
   });
 });
 
-describe('AC-PLC-005: progression event dates follow the profile timezone', () => {
+describe('AC-PLC-005: procurement activity dates retain their timezone semantics', () => {
   afterEach(() => resetActiveLocale());
 
-  it('dates an event near UTC midnight on the viewer-timezone calendar day', () => {
-    const events: ProgressionEvent[] = [
-      { kind: 'transition', label: 'Ordered', actor: null, actorName: null, at: '2026-06-14T23:30:00Z', docRef: null, docHref: null },
-    ];
+  it('formats transition instants in the viewer timezone', () => {
+    const event: ProgressionEvent = { kind: 'transition', label: 'Ordered', actor: null, actorName: null, at: '2026-06-14T23:30:00Z', docRef: null, docHref: null };
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
-    const { unmount } = renderTimeline(events);
-    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('Jun 14, 2026');
+    const { unmount } = renderEvents([event]);
+    expect(screen.getByText((_, element) => element?.tagName === 'TIME')).toHaveTextContent('Jun 14, 2026');
     unmount();
 
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
-    renderTimeline(events);
-    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('Jun 15, 2026');
+    renderEvents([event]);
+    expect(screen.getByText((_, element) => element?.tagName === 'TIME')).toHaveTextContent('Jun 15, 2026');
   });
 
-  // Orphan-record events carry the record's BUSINESS DATE (`date`, `receipt_date`,
-  // `invoice_date`, `received_date` — `YYYY-MM-DD`), not an instant. A business date is a
-  // calendar day: it must render (never "—") and must never move with the viewer's timezone.
-  it('renders a date-only business date on its own calendar day under every profile timezone', () => {
-    const events: ProgressionEvent[] = [
-      { kind: 'record', label: 'Invoice', actor: null, actorName: null, at: '2026-06-14', docRef: 'VI-2026-0001', docHref: null },
-    ];
+  it('keeps document business dates on their calendar day in every profile timezone', () => {
+    const event: ProgressionEvent = { kind: 'record', label: 'Invoice', actor: null, actorName: null, at: '2026-06-14', docRef: 'VI-2026-0001', docHref: null };
     for (const timezone of ['UTC', 'Asia/Jakarta', 'Pacific/Honolulu', 'Pacific/Kiritimati']) {
       setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone });
-      const { unmount } = renderTimeline(events);
-      const time = screen.getByText((_, el) => el?.tagName === 'TIME');
+      const { unmount } = renderEvents([event]);
+      const time = screen.getByText((_, element) => element?.tagName === 'TIME');
       expect(time, timezone).toHaveTextContent('Jun 14, 2026');
       expect(time).toHaveAttribute('dateTime', '2026-06-14');
       unmount();
     }
   });
 
-  it('renders a mixed timeline: instants shift with the timezone, business dates do not', () => {
-    const events: ProgressionEvent[] = [
-      { kind: 'record', label: 'PO', actor: null, actorName: null, at: '2026-06-14', docRef: null, docHref: null },
-      { kind: 'transition', label: 'Ordered', actor: null, actorName: null, at: '2026-06-14T23:30:00Z', docRef: null, docHref: null },
-    ];
-    setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
-    renderTimeline(events);
-    // Newest-first: the transition renders first, then the business-date record.
-    const times = screen.getAllByText((_, el) => el?.tagName === 'TIME');
-    expect(times.map((t) => t.textContent)).toEqual(['Jun 15, 2026', 'Jun 14, 2026']);
-  });
-
-  it('renders an em dash for a malformed event date instead of a raw string', () => {
-    const events: ProgressionEvent[] = [
-      { kind: 'record', label: 'PR', actor: null, actorName: null, at: 'not-a-date', docRef: null, docHref: null },
-    ];
-    renderTimeline(events);
-    expect(screen.getByText((_, el) => el?.tagName === 'TIME')).toHaveTextContent('—');
+  it('renders malformed event dates as an em dash', () => {
+    const event: ProgressionEvent = { kind: 'record', label: 'PR', actor: null, actorName: null, at: 'not-a-date', docRef: null, docHref: null };
+    renderEvents([event]);
+    expect(screen.getByText((_, element) => element?.tagName === 'TIME')).toHaveTextContent('—');
   });
 });

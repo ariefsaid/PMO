@@ -216,9 +216,9 @@ const renderPage = (id = 'proc-s6-001') =>
   );
 
 // ---------------------------------------------------------------------------
-// AC-S6-3: BackBar on success render at <=921px (C-IMP-1)
+// Named Back remains available on the record at every viewport.
 // ---------------------------------------------------------------------------
-describe('AC-S6-3 (C-IMP-1): BackBar present in success render DOM for mobile back-nav', () => {
+describe('record return navigation', () => {
   beforeEach(() => {
     detailState.data = { ...draftByAlice };
     detailState.isPending = false;
@@ -228,29 +228,19 @@ describe('AC-S6-3 (C-IMP-1): BackBar present in success render DOM for mobile ba
     mockIsDesktop = false; // mobile
   });
 
-  it('AC-S6-3: the success render includes a "Back to Procurement" button (mobile BackBar in DOM)', () => {
+  it('provides a named way back to the procurement collection', () => {
     renderPage();
-    // The BackBar must be present in the DOM on the success render (mobile escape route).
-    // On desktop it is hidden via CSS, but the DOM node must exist for single-render parity.
-    const backBtn = screen.getByTestId('mobile-back-bar');
+    const backBtn = screen.getByRole('button', { name: /^Procurement$/i });
     expect(backBtn).toBeInTheDocument();
   });
 
-  it('AC-S6-3: the mobile BackBar carries max-[920px]:block and hidden classes (CSS-only show/hide)', () => {
-    renderPage();
-    const mobileBackBar = screen.getByTestId('mobile-back-bar');
-    // Must be hidden on desktop (hidden = display:none by default) and block on mobile.
-    expect(mobileBackBar.className).toContain('hidden');
-    expect(mobileBackBar.className).toContain('max-[920px]:block');
-  });
-
-  it('AC-S6-3: clicking the mobile BackBar navigates to /procurement', async () => {
+  it('clicking Back returns to procurement', async () => {
     // Director ruling (2026-09-29): the destination stays canonical `/procurement` while a
     // direct link with no captured list context now additionally carries validated clean
     // return state (the same fallback shape as AC-NAV-007's Projects/Procurement equivalents).
     navigate.mockClear();
     renderPage();
-    const backBtn = screen.getByRole('button', { name: /Back to Procurement/i });
+    const backBtn = screen.getByRole('button', { name: /^Procurement$/i });
     backBtn.click();
     expect(navigate).toHaveBeenCalledWith('/procurement', { state: {} });
   });

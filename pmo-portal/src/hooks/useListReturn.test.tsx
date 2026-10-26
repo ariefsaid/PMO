@@ -39,12 +39,15 @@ function LocationProbe() {
 function CompaniesList() {
   const location = useLocation();
   const [ready, setReady] = useState(!location.state?.pmoListScrollRestore);
-  const { openRecord } = useListReturn({ list: 'companies', contentReady: ready });
+  const { openRecord, navigateWithReturn } = useListReturn({ list: 'companies', contentReady: ready });
   const navigate = useNavigate();
   return (
     <div>
       <button type="button" data-list-return-focus="companies:company-1" onClick={() => openRecord('/companies/company-1')}>
         Open company
+      </button>
+      <button type="button" data-list-return-focus="companies:capture" onClick={() => navigateWithReturn('/companies/new?project=p1')}>
+        Open company capture
       </button>
       <button type="button" onClick={() => openRecord('https://outside.example/path')}>
         Open unsafe target
@@ -226,6 +229,35 @@ describe('useListReturn', () => {
       scrollTop: 320,
     });
     expect(screen.getByRole('button', { name: 'Return to companies' })).toBeInTheDocument();
+  });
+
+  it('AC-806 captures the filtered list and scroll before opening a capture route', async () => {
+    renderAt('/companies?type=Client&q=harbor&campaign=source');
+    const main = sizeMainScroll();
+    expect(main).not.toBeUndefined();
+    main!.scrollTop = 320;
+
+    const capture = screen.getByRole('button', { name: 'Open company capture' });
+    capture.focus();
+    fireEvent.click(capture);
+    expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies/new?project=p1');
+    let state = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(state.pmoListReturn).toEqual({
+      list: 'companies',
+      path: '/companies?type=Client&q=harbor&campaign=source',
+      scrollTop: 320,
+      focusTarget: 'companies:capture',
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Return to companies' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveAttribute('data-path', '/companies?type=Client&q=harbor&campaign=source'));
+    state = JSON.parse(screen.getByTestId('location').getAttribute('data-state') ?? '{}');
+    expect(state.pmoListScrollRestore).toEqual({
+      list: 'companies',
+      path: '/companies?type=Client&q=harbor&campaign=source',
+      scrollTop: 320,
+      focusTarget: 'companies:capture',
+    });
   });
 
   it('AC-LRC-010: does not navigate to an external record target', () => {

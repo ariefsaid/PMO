@@ -19,14 +19,14 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     await page.goto('/procurement/new');
     await page.getByLabel('Title').fill(title);
     await pickComboboxOption(page, page, /^project/i);
-    await page.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Save draft' }).click();
 
     // A saved draft: nothing recorded yet, no approval requested.
     await expect(page).toHaveURL(/\/procurement\/[0-9a-f-]{36}/, { timeout: 20_000 });
     purchaseId = page.url().match(/procurement\/([0-9a-f-]{36})/)![1];
     await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: /Documents/ }).click();
+    await page.getByRole('navigation', { name: 'Procurement sections' }).getByRole('link', { name: 'Documents' }).click();
     // An empty Draft offers "Record the first document": choose Order, then capture it.
     await page.getByLabel('Record the first document').selectOption({ label: 'Order' });
     await page.getByTestId('ledger-capture-open').click();

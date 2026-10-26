@@ -24,6 +24,7 @@ import { useStandaloneTaxFields } from '@/src/hooks/useStandaloneTaxFields';
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { groupRefIsPmoAuthored } from './groupRef';
 import {
   Card,
@@ -75,33 +76,23 @@ export interface DecisionAction {
   variant: ActionVariant;
 }
 
-/**
- * Per-status SoD-aware ready copy for the GateNotice variant="ready".
- * Replaces the generic "You may move this request to its next lifecycle
- * stage below." with copy that teaches the SoD rule relevant to each stage.
- * Display-only — no enforcement logic.
- */
-function readyGateMessage(
+/** Keep only decision-relevant SoD guidance; ordinary eligible states need no readiness prompt. */
+function sodActionGuidance(
   status: ProcurementStatus,
-  isRequester: boolean,
   isApprover: boolean,
-): string {
+  t: TFunction,
+): string | null {
   switch (status) {
-    case 'Draft':
-      // Author about to submit — teach that submission hands off to a different approver.
-      return isRequester
-        ? 'Submitting hands this to an approver — you can\'t approve your own request.'
-        : 'Ready to submit this request for approval.';
     case 'Requested':
       // Approver viewing — teach that the requester cannot self-approve.
-      return 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.';
+      return t('procurement:detail.sod.reviewerGuidance', 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.');
     case 'Vendor Invoiced':
       // Finance payer — teach SoD-b: the approver cannot also release payment.
       return isApprover
-        ? 'Payment must be released by a different finance user — the approver can\'t also pay this request.'
-        : 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.';
+        ? t('procurement:detail.sod.paymentApproverGuidance', 'Payment must be released by a different finance user — the approver can\'t also pay this request.')
+        : t('procurement:detail.sod.paymentReleaseGuidance', 'Releasing payment — the approver can\'t also pay (separation of duties). You may mark this as paid below.');
     default:
-      return 'Ready to advance. Select an action below to move this request to its next stage.';
+      return null;
   }
 }
 
@@ -168,10 +159,12 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
   onActionClick,
   mutations,
 }) => {
-  // The compact SoD hint remains with the decision controls, after the request's
-  // identity, value and supporting evidence. The authority and wording stay unchanged.
-  // The Draft-author case is covered by the `sod-pre-announce` line below.
-  const showReadyHint = !gateMsg && !routeNote && actions.length > 0 && !(isDraft && isRequester);
+  const { t } = useTranslation();
+  // Keep policy guidance beside eligible decision controls; ordinary ready states
+  // need no extra prompt. Draft authors get the handoff notice below.
+  const actionGuidance = !gateMsg && !routeNote && actions.length > 0
+    ? sodActionGuidance(p.status, isApprover, t)
+    : null;
 
   // IxD Change 1 — Notes is progressive-disclosure: NOT shown at rest. When
   // Approve/Reject is available (`showNotes`) a quiet "Add a note" link reveals the
@@ -183,22 +176,20 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
     <RecordActionZone className="sticky bottom-0 z-10 bg-background/95 backdrop-blur-sm mb-4">
       <Card data-testid="decision-card">
         <CardPad className="flex flex-col gap-2.5 py-3">
-          {/* D6: SoD / readiness hint — co-located with the (absent or present) action
-              buttons so the viewer never hunts for the reason they can't act. Condensed
-              to ONE muted inline line (IxD Change 1) instead of a boxed banner. */}
+          {/* SoD guidance stays with the eligible decision controls. */}
           {gateMsg ? (
             <p
               data-testid="sod-blocked-hint"
               className="text-[13px] text-muted-foreground"
             >
-              <b className="font-semibold text-foreground">Separation-of-duties gate.</b> {gateMsg}
+              <b className="font-semibold text-foreground">{t('procurement:detail.sod.gateLabel', 'Separation-of-duties gate.')}</b> {gateMsg}
             </p>
-          ) : showReadyHint ? (
+          ) : actionGuidance ? (
             <p
-              data-testid="sod-ready-hint"
+              data-testid="sod-action-guidance"
               className="text-[13px] text-muted-foreground"
             >
-              {readyGateMessage(p.status, isRequester, isApprover)}
+              {actionGuidance}
             </p>
           ) : null}
           {routeNote && (
@@ -218,7 +209,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               data-testid="sod-pre-announce"
               className="text-[13px] text-muted-foreground"
             >
-              Submitting hands this to another approver — you can&apos;t approve your own request.
+              {t('procurement:detail.sod.authorNotice', 'Submitting hands this to another approver — you can\'t approve your own request.')}
             </p>
           )}
 
@@ -233,14 +224,14 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
               className="inline-flex w-fit items-center gap-1 text-[13px] font-medium text-[hsl(var(--nav-active-text))] hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             >
               <Icon name="plus" className="size-3.5" />
-              Add a note <span className="font-normal text-muted-foreground">(optional)</span>
+              {t('procurement:detail.notes.add', 'Add a note')} <span className="font-normal text-muted-foreground">({t('common:optional', 'optional')})</span>
             </button>
           )}
 
           {showNotes && notesRevealed && (
             <div className="flex max-w-md flex-col gap-1">
               <label htmlFor="procurement-notes-input" className="text-[12px] font-semibold text-muted-foreground">
-                Notes <span className="font-normal">(optional)</span>
+                {t('procurement:detail.notes.label', 'Notes')} <span className="font-normal">({t('common:optional', 'optional')})</span>
               </label>
               <textarea
                 id="procurement-notes-input"
@@ -249,7 +240,7 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
                 autoFocus
                 value={notesInput}
                 onChange={(e) => setNotesInput(e.target.value)}
-                placeholder="Add a note for the approval or rejection…"
+                placeholder={t('procurement:detail.notes.placeholder', 'Add a note for the approval or rejection…')}
                 className="rounded-md border border-input bg-background px-2.5 py-1.5 text-[13.5px] outline-none placeholder:text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               />
             </div>
@@ -298,14 +289,14 @@ export const ProcurementDecisionZone: React.FC<ProcurementDecisionZoneProps> = (
             </div>
           ) : (
             <p className="text-[13px] text-muted-foreground">
-              No further lifecycle actions are available to you at this stage.
+              {t('procurement:detail.noActions', 'No further lifecycle actions are available to you at this stage.')}
             </p>
           )}
 
           {/* D10 (AC-W3-D10): gate message below the action bar when Draft with no items. */}
           {isDraft && p.items.length === 0 && actions.some((a) => a.to === 'Requested') && (
             <p className="text-[13px] text-muted-foreground" data-testid="line-items-gate">
-              Add at least one line item before submitting.
+              {t('procurement:detail.itemsRequired', 'Add at least one line item before submitting.')}
             </p>
           )}
 

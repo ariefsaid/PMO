@@ -9,6 +9,7 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { useExpenseClaims } from '@/src/hooks/useExpenseClaims';
 import { useExpenseCapture } from '@/src/hooks/useExpenseCapture';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
@@ -22,13 +23,17 @@ import { useOwnAdvanceOptions } from './expenses/useOwnAdvanceOptions';
 import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 
 type DraftLine = { date: string; type: string; description: string; amount: string };
+type ExpenseClaimNavigationState = { recordContext?: { listPath?: string } };
 const blankLine = (): DraftLine => ({ date: '', type: '', description: '', amount: '' });
+const isExpenseRegisterPath = (path: string | undefined): path is string =>
+  typeof path === 'string' && (path === '/expenses' || path.startsWith('/expenses?') || path.startsWith('/expenses#'));
 
 /** Evidence-first unsaved claim capture. The capture repository owns partial-save recovery. */
 const ExpenseClaimNew: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const navigate = useNavigate();
   const location = useLocation();
+  const { closeRecord } = useRecordContext('/expenses');
   const { toast } = useToast();
   const may = usePermission();
   const canCreate = may('create', 'expenseClaim');
@@ -39,6 +44,16 @@ const ExpenseClaimNew: React.FC = () => {
   const orgCurrency = useOrgCurrencyState();
   const saveInFlight = useRef(false);
   const inheritedProjectId = useMemo(() => new URLSearchParams(location.search).get('project') ?? '', [location.search]);
+  const stateListPath = (location.state as ExpenseClaimNavigationState | null)?.recordContext?.listPath;
+  const returnContextExists = isExpenseRegisterPath(stateListPath);
+  const returnListPath = returnContextExists ? stateListPath : `/expenses${location.search}`;
+  const openSavedClaim = (id: string) => navigate(
+    `/expenses/${id}${returnContextExists ? '' : location.search}`,
+    {
+      replace: true,
+      ...(returnContextExists ? { state: { recordContext: { listPath: returnListPath } } } : {}),
+    },
+  );
   const [title, setTitle] = useState('');
   const [titleEdited, setTitleEdited] = useState(false);
   const [titleSuggestionSource, setTitleSuggestionSource] = useState<'receipt' | 'line' | null>(null);
@@ -106,7 +121,7 @@ const ExpenseClaimNew: React.FC = () => {
       });
       createdClaimId = claimId;
       toast(t('expenses.toast.created', 'Created'), title.trim(), 'success');
-      navigate(`/expenses/${claimId}`, { replace: true });
+      openSavedClaim(claimId);
     } catch (reason) {
       const failure = reason as { claimId?: string; draftSaved?: boolean };
       const savedId = failure.claimId ?? createdClaimId ?? capture.recovery?.claimId;
@@ -115,14 +130,14 @@ const ExpenseClaimNew: React.FC = () => {
         createdClaimId = savedId;
         if (receipt) void capture.cleanupUnlinkedAttachment({ beforeConfirmationOnly: true }).catch(() => undefined);
         toast(headline, detail, 'warning');
-        navigate(`/expenses/${savedId}`, { replace: true });
+        openSavedClaim(savedId);
       } else setError(`${headline}: ${detail}`);
     } finally {
       if (!createdClaimId) { saveInFlight.current = false; setSaving(false); }
     }
   };
 
-  const returnToExpenses = () => guardLeave(() => navigate(`/expenses${location.search}`));
+  const returnToExpenses = () => guardLeave(closeRecord);
   const renderLine = (line: DraftLine, index: number, removable: boolean) => (
     <div key={index} className="mb-3 border-b border-border pb-3 last:mb-0">
       <FormGrid>
@@ -136,7 +151,7 @@ const ExpenseClaimNew: React.FC = () => {
   );
 
   if (!canCreate) return <>
-    <MoneyOutPageHeader title={t('expenses.form.claimTitle', 'New expense claim')} returnAction={{ label: t('expenses.title', 'Expenses'), onReturn: () => navigate(`/expenses${location.search}`) }} />
+    <MoneyOutPageHeader title={t('expenses.form.claimTitle', 'New expense claim')} returnAction={{ label: t('expenseClaims:record.backToRegister', 'Back to expenses'), onReturn: closeRecord, phoneOnly: true }} />
     <GateNotice variant="blocked">{t('expenseClaims:new.noPermission', 'You do not have permission to create expense claims.')}</GateNotice>
   </>;
 
@@ -144,17 +159,17 @@ const ExpenseClaimNew: React.FC = () => {
     <MoneyOutPageHeader
       title={t('expenses.form.claimTitle', 'New expense claim')}
       scope={t('expenseClaims:new.scope', '{{project}} · {{currency}}', { project: scopeProject, currency: scopeCurrency })}
-      returnAction={{ label: t('expenses.title', 'Expenses'), onReturn: returnToExpenses }}
+      returnAction={{ label: t('expenseClaims:record.backToRegister', 'Back to expenses'), onReturn: returnToExpenses, phoneOnly: true }}
     />
     <form onSubmit={(event) => void save(event)}>
-      <FormSection legend={t('expenses.form.projectScope', 'Project scope')}>
+      <FormSection legend={t('expenseClaims:capture.projectScope', 'Project scope')}>
         <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2">
           <SelectField label={t('expenses.form.project.label', 'Project')} value={projectId} className="min-h-11" onChange={(value) => {
             setProjectId(value);
             if (!categoryEdited) setCategory(value ? categoryPrecedents.get(value)?.budgetCategory ?? '' : '');
           }} options={[{ value: '', label: t('expenses.form.project.none', 'Overhead (no project)') }, ...projectOptions]} />
-          <p className="min-h-11 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground" aria-label={t('expenses.form.currencyScope', 'Currency')}>
-            {t('expenses.form.currencyScope', 'Currency')}: <span className="font-medium text-foreground">{scopeCurrency}</span>
+          <p className="min-h-11 rounded-md border border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground" aria-label={t('expenseClaims:capture.currencyScope', 'Currency')}>
+            {t('expenseClaims:capture.currencyScope', 'Currency')}: <span className="font-medium text-foreground">{scopeCurrency}</span>
           </p>
         </div>
       </FormSection>
@@ -171,7 +186,7 @@ const ExpenseClaimNew: React.FC = () => {
         </div>
         {renderLine(lines[0] ?? blankLine(), 0, false)}
       </FormSection>
-      <FormSection legend={t('expenses.lines.additionalTitle', 'Additional lines')}>
+      <FormSection legend={t('expenseClaims:capture.additionalLines', 'Additional lines')}>
         {lines.slice(1).map((line, index) => renderLine(line, index + 1, true))}
         <Button type="button" variant="outline" className="min-h-11" onClick={() => setLines((rows) => [...rows, blankLine()])}>{t('expenses.lines.add', 'Add line')}</Button>
       </FormSection>

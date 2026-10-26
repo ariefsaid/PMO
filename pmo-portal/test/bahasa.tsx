@@ -28,6 +28,10 @@ const EN_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/lo
 const ID_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/m365Documents.json'), 'utf8'));
 const EN_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/projects.json'), 'utf8'));
 const ID_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/projects.json'), 'utf8'));
+const EN_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/procurement.json'), 'utf8'));
+const ID_PROCUREMENT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/procurement.json'), 'utf8'));
+const EN_EXPENSE_CLAIMS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/expenseClaims.json'), 'utf8'));
+const ID_EXPENSE_CLAIMS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/expenseClaims.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -36,6 +40,7 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     fallbackLng: 'en',
     defaultNS: 'common',
     fallbackNS: 'common',
+    ns: ['common', 'dashboard', 'finance', 'project', 'projects', 'shell', 'administration', 'integrations', 'm365Documents', 'procurement', 'expenseClaims'],
     resources: {
       id: {
         common: ID,
@@ -47,6 +52,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
         administration: ID_ADMINISTRATION,
         integrations: ID_INTEGRATIONS,
         m365Documents: ID_M365_DOCUMENTS,
+        procurement: ID_PROCUREMENT,
+        expenseClaims: ID_EXPENSE_CLAIMS,
       },
       en: {
         common: EN,
@@ -58,6 +65,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
         administration: EN_ADMINISTRATION,
         integrations: EN_INTEGRATIONS,
         m365Documents: EN_M365_DOCUMENTS,
+        procurement: EN_PROCUREMENT,
+        expenseClaims: EN_EXPENSE_CLAIMS,
       },
     },
     initImmediate: false,

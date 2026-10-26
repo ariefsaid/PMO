@@ -1,9 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { matchRoutes } from 'react-router';
 import React from 'react';
-import { appRouteConfig } from './App';
+import { appRouteConfig, contentPageFrameReturnKey, usesContentPageFramePath } from './App';
 
 describe('Application route table', () => {
+  it('opts all money-out routes into the shared frame and supplies parent labels for phone returns', () => {
+    const routes = [
+      '/procurement', '/procurement/new', '/procurement/proc-1', '/procurement/proc-1/items',
+      '/procurement/proc-1/activity', '/erp-purchases', '/expenses', '/expenses/new', '/expenses/claim-1',
+    ];
+    for (const path of routes) expect(usesContentPageFramePath(path), path).toBe(true);
+    expect(contentPageFrameReturnKey('/procurement')).toBeUndefined();
+    expect(contentPageFrameReturnKey('/procurement/new')).toBe('procurement');
+    expect(contentPageFrameReturnKey('/procurement/proc-1/activity')).toBe('procurement');
+    expect(contentPageFrameReturnKey('/erp-purchases')).toBe('procurement');
+    expect(contentPageFrameReturnKey('/expenses')).toBeUndefined();
+    expect(contentPageFrameReturnKey('/expenses/new')).toBe('expenses');
+    expect(contentPageFrameReturnKey('/expenses/claim-1')).toBe('expenses');
+  });
+
   // Deliberate UX change (#765): /reports is no longer a placeholder — it is the management pack, behind
   // the revenue entitlement (FeatureRoute redirects to the dashboard when the module is off).
   it('AC-MMP-015: /reports resolves to the management pack behind the revenue entitlement', () => {

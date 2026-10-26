@@ -1,6 +1,6 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React, { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, ListState, StatusPill } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
@@ -27,8 +27,9 @@ import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 
 /** `/expenses/:claimId` (FR-EXP-063..065). Shows only the actions the server would allow; the RPCs decide. */
 const ExpenseClaimDetail: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const { claimId } = useParams<{ claimId: string }>();
+  const location = useLocation();
   const { closeRecord } = useRecordContext('/expenses', claimId);
   const userId = useAuth().currentUser?.id ?? null;
   const { realRole } = useEffectiveRole();
@@ -43,7 +44,7 @@ const ExpenseClaimDetail: React.FC = () => {
   const advanceOptions = useOwnAdvanceOptions(claim?.advance_id ?? null);
   const projectOptions = useMemo(() => (projects ?? []).map((p) => ({ value: p.id, label: projectDisplayName(p) })), [projects]);
   const [editOpen, setEditOpen] = useState(false);
-  const returnAction = { label: t('expenses.detail.backToRegister', 'Back to expenses'), onReturn: closeRecord };
+  const returnAction = { label: t('expenseClaims:record.backToRegister', 'Back to expenses'), onReturn: closeRecord, phoneOnly: true };
 
   if (query.isPending) {
     return <><MoneyOutPageHeader title={t('expenses.title', 'Expenses')} returnAction={returnAction} /><ListState variant="loading" rows={5} /></>;
@@ -105,7 +106,7 @@ const ExpenseClaimDetail: React.FC = () => {
       />
 
       <section aria-labelledby="expense-evidence-heading" className="mb-4 border-b border-border pb-4">
-        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenses.detail.purposeAndAmount', 'Purpose and amount')}</h2>
+        <h2 id="expense-evidence-heading" className="text-base font-semibold">{t('expenseClaims:record.purposeAndAmount', 'Purpose and amount')}</h2>
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
           <div>
             <dt className="text-xs text-muted-foreground">{t('expenses.detail.amount', 'Amount')}</dt>
@@ -139,7 +140,7 @@ const ExpenseClaimDetail: React.FC = () => {
         {claim.purpose && <p className="mt-3 whitespace-pre-wrap text-sm">{claim.purpose}</p>}
         {claim.advance_id && (
           <p className="mt-3 text-sm">
-            <Link to={`/expenses/${claim.advance_id}`} className="text-primary-text hover:underline">
+            <Link to={`/expenses/${claim.advance_id}${location.search}`} state={location.state} className="text-primary-text hover:underline">
               {t('expenses.detail.linkedAdvance', 'Settles a cash advance')}
             </Link>
           </p>

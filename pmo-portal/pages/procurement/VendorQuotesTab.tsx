@@ -164,7 +164,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
     // both validates and produces the persisted number, so excess precision is refused, not rounded.
     const parsed = parseMoneyInputAtScale(total, 2);
     if (parsed === null || parsed <= 0) {
-      setTotalError('Quoted total must be greater than 0 with no more than 2 decimal places.');
+      setTotalError(t('procurement:quotes.capture.invalidAmount', 'Enter a quoted total greater than zero with no more than two decimal places.'));
       return;
     }
     setTotalError(undefined);
@@ -205,16 +205,16 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       <CardHead
         actions={
           canAdd && !adding && (
-            <Button size="sm" variant="outline" onClick={() => setAdding(true)} data-testid="add-quotation">
+            <Button size="sm" variant="outline" className="min-h-11 min-[921px]:min-h-8" onClick={() => setAdding(true)} data-testid="add-quotation">
               <Icon name="plus" width="1em" height="1em" />
-              Add quotation
+              {t('procurement:quotes.add', 'Add quotation')}
             </Button>
           )
         }
       >
-        Bid comparison
+        {t('procurement:quotes.heading', 'Bid comparison')}
         <span className="ml-2 text-[13px] font-normal text-muted-foreground">
-          Compare and select a vendor quote
+          {t('procurement:quotes.description', 'Compare and select a vendor quote')}
         </span>
       </CardHead>
 
@@ -222,7 +222,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length === 0 && (
         <ListState
           variant="empty"
-          title={t('procurementDetail.quotes.emptyTitle', 'No quotes recorded. Add a vendor quote to compare bids.')}
+          title={t('procurement:quotes.emptyTitle', 'No quotes recorded. Add a vendor quote to compare bids.')}
         />
       )}
 
@@ -230,22 +230,23 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       {quotations.length > 0 && (() => {
         const columns: Column<QuotationRow>[] = [
           {
-            key: 'vendor', header: 'Vendor / Quote #', kind: 'primary', size: 320, minSize: 240,
-            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
-            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? 'Vendor quote',
+            key: 'vendor', header: t('procurement:quotes.columns.vendor', 'Vendor / reference'), kind: 'primary', size: 320, minSize: 240,
+            primaryTitle: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
+            cell: (q) => vendorMap[q.vendor_id] ?? q.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
             secondaryCell: (q) => <span>{q.reference && <span className="mr-1">{q.reference}</span>}{q.vq_number}</span>,
           },
-          { key: 'valueStatus', header: 'Value status', kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">Selected · best value</StatusPill> : bestId === q.id ? <StatusPill variant="won">Best value</StatusPill> : null },
-          { key: 'amount', header: 'Amount', kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
-          { key: 'validUntil', header: 'Valid until', kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
-          { key: 'attachments', header: 'Attachments', kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> }, 
+          { key: 'valueStatus', header: t('procurement:quotes.columns.selection', 'Selection status'), kind: 'status', size: 160, cell: (q) => isRowSelected(q, selectedId) ? <StatusPill variant="won">{t('procurement:quotes.selectedBestValue', 'Selected · best value')}</StatusPill> : bestId === q.id ? <StatusPill variant="won">{t('procurement:quotes.bestValue', 'Best value')}</StatusPill> : null },
+          { key: 'amount', header: t('procurement:quotes.columns.amount', 'Amount'), kind: 'money', align: 'num', size: 184, minSize: 152, cell: (q) => <span className="font-semibold">{formatCurrencyAuto(Number(q.total_amount), q.currency)}</span> },
+          { key: 'validUntil', header: t('procurement:quotes.columns.validUntil', 'Valid until'), kind: 'date', size: 160, cell: (q) => <span className="text-muted-foreground">{formatDateOnly(q.valid_until)}</span> },
+          { key: 'attachments', header: t('procurement:quotes.columns.attachments', 'Evidence'), kind: 'text', size: 240, minSize: 180, cell: (q) => <ProcurementFilesSubsection phase="quotation" parentId={q.id} procurementId={procurementId} canWrite={canManageFiles} uploadedById={currentUserId} files={q.files} /> },
           { key: 'select', header: '', kind: 'select', size: 40, minSize: 40, maxSize: 40, cell: (q) => {
             const selectable = canSelect && !isRowSelected(q, selectedId);
-            return selectable ? <Button size="sm" variant="outline" onClick={() => setSelectTarget(q)} aria-label={`Select quote ${vendorMap[q.vendor_id] ?? q.vq_number ?? ''}`.trim()}>Select</Button> : null;
+            const vendor = vendorMap[q.vendor_id] ?? q.vq_number ?? '';
+            return selectable ? <Button size="sm" variant="outline" className="min-h-11 min-[921px]:min-h-8" onClick={() => setSelectTarget(q)} aria-label={t('procurement:quotes.selectAria', 'Select quote {{vendor}}', { vendor })}>{t('procurement:quotes.select', 'Select')}</Button> : null;
           } },
         ];
         return <>
-          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName="Vendor bid comparison" selectedKey={selectedId ?? undefined} />
+          <DataTable rows={sorted} columns={columns} rowKey={(q) => q.id} tableId="procurement-vendor-quotes" accessibleName={t('procurement:quotes.tableLabel', 'Vendor bid comparison')} selectedKey={selectedId ?? undefined} />
         </>;
       })()}
 
@@ -258,10 +259,10 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
           >
             <div className="min-w-[200px] flex-1">
               <Combobox
-                label="Vendor"
+                label={t('procurement:quotes.capture.vendor', 'Vendor')}
                 noun="vendor"
                 required
-                placeholder="Select a vendor…"
+                placeholder={t('procurement:quotes.capture.selectVendor', 'Select a vendor…')}
                 value={vendorId}
                 onChange={(v) => setVendorId(v)}
                 loadOptions={loadVendors}
@@ -269,7 +270,7 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
             </div>
             <div className="w-[150px]">
               <NumberField
-                label="Quoted total"
+                label={t('procurement:quotes.capture.quotedTotal', 'Quoted total')}
                 required
                 prefix={currencySymbol(currency)}
                 value={total}
@@ -279,11 +280,11 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
                 }}
                 error={totalError}
                 localeAware
-                placeholder="0.00"
+                placeholder={t('procurement:quotes.capture.amountPlaceholder', '0.00')}
               />
             </div>
             <span
-              title="File upload coming soon"
+              title={t('procurement:quotes.capture.fileUploadUnavailable', 'File upload is not available yet')}
               // coming_soon_clicked (2026-07-13 wiring plan — demand signal): the
               // control itself stays genuinely disabled (D13 honest-affordance —
               // never a fake-working CTA); the wrapping span's own click still
@@ -292,20 +293,21 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
               className="inline-flex h-8 cursor-not-allowed items-center gap-1.5 rounded-md border border-dashed border-input bg-secondary/50 px-2.5 text-[12.5px] text-muted-foreground"
             >
               <Icon name="doc" width="1em" height="1em" />
-              Attach file (coming soon)
+              {t('procurement:quotes.capture.attachFileUnavailable', 'Attach file unavailable')}
             </span>
             <span className="flex-1" />
-            <Button size="sm" variant="ghost" onClick={resetAdd}>
-              Cancel
+            <Button size="sm" variant="ghost" className="min-h-11 min-[921px]:min-h-8" onClick={resetAdd}>
+              {t('procurement:quotes.capture.cancel', 'Cancel')}
             </Button>
             <Button
               size="sm"
               variant="primary"
+              className="min-h-11 min-[921px]:min-h-8"
               disabled={!vendorId || !total.trim()}
               loading={addBusy}
               onClick={() => void submitAdd()}
             >
-              Add quotation
+              {t('procurement:quotes.add', 'Add quotation')}
             </Button>
           </div>
         </CardPad>
@@ -315,9 +317,16 @@ export const VendorQuotesTab: React.FC<VendorQuotesTabProps> = ({
       <ConfirmDialog
         open={!!selectTarget}
         tone="default"
-        title="Select this quote?"
-        description="The selected quote sets the purchase-request value and vendor. If it is above the approved amount, the request goes back for approval."
-        confirmLabel="Select quote"
+        title={t('procurement:quotes.selectionTitle', 'Select this quote?')}
+        description={selectTarget ? t(
+          'procurement:quotes.selectionDescription',
+          'The {{vendor}} quote for {{amount}} will set the request value and vendor. If it exceeds the approved amount, the request returns for approval.',
+          {
+            vendor: vendorMap[selectTarget.vendor_id] ?? selectTarget.vq_number ?? t('procurement:quotes.vendorFallback', 'Vendor quote'),
+            amount: formatCurrencyAuto(Number(selectTarget.total_amount), selectTarget.currency),
+          },
+        ) : ''}
+        confirmLabel={t('procurement:quotes.selectConfirm', 'Select quote')}
         loading={selectBusy}
         onConfirm={() => void confirmSelect()}
         onCancel={() => setSelectTarget(null)}

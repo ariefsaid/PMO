@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { MoneyOutPageHeader } from './procurement/MoneyOutHeader';
 import { Button, Combobox, ConfirmDialog, FormGrid, SelectField, TextField, useToast } from '@/src/components/ui';
 import { useUnsavedChangesGuard } from '@/src/hooks/useUnsavedChangesGuard';
+import { useListReturn } from '@/src/hooks/useListReturn';
 import { usePermission } from '@/src/auth/usePermission';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectOptions, useVendorOptions } from '@/src/hooks/useFkOptions';
@@ -29,6 +30,7 @@ export default function ProcurementCreate() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
+  const { returnToList } = useListReturn({ list: 'procurement' });
   const may = usePermission();
   const { toast } = useToast();
   const create = useCreateProcurement();
@@ -126,11 +128,28 @@ export default function ProcurementCreate() {
       setSaving(false);
       return;
     }
-    navigate(`/procurement/${savedId}`, { replace: true });
+    navigate(`/procurement/${savedId}`, {
+      replace: true,
+      ...(location.state == null ? {} : { state: location.state }),
+    });
   };
 
   if (!may('create', 'procurement')) {
-    return <main className="p-6"><h1>{t('procurement:create.denied', 'You do not have permission to create purchase requests.')}</h1></main>;
+    return (
+      <>
+        <MoneyOutPageHeader
+          title={t('procurement:create.heading', 'New purchase request')}
+          returnAction={{
+            label: t('procurementDetail.backToProcurement', 'Back to procurement'),
+            onReturn: () => returnToList('procurement'),
+            phoneOnly: true,
+          }}
+        />
+        <p role="alert" className="text-sm text-destructive-text">
+          {t('procurement:create.denied', 'You do not have permission to create purchase requests.')}
+        </p>
+      </>
+    );
   }
 
   return (
@@ -143,8 +162,9 @@ export default function ProcurementCreate() {
           <span key="currency">{t('procurement:create.currency', 'Currency')}: {orgCurrency}</span>,
         ]}
         returnAction={{
-          label: t('shell.nav.procurement', 'Procurement'),
-          onReturn: () => guardLeave(() => navigate('/procurement')),
+          label: t('procurementDetail.backToProcurement', 'Back to procurement'),
+          onReturn: () => guardLeave(() => returnToList('procurement')),
+          phoneOnly: true,
         }}
       />
       <form onSubmit={submit} noValidate>
@@ -222,7 +242,7 @@ export default function ProcurementCreate() {
         />
         </fieldset>
         <div className="mt-6 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="outline" className="min-h-11" onClick={() => guardLeave(() => navigate('/procurement'))}>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => guardLeave(() => returnToList('procurement'))}>
             {t('common.cancel', 'Cancel')}
           </Button>
           <Button type="submit" variant="primary" className="min-h-11" loading={saving || create.isPending || createItem.isPending}>

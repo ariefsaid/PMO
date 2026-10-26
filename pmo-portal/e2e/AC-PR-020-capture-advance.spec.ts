@@ -8,11 +8,11 @@
  *           exercised here (capture trigger, form submit, and when available an advance
  *           action) performs its action — none is a no-op.
  *
- * JOURNEY UPDATE for the tabbed record shell (`/procurement/:id/:tab`):
+ * JOURNEY UPDATE for the named-section record (`/procurement/:id/:section`):
  *   The capture affordance moved from per-phase trigger buttons (old stacked layout)
- *   to the Documents tab's LedgerCaptureRow (one capture row, pre-selects next type).
+ *   to the Documents section's LedgerCaptureRow (one capture row, pre-selects next type).
  *   System # and External ref are now columns in the ledger DataTable, not RecordCard fields.
- *   The Progression timeline lives on the Overview tab.
+ *   Progression and record changes share one dated Activity list.
  *
  * Cases used:
  *   CAPTURE: SP2401-004 "DC/AC Cabling & Balance of System" (id …000000000004).
@@ -28,17 +28,17 @@
  *
  * Goal-oracle per AC-PR-020 (unchanged):
  *   1. New record appears in the Documents ledger with BOTH system number AND external reference.
- *   2. Progression timeline (Overview tab) gains at least one new event after capture.
+ *   2. Activity gains at least one new dated event after capture.
  *   3. When an advance action is available and clicked, the case status updates — all on
  *      one page (no navigation).
  *
  * AC-PR-022 oracle (folded):
  *   Every affordance exercised (ledger-capture-open, save, advance) performs its stated action.
  *
- * HISTORY NOTE (tabbed revamp): SP2401-004 is seeded directly at Approved status with no
+ * HISTORY NOTE (section recomposition): SP2401-004 is seeded directly at Approved status with no
  *   procurement_status_events rows and no child document records. The Progression timeline's
- *   <ol> therefore does NOT render before any action (the component shows an empty-state <p>
- *   instead). This is intentional — the empty-state is the correct "before" for this case.
+ *   Activity therefore has no progression event before any action. This is intentional —
+ *   the empty state is the correct "before" for this case.
  *   After an RFQ capture the RFQ record appears as an orphan event in buildProgressionTimeline,
  *   so the <ol> renders with ≥1 item. The test measures growth as: 0 → ≥1.
  */
@@ -52,27 +52,28 @@ const CAPTURE_CASE_ID = '61000000-0000-0000-0000-000000000004';
 // This keeps the two tests in a predictable order within this file; both still run.
 test.describe.configure({ mode: 'serial' });
 
-test('AC-PR-020 capture a record via Documents-tab ledger — system # + external ref appear, history grows — on one page', async ({ page }) => {
+test('AC-PR-020 capture a record in Documents — system # + external ref appear, Activity grows — on one page', async ({ page }) => {
   await signIn(page, 'admin@acme.test');
 
-  // ── Step 1: Load the case on the Overview tab ────────────────────────────────
+  // ── Step 1: Load the case on Review ──────────────────────────────────────────
   await page.goto(`/procurement/${CAPTURE_CASE_ID}/overview`);
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
+  await page.getByRole('link', { name: 'Activity', exact: true }).click();
 
-  // Snapshot the Progression timeline event count BEFORE capture.
+  // Snapshot the combined Activity event count BEFORE capture.
   // SP2401-004 is seeded directly at Approved with NO statusEvents rows and no child
   // document records. buildProgressionTimeline therefore returns [] → the component
   // renders an empty-state <p>, NOT an <ol>. We count the <li> elements directly:
   // locator.count() returns 0 for a non-existent element, so beforeCount = 0 is safe
   // without asserting the list exists (which would fail for this no-history case).
-  const historyList = page.getByRole('list', { name: 'Progression history' });
+  const historyList = page.getByRole('list', { name: 'Purchase activity' });
   const beforeCount = await historyList.locator('li').count();
   // beforeCount is 0 for this freshly-seeded case; the oracle is afterCount > beforeCount.
 
-  // ── Step 2: Navigate to the Documents tab ────────────────────────────────────
-  const documentsTab = page.getByRole('tab', { name: /Documents/i });
-  await expect(documentsTab).toBeVisible({ timeout: 5_000 });
-  await documentsTab.click();
+  // ── Step 2: Navigate to the Documents section ────────────────────────────────
+  const documentsSection = page.getByRole('link', { name: 'Documents', exact: true });
+  await expect(documentsSection).toBeVisible({ timeout: 5_000 });
+  await documentsSection.click();
 
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 10_000 });
 
@@ -113,18 +114,17 @@ test('AC-PR-020 capture a record via Documents-tab ledger — system # + externa
   await expect(ledger.getByText('System #')).toBeVisible({ timeout: 5_000 });
   await expect(ledger.getByText('External ref')).toBeVisible({ timeout: 5_000 });
 
-  // ── Step 6: Navigate back to Overview tab — confirm timeline grew ─────────────
-  const overviewTab = page.getByRole('tab', { name: /Overview/i });
-  await overviewTab.click();
+  // ── Step 6: Open Activity and confirm the combined chronology grew ────────────
+  await page.getByRole('link', { name: 'Activity', exact: true }).click();
 
   // React Query cache is invalidated after capture → the detail bundle refetches
-  // and the timeline rebuilds with the new RFQ orphan-record event.
+  // and Activity includes the new RFQ orphan-record event.
   // For this case: beforeCount = 0, so we assert afterCount ≥ 1 (the new RFQ row).
   await expect(async () => {
     const afterCount = await historyList.locator('li').count();
     expect(
       afterCount,
-      `Progression timeline should have grown after capture (before: ${beforeCount})`,
+      `Activity should have grown after capture (before: ${beforeCount})`,
     ).toBeGreaterThan(beforeCount);
   }).toPass({ timeout: 15_000 });
 

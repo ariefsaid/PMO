@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
 import { formatCurrencyCents } from '@/src/lib/format';
+import { BahasaProvider } from '@/test/bahasa';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
 const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
 
@@ -51,6 +52,9 @@ const ROW = {
   project: { name: 'Harbour Upgrade' }, budget_category: 'Special expenses', amount: 750000, currency: 'IDR', status: 'Submitted',
 };
 const renderPage = (entry = '/expenses') => render(<MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter>);
+const renderPageInBahasa = (entry = '/expenses') => render(
+  <BahasaProvider locale="id"><MemoryRouter initialEntries={[entry]}><ToastProvider><ExpenseClaims /></ToastProvider></MemoryRouter></BahasaProvider>,
+);
 
 beforeEach(() => {
   mockNavigate.mockClear();
@@ -93,6 +97,42 @@ describe('ExpenseClaims page', () => {
     });
   });
 
+  it('AC-806 orders the expenses toolbar from search through filters, sort, view and creation', () => {
+    renderPage();
+    const toolbar = within(screen.getByTestId('money-out-toolbar'));
+    const controls = [
+      toolbar.getByRole('searchbox', { name: 'Search expenses' }),
+      toolbar.getByLabelText('Status'),
+      toolbar.getByLabelText('Type'),
+      toolbar.getByLabelText('Budget category'),
+      toolbar.getByLabelText('Project'),
+      toolbar.getByRole('button', { name: 'Newest claims' }),
+      toolbar.getByRole('button', { name: 'Claims and advances' }),
+      toolbar.getByRole('button', { name: 'Outstanding advances' }),
+      toolbar.getByRole('button', { name: 'Request advance' }),
+      toolbar.getByRole('button', { name: 'New claim' }),
+    ];
+    for (let index = 0; index < controls.length - 1; index += 1) {
+      expect(Boolean(controls[index].compareDocumentPosition(controls[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    }
+  });
+
+  it('AC-806 localizes collection search, sort, views, and outstanding advances in Indonesian', () => {
+    renderPageInBahasa();
+    expect(screen.getByRole('searchbox', { name: 'Cari biaya' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Klaim terbaru' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Tampilan daftar biaya' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Klaim dan uang muka' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Uang muka belum diselesaikan' })).toBeInTheDocument();
+  });
+
+  it('AC-806 keeps the first claim action in the toolbar without duplicating it in the empty state', () => {
+    h.list.data = { rows: [], truncated: false };
+    renderPage();
+    expect(screen.getAllByRole('button', { name: 'New claim' })).toHaveLength(1);
+    expect(within(screen.getByTestId('money-out-toolbar')).getByRole('button', { name: 'New claim' })).toBeInTheDocument();
+  });
+
   it('AC-806 category filters own their URL key while retaining the rest of the collection state', async () => {
     renderPage('/expenses?q=hotel&project=p1&sort=oldest');
     await userEvent.selectOptions(screen.getByLabelText('Budget category', { selector: 'input, select, textarea' }), 'Special expenses');
@@ -116,7 +156,7 @@ describe('ExpenseClaims page', () => {
   it('AC-EXP-060 New claim opens the full-page create route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new', { state: { recordContext: { listPath: '/expenses' } } });
     expect(h.capture.capture).not.toHaveBeenCalled();
     expect(h.create.mutateAsync).not.toHaveBeenCalled();
   });
@@ -124,7 +164,9 @@ describe('ExpenseClaims page', () => {
   it('AC-806 carries the selected project into new-claim capture', async () => {
     renderPage('/expenses?project=p1&sort=oldest');
     await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new?project=p1');
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new?project=p1', {
+      state: { recordContext: { listPath: '/expenses?project=p1&sort=oldest' } },
+    });
   });
 
   it('AC-806 opens a record with the exact expense working set as its return context', async () => {
@@ -155,7 +197,7 @@ describe('ExpenseClaims page', () => {
   it('AC-S12 readiness disclosure moves with the new full-page create route', async () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: 'New claim' }));
-    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new');
+    expect(mockNavigate).toHaveBeenCalledWith('/expenses/new', { state: { recordContext: { listPath: '/expenses' } } });
     expect(h.capture.capture).not.toHaveBeenCalled();
   });
 });

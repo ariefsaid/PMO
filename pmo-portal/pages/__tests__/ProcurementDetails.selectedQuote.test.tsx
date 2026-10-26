@@ -4,9 +4,9 @@ import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
 /**
- * AC-IXD-PROC-004 — once a quote is selected, the "Selected quote" summary tile
- * shows the SELECTED vendor + amount (not "Pending" / "0 received") all the way
- * through to Paid, and the chosen quotation row is marked "Selected" (IxD #12).
+ * AC-IXD-PROC-004 — once a quote is selected, Review keeps its amount distinct,
+ * Quotes identifies the chosen vendor and selected row, and the amount persists
+ * through to Paid.
  */
 
 const detailState = {
@@ -149,9 +149,7 @@ const base = {
   invoices: [],
 };
 
-// The page is a tabbed shell (`/procurement/:id/:tab?`, default Overview). `tab`
-// deep-links the panel that owns the asserted content (the stat tiles live on the
-// default Overview tab; the quotations section lives on the Vendor-quotes tab).
+// The record uses named sections. Review owns purchase amount facts; Quotes owns bid evidence.
 const renderPage = (tab?: string) =>
   render(
     <MemoryRouter initialEntries={[`/procurement/proc-001${tab ? `/${tab}` : ''}`]}>
@@ -162,31 +160,21 @@ const renderPage = (tab?: string) =>
     </MemoryRouter>,
   );
 
-/** The stat tile whose label matches; returns its container element. */
-function tile(label: string): HTMLElement {
-  const labelEl = screen.getByText(label);
-  return labelEl.closest('[data-testid="stat-tile"]') as HTMLElement;
-}
-
 beforeEach(() => {
   detailState.isPending = false;
   detailState.isError = false;
   detailState.error = null;
 });
 
-describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotation', () => {
-  it('AC-IXD-PROC-004: at Quote Selected the tile shows the selected amount + vendor (not "Pending")', () => {
+describe('AC-IXD-PROC-004: Review and Quotes preserve selected quotation evidence', () => {
+  it('AC-IXD-PROC-004: Review shows the selected amount as a distinct purchase fact', () => {
     detailState.data = { ...base, status: 'Quote Selected' };
-    renderPage();
-    const t = tile('Selected quote');
-    // formatCurrency(48000) = "$48,000" (the selected quote's amount)
-    expect(t).toHaveTextContent('$48,000');
-    // names the selected vendor — not the raw "N received" pending sub
-    expect(t).toHaveTextContent('Apex Supply');
-    expect(t).not.toHaveTextContent('Pending');
+    renderPage('overview');
+    const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
+    expect(fact).toHaveTextContent('$48,000');
   });
 
-  it('AC-IXD-PROC-004: the selected amount persists through to Paid (not reverting to Pending)', () => {
+  it('AC-IXD-PROC-004: the selected amount remains distinct through Paid', () => {
     detailState.data = {
       ...base,
       status: 'Paid',
@@ -198,10 +186,9 @@ describe('AC-IXD-PROC-004: the Selected-quote summary binds to the chosen quotat
         { id: 'i-1', procurement_id: 'proc-001', vi_number: 'VI-1', status: 'Paid', invoice_date: '2026-06-06', org_id: 'org-1', created_at: '2026-06-06T00:00:00Z' },
       ],
     };
-    renderPage();
-    const t = tile('Selected quote');
-    expect(t).toHaveTextContent('$48,000');
-    expect(t).not.toHaveTextContent('Pending');
+    renderPage('overview');
+    const fact = screen.getByText('Selected quote amount').parentElement as HTMLElement;
+    expect(fact).toHaveTextContent('$48,000');
   });
 
   it('AC-IXD-PROC-004: the chosen quotation row is marked "Selected · best value"', () => {

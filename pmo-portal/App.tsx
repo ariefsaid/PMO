@@ -220,6 +220,25 @@ export const AppRoutes: React.FC = () => (
   <Suspense fallback={<LoadingFallback />}>{useRoutes(appRouteConfig)}</Suspense>
 );
 
+/** Routes using the content-track breadcrumb frame; page bodies own their h1, scope and action slots. */
+export function usesContentPageFramePath(pathname: string): boolean {
+  const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
+  const moneyOutRoute = pathname === '/procurement' || pathname.startsWith('/procurement/')
+    || pathname === '/erp-purchases' || pathname === '/expenses' || pathname.startsWith('/expenses/');
+  return pathname === '/' || pathname === '/projects' || projectRecordRoute
+    || pathname === '/approvals' || pathname === '/timesheets' || moneyOutRoute
+    || pathname === '/administration' || pathname.startsWith('/administration/') || pathname === '/integrations';
+}
+
+/** Parent label for routes that keep a named in-content return control on phones. */
+export function contentPageFrameReturnKey(pathname: string): 'projects' | 'procurement' | 'expenses' | undefined {
+  if (/^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new') return 'projects';
+  if (pathname === '/erp-purchases' || pathname === '/procurement/new'
+    || /^\/procurement\/[^/]+(?:\/[^/]+)?$/u.test(pathname)) return 'procurement';
+  if (pathname === '/expenses/new' || /^\/expenses\/[^/]+$/u.test(pathname)) return 'expenses';
+  return undefined;
+}
+
 // ── Shell chrome (inside the workspace provider + AgentRuntimeProvider) ───────
 export const ShellChrome: React.FC = () => {
   const location = useLocation();
@@ -371,29 +390,23 @@ export const ShellChrome: React.FC = () => {
   // Project records belong to Projects for every stage and cold-load state. The source-list return
   // context preserves Sales Pipeline as the originating collection lens.
   const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
-  const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
-  const administrationRoute = pathname === '/administration' || pathname.startsWith('/administration/');
-  const personalIntegrationsRoute = pathname === '/integrations';
-  const usesContentPageFrame =
-    pathname === '/' ||
-    pathname === '/projects' ||
-    projectRecordRoute ||
-    pathname === '/approvals' ||
-    pathname === '/timesheets' ||
-    administrationRoute ||
-    personalIntegrationsRoute;
-  const areaName =
-    pathname === '/'
-      ? t('shell.nav.dashboard', 'Dashboard')
-      : pathname === '/approvals'
-        ? t('shell.nav.approvals', 'Approvals')
-        : pathname === '/timesheets'
-          ? t('shell.nav.timesheets', 'Timesheets')
-          : administrationRoute
-            ? t('shell.nav.administration', 'Administration')
-            : personalIntegrationsRoute
-              ? t('shell.nav.integrations', 'My integrations')
-              : t('shell.nav.projects', 'Projects');
+  const usesContentPageFrame = usesContentPageFramePath(pathname);
+  const frameReturnKey = contentPageFrameReturnKey(pathname);
+  const areaName = pathname === '/'
+    ? t('shell.nav.dashboard', 'Dashboard')
+    : pathname === '/approvals'
+      ? t('shell.nav.approvals', 'Approvals')
+      : pathname === '/timesheets'
+        ? t('shell.nav.timesheets', 'Timesheets')
+        : pathname === '/administration' || pathname.startsWith('/administration/')
+          ? t('shell.nav.administration', 'Administration')
+          : pathname === '/integrations'
+            ? t('shell.nav.integrations', 'My integrations')
+            : pathname === '/erp-purchases' || pathname.startsWith('/procurement/') || pathname === '/procurement'
+          ? t('shell.nav.procurement', 'Procurement')
+          : pathname === '/expenses' || pathname.startsWith('/expenses/')
+            ? t('shell.nav.expenses', 'Expenses')
+            : t('shell.nav.projects', 'Projects');
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -482,9 +495,7 @@ export const ShellChrome: React.FC = () => {
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
         pageFrame={usesContentPageFrame ? {
           breadcrumb,
-          ...(projectRecordRoute ? {
-            returnLabel: t('shell.nav.projects', 'Projects'),
-          } : {}),
+          ...(frameReturnKey ? { returnLabel: t(`shell.nav.${frameReturnKey}`, frameReturnKey) } : {}),
         } : undefined}
       >
         <AppRoutes />

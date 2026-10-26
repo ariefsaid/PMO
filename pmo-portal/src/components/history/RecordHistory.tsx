@@ -35,6 +35,19 @@ export interface RecordHistoryProps {
   omitFieldChanges?: Readonly<Record<string, readonly string[]>>;
   /** Omit child-record creation events when their evidence is already in that stream. */
   omitInsertEntities?: readonly string[];
+  /** Additional dated events that belong in the same chronology as captured record changes. */
+  additionalTimelineItems?: readonly RecordHistoryTimelineItem[];
+  /** Accessible name for the combined event list. */
+  listLabel?: string;
+  /** Page-specific copy for the unfiltered empty state. */
+  emptyTitle?: string;
+  emptyDescription?: string;
+}
+
+export interface RecordHistoryTimelineItem {
+  key: string;
+  at: string;
+  content: React.ReactNode;
 }
 
 type EnumLabel = ReturnType<typeof useHistoryEnumLabel>;
@@ -152,7 +165,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((open) => !open)}
-            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="mt-1 inline-flex min-h-11 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
@@ -186,7 +199,7 @@ const HistoryEventGroup: React.FC<{
         aria-expanded={expanded}
         aria-controls={eventsId}
         onClick={() => setExpanded((open) => !open)}
-        className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex min-h-11 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
       </button>
@@ -242,7 +255,7 @@ function filterDisplayEvents(
  */
 export const RecordHistory: React.FC<RecordHistoryProps> = ({
   entityType, entityId, includeChildren = false, kindFilters = false, enabled = true,
-  omitFieldChanges, omitInsertEntities,
+  omitFieldChanges, omitInsertEntities, additionalTimelineItems = [], listLabel, emptyTitle, emptyDescription,
 }) => {
   const { t } = useTranslation();
   const [kind, setKind] = useState('all');
@@ -259,6 +272,22 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
     )) ?? [],
     [q.data, omitFieldChanges, omitInsertEntities],
   );
+  const timeline = useMemo(() => {
+    const recordItems = groups.flatMap((group) => {
+      const first = group.events[0];
+      return first ? [{ kind: 'record' as const, key: group.key, at: first.createdAt, group }] : [];
+    });
+    const additionalItems = additionalTimelineItems.map((item) => ({
+      kind: 'additional' as const,
+      key: item.key,
+      at: item.at,
+      content: item.content,
+    }));
+    return [...recordItems, ...additionalItems].sort((a, b) => {
+      const delta = Date.parse(b.at) - Date.parse(a.at);
+      return Number.isNaN(delta) || delta === 0 ? a.key.localeCompare(b.key) : delta;
+    });
+  }, [additionalTimelineItems, groups]);
   const companyIdsKey = companyIdsOf(events).join(',');
   const companyIds = useMemo(() => (companyIdsKey ? companyIdsKey.split(',') : []), [companyIdsKey]);
   const recordIdsByType = useMemo(() => {
@@ -290,6 +319,30 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
   const refs = useHistoryRefs({ entityType, entityId, enabled, companyIds, recordIdsByType });
   const enumLabel = useHistoryEnumLabel();
   const loadingOlder = q.isFetchingNextPage;
+  const eventList = timeline.length > 0 ? (
+    <ul aria-label={listLabel}>
+      {timeline.map((item) => item.kind === 'additional' ? (
+        <React.Fragment key={item.key}>{item.content}</React.Fragment>
+      ) : item.group.events.length > 1 ? (
+        <HistoryEventGroup
+          key={item.key}
+          events={item.group.events}
+          refs={refs}
+          enumLabel={enumLabel}
+          entityType={entityType}
+          includeChildren={includeChildren}
+        />
+      ) : (
+        <EventRow
+          key={item.key}
+          ev={item.group.events[0]}
+          refs={refs}
+          enumLabel={enumLabel}
+          showRecord={includeChildren && item.group.events[0].entityType !== entityType}
+        />
+      ))}
+    </ul>
+  ) : null;
 
   return (
     <div className="min-w-0" data-testid="record-history">
@@ -317,20 +370,23 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
       {q.isPending ? (
         <ListState variant="loading" rows={4} />
       ) : q.isError ? (
-        <ListState
-          variant="error"
-          title={t('history.error', "Couldn't load history")}
-          onRetry={() => void q.refetch()}
-          retryLabel={t('history.retry', 'Retry')}
-        />
-      ) : events.length === 0 && kind !== 'all' ? (
+        <>
+          <ListState
+            variant="error"
+            title={t('history.error', "Couldn't load history")}
+            onRetry={() => void q.refetch()}
+            retryLabel={t('history.retry', 'Retry')}
+          />
+          {eventList}
+        </>
+      ) : timeline.length === 0 && kind !== 'all' ? (
         <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
-      ) : events.length === 0 ? (
+      ) : timeline.length === 0 ? (
         <ListState
           variant="empty"
           icon="clock"
-          title={t('history.empty.title', 'No changes recorded yet')}
-          sub={t(
+          title={emptyTitle ?? t('history.empty.title', 'No changes recorded yet')}
+          sub={emptyDescription ?? t(
             'history.empty.sub',
             'History begins {{date}}. Edits made before then and deletions are not shown.',
             { date: formatMonthYear(HISTORY_BEGINS) },
@@ -338,26 +394,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
         />
       ) : (
         <>
-          <ul>
-            {groups.map((group) => group.events.length > 1 ? (
-              <HistoryEventGroup
-                key={group.key}
-                events={group.events}
-                refs={refs}
-                enumLabel={enumLabel}
-                entityType={entityType}
-                includeChildren={includeChildren}
-              />
-            ) : (
-              <EventRow
-                key={group.key}
-                ev={group.events[0]}
-                refs={refs}
-                enumLabel={enumLabel}
-                showRecord={includeChildren && group.events[0].entityType !== entityType}
-              />
-            ))}
-          </ul>
+          {eventList}
           {q.hasNextPage && (
             <div className="mt-3">
               {/* aria-disabled, not disabled: a disabled button drops keyboard focus mid-fetch. */}
@@ -365,7 +402,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
                 variant="outline"
                 aria-disabled={loadingOlder || undefined}
                 aria-busy={loadingOlder || undefined}
-                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+                className="min-h-11 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                 onClick={() => {
                   if (!loadingOlder) void q.fetchNextPage();
                 }}

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, DataTable, ListState, type Column } from '@/src/components/ui';
 import { useExpenseAdvanceAging } from '@/src/hooks/useExpenseClaims';
@@ -22,8 +22,10 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
   age = 'All',
   sortOrder = 'oldest',
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
+  const location = useLocation();
   const { data, isPending, isError, refetch } = useExpenseAdvanceAging();
+  const returnPath = `${location.pathname}${location.search}${location.hash}`;
   const rows = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return [...(data?.rows ?? [])]
@@ -40,12 +42,12 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
       });
   }, [age, data?.rows, projectId, query, sortOrder]);
   const columns = useMemo<Column<ExpenseAdvanceAgingRow>[]>(() => [
-    { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}`} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
+    { key: 'advance', header: t('expenses.aging.columns.advance', 'Advance'), kind: 'primary', cell: (row) => <Link to={`/expenses/${row.advanceId}${location.search}`} state={{ recordContext: { listPath: returnPath } }} className="text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{row.claimNumber ?? '—'}</Link> },
     { key: 'claimant', header: t('expenses.aging.columns.claimant', 'Claimant'), kind: 'text', cell: (row) => row.claimantName ?? '—' },
     { key: 'project', header: t('expenses.aging.columns.project', 'Project'), kind: 'text', cell: (row) => row.projectName ?? t('expenses.overhead', 'Overhead') },
     { key: 'outstanding', header: t('expenses.aging.columns.outstanding', 'Outstanding'), kind: 'money', align: 'num', cell: (row) => formatCurrencyAuto(row.outstanding, row.currency) },
     { key: 'age', header: t('expenses.aging.columns.age', 'Age (days)'), kind: 'number', align: 'num', cell: (row) => row.ageDays ?? '—' },
-  ], [t]);
+  ], [location.search, returnPath, t]);
   if (!active) return null;
   if (isPending) return <ListState variant="loading" rows={4} />;
   if (isError || !data) {
@@ -56,8 +58,8 @@ export const AdvanceAgingCard: React.FC<AdvanceAgingCardProps> = ({
       onRetry={() => void refetch()}
     />;
   }
-  if (data.rows.length === 0) return <ListState variant="empty" title={t('expenses.aging.emptyTitle', 'No outstanding advances')} sub={t('expenses.aging.emptySub', 'Paid advances with an unsettled balance will appear here.')} />;
-  if (rows.length === 0) return <ListState variant="empty" title={t('expenses.aging.noMatch', 'No advances match these filters')} />;
+  if (data.rows.length === 0) return <ListState variant="empty" title={t('expenseClaims:register.outstanding.emptyTitle', 'No outstanding advances')} sub={t('expenseClaims:register.outstanding.emptySub', 'Paid advances with an unsettled balance will appear here.')} />;
+  if (rows.length === 0) return <ListState variant="empty" title={t('expenseClaims:register.outstanding.noMatch', 'No advances match these filters')} />;
   return (
     <section aria-label={t('expenses.aging.title', 'Outstanding advances')}>
       <Card variant="bare">

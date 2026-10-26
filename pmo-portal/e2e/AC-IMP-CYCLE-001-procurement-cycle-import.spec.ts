@@ -543,8 +543,8 @@ test(
     // Wait for the detail page to load
     await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
 
-    // Navigate to the Documents tab where the case ledger lives
-    await page.getByRole('tab', { name: /documents/i }).click();
+    // Navigate to the Documents section where the case ledger lives
+    await page.getByRole('link', { name: 'Documents', exact: true }).click();
 
     // The PR and VI references from this run must appear in the ledger.
     await expect(page.getByText(currentFixture.fullPrRef)).toBeVisible({ timeout: 20_000 });
@@ -552,15 +552,15 @@ test(
 
     // ── GOAL ORACLE 3 (F18): PR-less case also committed — verify via its detail ─
     await page.goBack();
-    // goBack from documents tab goes back to overview, not index — navigate to index directly
+    // Browser back from Documents returns to the previous record section, not the index.
     await page.goto('/procurement');
     await waitIndexReady(page);
     const invoiceCaseRow = page.getByText(invoiceTitle);
     await invoiceCaseRow.click();
     await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
 
-    // Navigate to the Documents tab
-    await page.getByRole('tab', { name: /documents/i }).click();
+    // Navigate to the Documents section
+    await page.getByRole('link', { name: 'Documents', exact: true }).click();
 
     // The PR-less case's VI + Payment references from this run must land.
     await expect(page.getByText(currentFixture.invoiceOnlyInvoiceRef)).toBeVisible({ timeout: 20_000 });

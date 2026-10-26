@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import React, { type ReactNode } from 'react';
 
 // ---------------------------------------------------------------------------
 // Mutable hook state (mirrors ProcurementDetails.test.tsx's harness)
@@ -90,7 +91,16 @@ vi.mock('@/src/components/ui', async (orig) => {
   return { ...actual, useToast: () => ({ toast: vi.fn() }) };
 });
 vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: () => <div data-testid="record-change-history">Record changes</div>,
+  RecordHistory: (props: {
+    additionalTimelineItems?: { key: string; at: string; content: ReactNode }[];
+    listLabel?: string;
+  }) => (
+    <div data-testid="record-change-history">
+      <ul aria-label={props.listLabel}>
+        {[...(props.additionalTimelineItems ?? [])].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).map((item) => <React.Fragment key={item.key}>{item.content}</React.Fragment>)}
+      </ul>
+    </div>
+  ),
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 1000000, isPending: false, isError: false }),
@@ -180,7 +190,6 @@ describe('ProcurementDetails — named record sections', () => {
   it('defaults to Review on the bare record URL', () => {
     renderAt('/procurement/proc-001');
     expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByTestId('procurement-progression')).toBeNull();
   });
 
   it('an unknown section falls back to Review', () => {
@@ -191,7 +200,6 @@ describe('ProcurementDetails — named record sections', () => {
   it('deep-links to Documents and keeps the current section in the URL', () => {
     renderAt('/procurement/proc-001/documents');
     expect(screen.getByRole('link', { name: 'Documents' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.queryByTestId('procurement-progression')).toBeNull();
   });
 
   it('deep-links to Items and shows the line-items evidence', () => {
@@ -229,10 +237,16 @@ describe('ProcurementDetails — named record sections', () => {
     ));
   });
 
-  it('Activity combines dated progression with the record change log', () => {
+  it('AC-IXD-PROC-002 keeps Requested → Approved progression in current status and dated Activity', () => {
+    detailState.data = { ...orderedProcurement, status: 'Approved' };
     renderAt('/procurement/proc-001/activity');
     expect(screen.getByRole('link', { name: 'Activity' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('list', { name: /Progression history/i })).toBeInTheDocument();
+    expect(screen.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved');
+    const history = screen.getByRole('list', { name: /Purchase activity/i });
+    const events = within(history).getAllByRole('listitem');
+    expect(within(events[0]).getByText('Approved')).toBeInTheDocument();
+    expect(within(events[0]).getByText((_, element) => element?.tagName === 'TIME')).toHaveAttribute('dateTime', '2026-04-29T09:00:00Z');
+    expect(within(events[1]).getByText('Requested')).toBeInTheDocument();
     expect(screen.getByTestId('record-change-history')).toBeInTheDocument();
   });
 

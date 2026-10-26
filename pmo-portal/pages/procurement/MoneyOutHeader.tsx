@@ -15,7 +15,7 @@ export const MoneyOutPageHeader: React.FC<MoneyOutPageHeaderProps> = ({
 }) => (
   <>
     {returnAction && (
-      <div className={returnAction.phoneOnly ? 'mb-3 sm:hidden' : 'mb-3'}>
+      <div className={returnAction.phoneOnly ? 'mb-3 min-[921px]:hidden' : 'mb-3'}>
         <Button variant="outline" className="h-11 px-3" onClick={returnAction.onReturn}>
           <Icon name="back" />
           {returnAction.label}
@@ -37,14 +37,14 @@ export const MoneyOutPageHeader: React.FC<MoneyOutPageHeaderProps> = ({
 
 export type MoneyOutListPageProps = Omit<ListPageProps, 'description'> & {
   scope?: React.ReactNode;
-  returnAction?: { label: string; onReturn: () => void };
+  returnAction?: { label: string; onReturn: () => void; phoneOnly?: boolean };
 };
 
 /** Collection counterpart to MoneyOutPageHeader, kept as the list shell adapter. */
 export const MoneyOutListPage: React.FC<MoneyOutListPageProps> = ({ scope, returnAction, ...props }) => (
   <>
     {returnAction && (
-      <div className="mb-3">
+      <div className={returnAction.phoneOnly ? 'mb-3 min-[921px]:hidden' : 'mb-3'}>
         <Button variant="outline" className="min-h-11 px-3" onClick={returnAction.onReturn}>
           <Icon name="back" />
           {returnAction.label}

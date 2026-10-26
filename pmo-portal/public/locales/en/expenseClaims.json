@@ -18,5 +18,60 @@
   },
   "accountMap": {
     "projectDirectCost": "Project direct cost"
+  },
+  "postings": {
+    "accountingActivity": "Accounting activity",
+    "summary": {
+      "cancelledInErp": "Cancelled in ERPNext: {{count}}",
+      "count": "Entries: {{count}}",
+      "failed": "Failed: {{count}}",
+      "held": "Operator review: {{count}}",
+      "pending": "Queued: {{count}}",
+      "pushed": "Posted: {{count}}"
+    }
+  },
+  "register": {
+    "outstanding": {
+      "emptyTitle": "No outstanding advances",
+      "emptySub": "Paid advances with an unsettled balance will appear here.",
+      "noMatch": "No advances match these filters"
+    },
+    "search": {
+      "label": "Search expenses",
+      "placeholder": "Search claim titles",
+      "outstandingLabel": "Search outstanding advances",
+      "outstandingPlaceholder": "Search outstanding advances"
+    },
+    "sort": {
+      "newestClaims": "Newest claims",
+      "oldestClaims": "Oldest claims",
+      "oldestPayouts": "Oldest payout date",
+      "newestPayouts": "Newest payout date"
+    },
+    "view": {
+      "label": "Expense register view",
+      "claims": "Claims and advances",
+      "outstanding": "Outstanding advances"
+    },
+    "filters": {
+      "allProjects": "All projects",
+      "allAges": "All ages",
+      "age": "Payout age",
+      "clear": "Clear filters",
+      "project": "Project",
+      "unknownAge": "Unknown payout date"
+    },
+    "table": {
+      "noMatch": "No expenses match these filters"
+    }
+  },
+  "record": {
+    "backToRegister": "Back to expenses",
+    "purposeAndAmount": "Purpose and amount"
+  },
+  "capture": {
+    "projectScope": "Project scope",
+    "currencyScope": "Currency",
+    "additionalLines": "Additional lines"
   }
 }

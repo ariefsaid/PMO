@@ -6,7 +6,6 @@ import {
   SelectField,
   ListState,
   StatusPill,
-  LifecycleStepper,
   Button,
   Icon,
   ProjectNameLink,
@@ -27,7 +26,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -37,7 +36,7 @@ import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorking
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useHasErpPurchases } from '@/src/hooks/useErpPurchases';
 import { Link } from 'react-router';
-import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
+import { pillVariantForStatus } from '../components/procurement';
 import { MoneyOutListPage } from './procurement/MoneyOutHeader';
 
 /** Status filter segments (the IA-3 stage SegFilter; "All" + the four reporting buckets
@@ -107,16 +106,16 @@ function matchesWorkingSetStatus(
 }
 
 const ProcurementPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'procurement']);
   const navigate = useNavigate();
   const location = useLocation();
   useEffect(() => {
     const query = new URLSearchParams(location.search);
     if (query.get('create') === '1') {
       query.delete('create');
-      navigate(`/procurement/new${query.size ? `?${query}` : ''}`, { replace: true });
+      navigate(`/procurement/new${query.size ? `?${query}` : ''}`, { replace: true, state: location.state });
     }
-  }, [location.search, navigate]);
+  }, [location.search, location.state, navigate]);
   const { t: tf } = useTranslation('finance');
   const statusLabel = useProcurementStatusLabel();
   const { realRole } = useEffectiveRole();
@@ -177,7 +176,13 @@ const ProcurementPage: React.FC = () => {
   const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) =>
     setWorkingSet((ws) => ({ ...ws, q })),
   );
-  const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
+  const { openRecord, navigateWithReturn } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
+  const raiseRequest = () => {
+    const query = workingSet.project !== 'All'
+      ? `?project=${encodeURIComponent(workingSet.project)}`
+      : '';
+    navigateWithReturn(`/procurement/new${query}`);
+  };
 
   const view = workingSet.view;
   const onViewChange = (v: ProcurementView) => {
@@ -215,11 +220,12 @@ const ProcurementPage: React.FC = () => {
     return ownScoped && userId ? rows.filter((p) => p.requested_by_id === userId) : rows;
   }, [data, ownScoped, userId]);
 
-  // View-local filters (OD-7 search by title+code+record external refs; status SegFilter). Newest first.
+  // View-local filters (OD-7 search by title+code+record external refs; status SegFilter).
+  // The approval queue uses created_at because these rows expose no submitted-at timestamp.
+  const isApprovalQueue = workingSet.statusMode === 'group' && workingSet.status === 'Needs approval';
+  const oldestFirst = isApprovalQueue !== (workingSet.sort === 'reverse');
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const approvalsDefault = workingSet.statusMode === 'group' && workingSet.status === 'Needs approval';
-    const oldestFirst = approvalsDefault !== (workingSet.sort === 'reverse');
     return all
       .filter((p) => matchesWorkingSetStatus(p.status as string, workingSet))
       .filter((p) => workingSet.project === 'All' || p.project_id === workingSet.project)
@@ -234,7 +240,14 @@ const ProcurementPage: React.FC = () => {
       .sort((a, b) => oldestFirst
         ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  }, [all, search, workingSet]);
+  }, [all, oldestFirst, search, workingSet]);
+  const sortLabel = isApprovalQueue
+    ? (oldestFirst
+      ? t('procurement:collection.sort.oldestCreated', 'Oldest created')
+      : t('procurement:collection.sort.newestCreated', 'Newest created'))
+    : (workingSet.sort === 'reverse'
+      ? t('procurement:collection.sort.oldest', 'Oldest requests')
+      : t('procurement:collection.sort.newest', 'Newest requests'));
 
   // Board view opens a PR from a card-shaped surface; the table view's row click lives
   // in ProcurementListRow (its own boundary — 'list' source), which threads the same
@@ -292,25 +305,17 @@ const ProcurementPage: React.FC = () => {
       exportValue: (r) => r.total_value,
     },
     {
-      key: 'lifecycle',
-      header: t('procurement.column.lifecycle', 'Lifecycle'),
+      key: 'status-date',
+      header: t('procurement:collection.column.statusDate', 'Status and request date'),
       cell: (r) => (
-        <LifecycleStepper
-          variant="inline"
-          steps={lifecycleSteps(r.status as ProcurementStatus)}
-          aria-label={`${t('procurement.lifecycleLabel', 'Lifecycle')}: ${statusLabel(r.status as ProcurementStatus)}`}
-        />
-      ),
-      // Export the human-readable stage label (the stepper component can't be serialized)
-      exportValue: (r) => statusLabel(r.status as ProcurementStatus),
-    },
-    {
-      key: 'status',
-      header: t('procurement.column.status', 'Status'),
-      cell: (r) => (
-        <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
-          {statusLabel(r.status as ProcurementStatus)}
-        </StatusPill>
+        <div className="flex min-w-0 flex-col items-start gap-1">
+          <StatusPill variant={pillVariantForStatus(r.status as ProcurementStatus)}>
+            {statusLabel(r.status as ProcurementStatus)}
+          </StatusPill>
+          <time dateTime={r.created_at} className="text-xs text-muted-foreground">
+            {formatInstantDate(r.created_at)}
+          </time>
+        </div>
       ),
       exportValue: (r) => statusLabel(r.status as ProcurementStatus),
     },
@@ -368,7 +373,15 @@ const ProcurementPage: React.FC = () => {
               {hasErpPurchases && (
                 <>
                   {' '}
-                  <Link to="/erp-purchases" className="font-medium text-primary hover:underline">
+                  <Link
+                    to="/erp-purchases"
+                    onClick={(event) => {
+                      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+                      event.preventDefault();
+                      navigateWithReturn('/erp-purchases');
+                    }}
+                    className="font-medium text-primary hover:underline"
+                  >
                     {tf('erpLinks.bannerLink', 'ERPNext documents not in a purchase')}
                   </Link>
                 </>
@@ -406,12 +419,12 @@ const ProcurementPage: React.FC = () => {
               />
             </div>
             <SelectField
-              label={t('procurement.projectFilter', 'Project')}
+              label={t('procurement:collection.projectFilter', 'Project')}
               hideLabel
               value={workingSet.project}
               onChange={(project) => setWorkingSet((ws) => ({ ...ws, project }))}
               options={[
-                { value: 'All', label: t('procurement.projectFilterAll', 'All projects') },
+                { value: 'All', label: t('procurement:collection.projectFilterAll', 'All projects') },
                 ...projectOptions.map((option) => ({ value: option.value, label: option.label })),
               ]}
               className="min-h-11 min-w-40 max-w-full"
@@ -419,16 +432,10 @@ const ProcurementPage: React.FC = () => {
             <Button
               variant="outline"
               className="min-h-11"
-              aria-label={t('procurement.sort.toggle', 'Sort requests: {{order}}', {
-                order: (workingSet.sort === 'reverse') !== (workingSet.statusMode === 'group' && workingSet.status === 'Needs approval')
-                  ? t('procurement.sort.oldest', 'Oldest requests')
-                  : t('procurement.sort.newest', 'Newest requests'),
-              })}
+              aria-label={t('procurement:collection.sort.toggle', 'Sort requests: {{order}}', { order: sortLabel })}
               onClick={() => setWorkingSet((ws) => ({ ...ws, sort: ws.sort === 'default' ? 'reverse' : 'default' }))}
             >
-              {(workingSet.sort === 'reverse') !== (workingSet.statusMode === 'group' && workingSet.status === 'Needs approval')
-                ? t('procurement.sort.oldest', 'Oldest requests')
-                : t('procurement.sort.newest', 'Newest requests')}
+              {sortLabel}
             </Button>
             <ViewToggle<'table' | 'board'>
               options={[
@@ -464,7 +471,12 @@ const ProcurementPage: React.FC = () => {
               </div>
             </MobileToolbarDisclosure>
             {canCreate && (
-              <Button variant="primary" className="min-h-11 sm:ml-auto" onClick={() => navigate('/procurement/new')}>
+              <Button
+                variant="primary"
+                className="min-h-11 sm:ml-auto"
+                data-list-return-focus="procurement:raise-request"
+                onClick={raiseRequest}
+              >
                 <Icon name="plus" />
                 {t('procurement.raiseRequest', 'Raise request')}
               </Button>

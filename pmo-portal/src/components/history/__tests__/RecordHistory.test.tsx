@@ -75,6 +75,25 @@ beforeEach(() => {
 });
 
 describe('RecordHistory — formatting (AC-CHG-015)', () => {
+  it('AC-806 merges additional procurement events into the same newest-first chronology', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [
+      ev(1, { createdAt: '2026-05-02T09:00:00Z', op: 'update' }),
+    ], nextCursor: null });
+    renderIt({
+      listLabel: 'Purchase activity',
+      additionalTimelineItems: [{
+        key: 'procurement-approved',
+        at: '2026-05-03T09:00:00Z',
+        content: <li data-testid="procurement-activity-event">Approved<time dateTime="2026-05-03T09:00:00Z">May 3</time></li>,
+      }],
+    });
+
+    const list = await screen.findByRole('list', { name: 'Purchase activity' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(within(rows[0]).getByText('Approved')).toBeInTheDocument();
+    expect(within(rows[1]).getByText('Project updated')).toBeInTheDocument();
+  });
+
   it('HI-1: resolves only procurement child event IDs on the loaded History page', async () => {
     repo.recordHistory.list.mockResolvedValue({ events: [
       ev(4, { entityType: 'purchase_request', entityId: 'pr-child', changes: {} }),
@@ -598,6 +617,13 @@ describe('RecordHistory — states (AC-CHG-016)', () => {
     renderIt();
     expect(await screen.findByText('No changes recorded yet')).toBeInTheDocument();
     expect(screen.getByText(/History begins October 2026\..*deletions.*not shown/s)).toBeInTheDocument();
+  });
+
+  it('AC-806 uses page-specific empty copy when the Activity chronology has no events', async () => {
+    repo.recordHistory.list.mockResolvedValue({ events: [], nextCursor: null });
+    renderIt({ emptyTitle: 'No activity recorded yet.', emptyDescription: 'Procurement changes appear here.' });
+    expect(await screen.findByText('No activity recorded yet.')).toBeInTheDocument();
+    expect(screen.getByText('Procurement changes appear here.')).toBeInTheDocument();
   });
 
   it('error state offers retry that refetches', async () => {

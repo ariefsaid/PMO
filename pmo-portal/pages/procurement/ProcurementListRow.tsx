@@ -7,8 +7,8 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
  * Each row can expand in-place to preview budget impact + line items,
  * then navigate to the full detail page via "View full request".
  *
- * The row header mirrors the DataTable columns (title, code, project, requester,
- * value, status pill, lifecycle stepper) so the preview list feels like the table.
+ * The row header mirrors the DataTable columns (request, project, requester,
+ * status/date, amount) so the preview list feels like the table.
  */
 import React, { useId, useState } from 'react';
 import { Link } from 'react-router';
@@ -19,7 +19,7 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency } from '@/src/lib/format';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { pillVariantForStatus } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -30,9 +30,9 @@ const columnFields = [
   { key: 'request', span: 'col-span-2 md:col-span-3' },
   { key: 'project', span: 'col-span-2 md:col-span-2' },
   { key: 'requester', span: 'md:col-span-2' },
+  { key: 'statusDate', span: 'col-span-2 md:col-span-2' },
   { key: 'value', span: 'md:col-span-2 md:text-right' },
-  { key: 'age', span: 'md:col-span-1 md:pl-4' },
-  { key: 'status', span: 'md:col-span-2' },
+  { key: 'actions', span: 'col-span-2 md:col-span-1 md:justify-self-end' },
 ] as const;
 
 export const ProcurementListColumns: React.FC = () => {
@@ -41,9 +41,9 @@ export const ProcurementListColumns: React.FC = () => {
     request: t('procurement.columns.request', 'Request'),
     project: t('procurement.columns.project', 'Project'),
     requester: t('procurement.columns.requester', 'Requester'),
+    statusDate: t('procurement:collection.column.statusDate', 'Status and request date'),
     value: t('procurement.columns.value', 'Value'),
-    age: t('procurement.columns.age', 'Age'),
-    status: t('procurement.columns.status', 'Status'),
+    actions: t('procurement:collection.column.actions', 'Actions'),
   };
   return (
     <div data-testid="procurement-list-columns" aria-hidden="true" className={`${columnGrid} hidden items-center border-b border-border px-3.5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid`}>
@@ -54,15 +54,6 @@ export const ProcurementListColumns: React.FC = () => {
 
 export interface ProcurementListRowProps {
   row: ProcurementWithRefs;
-}
-
-/** Whole days since an ISO timestamp. */
-function daysAgo(iso: string): string {
-  const then = new Date(iso).getTime();
-  if (Number.isNaN(then)) return '—';
-  const days = Math.max(0, Math.floor((Date.now() - then) / 86_400_000));
-  if (days === 0) return 'today';
-  return `${days}d ago`;
 }
 
 /**
@@ -100,7 +91,7 @@ const ExpandedPanel: React.FC<{
       ) : detail.isError ? (
         <ListState
           variant="error"
-          title="Couldn't load request details"
+          title={t('procurement.preview.loadErrorTitle', "Couldn't load request details")}
           sub={t('procurement.preview.loadErrorSub', 'Something went wrong fetching the preview.')}
           onRetry={() => detail.refetch()}
         />
@@ -158,7 +149,7 @@ const ExpandedPanel: React.FC<{
                 e.preventDefault();
                 onOpen(`/procurement/${row.id}`);
               }}
-              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+              className="inline-flex min-h-11 min-[921px]:min-h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
             >
               {t('procurement.preview.viewFullRequest', 'View full request')}
               <Icon name="chev" aria-hidden />
@@ -216,8 +207,8 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           onClick={() => setExpanded((v) => !v)}
           className={
             expanded
-              ? '[&_svg]:rotate-90 [&_svg]:transition-transform'
-              : '[&_svg]:transition-transform'
+              ? 'min-h-11 min-w-11 min-[921px]:min-h-8 min-[921px]:min-w-8 [&_svg]:rotate-90 [&_svg]:transition-transform'
+              : 'min-h-11 min-w-11 min-[921px]:min-h-8 min-[921px]:min-w-8 [&_svg]:transition-transform'
           }
         >
           <Icon name="chev" />
@@ -258,25 +249,42 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
             <dt className="font-semibold md:sr-only">{t('procurement.columns.requester', 'Requester')}</dt>
             <dd>{row.requested_by?.full_name ?? '—'}</dd>
           </div>
-          <div data-procurement-value className={`${columnFields[3].span} min-w-0 tabular`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.value', 'Value')}</dt>
-            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
-          </div>
-          <div className={`${columnFields[4].span} min-w-0 tabular`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.age', 'Age')}</dt>
-            <dd>{daysAgo(row.created_at)}</dd>
-          </div>
-          <div className={`${columnFields[5].span} min-w-0`}>
-            <dt className="font-semibold md:sr-only">{t('procurement.columns.status', 'Status')}</dt>
+          <div className={`${columnFields[3].span} min-w-0`}>
+            <dt className="font-semibold md:sr-only">{t('procurement:collection.column.statusDate', 'Status and request date')}</dt>
             <dd className="space-y-1.5">
               <StatusPill variant={pillVariantForStatus(status)}>
                 {statusLabel(status)}
               </StatusPill>
+              <time dateTime={row.created_at} className="block text-xs text-muted-foreground">
+                {formatInstantDate(row.created_at)}
+              </time>
               {nextStep && (
                 <span data-testid="procurement-next-step" className="block break-words text-xs text-muted-foreground">
                   {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
                 </span>
               )}
+            </dd>
+          </div>
+          <div data-procurement-value className={`${columnFields[4].span} min-w-0 tabular`}>
+            <dt className="font-semibold md:sr-only">{t('procurement.column.value', 'Value')}</dt>
+            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
+          </div>
+          <div className={`${columnFields[5].span} flex min-w-0 items-center justify-start md:justify-end`}>
+            <dt className="font-semibold md:sr-only">{t('procurement:collection.column.actions', 'Actions')}</dt>
+            <dd>
+              <Link
+                to={`/procurement/${row.id}`}
+                data-list-return-focus={`procurement:${row.id}`}
+                aria-label={t('procurement:collection.openRequest', 'Open {{title}}', { title: row.title })}
+                onClick={(e) => {
+                  if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+                  e.preventDefault();
+                  openRecord(`/procurement/${row.id}`);
+                }}
+                className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {t('procurement:collection.open', 'Open')}
+              </Link>
             </dd>
           </div>
         </dl>

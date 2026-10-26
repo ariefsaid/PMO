@@ -1,18 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { PR_STAGES, stageIndexForStatus, lifecycleSteps } from '../procurement';
+import { PR_STAGES, stageIndexForStatus, stageLabelForStatus } from '../procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 
 // ---------------------------------------------------------------------------
-// AC-IXD-PROC-003 — selecting a quote must NOT pre-jump the badge/stepper to
+// AC-IXD-PROC-003 — selecting a quote must NOT pre-jump the board stage to
 // "Purchase Order" before a PO exists (IxD #11/#12). `Quote Selected` is folded
 // into the vendor-quote node: it shares the SAME stage index as `Vendor Quoted`,
 // and the PO node is only reached once a PO is genuinely generated (Ordered).
 //
-// AC-IXD-PROC-002 (owner directive 2026-06-21) — approval is a GATE, not a
-// stage. There is NO standalone "Approved" node. Approving advances the bar:
-// at Approved the PR node is `done` and the Vendor-Quote node is `current`
-// (the bar moves on approval even though no quote exists yet — VQ is the next
-// action). This REVERSES the prior PROC-002 "Approved is its own node" decision.
+// AC-IXD-PROC-002 — approval is a gate, not a board grouping. Approved remains
+// a distinct status label while sharing the Vendor Quote grouping.
 // ---------------------------------------------------------------------------
 
 const s = (v: string) => v as ProcurementStatus;
@@ -36,24 +33,17 @@ describe('AC-IXD-PROC-003: Select Quote does not pre-jump the badge to Purchase 
   });
 });
 
-describe('AC-IXD-PROC-002 (approval is a gate, not a stage): approving advances the bar', () => {
+describe('AC-IXD-PROC-002 (approval is a gate, not a stage)', () => {
   it('AC-IXD-PROC-002: there is NO standalone "approved" stage in PR_STAGES', () => {
     expect(PR_STAGES.map((st) => st.key)).not.toContain('approved');
   });
 
-  it('AC-IXD-PROC-002: Approved has a stage index strictly after Requested (the bar advanced)', () => {
+  it('AC-IXD-PROC-002: Approved groups with Vendor Quote while retaining its own status label', () => {
     expect(stageIndexForStatus(s('Approved'))).toBeGreaterThan(
       stageIndexForStatus(s('Requested')),
     );
-  });
-
-  it('AC-IXD-PROC-002: approving lands on the Vendor-Quote node (PR done, VQ current — the next action)', () => {
     const approvedIdx = stageIndexForStatus(s('Approved'));
     expect(PR_STAGES[approvedIdx].key).toBe('vq');
-
-    const steps = lifecycleSteps(s('Approved'));
-    expect(steps[0].state).toBe('done'); // PR node done — approved
-    expect(steps[1].state).toBe('current'); // VQ node current — the next action
-    expect(steps[1].label).toBe('Vendor Quote'); // not mislabelled "Approved"
+    expect(stageLabelForStatus(s('Approved'))).toBe('Approved');
   });
 });

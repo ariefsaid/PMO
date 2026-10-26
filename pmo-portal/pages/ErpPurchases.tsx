@@ -8,12 +8,14 @@ import { useProjects } from '@/src/hooks/useProjects';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { MoneyOutListPage } from './procurement/MoneyOutHeader';
 import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
+import { useListReturn } from '@/src/hooks/useListReturn';
 
 /** FR-PFE-041 — the org's ERPNext purchase documents not yet in a purchase, with their project; each can be linked. */
 const ErpPurchasesPage: React.FC = () => {
   const { t } = useTranslation('finance');
   const location = useLocation();
   const navigate = useNavigate();
+  const { returnToList } = useListReturn({ list: 'procurement' });
   const may = usePermission();
   const canView = may('view', 'procurement');
   const canLink = may('create', 'erpPurchaseLink');
@@ -65,7 +67,8 @@ const ErpPurchasesPage: React.FC = () => {
       scope={t('erpLinks.pageDescription', 'Orders, receipts, invoices and payments entered in ERPNext that no purchase holds yet. Their cost is already in each project\'s Actuals.')}
       returnAction={{
         label: t('erpPurchases.backToProcurement', 'Procurement requests'),
-        onReturn: () => navigate('/procurement'),
+        onReturn: () => returnToList('procurement'),
+        phoneOnly: true,
       }}
       count={canView && purchases.data ? filtered.length : undefined}
       filters={canView && !purchases.isPending && (

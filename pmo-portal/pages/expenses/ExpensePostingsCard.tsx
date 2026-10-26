@@ -58,7 +58,7 @@ function postingReason(t: TFunction, pushError: string): string {
  * State is text plus a dot (Quiet-Status Rule), never colour alone.
  */
 export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation(['common', 'expenseClaims']);
   const { data, isPending, isError, refetch } = useQuery<ExpensePostingRow[]>({
     queryKey: ['expense-postings', claimId],
     queryFn: () => repositories.expensePostings.listForClaim(claimId),
@@ -119,15 +119,15 @@ export const ExpensePostingsCard: React.FC<{ claimId: string }> = ({ claimId }) 
     <Card variant="bare" className="mb-4">
       <details>
         <summary className="group flex min-h-11 cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 border-b border-transparent px-4 py-2 font-semibold open:border-border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring">
-          <span id="expense-postings-heading" role="heading" aria-level={2}>{t('expenses.postings.accountingActivity', 'Accounting activity')}</span>
+          <span id="expense-postings-heading" role="heading" aria-level={2}>{t('expenseClaims:postings.accountingActivity', 'Accounting activity')}</span>
           <span className="font-normal text-muted-foreground">
-            {t('expenses.postings.summary.count', 'Entries: {{count}}', { count: data.length })}
+            {t('expenseClaims:postings.summary.count', 'Entries: {{count}}', { count: data.length })}
           </span>
           {summaryStateLabels.map(([key, label]) => {
             const count = summaryCounts?.[key] ?? 0;
             return count > 0 ? (
               <span key={key} className="font-normal text-muted-foreground">
-                {t(`expenses.postings.summary.${key}`, label, { count })}
+                {t(`expenseClaims:postings.summary.${key}`, label, { count })}
               </span>
             ) : null;
           })}
