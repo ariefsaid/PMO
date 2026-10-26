@@ -164,11 +164,6 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             <div className="whitespace-normal break-words text-sm">
               {r.projectLegalName ?? r.project}
             </div>
-            {r.projectLegalName && r.projectLegalName !== r.project && (
-              <div data-testid="timesheet-project-legal-name" aria-hidden="true" className="break-words text-sm text-muted-foreground">
-                {r.projectLegalName}
-              </div>
-            )}
             {r.code && (
               <div className="whitespace-normal break-words font-mono text-[0.6875rem] font-semibold text-muted-foreground">
                 {r.code}
@@ -203,11 +198,6 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             name={r.projectLegalName ?? r.project}
             className="min-h-11 whitespace-normal break-words text-sm"
           />
-          {r.projectLegalName && r.projectLegalName !== r.project && (
-            <span data-testid="timesheet-project-legal-name" aria-hidden="true" className="block break-words text-sm text-muted-foreground">
-              {r.projectLegalName}
-            </span>
-          )}
           {r.code && (
             <div className="whitespace-normal break-words font-mono text-[0.6875rem] font-semibold text-muted-foreground">
               {r.code}
