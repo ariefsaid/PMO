@@ -108,7 +108,7 @@ describe('SalesInvoices project attribution', () => {
     await openActions('SI-unassigned');
     await userEvent.click(screen.getByRole('menuitem', { name: 'Assign project' }));
     await userEvent.click(screen.getByRole('combobox', { name: 'Project' }));
-    await userEvent.click(await screen.findByRole('option', { name: 'Project One' }));
+    await userEvent.click(within(await screen.findByRole('listbox')).getByRole('option', { name: 'Project One' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save project' }));
     await waitFor(() => expect(h.assignProject).toHaveBeenCalledWith({
       siId: 'unassigned', projectId: 'project-1', oldProjectId: null,

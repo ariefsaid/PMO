@@ -31,7 +31,14 @@
     "receiptDetailsLoading": "Loading applied receipt details…",
     "receiptDetailsRetry": "Retry receipts",
     "sortInvoices": "Sort invoices",
-    "statusDueContext": "Status / due"
+    "statusDueContext": "Status / due",
+    "notAvailableShort": "Not available",
+    "balanceUnavailableRecovery": "Some invoice balances are unavailable. Open the invoice to review its source details, then refresh this list.",
+    "overdueDateUnavailable": "The organization date is unavailable. Refresh to use the overdue filter.",
+    "conversionDetails": "Conversion details",
+    "netEquivalent": "Net equivalent",
+    "grossEquivalent": "Gross equivalent",
+    "clearCustomerFilter": "Clear customer filter"
   },
   "uxs06": {
     "allCustomers": "All customers",
@@ -46,7 +53,9 @@
     "referenceDetails": "Reference details",
     "referenceDetailsSummary": "Reference details · {{count}}",
     "sortReceipts": "Sort receipts",
-    "statusAndPaymentDate": "Status / payment date"
+    "statusAndPaymentDate": "Status / payment date",
+    "cancelReceipt": "Cancel receipt",
+    "cancelReceiptDescription": "Cancel receipt {{receipt}} for {{amount}}. This cancels the receipt and restores its amount to the linked invoice balance."
   },
   "uxs42": {
     "allCurrencies": "All currencies",
@@ -97,6 +106,10 @@
     "sortProjects": "Sort projects",
     "statements": "Statements",
     "statementsScope": "Company and admitted project statements by supplied period.",
-    "statementsUnavailableRecovery": "Company statements are available to Finance, Admin, and Executive roles. Project revenue is available to your role."
+    "statementsUnavailableRecovery": "Company statements are available to Finance, Admin, and Executive roles. Project revenue is available to your role.",
+    "earnedErrorTitle": "Couldn't load Project revenue / Earned evidence",
+    "earnedPrimaryHeading": "Earned vs billed · Projects as at {{month}}",
+    "openProjectAction": "Open project",
+    "openShort": "Open"
   }
 }

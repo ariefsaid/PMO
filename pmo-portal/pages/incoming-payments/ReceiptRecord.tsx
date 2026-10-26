@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BackBar } from '@/src/components/shell';
 import { Button, DataTable, StatusPill, type Column } from '@/src/components/ui';
-import { formatCurrencyAuto, formatDateOnly, formatNumber } from '@/src/lib/format';
+import { formatDateOnly, formatNumber } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -44,12 +44,14 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
     }] : []),
     ...(unappliedShown ? [{ label: t('uxs06.unappliedCol', 'Not yet applied'), testId: 'receipt-unapplied', value: money(unapplied) }] : []),
   ];
+  const allocationCurrencies = [...new Set((allocations ?? []).map((allocation) => allocation.currency))];
+  const allocationCurrency = allocationCurrencies.length === 1 ? allocationCurrencies[0] : null;
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
       ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="inline-flex min-h-11 items-center font-mono text-sm text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
       : <span className="font-mono text-sm" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
-    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyAuto(Number(allocation.amount), allocation.currency) : notReported },
-  ], [notReported, t]);
+    { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? `${allocationCurrency ? '' : `${allocation.currency} `}${formatNumber(Number(allocation.amount))}` : notReported },
+  ], [allocationCurrency, notReported, t]);
 
   const status = cancelled
     ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
@@ -89,7 +91,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         <p role="note" className="-mt-3 mb-6 max-w-[80ch] text-sm text-muted-foreground">{abnormalNotes.join(' ')}</p>
       )}
 
-      <h2 className="mb-2 type-section-head text-heading">{t('uxs06.settledTitle', 'Invoices this receipt settled')}</h2>
+      <h2 className="mb-2 type-section-head text-heading">{t('uxs06.settledTitle', 'Invoices this receipt settled')}{allocationCurrency && <> · {t('uxs06.applied', 'Applied')} · {allocationCurrency}</>}</h2>
       {allocations === null ? null : allocations.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           {t('uxs06.onAccount', 'This receipt is not applied to any invoice. The cash is held on account.')}
@@ -112,7 +114,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
       {onCancel && (
         <div className="mt-6">
           <Button variant="ghost" onClick={onCancel} className="min-h-11 text-destructive hover:text-destructive">
-            {t('financeCopy.cancel', 'Cancel')}
+            {t('moneyIn:uxs06.cancelReceipt', 'Cancel receipt')}
           </Button>
         </div>
       )}

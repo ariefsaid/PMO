@@ -302,7 +302,7 @@ describe('Billing — never reports a figure it does not have', () => {
     expect(idrRow).toHaveTextContent('2,000,000');
   });
 
-  it('keeps the phone billing row compact and discloses its secondary facts once', () => {
+  it('GLM R-006 keeps Net billed and Open receivables visible together on phone', () => {
     hoisted.isDesktop = false;
     revenueState.data = [
       { project_id: 'p1', project_name: 'Alpha', currency: 'USD', total_amount: 1_000, open_ar: 500, invoice_count: 2 },
@@ -313,7 +313,10 @@ describe('Billing — never reports a figure it does not have', () => {
 
     const project = screen.getByRole('button', { name: 'Open Alpha (USD)' });
     expect(project).toHaveTextContent('Alpha · USD');
-    const details = screen.getAllByText('Other billing details · 3', { selector: 'summary' });
+    const card = project.closest('li')!;
+    expect(within(card).getByText('1,000')).toBeVisible();
+    expect(within(card).getByText('500')).toBeVisible();
+    const details = screen.getAllByText('Other billing details · 2', { selector: 'summary' });
     expect(details).toHaveLength(2);
     for (const summary of details) expect(summary.closest('details')).toHaveProperty('open', false);
     expect(screen.getByRole('heading', { name: 'Billing · mixed currencies' })).toBeInTheDocument();

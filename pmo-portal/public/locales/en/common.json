@@ -3212,10 +3212,18 @@
     "statement": "Statement",
     "trialBalance": "Trial balance",
     "unavailable": "Statements are not available yet",
-    "unavailableDescription": "Saved statements will appear here when available.",
+    "unavailableDescription": "No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
-    "chooseScope": "Choose a scope"
+    "chooseScope": "Choose a scope",
+    "account": "Account",
+    "openingDebit": "Opening debit",
+    "openingCredit": "Opening credit",
+    "closingDebit": "Closing debit",
+    "closingCredit": "Closing credit",
+    "debit": "Debit",
+    "credit": "Credit",
+    "choosePeriodOrScope": "Choose a period or scope"
   },
   "sales": {
     "accessDenied": {
@@ -3305,14 +3313,12 @@
       "vendors": "Vendors",
       "procurement": "Procurement",
       "projects": "Projects",
-      "revenueByProject": "Revenue by Project",
       "sales": "Sales Pipeline",
       "salesInvoices": "Sales Invoices",
       "timesheets": "Timesheets",
       "profileSettings": "Profile & preferences",
       "expenses": "Expenses",
-      "financialStatements": "Financial statements",
-      "managementPack": "Management pack"
+      "financialStatements": "Financial statements"
     },
     "notifications": {
       "empty": "No notifications yet.",
@@ -4065,7 +4071,9 @@
     "invoiceIllegalTransition": "That change isn't allowed from the invoice's current status.",
     "sodSelfApproval": "You raised this invoice — a different person must approve it",
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
-    "nativeDraftsOpen": "Invoices raised in PMO are still in draft"
+    "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
+    "openInvoice": "Open",
+    "openReceipt": "Open"
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -4187,7 +4195,6 @@
     "asAt": "As at",
     "noAccessTitle": "You don't have access to the management pack",
     "noAccessSub": "The management pack is available to Finance, Project Managers, Executives and Admins.",
-    "errorTitle": "Couldn't load the management pack",
     "errorSub": "The request failed. Check your connection and try again.",
     "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
     "emptyTitle": "No projects to report",
@@ -4450,7 +4457,7 @@
     "discardBody": "This form has unsaved changes. Discarding will lose them.",
     "discard": "Discard",
     "keepEditing": "Keep editing",
-    "fixFields_one": "Fix {{count}} field before saving",
+    "fixFields_one": "Fix {{count}} fields before saving",
     "fixFields_other": "Fix {{count}} fields before saving"
   },
   "projectFinances": {

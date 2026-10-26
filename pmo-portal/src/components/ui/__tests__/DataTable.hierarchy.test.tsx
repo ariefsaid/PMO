@@ -81,6 +81,7 @@ describe('DataTable hierarchy contract', () => {
     expect(primaryIdentity).toHaveTextContent('Synthetic item');
     expect(primaryIdentity).not.toHaveAttribute('title');
     expect(primaryIdentity).not.toHaveClass('line-clamp-2');
+    expect(within(primaryCell as HTMLElement).getByText('Synthetic item')).toBeVisible();
     expect(within(primaryCell as HTMLElement).getByText('Reference A')).toBeInTheDocument();
     expect(statusCell).toHaveClass('whitespace-nowrap');
     expect(table.querySelector('th[data-col-key="status"]')).toHaveStyle({ minWidth: '112px', maxWidth: '220px' });

@@ -31,7 +31,14 @@
     "receiptDetailsLoading": "Memuat rincian penerimaan yang diterapkan…",
     "receiptDetailsRetry": "Coba lagi memuat penerimaan",
     "sortInvoices": "Urutkan faktur",
-    "statusDueContext": "Status / jatuh tempo"
+    "statusDueContext": "Status / jatuh tempo",
+    "notAvailableShort": "Tidak tersedia",
+    "balanceUnavailableRecovery": "Sebagian saldo faktur tidak tersedia. Buka faktur untuk memeriksa rincian sumbernya, lalu muat ulang daftar ini.",
+    "overdueDateUnavailable": "Tanggal organisasi tidak tersedia. Muat ulang untuk menggunakan filter jatuh tempo.",
+    "conversionDetails": "Rincian konversi",
+    "netEquivalent": "Ekuivalen neto",
+    "grossEquivalent": "Ekuivalen bruto",
+    "clearCustomerFilter": "Hapus filter pelanggan"
   },
   "uxs06": {
     "allCustomers": "Semua klien",
@@ -46,7 +53,9 @@
     "referenceDetails": "Detail referensi",
     "referenceDetailsSummary": "Detail referensi · {{count}}",
     "sortReceipts": "Urutkan penerimaan",
-    "statusAndPaymentDate": "Status / tanggal pembayaran"
+    "statusAndPaymentDate": "Status / tanggal pembayaran",
+    "cancelReceipt": "Batalkan penerimaan",
+    "cancelReceiptDescription": "Batalkan penerimaan {{receipt}} sebesar {{amount}}. Penerimaan dibatalkan dan jumlahnya dikembalikan ke saldo faktur terkait."
   },
   "uxs42": {
     "allCurrencies": "Semua mata uang",
@@ -97,6 +106,10 @@
     "sortProjects": "Urutkan proyek",
     "statements": "Laporan keuangan",
     "statementsScope": "Laporan perusahaan dan proyek yang diizinkan menurut periode yang tersedia.",
-    "statementsUnavailableRecovery": "Laporan perusahaan tersedia untuk peran Finance, Admin, dan Executive. Pendapatan proyek tersedia untuk peran Anda."
+    "statementsUnavailableRecovery": "Laporan perusahaan tersedia untuk peran Finance, Admin, dan Executive. Pendapatan proyek tersedia untuk peran Anda.",
+    "earnedErrorTitle": "Bukti pendapatan proyek yang diperoleh tidak dapat dimuat",
+    "earnedPrimaryHeading": "Diperoleh vs ditagihkan · Proyek per {{month}}",
+    "openProjectAction": "Buka proyek",
+    "openShort": "Buka"
   }
 }

@@ -147,7 +147,7 @@ describe('SalesInvoices — currency (#530 / AC-L10N-020)', () => {
     renderAs('Project Manager');
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('IDR');
-    expect(table).toContain('$');
+    expect(table).toContain('USD');
   });
 });
 
@@ -168,7 +168,7 @@ describe('SalesInvoices — due-date column (AC-SAR-051 UI proof)', () => {
     expect(screen.getByRole('heading', { name: 'Sales Invoices' })).toBeInTheDocument();
 
     // Check that the Due Date column header exists
-    const dueDateHeader = screen.getByText('Due Date');
+    const dueDateHeader = screen.getByRole('columnheader', { name: 'Status / due' });
     expect(dueDateHeader).toBeInTheDocument();
 
     // First invoice: invoice_date 2026-07-01 + 30 days = 2026-07-31 (no ERP due date)

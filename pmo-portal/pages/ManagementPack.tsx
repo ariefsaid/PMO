@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, Card, DataTable, Icon, ListState, SearchMini, StatusPill, TextField, type Column,
+  Button, DataTable, Icon, ListState, SearchMini, StatusPill, TextField, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -15,7 +15,7 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatNumber, formatUtcMonthYear } from '@/src/lib/format';
+import { formatMonthYear, formatNumber } from '@/src/lib/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -24,7 +24,7 @@ type TotalsRow = PackTotalsMonth & { currency: string };
 
 const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'];
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
-const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
+const monthLabel = (iso: string) => formatMonthYear(new Date(`${iso}T12:00:00`));
 // OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
 const money = (cents: number | null) =>
   cents === null ? '—' : formatNumber(fromCents(cents));
@@ -234,7 +234,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         row.kind === 'unassigned' ? (
           <StatusPill variant="neutral">{t('managementPack.unassigned', 'Unassigned')}</StatusPill>
         ) : (
-          <span className="break-words">{row.projectName}</span>
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <span className="type-section-head break-words text-heading">{row.projectName}</span>
+            {row.projectId && (
+              <button type="button" className="min-h-11 text-sm font-medium text-primary underline underline-offset-2" onClick={() => navigate(`/projects/${row.projectId}`)}>
+                {t('moneyIn:uxs42.openShort', 'Open')}
+              </button>
+            )}
+          </div>
         ),
       secondaryCell: (row) =>
         row.kind === 'unassigned'
@@ -242,7 +249,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           : row.kind === 'otherCurrency'
             ? t('managementPack.otherCurrency', 'Invoiced in {{currency}}, not the contract currency', { currency: row.currency })
             : row.projectNumber
-              ? <span className="font-mono">{row.projectNumber}</span>
+              ? <span className="break-words">{row.projectNumber}</span>
               : undefined,
     },
     {
@@ -266,7 +273,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     },
     ...KPI_MEASURES.map((k): Column<PackRow> => ({
       key: k,
-      header: label[k],
+      header: <span className="whitespace-normal break-words">{label[k]}</span>,
       kind: 'money',
       align: 'num',
       size: 140,
@@ -331,7 +338,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     },
     ...TOTALS_MEASURES.map((k): Column<TotalsRow> => ({
       key: k,
-      header: label[k],
+      header: <span className="whitespace-normal break-words">{label[k]}</span>,
       kind: 'money',
       align: 'num',
       size: 140,
@@ -451,7 +458,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {state === 'error' && (
         <ListState
           variant="error"
-          title={t('managementPack.errorTitle', "Couldn't load the management pack")}
+          title={t('moneyIn:uxs42.earnedErrorTitle', "Couldn't load Project revenue / Earned evidence")}
           sub={invalidRange
             ? t('managementPack.invalidRange', 'Choose a start month on or before the as-at month, at most 24 months apart.')
             : t('managementPack.errorSub', 'The request failed. Check your connection and try again.')}
@@ -472,15 +479,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       {pack && state === undefined && (
         <>
           <h2 className="mb-2 type-section-head text-heading">
-            {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
+            {t('moneyIn:uxs42.earnedPrimaryHeading', 'Earned vs billed · Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
-          <Card className="overflow-hidden mb-6">
+          <div className="mb-6 min-w-0">
             <DataTable
               rows={visiblePackRows}
               columns={columns}
               rowKey={(row) => row.key}
               mobileDetails={{
-                columnKeys: ['contract', 'invoicedToDate', 'unbilled', 'backlog', 'basis', 'actions'],
+                columnKeys: ['contract', 'unbilled', 'backlog', 'actions'],
                 summary: (_row, count) => t('moneyIn:uxs42.earnedOtherDetails', 'Other earned details · {{count}} items', { count }),
               }}
               tableId="managementpack-1-table"
@@ -498,7 +505,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
                 }, { replace: true }),
               }}
             />
-          </Card>
+          </div>
           <details className="mb-6" open={historyOpen}
             onToggle={(event) => updateParam('history', event.currentTarget.open ? '1' : '0')}>
             <summary className="min-h-11 cursor-pointer py-3 font-medium">{t('moneyIn:uxs42.monthlyHistorySummary', 'Monthly history · {{count}} rows', { count: totalsRows.length })}</summary>

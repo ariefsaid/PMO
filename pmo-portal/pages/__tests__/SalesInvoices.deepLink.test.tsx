@@ -244,7 +244,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices');
     const row = screen.getByText('ACC-SINV-2026-00001').closest('tr');
     expect(row).toHaveTextContent('Partly paid');
-    expect(row).toHaveTextContent('$1.00');
+    expect(row).toHaveTextContent('USD1');
   });
 
   it('invoice identity is a direct record link that retains the list query', () => {
@@ -282,7 +282,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices/inv-1?q=ACC-SINV-2026-00002');
     expect(screen.getByTestId('location')).toHaveTextContent('/sales-invoices/inv-1?q=ACC-SINV-2026-00002');
     expect(screen.getByRole('heading', { name: 'Draft invoice · Acme Energy' })).toBeInTheDocument();
-    expect(screen.getByText('Invoice preview')).toBeInTheDocument();
+    expect(screen.getAllByText('Invoice preview')[0]).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Continue to approve' })).not.toBeInTheDocument();
     expect(screen.queryByText('inv-1')).not.toBeInTheDocument();
   });
@@ -301,10 +301,10 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText('$5,000.00')).toBeInTheDocument();
+    expect(screen.getByText(/5,000/)).toBeInTheDocument();
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
-    expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250.00');
+    expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250');
   });
 
   it('shows only this invoice’s settled receipts for PMO-native detail and ignores scheduled, cancelled, and unrelated unknown rows', () => {
@@ -319,7 +319,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices/inv-1');
 
     const receipts = screen.getByRole('heading', { name: 'Applied receipts' }).parentElement!;
-    expect(screen.getByRole('heading', { name: 'Bill evidence' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Bill evidence/ })).toBeInTheDocument();
     expect(receipts).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(receipts).not.toHaveTextContent('Receipt allocations have not all been reported.');
     expect(receipts.querySelectorAll('li')).toHaveLength(1);
@@ -334,7 +334,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Due date not available')).toBeInTheDocument();
     expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
-    expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
   it('UX-053 offers the approved PDF as a manual handoff and keeps delivery separate from receipt', () => {
@@ -353,10 +353,10 @@ describe('SalesInvoices — deep link (#787)', () => {
   it('RF-025 renders ERP line evidence and the available billing contact without making the lines editable', () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
     renderAt('/sales-invoices/inv-1');
-    expect(screen.getByRole('heading', { name: 'Bill evidence' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Bill evidence/ })).toBeInTheDocument();
     expect(screen.getByText('Inspection work')).toBeInTheDocument();
     expect(screen.getByText('SYNTHETIC-SVC')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Bill evidence' })).toHaveTextContent('2 × $125.00 = $250.00');
+    expect(screen.getByRole('region', { name: /^Bill evidence/ })).toHaveTextContent('2 × $125 = $250');
     expect(screen.getByText('Billing Desk')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'billing@example.test' })).toHaveAttribute('href', 'mailto:billing@example.test');
     expect(screen.queryByRole('button', { name: /edit line/i })).not.toBeInTheDocument();

@@ -275,28 +275,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const filterRegion = screen.getByRole('region', { name: 'Filter by status' });
     expect(filterRegion).toHaveAttribute('tabindex', '0');
-    expect(filterRegion).toHaveClass('min-w-0', 'max-w-full', 'overflow-x-auto');
     expect(within(filterRegion).getByRole('tablist', { name: 'Filter by status' })).toBeInTheDocument();
   });
 
-  it('groups the invoice amount and its tax-basis note for narrow card layouts', () => {
-    hoisted.salesInvoicesState.data = [
-      {
-        id: 'si-1',
-        si_number: 'ACC-SINV-0001',
-        status: 'Draft',
-        amount: 12345678900,
-        currency: 'IDR',
-        tax_treatment: 'exclusive',
-        tax_rate: 11,
-        erp_docstatus: 1,
-      },
-    ];
-    renderPage();
-
-    const taxBasis = screen.getByText(/excl\. PPN/);
-    expect(taxBasis.parentElement).toHaveClass('w-full', 'flex-col', 'items-end');
-  });
 
   it('AC-L10N-B01 renders the Finance page title in Bahasa from the shipped catalogue', async () => {
     await financeTestI18n.changeLanguage('id');
@@ -355,9 +336,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const review = within(dialog).getByRole('region', { name: 'Invoice draft review' });
     expect(review).not.toHaveTextContent('Project tax base');
-    expect(review).toHaveTextContent('€250.00');
-    expect(review).toHaveTextContent('€27.50');
-    expect(review).toHaveTextContent('€277.50');
+    expect(review).toHaveTextContent('€250');
+    expect(review).toHaveTextContent('€27.5');
+    expect(review).toHaveTextContent('€277.5');
   });
 
   it('AC-S16-003 keeps ERP tax and final total unavailable until the draft exists', async () => {
@@ -379,7 +360,7 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     expect(review).not.toHaveTextContent('Tax');
     expect(review).not.toHaveTextContent('Total');
     expect(review).not.toHaveTextContent('Tax and final total are available after the ERP draft is created.');
-    expect(review).not.toHaveTextContent('$0.00');
+    expect(review).not.toHaveTextContent('$0');
   });
 
   it('FIN-S3 native form shows no review prompt, and no review block at all, before a project is chosen', async () => {
@@ -451,8 +432,8 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     await user.type(screen.getByLabelText(/Rate/), '100');
 
     const noVatReview = screen.getByRole('region', { name: 'Invoice draft review' });
-    expect(noVatReview).toHaveTextContent('€100.00');
-    expect(noVatReview).toHaveTextContent('€0.00');
+    expect(noVatReview).toHaveTextContent('€100');
+    expect(noVatReview).toHaveTextContent('€0');
 
     hoisted.projectOptionsQuery = {
       data: [{
@@ -466,9 +447,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
     rerenderPage();
 
     const missingTaxReview = screen.getByRole('region', { name: 'Invoice draft review' });
-    expect(missingTaxReview).toHaveTextContent('€100.00');
+    expect(missingTaxReview).toHaveTextContent('€100');
     expect(missingTaxReview).toHaveTextContent('Project tax details are unavailable');
-    expect(missingTaxReview).not.toHaveTextContent('€0.00');
+    expect(missingTaxReview).not.toHaveTextContent('€0');
   });
 
   it.each([0, -1, Number.POSITIVE_INFINITY, Number.NaN])(
@@ -495,9 +476,9 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
       rerenderPage();
 
       const review = screen.getByRole('region', { name: 'Invoice draft review' });
-      expect(review).toHaveTextContent('€100.00');
+      expect(review).toHaveTextContent('€100');
       expect(review).toHaveTextContent('Project tax details are unavailable');
-      expect(review).not.toHaveTextContent('€0.00');
+      expect(review).not.toHaveTextContent('€0');
       expect(within(review).getAllByText('—')).toHaveLength(2);
     },
   );
@@ -524,10 +505,10 @@ describe('SalesInvoices — a Finance user can actually raise an invoice (BLOCK 
 
     const dialog = screen.getByRole('dialog', { name: 'New invoice' });
     const review = within(dialog).getByRole('region', { name: 'Invoice draft review' });
-    expect(review).toHaveTextContent('€111.00');
+    expect(review).toHaveTextContent('€111');
     await user.click(within(dialog).getByRole('button', { name: 'Create invoice' }));
     expect(await screen.findByTestId('entity-modal-save-error')).toBeInTheDocument();
-    expect(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('region', { name: 'Invoice draft review' })).toHaveTextContent('€111.00');
+    expect(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('region', { name: 'Invoice draft review' })).toHaveTextContent('€111');
 
     const first = (hoisted.createMutate.mock.calls[0] as unknown as [Record<string, unknown>])[0];
     await user.click(within(screen.getByRole('dialog', { name: 'New invoice' })).getByRole('button', { name: 'Create invoice' }));

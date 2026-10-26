@@ -172,7 +172,7 @@ describe('earned project revenue query state', () => {
     renderPage('/financial-statements?section=project-revenue&view=earned&from=2026-03&to=2026-04&history=1');
     const history = screen.getByText(/^Monthly history · \d+(?: rows)?$/).closest('details');
     expect(history).toHaveProperty('open', true);
-    expect(screen.getByText('Projects as at Apr 26')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Earned vs billed · Projects as at April 2026' })).toBeInTheDocument();
   });
 });
 
@@ -187,8 +187,9 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
   it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {
     renderPage();
     expect(screen.queryByRole('heading', { name: 'Current project position' })).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Projects as at Apr 26' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Earned vs billed · Projects as at April 2026' })).toBeInTheDocument();
     expect(within(alphaProjectRow()).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
+    expect(within(alphaProjectRow()).getByRole('button', { name: 'Open' })).toBeInTheDocument();
   });
 
   it('FIN-S8: exactly one Export control replaces the CSV and XLSX pair', () => {

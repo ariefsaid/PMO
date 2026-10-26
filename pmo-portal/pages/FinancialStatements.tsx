@@ -162,6 +162,9 @@ const FinancialStatements: React.FC = () => {
     periodStart: pair.currentStart,
     label: pairLabel(pair, t('financialStatements.prior', 'Previous period')),
   }));
+  const periodContext = selectedPair
+    ? `${t('financialStatements.current', 'Current period')}: ${formatDateOnly(selectedPair.currentStart)} – ${formatDateOnly(selectedPair.currentEnd)} · ${t('financialStatements.prior', 'Previous period')}: ${formatDateOnly(selectedPair.priorStart)} – ${formatDateOnly(selectedPair.priorEnd)}`
+    : undefined;
   const statementOptions = [
     { value: 'trial_balance', label: t('financialStatements.trialBalance', 'Trial balance') },
     { value: 'profit_and_loss', label: t('financialStatements.profitAndLoss', 'Profit and loss') },
@@ -240,6 +243,13 @@ const FinancialStatements: React.FC = () => {
     forThePeriod: tf('statements.forThePeriod', 'For the period'),
     amountsIn: tf('statements.amountsIn', 'Amounts in'),
     periodShown: tf('statements.periodShown', 'Period shown'),
+    account: t('financialStatements.account', 'Account'),
+    openingDebit: t('financialStatements.openingDebit', 'Opening debit'),
+    openingCredit: t('financialStatements.openingCredit', 'Opening credit'),
+    closingDebit: t('financialStatements.closingDebit', 'Closing debit'),
+    closingCredit: t('financialStatements.closingCredit', 'Closing credit'),
+    debit: t('financialStatements.debit', 'Debit'),
+    credit: t('financialStatements.credit', 'Credit'),
     collapseGroup: (group: string) => tf('statements.collapseGroup', 'Collapse {{group}}', { group }),
     expandGroup: (group: string) => tf('statements.expandGroup', 'Expand {{group}}', { group }),
     collapseAll: tf('statements.collapseAll', 'Collapse all'),
@@ -247,7 +257,7 @@ const FinancialStatements: React.FC = () => {
   };
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
-    unavailableDescription: t('financialStatements.unavailableDescription', 'Saved statements will appear here when available.'),
+    unavailableDescription: t('financialStatements.unavailableDescription', 'No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     error: t('financialStatements.error', "Couldn't load financial statements"),
@@ -261,8 +271,8 @@ const FinancialStatements: React.FC = () => {
   return (
     <section className="min-w-0">
       {catalogue?.state === 'complete' && (
-        <div className="mb-4 flex min-w-0 flex-col gap-4">
-          <FormGrid className="min-w-0">
+        <div className="mb-4 flex min-w-0 flex-col gap-2 md:gap-4">
+          <FormGrid className="min-w-0 grid-cols-2">
             <StatementPeriodPicker
               kind={periodKind}
               periodStart={pickerPeriod}
@@ -318,9 +328,14 @@ const FinancialStatements: React.FC = () => {
       )}
       <FinancialStatementsSection
         title={reportTitle(statement, t)}
+        context={periodContext}
         state={sectionState}
         labels={sectionLabels}
         onRetry={sectionRetry}
+        onChooseScope={sectionState.kind === 'unavailable' ? () => {
+          document.querySelector<HTMLSelectElement>('select')?.focus();
+        } : undefined}
+        chooseScopeLabel={t('financialStatements.choosePeriodOrScope', 'Choose a period or scope')}
       >
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
           <NativeStatementPair

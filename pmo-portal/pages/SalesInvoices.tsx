@@ -705,7 +705,7 @@ const SalesInvoices: React.FC = () => {
                 {t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}{' '}
                 {viewTarget.erp_outstanding_amount == null ? (
                   <span title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>
-                    —<span className="sr-only">{t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}</span>
+                    {t('moneyIn:financeCopy.notAvailableShort', 'Not available')}
                   </span>
                 ) : (
                   <>{formatNumber(viewTarget.erp_outstanding_amount)}<FxEquivalent amount={viewTarget.erp_outstanding_amount} currency={viewTarget.currency} date="latest" /></>
@@ -840,7 +840,7 @@ const SalesInvoices: React.FC = () => {
     key: 'si_number',
     header: t('financeCopy.invoice', "Invoice #"),
     kind: 'primary',
-    size: 280,
+    size: 220,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -861,9 +861,10 @@ const SalesInvoices: React.FC = () => {
           <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'inline-flex min-h-11 items-center break-words text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'inline-flex min-h-11 items-center break-words text-sm text-foreground underline underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center break-words type-value text-foreground underline underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>
+          <Link to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} className="inline-flex min-h-11 items-center text-sm underline underline-offset-2">{t('financeCopy.openInvoice', 'Open')}</Link>
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
           {inv.pmo_native && !native && (
             <Badge title={preErpDetail}>
@@ -880,17 +881,18 @@ const SalesInvoices: React.FC = () => {
     key: 'customer_project',
     header: t('moneyIn:financeCopy.customerProjectContext', 'Customer / project'),
     kind: 'text',
-    size: 250,
+    size: 210,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       return (
         <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="break-words font-medium">{inv.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}</span>
+          <span className="break-words type-value">{inv.customer_name ?? t('moneyIn:financeCopy.customerUnavailable', 'Customer not available')}</span>
           {project
-            ? <span className="break-words text-xs text-muted-foreground">{project}</span>
+            ? <span className="break-words type-value text-muted-foreground">{project}</span>
             : inv.project_id
-              ? <span className="break-words text-xs text-muted-foreground">{t('financeCopy.projectUnavailable', 'Project details unavailable')}</span>
+              ? <span className="break-words type-value text-muted-foreground">{t('financeCopy.projectUnavailable', 'Project details unavailable')}</span>
               : null}
+          {inv.reference_number && <span className="break-words type-value text-muted-foreground">{inv.reference_number}</span>}
         </span>
       );
     },
@@ -931,10 +933,17 @@ const SalesInvoices: React.FC = () => {
     header: t('moneyIn:financeCopy.invoiceGross', 'Invoice gross'),
     kind: 'money',
     align: 'num',
-    size: 200,
+    size: 150,
     cell: (inv) => {
       const gross = invoiceGross(inv);
-      return <span className="tabular text-right text-sm">{gross === null ? '—' : formatNumber(gross)}</span>;
+      return <div className="tabular text-right type-value">
+        <span>{gross === null ? t('moneyIn:financeCopy.notAvailableShort', 'Not available') : formatNumber(gross)}</span>
+        {inv.currency === 'USD' && inv.invoice_date && gross !== null && <details className="text-left">
+          <summary className="min-h-11 cursor-pointer py-2 type-label">{t('moneyIn:financeCopy.conversionDetails', 'Conversion details')}</summary>
+          <p>{t('moneyIn:financeCopy.netEquivalent', 'Net equivalent')}<FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} /></p>
+          <p>{t('moneyIn:financeCopy.grossEquivalent', 'Gross equivalent')}<FxEquivalent amount={gross} currency={inv.currency} date={inv.invoice_date} /></p>
+        </details>}
+      </div>;
     },
     exportValue: (inv) => invoiceGross(inv) ?? '',
   };
@@ -942,7 +951,7 @@ const SalesInvoices: React.FC = () => {
     key: 'currency',
     header: t('financeCopy.currency', 'Currency'),
     kind: 'text',
-    size: 90,
+    size: 64,
     cell: (inv) => <span className="tabular">{inv.currency}</span>,
     exportValue: () => '',
   };
@@ -951,8 +960,10 @@ const SalesInvoices: React.FC = () => {
     header: t('moneyIn:financeCopy.outstandingGross', 'Outstanding gross'),
     kind: 'money',
     align: 'num',
-    size: 170,
-    cell: (inv) => <span className="tabular text-right text-heading font-bold">{inv.erp_outstanding_amount != null ? formatNumber(inv.erp_outstanding_amount) : '—'}</span>,
+    size: 150,
+    cell: (inv) => inv.erp_outstanding_amount != null
+      ? <span className="tabular text-right text-heading font-bold">{formatNumber(inv.erp_outstanding_amount)}<FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" /></span>
+      : <span className="text-sm text-muted-foreground" title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>{t('moneyIn:financeCopy.notAvailableShort', 'Not available')}</span>,
     exportValue: (inv) => inv.erp_outstanding_amount ?? '',
   };
   const dueColumn: Column<SalesInvoiceRow> = {
@@ -980,12 +991,18 @@ const SalesInvoices: React.FC = () => {
     header: t('moneyIn:financeCopy.statusDueContext', 'Status / due'),
     kind: 'status',
     size: 200,
-    cell: (inv) => (
-      <span className="flex min-w-0 flex-col items-start gap-1">
+    cell: (inv) => {
+      const gross = invoiceGross(inv);
+      const overpaid = gross != null && inv.erp_outstanding_amount != null && inv.erp_outstanding_amount < 0
+        ? Math.abs(inv.erp_outstanding_amount)
+        : gross != null && inv.erp_outstanding_amount === 0 && inv.paid_amount != null && inv.paid_amount > gross
+          ? inv.paid_amount - gross : null;
+      return <span className="flex min-w-0 flex-col items-start gap-1">
         {statusColumn.cell(inv)}
         <span className="text-sm">{dueColumn.cell(inv)}</span>
-      </span>
-    ),
+        {overpaid != null && <span className="text-sm">{t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyAuto(overpaid, inv.currency) })}</span>}
+      </span>;
+    },
   };
   const columns: Column<SalesInvoiceRow>[] = [
     invoiceColumn, customerProjectColumn, statusDueColumn, currencyColumn, outstandingColumn, amountColumn,
@@ -1115,7 +1132,7 @@ const SalesInvoices: React.FC = () => {
         title={t('financeCopy.salesInvoices', 'Sales Invoices')}
         scope={t('moneyIn:financeCopy.invoiceCollectionScope', 'Due-first collection · gross amounts in each invoice currency.')}
       />
-      <div data-testid="money-in-toolbar" className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+      <div data-testid="money-in-toolbar" className="mb-4 grid min-w-0 grid-cols-2 gap-2 md:flex md:flex-row md:flex-wrap md:items-center">
         <SearchMini
           placeholder={t('financeCopy.searchInvoices', 'Search invoices…')}
           aria-label={t('financeCopy.searchSalesInvoices', 'Search sales invoices')}
@@ -1128,7 +1145,7 @@ const SalesInvoices: React.FC = () => {
           module="salesInvoices"
           resultCount={filtered.length}
           className="min-h-11"
-          containerClassName="min-h-11 w-full md:w-64"
+          containerClassName="col-span-2 min-h-11 w-full md:w-64"
         />
         <div className="flex min-w-0 items-center gap-2 md:hidden">
           <Button
@@ -1142,7 +1159,7 @@ const SalesInvoices: React.FC = () => {
             {t('uxs14.filters', 'Filters')}{appliedFilterCount > 0 ? ` · ${appliedFilterCount}` : ''}
           </Button>
         </div>
-        <div id="invoice-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-col gap-2 md:flex md:flex-1`}>
+        <div id="invoice-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} col-span-2 min-w-0 flex-col gap-2 md:flex md:flex-1`}>
           <div
             role="region"
             aria-label={t('financeCopy.filterByStatus', 'Filter by status')}
@@ -1200,12 +1217,13 @@ const SalesInvoices: React.FC = () => {
           </div>
           <Button
             type="button"
-            variant={searchParams.get('overdue') === 'true' ? 'outline' : 'ghost'}
+            variant="outline"
             aria-pressed={searchParams.get('overdue') === 'true'}
             disabled={!organizationToday}
             className="min-h-11 self-start"
             onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
-          >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+          ><span aria-hidden="true" className="inline-flex size-4 items-center justify-center rounded-sm border border-input">{searchParams.get('overdue') === 'true' ? '✓' : ''}</span>{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+          {!organizationToday && <p className="type-label text-muted-foreground">{t('moneyIn:financeCopy.overdueDateUnavailable', 'The organization date is unavailable. Refresh to use the overdue filter.')}</p>}
         </div>
         <label className="flex min-h-11 min-w-0 items-center gap-2 md:w-auto">
           <span className="sr-only">{t('moneyIn:financeCopy.sortInvoices', 'Sort invoices')}</span>
@@ -1220,7 +1238,7 @@ const SalesInvoices: React.FC = () => {
             <option value="invoice-date-desc">{t('moneyIn:financeCopy.latestInvoiceDate', 'Latest invoice date')}</option>
           </select>
         </label>
-        <div className="flex min-w-0 items-center gap-2 md:ml-auto">
+        <div className="col-span-2 flex min-w-0 items-center gap-2 md:ml-auto">
           <Button
             type="button"
             variant="outline"
@@ -1267,6 +1285,10 @@ const SalesInvoices: React.FC = () => {
           )}
         </div>
       )}
+      {requestedCustomerId && <div data-testid="customer-filter" className="mb-3 flex flex-wrap items-center gap-2 type-value">
+        <span>{selectedCustomer ? `${t('financeCopy.customer', 'Customer')}: ${selectedCustomer.label}` : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</span>
+        <Button variant="ghost" className="min-h-11" onClick={() => updateListParam('customer', '')}>{t('moneyIn:financeCopy.clearCustomerFilter', 'Clear customer filter')}</Button>
+      </div>}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -1312,13 +1334,17 @@ const SalesInvoices: React.FC = () => {
         />
       )}
 
+      {state === undefined && sortedInvoices.some((invoice) => invoice.erp_outstanding_amount == null) && (
+        <p role="note" className="mb-3 type-value text-muted-foreground">{t('moneyIn:financeCopy.balanceUnavailableRecovery', 'Some invoice balances are unavailable. Open the invoice to review its source details, then refresh this list.')}</p>
+      )}
+
       {state === undefined && filtered.length > 0 && (
         <DataTable<SalesInvoiceRow>
           rows={sortedInvoices}
           columns={columns}
           rowKey={(inv) => inv.id}
           mobileDetails={{
-            columnKeys: ['customer_project', 'amount'],
+            columnKeys: ['amount'],
             summary: (_inv, count) => t('moneyIn:financeCopy.invoiceMoreDetails', 'More invoice details · {{count}}', { count }),
           }}
           rowMenu={rowMenu}

@@ -123,13 +123,13 @@ const RevenueByProject: React.FC = () => {
         <button
           type="button"
           aria-label={t('moneyIn:uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
-          className="min-h-11 w-fit max-w-full whitespace-normal break-words text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          className="min-h-11 w-fit max-w-full whitespace-normal break-words text-left type-section-head text-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
             navigate(`/projects/${row.project_id}`);
           }}
         >
-          {shown(row)}<span className="md:hidden"> · {row.currency}</span>
+          <span className="break-words">{shown(row)}</span><span className="md:hidden"> · {row.currency} · {t('moneyIn:uxs42.openShort', 'Open')}</span>
         </button>
       ) : (
         <button
@@ -141,7 +141,7 @@ const RevenueByProject: React.FC = () => {
             navigate('/sales-invoices?attribution=unassigned');
           }}
         >
-          <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")}</StatusPill>
+          <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")} · {t('moneyIn:uxs42.openShort', 'Open')}</StatusPill>
         </button>
       ),
       exportValue: (row) => row.project_name ?? 'Unassigned',
@@ -160,7 +160,7 @@ const RevenueByProject: React.FC = () => {
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="tabular text-right text-sm">{formatNumber(row.total_amount)}</span>,
+      cell: (row) => <span className="type-value tabular text-right">{formatNumber(row.total_amount)}</span>,
       exportValue: (row) => row.total_amount,
     },
     {
@@ -169,7 +169,7 @@ const RevenueByProject: React.FC = () => {
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="tabular text-right text-heading font-bold">{formatNumber(row.open_ar)}</span>,
+      cell: (row) => <span className="type-value tabular text-right">{formatNumber(row.open_ar)}</span>,
       exportValue: (row) => row.open_ar,
     },
     {
@@ -306,7 +306,7 @@ const RevenueByProject: React.FC = () => {
             rows={visibleRows}
             columns={mixedCurrencies ? columns : columns.filter((column) => column.key !== 'currency')}
             mobileDetails={{
-              columnKeys: ['total_amount', 'invoice_count', ...(mixedCurrencies ? ['currency'] : [])],
+              columnKeys: ['invoice_count', ...(mixedCurrencies ? ['currency'] : [])],
               summary: (_row, count) => t('moneyIn:uxs42.billingOtherDetails', 'Other billing details · {{count}}', { count }),
             }}
             rowKey={(row) => `${row.project_id ?? 'unassigned'}|${row.currency}`}

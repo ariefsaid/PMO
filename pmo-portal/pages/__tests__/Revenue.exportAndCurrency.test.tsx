@@ -140,8 +140,8 @@ describe('#731 the money lists are exportable', () => {
     expect(btn).toBeEnabled();
     await userEvent.setup().click(btn);
     const { ws, col } = await exportedSheet();
-    const amount = ws.getRow(2).getCell(col('Amount'));
-    const outstanding = ws.getRow(2).getCell(col('Outstanding'));
+    const amount = ws.getRow(2).getCell(col('Net amount'));
+    const outstanding = ws.getRow(2).getCell(col('Outstanding gross'));
     expect(amount.type).toBe(ExcelJS.ValueType.Number);
     expect(amount.value).toBe(1234567.89);
     expect(outstanding.type).toBe(ExcelJS.ValueType.Number);
@@ -181,12 +181,12 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     renderPage(<SalesInvoices />);
     await userEvent.setup().click(screen.getByRole('button', { name: /export/i }));
     const { ws, col } = await exportedSheet();
-    expect(col('Currency')).toBe(col('Amount') + 1);
+    expect(col('Currency')).toBe(col('Net amount') + 1);
     const byNumber = (n: string) =>
       [2, 3].map((r) => ws.getRow(r)).find((row) => row.getCell(col('Invoice #')).value === n)!;
     expect(byNumber('SI-USD').getCell(col('Currency')).value).toBe('USD');
     expect(byNumber('SI-IDR').getCell(col('Currency')).value).toBe('IDR');
-    expect(byNumber('SI-IDR').getCell(col('Amount')).value).toBe(2000000);
+    expect(byNumber('SI-IDR').getCell(col('Net amount')).value).toBe(2000000);
   });
 
   it('AC-EFK-004: the merged on-screen e-Faktur cell still exports as two columns (number, date)', async () => {
@@ -200,9 +200,9 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     expect((ws.getRow(2).getCell(col('e-Faktur date')).value as Date).toISOString().slice(0, 10)).toBe('2026-09-28');
   });
 
-  it('AC-L10N-052: the on-screen table gets no extra Currency column (export-only)', () => {
+  it('AC-L10N-052: the mixed-currency table makes currency explicit', () => {
     renderPage(<SalesInvoices />);
-    expect(screen.queryByRole('columnheader', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Currency' })).toBeInTheDocument();
   });
 });
 

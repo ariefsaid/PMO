@@ -32,6 +32,13 @@ export interface NativeStatementPairProps {
     forThePeriod: string;
     amountsIn: string;
     periodShown: string;
+    account?: string;
+    openingDebit?: string;
+    openingCredit?: string;
+    closingDebit?: string;
+    closingCredit?: string;
+    debit?: string;
+    credit?: string;
     collapseGroup: (group: string) => string;
     expandGroup: (group: string) => string;
     collapseAll: string;
@@ -137,7 +144,20 @@ function periodColumns(side: NativeReportColumn): ReportField[] {
 }
 
 const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground';
-const ACCOUNT_CELL = 'sticky left-0 bg-card px-3 text-left';
+const ACCOUNT_CELL = 'sticky left-0 min-w-48 w-48 bg-card px-3 text-left';
+
+function localizedColumnLabel(column: ReportField, labels: NativeStatementPairProps['labels']): string {
+  const known: Record<string, string | undefined> = {
+    account: labels.account,
+    opening_debit: labels.openingDebit,
+    opening_credit: labels.openingCredit,
+    closing_debit: labels.closingDebit,
+    closing_credit: labels.closingCredit,
+    debit: labels.debit,
+    credit: labels.credit,
+  };
+  return known[column.fieldname.toLocaleLowerCase()] ?? plainNativeStatementLabel(column.label);
+}
 
 function AmountCell({ row, column, presentation, notProvided, className }: {
   row: NativeRow | null;
@@ -306,7 +326,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
           <tr>
             <th scope="col" className={cn(HEADER_CELL, 'left-0 z-[3] text-left')}>{account}</th>
             {valueColumns.map(({ key, header }) => (
-              <th key={key} scope="col" className={cn(HEADER_CELL, 'whitespace-nowrap text-right')}>{header}</th>
+              <th key={key} scope="col" className={cn(HEADER_CELL, 'min-w-24 whitespace-normal break-words text-right')}>{header}</th>
             ))}
           </tr>
         </thead>
@@ -339,8 +359,10 @@ function StatementHeading({ id, reportTitle, companyLabel, periodLine, amountsLi
   );
 }
 
-const accountHeader = (side: NativeReportColumn) =>
-  plainNativeStatementLabel(side.columns.find((column) => column.fieldname === 'account')?.label ?? 'Account');
+const accountHeader = (side: NativeReportColumn, labels: NativeStatementPairProps['labels']) => {
+  const column = side.columns.find((item) => item.fieldname.toLocaleLowerCase() === 'account');
+  return column ? localizedColumnLabel(column, labels) : labels.account;
+};
 
 function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation, labels }: NativeStatementPairProps) {
   const headingId = useId();
@@ -361,7 +383,7 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
     key: column.fieldname,
     side: 'current' as const,
     column,
-    header: plainNativeStatementLabel(column.label),
+    header: localizedColumnLabel(column, labels),
   }));
   return (
     <div className="flex min-w-0 flex-col gap-3">
@@ -397,7 +419,7 @@ function TrialBalance({ pair, reportTitle, companyLabel, currency, presentation,
           <StatementTable
             headingId={headingId}
             lines={lines}
-            account={accountHeader(side)}
+            account={accountHeader(side, labels)}
             valueColumns={valueColumns}
             presentation={presentation}
             notProvided={labels.notProvided}
@@ -421,7 +443,7 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
     column,
     header: (
       <span className="flex flex-col items-end gap-0.5">
-        <span>{plainNativeStatementLabel(column.label)}</span>
+        <span className="whitespace-normal break-words">{localizedColumnLabel(column, labels)}</span>
         <span className="font-normal normal-case tracking-normal">{labels[side]}</span>
       </span>
     ),
@@ -452,7 +474,7 @@ function ComparativeStatement({ pair, reportTitle, companyLabel, currency, prese
             <StatementTable
               headingId={headingId}
               lines={lines}
-              account={accountHeader(pair.current)}
+              account={accountHeader(pair.current, labels)}
               valueColumns={[...sideColumns('current'), ...sideColumns('prior')]}
               presentation={presentation}
               notProvided={labels.notProvided}

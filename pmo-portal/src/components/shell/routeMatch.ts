@@ -219,7 +219,7 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // /companies + /incidents promoted to MODULES (B-7, AC-W2-IA-002) — no longer placeholders.
   // /approvals promoted to MODULES (fix #7) — breadcrumb now resolves via the module, not here.
   // B-10 (AC-W2-IA-005): /reports stays a route (deep-links resolve) but is not a rail item.
-  '/reports': 'Reports',
+  '/reports': 'Project revenue',
   '/administration': 'Administration',
   // My Tasks page (B-1) has its own nav item but no detail route — register so the breadcrumb
   // resolves "My Tasks" on direct deep-link (not "Dashboard").
@@ -238,7 +238,7 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // to "Not found". The i18n keys (shell.nav.*) already ship and mirror the rail labels.
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
-  '/revenue-by-project': 'Revenue by Project',
+  '/revenue-by-project': 'Project revenue',
 };
 
 /**
@@ -391,7 +391,8 @@ export function breadcrumbForPath(
       '/integrations': 'shell.nav.integrations',
       '/sales-invoices': 'shell.nav.salesInvoices',
       '/incoming-payments': 'shell.nav.incomingPayments',
-      '/revenue-by-project': 'shell.nav.revenueByProject',
+      '/revenue-by-project': 'moneyIn:uxs42.projectRevenue',
+      '/reports': 'moneyIn:uxs42.projectRevenue',
       '/my-tasks': 'shell.nav.myTasks',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];

@@ -22,15 +22,9 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 // `columns` (with their real `exportValue`s) are captured off the DataTable the page renders, then
 // pushed through the same buildExportRows → toWorkbookBuffer path `useExport` runs.
 const table = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
-vi.mock('@/src/components/ui', async (orig) => {
-  const actual = (await orig()) as Record<string, unknown>;
-  return {
-    ...actual,
-    DataTable: (props: { rows: unknown[]; columns: unknown[] }) => {
-      table.props = props;
-      return null;
-    },
-  };
+vi.mock('@/src/components/export', async (orig) => {
+  const actual = await orig<typeof import('@/src/components/export')>();
+  return { ...actual, ExportButton: (props: { rows: unknown[]; columns: unknown[] }) => { table.props = props; return null; } };
 });
 
 const state = vi.hoisted(() => ({
@@ -135,8 +129,8 @@ describe.each(LOCALES)('#701 money exports carry numeric cells — viewer locale
     setActiveLocale(loc);
     renderPage(<SalesInvoices />);
     const { ws, col } = await exportedSheet();
-    const amount = ws.getRow(2).getCell(col('Amount'));
-    const outstanding = ws.getRow(2).getCell(col('Outstanding'));
+    const amount = ws.getRow(2).getCell(col('Net amount'));
+    const outstanding = ws.getRow(2).getCell(col('Outstanding gross'));
     expect(amount.type).toBe(ExcelJS.ValueType.Number);
     expect(amount.value).toBe(1234567.89);
     expect(outstanding.type).toBe(ExcelJS.ValueType.Number);

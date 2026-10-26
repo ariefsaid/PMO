@@ -79,9 +79,9 @@ const renderPage = () => {
 async function submitAnInvoice(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
   await user.click(screen.getByRole('combobox', { name: 'Customer' }));
-  await user.click(await screen.findByRole('option', { name: /Acme Energy/ }));
+  await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /Acme Energy/ }));
   await user.click(screen.getByRole('combobox', { name: 'ERP item' }));
-  await user.click(await screen.findByRole('option', { name: /ITEM-001/ }));
+  await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: /ITEM-001/ }));
   await user.click(screen.getByRole('button', { name: 'Create invoice' }));
 }
 

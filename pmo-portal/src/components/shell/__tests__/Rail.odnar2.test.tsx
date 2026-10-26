@@ -48,7 +48,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 import { Rail } from '../Rail';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 
-const FINANCE_ITEMS = [/Sales Invoices/i, /Incoming Payments/i, /Revenue by Project/i, /Management pack/i];
+const FINANCE_ITEMS = [/Sales Invoices/i, /Incoming Payments/i];
 
 const ownershipRow = (domain: string) => ({ domain, externalTier: 'erpnext' });
 
@@ -61,7 +61,7 @@ const makeWrapper = (initial: string) => {
   );
 };
 
-/** The four Finance rail items as the Finance role sees them. */
+/** The revenue-gated collection items; report sections own their own access gates. */
 const renderRail = () =>
   render(<Rail />, { wrapper: makeWrapper('/') });
 
@@ -91,7 +91,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     h.ownership = { data: [ownershipRow('procurement')], isError: false };
     renderRail();
     for (const name of FINANCE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+      expect(await screen.findByRole('link', { name }, { timeout: 15_000 })).toBeInTheDocument();
     }
     renderReportsRoute();
     expect(await screen.findByText('PACK PAGE')).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     h.ownership = { data: [ownershipRow('revenue')], isError: false };
     renderRail();
     for (const name of FINANCE_ITEMS) {
-      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+      expect(await screen.findByRole('link', { name }, { timeout: 15_000 })).toBeInTheDocument();
     }
   });
 

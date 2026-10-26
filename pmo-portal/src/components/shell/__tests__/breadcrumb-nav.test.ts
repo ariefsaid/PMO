@@ -120,7 +120,7 @@ describe('breadcrumbForPath (route-derived breadcrumb)', () => {
 
   it('AC-NAV-005: a placeholder route reads its OWN page label, not "Dashboard"', () => {
     expect(breadcrumbForPath('/companies')).toEqual([{ label: 'Companies', i18nKey: 'shell.nav.companies' }]);
-    expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Reports' }]);
+    expect(breadcrumbForPath('/reports')).toEqual([{ label: 'Project revenue', i18nKey: 'moneyIn:uxs42.projectRevenue' }]);
     // The shell-owned Administration placeholder carries its i18n key so the crumb localizes.
     expect(breadcrumbForPath('/administration')).toEqual([
       { label: 'Administration', i18nKey: 'shell.nav.administration' },

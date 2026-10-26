@@ -36,6 +36,7 @@ import {
   formatCurrencyAuto,
   formatDateOnly,
   formatMoneyInputValue,
+  formatNumber,
   instantToZonedDatetimeLocal,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -314,13 +315,10 @@ const IncomingPayments: React.FC = () => {
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
       cell: (p) => (
-        <Link
-          to={`/incoming-payments/${encodeURIComponent(p.id)}`}
-          className="inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline"
-          title={receiptNumber(p) ?? ''}
-        >
-          {receiptNumber(p) ?? '—'}
-        </Link>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2">
+          <Link to={`/incoming-payments/${encodeURIComponent(p.id)}`} className="inline-flex min-h-11 items-center break-words type-value text-foreground underline-offset-2 hover:underline focus-visible:underline" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</Link>
+          <Link to={`/incoming-payments/${encodeURIComponent(p.id)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-2">{t('financeCopy.openReceipt', 'Open')}</Link>
+        </span>
       ),
       exportValue: (p) => receiptNumber(p) ?? '',
     },
@@ -333,7 +331,7 @@ const IncomingPayments: React.FC = () => {
         const first = settled?.[0]?.invoice_number ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
         const more = settled && settled.length > 1 ? settled.length - 1 : 0;
         const text = first && more > 0 ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first, count: more }) : first;
-        return <span className="break-words font-mono text-sm" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
+        return <span className="break-words type-value" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
       },
       exportValue: (p) => displayAllocations(p, invoiceNumberOf)?.map((a) => a.invoice_number).join(', ')
         ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? '' : ''),
@@ -410,7 +408,7 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'withholding_slip_number', header: t('financeCopy.withholdingSlip', "Withholding slip"),
-      cell: (p) => <span className="font-mono text-sm">{p.withholding_slip_number ?? '—'}</span>,
+      cell: (p) => <span className="type-value">{p.withholding_slip_number ?? '—'}</span>,
       exportValue: (p) => p.withholding_slip_number ?? '',
     },
   ];
@@ -427,18 +425,23 @@ const IncomingPayments: React.FC = () => {
         const url = `/incoming-payments/${encodeURIComponent(p.id)}`;
         const sourceUrl = `${location.pathname}${location.search}`;
         return (
-          <Link
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3"><Link
             to={url}
             onClick={(event) => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               event.preventDefault();
               navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
             }}
-            className="inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline"
+            className="inline-flex min-h-11 items-center break-words type-value text-foreground underline underline-offset-2 hover:underline focus-visible:underline"
             title={receiptNumber(p) ?? ''}
           >
             {receiptNumber(p) ?? '—'}
           </Link>
+          <Link to={url} className="inline-flex min-h-11 items-center underline underline-offset-2" onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
+          }}>{t('financeCopy.openReceipt', 'Open')}</Link></span>
         );
       },
       secondaryCell: (p) => {
@@ -449,20 +452,20 @@ const IncomingPayments: React.FC = () => {
         const invoiceLabel = invoice && more > 0
           ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first: invoice, count: more })
           : invoice ?? t('moneyIn:uxs06.noInvoiceLinked', 'No invoice linked');
-        return <span className="block break-words text-xs text-muted-foreground">{p.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
+        return <span className="block break-words type-value text-muted-foreground">{p.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
       },
       exportValue: (p) => receiptNumber(p) ?? '',
     },
     {
       key: 'status-date',
-      header: t('moneyIn:uxs06.statusAndPaymentDate', 'Status / payment date'),
+      header: <span className="block whitespace-normal break-words pr-3">{t('moneyIn:uxs06.statusAndPaymentDate', 'Status / payment date')}</span>,
       kind: 'status',
       cell: (p) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
           {p.cancelled_at || p.erp_cancelled_at
             ? <StatusPill variant={salesInvoiceStatusVariant('Cancelled')}>{t('financeCopy.statusCancelled', 'Cancelled')}</StatusPill>
             : <StatusPill variant={incomingPaymentStatusVariant(p.status)}>{incomingPaymentStatusLabel(p.pmo_native && p.status === 'Paid' ? 'Received' : p.status, t)}</StatusPill>}
-          <span className="text-xs text-muted-foreground">{p.date ? formatDateOnly(p.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')}</span>
+          <span className="type-value text-muted-foreground">{p.date ? formatDateOnly(p.date) : t('moneyIn:uxs06.dateNotReported', 'Date not reported')}</span>
         </div>
       ),
     },
@@ -471,7 +474,7 @@ const IncomingPayments: React.FC = () => {
       header: t('uxs06.receiptTotal', 'Receipt total'),
       kind: 'money',
       align: 'num',
-      cell: (p) => <span className="tabular text-right text-sm">{p.amount != null ? formatCurrencyAuto(p.amount, p.currency) : t('uxs06.notReported', 'Not reported')}</span>,
+      cell: (p) => <span className="tabular text-right text-heading font-bold">{p.amount != null ? `${p.currency} ${formatNumber(p.amount)}` : t('uxs06.notReported', 'Not reported')}</span>,
       exportValue: (p) => p.amount ?? '',
     },
   ];
@@ -518,10 +521,8 @@ const IncomingPayments: React.FC = () => {
       open={!!cancelTarget}
       tone="destructive"
       title={cancelTarget ? t('financeCopy.cancelPaymentNamed', 'Cancel {{payment}}?', { payment: receiptNumber(cancelTarget) ?? cancelTarget.id }) : t('financeCopy.cancelPaymentQuestion', 'Cancel payment?')}
-      description={cancelTarget?.pmo_native
-        ? t('financeCopy.nativeCancelReceiptBody', "This cancels the receipt in PMO and puts its amount back on the invoice's balance.")
-        : t('financeCopy.cancelPaymentDescription', "This cancels the payment in ERPNext (docstatus 1→2). The payment will be marked Cancelled and the linked invoice's outstanding amount will be restored.")}
-      confirmLabel={t('financeCopy.cancelPayment', 'Cancel payment')}
+      description={cancelTarget ? t('moneyIn:uxs06.cancelReceiptDescription', 'Cancel receipt {{receipt}} for {{amount}}. This cancels the receipt and restores its amount to the linked invoice balance.', { receipt: receiptNumber(cancelTarget) ?? cancelTarget.id, amount: cancelTarget.amount == null ? notReported : `${cancelTarget.currency} ${formatNumber(cancelTarget.amount)}` }) : ''}
+      confirmLabel={t('moneyIn:uxs06.cancelReceipt', 'Cancel receipt')}
       loading={cancelPayment.isPending}
       onConfirm={onCancelConfirm}
       onCancel={() => setCancelTarget(null)}
@@ -953,6 +954,19 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
             loadOptions={loadOpenInvoices}
             noun="invoice"
           />
+          <TextField
+            id={dateField.id}
+            label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
+            max={native ? orgToday() : undefined}
+            min={native ? chosenInvoice?.invoice_date ?? undefined : undefined}
+            value={dateField.value}
+            onChange={dateField.onChange}
+            onBlur={dateField.onBlur}
+            required
+            error={dateField.error}
+            type="date"
+            className="min-h-11 w-48"
+          />
           <NumberField
             id={paidAmountField.id}
             label={t('uxs27.amountSettled', 'Amount settled')}
@@ -1030,19 +1044,6 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
               </FormGrid>
             </div>
           </div>
-          <TextField
-            id={dateField.id}
-            label={native ? t('financeCopy.paymentDateLabel', 'Payment date') : t('financeCopy.date', "Date")}
-            max={native ? orgToday() : undefined}
-            min={native ? chosenInvoice?.invoice_date ?? undefined : undefined}
-            value={dateField.value}
-            onChange={dateField.onChange}
-            onBlur={dateField.onBlur}
-            required
-            error={dateField.error}
-            type="date"
-            className="min-h-11 w-48"
-          />
         </FormGrid>
       </FormSection>
     </EntityFormModal>

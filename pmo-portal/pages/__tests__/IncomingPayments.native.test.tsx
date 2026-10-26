@@ -220,7 +220,7 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     await pickInvoice(user);
     expect(screen.getByLabelText(/Amount settled/)).toHaveValue('610,000');
     expect(screen.getByLabelText(/Cash received/)).toHaveValue('610,000');
-    expect(screen.getByText(/Starts at the .*610,000\.00 outstanding/)).toBeInTheDocument();
+    expect(screen.getByText(/Starts at the .*610,000 outstanding/)).toBeInTheDocument();
     // The receipt takes the invoice's currency (0275), so the amount reads in it — not the org default.
     expect(screen.getByLabelText(/Amount settled/).closest('div')).toHaveTextContent(currencySymbol('IDR'));
     await user.click(screen.getByRole('button', { name: 'Record payment' }));

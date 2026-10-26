@@ -123,7 +123,7 @@ const renderPage = (initialEntry?: string) => render(page(initialEntry));
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
-  await user.click(await screen.findByRole('option', { name: new RegExp(label) }));
+  await user.click(within(await screen.findByRole('listbox')).getByRole('option', { name: new RegExp(label) }));
 }
 
 beforeEach(async () => {
@@ -165,7 +165,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
 
   it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
     renderPage();
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
   });
 
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
@@ -197,7 +197,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Approve' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Continue to approve' }));
+    await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
   });
@@ -214,7 +214,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
     expect(screen.getByText('Total due')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve invoice' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
   });
 
@@ -226,7 +226,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await openMenu(user, rowFor('Acme Energy'));
     await user.click(screen.getByRole('menuitem', { name: 'View invoice' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continue to approve' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Approve invoice' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Back to Sales Invoices' })).toBeInTheDocument();
   });
 
@@ -252,7 +252,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it('AC-991-001 PMO-native invoice record keeps its line-items heading and accessible list', () => {
     h.invoices.data = [nativeInvoice({ id: 'si-native-record' })];
     renderPage('/sales-invoices/si-native-record');
-    expect(screen.getByRole('heading', { name: 'Line items' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Line items ·/ })).toBeInTheDocument();
     expect(screen.getByRole('list', { name: 'Line items' })).toHaveTextContent('Site survey');
   });
 
@@ -374,14 +374,14 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
       erp_opening_amount: 610_000, erp_opening_at: '2026-10-07T03:00:00Z',
     })];
     renderPage();
-    expect(within(rowFor('INV-2610070001')).getByText(/Carried into the ERP opening balance: .*610,000\.00 on Oct 7, 2026/)).toBeInTheDocument();
+    expect(within(rowFor('INV-2610070001')).getByText(/Carried into the ERP opening balance: .*610,000 on 7 Oct 2026/)).toBeInTheDocument();
   });
 
   it('AC-NAR-001 an ERP-mode page keeps the ERP copy and an optional project', async () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
     await pick(user, 'Customer', 'Acme Energy');
     await user.type(screen.getByLabelText(/Item code/), 'SVC');
@@ -395,7 +395,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.queryByRole('button', { name: /New Invoice/i })).toBeNull();
     h.ownershipLoaded = true;
     rerender(page());
-    expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
   });
 
   it('FR-NAR-002 (I-3) a PMO line needs an item code OR a description — a description alone is enough', async () => {
@@ -542,7 +542,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     const row = rowFor('INV-2610070001');
     expect(row).toHaveTextContent(/Total due .*1,110,000\.00/);
     expect(row).toHaveTextContent(/Paid .*500,000\.00/);
-    expect(row).toHaveTextContent(/610,000\.00/);
+    expect(row).toHaveTextContent(/610,000/);
   });
 
   it('AC-NAR-001 (M-2) a PMO Draft with no number yet reads "Draft · <customer>"', () => {
