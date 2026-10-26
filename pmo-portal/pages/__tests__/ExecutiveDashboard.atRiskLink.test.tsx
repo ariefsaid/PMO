@@ -100,7 +100,7 @@ describe('ExecutiveDashboard — AC-IFW-DASH-02: risk action links to /projects?
     const attention = screen.getByTestId('dashboard-attention');
     const table = screen.getByRole('table', { name: /spending comparison/ });
     const riskAction = within(attention).getByRole('link', { name: 'Review at-risk projects' });
-    const projectAction = within(table).getByRole('link', { name: 'Open Meridian HQ' });
+    const projectAction = within(table).getByRole('link', { name: 'Meridian HQ' });
     expect(riskAction.closest('a')).toBe(riskAction);
     expect(projectAction).toHaveAttribute('href', '/projects/p1');
     expect(table.contains(riskAction)).toBe(false);

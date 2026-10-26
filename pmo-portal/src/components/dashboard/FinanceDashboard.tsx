@@ -21,7 +21,7 @@ import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { StatusBarChart } from './StatusBarChart';
 import { procurementStatusTone } from './procurementStatusTone';
-import { DashPageHead } from './layout';
+import { DashFact, DashPageHead } from './layout';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
@@ -609,7 +609,7 @@ export const FinanceDashboard: React.FC = () => {
     : t('dashboard:finance.askAdminToSync', 'Ask your administrator to sync accounting data.');
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8 sm:space-y-12">
       <DashPageHead
         title={t('uxs03.financeDashboardTitle', 'Finance Dashboard')}
         sub={t('dashboard:finance.scope', 'Invoiceable work, vendor payments and customer collections.')}
@@ -672,7 +672,7 @@ export const FinanceDashboard: React.FC = () => {
             tableId="components-dashboard-financedashboard-budget-review-v2-table"
           />
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-8 sm:space-y-12">
               {budgetRowsByCurrency.map(({ currency: groupCurrency, rows }) => {
                 const title = t('dashboard:finance.budgetCurrencyGroup', '{{currency}} · Five projects by budget variance', { currency: groupCurrency });
                 return <section key={groupCurrency} aria-label={title}>
@@ -710,16 +710,15 @@ export const FinanceDashboard: React.FC = () => {
               {isError && <ListState variant="error" title={t('dashboard:finance.dashboardError', "Couldn't load the finance dashboard")} onRetry={() => { void refetch(); }} />}
               {isPending && !data ? <ListState variant="loading" rows={4} /> : data ? (
                 <>
-                  <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-3">
-                    <div><dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:finance.contractInProgress', 'Contract in progress')}</dt><dd className="mt-0.5 text-sm tabular">{positionValue(data.total_contract_value)}</dd></div>
-                    <div>
-                      <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:finance.knownSpending', 'Known spending')}</dt>
-                      <dd className="mt-0.5 text-sm tabular">{positionValue(totalSpend)}</dd>
+                  <dl className="mt-4 grid grid-cols-2 gap-4">
+                    <DashFact label={t('dashboard:finance.contractInProgress', 'Contract in progress')} value={positionValue(data.total_contract_value)} />
+                    <DashFact label={t('dashboard:finance.knownSpending', 'Known spending')} value={<>
+                      {positionValue(totalSpend)}
                       {(data.on_hand_actual_project_count < data.on_hand_actual_project_total || data.on_hand_actual_coverage_count < data.on_hand_actual_coverage_total)
-                        && <span className="text-[0.6875rem] font-semibold text-muted-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
-                    </div>
-                    <div><dt className="text-xs font-semibold text-muted-foreground">{marginLabel}</dt><dd className="mt-0.5 text-sm tabular">{positionValue(data.on_hand_realized_margin)}</dd></div>
-                    <div><dt className="text-xs font-semibold text-muted-foreground">{t('uxs03.contractRemaining', 'Contract remaining after known Actual')}</dt><dd className="mt-0.5 text-sm tabular">{positionValue(data.on_hand_contract_remaining)}</dd></div>
+                        && <span className="ml-1 text-sm font-normal text-muted-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
+                    </>} />
+                    <DashFact label={marginLabel} value={positionValue(data.on_hand_realized_margin)} />
+                    <DashFact label={t('uxs03.contractRemaining', 'Contract remaining after known Actual')} value={positionValue(data.on_hand_contract_remaining)} />
                   </dl>
                   <p className="mt-3 text-sm text-muted-foreground">{actualCoverage} · {t('dashboard:finance.marginBasis', 'Margin is billed-work revenue less recorded spending; it is not cash received.')}</p>
                 </>

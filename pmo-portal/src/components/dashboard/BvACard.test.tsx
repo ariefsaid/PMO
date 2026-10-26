@@ -14,11 +14,11 @@ const renderCard = (rows = projects) => render(
 );
 
 describe('Executive spending comparison', () => {
-  it('AC-UX-013 keeps project identity, known Actual, contract, and an explicit open action', () => {
+  it('AC-UX-013 opens project identity beside known Actual and contract', () => {
     renderCard();
     const table = screen.getByRole('table', { name: 'USD spending comparison' });
     expect(within(table).getByRole('link', { name: 'Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
-    expect(within(table).getByRole('link', { name: 'Open Innovate HQ' })).toHaveAttribute('href', '/projects/p1');
+    expect(within(table).getAllByRole('link', { name: 'Innovate HQ' })).toHaveLength(1);
     expect(within(table).getByText('2,100,000')).toBeInTheDocument();
     expect(within(table).getByText('5,000,000')).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Known Actual' })).toBeInTheDocument();
@@ -39,9 +39,9 @@ describe('Executive spending comparison', () => {
 
   it('marks a known at-risk project in its status row', () => {
     renderCard();
-    const row = screen.getByRole('link', { name: 'Open Acme Platform' }).closest('tr') as HTMLElement;
+    const row = screen.getByRole('link', { name: 'Acme Platform' }).closest('tr') as HTMLElement;
     expect(within(row).getByText('At risk')).toBeInTheDocument();
-    const onTrack = screen.getByRole('link', { name: 'Open Innovate HQ' }).closest('tr') as HTMLElement;
+    const onTrack = screen.getByRole('link', { name: 'Innovate HQ' }).closest('tr') as HTMLElement;
     expect(within(onTrack).queryByText('At risk')).toBeNull();
   });
 
@@ -71,6 +71,6 @@ describe('Executive spending comparison', () => {
     expect(within(idrTable).getByText('1,780,000,000')).toBeInTheDocument();
     expect(idrTable).not.toHaveTextContent('IDR');
     expect(usdTable).not.toHaveTextContent('USD');
-    expect(screen.getByRole('heading', { name: 'IDR spending comparison' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'IDR' })).toBeInTheDocument();
   });
 });

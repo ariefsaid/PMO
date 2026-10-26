@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from '@/pages/ExecutiveDashboard';
@@ -106,6 +106,8 @@ describe('Executive dashboard localized figures', () => {
     const unknownRow = screen.getByTestId('dashboard-known-actual');
     expect(unknownRow).toHaveTextContent('—');
     expect(within(unknownRow as HTMLElement).getByRole('link', { name: /USD/ })).toHaveAttribute('href', '#executive-actual-note');
+    fireEvent.click(within(unknownRow).getByRole('link', { name: /USD/ }));
+    expect(screen.getByTestId('dashboard-actual-coverage-note').closest('details')).toHaveAttribute('open');
     expect(unknownDelivery).toHaveTextContent('Beberapa nilai portofolio tidak tersedia');
   });
 

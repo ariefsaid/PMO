@@ -1281,8 +1281,7 @@
     "chart": {
       "pipelineMargin": {
         "empty": "No open pipeline",
-        "error": "Couldn't load the pipeline",
-        "title": "Pipeline forecast margin"
+        "error": "Couldn't load the pipeline"
       },
       "procStatus": {
         "chartLabel": "Procurement by status",

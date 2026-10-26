@@ -101,7 +101,7 @@ describe('Executive dashboard uses one responsive composition', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByTestId('dashboard-attention')).toHaveTextContent('3 projects at risk');
-    expect(screen.getByTestId('dashboard-attention')).toHaveTextContent('3 approval requests need a decision');
+    expect(screen.getByTestId('dashboard-attention')).toHaveTextContent('3 approval requests need your decision');
     expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Contract value on hand');
     expect(screen.getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
     expect(container.querySelectorAll('[data-testid="dashboard-delivery-book"]')).toHaveLength(1);
@@ -128,7 +128,7 @@ describe('Executive dashboard uses one responsive composition', () => {
     expect(delivery).toHaveTextContent(/2,000,000,000/);
     expect(delivery).toHaveTextContent(/1,000,000/);
     expect(screen.getByRole('link', { name: 'Review at-risk projects' })).toHaveAttribute('href', '/projects?filter=at-risk');
-    expect(screen.getByRole('link', { name: 'Open Alpha Project' })).toHaveAttribute('href', '/projects/p1');
+    expect(screen.getByRole('link', { name: 'Alpha Project' })).toHaveAttribute('href', '/projects/p1');
     expect(screen.getByRole('link', { name: 'Tender Submitted' })).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
   });
 

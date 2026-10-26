@@ -68,7 +68,7 @@ describe('BvACard — AC-IFW-DASH-01: BvA row name links to /projects/:id', () =
   it('AC-IFW-DASH-01 (D-2): at-risk rows have NO trailing chevron — false affordance removed; "At risk" pill is the badge', () => {
     renderCard();
     // d2 (SunVolt Install) is at-risk. The false-affordance chevron must NOT be present.
-    const atRiskRow = screen.getByRole('link', { name: 'Open SunVolt Install' }).closest('tr') as HTMLElement;
+    const atRiskRow = screen.getByRole('link', { name: 'SunVolt Install' }).closest('tr') as HTMLElement;
     // The "At risk" badge is still present as the exception indicator.
     expect(within(atRiskRow).getByText(/At risk/i)).toBeInTheDocument();
   });

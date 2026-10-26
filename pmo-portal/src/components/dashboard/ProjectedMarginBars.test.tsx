@@ -16,22 +16,33 @@ const stages: PipelineStage[] = [
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('Pipeline margin and stage evidence', () => {
+  it('AC-806-PIPELINE pairs the weighted and gross amounts with an unavailable forecast note', () => {
+    wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="USD" currencyTotals={[
+      { currency: 'USD', weightedValue: 7_680_000, grossValue: 17_550_000, forecastMargin: null },
+    ]} />);
+    expect(screen.getByText('Weighted')).toBeInTheDocument();
+    expect(screen.getByText('7,680,000')).toBeInTheDocument();
+    expect(screen.getByText('17,550,000')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Forecast margin unavailable; see data note' })).toHaveAttribute('href', '#executive-data-note');
+    expect(screen.queryByText('USD', { exact: true })).not.toBeInTheDocument();
+  });
+
   it('shows the measured forecast margin headline from the executive payload', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('14.1%')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
+    expect(screen.getByText('Forecast margin')).toBeInTheDocument();
   });
 
   it('AC-RD-UNAVAIL-001 keeps an unknown margin as a dash without drawing a false percentage', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
     const group = screen.getByRole('group', { name: /Pipeline projected margin/i });
-    expect(within(group).getByText('—')).toBeInTheDocument();
+    expect(within(group).getByText('Forecast margin').parentElement).toHaveTextContent('—');
     expect(within(group).queryByText('0.0%')).toBeNull();
   });
 
   it('AC-RD-MONEY-001 keeps the full weighted amount visible beside each open stage', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    expect(screen.getByRole('heading', { name: 'Open stage values · IDR' })).toBeInTheDocument();
+    expect(screen.getByText('Open stage values')).toBeInTheDocument();
     expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
     expect(screen.queryByText(/600\.0K/)).toBeNull();
   });

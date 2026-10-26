@@ -180,7 +180,7 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
           {row.label}
         </span>
         <span className="row-start-1 text-right md:col-start-3">
-          <span data-testid={rateTestId} aria-live="polite" className="block text-sm tabular">
+          <span data-testid={rateTestId} aria-live="polite" className="block text-sm font-semibold tabular text-foreground">
             {measured ? spokenPercent : <><span aria-hidden="true">—</span><span className="sr-only">{unavailableLabel}</span></>}
           </span>
           <span data-testid={sampleTestId} className="block text-[0.6875rem] font-semibold text-muted-foreground">
@@ -228,8 +228,8 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
   const emptyTitle = t('dashboard:winRate.emptyTitle', 'No closed projects in this window');
 
   return (
-    <section aria-labelledby="win-rate-title" className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
+    <section aria-labelledby="win-rate-title" className="pt-4 sm:pt-8">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <h2 id="win-rate-title" className="text-xl font-bold">
           {t('dashboard:winRate.title', 'Win rate')}
         </h2>

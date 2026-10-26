@@ -3,14 +3,12 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
-import { StatusPill } from '@/src/components/ui/StatusPill';
-import { buttonClasses } from '@/src/components/ui/buttonClasses';
 import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
-import { pillVariantForProjectStatus } from '@/components/projects';
 import type { TopProject } from '@/src/lib/db/dashboard';
 import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { revealDashboardNote } from './dashboardNote';
 import { executiveRiskState, sortExecutiveProjects } from './executiveProjectOrder';
 
 export interface BvACardProps {
@@ -61,24 +59,15 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
     },
     {
       key: 'statusRisk',
-      header: t('dashboard:exec.statusRisk', 'Status / risk'),
+      header: t('dashboard:exec.status', 'Status'),
       kind: 'status',
       cell: (project) => {
         const risk = executiveRiskState(project);
         return (
-          <div className="flex min-w-0 flex-col items-start gap-1">
-            <StatusPill variant={pillVariantForProjectStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
-            {risk === 'at-risk' && <StatusPill variant="warn">{t('common:dashboard.bva.atRisk', 'At risk')}</StatusPill>}
-            {risk === 'within-budget' && <span className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.withinBudget', 'Within budget')}</span>}
-            {risk === 'unchecked' && (
-              <a
-                href="#executive-data-note"
-                aria-label={t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
-                className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-              >
-                {t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
-              </a>
-            )}
+          <div className="inline-flex min-w-0 items-center gap-1 text-sm">
+            <span>{project.status === 'Ongoing Project' ? t('dashboard:exec.ongoing', 'Ongoing') : statusLabel(project.status)}</span>
+            {risk === 'at-risk' && <><span aria-hidden="true" className="mx-1 size-1.5 rounded-full bg-warning" /><span>{t('common:dashboard.bva.atRisk', 'At risk')}</span></>}
+            {risk === 'unchecked' && <sup><a href="#executive-data-note" onClick={revealDashboardNote} aria-label={t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')} className="inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-semibold text-muted-foreground underline underline-offset-2">1</a></sup>}
           </div>
         );
       },
@@ -105,8 +94,8 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           ? Math.min(100, Math.max(0, Math.round((project.spent! / project.contract_value!) * 100)))
           : null;
         return (
-          <div className="min-w-[7rem] space-y-1">
-            {actual === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-actual-note" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see coverage note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
+          <div className="flex min-w-[7rem] flex-col gap-1 text-right">
+            {actual === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end" href="#executive-data-note" onClick={revealDashboardNote} aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see coverage note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
             {progress !== null && <ProgressBar value={progress} widthless className="w-full [&>span:first-child]:flex-1" aria-label={t('dashboard:exec.actualOfContract', '{{project}}: {{percent}}% of contract', { project: project.name, percent: progress })} />}
           </div>
         );
@@ -120,33 +109,22 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
       cell: (project) => {
         const value = money(project.contract_value, project.currency, groupCurrency);
         return value === null
-          ? <a className="inline-flex min-h-11 items-center" href="#executive-data-note" aria-label={t('dashboard:exec.contractUnavailable', 'Contract value unavailable; see data note')}>—</a>
+          ? <a className="inline-flex min-h-11 items-center" href="#executive-data-note" onClick={revealDashboardNote} aria-label={t('dashboard:exec.contractUnavailable', 'Contract value unavailable; see data note')}>—</a>
           : <span className="inline-block whitespace-nowrap">{value}</span>;
       },
     },
-    {
-      key: 'open',
-      header: t('dashboard:exec.open', 'Open'),
-      kind: 'actions',
-      cell: (project) => (
-        <Link
-          to={`/projects/${project.id}`}
-          aria-label={t('dashboard:exec.openProject', 'Open {{project}}', { project: project.name })}
-          className={buttonClasses('outline', 'default', 'min-h-11 px-3')}
-        >
-          {t('dashboard:exec.open', 'Open')}
-        </Link>
-      ),
-    },
+
   ];
 
   return (
-    <div className="space-y-4">
+    <section aria-labelledby="executive-spending-title" className="space-y-4 [&_tbody_td]:h-11 [&_tbody_td]:py-0 [&_tbody_th]:h-11 [&_tbody_th]:py-0">
+      <div className="space-y-2">
+        <h3 id="executive-spending-title" className="text-xl font-bold">{t('dashboard:exec.spendingComparison', 'Spending comparison')}{groups.length === 1 ? ` · ${groups[0][0]}` : ''}</h3>
+        <p className="text-sm text-muted-foreground">{t('dashboard:exec.sortAtRiskFirst', 'At-risk projects first, then project name')}</p>
+      </div>
       {groups.map(([groupCurrency, groupRows]) => (
-        <section key={groupCurrency} aria-labelledby={`executive-spending-${groupCurrency.toLowerCase()}`}>
-          <h3 id={`executive-spending-${groupCurrency.toLowerCase()}`} className="mb-2 text-xl font-bold">
-            {t('dashboard:exec.spendingCurrencyGroup', '{{currency}} spending comparison', { currency: groupCurrency })}
-          </h3>
+        <section key={groupCurrency} aria-label={groupCurrency}>
+          {groups.length > 1 && <h4 id={`executive-spending-${groupCurrency.toLowerCase()}`} className="mb-4 text-xl font-bold">{groupCurrency}</h4>}
           {narrow && !isPending && !isError ? (
             <ul aria-label={t('dashboard:exec.spendingComparisonForCurrency', '{{currency}} spending comparison', { currency: groupCurrency })} className="divide-y divide-border">
               {groupRows.map((project) => {
@@ -154,13 +132,11 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
                 return <li key={project.id} className="space-y-2 py-3 text-sm">
                   <div className="font-semibold">{columns[0].cell(project)}</div>
                   {columns[1].cell(project)}
-                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-                    <div className="min-w-0"><span className="text-xs font-semibold text-muted-foreground">{columns[2].header}</span>{columns[2].cell(project)}</div>
-                    {columns[4].cell(project)}
+                  <div className="flex flex-wrap items-baseline gap-x-1 gap-y-2 tabular font-semibold">
+                    <span className="font-normal">{t('dashboard:exec.actualShort', 'Actual')}</span>
+                    {money(isActualComplete({ basis: 'erp', readSucceeded: project.spent !== null, complete: project.actual_complete, coverageCount: project.actual_coverage_count, coverageTotal: project.actual_coverage_total }) ? project.spent : null, project.actual_currency ?? project.currency, groupCurrency) ?? <a href="#executive-data-note" onClick={revealDashboardNote} className="inline-flex min-h-11 min-w-11 items-center" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see coverage note')}>—</a>}
+                    <span className="font-normal"> · {t('dashboard:exec.contract', 'Contract')}</span>{columns[3].cell(project)}
                   </div>
-                  <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.viewContractDetails', 'View contract details')}</summary>
-                    <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3"><dt className="text-xs font-semibold text-muted-foreground">{columns[3].header}</dt><dd className="text-right tabular">{columns[3].cell(project)}</dd></dl>
-                  </details>
                 </li>;
               })}
             </ul>
@@ -192,6 +168,6 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
           tableId="components-dashboard-executive-delivery-v2-empty"
         />
       )}
-    </div>
+    </section>
   );
 };

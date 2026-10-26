@@ -133,8 +133,8 @@ describe('ExecutiveDashboard (real data)', () => {
     expect(screen.getByText('Risk is not checked for 2 delivery projects')).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
-    expect(within(pipeline).getByText('—')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
     expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
   });
 
@@ -152,7 +152,7 @@ describe('ExecutiveDashboard (real data)', () => {
       renderPage();
       const delivery = screen.getByRole('region', { name: 'Delivery book' });
       expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('3,400,000');
-      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('USD 3.4M');
+      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('USD');
       const idr = within(delivery).getByTestId('dashboard-delivery-position-IDR');
       expect(idr).toHaveTextContent('IDR');
       expect(idr).toHaveTextContent('373,500,000,000');
@@ -217,8 +217,8 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
-    expect(within(pipeline).getByText('—')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
     expect(within(pipeline).queryByText('Not available yet')).toBeNull();
   });
 
@@ -234,8 +234,8 @@ describe('ExecutiveDashboard (real data)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
-    expect(within(pipeline).getByText('—')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
   });
 
   it('AC-701 keeps active project count and exact contract value in the delivery book', () => {
@@ -377,7 +377,7 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     expect(delivery).toHaveTextContent('Margin on billed work');
     expect(delivery).not.toHaveTextContent('94.9%');
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
     expect(pipeline).toHaveTextContent('20.0%');
   });
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Card, CardHead, ListState, TaxBasisLabel } from '@/src/components/ui';
+import { ListState, TaxBasisLabel } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { formatNumberExact } from '@/src/lib/format';
@@ -36,9 +36,9 @@ const StillToInvoiceBody: React.FC<{ excludeWorkOrderId?: string }> = ({ exclude
   }
 
   return (
-    <Card data-testid="dashboard-still-to-invoice">
-      <CardHead className="text-xl font-bold">{title}</CardHead>
-      <div className="p-4">
+    <section aria-labelledby="still-to-invoice-title" data-testid="dashboard-still-to-invoice">
+      <h2 id="still-to-invoice-title" className="text-xl font-bold">{title}</h2>
+      <div className="mt-4">
         {isPending ? (
           <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
@@ -81,7 +81,7 @@ const StillToInvoiceBody: React.FC<{ excludeWorkOrderId?: string }> = ({ exclude
                               : ''}
                           </span>
                         </Link>
-                        <span className="text-sm tabular sm:text-right">{formatNumberExact(row.remaining)}</span>
+                        <span className="text-sm font-semibold tabular text-foreground sm:text-right">{formatNumberExact(row.remaining)}</span>
                       </li>
                     ))}
                   </ul>}
@@ -123,7 +123,7 @@ const StillToInvoiceBody: React.FC<{ excludeWorkOrderId?: string }> = ({ exclude
           </div>
         )}
       </div>
-    </Card>
+    </section>
   );
 };
 

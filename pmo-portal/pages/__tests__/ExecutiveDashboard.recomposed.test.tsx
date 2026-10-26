@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import ExecutiveDashboard from '../ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
@@ -148,6 +148,26 @@ beforeEach(() => {
 });
 
 describe('Executive and Admin dashboard recomposition', () => {
+  it('AC-806-HIERARCHY names the decision first and links the at-risk project', () => {
+    view.timesheets = Array.from({ length: 7 }, (_, id) => ({ id: `ts-${id}` }));
+    renderPage();
+    const answer = screen.getByTestId('dashboard-attention');
+    expect(within(answer).getByRole('heading', { name: '7 approval requests need your decision' })).toBeInTheDocument();
+    expect(within(answer).getByRole('link', { name: 'Beta' })).toHaveAttribute('href', '/projects/p-beta');
+    expect(screen.getAllByText('How figures are measured')).toHaveLength(1);
+    expect(screen.getByText('How figures are measured').closest('details')).not.toHaveAttribute('open');
+    expect(screen.queryByText('Actual coverage', { selector: 'summary' })).not.toBeInTheDocument();
+  });
+
+  it('AC-806-NOTES keeps the data note collapsed until a comparison marker opens it', () => {
+    renderPage();
+    const disclosure = screen.getByText('How figures are measured').closest('details');
+    expect(screen.getByText('Some portfolio values are unavailable').closest('details')).toBe(disclosure);
+    expect(disclosure).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByRole('link', { name: 'Risk not checked; see portfolio data note' }));
+    expect(disclosure).toHaveAttribute('open');
+  });
+
   it('D-2 divides the seed-shaped forecast margin amount by same-currency pipeline value', () => {
     view.data = { ...dashboard, pipeline_projected_margin: null, pipeline_total_value_by_currency: [
       { currency: 'USD', total_value: 4_000_000, weighted_value: 1_600_000, forecast_margin: 400_000, no_active_budget: 0 },
@@ -171,10 +191,10 @@ describe('Executive and Admin dashboard recomposition', () => {
 
   it('AC-806-EXEC-ORDER-001 keeps attention, delivery, invoiceable work, pipeline, and purchasing in target order', () => {
     renderPage();
-    const attention = screen.getByRole('heading', { name: 'Attention and approvals' });
-    const delivery = screen.getByRole('heading', { name: 'Delivery book' });
+    const attention = screen.getByRole('heading', { name: 'No approval requests need a decision' });
+    const delivery = screen.getByRole('heading', { name: /^Delivery book/ });
     const invoices = screen.getByRole('heading', { name: 'Still to invoice on work orders' });
-    const pipeline = screen.getByRole('heading', { name: 'Pipeline' });
+    const pipeline = screen.getByRole('heading', { name: /^Pipeline/ });
     const winRate = screen.getByRole('heading', { name: 'Win rate' });
     const purchasing = screen.getByText('Purchasing requests', { selector: 'summary' });
     expect(attention.compareDocumentPosition(delivery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -210,10 +230,10 @@ describe('Executive and Admin dashboard recomposition', () => {
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
     expect(within(delivery).getAllByText('Contract value on hand')[0]).toBeInTheDocument();
     expect(within(delivery).getByText('10,000')).toBeInTheDocument();
-    expect(within(delivery).getByRole('heading', { name: /Contract value on hand/ })).toBeInTheDocument();
+    expect(within(delivery).getByText('Contract on hand')).toBeInTheDocument();
     expect(within(delivery).getAllByText('Active contract value')[0]).toBeInTheDocument();
     expect(within(delivery).getAllByText('Known Actual')[0]).toBeInTheDocument();
-    expect(within(delivery).getAllByText('Contract remaining after known Actual')).toHaveLength(2);
+    expect(within(delivery).getByText('Remaining after known Actual')).toBeInTheDocument();
     expect(within(delivery).getAllByText('Margin on billed work').length).toBeGreaterThanOrEqual(2);
     expect(within(delivery).getByText('How figures are measured')).toBeInTheDocument();
   });
@@ -250,15 +270,15 @@ describe('Executive and Admin dashboard recomposition', () => {
     expect(rows[0]).toContain('At risk');
     expect(rows[1]).toContain('Alpha');
     expect(rows[2]).toContain('Gamma');
-    expect(rows[2]).toContain('Risk not checked');
-    expect(within(table).getByRole('link', { name: 'Open Alpha' })).toHaveAttribute('href', '/projects/p-alpha');
+    expect(within(table).getByRole('link', { name: 'Risk not checked; see portfolio data note' })).toHaveAttribute('href', '#executive-data-note');
+    expect(within(table).getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '/projects/p-alpha');
   });
 
   it('AC-806-EXEC-PIPELINE-001 keeps margin, weighted and gross figures beside win rate and open-stage bars', () => {
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
-    expect(within(pipeline).getByRole('heading', { name: /Weighted pipeline/ })).toBeInTheDocument();
+    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByText('Weighted')).toBeInTheDocument();
     expect(within(pipeline).getByText('1,600')).toBeInTheDocument();
     expect(within(pipeline).getByText('4,000')).toBeInTheDocument();
     expect(within(pipeline).getByRole('heading', { name: 'Win rate' })).toBeInTheDocument();
@@ -279,12 +299,12 @@ describe('Executive and Admin dashboard recomposition', () => {
     view.narrow = true;
     renderPage();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole('heading', { name: 'Attention and approvals' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Delivery book' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No approval requests need a decision' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Delivery book/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
     const firstPosition = screen.getByTestId('dashboard-delivery-position-USD');
-    const firstFigure = within(firstPosition).getByRole('heading', { name: /Contract value on hand/ });
-    expect(firstFigure.compareDocumentPosition(within(firstPosition).getByText('10,000')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(firstPosition).getByText('Contract on hand')).toBeInTheDocument();
+    expect(within(firstPosition).getByText('10,000')).toBeInTheDocument();
   });
 
   it('AC-806-EXEC-STATE-001 keeps the frame, invoiceable section, and pipeline when portfolio data fails', () => {
@@ -292,9 +312,9 @@ describe('Executive and Admin dashboard recomposition', () => {
     view.dashboardError = true;
     renderPage();
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole('heading', { name: 'Delivery book' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Delivery book/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Still to invoice on work orders' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Pipeline' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Pipeline/ })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Win rate' })).toBeInTheDocument();
   });
 });
