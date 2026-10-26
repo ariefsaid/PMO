@@ -42,7 +42,7 @@ const SCOPES: readonly SalesScope[] = ['Open', 'Lost', 'Needs attention'];
 function StageActivity({ project }: { project: PipelineProject }) {
   const { t } = useTranslation('sales');
   const days = daysSince(project.last_update);
-  if (days === null) return <span className="text-muted-foreground">{t('pipeline.activityUnavailable', 'Activity unavailable')}</span>;
+  if (days === null) return <span className="text-foreground tabular">{t('pipeline.activityUnavailable', 'Activity unavailable')}</span>;
   if (days === 0) return <span>{t('pipeline.today', 'Today')}</span>;
   if (days === 1) return <span>{t('pipeline.oneDay', '1 day ago')}</span>;
   return <span>{t('pipeline.daysAgo', '{{days}} days ago', { days })}</span>;
@@ -180,7 +180,7 @@ const SalesPipeline: React.FC = () => {
     },
     {
       key: 'stage', header: t('sales.column.stage', 'Stage'), kind: 'status', size: 115,
-      cell: (project) => <StatusPill variant={pillVariantForStatus(project.status)}>{displayStage(project)}</StatusPill>,
+      cell: (project) => <StatusPill variant={pillVariantForStatus(project.status)} className="text-sm font-normal">{displayStage(project)}</StatusPill>,
       exportValue: (project) => displayStage(project),
     },
     {
@@ -256,17 +256,17 @@ const SalesPipeline: React.FC = () => {
   const summary = (
     <details data-testid="sales-summary" className="mb-4">
       <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3">
-        <span className="text-xl font-bold leading-tight tracking-[-0.01em]"><span aria-hidden>▸ </span><span>{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span> · {formatNumberWhole(openProjects.length)}</span>
-        <span className="text-[0.6875rem] font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
+        <span className="flex flex-wrap items-baseline gap-2"><span aria-hidden>▸ </span><span className="text-xs font-semibold text-muted-foreground">{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span><span className="text-xl font-bold text-foreground tabular">{formatNumberWhole(openProjects.length)}</span></span>
+        <span className="text-xs font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
       </summary>
-      <div className="mt-4">
+      <div className="mt-2">
         <p className="mb-2 text-xs font-semibold text-muted-foreground">{salesT('pipeline.comparisonCount', 'Stage comparison · project count')}{summarySharedCurrency && ` · ${summarySharedCurrency}`}</p>
-        <Funnel stages={summaryStages} />
-        <p data-testid="pipeline-weighted-total" className="mt-4 text-sm">
-          <span>{salesT('pipeline.summaryForecast', 'Weighted pipeline forecast')}: </span>
-          <span>{weightedForecast}</span>
+        <Funnel stages={summaryStages} className="[&_[data-funnel-stage-prob]]:text-sm [&_[data-funnel-stage-prob]]:font-normal [&_[data-funnel-stage-prob]]:text-foreground [&_[data-funnel-stage-prob]]:tabular-nums" />
+        <p data-testid="pipeline-weighted-total" className="mt-2 flex flex-wrap items-baseline gap-2 text-sm">
+          <span className="text-xs font-semibold text-muted-foreground">{salesT('pipeline.summaryForecast', 'Weighted pipeline forecast')}: </span>
+          <span className="text-sm text-foreground tabular">{weightedForecast}</span>
         </p>
-        {summaryHasUnknown && <p className="mt-4 text-sm text-muted-foreground">{salesT('pipeline.summaryCaveat', 'Some stage totals are unavailable or span mixed currencies.')} <Link className="text-primary-text underline underline-offset-4" to="/projects">{salesT('pipeline.reviewEvidence', 'Review project records')}</Link></p>}
+        {summaryHasUnknown && <p className="mt-2 text-sm text-muted-foreground">{salesT('pipeline.summaryCaveat', 'Some stage totals are unavailable or span mixed currencies.')} <Link className="text-primary-text underline underline-offset-4" to="/projects">{salesT('pipeline.reviewEvidence', 'Review project records')}</Link></p>}
       </div>
     </details>
   );

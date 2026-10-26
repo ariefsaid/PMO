@@ -39,6 +39,6 @@ describe('SalesKanbanBoard Bahasa labels', () => {
   it('keeps stage visible on the ungrouped phone row', () => {
     renderBoard('list');
     const card = screen.getByRole('link', { name: 'Quotation Deal Alpha' }).closest('article')!;
-    expect(within(card).getByText('Penawaran diajukan')).toBeInTheDocument();
+    expect(within(card).getByText('Penawaran')).toBeInTheDocument();
   });
 });

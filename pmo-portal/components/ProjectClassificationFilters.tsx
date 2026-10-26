@@ -70,13 +70,23 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   const [locationText, setLocationText] = useState(value.location ?? '');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastLocation = useRef(value.location ?? '');
+  const observedLocation = useRef(value.location ?? '');
+  const ownLocationEmits = useRef(new Set<string>());
   // Only an outside change that moves `value.location` (Clear filters, Back, drill links) drops
   // the typed text. Own select/chip emits leave location alone, so the URL-backed value catching
   // up in any number of router transitions never wipes a pending debounced entry.
   useEffect(() => {
     const next = value.location ?? '';
-    if (next === lastLocation.current) return;
+    if (next === observedLocation.current) return;
+    observedLocation.current = next;
+    // Router transitions can acknowledge an older own emit after newer typing. Only an
+    // outside value resets the editor; a repeated or delayed own echo never cancels it.
+    if (ownLocationEmits.current.delete(next)) {
+      if (next === lastLocation.current) ownLocationEmits.current.clear();
+      return;
+    }
     lastLocation.current = next;
+    ownLocationEmits.current.clear();
     clearTimeout(timer.current);
     setLocationText(next);
   }, [value]);
@@ -88,6 +98,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     lastReset.current = resetToken;
     clearTimeout(timer.current);
     lastLocation.current = '';
+    ownLocationEmits.current.clear();
     setLocationText('');
   }, [resetToken]);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -106,7 +117,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   };
   const activeKeys = CLASSIFICATION_FILTER_KEYS.filter((key) => Boolean(value[key]));
   const fields = (
-    <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
       <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
         onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} className="min-h-11" />
       <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
@@ -122,6 +133,7 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
           timer.current = setTimeout(() => {
             // Our own emit: when the URL catches up to it, that is not an outside change.
             lastLocation.current = location;
+            ownLocationEmits.current.add(location);
             onChange({ location });
           }, LOCATION_DEBOUNCE_MS);
         }} className="min-h-11" />

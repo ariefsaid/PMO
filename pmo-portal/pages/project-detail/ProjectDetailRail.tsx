@@ -21,9 +21,9 @@ const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children })
 );
 
 const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 py-3 text-sm">
-    <dt className="text-muted-foreground">{label}</dt>
-    <dd className="min-w-0 break-words text-right font-medium text-foreground">{value}</dd>
+  <div className="grid max-w-lg grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-2 py-2 text-sm">
+    <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+    <dd className="min-w-0 break-words text-left font-normal text-foreground tabular">{value}</dd>
   </div>
 );
 
@@ -53,7 +53,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
         <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
           {showActionSection ? t('uxs13.projectDetailsAndActions', 'Project details and actions') : t('projectDetail.rail.detailsHeading', 'Details')}
         </summary>
-        <div className="space-y-8 pt-3">
+        <div className="space-y-8 pt-2 md:space-y-12">
         {showActionSection && (
           <section aria-label={t('projectDetail.rail.actionsAriaLabel', 'Project rail actions')}>
             <RailSectionLabel>{t('projectDetail.rail.recordHeading', 'Record')}</RailSectionLabel>
@@ -68,10 +68,10 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
         )}
 
         <section aria-labelledby="project-details-heading">
-          <RailSectionLabel>
+          <div className={showActionSection ? undefined : 'sr-only'}><RailSectionLabel>
             <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
-          </RailSectionLabel>
-          <dl className="divide-y divide-border/70 border-y border-border/70">
+          </RailSectionLabel></div>
+          <dl className="divide-y divide-border/70">
             {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
             {projectDisplayName(project) !== project.name && (
               <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
@@ -94,17 +94,17 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
             <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
               label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
-              value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
+              value={<span className="text-sm tabular">{project.pmo_project_number}</span>}
             />
             <DetailRow
               label={t('projectDetail.rail.clientCode', 'Client Project Code')}
-              value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
+              value={project.code ? <span className="text-sm tabular">{project.code}</span> : notSet}
             />
             <DetailRow
               label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
               value={
                 project.customer_contract_ref ? (
-                  <span className="font-mono text-[13px]">{project.customer_contract_ref}</span>
+                  <span className="text-sm tabular">{project.customer_contract_ref}</span>
                 ) : (
                   notSet
                 )

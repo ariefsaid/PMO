@@ -560,7 +560,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         iconColor={projectIconColor()}
         name={<span>{project.name}</span>}
         status={
-          <StatusPill variant={pillVariantForProjectStatus(status)}>{salesStage ? salesStageLabel(salesStage) : projectStatusLabel(status)}</StatusPill>
+          <StatusPill variant={pillVariantForProjectStatus(status)} className={salesStage ? 'text-xs font-semibold' : undefined}>{salesStage ? salesStageLabel(salesStage) : projectStatusLabel(status)}</StatusPill>
         }
         // Identity, status, scope and primary action share the content-track frame.
         meta={meta}

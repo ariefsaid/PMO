@@ -223,17 +223,17 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
   };
 
   const contractValueBlock = (
-    <section data-testid="pipeline-contract-value" className="mb-8 min-w-0" aria-label={salesT('pipeline.opportunityValue', 'Opportunity value')}>
-      <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-bold leading-tight tracking-[-0.01em]">
-        <span>{salesT('pipeline.opportunityValue', 'Opportunity value')} ·</span>
-        <span className="tabular">{showWonPanel ? `${currency} ${formatNumberExact(value)}` : formatShortMoney(value, currency, { code: true })}</span>
+    <section data-testid="pipeline-contract-value" className={`${showWonPanel ? 'mb-0' : 'mb-8 md:mb-12'} min-w-0`} aria-label={salesT('pipeline.opportunityValue', 'Opportunity value')}>
+      <h2 className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-xs font-semibold text-muted-foreground">{salesT('pipeline.opportunityValue', 'Opportunity value')}</span>
+        <span className="text-xl font-bold text-foreground tabular">{showWonPanel ? `${currency} ${formatNumberExact(value)}` : formatShortMoney(value, currency, { code: true })}</span>
         <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} className="font-semibold" />
       </h2>
-      {!showWonPanel && <dl className="mt-4 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-4">
+      {!showWonPanel && <dl className="mt-2 grid w-fit min-w-0 max-w-full grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-2">
         <dt className="text-xs font-semibold text-muted-foreground">
           {salesT('pipeline.exactValue', 'Exact value')}
         </dt>
-        <dd className="min-w-0 whitespace-nowrap text-right text-sm text-foreground tabular">
+        <dd className="min-w-0 whitespace-nowrap text-left text-sm text-foreground tabular">
           {formatNumberExact(value)}
         </dd>
       </dl>}
@@ -245,13 +245,13 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
       {!showWonPanel && contractValueBlock}
 
       {!showWonPanel && (
-        <section className="mb-8 min-w-0" aria-labelledby="pipeline-context-heading">
+        <section className="mb-8 min-w-0 md:mb-12" aria-labelledby="pipeline-context-heading">
           <h2 id="pipeline-context-heading" className="text-xl font-bold leading-tight tracking-[-0.01em]">
             {isTerminal
               ? salesT('pipeline.decisionContext', 'Decision details')
               : `${salesT('pipeline.contextHeading', 'Pipeline context')} · ${currency}`}
           </h2>
-          <dl className="mt-4 grid min-w-0 grid-cols-1 gap-y-2 [&>div]:grid [&>div]:grid-cols-[auto_minmax(0,1fr)] [&>div]:items-baseline [&>div]:gap-x-4 [&_dd]:text-right">
+          <dl className="mt-4 grid min-w-0 max-w-lg grid-cols-1 gap-y-2 [&>div]:grid [&>div]:grid-cols-[max-content_minmax(0,1fr)] [&>div]:items-baseline [&>div]:gap-x-2 [&_dd]:mt-0 [&_dd]:text-left [&_dd]:text-foreground [&_dd]:tabular-nums">
             {isTerminal ? (
               <>
                 <div className="min-w-0">
@@ -293,7 +293,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
           un-wrapped step row (flex, no wrap, summed children) — forcing the shared single-column
           track to that width and overflowing the viewport at phone width. min-w-0 lets the track
           shrink to the container's width; the stepper's own overflow-x-auto then scrolls instead. */}
-      <div className="grid grid-cols-1 gap-8">
+      <div className="grid grid-cols-1 gap-8 md:gap-12">
         {/* Opportunity journey */}
         {!showWonPanel && <Card className="min-w-0">
           <CardHead className="text-xl font-bold">{t('projectDetail.pipeline.journeyHeading', 'Project journey')}</CardHead>
@@ -473,7 +473,6 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                 the mobile BackBar / desktop breadcrumb elsewhere in the seam. */}
             {!onReturnToSales && <a
               href={listReturnNavigation(locationState, 'sales').path}
-              onClick={onReturnToSales ? (event) => { event.preventDefault(); onReturnToSales(); } : undefined}
               className="mt-1 inline-flex min-h-11 min-w-11 items-center self-start text-sm text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
             >
               {t('projectDetail.pipeline.backToSalesPipeline', '\u2190 Back to Sales Pipeline')}

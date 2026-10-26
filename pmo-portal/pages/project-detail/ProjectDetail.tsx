@@ -161,6 +161,7 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
+  const isPipeline = isPipelineRecord;
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [pipelinePrimaryAction, setPipelinePrimaryAction] = useState<PipelinePrimaryAction | null>(null);
@@ -315,7 +316,6 @@ const ProjectDetail: React.FC = () => {
   // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
   // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
   // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
-  const isPipeline = isPipelineRecord;
   const tabPanel = (
     <div
       role="tabpanel"
@@ -397,7 +397,7 @@ const ProjectDetail: React.FC = () => {
           selected record's primary evidence immediately after it. */}
       {isPipeline ? (
         <>
-          <div ref={identityRef}>
+          <div ref={identityRef} className="mb-4">
             <ProjectDetailHeader
               project={project}
               committedSpend={committedSpend}

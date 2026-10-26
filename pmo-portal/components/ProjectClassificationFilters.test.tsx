@@ -62,4 +62,34 @@ describe('ProjectClassificationFilters location box', () => {
     act(() => { vi.advanceTimersByTime(500); });
     expect(onChange).not.toHaveBeenCalled();
   });
+  it('AC-TAG-002 ignores delayed echoes of earlier location emits while retaining the final typed value', () => {
+    const { onChange, rerenderWith } = setup();
+    const box = screen.getByLabelText('Filter by location');
+    fireEvent.change(box, { target: { value: 'B' } });
+    act(() => { vi.advanceTimersByTime(300); });
+    fireEvent.change(box, { target: { value: 'Ba' } });
+    act(() => { vi.advanceTimersByTime(300); });
+    fireEvent.change(box, { target: { value: 'Bali' } });
+    act(() => { vi.advanceTimersByTime(100); });
+    act(() => rerenderWith({ location: 'B' }));
+    expect(box).toHaveValue('Bali');
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(onChange).toHaveBeenLastCalledWith({ location: 'Bali' });
+    act(() => rerenderWith({ location: 'Bali' }));
+    act(() => rerenderWith({ location: 'Jakarta' }));
+    expect(box).toHaveValue('Jakarta');
+  });
+
+  it('AC-TAG-002 a repeated older URL value during another filter commit cannot overwrite a newer emit', () => {
+    const { rerenderWith } = setup();
+    const box = screen.getByLabelText('Filter by location');
+    fireEvent.change(box, { target: { value: 'Ba' } });
+    act(() => { vi.advanceTimersByTime(300); });
+    act(() => rerenderWith({ location: 'Ba' }));
+    fireEvent.change(box, { target: { value: 'Bali' } });
+    act(() => { vi.advanceTimersByTime(300); });
+    act(() => rerenderWith({ location: 'Ba', serviceLine: 'Engineering' }));
+    expect(box).toHaveValue('Bali');
+  });
+
 });
