@@ -95,7 +95,6 @@ const SalesPipeline: React.FC = () => {
   }), [openProjects, lostProjects, search, workingSet]);
   const hasActiveClassification = activeClassificationCount(workingSet) > 0;
   const hasActiveFilters = Boolean(search.trim() || hasActiveClassification || selectedStatus || workingSet.scope !== 'Open');
-  const sortLabel = sortLabels[workingSet.sort];
   const stageName = selectedStatus ? stageLabel(OPEN_COLUMNS.find((column) => column.statuses.includes(selectedStatus)) ?? OPEN_COLUMNS[0]) : salesT('pipeline.allStages', 'All stages');
   const displayStage = (project: PipelineProject) => {
     const column = OPEN_COLUMNS.find((candidate) => candidate.statuses.includes(project.status));
@@ -105,7 +104,7 @@ const SalesPipeline: React.FC = () => {
     search.trim() ? `${salesT('pipeline.searchSummary', 'Search')}: ${search.trim()}` : null,
     hasActiveClassification ? salesT('pipeline.classificationActive', 'Classification filters active') : null,
   ].filter(Boolean).join(' · ');
-  const scopeLine = [scopeLabels[workingSet.scope], stageName, sortLabel, activeFilterSummary || null].filter(Boolean).join(' · ');
+  const scopeLine = [scopeLabels[workingSet.scope], stageName, activeFilterSummary || null].filter(Boolean).join(' · ');
   const state: 'loading' | 'error' | 'empty' | undefined = isPending
     ? 'loading'
     : isError || !data

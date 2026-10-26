@@ -109,7 +109,7 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
   it('renders the shared page heading, ordered controls, closed read-only summary, and desktop view control', () => {
     renderPage();
     expect(screen.getByRole('heading', { level: 1, name: 'Sales Pipeline' })).toBeInTheDocument();
-    expect(screen.getByText(/Open · All stages · Oldest activity first/)).toBeInTheDocument();
+    expect(screen.getByText(/Open · All stages/)).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Sales pipeline controls' })).toBeInTheDocument();
     expect(screen.getByTestId('sales-summary')).not.toHaveAttribute('open');
     expect(screen.getByRole('tablist', { name: /Pipeline view/i })).toBeInTheDocument();
