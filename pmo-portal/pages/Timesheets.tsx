@@ -795,7 +795,7 @@ const TimesheetsPage: React.FC = () => {
                 </>
               ) : (
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {t('timesheets.emptyEdit.sub', 'Use “Add a project” above to start logging hours.')}
+                  {t('timesheets.emptyEdit.sub', 'Choose a project above to start recording hours.')}
                 </p>
               )}
             </div>
