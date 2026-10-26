@@ -79,16 +79,16 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
   const exactMoney = (value: number) => formatProjectDetailAmount(value, project.currency, i18n.language)
     ?? t('projectFinances.unavailable', 'Unavailable');
   const contractContext = project.contract_value == null ? null : (
-    <section className="min-w-0 space-y-2" aria-label={t('projectDetail.overview.finance.contract', 'Contract')}>
+    <section className="min-w-0 space-y-2" aria-label={t('project:projectDetail.moneyPosition.contract', 'Contract')}>
       <h3 className={projectSubsectionHeading}>
-        {t('projectDetail.overview.finance.contract', 'Contract')} · {project.currency} ·{' '}
+        {t('project:projectDetail.moneyPosition.contract', 'Contract')} · {project.currency} ·{' '}
         <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
           taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
           showDetails={false} testId="overview-contract-tax-basis" />
       </h3>
       <dl className="grid min-w-0 grid-cols-2 gap-4">
         <div className="min-w-0">
-          <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.overview.finance.contractValue', 'Contract value')}</dt>
+          <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.header.contractValue', 'Contract value')}</dt>
           <dd data-testid="overview-contract-value" className="break-words text-sm font-normal tabular-nums">{exactMoney(project.contract_value)}</dd>
           <dd className="text-xs text-muted-foreground">
             <span>{t('fx.equivalent', 'IDR equivalent')}: </span>
