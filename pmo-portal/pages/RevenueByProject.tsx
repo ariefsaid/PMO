@@ -160,7 +160,7 @@ const RevenueByProject: React.FC = () => {
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="type-value tabular text-right">{formatNumber(row.total_amount)}</span>,
+      cell: (row) => <span className="type-value tabular text-foreground">{formatNumber(row.total_amount)}</span>,
       exportValue: (row) => row.total_amount,
     },
     {
@@ -169,7 +169,7 @@ const RevenueByProject: React.FC = () => {
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="type-value tabular text-right">{formatNumber(row.open_ar)}</span>,
+      cell: (row) => <span className="type-value tabular text-foreground">{formatNumber(row.open_ar)}</span>,
       exportValue: (row) => row.open_ar,
     },
     {

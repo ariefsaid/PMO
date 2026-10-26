@@ -3215,16 +3215,7 @@
     "unavailableDescription": "Laporan tersimpan akan muncul di sini saat tersedia.",
     "updated": "Diperbarui",
     "choosePeriod": "Pilih periode",
-    "chooseScope": "Pilih cakupan",
-    "account": "Akun",
-    "openingDebit": "Debit awal",
-    "openingCredit": "Kredit awal",
-    "closingDebit": "Debit akhir",
-    "closingCredit": "Kredit akhir",
-    "debit": "Debit",
-    "credit": "Kredit",
-    "choosePeriodOrScope": "Pilih periode atau cakupan",
-    "missingSnapshotRecovery": "Tidak ada laporan tersimpan untuk cakupan dan periode ini. Pilih periode atau cakupan lain. Jika belum ada laporan, minta administrator memeriksa koneksi akuntansi dan snapshot laporan."
+    "chooseScope": "Pilih cakupan"
   },
   "sales": {
     "accessDenied": {
@@ -4070,8 +4061,6 @@
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
     "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
     "outstanding": "Belum dibayar",
-    "openInvoice": "Buka",
-    "openReceipt": "Buka",
     "overpaidBy": "Kelebihan pembayaran {{amount}}"
   },
   "viewBuilder": {

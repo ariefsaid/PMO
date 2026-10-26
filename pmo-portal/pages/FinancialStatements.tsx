@@ -243,13 +243,13 @@ const FinancialStatements: React.FC = () => {
     forThePeriod: tf('statements.forThePeriod', 'For the period'),
     amountsIn: tf('statements.amountsIn', 'Amounts in'),
     periodShown: tf('statements.periodShown', 'Period shown'),
-    account: t('financialStatements.account', 'Account'),
-    openingDebit: t('financialStatements.openingDebit', 'Opening debit'),
-    openingCredit: t('financialStatements.openingCredit', 'Opening credit'),
-    closingDebit: t('financialStatements.closingDebit', 'Closing debit'),
-    closingCredit: t('financialStatements.closingCredit', 'Closing credit'),
-    debit: t('financialStatements.debit', 'Debit'),
-    credit: t('financialStatements.credit', 'Credit'),
+    account: t('moneyIn:financialStatements.account', 'Account'),
+    openingDebit: t('moneyIn:financialStatements.openingDebit', 'Opening debit'),
+    openingCredit: t('moneyIn:financialStatements.openingCredit', 'Opening credit'),
+    closingDebit: t('moneyIn:financialStatements.closingDebit', 'Closing debit'),
+    closingCredit: t('moneyIn:financialStatements.closingCredit', 'Closing credit'),
+    debit: t('moneyIn:financialStatements.debit', 'Debit'),
+    credit: t('moneyIn:financialStatements.credit', 'Credit'),
     collapseGroup: (group: string) => tf('statements.collapseGroup', 'Collapse {{group}}', { group }),
     expandGroup: (group: string) => tf('statements.expandGroup', 'Expand {{group}}', { group }),
     collapseAll: tf('statements.collapseAll', 'Collapse all'),
@@ -257,7 +257,7 @@ const FinancialStatements: React.FC = () => {
   };
   const sectionLabels = {
     unavailable: t('financialStatements.unavailable', 'Statements are not available yet'),
-    unavailableDescription: t('financialStatements.missingSnapshotRecovery', 'No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.'),
+    unavailableDescription: t('moneyIn:financialStatements.missingSnapshotRecovery', 'No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.'),
     noActivity: t('financialStatements.noActivity', 'No activity in this period'),
     noActivityDescription: t('financialStatements.noActivityDescription', 'There was no activity in the selected period.'),
     error: t('financialStatements.error', "Couldn't load financial statements"),
@@ -335,7 +335,7 @@ const FinancialStatements: React.FC = () => {
         onChooseScope={sectionState.kind === 'unavailable' ? () => {
           document.querySelector<HTMLSelectElement>('select')?.focus();
         } : undefined}
-        chooseScopeLabel={t('financialStatements.choosePeriodOrScope', 'Choose a period or scope')}
+        chooseScopeLabel={t('moneyIn:financialStatements.choosePeriodOrScope', 'Choose a period or scope')}
       >
         {isValidRead && detailRead && detailRead.result.viewKind === 'account_breakdown' && (
           <NativeStatementPair

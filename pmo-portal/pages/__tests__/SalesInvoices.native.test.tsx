@@ -165,7 +165,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
 
   it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
     renderPage();
-    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
+    expect(screen.getByText('Client invoices · gross amounts in each invoice currency.')).toBeInTheDocument();
   });
 
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
@@ -381,7 +381,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     h.route = 'external';
     const user = userEvent.setup();
     renderPage();
-    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
+    expect(screen.getByText('Client invoices · gross amounts in each invoice currency.')).toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: /New Invoice/i })[0]);
     await pick(user, 'Customer', 'Acme Energy');
     await user.type(screen.getByLabelText(/Item code/), 'SVC');
@@ -395,7 +395,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.queryByRole('button', { name: /New Invoice/i })).toBeNull();
     h.ownershipLoaded = true;
     rerender(page());
-    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
+    expect(screen.getByText('Client invoices · gross amounts in each invoice currency.')).toBeInTheDocument();
   });
 
   it('FR-NAR-002 (I-3) a PMO line needs an item code OR a description — a description alone is enough', async () => {

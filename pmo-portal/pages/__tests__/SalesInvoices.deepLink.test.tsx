@@ -295,13 +295,13 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Invoice date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 1, 2026')).toBeInTheDocument();
+    expect(screen.getByText('1 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('Due date')).toBeInTheDocument();
-    expect(screen.getByText('Jul 31, 2026')).toBeInTheDocument();
+    expect(screen.getByText('31 Jul 2026')).toBeInTheDocument();
     expect(screen.getByText('77 days overdue')).toBeInTheDocument();
     expect(screen.getByText('Partly paid')).toBeInTheDocument();
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
-    expect(screen.getByText(/5,000/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Outstanding/ })).toHaveTextContent('5,000');
     const appliedReceiptsHeading = screen.getByRole('heading', { name: 'Applied receipts' });
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(appliedReceiptsHeading.parentElement).toHaveTextContent('$250');
@@ -319,7 +319,6 @@ describe('SalesInvoices — deep link (#787)', () => {
     renderAt('/sales-invoices/inv-1');
 
     const receipts = screen.getByRole('heading', { name: 'Applied receipts' }).parentElement!;
-    expect(screen.getByRole('heading', { name: /^Bill evidence/ })).toBeInTheDocument();
     expect(receipts).toHaveTextContent('SYNTHETIC-RECEIPT-1');
     expect(receipts).not.toHaveTextContent('Receipt allocations have not all been reported.');
     expect(receipts.querySelectorAll('li')).toHaveLength(1);
@@ -333,7 +332,8 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByText('Due date not available')).toBeInTheDocument();
-    expect(screen.getByText('Outstanding amount not available')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Outstanding/ })).toHaveTextContent('Not available');
+    expect(screen.getByRole('heading', { name: /Outstanding/ })).not.toHaveTextContent('0');
     expect(screen.queryByText('$0')).not.toBeInTheDocument();
   });
 
@@ -350,13 +350,15 @@ describe('SalesInvoices — deep link (#787)', () => {
     expect(screen.queryByText('Sent')).not.toBeInTheDocument();
   });
 
-  it('RF-025 renders ERP line evidence and the available billing contact without making the lines editable', () => {
+  it('RF-025 renders ERP line evidence and the available billing contact without making the lines editable', async () => {
     salesInvoicesState.data[0] = { ...SEED_INVOICES[0], pmo_native: false, status: 'Unpaid' };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByRole('heading', { name: /^Bill evidence/ })).toBeInTheDocument();
     expect(screen.getByText('Inspection work')).toBeInTheDocument();
     expect(screen.getByText('SYNTHETIC-SVC')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: /^Bill evidence/ })).toHaveTextContent('2 × $125 = $250');
+    expect(screen.getByRole('region', { name: /^Bill evidence/ })).toHaveTextContent('2 × 125 = 250');
+    expect(screen.getByRole('region', { name: /^Bill evidence/ })).toHaveTextContent('USD');
+    await userEvent.click(screen.getByText(/Billing contact ·/));
     expect(screen.getByText('Billing Desk')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'billing@example.test' })).toHaveAttribute('href', 'mailto:billing@example.test');
     expect(screen.queryByRole('button', { name: /edit line/i })).not.toBeInTheDocument();
@@ -379,7 +381,7 @@ describe('SalesInvoices — deep link (#787)', () => {
     };
     renderAt('/sales-invoices/inv-1');
     expect(screen.getByRole('heading', { name: 'Received by client' })).toBeInTheDocument();
-    expect(screen.getByText('Client receipt was recorded for Oct 10, 2026.')).toBeInTheDocument();
+    expect(screen.getByText('Client receipt was recorded for 10 Oct 2026.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Download approved PDF' })).not.toBeInTheDocument();
   });
 

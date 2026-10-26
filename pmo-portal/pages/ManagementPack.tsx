@@ -208,7 +208,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const m = at(row);
     const value = m ? m[key] : null;
     return (
-      <span data-testid={`pack-cell-${key}`} className="tabular text-right text-sm">
+      <span data-testid={`pack-cell-${key}`} className="type-value tabular text-foreground">
         {key === 'backlog' && row.kind === 'contract' && value === null ? (
           <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
         ) : money(value)}
@@ -266,7 +266,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       align: 'num',
       size: 140,
       cell: (row) => (
-        <span data-testid="pack-cell-contract" className="tabular text-right text-sm">
+        <span data-testid="pack-cell-contract" className="type-value tabular text-foreground">
           {money(row.contractNet)}
         </span>
       ),
@@ -343,7 +343,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       align: 'num',
       size: 140,
       cell: (r) => (
-        <span className="tabular text-right text-sm">
+        <span className="type-value tabular text-foreground">
           {k === 'backlog' && r.backlog === null
             ? <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
             : money(r[k])}

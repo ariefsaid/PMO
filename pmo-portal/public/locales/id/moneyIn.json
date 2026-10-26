@@ -13,7 +13,7 @@
     "filterByAttribution": "Filter penautan proyek",
     "filterByCustomer": "Filter pelanggan",
     "filterByProject": "Filter proyek",
-    "invoiceCollectionScope": "Penagihan jatuh tempo terdekat · nilai bruto dalam mata uang masing-masing faktur.",
+    "invoiceCollectionScope": "Faktur pelanggan · jumlah bruto dalam mata uang masing-masing faktur.",
     "invoiceDetailsSummary": "Detail faktur · {{count}}",
     "invoiceEvidenceCurrency": "Bukti faktur · {{currency}}",
     "invoiceGross": "Nilai bruto faktur",
@@ -38,7 +38,10 @@
     "netEquivalent": "Ekuivalen neto",
     "grossEquivalent": "Ekuivalen bruto",
     "clearCustomerFilter": "Hapus filter pelanggan",
-    "amountDetails": "Rincian jumlah"
+    "amountDetails": "Rincian jumlah",
+    "openInvoice": "Buka",
+    "openReceipt": "Buka",
+    "recordedAmount": "Jumlah tercatat"
   },
   "uxs06": {
     "allCustomers": "Semua klien",
@@ -111,5 +114,16 @@
     "earnedPrimaryHeading": "Diperoleh vs ditagihkan · Proyek per {{month}}",
     "openProjectAction": "Buka proyek",
     "openShort": "Buka"
+  },
+  "financialStatements": {
+    "account": "Akun",
+    "choosePeriodOrScope": "Pilih periode atau cakupan",
+    "closingCredit": "Kredit akhir",
+    "closingDebit": "Debit akhir",
+    "credit": "Kredit",
+    "debit": "Debit",
+    "missingSnapshotRecovery": "Tidak ada laporan tersimpan untuk cakupan dan periode ini. Pilih periode atau cakupan lain. Jika belum ada laporan, minta administrator memeriksa koneksi akuntansi dan snapshot laporan.",
+    "openingCredit": "Kredit awal",
+    "openingDebit": "Debit awal"
   }
 }

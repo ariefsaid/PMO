@@ -75,17 +75,16 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         returnAction={<BackBar label={t('shell.nav.incomingPayments', 'Incoming Payments')} onBack={onBack} phoneOnly />}
       />
 
-      <h2 className="mb-4 type-section-head text-heading">
-        {t('moneyIn:uxs06.receiptPrimaryFigure', 'Receipt total · {{currency}} {{amount}}', {
-          currency: receipt.currency,
-          amount: receipt.amount != null ? money(receipt.amount) : notReported,
-        })}
+      <h2 className="mb-4 flex flex-col gap-1 type-label text-muted-foreground" aria-label={t('moneyIn:uxs06.receiptPrimaryFigure', 'Receipt total · {{currency}} {{amount}}', { currency: receipt.currency, amount: receipt.amount != null ? money(receipt.amount) : notReported })}>
+        <span>{t('financeCopy.receiptTotal', 'Receipt total')} · {receipt.currency}</span>
+        <span className="text-3xl font-semibold tabular text-foreground">{receipt.amount != null ? money(receipt.amount) : notReported}</span>
+
       </h2>
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label}>
             <dt className="type-label text-muted-foreground">{f.label}</dt>
-            <dd data-testid={f.testId} className="tabular mt-0.5 type-value">{f.value}</dd>
+            <dd data-testid={f.testId} className="tabular mt-1 type-value text-foreground">{f.value}</dd>
           </div>
         ))}
       </dl>
@@ -108,9 +107,9 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
           accessibleName={t('uxs06.settledTitle', 'Invoices this receipt settled')}
         />
         ) : <ul className="divide-y divide-border" aria-label={t('uxs06.settledTitle', 'Invoices this receipt settled')}>
-          {allocations.map((allocation, index) => <li key={`${allocation.invoice_number}-${index}`} className="flex min-w-0 items-center justify-between gap-3 py-2 type-value">
+          {allocations.map((allocation, index) => <li key={`${allocation.invoice_number}-${index}`} className="flex min-w-0 flex-col items-start gap-1 py-3 type-value">
             {allocation.invoice_id ? <Link className="inline-flex min-h-11 min-w-0 items-center break-words underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`}>{allocation.invoice_number}</Link> : <span className="min-w-0 break-words">{allocation.invoice_number}</span>}
-            <span className="shrink-0 text-right tabular">{allocation.amount == null || allocation.currency == null ? notReported : `${allocationCurrency ? '' : `${allocation.currency} `}${formatNumber(Number(allocation.amount))}`}</span>
+            <span className="tabular text-foreground">{allocation.amount == null || allocation.currency == null ? notReported : `${allocationCurrency ? '' : `${allocation.currency} `}${formatNumber(Number(allocation.amount))}`}</span>
           </li>)}
         </ul>
       )}

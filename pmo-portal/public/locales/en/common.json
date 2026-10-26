@@ -3215,16 +3215,7 @@
     "unavailableDescription": "Saved statements will appear here when available.",
     "updated": "Updated",
     "choosePeriod": "Choose a period",
-    "chooseScope": "Choose a scope",
-    "account": "Account",
-    "openingDebit": "Opening debit",
-    "openingCredit": "Opening credit",
-    "closingDebit": "Closing debit",
-    "closingCredit": "Closing credit",
-    "debit": "Debit",
-    "credit": "Credit",
-    "choosePeriodOrScope": "Choose a period or scope",
-    "missingSnapshotRecovery": "No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots."
+    "chooseScope": "Choose a scope"
   },
   "sales": {
     "accessDenied": {
@@ -4070,8 +4061,6 @@
     "sodSelfApproval": "You raised this invoice — a different person must approve it",
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
     "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
-    "openInvoice": "Open",
-    "openReceipt": "Open",
     "overpaidBy": "Overpaid by {{amount}}"
   },
   "viewBuilder": {

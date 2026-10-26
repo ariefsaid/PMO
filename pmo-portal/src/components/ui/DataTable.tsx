@@ -788,7 +788,8 @@ export function DataTable<Row>({
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
-            const [titleCol, ...restCols] = columns;
+            const [titleCol, ...secondaryColumns] = columns;
+            const restCols = secondaryColumns.filter((column) => !column.phoneHidden);
             const mobileDetailKeys = new Set(mobileDetails?.columnKeys ?? []);
             const visibleRestCols = mobileDetails ? restCols.filter((column) => !mobileDetailKeys.has(column.key)) : restCols;
             const detailCols = mobileDetails ? restCols.filter((column) => mobileDetailKeys.has(column.key)) : [];
@@ -803,7 +804,7 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-2 p-4 type-value transition-colors',
+                  'relative flex flex-col gap-4 p-4 type-value transition-colors',
                   onActivate && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
@@ -855,7 +856,7 @@ export function DataTable<Row>({
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
                               'min-w-0 break-words type-value text-foreground [&_.truncate]:block',
-                              col.align === 'num' && 'tabular text-right',
+                              col.align === 'num' && 'tabular',
                               col.align === 'center' && 'text-center',
                               stripHiddenClasses(col.colClassName)
                             )}
@@ -872,12 +873,12 @@ export function DataTable<Row>({
                     <summary className="min-h-11 cursor-pointer py-2 type-value focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                       {mobileDetails.summary(row, detailValues.length)}
                     </summary>
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 pt-1">
+                    <dl className="grid grid-cols-2 gap-x-6 gap-y-4 pt-1">
                       {detailValues.map(({ column: col, content }) => {
                         return (
-                          <div key={col.key} className="min-w-0">
+                          <div key={col.key} className="flex min-w-0 flex-col gap-1">
                             <dt className="type-label text-muted-foreground">{col.header}</dt>
-                            <dd className={cn('min-w-0 break-words type-value text-foreground [&_.truncate]:block', col.align === 'num' && 'tabular text-right')}>
+                            <dd className={cn('min-w-0 break-words type-value text-foreground [&_.truncate]:block', col.align === 'num' && 'tabular')}>
                               {content}
                             </dd>
                           </div>
@@ -891,12 +892,12 @@ export function DataTable<Row>({
           })
         )}
         {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 type-value tabular">
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <React.Fragment key={column.key}><dt className="type-label text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 type-value', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
+              return value == null ? null : <div key={column.key} className="flex min-w-0 flex-col gap-1"><dt className="type-label text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 type-value text-foreground', column.align === 'num' && 'tabular')}>{value}</dd></div>;
             })}
           </dl>
         </li>)}

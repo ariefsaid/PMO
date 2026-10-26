@@ -317,7 +317,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2">
           <Link to={`/incoming-payments/${encodeURIComponent(p.id)}`} className="inline-flex min-h-11 items-center break-words type-value text-foreground underline-offset-2 hover:underline focus-visible:underline" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</Link>
-          <Link to={`/incoming-payments/${encodeURIComponent(p.id)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-2">{t('financeCopy.openReceipt', 'Open')}</Link>
+          <Link to={`/incoming-payments/${encodeURIComponent(p.id)}`} className="inline-flex min-h-11 items-center text-sm underline underline-offset-2">{t('moneyIn:financeCopy.openReceipt', 'Open')}</Link>
         </span>
       ),
       exportValue: (p) => receiptNumber(p) ?? '',
@@ -441,7 +441,7 @@ const IncomingPayments: React.FC = () => {
             if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
             navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
-          }}>{t('financeCopy.openReceipt', 'Open')}</Link></span>
+          }}>{t('moneyIn:financeCopy.openReceipt', 'Open')}</Link></span>
         );
       },
       secondaryCell: (p) => {

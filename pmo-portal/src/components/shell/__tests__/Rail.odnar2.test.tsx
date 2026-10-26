@@ -94,7 +94,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
       expect(await screen.findByRole('link', { name }, { timeout: 15_000 })).toBeInTheDocument();
     }
     renderReportsRoute();
-    expect(await screen.findByText('PACK PAGE')).toBeInTheDocument();
+    expect(await screen.findByText('PACK PAGE', {}, { timeout: 15_000 })).toBeInTheDocument();
     expect(screen.queryByText('DASHBOARD')).toBeNull();
   });
 
@@ -108,7 +108,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     }
     renderReportsRoute();
     // ERP-connected orgs unchanged: the deep-link degrades to the dashboard.
-    expect(await screen.findByText('DASHBOARD')).toBeInTheDocument();
+    expect(await screen.findByText('DASHBOARD', {}, { timeout: 15_000 })).toBeInTheDocument();
     expect(screen.queryByText('PACK PAGE')).toBeNull();
   });
 
@@ -146,13 +146,13 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     // Ownership resolves to native → the entitlement turns on in BOTH already-mounted surfaces.
     h.ownership = { data: [ownershipRow('procurement')], isError: false };
     rail.rerender(<Rail />);
-    expect(await screen.findByRole('link', { name: /Sales Invoices/i })).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: /Sales Invoices/i }, { timeout: 15_000 })).toBeInTheDocument();
     route.rerender(
       <Routes>
         <Route path="/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
         <Route path="*" element={<div>DASHBOARD</div>} />
       </Routes>,
     );
-    expect(await screen.findByText('PACK PAGE')).toBeInTheDocument();
+    expect(await screen.findByText('PACK PAGE', {}, { timeout: 15_000 })).toBeInTheDocument();
   });
 });

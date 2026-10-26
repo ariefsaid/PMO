@@ -13,7 +13,7 @@
     "filterByAttribution": "Filter by project attribution",
     "filterByCustomer": "Filter by customer",
     "filterByProject": "Filter by project",
-    "invoiceCollectionScope": "Due-first collection · gross amounts in each invoice currency.",
+    "invoiceCollectionScope": "Client invoices · gross amounts in each invoice currency.",
     "invoiceDetailsSummary": "Invoice details · {{count}}",
     "invoiceEvidenceCurrency": "Bill evidence · {{currency}}",
     "invoiceGross": "Invoice gross",
@@ -38,7 +38,10 @@
     "netEquivalent": "Net equivalent",
     "grossEquivalent": "Gross equivalent",
     "clearCustomerFilter": "Clear customer filter",
-    "amountDetails": "Amount details"
+    "amountDetails": "Amount details",
+    "openInvoice": "Open",
+    "openReceipt": "Open",
+    "recordedAmount": "Recorded amount"
   },
   "uxs06": {
     "allCustomers": "All customers",
@@ -111,5 +114,16 @@
     "earnedPrimaryHeading": "Earned vs billed · Projects as at {{month}}",
     "openProjectAction": "Open project",
     "openShort": "Open"
+  },
+  "financialStatements": {
+    "account": "Account",
+    "choosePeriodOrScope": "Choose a period or scope",
+    "closingCredit": "Closing credit",
+    "closingDebit": "Closing debit",
+    "credit": "Credit",
+    "debit": "Debit",
+    "missingSnapshotRecovery": "No saved statement matches this scope and period. Choose another period or scope. If none are supplied, ask an administrator to check the accounting connection and statement snapshots.",
+    "openingCredit": "Opening credit",
+    "openingDebit": "Opening debit"
   }
 }
