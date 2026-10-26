@@ -1124,7 +1124,7 @@ const SalesInvoices: React.FC = () => {
             role="region"
             aria-label={t('financeCopy.filterByStatus', 'Filter by status')}
             tabIndex={0}
-            className="min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="min-w-0 max-w-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             <ViewToggle<StatusFilter>
               options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
@@ -1134,6 +1134,7 @@ const SalesInvoices: React.FC = () => {
                 trackFilterApplied('status', statusFilters.length, 'salesInvoices');
               }}
               ariaLabel={t('financeCopy.filterByStatus', 'Filter by status')}
+              className="max-w-full flex-wrap"
             />
           </div>
           <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
