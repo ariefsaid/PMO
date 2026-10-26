@@ -41,14 +41,14 @@ export const MobileActionStrip: React.FC<MobileActionStripProps> = ({
       <div className="mx-auto flex max-w-5xl flex-col gap-2">
         {showEmptyWeekTotal && (
           <p data-testid="timesheets-empty-week-total" className="flex items-baseline justify-center gap-3 text-center tabular">
-            <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+            <span className="text-xs font-semibold text-muted-foreground">
               {t('timesheets.weekTotalHours', 'Week total · hours')}
             </span>
             <span className="text-xl font-bold text-foreground">0</span>
           </p>
         )}
         {showSubmitHint && (
-          <p className="text-center text-[12px] text-muted-foreground">
+          <p className="text-center text-sm text-muted-foreground">
             {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
           </p>
         )}

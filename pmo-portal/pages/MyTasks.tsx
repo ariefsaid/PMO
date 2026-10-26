@@ -161,7 +161,7 @@ const MyTasks: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setFilterParam('q', '', '')}
-                className="touch-target inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="touch-target inline-flex min-h-11 shrink-0 items-center rounded-md px-2 text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t('myTasks.clearSearch', 'Clear search')}
               </button>
@@ -234,7 +234,7 @@ const MyTasks: React.FC = () => {
           <button
             type="button"
             onClick={clearFilters}
-            className="touch-target mt-2 inline-flex min-h-8 items-center rounded-md px-2 text-[13px] font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="touch-target mt-2 inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t('myTasks.clearFilters', 'Clear filters')}
           </button>
@@ -254,17 +254,17 @@ const MyTasks: React.FC = () => {
                   {task.project_id || task.meeting_id ? (
                     <Link
                       to={task.project_id ? `/projects/${task.project_id}/tasks#task-${task.id}` : `/meetings/${task.meeting_id}#task-${task.id}`}
-                      className="min-w-0 break-words text-[13.5px] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="min-w-0 break-words text-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       title={task.name}
                     >
                       {task.name}
                     </Link>
                   ) : (
-                    <span className="min-w-0 break-words text-[13.5px] font-medium" title={task.name}>{task.name}</span>
+                    <span className="min-w-0 break-words text-sm" title={task.name}>{task.name}</span>
                   )}
                   {isOverdueTask(task) && <StatusPill variant="warn">{t('myTasks.overdue', 'Overdue')}</StatusPill>}
                 </div>
-                <div className="mt-1 text-[12px] text-muted-foreground">
+                <div className="mt-1 text-sm text-muted-foreground">
                   {task.project_id ? (
                     <Link
                       to={`/projects/${task.project_id}/tasks`}
@@ -278,7 +278,7 @@ const MyTasks: React.FC = () => {
                   )}
                 </div>
                 {(task.start_date || task.end_date) && (
-                  <div className="mt-1 text-[12px] text-muted-foreground">
+                  <div className="mt-1 text-sm text-muted-foreground">
                     {task.start_date && t('myTasks.start', 'Start {{date}}', { date: formatDateOnly(task.start_date) })}
                     {task.start_date && task.end_date && <span className="mx-1">·</span>}
                     {task.end_date && t('myTasks.due', 'Due {{date}}', { date: formatDateOnly(task.end_date) })}
@@ -290,14 +290,14 @@ const MyTasks: React.FC = () => {
                   type="button"
                   aria-label={`${t('comments.open', 'Comments')} ${task.name}`}
                   onClick={() => setCommentsTask({ id: task.id, name: task.name })}
-                  className="touch-target min-h-11 rounded-lg border border-input bg-background px-3 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="touch-target min-h-11 rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {t('comments.open', 'Comments')}
                 </button>
                 {task.project_id && (
                   <Link
                     to={`/timesheets?project=${task.project_id}`}
-                    className="touch-target inline-flex min-h-11 items-center rounded-lg border border-input bg-background px-3 text-[12px] font-medium text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    className="touch-target inline-flex min-h-11 items-center rounded-lg border border-input bg-background px-3 text-xs font-semibold text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {t('myTasks.logTime', 'Log time')}
                   </Link>

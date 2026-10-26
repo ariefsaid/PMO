@@ -59,7 +59,7 @@ export interface ViewBuilderPageProps {
 /** Kept local so the shared shell frame can replace this small heading adapter cleanly. */
 const BuilderPageIntro: React.FC<{ title: string; scope?: string; aiDraft?: boolean; aiDraftLabel?: string }> = ({ title, scope, aiDraft, aiDraftLabel }) => (
   <header className="mb-5 flex flex-col gap-1">
-    <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+    <h1 className="text-2xl font-bold tracking-[-0.02em]">{title}</h1>
     {scope && <p className="text-sm text-muted-foreground">{scope}</p>}
     <div aria-live="polite" aria-atomic="true" className="min-h-5">
       {aiDraft && <p className="text-sm font-medium text-warning-foreground">{aiDraftLabel}</p>}
@@ -400,7 +400,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
         />
 
         {noPanel && (
-          <p className="mt-2 text-[12.5px] text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             {t('viewBuilder.addAtLeastOnePanel', 'Add at least one panel to save.')}
           </p>
         )}
@@ -410,7 +410,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
             {t('viewBuilder.addPanel', '+ Add panel')}
           </Button>
         ) : (
-          <p className="mt-3 text-[12.5px] text-muted-foreground">
+          <p className="mt-3 text-sm text-muted-foreground">
             {t('viewBuilder.maximumPanelsReached', 'Maximum of {{count}} panels reached.', { count: MAX_PANELS_PER_VIEW })}
           </p>
         )}
@@ -424,7 +424,7 @@ const ViewBuilderPage: React.FC<ViewBuilderPageProps> = ({ mode, __testPanels })
       {saveError && (
         <div
           role="alert"
-          className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-[13px] text-destructive-text"
+          className="mb-4 rounded-md border border-destructive/30 bg-destructive/[0.07] px-3.5 py-3 text-sm text-destructive-text"
         >
           {saveError}
         </div>

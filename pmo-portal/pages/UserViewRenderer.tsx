@@ -60,7 +60,7 @@ const SavedViewHeader: React.FC<{
         <Button variant="ghost" className="mb-2 min-h-11 px-2" onClick={onBack}>
           {t('viewRenderer.backToViews', 'Back to saved views')}
         </Button>
-        <h1 className="text-[24px] font-bold leading-tight tracking-[-0.02em]">{title}</h1>
+        <h1 className="text-2xl font-bold leading-tight tracking-[-0.02em]">{title}</h1>
         {(scope || description) && (
           <p className="mt-1 max-w-[68ch] text-sm text-muted-foreground">
             {[scope, description].filter(Boolean).join(' · ')}
@@ -278,8 +278,8 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
         />
         {/* OD-2: dev/non-prod disclosure — VITE_APP_ENV=prod in production (docs/environments.md §3) */}
         {import.meta.env.VITE_APP_ENV !== 'prod' && isValidationError && (
-          <details className="rounded border border-border p-3 text-[12px]">
-            <summary className="flex min-h-11 cursor-pointer items-center font-semibold text-muted-foreground">
+          <details className="rounded border border-border p-3 text-sm">
+            <summary className="touch-target flex min-h-11 cursor-pointer items-center text-xs font-semibold text-muted-foreground">
               {t('viewRenderer.developerDetail', 'Developer detail (hidden in production)')}
             </summary>
             <pre className="mt-2 overflow-auto">
@@ -288,7 +288,7 @@ const UserViewRenderer: React.FC<UserViewRendererProps> = ({ viewId: viewIdProp 
           </details>
         )}
         {specError.message.includes(`maximum of ${MAX_PANELS_PER_VIEW}`) && (
-          <p className="text-[13px] text-muted-foreground">{t('viewRenderer.maximumPanels', 'This view has more than {{count}} panels.', { count: MAX_PANELS_PER_VIEW })}</p>
+          <p className="text-sm text-muted-foreground">{t('viewRenderer.maximumPanels', 'This view has more than {{count}} panels.', { count: MAX_PANELS_PER_VIEW })}</p>
         )}
       </div>
     );

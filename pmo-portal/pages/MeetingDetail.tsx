@@ -434,7 +434,7 @@ const MeetingDetail: React.FC = () => {
       <Card variant="bare" className="mb-4">
         <CardHead
           actions={
-            isEditing && <span className="text-xs text-muted-foreground">{t('meetingDetail.editing', 'Editing meeting')}</span>
+            isEditing && <span className="text-xs font-semibold text-muted-foreground">{t('meetingDetail.editing', 'Editing meeting')}</span>
           }
         >
           {t('meetingDetail.minutes.title', 'Minutes')}
@@ -533,7 +533,7 @@ const MeetingDetail: React.FC = () => {
       <section id="meeting-attendees" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <details>
-          <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.attendees.title', 'Attendees')}</summary>
+          <summary className="touch-target flex min-h-11 cursor-pointer break-words px-5 text-xl font-bold">{t('meetingDetail.attendees.title', 'Attendees')}</summary>
           <CardPad>
           {attendees.length === 0 && (
             <p className="mb-2 text-sm text-muted-foreground">
@@ -611,7 +611,7 @@ const MeetingDetail: React.FC = () => {
       <section id="meeting-sharing" className="scroll-mt-20">
       <Card variant="bare" className="mb-4">
         <details>
-          <summary className="cursor-pointer px-5 py-[18px] text-base font-semibold">{t('meetingDetail.share.title', 'Sharing')}</summary>
+          <summary className="touch-target flex min-h-11 cursor-pointer break-words px-5 text-xl font-bold">{t('meetingDetail.share.title', 'Sharing')}</summary>
           <CardPad>
           <p className="mb-3 text-sm text-muted-foreground">
             {t(

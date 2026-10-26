@@ -188,7 +188,7 @@ const Companies: React.FC = () => {
         <div className="min-w-0">
           <span className="block break-words font-semibold">{companyDisplayName(c)}</span>
           {c.short_name?.trim() && c.short_name.trim() !== c.name && (
-            <span className="block break-words text-xs text-muted-foreground">{c.name}</span>
+            <span className="block break-words text-sm text-muted-foreground">{c.name}</span>
           )}
         </div>
       ),
@@ -321,7 +321,7 @@ const Companies: React.FC = () => {
             <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />
           </div>
           <details className="relative sm:hidden">
-            <summary className="flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-sm">{t('companies.actions.more', 'More')}</summary>
+            <summary className="touch-target flex min-h-11 cursor-pointer items-center rounded-lg border border-input px-3 text-xs font-semibold">{t('companies.actions.more', 'More')}</summary>
             <div className="absolute right-0 z-10 mt-1 flex min-w-40 flex-col gap-2 rounded-lg border border-border bg-card p-2 shadow-md">
               <ExportButton rows={filtered} columns={columns} entity="Companies" />
               <ImportButton entity="company" descriptor={companyImportDescriptor} onImported={() => void refetch()} />

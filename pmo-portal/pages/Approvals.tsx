@@ -117,7 +117,7 @@ function QueueButton({
           <span className="min-w-0 break-words text-sm font-medium">{identity}</span>
           <StatusPill variant={workflowVariant(status)}>{status}</StatusPill>
         </div>
-        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm text-muted-foreground">
           <span className="min-w-0 break-words">{detail}</span>
           <span className="tabular font-medium text-foreground">{amount}</span>
         </div>
@@ -145,7 +145,7 @@ function QueueButton({
           <div className="break-words text-sm font-medium">
             {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold text-muted-foreground">
             <span>{weekLabel(row.week_start_date, t)}</span>
             <span>·</span>
             <span>{row.entries[0]?.project?.name ?? t('approvals.noProjectLinked', 'No project linked')}</span>
@@ -153,7 +153,7 @@ function QueueButton({
         </div>
         <StatusPill variant={workflowVariant(row.status)}>{row.status}</StatusPill>
       </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted-foreground">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
         <span>
           {row.entries.length}{' '}
           {row.entries.length === 1
@@ -199,7 +199,7 @@ function QueueGroup({
   return (
     <section>
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+        <h2 className="text-xl font-bold text-foreground">
           {title}
         </h2>
       </div>
@@ -219,7 +219,7 @@ function QueueGroup({
         <div
           data-testid="approval-scope-empty"
           role="status"
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-secondary/40 px-3 py-2.5 text-[13px]"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-secondary/40 px-3 py-2.5 text-sm"
         >
           <span>{emptyTitle}</span>
           {emptyAction && (
@@ -265,7 +265,7 @@ function PushAttentionSection() {
       className="mb-4"
       aria-label={t('approvals.pushAttention.title', 'ERP pushes needing attention')}
     >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <h2 className="mb-2 text-xl font-bold text-foreground">
         {t('approvals.pushAttention.title', 'ERP pushes needing attention')}
       </h2>
       <div className="space-y-1.5">
@@ -281,7 +281,7 @@ function PushAttentionSection() {
             >
               <div className="min-w-0">
                 <div className="text-sm font-medium">{row.owner_name}</div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
+                <div className="mt-0.5 text-xs font-semibold text-muted-foreground">
                   {weekLabel(row.week_start_date, t)}
                 </div>
               </div>
@@ -360,7 +360,7 @@ function EmployeeLinkConfirmSection() {
       className="mb-4"
       aria-label={t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
     >
-      <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      <h2 className="mb-2 text-xl font-bold text-foreground">
         {t('approvals.employeeLinks.title', 'Employee links awaiting confirmation')}
       </h2>
       <EmployeeLinkConfirm
@@ -455,8 +455,8 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
       )}
     >
       <details open={!hasPending} className="rounded-lg border border-border/70 px-3 py-2">
-        <summary className="cursor-pointer text-sm font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="tabular text-muted-foreground">{data.length}</span> <span className="text-xs font-normal text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
+        <summary className="touch-target flex min-h-11 cursor-pointer items-center text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+          {t('approvals.reopen.heading', 'Approved history and corrections')} <span className="text-xs font-semibold tabular text-muted-foreground">{data.length}</span> <span className="text-[11px] font-semibold text-muted-foreground">({t('approvals.reopen.window', 'last {{days}} days', { days: String(REOPENABLE_WINDOW_DAYS) })})</span>
         </summary>
         <div className="mt-2 space-y-1.5">
         {data.map((row) => {
@@ -491,17 +491,17 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                 <div className="text-sm font-medium">
                   {row.owner?.full_name ?? t('approvals.unknownOwner', 'Unknown')}
                 </div>
-                <div className="mt-0.5 text-[12px] text-muted-foreground">
+                <div className="mt-0.5 text-sm text-muted-foreground">
                   {weekLabel(row.week_start_date, t)}
                 </div>
               </div>
               {pushed ? (
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {t('approvals.reopen.alreadyPushed', 'Already pushed to ERP — correction path coming')}
                 </span>
               ) : outcomeUnknown ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  <span className="text-[12px] text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     {t(
                       'approvals.reopen.outcomeUnknown',
                       'ERP result unknown — an administrator must confirm what ERPNext holds',
@@ -510,7 +510,7 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                   {offerAttest && (
                     <button
                       type="button"
-                      className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent"
+                      className="touch-target h-8 rounded-md border border-border px-3 text-xs font-semibold hover:bg-accent"
                       onClick={() => {
                         setAttestReason('');
                         setAttestFor({
@@ -524,13 +524,13 @@ function ReopenableApprovedSection({ hasPending }: { hasPending: boolean }) {
                   )}
                 </div>
               ) : inFlight ? (
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {t('approvals.reopen.pushInProgress', 'Push in progress')}
                 </span>
               ) : (
                 <button
                   type="button"
-                  className="h-8 rounded-md border border-border px-3 text-[12px] font-medium hover:bg-accent disabled:opacity-50"
+                  className="touch-target h-8 rounded-md border border-border px-3 text-xs font-semibold hover:bg-accent disabled:opacity-50"
                   disabled={reopeningId === row.id && reopenApproved.isPending}
                   onClick={() => {
                     setReopeningId(row.id);
@@ -901,10 +901,10 @@ const ApprovalsPage: React.FC = () => {
           className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-card px-6 py-14 text-center"
           data-testid="approvals-caught-up"
         >
-          <div className="text-[15px] font-semibold">
+          <h2 className="text-xl font-bold">
             {t('approvals.caughtUp.title', 'You’re all caught up')}
-          </div>
-          <p className="max-w-[44ch] text-[13px] text-muted-foreground">
+          </h2>
+          <p className="max-w-[44ch] text-sm text-muted-foreground">
             {t(
               'approvals.caughtUp.sub',
               'Nothing is waiting on your approval in PMO right now. New {{kinds}} entered in PMO will appear here. Documents entered directly in ERPNext are approved in ERPNext.',
@@ -932,16 +932,16 @@ const ApprovalsPage: React.FC = () => {
           >
             <div className="mb-4 flex items-center justify-between gap-2 border-b border-border pb-3">
               <div>
-                <h2 className="text-base font-semibold">
+                <h2 className="text-xl font-bold">
                   {t('approvals.queueHeading', 'Approvals queue')}
                 </h2>
-                <p className="mt-1 text-[13px] text-muted-foreground">
+                <p className="mt-1 text-sm text-muted-foreground">
                   {t(
                     'approvals.queueHint',
                     'Select an item to preview its details and decision controls.',
                   )}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">{t('approvals.oldestFirst', 'Oldest first')}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('approvals.oldestFirst', 'Oldest first')}</p>
               </div>
               <div className="flex items-center gap-2">
                 {(activeScope === 'all' || activeScope === 'timesheets') && canApproveTimesheets && <TimesheetBulkSelect controller={timesheetBulk} />}
@@ -969,7 +969,7 @@ const ApprovalsPage: React.FC = () => {
                 bulk={timesheetBulk}
               />
               {activeScopeError && queueItems.length > 0 && (
-                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-[13px]">
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2.5 text-sm">
                   <span>{t('approvals.queuePartialError', 'Some approval items could not be loaded.')}</span>
                   <Button variant="outline" size="sm" onClick={retryActiveScope}>
                     {t('approvals.queueRetry', 'Retry')}

@@ -749,7 +749,7 @@ const TimesheetsPage: React.FC = () => {
               badge is supplementary — a null state renders nothing and never gates the page. */}
           <PushStateBadge state={ownPushState ?? null} canRetry={false} />
           {editable && (
-            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <div className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-sm text-muted-foreground">
               <Icon name="plus" aria-hidden />
               <span>{t('timesheets.addProject', 'Add project')}</span>
               {/* max-w cap + min-w-0: the closed picker only shows the short placeholder,
@@ -771,7 +771,7 @@ const TimesheetsPage: React.FC = () => {
                       ? t('timesheets.picker.none', 'No projects to add')
                       : t('timesheets.picker.select', 'Select a project…')
                   }
-                  className="touch-target min-w-0 max-w-[160px] text-sm"
+              className="touch-target min-w-0 max-w-[160px] text-sm"
                 />
               </div>
             </div>
@@ -845,7 +845,7 @@ const TimesheetsPage: React.FC = () => {
           >
             {editGridRows.length === 0 && (
               <span data-testid="timesheets-empty-week-total" className="mr-auto flex items-baseline gap-3 tabular">
-                <span className="text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
                   {t('timesheets.weekTotalHours', 'Week total · hours')}
                 </span>
                 <span className="text-xl font-bold text-foreground">{formatNumberExact(editTotals.weekly)}</span>
@@ -854,7 +854,7 @@ const TimesheetsPage: React.FC = () => {
             {/* Helper text co-located with the disabled Submit (color-not-only; explains the gate). */}
             {/* OD-W3-1: now that Submit auto-saves, the message is "enter hours" not "save first". */}
             {!canSubmit && (
-              <span className={editGridRows.length === 0 ? 'text-[13px] text-muted-foreground' : 'mr-auto text-[13px] text-muted-foreground'}>
+              <span className={editGridRows.length === 0 ? 'text-sm text-muted-foreground' : 'mr-auto text-sm text-muted-foreground'}>
                 {t('timesheets.enterHoursToSubmit', 'Enter hours to submit')}
               </span>
             )}

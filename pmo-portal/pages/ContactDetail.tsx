@@ -284,10 +284,10 @@ const ContactDetail: React.FC = () => {
       </section>
 
       <details id="contact-notes" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
-        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+        <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold text-foreground">
           {t('contactDetail.field.notes', 'Notes')}
         </summary>
-        <p className="pb-4 text-[13.5px] text-foreground">
+        <p className="pb-4 text-sm text-foreground">
           {contact.notes || t('contactDetail.field.noNotes', 'No notes recorded.')}
         </p>
       </details>
@@ -346,7 +346,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-sm text-foreground">{value}</dd>
   </div>
 );
 
@@ -486,13 +486,13 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
       {/* The meetings half of the union failing must not take down the touchpoint log — a quiet
           one-line note, never an error card (the activities query above owns the error surface). */}
       {!isPending && !isError && meetingsQuery.isError && (
-        <p className="mb-2 text-[12px] text-muted-foreground">
+        <p className="mb-2 text-sm text-muted-foreground">
           {t('contactDetail.meetings.error', 'Minuted meetings could not be loaded.')}
         </p>
       )}
 
       {!isPending && !isError && timeline.length === 0 && (
-        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+        <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
           {t('contactDetail.activity.empty', 'No activity logged yet.')}
         </p>
       )}
@@ -514,13 +514,13 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                     <StatusPill variant="violet">
                       {t('contactDetail.meetings.pill', 'Minuted meeting')}
                     </StatusPill>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-[11px] font-semibold text-muted-foreground">
                       {formatOccurred(m.occurred_at)}
                     </span>
                   </div>
                   <Link
                     to={`/meetings/${m.id}`}
-                    className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                    className="text-sm font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                   >
                     {m.title}
                   </Link>
@@ -534,7 +534,7 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                 <div className="flex items-center justify-between gap-2">
                   <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
                   <div className="flex items-center gap-1">
-                    <span className="text-[11px] text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
+                    <span className="text-[11px] font-semibold text-muted-foreground">{formatOccurred(a.occurred_at)}</span>
                     {canEdit && (
                       <Button
                         variant="ghost"
@@ -561,15 +561,15 @@ const ContactActivityPanel: React.FC<{ contactId: string }> = ({ contactId }) =>
                   relatedHref ? (
                     <Link
                       to={relatedHref}
-                      className="text-[13.5px] font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                      className="text-sm font-medium text-foreground hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
                     >
                       {a.subject}
                     </Link>
                   ) : (
-                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                    <span className="text-sm font-medium text-foreground">{a.subject}</span>
                   )
                 )}
-                {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                {a.body && <p className="text-sm text-muted-foreground">{a.body}</p>}
               </li>
             );
           })}

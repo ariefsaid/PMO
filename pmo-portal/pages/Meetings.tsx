@@ -147,7 +147,7 @@ const Meetings: React.FC = () => {
         <span className="break-words">
           {m.project ? projectDisplayName(m.project) : '—'}
           {m.project && m.project.name !== projectDisplayName(m.project) && (
-            <span className="block break-words text-xs text-muted-foreground">{m.project.name}</span>
+            <span className="block break-words text-sm text-muted-foreground">{m.project.name}</span>
           )}
         </span>
       ),

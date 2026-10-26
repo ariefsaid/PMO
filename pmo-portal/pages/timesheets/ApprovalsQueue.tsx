@@ -166,15 +166,15 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <div className={isInline ? undefined : 'border-b border-border pb-4'}>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 space-y-1">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
                 <span>{weekLabel(sheet.week_start_date)}</span>
                 <StatusPill variant={workflowVariant(sheet.status)}>{sheet.status}</StatusPill>
               </div>
-              <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>
+              <h2 className="break-words text-xl font-bold">{name}</h2>
             </div>
           </div>
           {!isInline && showSodNotice && (
-            <p className="mt-3 text-[12px] text-muted-foreground">
+            <p className="mt-3 text-sm text-muted-foreground">
               {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
             </p>
           )}
@@ -182,7 +182,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
 
         <div className={isInline ? undefined : 'min-h-0 flex-1 overflow-y-auto pt-4'}>
           {rows.length === 0 ? (
-            <p className="px-2 py-3 text-[13px] text-muted-foreground">No hours recorded for this week.</p>
+            <p className="px-2 py-3 text-sm text-muted-foreground">No hours recorded for this week.</p>
           ) : (
             <TimesheetGrid days={days} rows={rows} />
           )}
@@ -317,7 +317,7 @@ export const ApprovalsQueue: React.FC = () => {
   return (
     <Card className="p-4">
       <div className="mb-3 flex flex-wrap items-center gap-2.5">
-        <h2 className="text-sm font-semibold">Team approvals queue</h2>
+        <h2 className="text-xl font-bold">Team approvals queue</h2>
         <span className="flex-1" />
         {sheets.length > 0 && (
           <StatusPill variant="overdue" aria-label={`${sheets.length} awaiting you`}>
@@ -327,7 +327,7 @@ export const ApprovalsQueue: React.FC = () => {
         <TimesheetBulkControls controller={bulk} sheets={sheets} />
       </div>
 
-      <p className="mb-3 text-[12px] text-muted-foreground">
+      <p className="mb-3 text-sm text-muted-foreground">
         {t('approvals.timesheets.policyHelp', 'Policy: a different person approves each timesheet.')}
       </p>
 

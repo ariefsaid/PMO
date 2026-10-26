@@ -318,7 +318,7 @@ const CompanyDetail: React.FC = () => {
 
       {/* Account configuration is secondary to its people, projects and activity. */}
       <details id="company-details" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
-        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+        <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold text-foreground">
           {t('companyDetail.sectionTitle', 'Details')}
         </summary>
         <dl className="grid grid-cols-1 gap-x-8 gap-y-4 pb-4 sm:grid-cols-2">
@@ -337,7 +337,7 @@ const CompanyDetail: React.FC = () => {
       {/* Vendor tax defaults prefill bills; keep the edit affordance discoverable on demand. */}
       {company.type === 'Vendor' && (
         <details id="company-tax-defaults" className="mb-4 scroll-mt-20 rounded-xl border border-border bg-card px-4">
-          <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground">
+          <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold text-foreground">
             {t('companyDetail.taxDefaults.title', 'Tax defaults')}
           </summary>
           <div className="pb-4">
@@ -405,7 +405,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-sm text-foreground">{value}</dd>
   </div>
 );
 
@@ -466,7 +466,7 @@ const RelatedList: React.FC<RelatedListProps> = ({
         />
       )}
       {!isPending && !isError && items.length === 0 && (
-        <p className="text-[13px] text-muted-foreground">{emptyLabel}</p>
+        <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       )}
       {!isPending && !isError && items.length > 0 && (
         <ul className="flex flex-col gap-1" aria-label={listAriaLabel}>
@@ -476,7 +476,7 @@ const RelatedList: React.FC<RelatedListProps> = ({
                 to={hrefFor(item.id)}
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                <span className="text-[14px] font-medium text-foreground">{item.title}</span>
+                <span className="text-sm font-medium text-foreground">{item.title}</span>
                 {item.subtitle && (
                   /* Fix #9 — Tinted-Status rule: status must be a dot+pill, never bare grey text. */
                   <StatusPill variant={workflowVariant(item.subtitle)}>
@@ -566,7 +566,7 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
       <p
         role="status"
         aria-label={t('companyDetail.contacts.loadingLabel', 'Loading contacts')}
-        className="text-[13px] text-muted-foreground"
+        className="text-sm text-muted-foreground"
       >
         {t('companyDetail.contacts.loading', 'Loading…')}
       </p>
@@ -589,7 +589,7 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
 
   if (contacts.length === 0) {
     return (
-      <p className="text-[13px] text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         {t('companyDetail.contacts.empty', 'No contacts yet')}
       </p>
     );
@@ -605,8 +605,8 @@ const CompanyContactsList: React.FC<{ companyId: string }> = ({ companyId }) => 
             className="flex w-full flex-col gap-0.5 rounded-md px-2 py-1.5 text-left hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             aria-label={`${t('companyDetail.contacts.openRow', 'Open')} ${c.full_name}`}
           >
-            <span className="text-[14px] font-medium text-foreground">{c.full_name}</span>
-            {c.title && <span className="text-[12px] text-muted-foreground">{c.title}</span>}
+            <span className="break-words text-sm text-foreground">{c.full_name}</span>
+            {c.title && <span className="break-words text-sm text-muted-foreground">{c.title}</span>}
           </button>
         </li>
       ))}
@@ -724,7 +724,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
         <CardHead>{t('companyDetail.activity.title', 'Activity')}</CardHead>
         <CardPad>
           <div className="flex flex-col items-center gap-3 rounded-md border border-dashed border-border px-4 py-8 text-center">
-            <p className="text-[13px] text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t('companyDetail.activity.coldStart', 'Add a contact to start logging activity')}
             </p>
             {onAddContact && (
@@ -812,7 +812,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
         )}
 
         {!isPending && !isError && activities.length === 0 && (
-          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-[13px] text-muted-foreground">
+          <p className="rounded-md border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
             {t('companyDetail.activity.empty', 'No activity logged yet.')}
           </p>
         )}
@@ -829,7 +829,7 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
                   <div className="flex items-center justify-between gap-2">
                     <StatusPill variant={crmActivityVariant(a.kind)}>{a.kind}</StatusPill>
                     <div className="flex items-center gap-1">
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-[11px] font-semibold text-muted-foreground">
                         {formatOccurred(a.occurred_at)}
                       </span>
                       {canEdit && (
@@ -859,13 +859,13 @@ const AccountActivityCard: React.FC<{ companyId: string; onAddContact?: () => vo
                     <ContactNameLink
                       contactId={contact.id}
                       name={contact.full_name}
-                      className="text-[11px]"
+                      className="text-[11px] font-semibold"
                     />
                   )}
                   {a.subject && (
-                    <span className="text-[13.5px] font-medium text-foreground">{a.subject}</span>
+                    <span className="break-words text-sm text-foreground">{a.subject}</span>
                   )}
-                  {a.body && <p className="text-[13px] text-muted-foreground">{a.body}</p>}
+                  {a.body && <p className="text-sm text-muted-foreground">{a.body}</p>}
                 </li>
               );
             })}

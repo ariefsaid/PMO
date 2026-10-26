@@ -204,11 +204,11 @@ const IncidentDetail: React.FC = () => {
             <Field label={t('incidents.columns.location', 'Location')} value={incident.location || t('incidents.notRecorded', 'Not recorded')} />
           </dl>
           <div className="mt-4 border-t border-border pt-4">
-            <h2 className="text-sm font-semibold text-foreground">{t('incidents.detail.description', 'Description')}</h2>
+            <h2 className="text-xl font-bold text-foreground">{t('incidents.detail.description', 'Description')}</h2>
           {incident.description ? (
-            <p className="whitespace-pre-wrap text-[13.5px] leading-relaxed">{incident.description}</p>
+            <p className="whitespace-pre-wrap text-sm leading-relaxed">{incident.description}</p>
           ) : (
-            <p className="text-[13.5px] text-muted-foreground">{t('incidents.detail.noDescription', 'No description was recorded.')}</p>
+            <p className="text-sm text-muted-foreground">{t('incidents.detail.noDescription', 'No description was recorded.')}</p>
           )}
           </div>
         </CardPad>
@@ -217,7 +217,7 @@ const IncidentDetail: React.FC = () => {
       {canTransition && next && (
         <RecordActionZone>
           <div className="flex flex-col gap-2 py-3">
-            <div className="text-[12px] font-semibold text-muted-foreground">{t('incidents.detail.nextAction', 'Next action')}</div>
+            <div className="text-xs font-semibold text-muted-foreground">{t('incidents.detail.nextAction', 'Next action')}</div>
             <Button
               variant="primary"
               size="sm"
@@ -268,7 +268,7 @@ const Field: React.FC<{ label: string; value: React.ReactNode }> = ({ label, val
     <dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
       {label}
     </dt>
-    <dd className="text-[13.5px] text-foreground">{value}</dd>
+    <dd className="text-sm text-foreground">{value}</dd>
   </div>
 );
 

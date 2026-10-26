@@ -94,7 +94,7 @@ export const ProfileSettings: React.FC = () => {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6">
         <WorkPageHeading title={t('workPageHeading.profile', 'Profile & preferences')} scope={t('workPageHeading.profileScope', 'Personal preferences')} />
-        <p className="text-[13.5px] text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t('profileSettings.loading', 'Loading profile…')}
         </p>
       </div>
@@ -240,17 +240,17 @@ export const ProfileSettings: React.FC = () => {
         </div>
 
         {status === 'saving' && (
-          <p role="status" className="mt-3 text-[13px] text-muted-foreground">
+          <p role="status" className="mt-3 text-sm text-muted-foreground">
             {t('profileSettings.saving', 'Saving your preferences…')}
           </p>
         )}
         {status === 'saved' && (
-          <p role="status" className="mt-3 text-[13px] font-medium text-foreground">
+          <p role="status" className="mt-3 text-sm font-medium text-foreground">
             {t('profileSettings.saved', 'Preferences saved')}
           </p>
         )}
         {status === 'error' && errorMsg && (
-          <p role="alert" className="mt-3 text-[13px] font-medium text-destructive-text">
+          <p role="alert" className="mt-3 text-sm font-medium text-destructive-text">
             {errorMsg}
           </p>
         )}

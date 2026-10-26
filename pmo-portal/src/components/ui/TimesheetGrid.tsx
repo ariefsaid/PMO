@@ -119,9 +119,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
   if (!isDesktop) {
     return (
       <div className="min-w-0">
-        <p data-testid="tsgrid-hours-group" className="mb-2 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+        <h2 data-testid="tsgrid-hours-group" className="mb-2 text-xl font-bold text-foreground">
           {t('timesheets.hoursGroup', 'Hours')}
-        </p>
+        </h2>
         <MobileTimesheetStack
           days={days}
           rows={rows}
@@ -164,6 +164,11 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             <div className="whitespace-normal break-words text-sm">
               {r.projectLegalName ?? r.project}
             </div>
+            {r.projectLegalName && r.projectLegalName !== r.project && (
+              <div data-testid="timesheet-project-legal-name" aria-hidden="true" className="break-words text-sm text-muted-foreground">
+                {r.projectLegalName}
+              </div>
+            )}
             {r.code && (
               <div className="whitespace-normal break-words font-mono text-[0.6875rem] font-semibold text-muted-foreground">
                 {r.code}
@@ -198,6 +203,11 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
             name={r.projectLegalName ?? r.project}
             className="min-h-11 whitespace-normal break-words text-sm"
           />
+          {r.projectLegalName && r.projectLegalName !== r.project && (
+            <span data-testid="timesheet-project-legal-name" aria-hidden="true" className="block break-words text-sm text-muted-foreground">
+              {r.projectLegalName}
+            </span>
+          )}
           {r.code && (
             <div className="whitespace-normal break-words font-mono text-[0.6875rem] font-semibold text-muted-foreground">
               {r.code}
@@ -307,9 +317,9 @@ export const TimesheetGrid: React.FC<TimesheetGridProps> = ({
     // Scroll container: scroll-fade-x (PR-3, AC-IXD-MOBILE-W4-PR3-C1b): right-edge mask-image gradient
     // signals "more to scroll". CSS-only (mask-image, compositor); the sibling overlay carries the testid.
     <div className={cn('relative', className)} data-testid="tsgrid-table">
-      <p data-testid="tsgrid-hours-group" className="mb-2 px-3.5 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground">
+      <h2 data-testid="tsgrid-hours-group" className="mb-2 px-3.5 text-xl font-bold text-foreground">
         {t('timesheets.hoursGroup', 'Hours')}
-      </p>
+      </h2>
       <div
         data-testid="tsgrid-scroll"
         className={cn(
@@ -399,6 +409,11 @@ const MobileTimesheetStack: React.FC<MobileTimesheetStackProps> = ({
                     name={r.projectLegalName ?? r.project}
                     className="min-h-11 whitespace-normal break-words text-sm"
                   />
+                )}
+                {!editable && r.projectLegalName && r.projectLegalName !== r.project && (
+                  <span data-testid="timesheet-project-legal-name" aria-hidden="true" className="block break-words text-sm text-muted-foreground">
+                    {r.projectLegalName}
+                  </span>
                 )}
                 {r.code && (
                   <div className="whitespace-normal break-words font-mono text-[0.6875rem] font-semibold text-muted-foreground">
