@@ -777,16 +777,7 @@
     "title": "Approvals",
     "unknownOwner": "Unknown",
     "unknownRequester": "Unknown requester",
-    "weekOf": "Week of",
-    "unitBasis": "per unit",
-    "status": {
-      "requested": "Requested",
-      "approved": "Approved",
-      "rejected": "Rejected",
-      "submitted": "Submitted",
-      "draft": "Draft",
-      "returned": "Returned"
-    }
+    "weekOf": "Week of"
   },
   "combobox": {
     "search": {
@@ -1793,8 +1784,7 @@
     "clearSearch": "Clear search",
     "noSearchResults": "No tasks match your search",
     "noTasksInView": "No tasks in this view",
-    "start": "Start {{date}}",
-    "projectContextLabel": "Project"
+    "start": "Start {{date}}"
   },
   "procurement": {
     "columns": {
@@ -3608,9 +3598,7 @@
     "saving": "Saving your preference…",
     "saved": "Preferences saved",
     "error": "Could not save your preferences. Please try again.",
-    "invalidTimezone": "Choose a valid timezone before saving.",
-    "returnToWork": "Back to work",
-    "topic": "Display preferences"
+    "invalidTimezone": "Choose a valid timezone before saving."
   },
   "oauthConsent": {
     "allow": "Allow",
@@ -4701,41 +4689,5 @@
     "invoiceEmptyProjectManager": "No client invoices have been recorded yet. Finance manages invoice creation.",
     "receiptsEmptyProjectManager": "No client receipts have been recorded yet. Finance records client payments.",
     "revenueEmptyProjectManager": "No invoice revenue has been recorded yet. Finance manages invoice creation."
-  },
-  "login": {
-    "demoPersona": {
-      "executive": "Executive",
-      "projectManager": "Project Manager",
-      "finance": "Finance",
-      "engineer": "Engineer",
-      "admin": "Admin"
-    },
-    "signInFailed": "Sign in could not be completed. Try again.",
-    "confirmationSent": "Confirmation sent. Check your email.",
-    "confirmationFailed": "Confirmation could not be sent. Try again.",
-    "magicLinkSent": "Check your email for a sign-in link.",
-    "magicLinkFailed": "A sign-in link could not be sent. Try again.",
-    "microsoftFailed": "Microsoft sign-in could not be started. Try again.",
-    "title": "Sign in to your account",
-    "intro": "Welcome back. Use your work account or email to continue.",
-    "confirmRequired": "Confirm your email to finish signing in. We can resend the confirmation link.",
-    "rateLimited": "Too many requests — please try again in a minute.",
-    "resendConfirmation": "Resend confirmation",
-    "continueWithMicrosoft": "Continue with Microsoft",
-    "emailDivider": "or continue with email",
-    "emailLabel": "Email",
-    "passwordLabel": "Password",
-    "forgotPassword": "Forgot password?",
-    "submit": "Sign in",
-    "noPassword": "No password?",
-    "magicLink": "Email me a magic link",
-    "demoDisclosure": "Show demo sign-in options",
-    "demoHeading": "Demo sign-in",
-    "demoPassword": "Demo password: {{password}}",
-    "demoPersonaAria": "{{persona}} demo sign-in",
-    "terms": "Terms",
-    "privacy": "Privacy",
-    "contactSupport": "Contact support via WhatsApp",
-    "help": "Help"
   }
 }

@@ -172,7 +172,7 @@ export const ProcurementApprovalPreview: React.FC<ProcurementApprovalPreviewProp
               {detail.data.items.length > 0 && (
                 <section>
                   <h3 className="mb-2 text-xl font-bold text-foreground">
-                    {t('work:approvals.lineItems', 'Line items')} · {t('approvals.unitBasis', 'per unit')}
+                    {t('work:approvals.lineItems', 'Line items')} · {t('work:approvals.unitBasis', 'per unit')}
                   </h3>
                   <ul className="space-y-1.5" aria-label="Line items">
                     {detail.data.items.map((item) => (

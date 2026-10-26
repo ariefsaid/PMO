@@ -266,7 +266,7 @@ const MyTasks: React.FC = () => {
                 </div>
                 <div className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
                   <span className="text-xs font-semibold text-muted-foreground">
-                    {t('myTasks.projectContextLabel', 'Project')}
+                    {t('work:myTasks.projectContextLabel', 'Project')}
                   </span>
                   {task.project_id ? (
                     <Link

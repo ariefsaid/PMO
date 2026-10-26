@@ -54,7 +54,16 @@
     "confirmTimesheetApprove": "Approve {{name}}’s week?",
     "confirmTimesheetReturn": "Return {{name}}’s timesheet?",
     "confirmTimesheetApproveBody": "This approves {{name}}’s submitted week.",
-    "confirmTimesheetReturnBody": "This sends {{name}}’s week back for changes. They’ll need to correct and resubmit it."
+    "confirmTimesheetReturnBody": "This sends {{name}}’s week back for changes. They’ll need to correct and resubmit it.",
+    "status": {
+      "approved": "Approved",
+      "draft": "Draft",
+      "rejected": "Rejected",
+      "requested": "Requested",
+      "returned": "Returned",
+      "submitted": "Submitted"
+    },
+    "unitBasis": "per unit"
   },
   "common": {
     "history": "History"
@@ -261,7 +270,8 @@
     "projectUnknown": "Project",
     "sortDue": "Due date",
     "sortLabel": "Sort tasks",
-    "sortUrgency": "Urgency"
+    "sortUrgency": "Urgency",
+    "projectContextLabel": "Project"
   },
   "oauthConsent": {
     "errorTitle": "Sign-in request unavailable",
@@ -362,5 +372,45 @@
     "overAvailableBody": "This request exceeds available budget by {{amount}}. Approval is still permitted — this is an advisory only.",
     "overBudget": "Project over budget",
     "overBudgetBody": "This project is over budget by {{amount}} across committed and reserved demand. This is an advisory only."
+  },
+  "login": {
+    "confirmRequired": "Confirm your email to finish signing in. We can resend the confirmation link.",
+    "confirmationFailed": "Confirmation could not be sent. Try again.",
+    "confirmationSent": "Confirmation sent. Check your email.",
+    "contactSupport": "Contact support via WhatsApp",
+    "continueWithMicrosoft": "Continue with Microsoft",
+    "demoDisclosure": "Show demo sign-in options",
+    "demoHeading": "Demo sign-in",
+    "demoPassword": "Demo password: {{password}}",
+    "demoPersona": {
+      "admin": "Admin",
+      "engineer": "Engineer",
+      "executive": "Executive",
+      "finance": "Finance",
+      "projectManager": "Project Manager"
+    },
+    "demoPersonaAria": "{{persona}} demo sign-in",
+    "emailDivider": "or continue with email",
+    "emailLabel": "Email",
+    "forgotPassword": "Forgot password?",
+    "help": "Help",
+    "intro": "Welcome back. Use your work account or email to continue.",
+    "magicLink": "Email me a magic link",
+    "magicLinkFailed": "A sign-in link could not be sent. Try again.",
+    "magicLinkSent": "Check your email for a sign-in link.",
+    "microsoftFailed": "Microsoft sign-in could not be started. Try again.",
+    "noPassword": "No password?",
+    "passwordLabel": "Password",
+    "privacy": "Privacy",
+    "rateLimited": "Too many requests — please try again in a minute.",
+    "resendConfirmation": "Resend confirmation",
+    "signInFailed": "Sign in could not be completed. Try again.",
+    "submit": "Sign in",
+    "terms": "Terms",
+    "title": "Sign in to your account"
+  },
+  "profileSettings": {
+    "returnToWork": "Back to work",
+    "topic": "Display preferences"
   }
 }

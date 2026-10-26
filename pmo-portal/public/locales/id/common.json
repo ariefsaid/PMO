@@ -777,16 +777,7 @@
     "title": "Persetujuan",
     "unknownOwner": "Tidak diketahui",
     "unknownRequester": "Peminta tidak diketahui",
-    "weekOf": "Minggu",
-    "unitBasis": "per unit",
-    "status": {
-      "requested": "Diajukan",
-      "approved": "Disetujui",
-      "rejected": "Ditolak",
-      "submitted": "Diajukan",
-      "draft": "Draf",
-      "returned": "Dikembalikan"
-    }
+    "weekOf": "Minggu"
   },
   "combobox": {
     "search": {
@@ -1793,8 +1784,7 @@
     "clearSearch": "Hapus pencarian",
     "noSearchResults": "Tidak ada tugas yang cocok dengan pencarian",
     "noTasksInView": "Tidak ada tugas dalam tampilan ini",
-    "start": "Mulai {{date}}",
-    "projectContextLabel": "Proyek"
+    "start": "Mulai {{date}}"
   },
   "procurement": {
     "columns": {
@@ -3608,9 +3598,7 @@
     "saving": "Menyimpan preferensi Anda…",
     "saved": "Preferensi disimpan",
     "error": "Tidak dapat menyimpan preferensi Anda. Silakan coba lagi.",
-    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan.",
-    "returnToWork": "Kembali ke pekerjaan",
-    "topic": "Preferensi tampilan"
+    "invalidTimezone": "Pilih zona waktu yang valid sebelum menyimpan."
   },
   "oauthConsent": {
     "allow": "Izinkan",
@@ -4701,41 +4689,5 @@
     "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
     "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien.",
     "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
-  },
-  "login": {
-    "demoPersona": {
-      "executive": "Eksekutif",
-      "projectManager": "Manajer Proyek",
-      "finance": "Keuangan",
-      "engineer": "Teknisi",
-      "admin": "Admin"
-    },
-    "signInFailed": "Proses masuk tidak dapat diselesaikan. Coba lagi.",
-    "confirmationSent": "Konfirmasi terkirim. Periksa email Anda.",
-    "confirmationFailed": "Konfirmasi tidak dapat dikirim. Coba lagi.",
-    "magicLinkSent": "Periksa email Anda untuk tautan masuk.",
-    "magicLinkFailed": "Tautan masuk tidak dapat dikirim. Coba lagi.",
-    "microsoftFailed": "Proses masuk Microsoft tidak dapat dimulai. Coba lagi.",
-    "title": "Masuk ke akun Anda",
-    "intro": "Selamat datang kembali. Gunakan akun kerja atau email Anda untuk melanjutkan.",
-    "confirmRequired": "Konfirmasikan email Anda untuk menyelesaikan proses masuk. Kami dapat mengirim ulang tautan konfirmasi.",
-    "rateLimited": "Terlalu banyak permintaan — coba lagi dalam satu menit.",
-    "resendConfirmation": "Kirim ulang konfirmasi",
-    "continueWithMicrosoft": "Lanjutkan dengan Microsoft",
-    "emailDivider": "atau lanjutkan dengan email",
-    "emailLabel": "Email",
-    "passwordLabel": "Kata sandi",
-    "forgotPassword": "Lupa kata sandi?",
-    "submit": "Masuk",
-    "noPassword": "Belum memiliki kata sandi?",
-    "magicLink": "Kirim tautan masuk ke email saya",
-    "demoDisclosure": "Tampilkan pilihan masuk demo",
-    "demoHeading": "Masuk demo",
-    "demoPassword": "Kata sandi demo: {{password}}",
-    "demoPersonaAria": "Masuk demo {{persona}}",
-    "terms": "Ketentuan",
-    "privacy": "Privasi",
-    "contactSupport": "Hubungi dukungan melalui WhatsApp",
-    "help": "Bantuan"
   }
 }

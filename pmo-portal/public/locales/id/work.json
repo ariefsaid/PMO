@@ -54,7 +54,16 @@
     "confirmTimesheetApprove": "Setujui minggu kerja {{name}}?",
     "confirmTimesheetReturn": "Kembalikan lembar waktu {{name}}?",
     "confirmTimesheetApproveBody": "Ini menyetujui minggu kerja yang diajukan {{name}}.",
-    "confirmTimesheetReturnBody": "Ini mengembalikan minggu kerja {{name}} untuk diperbaiki. Lembar waktu perlu diperbaiki dan diajukan ulang."
+    "confirmTimesheetReturnBody": "Ini mengembalikan minggu kerja {{name}} untuk diperbaiki. Lembar waktu perlu diperbaiki dan diajukan ulang.",
+    "status": {
+      "approved": "Disetujui",
+      "draft": "Draf",
+      "rejected": "Ditolak",
+      "requested": "Diajukan",
+      "returned": "Dikembalikan",
+      "submitted": "Diajukan"
+    },
+    "unitBasis": "per unit"
   },
   "common": {
     "history": "Riwayat"
@@ -261,7 +270,8 @@
     "projectUnknown": "Proyek",
     "sortDue": "Tanggal tenggat",
     "sortLabel": "Urutkan tugas",
-    "sortUrgency": "Urgensi"
+    "sortUrgency": "Urgensi",
+    "projectContextLabel": "Proyek"
   },
   "oauthConsent": {
     "errorTitle": "Permintaan masuk tidak tersedia",
@@ -362,5 +372,45 @@
     "overAvailableBody": "Permintaan ini melebihi anggaran yang tersedia sebesar {{amount}}. Persetujuan tetap diperbolehkan — ini hanya informasi.",
     "overBudget": "Proyek melebihi anggaran",
     "overBudgetBody": "Proyek ini melebihi anggaran sebesar {{amount}} dari kebutuhan terikat dan dicadangkan. Ini hanya informasi."
+  },
+  "login": {
+    "confirmRequired": "Konfirmasikan email Anda untuk menyelesaikan proses masuk. Kami dapat mengirim ulang tautan konfirmasi.",
+    "confirmationFailed": "Konfirmasi tidak dapat dikirim. Coba lagi.",
+    "confirmationSent": "Konfirmasi terkirim. Periksa email Anda.",
+    "contactSupport": "Hubungi dukungan melalui WhatsApp",
+    "continueWithMicrosoft": "Lanjutkan dengan Microsoft",
+    "demoDisclosure": "Tampilkan pilihan masuk demo",
+    "demoHeading": "Masuk demo",
+    "demoPassword": "Kata sandi demo: {{password}}",
+    "demoPersona": {
+      "admin": "Admin",
+      "engineer": "Teknisi",
+      "executive": "Eksekutif",
+      "finance": "Keuangan",
+      "projectManager": "Manajer Proyek"
+    },
+    "demoPersonaAria": "Masuk demo {{persona}}",
+    "emailDivider": "atau lanjutkan dengan email",
+    "emailLabel": "Email",
+    "forgotPassword": "Lupa kata sandi?",
+    "help": "Bantuan",
+    "intro": "Selamat datang kembali. Gunakan akun kerja atau email Anda untuk melanjutkan.",
+    "magicLink": "Kirim tautan masuk ke email saya",
+    "magicLinkFailed": "Tautan masuk tidak dapat dikirim. Coba lagi.",
+    "magicLinkSent": "Periksa email Anda untuk tautan masuk.",
+    "microsoftFailed": "Proses masuk Microsoft tidak dapat dimulai. Coba lagi.",
+    "noPassword": "Belum memiliki kata sandi?",
+    "passwordLabel": "Kata sandi",
+    "privacy": "Privasi",
+    "rateLimited": "Terlalu banyak permintaan — coba lagi dalam satu menit.",
+    "resendConfirmation": "Kirim ulang konfirmasi",
+    "signInFailed": "Proses masuk tidak dapat diselesaikan. Coba lagi.",
+    "submit": "Masuk",
+    "terms": "Ketentuan",
+    "title": "Masuk ke akun Anda"
+  },
+  "profileSettings": {
+    "returnToWork": "Kembali ke pekerjaan",
+    "topic": "Preferensi tampilan"
   }
 }

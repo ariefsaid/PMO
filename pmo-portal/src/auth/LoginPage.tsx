@@ -70,11 +70,11 @@ const LoginPage: React.FC = () => {
   // AC-CLI-012: where RequireAuth was sending the user (e.g. the OAuth consent screen), if safe.
   const returnPath = returnPathFrom(useLocation().state);
   const demoPersonaLabels: Record<string, string> = {
-    Executive: t('login.demoPersona.executive', 'Executive'),
-    'Project Manager': t('login.demoPersona.projectManager', 'Project Manager'),
-    Finance: t('login.demoPersona.finance', 'Finance'),
-    Engineer: t('login.demoPersona.engineer', 'Engineer'),
-    Admin: t('login.demoPersona.admin', 'Admin'),
+    Executive: t('work:login.demoPersona.executive', 'Executive'),
+    'Project Manager': t('work:login.demoPersona.projectManager', 'Project Manager'),
+    Finance: t('work:login.demoPersona.finance', 'Finance'),
+    Engineer: t('work:login.demoPersona.engineer', 'Engineer'),
+    Admin: t('work:login.demoPersona.admin', 'Admin'),
   };
 
   const [email, setEmail] = useState('');
@@ -108,7 +108,7 @@ const LoginPage: React.FC = () => {
       trackAuthLoginSucceeded('password');
       navigate(returnPath ?? '/', { replace: true });
     } catch (failure) {
-      const message = failure instanceof Error ? failure.message : t('login.signInFailed', 'Sign in could not be completed. Try again.');
+      const message = failure instanceof Error ? failure.message : t('work:login.signInFailed', 'Sign in could not be completed. Try again.');
       trackAuthLoginFailed('password', authReasonCode(message));
       setError(message);
     } finally {
@@ -130,9 +130,9 @@ const LoginPage: React.FC = () => {
         setError(error);
         return;
       }
-      setNotice(t('login.confirmationSent', 'Confirmation sent. Check your email.')); // FR-AUTHF-042 — role=status (SuccessNotice)
+      setNotice(t('work:login.confirmationSent', 'Confirmation sent. Check your email.')); // FR-AUTHF-042 — role=status (SuccessNotice)
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('login.confirmationFailed', 'Confirmation could not be sent. Try again.'));
+      setError(failure instanceof Error ? failure.message : t('work:login.confirmationFailed', 'Confirmation could not be sent. Try again.'));
     } finally {
       setResendBusy(false);
     }
@@ -150,9 +150,9 @@ const LoginPage: React.FC = () => {
         return;
       }
       trackAuthLoginSucceeded('magic_link');
-      setNotice(t('login.magicLinkSent', 'Check your email for a sign-in link.'));
+      setNotice(t('work:login.magicLinkSent', 'Check your email for a sign-in link.'));
     } catch (failure) {
-      const message = failure instanceof Error ? failure.message : t('login.magicLinkFailed', 'A sign-in link could not be sent. Try again.');
+      const message = failure instanceof Error ? failure.message : t('work:login.magicLinkFailed', 'A sign-in link could not be sent. Try again.');
       trackAuthLoginFailed('magic_link', authReasonCode(message));
       setError(message);
     } finally {
@@ -172,7 +172,7 @@ const LoginPage: React.FC = () => {
       setError(error);
     } catch (failure) {
       setBusy(false);
-      const message = failure instanceof Error ? failure.message : t('login.microsoftFailed', 'Microsoft sign-in could not be started. Try again.');
+      const message = failure instanceof Error ? failure.message : t('work:login.microsoftFailed', 'Microsoft sign-in could not be started. Try again.');
       trackAuthLoginFailed('microsoft', authReasonCode(message));
       setError(message);
     }
@@ -200,10 +200,10 @@ const LoginPage: React.FC = () => {
             </span>
           </div>
           <h1 className="text-2xl font-bold leading-[1.15] tracking-[-0.02em] text-foreground">
-            {t('login.title', 'Sign in to your account')}
+            {t('work:login.title', 'Sign in to your account')}
           </h1>
           <p className="mt-1.5 text-sm text-pretty text-muted-foreground">
-            {t('login.intro', 'Welcome back. Use your work account or email to continue.')}
+            {t('work:login.intro', 'Welcome back. Use your work account or email to continue.')}
           </p>
         </div>
 
@@ -221,11 +221,11 @@ const LoginPage: React.FC = () => {
             {confirmRequired ? (
               <div className="space-y-4">
                 <p className="text-sm text-foreground">
-                  {t('login.confirmRequired', 'Confirm your email to finish signing in. We can resend the confirmation link.')}
+                  {t('work:login.confirmRequired', 'Confirm your email to finish signing in. We can resend the confirmation link.')}
                 </p>
                 {rateLimited && (
                   <p className="text-sm text-muted-foreground">
-                    {t('login.rateLimited', 'Too many requests — please try again in a minute.')}
+                    {t('work:login.rateLimited', 'Too many requests — please try again in a minute.')}
                   </p>
                 )}
                 <Button
@@ -236,7 +236,7 @@ const LoginPage: React.FC = () => {
                   className="min-h-11 w-full"
                   onClick={onResend}
                 >
-                  {t('login.resendConfirmation', 'Resend confirmation')}
+                  {t('work:login.resendConfirmation', 'Resend confirmation')}
                 </Button>
               </div>
             ) : (
@@ -253,14 +253,14 @@ const LoginPage: React.FC = () => {
               className="min-h-11 w-full justify-center gap-2.5"
             >
               <MicrosoftLogo className="size-[18px] shrink-0" />
-              {t('login.continueWithMicrosoft', 'Continue with Microsoft')}
+              {t('work:login.continueWithMicrosoft', 'Continue with Microsoft')}
             </Button>
 
             {/* Divider — names the alternative rather than a bare "or" */}
             <div className="flex items-center gap-3">
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
               <span className="text-[11px] font-semibold text-muted-foreground">
-                {t('login.emailDivider', 'or continue with email')}
+                {t('work:login.emailDivider', 'or continue with email')}
               </span>
               <span className="h-px flex-1 bg-border" aria-hidden="true" />
             </div>
@@ -268,7 +268,7 @@ const LoginPage: React.FC = () => {
             <form onSubmit={onSignIn} className="space-y-4" noValidate>
               <AuthInput
                 id="email"
-                label={t('login.emailLabel', 'Email')}
+                label={t('work:login.emailLabel', 'Email')}
                 type="email"
                 autoComplete="email"
                 required
@@ -280,7 +280,7 @@ const LoginPage: React.FC = () => {
               <div className="space-y-1.5">
                 <AuthInput
                   id="password"
-                  label={t('login.passwordLabel', 'Password')}
+                  label={t('work:login.passwordLabel', 'Password')}
                   type="password"
                   autoComplete="current-password"
                   value={password}
@@ -292,7 +292,7 @@ const LoginPage: React.FC = () => {
                     to="/reset-password"
                     className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text hover:underline"
                   >
-                    {t('login.forgotPassword', 'Forgot password?')}
+                    {t('work:login.forgotPassword', 'Forgot password?')}
                   </Link>
                 </div>
               </div>
@@ -305,21 +305,21 @@ const LoginPage: React.FC = () => {
                 disabled={busy}
                 className="min-h-11 w-full"
               >
-                {t('login.submit', 'Sign in')}
+                {t('work:login.submit', 'Sign in')}
               </Button>
             </form>
 
             {/* TERTIARY — passwordless magic link. A quiet text button under the form, not a
                 third full-width bar competing with the two real actions above. */}
             <p className="text-center text-sm text-muted-foreground">
-              {t('login.noPassword', 'No password?')}{' '}
+              {t('work:login.noPassword', 'No password?')}{' '}
               <button
                 type="button"
                 onClick={onMagicLink}
                 disabled={busy || !email}
                 className="inline-flex min-h-11 items-center justify-center px-2 font-semibold text-primary-text hover:underline disabled:cursor-not-allowed disabled:opacity-45"
               >
-                {t('login.magicLink', 'Email me a magic link')}
+                {t('work:login.magicLink', 'Email me a magic link')}
               </button>
             </p>
 
@@ -328,14 +328,14 @@ const LoginPage: React.FC = () => {
             {showDemoLogin && (
               <details className="pt-2">
                 <summary className="touch-target cursor-pointer text-center text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-                  {t('login.demoDisclosure', 'Show demo sign-in options')}
+                  {t('work:login.demoDisclosure', 'Show demo sign-in options')}
                 </summary>
                 <div className="space-y-2 pt-3">
                   <p className="text-center text-sm font-semibold text-foreground">
-                    {t('login.demoHeading', 'Demo sign-in')}
+                    {t('work:login.demoHeading', 'Demo sign-in')}
                   </p>
                   <p className="text-center text-sm text-muted-foreground">
-                    {t('login.demoPassword', 'Demo password: {{password}}', { password: DEMO_PASSWORD })}
+                    {t('work:login.demoPassword', 'Demo password: {{password}}', { password: DEMO_PASSWORD })}
                   </p>
                   <div className="flex flex-wrap justify-center gap-x-3 gap-y-1">
                   {DEMO_PERSONAS.map(({ label, email }) => {
@@ -344,7 +344,7 @@ const LoginPage: React.FC = () => {
                     <button
                       key={email}
                       type="button"
-                      aria-label={t('login.demoPersonaAria', '{{persona}} demo sign-in', { persona: personaLabel })}
+                      aria-label={t('work:login.demoPersonaAria', '{{persona}} demo sign-in', { persona: personaLabel })}
                       onClick={() => {
                         trackDemoPersonaSelected(label);
                         setEmail(email);
@@ -371,11 +371,11 @@ const LoginPage: React.FC = () => {
             is unset so no broken link renders (FR-LEG-010). */}
         <footer className="mt-5 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1 text-xs font-semibold text-muted-foreground">
           <Link to="/terms" className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
-            {t('login.terms', 'Terms')}
+            {t('work:login.terms', 'Terms')}
           </Link>
           <span aria-hidden>·</span>
           <Link to="/privacy" className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline">
-            {t('login.privacy', 'Privacy')}
+            {t('work:login.privacy', 'Privacy')}
           </Link>
           {HELP_URL && (
             <>
@@ -384,10 +384,10 @@ const LoginPage: React.FC = () => {
                 href={HELP_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                aria-label={t('login.contactSupport', 'Contact support via WhatsApp')}
+                aria-label={t('work:login.contactSupport', 'Contact support via WhatsApp')}
                 className="inline-flex min-h-11 items-center font-medium text-primary-text hover:underline"
               >
-                {t('login.help', 'Help')}
+                {t('work:login.help', 'Help')}
               </a>
             </>
           )}

@@ -95,7 +95,7 @@ export const ProfileSettings: React.FC = () => {
     return (
       <div className="w-full py-8">
         <Link to="/" className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {t('profileSettings.returnToWork', 'Back to work')}
+          {t('work:profileSettings.returnToWork', 'Back to work')}
         </Link>
         <WorkPageHeading title={t('work:workPageHeading.profile', 'Profile & preferences')} scope={t('work:workPageHeading.profileScope', 'Personal preferences')} />
         <p className="text-sm text-muted-foreground">
@@ -178,13 +178,13 @@ export const ProfileSettings: React.FC = () => {
   return (
     <div className="w-full py-6">
       <Link to="/" className="mb-3 inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        {t('profileSettings.returnToWork', 'Back to work')}
+        {t('work:profileSettings.returnToWork', 'Back to work')}
       </Link>
       <WorkPageHeading
         title={t('work:workPageHeading.profile', 'Profile & preferences')}
         scope={t('work:workPageHeading.profileScope', 'Personal preferences')}
       />
-      <section aria-label={t('profileSettings.topic', 'Display preferences')}>
+      <section aria-label={t('work:profileSettings.topic', 'Display preferences')}>
       <div className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div>
