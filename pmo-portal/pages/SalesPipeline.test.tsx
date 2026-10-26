@@ -7,7 +7,7 @@ import SalesPipeline from './SalesPipeline';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 import { findPageAnnouncement } from '@/src/components/ui/__tests__/announcementTestQueries';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrencyAuto, formatNumberExact } from '@/src/lib/format';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
 
 const viewport = vi.hoisted(() => ({ isDesktop: true }));
@@ -214,8 +214,8 @@ describe('SalesPipeline header + summary (AC-SP-202)', () => {
 
     await userEvent.click(screen.getByText('Pipeline summary'));
     const summary = screen.getByTestId('sales-summary');
-    const leads = within(summary).getByText('Leads').closest('[data-funnel-stage]')!;
-    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent(formatCurrencyAuto(exactValue, 'USD'));
+    const leads = within(summary).getByText('Leads · USD').closest('[data-funnel-stage]')!;
+    expect(leads.querySelector('[data-funnel-stage-amount]')).toHaveTextContent(formatNumberExact(exactValue));
   });
 
   it('AC-SALES-S02: missing stage evidence is unavailable while a confirmed empty stage remains zero', async () => {

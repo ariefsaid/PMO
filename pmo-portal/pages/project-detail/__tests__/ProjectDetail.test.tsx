@@ -237,6 +237,20 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(within(tabs).getByRole('tab', { name: 'Tasks' })).toHaveAttribute('aria-selected', 'false');
   });
 
+  it('AC-PA-REC-390: the phone Sections control switches the canonical project section URL', async () => {
+    desktopBox.value = false;
+    await renderAt('/projects/p1');
+
+    const sections = screen.getByRole('combobox', { name: 'Sections' });
+    expect(sections).toHaveValue('overview');
+    await userEvent.selectOptions(sections, 'tasks');
+
+    expect(navigate).toHaveBeenCalledWith('/projects/p1/tasks', {
+      replace: true,
+      state: { pmoTabSwitch: true },
+    });
+  });
+
   it('uses Change status as the only rail primary and keeps Edit as a single header entry point', async () => {
     await renderAt('/projects/p1');
 

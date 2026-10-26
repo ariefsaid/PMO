@@ -2549,11 +2549,14 @@
       "advanceTo": "Lanjutkan ke",
       "bookingOnWin": "Nilai kontrak ini dicatat saat Anda mengonfirmasi kemenangan.",
       "cancel": "Batal",
+      "contextHeading": "Konteks pipeline",
       "confirmWon": "Konfirmasi menang",
       "contractDateLabel": "Tanggal kontrak",
       "contractRefLabel": "Referensi kontrak klien",
       "contractRefPlaceholder": "mis. CPO-2026-0042",
       "dateRequired": "Tanggal kontrak wajib diisi",
+      "decisionContext": "Detail keputusan",
+      "exactValue": "Nilai pasti",
       "journeyAriaLabel": "Perjalanan tahap proyek",
       "journeyHeading": "Perjalanan proyek",
       "lostConfirm": {
@@ -2637,6 +2640,7 @@
     },
     "tabs": {
       "ariaLabel": "Bagian proyek",
+      "sections": "Bagian",
       "billing": "Penagihan",
       "budget": "Anggaran",
       "documents": "Dokumen",

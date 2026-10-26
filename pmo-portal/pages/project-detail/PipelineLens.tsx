@@ -7,20 +7,18 @@ import {
   CardHead,
   CardPad,
   Button,
-  StatTiles,
   LifecycleStepper,
   GateNotice,
   RecordActionZone,
   Icon,
   ConfirmDialog,
   useToast,
-  type StatTile,
 } from '@/src/components/ui';
 import { useSalesPipeline } from '@/src/hooks/useDashboard';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { listReturnNavigation } from '@/src/lib/listReturnContext';
-import { formatCurrencyAuto, formatDecisionDateNumeric, formatNumberWhole } from '@/src/lib/format';
+import { formatDecisionDateNumeric, formatNumberExact, formatShortMoney } from '@/src/lib/format';
 import {
   transitionProject,
   LEGAL_PROJECT_TRANSITIONS,
@@ -230,46 +228,69 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
     });
   };
 
-  const ownerTile: StatTile = {
-    label: t('projectDetail.pipeline.stat.owner', 'Owner'),
-    value: project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set'),
-  };
-  // SUB-I: an open deal shows what is still in play (probability, weighted value); a decided deal shows
-  // the decision instead — never a 0% win probability or a zero weighted value.
-  const stats: StatTile[] = isTerminal
-    ? [
-        ownerTile,
-        {
-          label: t('projectDetail.pipeline.stat.decision', 'Decision'),
-          // A revived deal (Loss Tender -> Negotiation) keeps its old loss decided_at; it is undecided again.
-          value: project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
-            ? formatDecisionDateNumeric(project)
-            : t('projectDetail.pipeline.pending', 'Pending'),
-        },
-      ]
-    : [
-        { label: t('projectDetail.pipeline.stat.winProbability', 'Win probability'), value: formatPercent(winProb) },
-        { label: `${t('projectDetail.pipeline.stat.weighted', 'Weighted')} · ${currency}`, value: formatNumberWhole(weighted) },
-        ownerTile,
-      ];
+  const contractValueBlock = (
+    <section data-testid="pipeline-contract-value" className="mb-8 min-w-0" aria-label={t('projectDetail.pipeline.stat.value', 'Contract value')}>
+      <h2 className="flex flex-wrap items-baseline gap-x-2 text-xl font-bold leading-tight tracking-[-0.01em]">
+        <span>{t('projectDetail.pipeline.stat.value', 'Contract value')} ·</span>
+        <span className="tabular">{formatShortMoney(value, currency, { code: true })}</span>
+        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
+      </h2>
+      <dl className="mt-4 grid min-w-0 grid-cols-1 items-baseline gap-x-4 sm:grid-cols-[max-content_minmax(0,1fr)]">
+        <dt className="text-xs font-semibold text-muted-foreground">
+          {t('projectDetail.pipeline.exactValue', 'Exact value')}
+        </dt>
+        <dd className="min-w-0 whitespace-nowrap text-sm text-foreground tabular">
+          {formatNumberExact(value)}
+        </dd>
+      </dl>
+    </section>
+  );
 
   return (
     <div>
+      {contractValueBlock}
+
       {!showWonPanel && (
-        <>
-          <section data-testid="pipeline-contract-value" className="mb-3 min-w-0">
-            <h2 className="text-sm font-semibold text-muted-foreground">
-              {t('projectDetail.pipeline.stat.value', 'Contract value')}
-            </h2>
-            <p className="mt-1 max-w-full break-words text-2xl font-bold leading-tight tracking-[-0.02em] tabular [overflow-wrap:anywhere]">
-              {formatCurrencyAuto(value, currency)}
-            </p>
-            <div className="mt-1 text-xs text-muted-foreground">
-              <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
-            </div>
-          </section>
-          <StatTiles tiles={stats} columns={stats.length} className="mb-4" />
-        </>
+        <section className="mb-8 min-w-0" aria-labelledby="pipeline-context-heading">
+          <h2 id="pipeline-context-heading" className="text-xl font-bold leading-tight tracking-[-0.01em]">
+            {isTerminal
+              ? t('projectDetail.pipeline.decisionContext', 'Decision details')
+              : `${t('projectDetail.pipeline.contextHeading', 'Pipeline context')} · ${currency}`}
+          </h2>
+          <dl className="mt-4 grid min-w-0 grid-cols-2 gap-x-4 gap-y-4">
+            {isTerminal ? (
+              <>
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.stat.owner', 'Owner')}</dt>
+                  <dd className="mt-1 break-words text-sm">{project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set')}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.stat.decision', 'Decision')}</dt>
+                  <dd className="mt-1 break-words text-sm">
+                    {project.contract_date || ((project.status === 'Loss Tender' || project.status === 'Declined') && project.decided_at)
+                      ? formatDecisionDateNumeric(project)
+                      : t('projectDetail.pipeline.pending', 'Pending')}
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.stat.winProbability', 'Win probability')}</dt>
+                  <dd className="mt-1 text-sm tabular">{formatPercent(winProb)}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.stat.weighted', 'Weighted')}</dt>
+                  <dd className="mt-1 break-words text-sm tabular [overflow-wrap:anywhere]">{formatNumberExact(weighted)}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.pipeline.stat.owner', 'Owner')}</dt>
+                  <dd className="mt-1 break-words text-sm">{project.pm?.full_name ?? t('projectDetail.pipeline.notSet', 'Not set')}</dd>
+                </div>
+              </>
+            )}
+          </dl>
+        </section>
       )}
 
       {/* AC-RAM-003 (#688): base grid-cols-1 (explicit, matches the stacked mobile intent) +
@@ -366,23 +387,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
 
             {/* Inline progressive SoD capture panel (no modal). */}
             {showWonPanel && canWin && (
-              <div className="flex flex-col gap-3 rounded-md border border-border bg-secondary/40 p-3">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    {t('projectDetail.pipeline.stat.value', 'Contract value')}
-                  </p>
-                  <p className="mt-1 max-w-full break-words text-2xl font-bold leading-tight tracking-[-0.02em] tabular [overflow-wrap:anywhere]">
-                    {formatCurrencyAuto(value, currency)}
-                  </p>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} />
-                  </div>
-                </div>
+              <div className="flex flex-col gap-4">
                 <div className="text-sm text-muted-foreground">
                   {t('projectDetail.pipeline.bookingOnWin', 'This contract value is recorded when you confirm the win.')}
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label htmlFor="won-ref" className="text-[12px] font-semibold">
+                  <label htmlFor="won-ref" className="text-xs font-semibold">
                     {t('projectDetail.pipeline.contractRefLabel', 'Customer contract reference')}
                   </label>
                   <input
@@ -396,18 +406,18 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     aria-describedby={refError ? 'won-ref-err' : undefined}
                     placeholder={t('projectDetail.pipeline.contractRefPlaceholder', 'e.g. CPO-2026-0042')}
                     autoFocus
-                    className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none placeholder:text-muted-foreground ${
+                    className={`h-11 rounded-md border bg-background px-2.5 text-sm outline-none placeholder:text-muted-foreground ${
                       refError ? 'border-destructive' : 'border-input'
                     }`}
                   />
                   {refError && (
-                    <span id="won-ref-err" className="text-[12px] text-destructive">
+                    <span id="won-ref-err" className="text-xs text-destructive">
                       {refError}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label htmlFor="won-date" className="text-[12px] font-semibold">
+                  <label htmlFor="won-date" className="text-xs font-semibold">
                     {t('projectDetail.pipeline.contractDateLabel', 'Contract date')}
                   </label>
                   <input
@@ -420,12 +430,12 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
                     }}
                     aria-invalid={!!dateError}
                     aria-describedby={dateError ? 'won-date-err' : undefined}
-                    className={`h-8 rounded-md border bg-background px-2.5 text-[13.5px] outline-none ${
+                    className={`h-11 rounded-md border bg-background px-2.5 text-sm outline-none ${
                       dateError ? 'border-destructive' : 'border-input'
                     }`}
                   />
                   {dateError && (
-                    <span id="won-date-err" className="text-[12px] text-destructive">
+                    <span id="won-date-err" className="text-xs text-destructive">
                       {dateError}
                     </span>
                   )}
@@ -442,7 +452,7 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState, onP
             )}
 
             {error && (
-              <div role="alert" className="flex items-start gap-2 text-[13px] text-destructive">
+              <div role="alert" className="flex items-start gap-2 text-sm text-destructive">
                 <Icon name="alert" className="mt-px size-4 shrink-0" />
                 <span>{error}</span>
               </div>

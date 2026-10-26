@@ -24,7 +24,7 @@ import { useListReturn } from '@/src/hooks/useListReturn';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { useProjectStatusLabel, useSalesStageLabel } from '@/src/hooks/useProjectStatusLabel';
 import { activeClassificationCount } from '@/src/lib/projectClassification';
-import { formatCurrencyAuto, formatNumberWhole } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyAuto, formatNumberExact, formatNumberWhole } from '@/src/lib/format';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { weightedValue, openOpportunity, daysSince, ATTENTION_THRESHOLD_DAYS, SALES_COLUMNS, formatPercent, pillVariantForStatus } from '../components/salesPipeline';
 import { selectSalesProjects } from '@/src/components/sales/salesWorkingSet';
@@ -193,7 +193,7 @@ const SalesPipeline: React.FC = () => {
       },
     },
     {
-      key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 180, align: 'num',
+      key: 'value', header: t('sales.column.value', 'Value'), kind: 'money', size: 230, align: 'num',
       cell: (project) => <span className="flex min-w-0 flex-wrap items-center justify-end gap-1 whitespace-normal tabular"><span className="min-w-0 whitespace-normal break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} /></span>,
       exportValue: (project) => project.contract_value,
     },
@@ -241,7 +241,7 @@ const SalesPipeline: React.FC = () => {
         : stageLabel(column),
       dotColor: column.dotColor,
       prob: !probabilityUnavailable && aggregate ? formatPercent(aggregate.win_probability) : undefined,
-      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatNumberWhole(aggregate?.total_value ?? 0),
+      value: valueUnavailable ? <span aria-label={salesT('pipeline.summaryUnavailable', 'Summary unavailable')}>—</span> : formatNumberExact(aggregate?.total_value ?? 0),
       weighted: undefined,
       barPct: valueUnavailable || pipelineCurrencies.size > 1 || maxStageWeight === 0
         ? undefined
@@ -255,20 +255,20 @@ const SalesPipeline: React.FC = () => {
   summaryHasUnknown ||= forecastUnavailable;
   const weightedForecast = forecastUnavailable
     ? salesT('pipeline.summaryForecastUnavailable', 'Not available')
-    : formatCurrencyAuto(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
+    : formatCurrency(summaryAggregates.reduce((total, aggregate) => total + (aggregate?.weighted_value ?? 0), 0), pipelineCurrencies.size === 1 ? [...pipelineCurrencies][0] : orgCurrency);
   const summary = (
-    <details data-testid="sales-summary" className="mb-4 rounded-lg border border-border bg-card px-4 py-3">
-      <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-3 font-medium">
-        <span>{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span>
-        <span className="text-sm text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
+    <details data-testid="sales-summary" className="mb-8">
+      <summary className="flex min-h-11 cursor-pointer flex-wrap items-center justify-between gap-3">
+        <span className="text-xl font-bold leading-tight tracking-[-0.01em]">{salesT('pipeline.summaryDisclosure', 'Pipeline summary')}</span>
+        <span className="text-[11px] font-semibold text-muted-foreground">{salesT('pipeline.summaryScope', 'All open projects · before list filters')}</span>
       </summary>
-      <div className="mt-3">
+      <div className="mt-4">
         <Funnel stages={summaryStages} />
-        <p data-testid="pipeline-weighted-total" className="mt-3 text-sm font-medium">
+        <p data-testid="pipeline-weighted-total" className="mt-4 text-sm">
           <span>{salesT('pipeline.summaryForecast', 'Weighted pipeline forecast')}: </span>
           <span>{weightedForecast}</span>
         </p>
-        {summaryHasUnknown && <p className="mt-3 text-sm text-muted-foreground">{salesT('pipeline.summaryCaveat', 'Some stage totals are unavailable or span mixed currencies.')} <Link className="text-primary-text underline underline-offset-4" to="/projects">{salesT('pipeline.reviewEvidence', 'Review project records')}</Link></p>}
+        {summaryHasUnknown && <p className="mt-4 text-sm text-muted-foreground">{salesT('pipeline.summaryCaveat', 'Some stage totals are unavailable or span mixed currencies.')} <Link className="text-primary-text underline underline-offset-4" to="/projects">{salesT('pipeline.reviewEvidence', 'Review project records')}</Link></p>}
       </div>
     </details>
   );
@@ -279,13 +279,13 @@ const SalesPipeline: React.FC = () => {
         <Icon name="search" />
         <input type="search" aria-label={t('sales.search.label', 'Search projects')} placeholder={t('sales.search.placeholder', 'Search projects…')} value={search} onChange={(event) => setSearch(event.target.value)} className="min-h-11 min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground" />
       </div>
-      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground md:flex-none">
+      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:flex-none">
         <span>{salesT('pipeline.scopeLabel', 'Project scope')}</span>
         <select aria-label={salesT('pipeline.scopeLabel', 'Project scope')} value={workingSet.scope} onChange={(event) => updateScope(event.currentTarget.value as SalesScope)} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
           {SCOPES.map((scope) => <option key={scope} value={scope}>{scopeLabels[scope]}</option>)}
         </select>
       </label>
-      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-medium text-muted-foreground md:flex-none">
+      <label className="flex min-w-0 flex-1 flex-col gap-1 text-xs font-semibold text-muted-foreground md:flex-none">
         <span>{salesT('pipeline.stageLabel', 'Stage')}</span>
         <select aria-label={salesT('pipeline.stageLabel', 'Stage')} value={selectedStatus} disabled={workingSet.scope === 'Lost'} onChange={(event) => updateStage(event.currentTarget.value as SalesStage)} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-70">
           <option value="">{salesT('pipeline.allStages', 'All stages')}</option>
@@ -295,7 +295,7 @@ const SalesPipeline: React.FC = () => {
       </label>
       <div className="flex min-w-0 items-end gap-2">
         <ProjectClassificationFilters rows={allProjects} value={workingSet} onChange={(patch) => setWorkingSet((current) => ({ ...current, ...patch }))} inlineTrigger resetToken={classificationResetToken} />
-        <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-muted-foreground">
+        <label className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-muted-foreground">
           <span>{salesT('pipeline.sortLabel', 'Sort')}</span>
           <select aria-label={salesT('pipeline.sortLabel', 'Sort')} value={workingSet.sort} onChange={(event) => setWorkingSet((current) => ({ ...current, sort: event.currentTarget.value as SalesSort }))} className="min-h-11 min-w-0 rounded-md border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {SORTS.map((sort) => <option key={sort} value={sort}>{sortLabels[sort]}</option>)}
@@ -336,7 +336,7 @@ const SalesPipeline: React.FC = () => {
         title={t('shell.nav.sales', 'Sales Pipeline')}
         scope={scopeLine}
         kind="collection"
-        className="mb-4"
+        className="mb-4 [&_[data-page-scope]]:text-sm"
       />
       {toolbar}
       {isDesktop && shouldShowSummary && summary}
@@ -361,7 +361,7 @@ const SalesPipeline: React.FC = () => {
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'kanban' && isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && !isDesktop && <SalesKanbanBoard projects={visible} onOpen={onOpen} presentation="list" />}
       {state === undefined && !lostScopeBlocked && !lostScopePending && visible.length > 0 && view === 'table' && isDesktop && (
-        <div className="min-w-0">
+        <div className="min-w-0 [&_table]:text-sm [&_thead_th]:text-[11px] [&_tbody_td]:text-sm [&_li]:text-sm [&_dd]:text-sm">
           <details className="mb-2">
             <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm text-muted-foreground underline underline-offset-4">{salesT('pipeline.columns', 'Columns')}</summary>
             <label className="ml-3 inline-flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={showWeighted} onChange={(event) => setShowWeighted(event.currentTarget.checked)} />{t('sales.column.weighted', 'Weighted')}</label>

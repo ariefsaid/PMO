@@ -1,10 +1,9 @@
 /**
  * #879 — Project tabs keep focus on arrow keys (AC owner).
  *
- * AC: Given focus on a project tab, when the user presses ArrowRight, then focus
- * moves to the next tab and stays in the tab bar (also ArrowLeft, Home, End per the
- * WAI-ARIA tabs pattern). The journey runs through the real ProjectDetail wiring
- * (Tabs → setTab → navigate), with tab contents stubbed — we test focus, not panels.
+ * AC: Given focus on the vertical project section index, ArrowDown/ArrowUp moves
+ * to the adjacent section and stays in the index (Home/End move to its boundaries).
+ * The journey runs through real ProjectDetail wiring (index → setTab → navigate).
  *
  * AppShell's focus-on-route-change exemption is ALSO asserted at its owning layer
  * (AppShell.tabFocus.test.tsx); this journey renders the page inside the real AppShell —
@@ -149,14 +148,14 @@ const main = () => screen.getByRole('main');
 // toHaveFocus/toContainElement matchers are typed for HTMLElement — narrow activeElement.
 const activeEl = () => document.activeElement as HTMLElement | null;
 
-describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
-  it('AC #879: given focus on a project tab, ArrowRight moves focus to the next tab and it stays in the tab bar', async () => {
+describe('#879: project section index keeps focus on arrow keys (WCAG 2.4.3)', () => {
+  it('AC #879: ArrowDown moves focus to the next project section and it stays in the index', async () => {
     await renderAs('Admin', '/projects/p1');
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });
     overviewTab.focus();
     expect(overviewTab).toHaveFocus();
 
-    fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
+    fireEvent.keyDown(overviewTab, { key: 'ArrowDown' });
 
     // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
     expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
@@ -168,12 +167,12 @@ describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
     // The URL followed the tab switch (tab lives in the route param).
   });
 
-  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from Budget)', async () => {
+  it('AC #879: ArrowUp returns to the previous section in the index', async () => {
     await renderAs('Admin', '/projects/p1/budget');
     const budgetTab = screen.getByRole('tab', { name: 'Budget' });
     budgetTab.focus();
 
-    fireEvent.keyDown(budgetTab, { key: 'ArrowLeft' });
+    fireEvent.keyDown(budgetTab, { key: 'ArrowUp' });
 
     expect(await screen.findByTestId('tab-overview')).toBeInTheDocument();
     const overviewTab = screen.getByRole('tab', { name: 'Overview' });

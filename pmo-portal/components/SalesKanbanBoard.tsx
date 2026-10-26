@@ -24,7 +24,7 @@ const ProjectIdentity: React.FC<{ project: PipelineProject; onOpen: () => void; 
         to={`/projects/${project.id}`}
         onClick={(event) => { event.preventDefault(); onOpen(); }}
         data-list-return-focus={`project-${project.id}`}
-        className="block min-h-11 break-words font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+        className="block min-h-11 break-words text-sm font-semibold text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
       >
         {displayName}
       </Link>
@@ -68,28 +68,28 @@ const Deal: React.FC<{ project: PipelineProject; onOpen: () => void; grouped: bo
           <StatusPill variant={pillVariantForStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
         )}
       </div>
-      <dl className={`mt-2 grid min-w-0 gap-x-4 gap-y-1.5 text-sm ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
+      <dl className={`mt-4 grid min-w-0 gap-x-4 gap-y-2 text-sm ${compact ? 'grid-cols-2' : 'grid-cols-1 sm:grid-cols-2'}`}>
         <div className={`min-w-0 ${compact ? 'col-span-2' : ''}`}>
-          <dt className="text-xs text-muted-foreground">{t('pipeline.customer', 'Customer')}</dt>
+          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.customer', 'Customer')}</dt>
           <dd className="break-words">{customer}</dd>
         </div>
         {!compact && <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('pipeline.owner', 'Owner')}</dt>
+          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.owner', 'Owner')}</dt>
           <dd className="break-words">{project.pm_name || t('pipeline.ownerUnavailable', 'Owner unavailable')}</dd>
         </div>}
         {!compact && <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('pipeline.lastActivity', 'Last activity')}</dt>
+          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.lastActivity', 'Last activity')}</dt>
           <dd><Activity project={project} /></dd>
         </div>}
         <div className={`min-w-0 ${compact ? 'col-span-2' : 'sm:col-span-2'}`}>
-          <dt className="text-xs text-muted-foreground">{t('pipeline.value', 'Value')}</dt>
-          <dd className="flex min-w-0 flex-wrap items-center gap-1 tabular font-medium">
+          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.value', 'Value')}</dt>
+          <dd className="flex min-w-0 flex-wrap items-center gap-1 tabular">
             <span className="min-w-0 max-w-full break-words [overflow-wrap:anywhere]">{formatCurrencyAuto(project.contract_value, project.currency)}</span>
             <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={false} />
           </dd>
         </div>
         <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('pipeline.winProbability', 'Win probability')}</dt>
+          <dt className="text-xs font-semibold text-muted-foreground">{t('pipeline.winProbability', 'Win probability')}</dt>
           <dd>{terminal ? t('pipeline.notApplicable', 'Not applicable') : formatPercent(project.win_probability)}</dd>
         </div>
       </dl>
@@ -129,7 +129,7 @@ const SalesKanbanBoard: React.FC<SalesKanbanBoardProps> = ({ projects, onOpen, p
       <div className="grid min-w-[64rem] grid-cols-5 items-start gap-3">
         {groups.map((group) => (
           <section key={group.key} data-testid={group.key} aria-label={`${group.name}, ${group.projects.length}`} className="min-w-0 border-l border-border px-3 py-2 first:border-l-0">
-            <h2 className="mb-3 flex min-h-11 items-center justify-between gap-2 border-b border-border pb-2 text-sm font-semibold">
+            <h2 className="mb-3 flex min-h-11 items-center justify-between gap-2 border-b border-border pb-2 text-xl font-bold leading-tight tracking-[-0.01em]">
               <span>{group.name}</span>
               <span className="tabular text-muted-foreground">{group.projects.length}</span>
             </h2>

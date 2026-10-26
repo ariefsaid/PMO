@@ -565,7 +565,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         actions={canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
         sharedPageHeading
-        className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
+        className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto [&_h1]:text-2xl [&_h1]:leading-tight [&_h1]:whitespace-normal [&_h1]:overflow-visible [&_h1]:text-clip [&_[data-page-scope]]:text-sm"
       />
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
