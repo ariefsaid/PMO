@@ -811,7 +811,8 @@ export function DataTable<Row>({
               >
                 {/* Identity row: custom phone composition or the complete primary identity. */}
                 <div className="flex min-w-0 items-start justify-between gap-3">
-                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">                    {onActivate && rowLabel ? (
+                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                    {onActivate && rowLabel ? (
                       <button
                         type="button"
                         aria-label={accessibleRowLabel(row)}

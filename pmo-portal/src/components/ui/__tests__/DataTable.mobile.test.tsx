@@ -312,6 +312,27 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(label).toHaveClass('self-start');
   });
 
+  it('keeps custom phone rows and their actions without duplicate generic facts', async () => {
+    mockViewport(false);
+    const onOpen = vi.fn();
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        mobileRow={(row) => <button onClick={() => onOpen(row.id)}>Open {row.name}</button>}
+        mobileDetails={{ columnKeys: ['value'], summary: () => 'Other facts' }}
+        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(rows.length);
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('Other facts')).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Open Alpha Corp' }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith('R-1');
+  });
+
   it('numeric columns retain their paired label and tabular figures', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);

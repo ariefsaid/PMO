@@ -939,11 +939,11 @@ const SalesInvoices: React.FC = () => {
     header: t('moneyIn:financeCopy.invoiceGross', 'Invoice gross'),
     kind: 'money',
     align: 'num',
-    size: 150,
+    size: 180,
     cell: (inv) => {
       const gross = invoiceGross(inv);
       return <div className="tabular text-right type-value">
-        <span>{gross === null ? t('moneyIn:financeCopy.notAvailableShort', 'Not available') : formatNumber(gross)}</span>
+        <span>{inv.currency} {gross === null ? t('moneyIn:financeCopy.notAvailableShort', 'Not available') : formatNumber(gross)}</span>
         {isDesktop && inv.amount != null && <details className="text-left">
           <summary className="min-h-11 cursor-pointer py-2 type-label">{t('moneyIn:financeCopy.amountDetails', 'Amount details')}</summary>
           <p>{t('moneyIn:financeCopy.recordedAmount', 'Recorded amount')} · {inv.currency} {formatNumber(inv.amount)} <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} /></p>
@@ -956,23 +956,15 @@ const SalesInvoices: React.FC = () => {
     },
     exportValue: (inv) => invoiceGross(inv) ?? '',
   };
-  const currencyColumn: Column<SalesInvoiceRow> = {
-    key: 'currency',
-    header: t('financeCopy.currency', 'Currency'),
-    kind: 'text',
-    size: 64,
-    cell: (inv) => <span className="tabular">{inv.currency}</span>,
-    exportValue: () => '',
-  };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
     header: t('moneyIn:financeCopy.outstandingGross', 'Outstanding gross'),
     kind: 'money',
     align: 'num',
-    size: 150,
+    size: 180,
     cell: (inv) => inv.erp_outstanding_amount != null
-      ? <span className="tabular text-right text-heading font-bold">{formatNumber(inv.erp_outstanding_amount)}<FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" /></span>
-      : <span className="text-sm text-muted-foreground" title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>{t('moneyIn:financeCopy.notAvailableShort', 'Not available')}</span>,
+      ? <span className="tabular text-right text-heading font-bold">{inv.currency} {formatNumber(inv.erp_outstanding_amount)}<FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" /></span>
+      : <span className="text-sm text-muted-foreground" title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>{inv.currency} {t('moneyIn:financeCopy.notAvailableShort', 'Not available')}</span>,
     exportValue: (inv) => inv.erp_outstanding_amount ?? '',
   };
   const dueColumn: Column<SalesInvoiceRow> = {
@@ -1010,7 +1002,7 @@ const SalesInvoices: React.FC = () => {
     },
   };
   const columns: Column<SalesInvoiceRow>[] = [
-    invoiceColumn, customerProjectColumn, statusDueColumn, currencyColumn, outstandingColumn, amountColumn,
+    invoiceColumn, customerProjectColumn, statusDueColumn, outstandingColumn, amountColumn,
   ];
 
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the

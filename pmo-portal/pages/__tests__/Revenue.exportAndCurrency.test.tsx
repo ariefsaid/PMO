@@ -10,7 +10,7 @@
  * asserts `$` is ABSENT, so a still-hardcoded prefix reddens it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -200,9 +200,15 @@ describe('AC-L10N-052 an export carries each row\'s own ISO currency next to its
     expect((ws.getRow(2).getCell(col('e-Faktur date')).value as Date).toISOString().slice(0, 10)).toBe('2026-09-28');
   });
 
-  it('AC-L10N-052: the mixed-currency table makes currency explicit', () => {
+  it('AC-L10N-052: the mixed-currency table makes each amount’s currency explicit', () => {
+    hoisted.invoices = [
+      { ...invoice, id: 'inv-idr', si_number: 'SI-IDR', amount: 1057500000, tax_amount: 0, erp_outstanding_amount: 1057500000, currency: 'IDR' },
+      { ...invoice, id: 'inv-usd', si_number: 'SI-USD', amount: 100.5, tax_amount: 0, erp_outstanding_amount: 100.5, currency: 'USD' },
+    ];
     renderPage(<SalesInvoices />);
-    expect(screen.getByRole('columnheader', { name: 'Currency' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Currency' })).not.toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /SI-IDR/ })).getAllByText('IDR 1,057,500,000')).toHaveLength(2);
+    expect(within(screen.getByRole('row', { name: /SI-USD/ })).getAllByText('USD 100.5')).toHaveLength(2);
   });
 });
 

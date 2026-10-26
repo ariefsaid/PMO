@@ -141,10 +141,11 @@ describe('invoice list evidence', () => {
   it('keeps invoice identity, customer context and exact amounts available', () => {
     renderAt('/sales-invoices');
     const cols = headers();
-    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer / project', 'Status / due', 'Currency', 'Outstanding gross', 'Invoice gross']));
+    expect(cols).toEqual(expect.arrayContaining(['Invoice #', 'Customer / project', 'Status / due', 'Outstanding gross', 'Invoice gross']));
+    expect(cols).not.toContain('Currency');
     const row = screen.getByRole('row', { name: /INV-001/ });
     expect(within(row).getByText('Northwind Services')).toBeInTheDocument();
-    expect(within(row).getAllByText('1,250,000.5').length).toBeGreaterThan(0);
+    expect(within(row).getAllByText('USD 1,250,000.5').length).toBeGreaterThan(0);
   });
 
   it('shows a known project name and names an unavailable attributed project', () => {
@@ -167,12 +168,11 @@ describe('invoice list evidence', () => {
     expect(screen.queryByText(/CLIENT-PO-1/)).not.toBeInTheDocument();
   });
 
-  it('shows one ISO currency per invoice while money cells remain plain grouped numbers', () => {
+  it('prefixes each invoice amount with that row’s ISO currency', () => {
     h.invoices.data = [invoice('INV-001'), invoice('INV-002', { currency: 'EUR' })];
     renderAt('/sales-invoices');
-    expect(within(screen.getByRole('row', { name: /INV-001/ })).getByText('USD')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /INV-002/ })).getByText('EUR')).toBeInTheDocument();
-    expect(within(screen.getByRole('row', { name: /INV-001/ })).getAllByText('1,250,000.5')).toHaveLength(2);
+    expect(within(screen.getByRole('row', { name: /INV-001/ })).getAllByText('USD 1,250,000.5')).toHaveLength(2);
+    expect(within(screen.getByRole('row', { name: /INV-002/ })).getAllByText('EUR 1,250,000.5')).toHaveLength(2);
   });
 
   it('shows the visible sort and overdue filter without an organization-date loading message', () => {
