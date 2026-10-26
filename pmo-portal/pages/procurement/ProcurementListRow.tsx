@@ -19,7 +19,7 @@ import { useProcurementDetail } from '@/src/hooks/useProcurementDetail';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { useProcurementNextStepLabel, useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatNumber, formatInstantDate } from '@/src/lib/format';
 import { DecisionSupportPanel } from './DecisionSupportPanel';
 import { pillVariantForStatus } from '../../components/procurement';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -267,7 +267,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           </div>
           <div data-procurement-value className={`${columnFields[4].span} min-w-0 tabular`}>
             <dt className="font-semibold md:sr-only">{t('procurement.column.value', 'Value')}</dt>
-            <dd className="break-words font-medium text-foreground">{formatCurrency(row.total_value, row.currency)}</dd>
+            <dd className="break-words font-medium text-foreground">{formatNumber(row.total_value)}</dd>
           </div>
           <div className={`${columnFields[5].span} flex min-w-0 items-center justify-start md:justify-end`}>
             <dt className="font-semibold md:sr-only">{t('procurement:collection.column.actions', 'Actions')}</dt>

@@ -207,6 +207,7 @@
     },
     "open": "Open",
     "openRequest": "Open {{title}}",
+    "currencyGroup": "{{currency}} · {{count}} requests",
     "projectFilter": "Project",
     "projectFilterAll": "All projects",
     "sort": {

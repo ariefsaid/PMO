@@ -133,6 +133,28 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(headers.indexOf('Value')).toBeLessThan(headers.indexOf('Actions'));
   });
 
+  it('AC-806 groups mixed-currency requests and keeps the exact amount visible without repeated currency labels', () => {
+    procState.data = [
+      ...seed,
+      {
+        ...seed[0],
+        id: 'pc3',
+        code: 'PROC-2026-006',
+        title: 'Long lead equipment package',
+        total_value: 2226648000,
+        currency: 'IDR',
+        created_at: '2026-03-05T00:00:00Z',
+      },
+    ];
+    renderPage();
+    expect(screen.getByRole('heading', { name: /IDR · 1 requests/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /USD · 2 requests/ })).toBeInTheDocument();
+    const request = screen.getByRole('link', { name: 'Long lead equipment package' }).closest('[data-row-activate]');
+    expect(request).not.toBeNull();
+    expect(within(request!).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(request!).queryByText(/IDR/)).not.toBeInTheDocument();
+  });
+
   it('AC-806 carries project scope and the full register return context into request capture', async () => {
     const listPath = `/procurement?status=Needs+approval&project=${PROJECT_ONE}&sort=reverse&view=board&q=invoice`;
     renderPage(listPath);

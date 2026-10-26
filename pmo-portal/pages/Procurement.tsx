@@ -26,7 +26,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
 import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
-import { formatCurrency, formatInstantDate } from '@/src/lib/format';
+import { formatNumber, formatInstantDate } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 import ProcurementBoard from '../components/ProcurementBoard';
@@ -241,6 +241,16 @@ const ProcurementPage: React.FC = () => {
         ? new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         : new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [all, oldestFirst, search, workingSet]);
+  const currencyGroups = useMemo(() => {
+    const groups = new Map<string, ProcurementWithRefs[]>();
+    for (const row of filtered) {
+      const currency = row.currency || t('common:notAvailable', 'Not available');
+      const group = groups.get(currency);
+      if (group) group.push(row);
+      else groups.set(currency, [row]);
+    }
+    return [...groups.entries()];
+  }, [filtered, t]);
   const sortLabel = isApprovalQueue
     ? (oldestFirst
       ? t('procurement:collection.sort.oldestCreated', 'Oldest created')
@@ -301,7 +311,7 @@ const ProcurementPage: React.FC = () => {
       key: 'value',
       header: t('procurement.column.value', 'Value'),
       align: 'num',
-      cell: (r) => formatCurrency(r.total_value, r.currency),
+      cell: (r) => formatNumber(r.total_value),
       exportValue: (r) => r.total_value,
     },
     {
@@ -556,8 +566,13 @@ const ProcurementPage: React.FC = () => {
         ) : (
           <div className="rounded-lg border border-border bg-card" aria-label={t('procurement.listLabel', 'Procurement requests')}>
             <ProcurementListColumns />
-            {filtered.map((r) => (
-              <ProcurementListRow key={r.id} row={r} />
+            {currencyGroups.map(([currency, rows]) => (
+              <section key={currency} aria-label={t('procurement:collection.currencyGroup', '{{currency}} · {{count}} requests', { currency, count: rows.length })}>
+                <div className="flex min-h-10 items-center gap-2 border-y border-border bg-secondary/30 px-3.5 py-2">
+                  <h2 className="text-sm font-semibold text-foreground">{t('procurement:collection.currencyGroup', '{{currency}} · {{count}} requests', { currency, count: rows.length })}</h2>
+                </div>
+                {rows.map((row) => <ProcurementListRow key={row.id} row={row} />)}
+              </section>
             ))}
           </div>
         )

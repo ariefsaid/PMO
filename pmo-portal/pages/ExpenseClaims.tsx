@@ -9,7 +9,7 @@ import { useExpenseClaims, useExpenseClaimMutations } from '@/src/hooks/useExpen
 import { useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { Constants } from '@/src/lib/supabase/database.types';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyCents, formatInstantDate } from '@/src/lib/format';
+import { formatInstantDate, formatNumber } from '@/src/lib/format';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import {
   EXPENSE_LIST_LIMIT, type BudgetCategory, type ExpenseClaimFilters, type ExpenseClaimStatus,
@@ -117,7 +117,7 @@ const ExpenseClaims: React.FC = () => {
       cell: (r) => <div className="flex min-w-0 flex-col items-start gap-1"><StatusPill variant={workflowVariant(r.status)}>{expenseStatusLabel(r.status, t)}</StatusPill><time dateTime={r.created_at} className="text-xs text-muted-foreground">{formatInstantDate(r.created_at)}</time></div>,
       exportValue: (r) => `${expenseStatusLabel(r.status, t)} · ${r.created_at}` },
     { key: 'amount', header: t('expenses.columns.amount', 'Amount'), kind: 'money', align: 'num',
-      cell: (r) => <span className="tabular-nums">{formatCurrencyCents(Number(r.amount), r.currency)}</span>,
+      cell: (r) => <span className="tabular-nums">{r.amount == null || !r.currency ? t('common:notAvailable', 'Not available') : formatNumber(Number(r.amount))}</span>,
       exportValue: (r) => Number(r.amount) },
     { key: 'actions', header: t('expenses.columns.actions', 'Actions'), kind: 'actions',
       cell: (r) => <Link to={`/expenses/${encodeURIComponent(r.id)}${location.search}`} state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }} aria-label={t('expenseClaims:register.table.openClaim', 'Open {{title}}', { title: r.title })} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent">{t('expenseClaims:register.table.open', 'Open')}</Link>,
@@ -214,6 +214,7 @@ const ExpenseClaims: React.FC = () => {
             rowKey={(r) => r.id}
             onActivate={(r) => openRecord(r.id)}
             tableId="expenseclaims-table"
+            groupBy={(r) => r.currency || t('common:notAvailable', 'Not available')}
           />
         </>
       )}

@@ -4,10 +4,10 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumber } from '@/src/lib/format';
 import { BahasaProvider } from '@/test/bahasa';
 // The DOM matchers collapse NBSP to a space; Intl emits NBSP between code and digits.
-const money = (v: number, c: string) => formatCurrencyCents(v, c).replace(/\u00a0/g, ' ');
+const money = (v: number) => formatNumber(v);
 
 const mockNavigate = vi.fn();
 vi.mock('react-router', async (importOriginal) => {
@@ -77,8 +77,26 @@ describe('ExpenseClaims page', () => {
     expect(within(row).getByText(/EXP-2610060001/)).toBeInTheDocument();
     expect(within(row).getByText('Budi Field')).toBeInTheDocument();
     expect(within(row).getByText('Harbour Upgrade')).toBeInTheDocument();
-    expect(within(row).getByText(money(750000, 'IDR'))).toBeInTheDocument();
+    expect(within(row).getByText(money(750000))).toBeInTheDocument();
     expect(within(row).getByText('Submitted')).toBeInTheDocument();
+  });
+
+  it('AC-806 groups claim amounts by currency and shows exact whole-unit values once per group', () => {
+    h.list.data = {
+      rows: [
+        ROW,
+        { ...ROW, id: 'c2', claim_number: 'EXP-2610060002', title: 'Consultant travel', amount: 2226648000, currency: 'IDR' },
+        { ...ROW, id: 'c3', claim_number: 'EXP-2610060003', title: 'Cloud services', amount: 3412800, currency: 'USD' },
+      ],
+      truncated: false,
+    };
+    renderPage();
+    const table = screen.getByRole('table');
+    expect(within(table).getByRole('button', { name: /IDR.*2/ })).toBeInTheDocument();
+    expect(within(table).getByRole('button', { name: /USD.*1/ })).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Consultant travel/ })).getByText('2,226,648,000')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Cloud services/ })).getByText('3,412,800')).toBeInTheDocument();
+    expect(within(screen.getByRole('row', { name: /Site visit/ })).getByText('750,000')).toBeInTheDocument();
   });
 
   it('AC-002 #1325: the project column leads with the short name and titles the contractual one', () => {

@@ -207,6 +207,7 @@
     },
     "open": "Buka",
     "openRequest": "Buka {{title}}",
+    "currencyGroup": "{{currency}} · {{count}} permintaan",
     "projectFilter": "Proyek",
     "projectFilterAll": "Semua proyek",
     "sort": {
