@@ -4,6 +4,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { installChunkReloadGuard } from '@/src/lib/chunkReload';
+import { initI18n } from '@/src/lib/i18n';
 
 // A stale lazy-route chunk (old tab, new deploy) auto-reloads ONCE — 2026-07-13
 // hardening fix (root cause: live PostHog captured
@@ -36,6 +37,9 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+// Configure non-suspending translations before the first translated child renders.
+// Catalogue loading stays asynchronous, so the entry screen can paint immediately.
+void initI18n();
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>

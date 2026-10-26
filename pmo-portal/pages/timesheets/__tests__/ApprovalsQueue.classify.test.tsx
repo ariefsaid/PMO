@@ -72,18 +72,18 @@ describe('ApprovalsQueue error classification (W2-8)', () => {
       </ImpersonationProvider>,
     );
 
-    // Click Approve on the single row (the row-level Approve button)
-    const approveBtns = screen.getAllByRole('button', { name: /Approve/i });
-    // The first one is the row-level approve button (before the dialog opens)
-    await user.click(approveBtns[0]);
-
-    // The confirm dialog opens — confirm it (dialog has another Approve button)
-    await waitFor(() => {
-      expect(screen.getByText(/Approve Dana Report's week/i)).toBeInTheDocument();
+    // The localized journey names the owner and week before confirmation.
+    await user.click(screen.getByRole('button', {
+      name: /^Approve Dana Report[’']s timesheet for Week of Jun 1$/i,
+    }));
+    const dialog = await screen.findByRole('dialog', {
+      name: /^Approve Dana Report[’']s week\?$/i,
     });
-    const allBtns = screen.getAllByRole('button', { name: /Approve/i });
-    // Click the last Approve (the ConfirmDialog's confirm button)
-    await user.click(allBtns[allBtns.length - 1]);
+    await user.click(within(dialog).getByRole('button', { name: /^Approve timesheet$/i }));
+    expect(approveMutate).toHaveBeenCalledWith(
+      { id: 's1' },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
 
     // The toast headline must be the classified one (not the raw error message)
     // classifyMutationError('42501') → "You don't have permission to do that."
