@@ -200,12 +200,12 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
             ) : evidence.data.lines.length === 0 ? null : (
               <ul className="mt-2 divide-y divide-border/70">
                 {evidence.data.lines.map((line, index) => (
-                  <li key={`${line.item_code ?? 'line'}-${index}`} className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2 text-sm">
-                    <span className="min-w-0 flex-1 break-words">
+                  <li key={`${line.item_code ?? 'line'}-${index}`} className="grid min-w-0 grid-cols-1 gap-2 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline">
+                    <span className="min-w-0 break-words">
                       <span className="block">{line.description ?? line.item_code ?? t('uxs17.lineDescriptionUnavailable', 'Description not available')}</span>
                       {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
                     </span>
-                    <span className="tabular text-right text-muted-foreground">
+                    <span className="tabular text-muted-foreground sm:text-right">
                       {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatNumber(line.rate)}{' = '}
                       <span className="font-medium text-foreground">{line.amount == null ? '—' : formatNumber(line.amount)}</span>
                     </span>
