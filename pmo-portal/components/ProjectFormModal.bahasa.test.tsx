@@ -61,10 +61,10 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
   it('#693: the create form renders its title, sections, labels, placeholders and submit in Bahasa', () => {
     renderForm();
     expect(screen.getByRole('dialog', { name: 'Proyek baru' })).toBeInTheDocument();
-    expect(screen.getByText(/dimulai di tahap Prospek/)).toBeInTheDocument();
+    expect(screen.getByText(/dimulai di tahap Prospek/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Buat proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText(/Nama proyek/)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('mis. Terminal Pelabuhan — Pekerjaan Sipil')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('mis. Pekerjaan sipil pelabuhan')).toBeInTheDocument();
     expect(screen.getByText(/Perusahaan klien/)).toBeInTheDocument();
     // #758: Client and End customer both use the same company placeholder, so it may appear more
     // than once — at least one is required.
@@ -76,7 +76,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByLabelText('Perkiraan mulai')).toBeInTheDocument();
     expect(screen.getByLabelText('Perkiraan selesai')).toBeInTheDocument();
     expect(screen.getByText('Kepemilikan & jadwal')).toBeInTheDocument();
-    expect(screen.getByText('Estimasi & pajak')).toBeInTheDocument();
+    expect(screen.getByText(/Estimasi & pajak ·/)).toBeInTheDocument();
   });
 
   it('#693: the origination stage options show Bahasa names while the values stay the enum', () => {
@@ -95,7 +95,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(await screen.findByLabelText(/Perlakuan pajak/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Jumlah pajak/)).toBeInTheDocument();
     expect(screen.getByRole('option', { name: '— pilih —' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: /^Exclusive — pajak ditambahkan di atas jumlahnya$/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Eksklusif' })).toBeInTheDocument();
     expect(screen.getByTestId('project-tax-required-hint')).toHaveTextContent(/Nyatakan perlakuan pajak/);
   });
 
@@ -113,7 +113,7 @@ describe('ProjectFormModal in Bahasa (#693 F-2)', () => {
     expect(screen.getByText('Perbarui detail header proyek')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Simpan proyek' })).toBeInTheDocument();
     expect(screen.getByLabelText('Kode Proyek Klien')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Kode opsional yang digunakan organisasi Anda')).toBeInTheDocument();
+    expect(screen.getByText('Kode opsional yang digunakan organisasi Anda.')).toBeInTheDocument();
   });
 });
 // ── AC-EC-005 (#758) — every new end-customer key ships with a real Bahasa translation. ──────

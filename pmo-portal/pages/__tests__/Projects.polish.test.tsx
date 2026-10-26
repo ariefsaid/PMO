@@ -46,7 +46,7 @@ it.each([true, false])('UIP-004 Projects folds classification into its one colla
   expect(trigger).toHaveFocus();
   await user.click(trigger);
   await user.click(screen.getByRole('button', { name: 'Clear classifications' }));
-  expect(screen.getByRole('button', { name: state.data[1].name })).toBeVisible();
+  expect(screen.getByRole('button', { name: `Open project ${state.data[1].name}` })).toBeVisible();
   expect(screen.getByRole('button', { name: /^Filters$/ })).toHaveAttribute('aria-expanded', 'false');
   expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue('All');
 });
@@ -89,6 +89,6 @@ it('UIP-004 keyboard removal of the last applied classification returns focus to
 
 it.each(['loading', 'error'])('UIP-004 Projects preserves its explicit %s state', (kind) => {
   state.isPending = kind === 'loading'; state.isError = kind === 'error'; page();
-  if (kind === 'loading') expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+  if (kind === 'loading') expect(screen.getByRole('status', { name: 'Loading projects' })).toBeInTheDocument();
   else expect(screen.getByText("Couldn't load projects")).toBeVisible();
 });

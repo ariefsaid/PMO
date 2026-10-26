@@ -109,7 +109,8 @@ describe('Projects — delivery cell error state (AC-W2-4-07)', () => {
     const deliveryCell = document.querySelector<HTMLTableRowElement>('tbody tr')!.cells[deliveryColumn];
     expect(deliveryCell).toHaveTextContent('Unavailable');
     expect(deliveryCell).not.toHaveTextContent('Loading…');
-    expect(within(deliveryCell).getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/proj-1/overview');
+    // C-05 keeps the canonical record-open action separate from the unavailable data label.
+    expect(within(document.querySelector('tbody tr')!).getByRole('button', { name: /^(?:Open project )?Test Project$/ })).toBeVisible();
   });
 
   it('AC-W2-4-07: names Loading… while delivery is pending', () => {

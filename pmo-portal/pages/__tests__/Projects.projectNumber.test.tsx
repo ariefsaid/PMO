@@ -75,7 +75,7 @@ describe('AC-CODE-003 active Projects identities', () => {
     const user = userEvent.setup();
     renderProjects();
     const activeCard = cardFor('Active site');
-    await user.click(within(activeCard).getByText('More project references for Active site'));
+    await user.click(activeCard.querySelector('summary')!);
     expect(activeCard).toHaveTextContent('PMO Project Number: PMO-26-7711');
     expect(activeCard).toHaveTextContent('Client Project Code: CLIENT-81');
     await user.type(screen.getByPlaceholderText(/Search projects/i), 'PMO-26-7711');
@@ -99,9 +99,9 @@ describe('AC-CODE-003 active Projects identities', () => {
     const user = userEvent.setup();
     renderProjects('/projects?view=cards');
     const activeCard = cardFor('Active site');
-    await user.click(within(activeCard).getByText('More project references for Active site'));
-    expect(within(activeCard).getByText('PMO Project Number: PMO-26-7711')).toBeVisible();
-    expect(within(activeCard).getByText('Client Project Code: CLIENT-81')).toBeVisible();
+    await user.click(activeCard.querySelector('summary')!);
+    expect(within(activeCard).getByText('PMO-26-7711')).toBeVisible();
+    expect(within(activeCard).getByText('CLIENT-81')).toBeVisible();
   });
 
   it('AC-CODE-003: clearing a project search restores the full set', async () => {

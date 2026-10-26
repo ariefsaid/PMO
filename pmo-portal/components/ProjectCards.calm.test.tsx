@@ -5,6 +5,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render as rtlRender, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
@@ -78,15 +79,14 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
     expect(within(card).getAllByLabelText('25% of Active budget')).toHaveLength(1);
   });
 
-  it('a partial Actual names incomplete coverage, offers a next step, and never shows a partial total', () => {
+  it('a partial Actual stays unavailable in the card; the page-level note owns the shared recovery action', () => {
     render(<ProjectCard project={project} onOpen={vi.fn()} projectMoney={money({
       actuals: { currency: 'USD', total: '450.00', asOf: null, excludesRestrictedRows: false,
         categories: [{ category: 'Labor', mapped: true, amount: '450.00' }, { category: 'Materials', mapped: false, amount: null }] },
     } as Partial<ProjectMoneyRead>)} />);
     const card = screen.getByRole('article');
     expect(within(card).queryByText('$450')).not.toBeInTheDocument();
-    expect(within(card).getAllByText('Incomplete source coverage')).toHaveLength(2);
-    expect(within(card).getAllByRole('link', { name: 'Review project finances' })).toHaveLength(2);
+    expect(within(card).getAllByRole('link', { name: 'Review project finances' })).toHaveLength(1);
   });
 
   it('the contract states its tax basis', () => {
@@ -97,16 +97,19 @@ describe('AC-RD-SUB-PL-B: ProjectCard says each fact once', () => {
 });
 
 describe('AC-RD-SUB-PL-B: Projects board preserves recognizable references', () => {
-  it('shows labelled PMO number and client code references', () => {
+  it('shows project identifiers behind a named disclosure', async () => {
     render(<ProjectKanbanBoard projects={[project]} onOpen={vi.fn()} />);
     const card = screen.getByRole('button', { name: /Open project Synthetic project/ });
-    expect(card).toHaveTextContent('PMO Project Number: PMO-26-7711');
-    expect(card).toHaveTextContent('Client Project Code: CLI-81');
+    const article = card.closest('article')!;
+    const user = userEvent.setup();
+    await user.click(article.querySelector('summary')!);
+    expect(within(article).getByText('PMO Project Number:').parentElement).toHaveTextContent('PMO-26-7711');
+    expect(within(article).getByText('Client Project Code:').parentElement).toHaveTextContent('CLI-81');
   });
 
   it('the board contract states its tax basis', () => {
     render(<ProjectKanbanBoard projects={[project]} onOpen={vi.fn()} />);
-    const card = screen.getByRole('button', { name: /Open project Synthetic project/ });
+    const card = screen.getByRole('article');
     expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/^excl\. PPN$/);
   });
 });

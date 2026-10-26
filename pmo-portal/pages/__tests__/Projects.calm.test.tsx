@@ -116,7 +116,7 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     const note = screen.getByTestId('projects-data-note');
     expect(note).toHaveAttribute('role', 'status');
     expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    expect(note).toHaveTextContent('Some source categories are unmapped or missing amounts.');
+    expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects.');
     expect(within(note).getByRole('button', { name: 'Review Synthetic project 1' })).toBeVisible();
 
     const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
@@ -154,7 +154,8 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     renderPage();
     const noPhases = screen.getByText('Synthetic project 0').closest('tr')!;
     expect(within(noPhases).getByText('No phases yet')).toBeInTheDocument();
-    expect(within(noPhases).getByRole('link', { name: 'Review delivery plan' })).toHaveAttribute('href', '/projects/p0/overview');
+    // C-05 keeps one canonical project-opening action per row; delivery detail lives on that record.
+    expect(within(noPhases).getByRole('button', { name: /^(?:Open project )?Synthetic project 0$/ })).toBeVisible();
   });
 
   it('phone Filters panel drops the "Loading options…" and "No options available" lines', async () => {

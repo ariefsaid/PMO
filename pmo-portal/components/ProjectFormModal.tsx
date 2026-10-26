@@ -703,7 +703,7 @@ const ProjectFormModal: React.FC<ProjectFormModalProps> = ({
       subtitle={
         isEdit
           ? t('projectForm.subtitle.edit', 'Update the project header details')
-          : t('projectForm.subtitle.create', 'Create a project')
+          : t('projects:create.startsAs', 'Starts as {{stage}}', { stage: statusLabel(form.values.status) })
       }
       submitLabel={submitLabel}
       onSubmit={handleSubmit}

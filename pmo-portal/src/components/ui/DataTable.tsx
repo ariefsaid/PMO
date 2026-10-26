@@ -514,9 +514,9 @@ export function DataTable<Row>({
                       <button
                         type="button"
                         onClick={() => onSort?.(col.sortKey!)}
-                        className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
+                        className="inline-flex min-w-0 flex-wrap items-center gap-1 whitespace-normal text-left uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
-                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
+                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="min-w-0 whitespace-normal break-words">{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                         {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
