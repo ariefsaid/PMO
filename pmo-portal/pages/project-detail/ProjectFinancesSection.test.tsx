@@ -39,6 +39,13 @@ const project = {
   tax_treatment: 'inclusive',
 } as unknown as ProjectWithRefs;
 
+const inMoneyPosition = (content: React.ReactNode) => (
+  <section aria-label="Money position">
+    <h2>Money position</h2>
+    {content}
+  </section>
+);
+
 const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/common.json'), 'utf8')) as Record<string, unknown>;
 const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
 const enProjectCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8')) as Record<string, unknown>;
@@ -105,7 +112,7 @@ describe('ProjectFinancesSection reading states', () => {
       ['id', 'Biaya', 'Penagihan'],
     ] as const) {
       await localeI18n.changeLanguage(language);
-      const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
+      const view = render(<I18nextProvider i18n={localeI18n}>{inMoneyPosition(<ProjectFinancesSection project={project} />)}</I18nextProvider>);
       expect(screen.getByRole('group', { name: expectedCost })).toBeInTheDocument();
       expect(screen.getByRole('group', { name: expectedBilling })).toBeInTheDocument();
       expect(screen.queryByRole('heading', { name: /Project finances|Keuangan proyek/i })).not.toBeInTheDocument();
@@ -123,7 +130,7 @@ describe('ProjectFinancesSection reading states', () => {
 
   it('AC-PFIN-015 shows an alert on failure and Retry calls the query refetch', async () => {
     h.query.isError = true;
-    const { container } = render(<ProjectFinancesSection project={project} />);
+    const { container } = render(inMoneyPosition(<ProjectFinancesSection project={project} />));
     expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load project finances.");
     expect(await axe(container)).toHaveNoViolations();
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
@@ -520,7 +527,7 @@ describe('ProjectFinancesSection reading states', () => {
           actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
             categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] },
         });
-        const view = render(<I18nextProvider i18n={localeI18n}><ProjectFinancesSection project={project} /></I18nextProvider>);
+        const view = render(<I18nextProvider i18n={localeI18n}>{inMoneyPosition(<ProjectFinancesSection project={project} />)}</I18nextProvider>);
         const cashLabel = language === 'en' ? 'Cash received' : 'Kas diterima';
         const scope = language === 'en' ? "Receipt cash linked to this project's invoices" : 'Kas kuitansi yang tertaut ke faktur proyek ini';
         const cashField = screen.getByText(cashLabel, { exact: true }).parentElement!;
