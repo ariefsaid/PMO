@@ -33,22 +33,22 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
   const withheldShown = receipt.withheld_amount != null && receipt.withheld_amount !== 0;
   const unappliedShown = unapplied !== null && unapplied > 0;
   const someUnreported = receipt.amount == null || receipt.received_amount == null || receipt.withheld_amount == null || unapplied === null;
-  const facts: Array<{ label: string; testId?: string; value: React.ReactNode }> = [
-    { label: t('uxs06.receiptTotal', 'Receipt total'), value: receipt.amount != null ? money(receipt.amount) : notReported },
+  const facts: Array<{ label: string; testId?: string; primary?: boolean; value: React.ReactNode }> = [
+    { label: t('uxs06.receiptTotal', 'Receipt total'), primary: true, value: receipt.amount != null ? money(receipt.amount) : notReported },
     ...(cashDiffers ? [{ label: t('financeCopy.cashReceived', 'Cash received'), value: money(receipt.received_amount!) }] : []),
     ...(withheldShown ? [{
       label: t('financeCopy.taxWithheld', 'Tax withheld'), testId: 'receipt-withheld',
       value: <>
         {money(receipt.withheld_amount!)}
-        {slip && <span className="mt-0.5 block font-mono text-[13px] font-normal text-muted-foreground">{slip}</span>}
+        {slip && <span className="mt-0.5 block font-mono text-sm font-normal text-muted-foreground">{slip}</span>}
       </>,
     }] : []),
     ...(unappliedShown ? [{ label: t('uxs06.unappliedCol', 'Not yet applied'), testId: 'receipt-unapplied', value: money(unapplied) }] : []),
   ];
   const allocationColumns = useMemo<Column<ReceiptAllocation & { rowKey: string }>[]>(() => [
     { key: 'invoice', header: t('financeCopy.invoice', 'Invoice #'), kind: 'primary', cell: (allocation) => allocation.invoice_id
-      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="inline-flex min-h-11 items-center font-mono text-[13px] text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
-      : <span className="font-mono text-[13px]" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
+      ? <Link to={`/sales-invoices/${encodeURIComponent(allocation.invoice_id)}`} className="inline-flex min-h-11 items-center font-mono text-sm text-primary-text hover:underline focus-visible:underline">{allocation.invoice_number}</Link>
+      : <span className="font-mono text-sm" title={t('uxs06.invoiceNotInPmo', 'This invoice is not in PMO yet.')}>{allocation.invoice_number}</span>, primaryTitle: (allocation) => allocation.invoice_number },
     { key: 'amount', header: t('uxs06.applied', 'Applied'), kind: 'money', align: 'num', cell: (allocation) => allocation.amount != null && allocation.currency != null ? formatCurrencyAuto(Number(allocation.amount), allocation.currency) : notReported },
   ], [notReported, t]);
 
@@ -74,9 +74,9 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
 
       <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
-          <div key={f.label} className={f.testId ? 'sm:col-span-2' : undefined}>
+          <div key={f.label} className={f.primary ? 'sm:col-span-2' : undefined}>
             <dt className="text-xs text-muted-foreground">{f.label}</dt>
-            <dd data-testid={f.testId} className={f.testId ? 'tabular mt-0.5 text-heading font-bold' : 'tabular mt-0.5 text-sm font-medium'}>{f.value}</dd>
+            <dd data-testid={f.testId} className={f.primary ? 'tabular mt-0.5 text-heading font-bold' : 'tabular mt-0.5 text-sm font-medium'}>{f.value}</dd>
           </div>
         ))}
       </dl>

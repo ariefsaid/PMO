@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatCurrencyAuto, formatCurrencyCents, formatNumber } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
@@ -20,18 +20,21 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   showIdentity?: boolean;
   showLineItems?: boolean;
   showTotals?: boolean;
-}> = ({ inv, showFx = false, showIdentity = true, showLineItems = true, showTotals = true }) => {
+  readableWholeUnits?: boolean;
+}> = ({ inv, showFx = false, showIdentity = true, showLineItems = true, showTotals = true, readableWholeUnits = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
-  const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
+  const money = (n: number | null) => (n != null
+    ? readableWholeUnits ? formatNumber(n) : formatCurrencyCents(n, inv.currency)
+    : '—');
   const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
+    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-sm" /> },
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
@@ -53,15 +56,19 @@ export const SalesInvoiceApprovalPreview: React.FC<{
 
       {showLineItems && inv.pmo_native && (
         <section>
-          <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
+          <h3 className={readableWholeUnits ? 'mb-2 text-heading font-semibold' : `mb-2 ${EYEBROW}`}>
+            {readableWholeUnits
+              ? t('moneyIn:financeCopy.invoiceLinesCurrency', 'Line items · {{currency}}', { currency: inv.currency })
+              : t('financeCopy.lineItemsSection', 'Line items')}
+          </h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
             {lines.map((line, i) => (
-              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-[13px]">
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-sm">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
                 <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono text-[12px] text-muted-foreground">{line.item_code}</span>
+                    <span className="block font-mono text-xs text-muted-foreground">{line.item_code}</span>
                   )}
                 </span>
                 <span className="ml-auto shrink-0 tabular text-muted-foreground">
@@ -79,7 +86,9 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         </p>
       )}
 
-      {showTotals && <dl className="max-w-xl space-y-1 text-[13px]">
+      {showTotals && <section aria-label={t('moneyIn:financeCopy.invoiceTotals', 'Invoice totals')} className="max-w-xl">
+        {readableWholeUnits && <h3 className="mb-2 text-heading font-semibold">{t('moneyIn:financeCopy.invoiceTotalsCurrency', 'Invoice totals · {{currency}}', { currency: inv.currency })} · <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /></h3>}
+        <dl className="space-y-2 text-sm">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
           <dd className="tabular">
@@ -90,7 +99,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
           <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
-            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
+            {!readableWholeUnits && <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />}
             <span>{money(inv.tax_amount)}</span>
           </dd>
         </div>
@@ -101,7 +110,8 @@ export const SalesInvoiceApprovalPreview: React.FC<{
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-      </dl>}
+        </dl>
+      </section>}
     </div>
   );
 };
@@ -118,7 +128,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
 
   const subtitle = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-      <span className="min-w-0 truncate">{nativeInvoiceSummary(inv) ?? '—'}</span>
+      <span className="min-w-0 break-words">{nativeInvoiceSummary(inv) ?? '—'}</span>
       <span className="inline-flex items-baseline gap-1.5">
         <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}</span>
         <TaxBasisLabel

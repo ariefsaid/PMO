@@ -314,7 +314,7 @@ const IncomingPayments: React.FC = () => {
       cell: (p) => (
         <Link
           to={`/incoming-payments/${encodeURIComponent(p.id)}`}
-          className="inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
+          className="inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline"
           title={receiptNumber(p) ?? ''}
         >
           {receiptNumber(p) ?? '—'}
@@ -331,7 +331,7 @@ const IncomingPayments: React.FC = () => {
         const first = settled?.[0]?.invoice_number ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? null : null);
         const more = settled && settled.length > 1 ? settled.length - 1 : 0;
         const text = first && more > 0 ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first, count: more }) : first;
-        return <span className="truncate font-mono text-[13px]" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
+        return <span className="break-words font-mono text-sm" title={settled?.map((a) => a.invoice_number).join(', ') ?? first ?? ''}>{text ?? '—'}</span>;
       },
       exportValue: (p) => displayAllocations(p, invoiceNumberOf)?.map((a) => a.invoice_number).join(', ')
         ?? (p.sales_invoice_id ? invoiceNumberById.get(p.sales_invoice_id) ?? '' : ''),
@@ -371,7 +371,7 @@ const IncomingPayments: React.FC = () => {
       header: t('financeCopy.amount', "Amount"),
       align: 'num',
       cell: (p) => (
-        <span className="tabular text-right text-[13px]">
+        <span className="tabular text-right text-sm">
           {p.amount != null ? formatCurrencyAuto(p.amount, p.currency) : '—'}
         </span>
       ),
@@ -408,7 +408,7 @@ const IncomingPayments: React.FC = () => {
     },
     {
       key: 'withholding_slip_number', header: t('financeCopy.withholdingSlip', "Withholding slip"),
-      cell: (p) => <span className="font-mono text-[13px]">{p.withholding_slip_number ?? '—'}</span>,
+      cell: (p) => <span className="font-mono text-sm">{p.withholding_slip_number ?? '—'}</span>,
       exportValue: (p) => p.withholding_slip_number ?? '',
     },
   ];
@@ -432,7 +432,7 @@ const IncomingPayments: React.FC = () => {
               event.preventDefault();
               navigate(url, { state: { moneyInSource: { url: sourceUrl, scrollY: window.scrollY } } });
             }}
-            className="inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
+            className="inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline"
             title={receiptNumber(p) ?? ''}
           >
             {receiptNumber(p) ?? '—'}
@@ -447,7 +447,7 @@ const IncomingPayments: React.FC = () => {
         const invoiceLabel = invoice && more > 0
           ? t('uxs06.invoiceAndMore', '{{first}} +{{count}} more', { first: invoice, count: more })
           : invoice ?? t('moneyIn:uxs06.noInvoiceLinked', 'No invoice linked');
-        return <span className="block truncate text-xs text-muted-foreground">{p.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
+        return <span className="block break-words text-xs text-muted-foreground">{p.customer_name ?? t('moneyIn:uxs06.customerUnavailable', 'Customer unavailable')} · {invoiceLabel}</span>;
       },
       exportValue: (p) => receiptNumber(p) ?? '',
     },
@@ -959,7 +959,7 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
               {t('uxs27.taxWithheldDisclosure', 'Tax withheld')}
             </Button>
             {showWithholdingSummary && (
-              <div className="mt-2 min-w-0 space-y-1 text-[13px] text-muted-foreground">
+              <div className="mt-2 min-w-0 space-y-1 text-sm text-muted-foreground">
                 <p className="break-words">
                   {t('uxs27.withheldSummary', 'Tax withheld: {{amount}}', {
                     amount: `${moneyPrefix}${withheldAmountField.value}`,

@@ -15,7 +15,7 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
+import { formatNumber, formatUtcMonthYear } from '@/src/lib/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -26,8 +26,8 @@ const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 // OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
-const money = (cents: number | null, currency: string) =>
-  cents === null ? '—' : formatCurrencyAuto(fromCents(cents), currency);
+const money = (cents: number | null) =>
+  cents === null ? '—' : formatNumber(fromCents(cents));
 
 function totalsForRows(rows: PackRow[], months: string[]): PackCurrencyTotals[] {
   const byCurrency = new Map<string, PackTotalsMonth[]>();
@@ -206,10 +206,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     const m = at(row);
     const value = m ? m[key] : null;
     return (
-      <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
+      <span data-testid={`pack-cell-${key}`} className="tabular text-right text-sm">
         {key === 'backlog' && row.kind === 'contract' && value === null ? (
           <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
-        ) : money(value, row.currency)}
+        ) : money(value)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-xs text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
         )}
@@ -232,7 +232,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         row.kind === 'unassigned' ? (
           <StatusPill variant="neutral">{t('managementPack.unassigned', 'Unassigned')}</StatusPill>
         ) : (
-          row.projectName
+          <span className="break-words">{row.projectName}</span>
         ),
       secondaryCell: (row) =>
         row.kind === 'unassigned'
@@ -244,18 +244,34 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
               : undefined,
     },
     {
+      key: 'currency',
+      header: t('managementPack.col.currency', 'Currency'),
+      kind: 'text',
+      size: 96,
+      cell: (row) => <span className="tabular">{row.currency}</span>,
+    },
+    {
       key: 'contract',
       header: t('managementPack.col.contract', 'Contract'),
       kind: 'money',
       align: 'num',
       size: 140,
       cell: (row) => (
-        <span data-testid="pack-cell-contract" className="tabular text-right text-[13px]">
-          {money(row.contractNet, row.currency)}
+        <span data-testid="pack-cell-contract" className="tabular text-right text-sm">
+          {money(row.contractNet)}
         </span>
       ),
     },
-    ...KPI_MEASURES.map((k): Column<PackRow> => ({ key: k, header: label[k], kind: 'money', align: 'num', size: 140, cell: measureCell(k) })),
+    ...KPI_MEASURES.map((k): Column<PackRow> => ({
+      key: k,
+      header: label[k],
+      kind: 'money',
+      align: 'num',
+      size: 140,
+      cell: k === 'recognisedToDate'
+        ? (row) => <span data-testid="pack-cell-recognisedToDate" className="tabular text-right text-heading font-bold">{money(at(row)?.recognisedToDate ?? null)}</span>
+        : measureCell(k),
+    })),
     {
       key: 'basis',
       header: t('managementPack.col.basis', 'Basis'),
@@ -290,11 +306,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       key: tot.currency,
       label: `${t('managementPack.total', 'Total')} · ${tot.currency}`,
       values: {
-        contract: contracts.length > 0 ? money(contractTotal, tot.currency) : null,
-        recognisedToDate: money(m.recognisedToDate, tot.currency),
-        invoicedToDate: money(m.invoicedToDate, tot.currency),
-        unbilled: money(m.unbilled, tot.currency),
-        backlog: m.backlog === null ? backlogUnavailable : money(m.backlog, tot.currency),
+        contract: contracts.length > 0 ? money(contractTotal) : null,
+        recognisedToDate: money(m.recognisedToDate),
+        invoicedToDate: money(m.invoicedToDate),
+        unbilled: money(m.unbilled),
+        backlog: m.backlog === null ? backlogUnavailable : money(m.backlog),
       } as Record<string, React.ReactNode>,
     };
   });
@@ -318,10 +334,10 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       align: 'num',
       size: 140,
       cell: (r) => (
-        <span className="tabular text-right text-[13px]">
+        <span className="tabular text-right text-sm">
           {k === 'backlog' && r.backlog === null
             ? <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
-            : money(r[k], r.currency)}
+            : money(r[k])}
         </span>
       ),
     })),
@@ -400,11 +416,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   );
   const content = (
     <>
-      {pack && state === undefined && (
-        <p className="mb-3 text-sm text-muted-foreground">
-          {t('uxs34.cumulativeScope', 'Cumulative amounts · since project start through {{month}}', { month: monthLabel(pack.to) })}
-        </p>
-      )}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>
       )}
@@ -431,7 +442,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
 
       {pack && state === undefined && (
         <>
-          <h2 className="mb-2 text-[15px] font-semibold">
+          <h2 className="mb-2 text-heading font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
           <Card className="overflow-hidden mb-6">

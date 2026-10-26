@@ -47,7 +47,7 @@ import { useEntityForm } from '@/src/components/ui/useEntityForm';
 import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandIntent';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
-import { invoiceGross, invoiceNumber, isPartlyPaid, overpaidBy, paidToDate, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
+import { invoiceGross, invoiceNumber, isPartlyPaid, previewInvoiceDraft } from '@/src/lib/revenue/nativeInvoice';
 import { decimalUnits } from '@/src/lib/taxNormalize';
 import { displayAllocations } from '@/src/lib/revenue/receiptAllocation';
 import { nativeRevenueDetails, nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
@@ -184,7 +184,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
+      <h2 id="invoice-evidence-heading" className="mb-3 text-heading font-semibold">{t('moneyIn:financeCopy.invoiceEvidenceCurrency', 'Bill evidence · {{currency}}', { currency: invoice.currency })}</h2>
       {evidence.isPending ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
       ) : evidence.isError ? (
@@ -207,8 +207,8 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
                       {line.item_code && line.description && <span className="font-mono text-xs text-muted-foreground">{line.item_code}</span>}
                     </span>
                     <span className="tabular text-right text-muted-foreground">
-                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatCurrencyAuto(line.rate, invoice.currency)}{' = '}
-                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatCurrencyAuto(line.amount, invoice.currency)}</span>
+                      {line.qty == null ? '—' : line.qty}{' × '}{line.rate == null ? '—' : formatNumber(line.rate)}{' = '}
+                      <span className="font-medium text-foreground">{line.amount == null ? '—' : formatNumber(line.amount)}</span>
                     </span>
                   </li>
                 ))}
@@ -260,7 +260,7 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
   return (
     <section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4">
-      <h2 id="invoice-applied-receipts-heading" className="mb-2 text-base font-semibold">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
+      <h2 id="invoice-applied-receipts-heading" className="mb-2 text-heading font-semibold">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
       {payments.isError ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.receiptsUnavailable', 'Applied receipt details are unavailable.')}</p>
       ) : paymentEvidence.allocations.length ? (
@@ -612,7 +612,7 @@ const SalesInvoices: React.FC = () => {
                 </Button>
               ) : undefined}
             />
-            <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} />
+            <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} readableWholeUnits />
             <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
@@ -652,17 +652,17 @@ const SalesInvoices: React.FC = () => {
               </dl>
             </section>
             {viewTarget.pmo_native ? (
-              <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} />
+              <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} readableWholeUnits />
             ) : (
               <>
                 <SalesInvoiceEvidenceSection invoice={viewTarget} />
-                <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} showLineItems={false} />
+                <SalesInvoiceApprovalPreview inv={viewTarget} showFx showIdentity={false} showLineItems={false} readableWholeUnits />
               </>
             )}
             {viewTarget.erp_docstatus === 1 && (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid' || viewTarget.status === 'Paid') && (
               <section aria-label={t('uxs17.deliverySection', 'Client delivery')} className="mb-5 space-y-2 border-b border-border pb-4">
                 <div>
-                  <h2 className="text-base font-semibold">
+                  <h2 className="text-heading font-semibold">
                     {viewTarget.received_date
                       ? t('uxs17.receivedByClient', 'Received by client')
                       : t('uxs17.readyToSend', 'Ready to send')}
@@ -773,7 +773,7 @@ const SalesInvoices: React.FC = () => {
           <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
-            className={draftLabel ? 'inline-flex min-h-11 items-center truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
+            className={draftLabel ? 'inline-flex min-h-11 items-center break-words text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'inline-flex min-h-11 items-center break-words font-mono text-sm text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
           >{draftLabel ?? number ?? '—'}</Link>
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
@@ -840,69 +840,31 @@ const SalesInvoices: React.FC = () => {
   };
   const amountColumn: Column<SalesInvoiceRow> = {
     key: 'amount',
-    header: t('financeCopy.amount', "Amount"),
+    header: t('moneyIn:financeCopy.invoiceGross', 'Invoice gross'),
     kind: 'money',
     align: 'num',
     size: 200,
-    // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
-    // row, so no invoice total may be bare. The basis is the row's own; the org default
-    // pre-selects a form and is never read here.
     cell: (inv) => {
-      // The ISO code is shown only when it tells the reader something: the invoice is not in the org currency.
-      const showCode = inv.amount != null && Boolean(inv.currency) && inv.currency !== orgCurrency;
-      return (
-        <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
-          <span className="inline-flex items-baseline justify-end gap-1">
-            <span className="tabular text-right text-[13px]">
-          {inv.amount != null ? formatCurrencyAuto(inv.amount, inv.currency) : '—'}
-            </span>
-            {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
-          </span>
-          {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
-          {inv.amount != null ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
-          {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
-          {inv.pmo_native && invoiceGross(inv) != null && (
-            <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
-              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyAuto(invoiceGross(inv)!, inv.currency) })}
-              <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
-            </span>
-          )}
-        </span>
-      );
+      const gross = invoiceGross(inv);
+      return <span className="tabular text-right text-sm">{gross === null ? '—' : formatNumber(gross)}</span>;
     },
-    // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
-    exportValue: (inv) => inv.amount ?? '',
+    exportValue: (inv) => invoiceGross(inv) ?? '',
+  };
+  const currencyColumn: Column<SalesInvoiceRow> = {
+    key: 'currency',
+    header: t('financeCopy.currency', 'Currency'),
+    kind: 'text',
+    size: 90,
+    cell: (inv) => <span className="tabular">{inv.currency}</span>,
+    exportValue: () => '',
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: t('financeCopy.outstanding', "Outstanding"),
+    header: t('moneyIn:financeCopy.outstandingGross', 'Outstanding gross'),
     kind: 'money',
     align: 'num',
     size: 170,
-    cell: (inv) => {
-      const overpaid = overpaidBy(inv);
-      const paid = paidToDate(inv);
-      return (
-        <span className="flex w-full flex-col items-end gap-0.5 text-right">
-          <span className="tabular text-[13px]">
-            {inv.erp_outstanding_amount != null ? formatCurrencyAuto(inv.erp_outstanding_amount, inv.currency) : '—'}
-          </span>
-          {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
-          {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
-          {paid != null && (
-            <span className="text-xs text-muted-foreground">
-              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyAuto(paid, inv.currency) })}
-            </span>
-          )}
-          {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
-          {overpaid != null && (
-            <span className="text-xs text-muted-foreground">
-              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyAuto(overpaid, inv.currency) })}
-            </span>
-          )}
-        </span>
-      );
-    },
+    cell: (inv) => <span className="tabular text-right text-heading font-bold">{inv.erp_outstanding_amount != null ? formatNumber(inv.erp_outstanding_amount) : '—'}</span>,
     exportValue: (inv) => inv.erp_outstanding_amount ?? '',
   };
   const dueColumn: Column<SalesInvoiceRow> = {
@@ -938,7 +900,7 @@ const SalesInvoices: React.FC = () => {
     ),
   };
   const columns: Column<SalesInvoiceRow>[] = [
-    invoiceColumn, customerProjectColumn, statusDueColumn, outstandingColumn, amountColumn,
+    invoiceColumn, customerProjectColumn, statusDueColumn, currencyColumn, outstandingColumn, amountColumn,
   ];
 
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
@@ -948,7 +910,8 @@ const SalesInvoices: React.FC = () => {
     referenceColumn,
     { key: 'customer_id', header: t('financeCopy.customer', "Customer"), cell: (inv) => inv.customer_name, exportValue: (inv) => inv.customer_name ?? '' },
     statusColumn,
-    amountColumn,
+    { ...amountColumn, key: 'invoice_gross' },
+    { key: 'amount', header: t('moneyIn:financeCopy.netAmount', 'Net amount'), cell: (inv) => inv.amount, exportValue: (inv) => inv.amount ?? '' },
     outstandingColumn,
     { key: 'invoice_date', header: t('financeCopy.date', "Date"), cell: (inv) => inv.invoice_date, exportValue: (inv) => inv.invoice_date ?? '' },
     { key: 'received_date', header: t('financeCopy.receivedDate', "Received"), cell: (inv) => inv.received_date, exportValue: (inv) => inv.received_date ?? '' },
@@ -1062,7 +1025,7 @@ const SalesInvoices: React.FC = () => {
     <div className="min-w-0">
       <MoneyInPageHeader
         title={t('financeCopy.salesInvoices', 'Sales Invoices')}
-        scope={t('finance:invoices.description', 'Client invoices.')}
+        scope={t('moneyIn:financeCopy.invoiceCollectionScope', 'Due-first collection · gross amounts in each invoice currency.')}
       />
       <div data-testid="money-in-toolbar" className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         <SearchMini

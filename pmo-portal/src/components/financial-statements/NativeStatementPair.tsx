@@ -136,7 +136,7 @@ function periodColumns(side: NativeReportColumn): ReportField[] {
   return periods.length > 0 ? periods : money;
 }
 
-const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground';
+const HEADER_CELL = 'sticky top-0 z-[2] border-b border-border bg-card px-3 py-2 align-bottom text-[11px] font-semibold uppercase tracking-[0.03em] text-muted-foreground';
 const ACCOUNT_CELL = 'sticky left-0 bg-card px-3 text-left';
 
 function AmountCell({ row, column, presentation, notProvided, className }: {
@@ -264,7 +264,7 @@ function StatementTable({ headingId, lines, account, valueColumns, presentation,
       <tr
         key={line.key}
         data-row-kind={computed ? 'total' : group ? 'group' : 'account'}
-        className={cn('text-[13.5px] text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
+        className={cn('text-sm text-foreground [&>*]:py-1.5', computed || group ? 'font-semibold' : 'font-normal')}
       >
         <th scope="row" className={cn(ACCOUNT_CELL, 'min-w-40 max-w-72 whitespace-normal break-words md:min-w-48', computed || group ? 'font-semibold' : 'font-normal', rule)}>
           <div style={indent > 0 ? { paddingInlineStart: `calc(var(--spacing) * ${indent * 4})` } : undefined} className="flex items-center">

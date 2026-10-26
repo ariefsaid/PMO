@@ -216,7 +216,7 @@ const FinancialStatements: React.FC = () => {
     return (
       <section className="min-w-0">
         <section className="min-w-0 rounded-lg border border-border bg-card p-4" aria-labelledby="financial-statements-access-title">
-          <h2 id="financial-statements-access-title" className="text-base font-semibold text-foreground">
+          <h2 id="financial-statements-access-title" className="text-heading font-semibold text-foreground">
             {t('financialStatements.accessDenied', "You don't have access to financial statements")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
