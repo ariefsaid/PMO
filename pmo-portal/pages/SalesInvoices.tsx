@@ -37,7 +37,7 @@ import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatInstantTimestamp, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatBusinessDate as formatDateOnly, formatInstantTimestamp, formatNumber, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -184,7 +184,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   const evidence = useSalesInvoiceEvidence(invoice.id, !invoice.pmo_native && invoice.erp_docstatus !== null);
 
   return (
-    <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
+    <section aria-labelledby="invoice-evidence-heading" className="mb-8 border-b border-border pb-4 md:mb-12">
       <h2 id="invoice-evidence-heading" className="mb-3 type-section-head text-heading">{t('moneyIn:financeCopy.invoiceEvidenceCurrency', 'Bill evidence · {{currency}}', { currency: invoice.currency })}</h2>
       {evidence.isPending ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
@@ -263,7 +263,7 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
   if (payments.isPending && !payments.data) {
     return (
-      <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+      <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
         <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
         <p className="text-sm text-muted-foreground">{t('moneyIn:financeCopy.receiptDetailsLoading', 'Loading applied receipt details…')}</p>
       </section>
@@ -271,7 +271,7 @@ const SalesInvoiceAppliedReceipts: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   }
 
   return (
-    <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+    <section id="invoice-receipts" data-money-in-section aria-labelledby="invoice-applied-receipts-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
       <h2 id="invoice-applied-receipts-heading" className="mb-2 type-section-head text-heading">{t('uxs17.appliedReceipts', 'Applied receipts')}</h2>
       {payments.isError ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
@@ -703,10 +703,10 @@ const SalesInvoices: React.FC = () => {
             <section id="invoice-identity" data-money-in-section className="scroll-mt-[var(--header-h)]">
               <SalesInvoiceApprovalPreview inv={viewTarget} showFx showLineItems={false} showTotals={false} readableWholeUnits />
             </section>
-            <section id="invoice-position" data-money-in-section aria-labelledby="invoice-position-heading" className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+            <section id="invoice-position" data-money-in-section aria-labelledby="invoice-position-heading" className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
               <h2 id="invoice-position-heading" className="mb-4 flex flex-col items-start gap-1 type-label text-muted-foreground">
                 <span>{t('financeCopy.outstanding', 'Outstanding')} · {viewTarget.currency}</span>
-                <span className="text-3xl font-semibold tabular text-foreground">
+                <span className="type-section-head tabular text-foreground">
                 {viewTarget.erp_outstanding_amount == null ? (
                   <span title={t('uxs17.outstandingUnavailable', 'Outstanding amount not available')}>
                     {t('moneyIn:financeCopy.notAvailableShort', 'Not available')}
@@ -770,7 +770,7 @@ const SalesInvoices: React.FC = () => {
               </section>
             )}
             <SalesInvoiceAppliedReceipts invoice={viewTarget} />
-            <details id="invoice-details" data-money-in-section className="mb-5 border-b border-border pb-4 scroll-mt-[var(--header-h)]">
+            <details id="invoice-details" data-money-in-section className="mb-8 border-b border-border pb-4 md:mb-12 scroll-mt-[var(--header-h)]">
               <summary className="min-h-11 cursor-pointer py-2 font-medium">{t('moneyIn:financeCopy.invoiceDetailsSummary', 'Invoice details · {{count}}', { count: invoiceDetailsCount })}</summary>
               <dl className="grid gap-x-6 gap-y-3 py-2 sm:grid-cols-2">
                 <div>
@@ -1292,6 +1292,10 @@ const SalesInvoices: React.FC = () => {
           )}
         </div>
       )}
+      {searchParams.get('attribution') && <div className="mb-3 flex flex-wrap items-center gap-2 type-value">
+        <span>{searchParams.get('attribution') === 'unassigned' ? t('invoiceProject.unassignedFilter', 'Unassigned invoices') : t('moneyIn:financeCopy.attributionAssigned', 'Assigned invoices')}</span>
+        <Button variant="ghost" className="min-h-11" onClick={() => updateListParam('attribution', '')}>{t('moneyIn:financeCopy.clearAttributionFilter', 'Clear filter')}</Button>
+      </div>}
       {selectedProject && <p className="mb-3 break-words type-value">{selectedProject.label}</p>}
       {requestedCustomerId && <div data-testid="customer-filter" className="mb-3 flex flex-wrap items-center gap-2 type-value">
         <span>{selectedCustomer ? `${t('financeCopy.customer', 'Customer')}: ${selectedCustomer.label}` : t('dashboard.uxs36CustomerFilterUnavailable', 'Selected customer is unavailable')}</span>

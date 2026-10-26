@@ -49,7 +49,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 md:space-y-12">
       {showIdentity && (
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
           {facts.map((f) => (
@@ -112,7 +112,7 @@ export const SalesInvoiceApprovalPreview: React.FC<{
         </div>
         <div className="col-span-2 flex min-w-0 flex-col gap-1 border-t border-border pt-4">
           <dt className="type-label text-muted-foreground">{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="text-2xl font-semibold tabular text-foreground">
+          <dd className="type-section-head tabular text-foreground">
             {money(invoiceGross(inv))}
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>

@@ -487,7 +487,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     );
     const section = screen.getByRole('region', { name: 'Financial statements' });
 
-    expect(within(section).getByTestId('snapshot-provenance')).toHaveTextContent('Updated 31 Jan 2025');
+    expect(within(section).getByTestId('snapshot-provenance')).toHaveTextContent('Updated Jan 31, 2025');
     expect(within(section).getByText(/Capture window:/)).toBeInTheDocument();
     expect(within(section).getByRole('status')).toHaveTextContent('Update delayed');
     expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();

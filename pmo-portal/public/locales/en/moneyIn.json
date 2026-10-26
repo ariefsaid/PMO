@@ -41,7 +41,9 @@
     "amountDetails": "Amount details",
     "openInvoice": "Open",
     "openReceipt": "Open",
-    "recordedAmount": "Recorded amount"
+    "recordedAmount": "Recorded amount",
+    "attributionAssigned": "Assigned invoices",
+    "clearAttributionFilter": "Clear filter"
   },
   "uxs06": {
     "allCustomers": "All customers",

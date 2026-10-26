@@ -444,6 +444,12 @@ function parseInstant(iso: string | null | undefined): Date | null {
 /** Calendar date stored as `YYYY-MM-DD`; personal timezone never shifts the value. */
 export function formatDateOnly(iso: string | null | undefined): string {
   const parsed = parseDateOnly(iso);
+  return parsed ? dateFormatter().format(parsed) : '—';
+}
+
+/** Day-month-year calendar date for the money-in reading surfaces; no timezone shift. */
+export function formatBusinessDate(iso: string | null | undefined): string {
+  const parsed = parseDateOnly(iso);
   if (!parsed) return '—';
   const parts = dateFormatter().formatToParts(parsed);
   return ['day', 'month', 'year'].map((type) => parts.find((part) => part.type === type)?.value).join(' ');

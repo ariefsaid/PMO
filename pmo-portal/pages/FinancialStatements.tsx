@@ -15,7 +15,7 @@ import { ListState } from '@/src/components/ui/ListState';
 import { useFinancialStatement, useFinancialStatementCatalogue } from '@/src/hooks/useFinancialStatements';
 import type { GetFinancialStatementInput } from '@/src/lib/db/financialStatements';
 import type { FinancialStatementPair, FinancialStatementRead, FinancialStatementScope } from '@/src/lib/financialStatements';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatBusinessDate as formatDateOnly } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 
 const STATEMENTS = ['trial_balance', 'profit_and_loss', 'balance_sheet'] as const;
@@ -327,6 +327,7 @@ const FinancialStatements: React.FC = () => {
         </div>
       )}
       <FinancialStatementsSection
+        showTime
         title={reportTitle(statement, t)}
         context={periodContext}
         state={sectionState}

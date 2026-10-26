@@ -119,7 +119,7 @@ describe('AC-MMP-013 honest states', () => {
   it('AC-MMP-013: a failed load shows the error and no figures', () => {
     h.query = { data: undefined, isPending: false, isError: true, error: new Error('boom'), refetch: vi.fn() };
     renderPage();
-    expect(screen.getByText("Couldn't load the management pack")).toBeInTheDocument();
+    expect(screen.getByText("Couldn't load Project revenue / Earned evidence")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^pack-cell-/)).toHaveLength(0);
     expect(screen.queryByText(/[^\d]0[.,]00\b/)).toBeNull();
   });

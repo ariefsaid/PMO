@@ -41,7 +41,9 @@
     "amountDetails": "Rincian jumlah",
     "openInvoice": "Buka",
     "openReceipt": "Buka",
-    "recordedAmount": "Jumlah tercatat"
+    "recordedAmount": "Jumlah tercatat",
+    "attributionAssigned": "Faktur dengan proyek",
+    "clearAttributionFilter": "Hapus filter"
   },
   "uxs06": {
     "allCustomers": "Semua klien",

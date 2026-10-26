@@ -5,7 +5,7 @@ import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { Icon } from '@/src/components/ui/icons';
 import { cn } from '@/src/components/ui/cn';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair } from '@/src/lib/adapterSeam/erpnext/statementReports';
-import { formatDateOnly } from '@/src/lib/format';
+import { formatBusinessDate as formatDateOnly } from '@/src/lib/format';
 import {
   formatStatementAmount,
   hasNativeStatementEmphasis,

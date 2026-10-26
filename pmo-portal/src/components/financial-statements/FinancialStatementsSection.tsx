@@ -19,6 +19,7 @@ export type FinancialStatementsSectionState =
 export interface FinancialStatementsSectionProps {
   title: string;
   context?: string;
+  showTime?: boolean;
   state: FinancialStatementsSectionState;
   labels: {
     unavailable: string;
@@ -42,6 +43,7 @@ export interface FinancialStatementsSectionProps {
 export function FinancialStatementsSection({
   title,
   context,
+  showTime = false,
   state,
   labels,
   onRetry,
@@ -93,7 +95,7 @@ export function FinancialStatementsSection({
     content = (
       <>
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <AccountingSnapshotProvenance showTime asOf={state.asOf} updatedLabel={labels.updated} />
+          <AccountingSnapshotProvenance showTime={showTime} asOf={state.asOf} updatedLabel={labels.updated} />
           {(isDelayed || isRefreshing) && (
             <div role="status" className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-warning-foreground">
               {isDelayed && <span>{labels.delayed}</span>}
@@ -109,7 +111,7 @@ export function FinancialStatementsSection({
         {state.hasActivity ? (
           <div className="min-w-0">{children}</div>
         ) : (
-          <p role="status" className="py-4 type-value text-muted-foreground">{labels.noActivity}</p>
+          <div role={isDelayed || isRefreshing ? undefined : 'status'} className="py-4"><p className="type-value text-muted-foreground">{labels.noActivity}</p><p className="sr-only">{labels.noActivityDescription}</p></div>
         )}
       </>
     );

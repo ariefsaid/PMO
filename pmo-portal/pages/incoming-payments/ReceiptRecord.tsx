@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { BackBar } from '@/src/components/shell';
 import { Button, DataTable, StatusPill, type Column } from '@/src/components/ui';
-import { formatDateOnly, formatNumber } from '@/src/lib/format';
+import { formatBusinessDate as formatDateOnly, formatNumber } from '@/src/lib/format';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import { knownUnappliedCash, type ReceiptAllocation } from '@/src/lib/revenue/receiptAllocation';
 import { receiptNumber } from '@/src/lib/revenue/nativeInvoice';
@@ -77,10 +77,10 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
 
       <h2 className="mb-4 flex flex-col gap-1 type-label text-muted-foreground" aria-label={t('moneyIn:uxs06.receiptPrimaryFigure', 'Receipt total · {{currency}} {{amount}}', { currency: receipt.currency, amount: receipt.amount != null ? money(receipt.amount) : notReported })}>
         <span>{t('financeCopy.receiptTotal', 'Receipt total')} · {receipt.currency}</span>
-        <span className="text-3xl font-semibold tabular text-foreground">{receipt.amount != null ? money(receipt.amount) : notReported}</span>
+        <span className="type-section-head tabular text-foreground">{receipt.amount != null ? money(receipt.amount) : notReported}</span>
 
       </h2>
-      <dl className="mb-6 grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
+      <dl className="mb-8 grid grid-cols-2 md:mb-12 gap-x-8 gap-y-4 sm:grid-cols-4">
         {facts.map((f) => (
           <div key={f.label}>
             <dt className="type-label text-muted-foreground">{f.label}</dt>
@@ -89,7 +89,7 @@ export const ReceiptRecord: React.FC<Props> = ({ receipt, allocations, onBack, o
         ))}
       </dl>
       {abnormalNotes.length > 0 && (
-        <p role="note" className="-mt-3 mb-6 max-w-[80ch] text-sm text-muted-foreground">{abnormalNotes.join(' ')}</p>
+        <p role="note" className="-mt-4 mb-8 md:mb-12 max-w-[80ch] text-sm text-muted-foreground">{abnormalNotes.join(' ')}</p>
       )}
 
       <h2 className="mb-2 type-section-head text-heading">{t('uxs06.settledTitle', 'Invoices this receipt settled')}{allocationCurrency && <> · {t('uxs06.applied', 'Applied')} · {allocationCurrency}</>}</h2>

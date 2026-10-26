@@ -34,7 +34,7 @@ import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   currencySymbol,
   formatCurrencyAuto,
-  formatDateOnly,
+  formatBusinessDate as formatDateOnly,
   formatMoneyInputValue,
   formatNumber,
   instantToZonedDatetimeLocal,

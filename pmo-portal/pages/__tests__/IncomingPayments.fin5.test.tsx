@@ -109,7 +109,7 @@ describe('FIN-S5: receipts list', () => {
     for (const gone of ['Cash received', 'Tax withheld', 'Not yet applied', 'Withholding slip']) expect(cols).not.toContain(gone);
     expect(screen.getByText('Acme Energy')).toBeInTheDocument();
     expect(screen.getAllByText('Received').length).toBeGreaterThan(0);
-    expect(screen.getByText(/Oct 7, 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/7 Oct 2026/)).toBeInTheDocument();
     expect(screen.queryByText('SLIP-9')).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Sort receipts' })).toHaveValue('payment-date-desc');
     expect(screen.getByRole('combobox', { name: 'Filter by customer' })).toBeInTheDocument();

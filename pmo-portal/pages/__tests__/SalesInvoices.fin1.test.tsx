@@ -210,18 +210,15 @@ describe('invoice list evidence', () => {
     expect(screen.getByRole('combobox', { name: 'Filter by project' })).toHaveValue('project-1');
   });
 
-  it('keeps secondary invoice context behind one named detail disclosure on phone', async () => {
+  it('keeps customer and project context visible in the closed phone row', () => {
+    h.invoices.data = [invoice('INV-001', { project_id: 'project-1' })];
     mockPhoneViewport();
     renderAt('/sales-invoices');
     const phoneList = screen.getByTestId('dt-card-branch');
-    const summary = within(phoneList).getByText('More invoice details · 2');
-    const disclosure = summary.closest('details');
-    expect(disclosure).not.toHaveAttribute('open');
-
-    await userEvent.setup().click(summary);
-
-    expect(disclosure).toHaveAttribute('open');
-    expect(within(disclosure as HTMLElement).getByText('Northwind Services')).toBeInTheDocument();
+    expect(within(phoneList).getByText('Northwind Services')).toBeVisible();
+    expect(within(phoneList).getByText('Northwind Services').closest('details')).toBeNull();
+    expect(within(phoneList).getByText('Contractual Harbor Retrofit')).toBeVisible();
+    expect(within(phoneList).getByText('Contractual Harbor Retrofit').closest('details')).toBeNull();
   });
 
   it('orders by due date by default, leaves unknown due dates last and uses invoice IDs for ties', () => {
@@ -249,7 +246,7 @@ describe('invoice list evidence', () => {
 
   it('describes the page in one short line and offers no Browse Projects button to a project manager', () => {
     renderAt('/sales-invoices', 'Project Manager');
-    expect(screen.getByText('Due-first collection · gross amounts in each invoice currency.')).toBeInTheDocument();
+    expect(screen.getByText('Client invoices · gross amounts in each invoice currency.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Browse Projects' })).not.toBeInTheDocument();
   });
 });
