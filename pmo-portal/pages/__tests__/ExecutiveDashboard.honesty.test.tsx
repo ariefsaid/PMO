@@ -116,7 +116,7 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
   it('AC-IXD-DASH-002: the pipeline forecast has one named figure and no lens toggle', () => {
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByRole('heading', { name: 'Pipeline forecast margin' })).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(pipeline).toHaveTextContent('20.0%');
     expect(within(pipeline).queryByRole('tab', { name: /On-hand/i })).toBeNull();
     expect(within(pipeline).queryByRole('tab', { name: /Weighted/i })).toBeNull();
@@ -133,7 +133,7 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     // The chart panel that visualizes the same metric reads the SAME canonical noun as the tile —
     // not the divergent "Pipeline — Projected Margin".
     const panel = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(panel).getByRole('heading', { name: 'Pipeline forecast margin' })).toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(screen.queryByText(/Pipeline\s*—\s*Projected Margin/i)).toBeNull();
   });
 });

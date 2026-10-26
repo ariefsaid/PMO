@@ -19,7 +19,7 @@ const projects: TopProject[] = [
 describe('Executive spending row navigation', () => {
   it('AC-JR-W3B-04 keeps the risk flag and named project/open links separate from row activation', () => {
     render(<MemoryRouter><BvACard projects={projects} currency="USD" /></MemoryRouter>);
-    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const table = screen.getByRole('table', { name: /spending comparison/ });
     const row = within(table).getByRole('link', { name: 'Open SunVolt Install' }).closest('tr') as HTMLElement;
     expect(within(row).getByText('At risk')).toBeInTheDocument();
     expect(within(row).getByRole('link', { name: 'SunVolt Install' })).toHaveAttribute('href', '/projects/d2');

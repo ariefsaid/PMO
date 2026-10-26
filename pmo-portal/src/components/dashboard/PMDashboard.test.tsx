@@ -293,7 +293,7 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
     renderPane();
     // Ongoing 4M + Won Pending KoM 2M + On Hold 1M + Close Out 3.6M; Loss Tender + Leads stay excluded.
     expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('4 delivery projects');
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('$10,600,000');
+    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('USD 10,600,000');
     expect(screen.getAllByTestId(/^pm-project-row-/)).toHaveLength(4);
     expect(screen.queryByTestId('pm-project-row-p3')).not.toBeInTheDocument();
     expect(screen.queryByTestId('pm-project-row-p5')).not.toBeInTheDocument();

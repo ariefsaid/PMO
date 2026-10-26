@@ -227,7 +227,8 @@ describe('AccountingSnapshotsSection — populated state', () => {
     render(<AccountingSnapshotsSection {...emptyProps} arAging={[unknownRow]} />);
 
     const arCard = section('Customer collections (AR)');
-    expect(within(arCard).getAllByText('Unavailable').length).toBeGreaterThanOrEqual(6);
+    expect(within(arCard).getAllByText('Unavailable')).toHaveLength(1);
+    expect(within(arCard).getAllByText('—')).toHaveLength(5);
     expect(within(arCard).queryByText('$0')).not.toBeInTheDocument();
     expect(within(arCard).getByText(/2026-07-11/)).toBeInTheDocument();
     expect(within(arCard).getByText(/Posting Date/)).toBeInTheDocument();

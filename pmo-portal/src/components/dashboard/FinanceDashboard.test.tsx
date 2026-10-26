@@ -148,7 +148,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('shows contract value in progress, distinct from the on-hand contract value', () => {
     renderPane();
     expect(screen.getByText('Contract in progress')).toBeInTheDocument();
-    expect(screen.getByText('$8,000,000')).toBeInTheDocument();
+    expect(screen.getByText('8,000,000')).toBeInTheDocument();
   });
 
   it('labels PMO purchasing scope and explains an empty request chart', () => {
@@ -173,7 +173,7 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
-    expect(screen.getByText('$4,000,000')).toBeInTheDocument();
+    expect(screen.getByText('4,000,000')).toBeInTheDocument();
   });
   it('does not treat a missing vendor invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
@@ -199,13 +199,13 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('shows billed-work margin separately from contract remaining', () => {
     renderPane();
     expect(screen.getByText('Margin on billed work')).toBeInTheDocument();
-    expect(screen.getAllByText('$1,500,000')).toHaveLength(2);
+    expect(screen.getAllByText('1,500,000')).toHaveLength(2);
     expect(screen.getByText('Contract remaining after known Actual')).toBeInTheDocument();
-    expect(screen.getByText('$4,500,000')).toBeInTheDocument();
+    expect(screen.getByText('4,500,000')).toBeInTheDocument();
   });
   it('computes vendor payables by currency once in Ready to pay and does not repeat it as a summary tile', () => {
     renderPane();
-    expect(screen.getByTestId('ready-to-pay-total')).toHaveTextContent(formatCurrency(400_000, 'USD'));
+    expect(screen.getByTestId('ready-to-pay-total')).toHaveTextContent('400,000');
     expect(screen.queryByTestId('kpi-outstanding')).not.toBeInTheDocument();
   });
 
@@ -277,7 +277,8 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
     screen.getByText('Financial position and accounting evidence').click();
     expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(1);
+    expect(screen.getByText('Vendor payables (AP)')).toBeInTheDocument();
     expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(1);
   });
 
@@ -305,7 +306,7 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
 describe('Finance dashboard composition and next case', () => {
   it('AC-806-FIN-ORDER-001 puts billing/payment work before collections, budget and accounting details', () => {
     const { container } = renderPane();
-    const headings = Array.from(container.querySelectorAll('h2')).map((heading) => heading.textContent?.trim());
+    const headings = Array.from(container.querySelectorAll('h1,h2,h3,summary')).map((heading) => heading.textContent?.trim());
     const relevant = headings.filter((heading) => [
       'Still to invoice on work orders', 'Ready to pay', 'Customer collections', 'Budget review',
     ].includes(heading ?? ''));

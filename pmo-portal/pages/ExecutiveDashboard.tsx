@@ -224,12 +224,13 @@ const DeliveryBook: React.FC<{
               const valueFor = (rows: CurrencyValue[]) => rows.find((row) => row.currency === currencyCode)?.value;
               const primary = valueFor(onHand);
               const compact = moneyFigure(primary ?? null, currencyCode, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), { code: true });
+              const compactFigure = compact.value === '—' ? `${currencyCode} —` : compact.value;
               const groupId = `dashboard-position-${currencyCode.toLowerCase()}`;
               const hasActive = activeContracts.some((row) => row.currency === currencyCode);
               return (
                 <section key={currencyCode} aria-labelledby={groupId} data-testid={`dashboard-delivery-position-${currencyCode}`}>
                   <h3 id={groupId} className={`mb-3 text-xl font-bold tabular ${index === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {t('dashboard:exec.contractValueOnHandCompact', 'Contract value on hand · {{figure}}', { figure: compact.value })}
+                    {t('dashboard:exec.contractValueOnHandCompact', 'Contract value on hand · {{figure}}', { figure: compactFigure })}
                   </h3>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
                     {fact(t('dashboard:exec.exactContractValueOnHand', 'Exact on-hand value'), primary, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}
@@ -238,7 +239,7 @@ const DeliveryBook: React.FC<{
                       <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:kpi.activeProjectsCount', 'Active projects')}</dt>
                       <dd className="text-right text-sm tabular">{formatNumber(data.active_projects)}</dd>
                     </div>}
-                    <div className="contents" data-testid={currencyCode === 'IDR' ? 'dashboard-known-actual' : undefined}>
+                    <div className="contents" data-testid={index === 0 ? 'dashboard-known-actual' : undefined}>
                       {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note')}
                     </div>
                     {fact(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'))}

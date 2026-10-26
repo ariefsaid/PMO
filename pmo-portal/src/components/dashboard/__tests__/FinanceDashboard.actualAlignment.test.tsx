@@ -150,12 +150,12 @@ describe('AC-FAA-003 Finance Actual alignment', () => {
     ]);
 
     const table = budgetReviewTable();
-    expect(within(table).getByText(formatCurrency(0, 'USD'))).toBeInTheDocument();
+    expect(within(table).getByText('0')).toBeInTheDocument();
     expect(within(table).getByRole('progressbar', { name: 'Known zero budget utilization' })).toHaveAttribute('aria-valuenow', '0');
     expect(within(table).getByText('Partial Actual')).toBeInTheDocument();
     expect(within(table).getByText('Different currencies')).toBeInTheDocument();
     expect(within(table).getByText(/IDR\s+1,500/)).toBeInTheDocument();
-    expect(within(table).getByText(formatCurrency(75, 'USD'))).toBeInTheDocument();
+    expect(within(table).getByText('75')).toBeInTheDocument();
     expect(table).toHaveTextContent('IDR source');
     expect(table).toHaveTextContent('1/2 categories');
     expect(within(table).getByLabelText('Actual: Not available yet')).toBeInTheDocument();

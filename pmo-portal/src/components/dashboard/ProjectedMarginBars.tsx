@@ -89,7 +89,7 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
           return (
             <section key={`totals-${row.currency}`} aria-label={t('dashboard:exec.pipelineCurrencyGroup', 'Pipeline · {{currency}}', { currency: row.currency })}>
               <h3 className="text-xl font-bold tabular">
-                {t('dashboard:exec.weightedPipelineCompact', 'Weighted pipeline · {{figure}}', { figure: weighted.value })}
+                {t('dashboard:exec.weightedPipelineCompact', 'Weighted pipeline · {{figure}}', { figure: weighted.value === '—' ? `${row.currency} —` : weighted.value })}
               </h3>
               <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2">
                 <dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.weightedPipeline', 'Weighted pipeline')}</dt>

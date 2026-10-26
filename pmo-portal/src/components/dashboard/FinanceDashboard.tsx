@@ -175,7 +175,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
     },
     {
       key: 'open',
-      header: t('dashboard:finance.review', 'Review'),
+      header: t('dashboard:finance.openColumn', 'Open'),
       cell: (r) => (
         <Link
           to={`/procurement/${r.id}`}
@@ -218,7 +218,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
             t('dashboard:finance.payablesUnavailableReason', 'A request value is unavailable, so this total cannot be calculated.'),
             { code: true },
           );
-          const heading = t('dashboard:finance.payablesGroup', 'Vendor payables · {{figure}}', { figure: compactTotal.value });
+          const heading = t('dashboard:finance.payablesGroup', 'Vendor payables · {{figure}}', { figure: compactTotal.value === '—' ? `${groupCurrency} —` : compactTotal.value });
           return (
             <section key={groupCurrency} aria-label={heading}>
               <h3 className="mb-2 text-xl font-bold tabular">{heading}</h3>
@@ -631,7 +631,7 @@ export const FinanceDashboard: React.FC = () => {
       <AccountingSnapshotsSection
         showActuals={false}
         showApAging={false}
-        ariaLabel={t('dashboard:finance.collectionsTitle', 'Customer collections')}
+        ariaLabel={t('dashboard:finance.collectionsData', 'Customer collections data')}
         arTitle={t('dashboard:finance.collectionsTitle', 'Customer collections')}
         actuals={[]}
         apAging={[]}

@@ -10,7 +10,7 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ProjectedMarginBars } from '../ProjectedMarginBars';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatNumberExact } from '@/src/lib/format';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
 const stages: PipelineStage[] = [
@@ -53,6 +53,6 @@ describe('AC-JR-W3B-05: ProjectedMarginBars D-1 — stage rows link to /sales?st
       </MemoryRouter>,
     );
     // Exact weighted money stays visible in the stage row.
-    expect(screen.getByText(formatDashboardMoney(600_000, 'USD', 'en')!)).toBeInTheDocument();
+    expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
   });
 });

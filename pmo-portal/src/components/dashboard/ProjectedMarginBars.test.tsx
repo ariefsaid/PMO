@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatNumberExact } from '@/src/lib/format';
 import { ProjectedMarginBars } from './ProjectedMarginBars';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
@@ -19,7 +19,7 @@ describe('Pipeline margin and stage evidence', () => {
   it('shows the measured forecast margin headline from the executive payload', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('14.1%')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Pipeline forecast margin' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
   });
 
   it('AC-RD-UNAVAIL-001 keeps an unknown margin as a dash without drawing a false percentage', () => {
@@ -31,13 +31,14 @@ describe('Pipeline margin and stage evidence', () => {
 
   it('AC-RD-MONEY-001 keeps the full weighted amount visible beside each open stage', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    expect(screen.getByText((_, element) => element?.textContent?.replace(/\u00a0/g, ' ') === 'IDR 600,000')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Open stage values · IDR' })).toBeInTheDocument();
+    expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
     expect(screen.queryByText(/600\.0K/)).toBeNull();
   });
 
   it('AC-RD-GEOM-001 keeps long exact amounts intact and untruncated', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
-    const amount = screen.getByText(formatDashboardMoney(600_000, 'USD', 'en')!);
+    const amount = screen.getByText(formatNumberExact(600_000));
     expect(amount.className).not.toMatch(/truncate|(^|\s)w-\[68px\]/);
     expect(amount.className).toContain('whitespace-nowrap');
   });
@@ -46,7 +47,7 @@ describe('Pipeline margin and stage evidence', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
-    expect(screen.getByText(formatDashboardMoney(600_000, 'USD', 'en')!)).toBeInTheDocument();
+    expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
     expect(screen.queryByText('Loss Tender')).toBeNull();
   });

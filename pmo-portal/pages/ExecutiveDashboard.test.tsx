@@ -131,9 +131,9 @@ describe('ExecutiveDashboard (real data)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
     renderPage();
     expect(screen.getByText('Risk is not checked for 2 delivery projects')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(within(pipeline).getByText('—')).toBeInTheDocument();
     expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
   });
@@ -151,7 +151,8 @@ describe('ExecutiveDashboard (real data)', () => {
       };
       renderPage();
       const delivery = screen.getByRole('region', { name: 'Delivery book' });
-      expect(delivery).toHaveTextContent('USD $3,400,000');
+      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('3,400,000');
+      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('USD 3.4M');
       expect(delivery).toHaveTextContent('IDR 373,500,000,000');
     } finally {
       orgState.currency = 'USD';
@@ -172,8 +173,10 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('— IDR');
-    expect(delivery).toHaveTextContent('— USD');
+    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR')).toHaveTextContent('—');
+    expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('—');
+    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR').textContent?.match(/IDR/g)).toHaveLength(1);
+    expect(within(delivery).getByTestId('dashboard-delivery-position-USD').textContent?.match(/USD/g)).toHaveLength(1);
   });
 
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
@@ -195,8 +198,8 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('IDR 2,000,000,000');
-    expect(delivery).toHaveTextContent('USD $1,000,000');
+    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR')).toHaveTextContent('2,000,000,000');
+    expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('1,000,000');
     expect(delivery).toHaveTextContent('Actual coverage: 144 of 150 mapped cost categories');
     expect(within(delivery).getByRole('link', { name: 'Review accounting mappings' }))
       .toHaveAttribute('href', '/administration/accounting#budget-account-map');
@@ -212,7 +215,7 @@ describe('ExecutiveDashboard (real data)', () => {
     };
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(within(pipeline).getByText('—')).toBeInTheDocument();
     expect(within(pipeline).queryByText('Not available yet')).toBeNull();
   });
@@ -222,21 +225,21 @@ describe('ExecutiveDashboard (real data)', () => {
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
     expect(delivery).toHaveTextContent('Contract value on hand');
     expect(delivery).toHaveTextContent('Active contract value');
-    expect(delivery).toHaveTextContent('$8,000,000');
+    expect(delivery).toHaveTextContent('8,000,000');
   });
 
   it('a null pipeline margin from zero gross value shows no margin tile and the weighted card title (SL-B)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(within(pipeline).getByText('—')).toBeInTheDocument();
   });
 
   it('AC-701 keeps active project count and exact contract value in the delivery book', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('$8,000,000');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('8,000,000');
   });
 
   it('AC-UX-016: approval decision appears before delivery evidence', () => {
@@ -262,7 +265,7 @@ describe('ExecutiveDashboard (real data)', () => {
   });
   it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Active projects2');
   });
   it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
     renderPage();
@@ -372,7 +375,7 @@ describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
     expect(delivery).toHaveTextContent('Margin on billed work');
     expect(delivery).not.toHaveTextContent('94.9%');
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(pipeline).toHaveTextContent('Pipeline forecast margin');
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(pipeline).toHaveTextContent('20.0%');
   });
 

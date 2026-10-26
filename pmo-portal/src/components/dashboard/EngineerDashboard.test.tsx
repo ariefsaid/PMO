@@ -113,7 +113,7 @@ describe('EngineerDashboard localization and weekly facts', () => {
     expect(screen.getByRole('group', { name: 'Jam minggu ini menurut hari' })).toBeInTheDocument();
     expect(screen.getByText('Jam kerja minggu ini menurut hari')).toBeInTheDocument();
     expect(screen.getByRole('group', { name: 'Jam minggu ini menurut proyek' })).toBeInTheDocument();
-    expect(screen.getByText('Entri terbaru')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Entri terbaru/ })).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: 'Sen: 8 jam' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Minggu ini: 15,5 jam' })).toBeInTheDocument();
     expect(screen.getByTestId('engineer-hours-total')).toHaveTextContent('15,5');

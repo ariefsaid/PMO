@@ -52,14 +52,19 @@ const StillToInvoiceBody: React.FC<{ excludeWorkOrderId?: string }> = ({ exclude
             <div className="flex flex-col gap-4" data-testid="still-to-invoice-totals">
               {data.totals.map((total) => {
                 const compact = moneyFigure(total.remaining, total.currency, t('dashboard.stillToInvoice.error', "Couldn't load what is still to invoice"), { code: true });
+                const groupFigure = compact.exactValue ? compact.value : `${total.currency} ${formatNumberExact(total.remaining)}`;
                 const groupRows = data.rows.filter((row) => row.currency === total.currency && row.workOrderId !== excludeWorkOrderId);
                 return <section key={total.currency} aria-label={`${total.currency} ${title}`}>
                   <h3 className="text-xl font-bold tabular">
-                    {compact.value} · <TaxBasisLabel treatment="exclusive" showDetails={false} testId={`still-to-invoice-basis-${total.currency.toLowerCase()}`} />
+                    {groupFigure} · <TaxBasisLabel treatment="exclusive" showDetails={false} testId={`still-to-invoice-basis-${total.currency.toLowerCase()}`} />
                   </h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t('dashboard:finance.unbilledExactRemaining', 'Exact remaining: {{amount}} · {{count}} work orders', { amount: formatNumberExact(total.remaining), count: total.count })}
-                  </p>
+                  {compact.exactValue ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t('dashboard:finance.unbilledExactRemaining', 'Exact remaining: {{amount}} · {{count}} work orders', { amount: formatNumberExact(total.remaining), count: total.count })}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('dashboard:finance.unbilledCount', '{{count}} work orders', { count: total.count })}</p>
+                  )}
                   {groupRows.length > 0 && <ul className="mt-2 flex flex-col divide-y divide-border" data-testid="still-to-invoice-rows">
                     {groupRows.map((row) => (
                       <li key={row.workOrderId} className="grid min-w-0 grid-cols-1 gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">

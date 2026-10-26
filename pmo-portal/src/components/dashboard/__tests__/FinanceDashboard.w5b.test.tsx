@@ -206,7 +206,7 @@ describe('AC-IXD-DASH-W5-C2B — N16: Ready to pay table', () => {
   it('AC-806-FIN-PAY-COLUMNS-001 keeps request identity, age, value and open action in the required order', () => {
     const { container } = renderPane();
     const headers = Array.from(container.querySelectorAll('table thead th')).slice(0, 5).map((header) => header.textContent?.trim());
-    expect(headers).toEqual(['Request', 'Project', 'Invoiced age', 'Value', 'Review']);
+    expect(headers).toEqual(['Request', 'Project', 'Invoiced age', 'Value', 'Open']);
   });
 
   it('AC-IXD-DASH-W5-C2B-N16-7: honest empty state — "Nothing awaiting payment" when no VI PRs', () => {
@@ -238,13 +238,13 @@ describe('AC-IXD-DASH-W5-C2B — N17: Budget review variance ranking', () => {
   it('AC-IXD-DASH-W5-C2B-N17-2: variance column shows "+$X over" for over-budget projects', () => {
     renderPane();
     // Alpha: budget=1_000_000, spent=1_100_000 → +$100,000 over
-    expect(screen.getByText('+$100,000 over')).toBeInTheDocument();
+    expect(screen.getByText('+100,000 over')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N17-3: variance column shows "$Y left" for under-budget projects', () => {
     renderPane();
     // Beta: budget=1_000_000, spent=600_000 → $400,000 left
-    expect(screen.getByText('$400,000 left')).toBeInTheDocument();
+    expect(screen.getByText('400,000 left')).toBeInTheDocument();
   });
 
   it('AC-IXD-DASH-W5-C2B-N17-4: rows are ordered variance-desc (most-over first)', () => {

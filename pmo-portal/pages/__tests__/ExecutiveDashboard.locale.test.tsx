@@ -82,7 +82,7 @@ describe('Executive dashboard localized figures', () => {
     renderDashboard();
     const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
     expect(delivery).toHaveTextContent('USD');
-    expect(delivery).toHaveTextContent('US$1.200.000');
+    expect(delivery).toHaveTextContent('1.200.000');
   });
 
   it('keeps a known zero distinct from unavailable Actual', () => {
@@ -90,7 +90,7 @@ describe('Executive dashboard localized figures', () => {
     const known = renderDashboard();
     const actualRow = screen.getByTestId('dashboard-known-actual');
     expect(actualRow).toBeInTheDocument();
-    expect(within(actualRow).getByText(/US\$0/)).toBeInTheDocument();
+    expect(within(actualRow).getByText('0')).toBeInTheDocument();
     known.unmount();
 
     state.actual = null;

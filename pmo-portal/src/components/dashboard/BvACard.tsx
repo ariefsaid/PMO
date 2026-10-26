@@ -30,9 +30,10 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
   const groups = useMemo(() => {
     const grouped = new Map<string, TopProject[]>();
     for (const project of rows) {
-      const group = grouped.get(project.currency) ?? [];
+      const projectCurrency = project.currency || currency || 'USD';
+      const group = grouped.get(projectCurrency) ?? [];
       group.push(project);
-      grouped.set(project.currency, group);
+      grouped.set(projectCurrency, group);
     }
     return [...grouped.entries()];
   }, [rows]);
@@ -72,9 +73,9 @@ export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending 
               <a
                 href="#executive-data-note"
                 aria-label={t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
               >
-                —
+                {t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
               </a>
             )}
           </div>

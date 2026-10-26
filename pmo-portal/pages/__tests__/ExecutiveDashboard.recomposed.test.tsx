@@ -235,7 +235,7 @@ describe('Executive and Admin dashboard recomposition', () => {
   it('AC-806-EXEC-PIPELINE-001 keeps margin, weighted and gross figures beside win rate and open-stage bars', () => {
     renderPage();
     const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Pipeline forecast margin')).toBeInTheDocument();
+    expect(within(pipeline).getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
     expect(within(pipeline).getByRole('heading', { name: /Weighted pipeline/ })).toBeInTheDocument();
     expect(within(pipeline).getByText('1,600')).toBeInTheDocument();
     expect(within(pipeline).getByText('4,000')).toBeInTheDocument();
@@ -260,8 +260,9 @@ describe('Executive and Admin dashboard recomposition', () => {
     expect(screen.getByRole('heading', { name: 'Attention and approvals' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Delivery book' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Board pack' })).toBeInTheDocument();
-    const firstFigure = screen.getAllByText('Contract value on hand')[0]!;
-    expect(firstFigure.compareDocumentPosition(screen.getByText('10,000')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const firstPosition = screen.getByTestId('dashboard-delivery-position-USD');
+    const firstFigure = within(firstPosition).getByRole('heading', { name: /Contract value on hand/ });
+    expect(firstFigure.compareDocumentPosition(within(firstPosition).getByText('10,000')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('AC-806-EXEC-STATE-001 keeps the frame, invoiceable section, and pipeline when portfolio data fails', () => {

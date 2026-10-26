@@ -100,7 +100,7 @@ const renderExec = () =>
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   it('AC-806-EXEC-SPEND-001: project identity and open action reach the canonical project record', () => {
     renderExec();
-    const table = screen.getByRole('table', { name: 'Spending comparison' });
+    const table = screen.getByRole('table', { name: /spending comparison/ });
     expect(within(table).getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '/projects/p1');
     expect(within(table).getByRole('link', { name: 'Open Alpha' })).toHaveAttribute('href', '/projects/p1');
   });
@@ -108,7 +108,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   it('AC-806-EXEC-BOOK-001: delivery position shows exact values without a misleading aggregate link', () => {
     renderExec();
     const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('$6,000,000');
+    expect(delivery).toHaveTextContent('6,000,000');
     expect(delivery).toHaveTextContent('$8,000,000');
     expect(delivery.querySelector('a[href="/projects?filter=Ongoing"]')).toBeNull();
     expect(screen.getByRole('link', { name: 'Negotiation' })).toHaveAttribute('href', '/sales?status=Negotiation');
