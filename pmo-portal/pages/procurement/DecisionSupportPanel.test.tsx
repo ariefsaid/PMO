@@ -354,6 +354,35 @@ describe('AC-RB-004 — Available = Budget − Committed − Reserved', () => {
     expect(factValue(/^available$/i).textContent).toMatch(/\b500\b/);
     expect(screen.getByText('Not counting commitments in other currencies: EUR 90')).toBeInTheDocument();
   });
+  it('S-01: other-currency commitments omit missing or non-finite figures and never print undefined/NaN', () => {
+    budgetState.data = 1000;
+    const invalid = [
+      { currency: undefined, amount: Number.NaN },
+      { currency: 'USD', amount: Number.NaN },
+      { currency: 'EUR', amount: Number.POSITIVE_INFINITY },
+      { currency: '', amount: 50 },
+      { currency: 'NaN', amount: 50 },
+      { currency: 'EUR', amount: 0 },
+    ] as unknown as typeof committedState.otherCurrencies;
+    committedState.otherCurrencies = invalid;
+    const first = renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', currency: 'EUR' });
+    expect(screen.queryByTestId('budget-impact-other-currencies')?.textContent ?? '')
+      .not.toMatch(/undefined|NaN|Infinity/i);
+    expect(screen.queryByTestId('budget-impact-other-currencies')).not.toBeInTheDocument();
+    first.unmount();
+
+    committedState.otherCurrencies = [
+      ...invalid,
+      { currency: 'USD', amount: 3412800 },
+      { currency: 'IDR', amount: 2226648000 },
+    ];
+    renderPanel({ projectId: 'p1', totalValue: 0, projectName: 'X', currency: 'EUR' });
+    const note = screen.getByTestId('budget-impact-other-currencies');
+    expect(note).toHaveTextContent(
+      /^Not counting commitments in other currencies: USD 3,412,800 · IDR 2,226,648,000$/,
+    );
+    expect(note).not.toHaveTextContent(/undefined|NaN|Infinity/i);
+  });
   it('0373: no other-currency note when every commitment is in the project currency', () => {
     budgetState.data = 1000;
     committedState.data = 300;

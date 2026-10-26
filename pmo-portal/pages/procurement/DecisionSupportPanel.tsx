@@ -172,6 +172,11 @@ export const DecisionSupportPanel: React.FC<DecisionSupportPanelProps> = ({
   // independently unit-testable; this block is presentation-only.
   const committedSpend = committed.data ?? 0;
   const otherCurrencyCommitted = (committed.otherCurrencies ?? [])
+    .filter((position) => position != null
+      && typeof position.currency === 'string'
+      && /^[A-Z]{3}$/.test(position.currency)
+      && Number.isFinite(position.amount)
+      && position.amount !== 0)
     .map((position) => `${position.currency} ${formatNumberWhole(position.amount)}`).join(' · ');
   const reserved = reservedQ.data ?? 0; // TOTAL reserved (incl. this case if applicable)
   const { available, afterRequest, otherReserved, overAvailable, overAvailableAmount, overBudgetReserved } =
