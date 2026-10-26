@@ -168,7 +168,7 @@ Each `AC-###` is owned by **one** test at the **lowest sufficient layer**:
   separate gated promote (`CLAUDE.md` Branch flow). Branching off `main` also means CI verifies the wrong
   merge commit. Branch names: `feat/`, `chore/`, `test/`, `perf/`.
 - `release-engineer` pushes on the builder's evidence from the **local final gate** (CLAUDE.md): typecheck,
-  lint on touched files, `vitest run --changed origin/dev`, the touched e2e journeys, and the touched pgTAP
+  lint on touched files, the directly touched test files (never a local full suite — CI shards are the proof, OD-LOCAL-GATE-LIGHT), the touched e2e journeys, and the touched pgTAP
   files (`supabase test db <files>`) for DB changes — re-running only a check it doubts. The full suite runs
   in CI on the PR and decides the merge — never merge on a red or unrun check.
 - For a PR targeting `main`, CI's `verify` + `integration` (pgTAP, both e2e lanes, consent, visual,
