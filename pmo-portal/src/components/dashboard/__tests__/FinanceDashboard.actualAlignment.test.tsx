@@ -1,6 +1,7 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { I18nextProvider } from 'react-i18next';
 import i18next from 'i18next';
 import { MemoryRouter } from 'react-router';
@@ -10,7 +11,6 @@ import enDashboardCatalogue from '../../../../public/locales/en/dashboard.json';
 import idDashboardCatalogue from '../../../../public/locales/id/dashboard.json';
 import { FinanceDashboard } from '../FinanceDashboard';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
-import { formatCurrency } from '@/src/lib/format';
 
 const dashboard = {
   active_projects: 0,
@@ -109,7 +109,7 @@ async function renderPane(rows: BudgetReviewRow[], locale: 'en' | 'id' = 'en') {
 }
 
 function budgetReviewTable() {
-  return screen.getAllByRole('table')[1];
+  return screen.getByTestId('finance-budget-review').querySelector('table')!;
 }
 
 afterEach(() => {
@@ -148,20 +148,21 @@ describe('AC-FAA-003 Finance Actual alignment', () => {
       }),
     ]);
 
-    const table = budgetReviewTable();
-    expect(within(table).getByText(formatCurrency(0, 'USD'))).toBeInTheDocument();
+    const table = screen.getByTestId('finance-budget-review');
+    expect(within(table).getByText('0')).toBeInTheDocument();
     expect(within(table).getByRole('progressbar', { name: 'Known zero budget utilization' })).toHaveAttribute('aria-valuenow', '0');
     expect(within(table).getByText('Partial Actual')).toBeInTheDocument();
     expect(within(table).getByText('Different currencies')).toBeInTheDocument();
-    expect(within(table).getByText(/IDR\s+1,500/)).toBeInTheDocument();
-    expect(within(table).getByText(formatCurrency(75, 'USD'))).toBeInTheDocument();
-    expect(table).toHaveTextContent('Source currency: IDR');
-    expect(table).toHaveTextContent('Actual coverage: 1 of 2 mapped cost categories');
-    expect(table).toHaveTextContent('As of Oct 17, 2026');
-    expect(within(table).getAllByText('Not available yet')).toHaveLength(5);
+    expect(table).toHaveTextContent('IDR');
+    expect(within(table).getByText('1,500')).toBeInTheDocument();
+    expect(within(table).getByText(/USD · 75/)).toBeInTheDocument();
+    expect(table).toHaveTextContent('IDR source');
+    expect(table).toHaveTextContent('1/2 categories');
+    expect(within(table).getByLabelText('Actual: Not available yet')).toBeInTheDocument();
+    expect(within(table).getAllByLabelText('Variance: Not available yet')).toHaveLength(2);
+    expect(within(table).getAllByLabelText('Utilization: Not available yet')).toHaveLength(2);
     expect(within(table).queryByRole('progressbar', { name: 'Partial Actual budget utilization' })).not.toBeInTheDocument();
     expect(within(table).queryByRole('progressbar', { name: 'Different currencies budget utilization' })).not.toBeInTheDocument();
-    expect(within(table).getByText(/1 of 2 mapped cost categories/)).toBeInTheDocument();
   });
 
   it('sorts unknown Actual last in either direction and keeps only five rows', async () => {
@@ -177,7 +178,7 @@ describe('AC-FAA-003 Finance Actual alignment', () => {
     const table = budgetReviewTable();
     expect(within(table).getAllByRole('row')).toHaveLength(6);
     expect(within(table).queryByText('Unknown B')).not.toBeInTheDocument();
-    fireEvent.click(within(table).getByRole('button', { name: 'Variance' }));
+    await userEvent.click(within(table).getByRole('button', { name: 'Variance' }));
     const rowsAscending = within(table).getAllByRole('row').slice(1).map((rowNode) => rowNode.textContent ?? '');
     expect(rowsAscending.slice(0, 4).map((text) => text.match(/Alpha|Beta|Tie A|Tie Z/)?.[0])).toEqual([
       'Tie A', 'Tie Z', 'Beta', 'Alpha',
@@ -210,16 +211,16 @@ describe('Finance dashboard Bahasa copy', () => {
   it('keeps the English labels and renders the corresponding Indonesian dashboard copy', async () => {
     const english = await renderPane([], 'en');
     expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Portfolio revenue, spend, margin, and budget utilization.')).toBeInTheDocument();
-    expect(screen.getByText('Budget review — top 5 by variance (portfolio-wide)')).toBeInTheDocument();
+    expect(screen.getByText('Invoiceable work, vendor payments and customer collections.')).toBeInTheDocument();
+    expect(screen.getByText('Five projects by budget variance')).toBeInTheDocument();
     expect(within(budgetReviewTable()).getByRole('columnheader', { name: 'Project' })).toBeInTheDocument();
     expect(screen.getByText('Ready to pay', { exact: true })).toBeInTheDocument();
     english.unmount();
 
     await renderPane([], 'id');
     expect(screen.getByRole('heading', { name: 'Dasbor Keuangan' })).toBeInTheDocument();
-    expect(screen.getByText('Pendapatan, pengeluaran, margin, dan pemakaian anggaran portofolio.')).toBeInTheDocument();
-    expect(screen.getByText('Tinjauan anggaran — 5 teratas berdasarkan selisih (seluruh portofolio)')).toBeInTheDocument();
+    expect(screen.getByText('Pekerjaan yang dapat ditagihkan, pembayaran vendor, dan penagihan pelanggan.')).toBeInTheDocument();
+    expect(screen.getByText('Lima proyek menurut varians anggaran')).toBeInTheDocument();
     expect(within(budgetReviewTable()).getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
     expect(screen.getByText('Siap dibayar', { exact: true })).toBeInTheDocument();
   });

@@ -87,8 +87,8 @@ describe('ImportWizard', () => {
     expect(screen.getAllByText(/skipped/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/project was not found/i)).toBeInTheDocument();
     const nameValue = screen.getByText('Unmatched project with a deliberately long name that exceeds the cell clamp');
-    expect(nameValue.closest('[title]')).toHaveAttribute('title', 'Unmatched project with a deliberately long name that exceeds the cell clamp');
-    expect(nameValue.closest('[title]')).not.toContainElement(screen.getByText('Project was not found.'));
+    expect(nameValue).toHaveTextContent('Unmatched project with a deliberately long name that exceeds the cell clamp');
+    expect(nameValue).not.toContainElement(screen.getByText('Project was not found.'));
     // NO write occurred reaching preview (dry-run).
     expect(create).not.toHaveBeenCalled();
   });

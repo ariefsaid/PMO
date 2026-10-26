@@ -37,7 +37,7 @@ function formatAsOf(iso: string): string {
 export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenanceProps> = ({ asOf, sourceReport, reportVersion, updatedLabel, className }) => {
   if (!asOf) {
     return (
-      <div data-testid="snapshot-provenance-empty" className={cn('text-[11px] text-muted-foreground', className)}>
+      <div data-testid="snapshot-provenance-empty" className={cn('text-[0.6875rem] font-semibold text-muted-foreground', className)}>
         No snapshot available yet
       </div>
     );
@@ -46,10 +46,10 @@ export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenance
   return (
     <div
       data-testid="snapshot-provenance"
-      className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground', className)}
+      className={cn('flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.6875rem] font-semibold text-muted-foreground', className)}
     >
       <span>
-        {updatedLabel ?? 'As of'} <span className="font-medium">{formatAsOf(asOf)}</span>
+        {updatedLabel ?? 'As of'} {formatAsOf(asOf)}
       </span>
       {sourceReport ? (
         <>
@@ -60,7 +60,7 @@ export const AccountingSnapshotProvenance: React.FC<AccountingSnapshotProvenance
       {reportVersion ? (
         <>
           <span aria-hidden>·</span>
-          <span className="font-medium">{reportVersion}</span>
+          <span>{reportVersion}</span>
         </>
       ) : null}
     </div>

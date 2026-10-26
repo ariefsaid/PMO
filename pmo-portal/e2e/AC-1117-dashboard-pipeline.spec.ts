@@ -2,9 +2,9 @@
 import { test, expect } from '@playwright/test';
 import { signIn } from './helpers';
 
-// AC-1117: capstone journey — dashboard shows portfolio and pipeline evidence, then Sales renders weighted stages
+// AC-1117: capstone journey — dashboard keeps delivery measures distinct and Sales Pipeline renders weighted stages
 // from real data (FR-SPD-012/013/014). Cross-stack curated journey per ADR-0010.
-test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighted stages from real data (FR-SPD-012/013/014)', async ({ page }) => {
+test('AC-1117: dashboard shows delivery measures and a stable win-rate figure before opening a weighted stage (FR-SPD-012/013/014)', async ({ page }) => {
   // Sign in as the seed Executive
   await signIn(page, 'exec@acme.test');
   await page.goto('/');
@@ -13,16 +13,21 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   // SP-2402 has a synthetic, submitted billed-work invoice and complete mapped
   // Actual, proving known margin; other projects remain honestly unknown. The
   // contract-remaining measure stays distinct from billed-work margin.
-  const onHandMarginTile = page.getByTestId('kpi-on-hand-margin');
-  await expect(onHandMarginTile).toBeVisible();
-  await expect(onHandMarginTile).toContainText('Known margin on billed work: $500K');
-  await expect(onHandMarginTile).toContainText('Contract remaining after known Actual: $4.1M');
+  const deliveryBook = page.getByTestId('dashboard-delivery-book');
+  await expect(deliveryBook).toBeVisible();
+  await expect(deliveryBook.getByText('Known margin on billed work').locator('xpath=following-sibling::dd[1]'))
+    .toContainText('$500,000');
+  await expect(deliveryBook.getByText('Contract remaining after known Actual').first().locator('xpath=following-sibling::dd[1]'))
+    .toContainText('$4,070,000');
 
   // ── Exec Dashboard: pipeline weighted value tile ──────────────────────────────
   // pipeline_weighted_value = 800,000
-  const pipelineWeightedTile = page.getByTestId('kpi-pipeline-weighted-value');
-  await expect(pipelineWeightedTile).toBeVisible();
-  await expect(pipelineWeightedTile).toContainText('$');
+  const pipeline = page.getByTestId('dashboard-pipeline');
+  await expect(pipeline).toBeVisible();
+  const weighted = pipeline.getByText(/Weighted pipeline ·/);
+  const gross = pipeline.getByText(/Gross pipeline ·/);
+  await expect(weighted).toBeVisible();
+  await expect(gross).toBeVisible();
 
   // ── Exec Dashboard: projected margin stays explicit about availability ────────
   const pipelineMargin = page.getByTestId('dashboard-pipeline-margin');
@@ -36,25 +41,24 @@ test('AC-1117: dashboard shows dual-lens KPIs and Sales Pipeline renders weighte
   }
 
   // ── Exec Dashboard: win-rate tile (default count mode) ───────────────────────
-  const winRateTile = page.getByTestId('kpi-win-rate');
-  await expect(winRateTile).toBeVisible();
-  await expect(winRateTile).toContainText('%');
+  const winRateFigure = page.getByTestId('win-rate-figure');
+  await expect(winRateFigure).toBeVisible();
+  await expect(winRateFigure.getByTestId('win-rate-track-count')).toBeVisible();
+  const period = page.getByRole('button', { name: 'Last quarter' });
+  await period.click();
+  await expect(page).toHaveURL(/winRatePeriod=q/);
+  await page.getByRole('button', { name: 'By value' }).click();
+  await expect(page).toHaveURL(/winRateBasis=value/);
+  await expect(winRateFigure).toBeVisible();
+  await expect(winRateFigure.locator('[data-testid^="win-rate-track-"]').first()).toBeVisible();
 
-  // ── Drill into the Sales Pipeline VIA the retained weighted-value doorway ────
-  // Wave-5 Cluster-2 PR-A: the Pipeline KPI is now itself the doorway (drill-through),
-  // so the natural journey is to click the tile. (Also disambiguates from the nav-rail
-  // "Sales Pipeline" link.) Goal-oracle below — weighted stages render — is unchanged.
-  await page.getByTestId('kpi-pipeline-weighted-value').click();
-  await page.waitForURL('**/sales');
-
-  // pipeline-weighted-total KPI renders
-  const weightedTotal = page.getByTestId('pipeline-weighted-total');
-  await expect(weightedTotal).toBeVisible();
-  await expect(weightedTotal).toContainText('$');
-
-  // At least the Tender Submitted stage column renders with a non-zero weighted value
-  const tenderCol = page.getByTestId('stage-Tender Submitted');
-  await expect(tenderCol).toBeVisible();
-  // The column should contain a non-zero currency value (weighted = $600,000)
-  await expect(tenderCol).toContainText('$');
+  // The weighted stage row is the doorway; opening it lands on the selected sales stage.
+  const tenderStage = pipeline.locator('a[href="/sales?status=Tender%20Submitted"]');
+  await expect(tenderStage).toBeVisible();
+  await expect(tenderStage).toContainText('$');
+  await tenderStage.click();
+  await page.waitForURL('**/sales?status=Tender%20Submitted');
+  // The URL updates before the lazy Sales Pipeline route finishes mounting.
+  await expect(page.getByRole('heading', { name: 'Sales Pipeline' })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('stage-Tender Submitted')).toBeVisible();
 });

@@ -1,91 +1,197 @@
-import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { StatusPill } from '@/src/components/ui/StatusPill';
-import { chartTheme } from '@/src/components/ui/chartTheme';
-import type { TopProject } from '@/src/lib/db/dashboard';
-import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
+import { buttonClasses } from '@/src/components/ui/buttonClasses';
+import { formatCurrency, formatNumberExact } from '@/src/lib/format';
 import { isActualComplete } from '@/src/lib/projectFinances';
+import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
+import { pillVariantForProjectStatus } from '@/components/projects';
+import type { TopProject } from '@/src/lib/db/dashboard';
+import { useIsNarrow } from '@/src/components/ui/useIsNarrow';
+import { executiveRiskState, sortExecutiveProjects } from './executiveProjectOrder';
 
-export interface BvACardProps<T extends TopProject = TopProject> {
-  projects: T[];
-  /** Org operating currency (the top-projects RPC carries no per-row currency) — FR-L10N-020. */
+export interface BvACardProps {
+  projects: TopProject[];
+  /** Org operating currency (the top-projects RPC carries no per-row currency). */
   currency: string;
-  /** Extra decision details for a role-specific worklist that shares this project row. */
-  projectDetails?: (project: T) => React.ReactNode;
+  isPending?: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }
 
-/**
- * Plain-language contract comparison with a separate Active-budget risk signal.
- * Unknown Actual is never rendered as zero and never produces a progress bar.
- */
-export function BvACard<T extends TopProject = TopProject>({ projects, currency, projectDetails }: BvACardProps<T>) {
+/** The delivery comparison keeps record identity, status, known money, and its open action together. */
+export const BvACard: React.FC<BvACardProps> = ({ projects, currency, isPending = false, isError = false, onRetry }) => {
   const { t } = useTranslation();
-  const money = (value: number | null, rowCurrency: string = currency) => formatDashboardMoney(value, rowCurrency)
-    ?? t('uxs03.notAvailableYet', 'Not available yet');
-  return (
-  <div role="group" aria-label={t('uxs03.spendingContract', 'Spending vs contract')} className="flex flex-col">
-    {projects.map((p, i) => {
-      const contract = p.contract_value;
-      const actualComplete = isActualComplete({ basis: 'erp', readSucceeded: p.spent !== null, complete: p.actual_complete,
-        coverageCount: p.actual_coverage_count, coverageTotal: p.actual_coverage_total });
-      const pct = contract !== null && contract > 0 && actualComplete && (p.actual_currency ?? p.currency) === p.currency
-        ? Math.round(((p.spent ?? 0) / contract) * 100) : null;
-      const atRisk = isMoneyAtRisk({ status: p.status, budget: p.budget, budgetCurrency: p.budget_currency ?? p.currency, projectCurrency: p.currency,
-        spent: p.spent, actualCurrency: p.actual_currency ?? p.currency, actualComplete });
-      const dot = chartTheme.categorical[i % chartTheme.categorical.length];
+  const statusLabel = useProjectStatusLabel();
+  const narrow = useIsNarrow();
+  const rows = useMemo(() => sortExecutiveProjects(projects), [projects]);
+  const groups = useMemo(() => {
+    const grouped = new Map<string, TopProject[]>();
+    for (const project of rows) {
+      const projectCurrency = project.currency || currency || 'USD';
+      const group = grouped.get(projectCurrency) ?? [];
+      group.push(project);
+      grouped.set(projectCurrency, group);
+    }
+    return [...grouped.entries()];
+  }, [rows, currency]);
+  const money = (value: number | null, rowCurrency: string, groupCurrency: string) => {
+    if (value === null || !Number.isFinite(value)) return null;
+    const code = rowCurrency || groupCurrency || currency;
+    return code === groupCurrency ? formatNumberExact(value) : formatCurrency(value, code);
+  };
 
-      return (
-        <div
-          key={p.id}
-          data-row
-          className="flex flex-col gap-2 border-b border-border/70 py-3 last:border-b-0"
+  const columnsFor = (groupCurrency: string): Column<TopProject>[] => [
+    {
+      key: 'project',
+      header: t('dashboard:exec.project', 'Project'),
+      kind: 'primary',
+      rowHeader: true,
+      cell: (project) => (
+        <Link
+          to={`/projects/${project.id}`}
+          className="inline-flex min-h-11 min-w-0 items-center text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
-          {/* flex-wrap: at 390px the name + money values wrap to a second line (C-Mobile). */}
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span
-              aria-hidden="true"
-              className="size-1.5 shrink-0 rounded-full"
-              style={{ background: dot }}
-            />
-            <Link
-              to={`/projects/${p.id}`}
-              title={p.name}
-              className="min-w-0 truncate text-[13px] font-semibold hover:text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
-            >
-              {projectDisplayName(p)}
-            </Link>
-            {atRisk && <StatusPill variant="warn">{t('dashboard.bva.atRisk', 'At risk')}</StatusPill>}
-            <span className="ml-auto shrink-0 text-[12px] tabular text-muted-foreground">
-              {money(actualComplete ? p.spent : null, p.actual_currency ?? p.currency)} / {money(contract, p.currency)}
-            </span>
-            {/* D-2 (AC-JR-W3B-04): decorative trailing chevron removed — it was a false
-                affordance implying the row is clickable while only the name Link above is
-                interactive. The "At risk" StatusPill above is the exception badge; the name
-                Link is the affordance. No chevron needed. */}
+          <span className="break-words">{project.name}</span>
+        </Link>
+      ),
+    },
+    {
+      key: 'statusRisk',
+      header: t('dashboard:exec.statusRisk', 'Status / risk'),
+      kind: 'status',
+      cell: (project) => {
+        const risk = executiveRiskState(project);
+        return (
+          <div className="flex min-w-0 flex-col items-start gap-1">
+            <StatusPill variant={pillVariantForProjectStatus(project.status)}>{statusLabel(project.status)}</StatusPill>
+            {risk === 'at-risk' && <StatusPill variant="warn">{t('common:dashboard.bva.atRisk', 'At risk')}</StatusPill>}
+            {risk === 'within-budget' && <span className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.withinBudget', 'Within budget')}</span>}
+            {risk === 'unchecked' && (
+              <a
+                href="#executive-data-note"
+                aria-label={t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
+                className="inline-flex min-h-11 items-center text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              >
+                {t('dashboard:exec.riskUncheckedSeeNote', 'Risk not checked; see portfolio data note')}
+              </a>
+            )}
           </div>
-          {/* widthless: no outer min-w so the bar fills the flex row at any viewport width.
-              [&>span:first-child]:flex-1 ensures the track expands in the flex container. */}
-          {pct !== null && <ProgressBar
-            value={pct}
-            widthless
-            className="w-full [&>span:first-child]:flex-1"
-            aria-label={t('uxs03.spendingContractBar', '{{name}}: {{percent}}% of contract', { name: projectDisplayName(p), percent: pct })}
-          />}
-          {p.actual_coverage_total != null && p.actual_coverage_total > (p.actual_coverage_count ?? 0) && (
-            <span className="text-[12px] text-muted-foreground">
-              {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', {
-                known: p.actual_coverage_count ?? 0, total: p.actual_coverage_total,
+        );
+      },
+    },
+    {
+      key: 'actual',
+      header: t('dashboard:exec.knownActual', 'Known Actual'),
+      kind: 'money',
+      align: 'num',
+      cell: (project) => {
+        const actualCurrency = project.actual_currency ?? project.currency;
+        const actualComplete = isActualComplete({
+          basis: 'erp',
+          readSucceeded: project.spent !== null,
+          complete: project.actual_complete,
+          coverageCount: project.actual_coverage_count,
+          coverageTotal: project.actual_coverage_total,
+        });
+        const actual = money(actualComplete ? project.spent : null, actualCurrency, groupCurrency);
+        const comparable = actualComplete && project.spent !== null
+          && project.contract_value !== null && project.contract_value > 0
+          && actualCurrency === project.currency;
+        const progress = comparable
+          ? Math.min(100, Math.max(0, Math.round((project.spent! / project.contract_value!) * 100)))
+          : null;
+        return (
+          <div className="min-w-[7rem] space-y-1">
+            {actual === null ? <a className="inline-flex min-h-11 min-w-11 items-center justify-center" href="#executive-actual-note" aria-label={t('dashboard:exec.actualUnavailable', 'Actual unavailable; see coverage note')}>—</a> : <span className="inline-block whitespace-nowrap">{actual}</span>}
+            {progress !== null && <ProgressBar value={progress} widthless className="w-full [&>span:first-child]:flex-1" aria-label={t('dashboard:exec.actualOfContract', '{{project}}: {{percent}}% of contract', { project: project.name, percent: progress })} />}
+          </div>
+        );
+      },
+    },
+    {
+      key: 'contract',
+      header: t('dashboard:exec.contract', 'Contract'),
+      kind: 'money',
+      align: 'num',
+      cell: (project) => {
+        const value = money(project.contract_value, project.currency, groupCurrency);
+        return value === null
+          ? <a className="inline-flex min-h-11 items-center" href="#executive-data-note" aria-label={t('dashboard:exec.contractUnavailable', 'Contract value unavailable; see data note')}>—</a>
+          : <span className="inline-block whitespace-nowrap">{value}</span>;
+      },
+    },
+    {
+      key: 'open',
+      header: t('dashboard:exec.open', 'Open'),
+      kind: 'actions',
+      cell: (project) => (
+        <Link
+          to={`/projects/${project.id}`}
+          aria-label={t('dashboard:exec.openProject', 'Open {{project}}', { project: project.name })}
+          className={buttonClasses('outline', 'default', 'min-h-11 px-3')}
+        >
+          {t('dashboard:exec.open', 'Open')}
+        </Link>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {groups.map(([groupCurrency, groupRows]) => (
+        <section key={groupCurrency} aria-labelledby={`executive-spending-${groupCurrency.toLowerCase()}`}>
+          <h3 id={`executive-spending-${groupCurrency.toLowerCase()}`} className="mb-2 text-xl font-bold">
+            {t('dashboard:exec.spendingCurrencyGroup', '{{currency}} spending comparison', { currency: groupCurrency })}
+          </h3>
+          {narrow && !isPending && !isError ? (
+            <ul aria-label={t('dashboard:exec.spendingComparisonForCurrency', '{{currency}} spending comparison', { currency: groupCurrency })} className="divide-y divide-border">
+              {groupRows.map((project) => {
+                const columns = columnsFor(groupCurrency);
+                return <li key={project.id} className="space-y-2 py-3 text-sm">
+                  <div className="font-semibold">{columns[0].cell(project)}</div>
+                  {columns[1].cell(project)}
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                    <div className="min-w-0"><span className="text-xs font-semibold text-muted-foreground">{columns[2].header}</span>{columns[2].cell(project)}</div>
+                    {columns[4].cell(project)}
+                  </div>
+                  <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.viewContractDetails', 'View contract details')}</summary>
+                    <dl className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3"><dt className="text-xs font-semibold text-muted-foreground">{columns[3].header}</dt><dd className="text-right tabular">{columns[3].cell(project)}</dd></dl>
+                  </details>
+                </li>;
               })}
-            </span>
+            </ul>
+          ) : (
+          <DataTable<TopProject>
+            rows={groupRows}
+            columns={columnsFor(groupCurrency)}
+            rowKey={(project) => project.id}
+            accessibleName={t('dashboard:exec.spendingComparisonForCurrency', '{{currency}} spending comparison', { currency: groupCurrency })}
+            state={isPending ? 'loading' : isError ? 'error' : groupRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
+            errorTitle={t('dashboard:exec.projectDataError', "Couldn't load project comparison")}
+            onRetry={onRetry}
+            tableId={`components-dashboard-executive-delivery-v2-${groupCurrency.toLowerCase()}`}
+          />
           )}
-          {projectDetails?.(p)}
-        </div>
-      );
-    })}
-  </div>
+        </section>
+      ))}
+      {groups.length === 0 && (isPending || isError || projects.length === 0) && (
+        <DataTable<TopProject>
+          rows={[]}
+          columns={columnsFor(currency)}
+          rowKey={(project) => project.id}
+          accessibleName={t('dashboard:exec.spendingComparison', 'Spending comparison')}
+          state={isPending ? 'loading' : isError ? 'error' : 'empty'}
+          emptyTitle={t('uxs03.deliveryChartEmpty', 'No delivery projects to compare yet')}
+          errorTitle={t('dashboard:exec.projectDataError', "Couldn't load project comparison")}
+          onRetry={onRetry}
+          tableId="components-dashboard-executive-delivery-v2-empty"
+        />
+      )}
+    </div>
   );
-}
+};

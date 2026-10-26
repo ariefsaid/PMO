@@ -308,6 +308,12 @@ export const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
+    if (pathname === '/') {
+      return [
+        { label: t('dashboard:breadcrumb.home', 'Home'), href: '/' },
+        { label: t('shell.nav.dashboard', 'Dashboard'), i18nKey: 'shell.nav.dashboard' },
+      ];
+    }
     if (pathname === '/settings/profile') {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }

@@ -2,82 +2,70 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { chartTheme } from '@/src/components/ui/chartTheme';
-import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
+import { formatNumberExact } from '@/src/lib/format';
 import { ProjectedMarginBars } from './ProjectedMarginBars';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
 const stages: PipelineStage[] = [
   { status: 'Tender Submitted', count: 2, total_value: 2_000_000, win_probability: 0.3, weighted_value: 600_000 },
   { status: 'Negotiation', count: 1, total_value: 1_000_000, win_probability: 0.5, weighted_value: 500_000 },
-  // terminal — must be excluded
   { status: 'Won, Pending KoM', count: 1, total_value: 800_000, win_probability: 1, weighted_value: 800_000 },
   { status: 'Loss Tender', count: 1, total_value: 400_000, win_probability: 0, weighted_value: 0 },
 ];
 
-// D-1: rows are now Links; wrap in MemoryRouter.
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
-describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
-  it('renders the projected-margin headline from the exec payload', () => {
+describe('Pipeline margin and stage evidence', () => {
+  it('shows the measured forecast margin headline from the executive payload', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('14.1%')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /^Pipeline forecast margin/ })).toBeInTheDocument();
   });
 
-  it('AC-RD-UNAVAIL-001 / SL-B: unknown margin drops the headline row entirely, never prose or a lone dash', () => {
+  it('AC-RD-UNAVAIL-001 keeps an unknown margin as a dash without drawing a false percentage', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
     const group = screen.getByRole('group', { name: /Pipeline projected margin/i });
-    expect(within(group).queryByText('—')).toBeNull();
-    expect(within(group).queryByText(/probability-adjusted/)).toBeNull();
-    expect(within(group).queryByText('Weighted pipeline value')).toBeNull();
+    expect(within(group).getByText('—')).toBeInTheDocument();
+    expect(within(group).queryByText('0.0%')).toBeNull();
   });
 
-  it('AC-RD-MONEY-001: bar values are short with the exact amount as title', () => {
+  it('AC-RD-MONEY-001 keeps the full weighted amount visible beside each open stage', () => {
     wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    const amount = document.querySelector<HTMLElement>('span[title]')!;
-    expect(amount.title).toContain('600,000');
-    expect(amount.title).not.toContain('.00');
-    expect(amount.textContent).toMatch(/600\.0K/);
+    expect(screen.getByRole('heading', { name: 'Open stage values · IDR' })).toBeInTheDocument();
+    expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
+    expect(screen.queryByText(/600\.0K/)).toBeNull();
   });
 
-  it('AC-RD-GEOM-001 (unit): a stage amount is never truncated, so a long Bahasa amount cannot clip', () => {
+  it('AC-RD-GEOM-001 keeps long exact amounts intact and untruncated', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
-    const amount = screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!);
+    const amount = screen.getByText(formatNumberExact(600_000));
     expect(amount.className).not.toMatch(/truncate|(^|\s)w-\[68px\]/);
     expect(amount.className).toContain('whitespace-nowrap');
   });
 
-  it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {
+  it('renders one open-stage bar per non-terminal stage with its weighted value', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
-    expect(screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!)).toHaveTextContent('$600.0K');
-    // terminal stages excluded
+    expect(screen.getByText(formatNumberExact(600_000))).toBeInTheDocument();
     expect(screen.queryByText('Won, Pending KoM')).toBeNull();
     expect(screen.queryByText('Loss Tender')).toBeNull();
   });
 
-  it('labels the section and each bar for assistive tech', () => {
+  it('labels the section and each weighted bar for assistive technology', () => {
     wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
     expect(screen.getByRole('group', { name: /Pipeline projected margin/i })).toBeInTheDocument();
-    expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Tender Submitted:.*weighted/i })).toBeInTheDocument();
   });
 
-  it('batch-3: colors every weighted-value bar with the neutral chart tone (not action-blue)', () => {
+  it('uses the neutral chart token for stage bars, with labels carrying status meaning', () => {
     const { container } = wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
-    const fills = Array.from(
-      container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
-    );
+    const fills = Array.from(container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'));
     expect(fills.length).toBeGreaterThan(0);
     for (const fill of fills) {
       expect(fill.style.background).toBe(chartTheme.axis);
-      expect(fill.style.background).toBe('hsl(var(--muted-foreground))');
       expect(fill.style.background).not.toBe(chartTheme.series.primary);
     }
-    // No categorical hue (the violet PQ bar the audit flagged) leaks through.
-    for (const cat of chartTheme.categorical) {
-      expect(fills.some((f) => f.style.background === cat)).toBe(false);
-    }
-    // Per-stage label still present (color-not-only).
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
   });
 });

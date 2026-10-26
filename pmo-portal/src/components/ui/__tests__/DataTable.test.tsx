@@ -582,8 +582,8 @@ describe('DataTable', () => {
 // jsdom has no real layout so we assert the applied classes + DOM presence (class
 // presence = the correct flexbox/grid overflow prevention; DOM presence = text is
 // in the document regardless of viewport width).
-// No `truncate` without an associated `title` attribute is permitted — silent
-// truncation is a content-loss defect.
+// A complete record identity remains visible in the cell and wraps naturally;
+// hover text is not a substitute for the identity itself.
 describe('DataTable — A-C-1: mobile card <dd> wrapping (no value clipping at 390px)', () => {
   function mockMobile() {
     vi.stubGlobal(

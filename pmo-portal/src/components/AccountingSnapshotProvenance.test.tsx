@@ -89,13 +89,12 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
       />,
     );
     const strip = screen.getByTestId('snapshot-provenance');
-    const timestamp = strip.querySelector('.font-medium')?.textContent;
+    const timestamp = strip.firstElementChild?.textContent?.replace(/^Updated /, '');
     expect(strip.firstElementChild?.textContent).toMatch(/^Updated /);
     expect(timestamp).toMatch(/2026/);
     expect(strip).toHaveTextContent('Profit and loss');
     expect(strip).toHaveTextContent('source-version');
     expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
-    expect(strip.children).toHaveLength(5);
 
     rerender(
       <AccountingSnapshotProvenance
@@ -107,10 +106,9 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     );
     const updatedStrip = screen.getByTestId('snapshot-provenance');
     expect(updatedStrip.firstElementChild?.textContent).toMatch(/^Diperbarui /);
-    expect(updatedStrip.querySelector('.font-medium')).toHaveTextContent(timestamp ?? '');
+    expect(updatedStrip.firstElementChild).toHaveTextContent(timestamp ?? '');
     expect(updatedStrip).toHaveTextContent('Profit and loss');
     expect(updatedStrip).toHaveTextContent('source-version');
-    expect(updatedStrip.children).toHaveLength(5);
   });
 
   it('retains the original As of text and DOM when updatedLabel is omitted or undefined', () => {
@@ -126,7 +124,6 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     const originalMarkup = strip.innerHTML;
     expect(strip.firstElementChild?.textContent).toMatch(/^As of /);
     expect(strip).toHaveClass('custom-strip');
-    expect(strip.children).toHaveLength(5);
     expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
     expect(strip).toHaveTextContent('Accounts Payable');
     expect(strip).toHaveTextContent('source-version');

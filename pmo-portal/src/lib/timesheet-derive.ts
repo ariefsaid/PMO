@@ -33,7 +33,8 @@ export function entriesByProject(
       });
     }
   }
-  return Array.from(map.values()).sort((a, b) => b.hours - a.hours);
+  return Array.from(map.values()).sort((a, b) =>
+    b.hours - a.hours || a.name.localeCompare(b.name) || a.projectId.localeCompare(b.projectId));
 }
 
 export interface FlatEntry extends TimesheetEntryWithProject {
@@ -55,7 +56,7 @@ export function recentEntries(
       flat.push({ ...e, sheetId: sheet.id });
     }
   }
-  flat.sort((a, b) => b.entry_date.localeCompare(a.entry_date));
+  flat.sort((a, b) => b.entry_date.localeCompare(a.entry_date) || a.id.localeCompare(b.id));
   return flat.slice(0, limit);
 }
 

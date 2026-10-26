@@ -69,6 +69,15 @@ describe('T1 — entriesByProject', () => {
     expect(result[0].projectId).toBe('p1'); // 12h > 3h
   });
 
+  it('uses project name and then stable project ID when hour totals tie', () => {
+    const tied = [
+      makeEntry('entry-z', 4, '2026-06-01', 'z-project', 'Same name'),
+      makeEntry('entry-b', 4, '2026-06-01', 'b-project', 'Same name'),
+      makeEntry('entry-a', 4, '2026-06-01', 'a-project', 'Alpha'),
+    ];
+    expect(entriesByProject(tied).map((row) => row.projectId)).toEqual(['a-project', 'b-project', 'z-project']);
+  });
+
   it('carries project name and code (T1)', () => {
     const result = entriesByProject(sheets[0].entries);
     const alpha = result.find((r) => r.projectId === 'p1')!;
@@ -92,6 +101,17 @@ describe('T1 — recentEntries', () => {
   it('caps at the requested limit (T1 cap)', () => {
     const result = recentEntries(sheets, 2);
     expect(result).toHaveLength(2);
+  });
+
+  it('uses a stable entry ID order for matching business dates', () => {
+    const sameDateSheets = [{
+      ...sheets[0],
+      entries: [
+        makeEntry('z-entry', 1, '2026-06-01', 'p1', 'Alpha'),
+        makeEntry('a-entry', 1, '2026-06-01', 'p1', 'Alpha'),
+      ],
+    }];
+    expect(recentEntries(sameDateSheets as unknown as TimesheetWithEntries[], 8).map((entry) => entry.id)).toEqual(['a-entry', 'z-entry']);
   });
 
   it('returns all entries when fewer than limit exist (T1 edge)', () => {

@@ -46,12 +46,12 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
 
-describe('PMDashboard short names (AC-002 #1325)', () => {
-  it('shows one short-name project doorway, titling the contractual name', () => {
+describe('PMDashboard identity (AC-002 #1325)', () => {
+  it('shows the full project identity in the merged delivery worklist', () => {
     render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const links = screen.getAllByRole('link', { name: 'Steelworks' });
+    const links = screen.getAllByRole('link', { name: 'Meridian Steelworks' });
     expect(links).toHaveLength(1);
-    for (const link of links) expect(link).toHaveAttribute('title', 'Meridian Steelworks');
-    expect(screen.queryByText('Meridian Steelworks')).toBeNull();
+    expect(links[0]).toHaveTextContent('Meridian Steelworks');
+    expect(screen.queryByText('Steelworks', { exact: true })).toBeNull();
   });
 });

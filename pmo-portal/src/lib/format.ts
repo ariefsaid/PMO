@@ -83,7 +83,7 @@ export function formatExactMoney(
   value: string | null,
   currency: string,
   locale: string,
-  opts: { trimZeroFraction?: boolean } = {},
+  opts: { trimZeroFraction?: boolean; currencyDisplay?: 'code' | 'symbol' } = {},
 ): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
   const negative = value.startsWith('-');
@@ -92,8 +92,13 @@ export function formatExactMoney(
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
     const trim = opts.trimZeroFraction === true && cents === 0n;
-    const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
+    const code = opts.currencyDisplay === 'code';
+    const shape = code
+      ? trim ? 'exact-currency-code-whole' : 'exact-currency-code'
+      : trim ? 'exact-currency-whole' : 'exact-currency';
+    const parts = numberFormatterFor(shape, locale, currency, {
       style: 'currency', currency,
+      ...(code ? { currencyDisplay: 'code' as const } : {}),
       minimumFractionDigits: trim ? 0 : 2, maximumFractionDigits: trim ? 0 : 2,
     }).formatToParts(whole);
     const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');

@@ -1,375 +1,184 @@
-/**
- * S1 Wave-0 — Mobile executive dashboard regression tests.
- *
- * Verifies the mobile (<768px, useIsDesktop()=false) variant:
- * - AC-MOBILE-1: At-risk block renders BEFORE charts/pipeline below fold.
- * - AC-MOBILE-2: Approvals band with primary "Review" CTA renders before charts.
- * - AC-MOBILE-3: Contract book (Revenue on hand + Total contract value) renders before charts.
- * - AC-MOBILE-4: B-MIN-3 source-lines present in Contract book.
- * - AC-MOBILE-5 (CW-7): mobile reads the SAME metric labels as desktop ("Total contract value").
- * - AC-MOBILE-6: Desktop layout still renders full KPI band (6 tiles) with "Total contract value".
- *
- * Ordering is asserted by DOM order (compareDocumentPosition).
- */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from '../ExecutiveDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
-// ── Data fixtures ─────────────────────────────────────────────────────────────
 const populated = {
   active_projects: 18,
   active_delivery_projects: 18,
   risk_unchecked_projects: 0,
-  total_contract_value: 23050000, currency: 'USD',
+  total_contract_value: 23_050_000,
   on_hand_margin: 0.224,
-  on_hand_value: 26650000,
-  on_hand_contract_remaining: 22000000,
-  on_hand_realized_margin: 4650000,
+  on_hand_value: 26_650_000,
+  on_hand_contract_remaining: 22_000_000,
+  on_hand_realized_margin: 4_650_000,
   on_hand_actual_known: 4_000_000,
   on_hand_actual_project_count: 18,
   on_hand_actual_project_total: 18,
   on_hand_actual_coverage_count: 18,
   on_hand_actual_coverage_total: 18,
-  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 4650000, unknown_projects: 0 }],
-  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 26650000, actual_known: 4650000, contract_remaining: 22000000, actual_coverage_count: 18, actual_coverage_total: 18, realized_margin_known: 4650000, unknown_projects: 0 }],
-  pipeline_weighted_value: 8400000,
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 4_650_000, unknown_projects: 0 }],
+  on_hand_value_by_currency: [{
+    currency: 'USD', contract_value: 26_650_000, actual_known: 4_650_000,
+    contract_remaining: 22_000_000, actual_coverage_count: 18, actual_coverage_total: 18,
+    realized_margin_known: 4_650_000, unknown_projects: 0,
+  }],
+  pipeline_weighted_value: 8_400_000,
   pipeline_projected_margin: 0.315,
-  pipeline_total_value: 19200000,
+  pipeline_total_value: 19_200_000,
+  pipeline_total_value_by_currency: [{ currency: 'USD', total_value: 19_200_000, weighted_value: 8_400_000, forecast_margin: 0.315, no_active_budget: 0 }],
   projects_at_risk: 3,
   projects_by_status: [{ status: 'Ongoing Project', count: 18 }],
-  procurements_by_status: [
-    { status: 'Draft', count: 1 },
-    { status: 'Requested', count: 2 },
-  ],
-  top_projects: [
-    {
-      id: 'p1', name: 'Alpha Project', client_name: 'ACME',
-      contract_value: 5000000, currency: 'USD', budget: 4700000, spent: 2100000, status: 'Ongoing Project',
-      actual_complete: true, actual_currency: 'USD', budget_currency: 'USD',
-    },
-  ],
+  procurements_by_status: [{ status: 'Draft', count: 1 }, { status: 'Requested', count: 2 }],
+  top_projects: [{
+    id: 'p1', name: 'Alpha Project', client_name: 'ACME', contract_value: 5_000_000, currency: 'USD',
+    budget: 4_700_000, budget_currency: 'USD', spent: 2_100_000, actual_currency: 'USD',
+    actual_complete: true, actual_coverage_count: 1, actual_coverage_total: 1, status: 'Ongoing Project',
+  }],
 };
 
-const winRateOracle = {
-  wins_count: 2, losses_count: 1, wins_value: 8000000, losses_value: 650000,
-  win_rate_count: 0.666667, win_rate_value: 0.924855,
-};
+const dashboardState = vi.hoisted(() => ({
+  data: null as unknown,
+  pending: false,
+  error: false,
+  approvals: [{ id: 't1' }, { id: 't2' }, { id: 't3' }] as Array<{ id: string }>,
+  effectiveRole: 'Executive',
+}));
 
-// ── Module mocks ──────────────────────────────────────────────────────────────
-const dashState: {
-  data: typeof populated | null;
-  isPending: boolean;
-  isError: boolean;
-  refetch: ReturnType<typeof vi.fn>;
-} = { data: populated, isPending: false, isError: false, refetch: vi.fn() };
-
-// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
-// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
-// syntax error and hides every real error beneath it.
-// BoardPackAction (#765) reads the management pack via react-query; these tests render without a QueryClient.
-// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
-  useDashboard: () => dashState,
-  useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),
-  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
+  useDashboard: () => ({ data: dashboardState.data, isPending: dashboardState.pending, isError: dashboardState.error, refetch: vi.fn() }),
+  useWinRate: () => ({
+    data: { wins_count: 2, losses_count: 1, wins_value: 8_000_000, losses_value: 650_000, win_rate_count: 2 / 3, win_rate_value: 0.92 },
+    isPending: false, isError: false,
+  }),
+  useSalesPipeline: () => ({
+    data: { stages: [{ status: 'Tender Submitted', count: 1, total_value: 1_000_000, win_probability: 0.3, weighted_value: 300_000 }] },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
+  useEffectiveRole: () => ({ effectiveRole: dashboardState.effectiveRole, realRole: dashboardState.effectiveRole }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({
-    data: [
-      { id: 'pr1', status: 'Requested', requested_by_id: 'other-1' },
-      { id: 'pr2', status: 'Requested', requested_by_id: 'other-2' },
-    ],
-    isPending: false,
+    data: [],
+    isPending: false, isError: false,
   }),
 }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({
-    data: [{ id: 't1' }, { id: 't2' }, { id: 't3' }],
-  }),
+  useTimesheetsAwaitingApproval: () => ({ data: dashboardState.approvals, isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
 }));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => false }));
+vi.mock('@/src/components/dashboard/FinanceDashboard', () => ({ FinanceDashboard: () => <div data-testid="role-finance" /> }));
+vi.mock('@/src/components/dashboard/PMDashboard', () => ({ PMDashboard: () => <div data-testid="role-pm" /> }));
+vi.mock('@/src/components/dashboard/EngineerDashboard', () => ({ EngineerDashboard: () => <div data-testid="role-engineer" /> }));
 
-// ── useIsDesktop mock control ─────────────────────────────────────────────────
-let mockIsDesktop = false;
-
-vi.mock('@/src/components/ui/useIsDesktop', () => ({
-  useIsDesktop: () => mockIsDesktop,
-}));
-
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ExecutiveDashboard />
-      </ToastProvider>
-    </MemoryRouter>,
-  );
+const renderPage = () => render(
+  <MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter>,
+);
 
 beforeEach(() => {
-  dashState.data = populated;
-  dashState.isPending = false;
-  dashState.isError = false;
-  mockIsDesktop = false;
+  dashboardState.data = populated;
+  dashboardState.pending = false;
+  dashboardState.error = false;
+  dashboardState.approvals = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
+  dashboardState.effectiveRole = 'Executive';
 });
 
-// ── Helper: get DOM order of two elements (negative = el1 before el2) ─────────
-function domOrderCompare(el1: HTMLElement, el2: HTMLElement): number {
-  const pos = el1.compareDocumentPosition(el2);
-  if (pos & Node.DOCUMENT_POSITION_FOLLOWING) return -1; // el2 after el1 → el1 first
-  if (pos & Node.DOCUMENT_POSITION_PRECEDING) return 1;  // el2 before el1 → el1 last
-  return 0;
-}
+describe('Executive dashboard uses one responsive composition', () => {
+  it('keeps one accessible risk, approval, and Delivery book representation', () => {
+    const { container } = renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByTestId('dashboard-attention')).toHaveTextContent('3 projects at risk');
+    expect(screen.getByTestId('dashboard-attention')).toHaveTextContent('3 approval requests need a decision');
+    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('Contract value on hand');
+    expect(screen.getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
+    expect(container.querySelectorAll('[data-testid="dashboard-delivery-book"]')).toHaveLength(1);
+  });
 
-// ────────────────────────────────────────────────────────────────────────────────
-describe('AC-MOBILE-1/2/3: mobile above-the-fold order', () => {
-  it('AC-RD-SPEND-001: labels partial actuals as recorded spending with a Partial marker', () => {
-    dashState.data = {
+  it('shows complete per-currency figures and project-specific drill-throughs', () => {
+    dashboardState.data = {
       ...populated,
-      on_hand_actual_project_count: 2,
-      on_hand_actual_project_total: 3,
-      on_hand_actual_coverage_count: 4,
-      on_hand_actual_coverage_total: 5,
-    };
-    mockIsDesktop = false;
-    renderPage();
-    const spend = screen.getByTestId('dashboard-at-risk');
-    expect(within(spend).getByText('Recorded spending')).toBeInTheDocument();
-    expect(within(spend).getByText('Partial')).toBeInTheDocument();
-    expect(within(spend).queryByText('Total project spend')).not.toBeInTheDocument();
-  });
-
-  it('AC-MOBILE-1: at-risk block renders before charts section', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const atRisk = screen.getByTestId('dashboard-at-risk');
-    // Charts section (budget vs actual or procurement)
-    const charts = screen.getByTestId('dashboard-pipeline');
-    expect(domOrderCompare(atRisk, charts)).toBe(-1); // at-risk before charts
-  });
-
-  it('AC-MOBILE-2: approvals band with Review CTA renders before charts', () => {
-    mockIsDesktop = false;
-    renderPage();
-    // The entire approvals band is a single link to /approvals.
-    // The "Review" label is visible text within it (One Blue Rule: the only primary CTA above fold).
-    const approvalsBand = screen.getByTestId('mobile-approvals-band');
-    // The band itself is the <a> link
-    expect(approvalsBand.tagName.toLowerCase()).toBe('a');
-    expect(approvalsBand).toHaveAttribute('href', '/approvals');
-    // "Review" text is inside the band
-    expect(approvalsBand).toHaveTextContent(/Review/i);
-    const charts = screen.getByTestId('dashboard-pipeline');
-    expect(domOrderCompare(approvalsBand, charts)).toBe(-1);
-  });
-
-  it('AC-FAA-006: pipeline-only status evidence keeps mobile KPIs and shows a delivery-specific chart empty state', () => {
-    mockIsDesktop = false;
-    dashState.data = {
-      ...populated,
-      active_projects: 0,
-      top_projects: [],
-      projects_by_status: [{ status: 'Tender Submitted', count: 2 }],
-      procurements_by_status: [],
-    };
-
-    renderPage();
-
-    expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
-    expect(screen.getByTestId('mobile-kpi-total-contract-value')).toBeInTheDocument();
-    const deliveryChart = screen.getByTestId('dashboard-pipeline');
-    expect(within(deliveryChart).getByText('No delivery projects to compare yet')).toBeInTheDocument();
-    expect(within(deliveryChart).getByText('Won, on-hold, delivery and closed-out projects, plus internal work.')).toBeInTheDocument();
-  });
-
-  it('shows mixed-currency on-hand values and contract remainder on the phone', () => {
-    dashState.data = {
-      ...populated,
-      on_hand_value: null as unknown as number,
-      on_hand_contract_remaining: null as unknown as number,
-      on_hand_realized_margin: null as unknown as number,
+      on_hand_value: null,
       on_hand_value_by_currency: [
         { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 2, realized_margin_known: null as unknown as number, unknown_projects: 1 },
+        { currency: 'USD', contract_value: 1_000_000, actual_known: null, contract_remaining: null, actual_coverage_count: 0, actual_coverage_total: 2, realized_margin_known: null, unknown_projects: 1 },
       ],
       on_hand_realized_margin_by_currency: [
         { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
+        { currency: 'USD', known_amount: null, unknown_projects: 1 },
       ],
     };
+    dashboardState.approvals = [];
     renderPage();
-    const onHand = screen.getByTestId('mobile-kpi-on-hand');
-    expect(onHand).toHaveTextContent('IDR 2B');
-    expect(onHand).toHaveTextContent('$1M');
-    expect(onHand).not.toHaveTextContent(/USD\s*\$/);
-    expect(onHand).toHaveTextContent('2,000,000,000');
-    expect(onHand).toHaveTextContent('1,000,000');
-    // OD-MONEY-FMT: the running-text remainder/margin lines use the short form per currency.
-    expect(onHand).toHaveTextContent('IDR 800M');
-    expect(onHand).toHaveTextContent('IDR 100M');
-    expect(onHand).not.toHaveTextContent('Not available yet');
+    const delivery = screen.getByRole('region', { name: 'Delivery book' });
+    expect(delivery).toHaveTextContent('IDR');
+    expect(delivery).toHaveTextContent('USD');
+    expect(delivery).toHaveTextContent(/2,000,000,000/);
+    expect(delivery).toHaveTextContent(/1,000,000/);
+    expect(screen.getByRole('link', { name: 'Review at-risk projects' })).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(screen.getByRole('link', { name: 'Open Alpha Project' })).toHaveAttribute('href', '/projects/p1');
+    expect(screen.getByRole('link', { name: 'Tender Submitted' })).toHaveAttribute('href', '/sales?status=Tender%20Submitted');
   });
 
-  it('AC-MOBILE-4: B-MIN-3 source-lines are present in the contract book', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const contractBook = screen.getByTestId('mobile-contract-book');
-    expect(within(contractBook).getByText(/Contract remaining after known Actual/i)).toBeInTheDocument();
-    expect(within(contractBook).getByText(/Margin on billed work/i)).toBeInTheDocument();
-    expect(within(contractBook).getByText(/Signed value of/i)).toBeInTheDocument();
-    expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
-  });
-
-  it('AC-MOBILE-5 (CW-7): mobile uses the SAME metric labels as desktop (no forked "Active contract value")', () => {
-    // Deliberate copy reconcile (CW-7 §4): mobile must read the canonical desktop term so the two
-    // surfaces are the same page reflowed, not two different pages. Goal-oracle (the money tile
-    // shows the active contract-value figure with a scope micro-line) stays intact.
-    mockIsDesktop = false;
-    renderPage();
-    const contractBook = screen.getByTestId('mobile-contract-book');
-    // The headline metric label matches desktop ("Total contract value").
-    expect(within(contractBook).getByText(/^Total contract value$/i)).toBeInTheDocument();
-    // The old forked label is gone.
-    expect(within(contractBook).queryByText(/Active contract value/i)).not.toBeInTheDocument();
-    // The scope-explaining source micro-line is retained (the asymmetry is carried here, not by a forked term).
-    expect(within(contractBook).getByText(/projects still in delivery/i)).toBeInTheDocument();
-  });
-
-  it('CW-7: every shared metric LABEL on mobile matches a desktop KPI label (same page, reflowed)', () => {
-    // Desktop canonical labels (ExecutiveDashboard KPI band).
-    const desktopLabels = [
-      'Contracted revenue',
-      'Total contract value',
-      'Recorded spending',
-    ];
-    mockIsDesktop = false;
-    renderPage();
-    for (const label of desktopLabels) {
-      expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    }
-    // The pre-reconcile mobile-only terms must NOT appear.
-    expect(screen.queryByText(/Active contract value/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Spent to date/i)).not.toBeInTheDocument();
-  });
-
-  it('gives the shown at-risk count a risk-filtered doorway without nesting it in another action', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const link = within(screen.getByTestId('dashboard-at-risk')).getByRole('link', { name: 'Review 3 at-risk projects' });
-    expect(link).toHaveAttribute('href', '/projects?filter=at-risk');
-  });
-
-  it('keeps the phone definition keyboard/touch help separate from navigation', async () => {
-    mockIsDesktop = false;
-    renderPage();
-    const book = screen.getByTestId('mobile-contract-book');
-    const help = within(book).getByRole('button', { name: /^About this metric: \S/ });
-    await userEvent.click(help);
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/Margin is measured on billed work only: billed-work revenue less Actual\. It is not cash received/i);
-    expect(within(book).queryByRole('link')).not.toBeInTheDocument();
-  });
-
-  it('at-risk block shows projects_at_risk count with warning tone', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const atRisk = screen.getByTestId('dashboard-at-risk');
-    expect(atRisk).toHaveTextContent('3');
-    expect(atRisk).toHaveTextContent(/at.risk/i);
-  });
-
-  it('at-risk block contains drill cells for active projects and spend', () => {
-    mockIsDesktop = false;
-    renderPage();
-    const atRisk = screen.getByTestId('dashboard-at-risk');
-    // Two drill cells: one for active projects, one for spend
-    const links = within(atRisk).getAllByRole('link');
-    expect(links.length).toBeGreaterThanOrEqual(2);
-  });
-});
-
-describe('AC-MOBILE-6: desktop layout unaffected', () => {
-  it('desktop keeps its portfolio KPIs and the pipeline evidence section', () => {
-    mockIsDesktop = true;
-    renderPage();
-    expect(screen.getByTestId('kpi-on-hand-margin')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-pipeline-margin')).toBeInTheDocument();
-    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument(); // SL-B: count rides on the contract tile
-    expect(screen.getByTestId('kpi-total-contract-value')).toBeInTheDocument();
-    expect(screen.getByTestId('kpi-total-spend')).toBeInTheDocument();
-    // Standard approvals tile (KPITile variant), not the mobile band
-    expect(screen.getByTestId('kpi-awaiting-approval')).toBeInTheDocument();
-    // Mobile-specific sections should NOT be in DOM on desktop
-    expect(screen.queryByTestId('dashboard-at-risk')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-approvals-band')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('mobile-contract-book')).not.toBeInTheDocument();
-  });
-});
-
-describe('AC-RD-RISK-001: risk availability', () => {
-  it('does not claim all projects are on track when active projects have no budget basis', () => {
-    dashState.data = {
+  it('keeps unknown risk and approval status distinct from a confirmed zero', () => {
+    dashboardState.data = {
       ...populated,
+      active_delivery_projects: 2,
+      risk_unchecked_projects: 2,
       projects_at_risk: 0,
-      risk_unchecked_projects: 1,
-      top_projects: [{ ...populated.top_projects[0]!, budget: null as unknown as number, budget_currency: null as unknown as string, spent: null as unknown as number, actual_currency: null as unknown as string, actual_complete: false }],
+      top_projects: [{ ...populated.top_projects[0]!, budget: null, spent: null, actual_complete: false }],
     };
-    mockIsDesktop = false;
+    dashboardState.approvals = [];
     renderPage();
-    const atRisk = screen.getByTestId('dashboard-at-risk');
-    expect(atRisk).toHaveTextContent("Risk can't be checked yet");
-    expect(atRisk).toHaveTextContent(/active budget/i);
-    expect(atRisk).not.toHaveTextContent(/\b0\b|all on track/i);
-  });
-});
-
-describe('AC-MOBILE edge: zero at-risk', () => {
-  it('at-risk block shows a confirmed zero only when budget and actuals are available', () => {
-    dashState.data = {
-      ...populated,
-      active_projects: 1,
-      active_delivery_projects: 1,
-      risk_unchecked_projects: 0,
-      projects_at_risk: 0,
-      top_projects: [{ ...populated.top_projects[0]!, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' }],
-    };
-    mockIsDesktop = false;
-    renderPage();
-    const atRisk = screen.getByTestId('dashboard-at-risk');
-    expect(atRisk).toHaveTextContent('0');
-    // The 0-risk variant should show positive/neutral copy, not "at-risk" in warning
-    expect(atRisk).toHaveTextContent(/all on track/i);
-  });
-});
-
-describe('AC-MOBILE loading/error states', () => {
-  it('loading state renders skeletons on mobile', () => {
-    dashState.isPending = true;
-    dashState.data = null;
-    mockIsDesktop = false;
-    renderPage();
-    expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
+    expect(screen.getByText('Risk is not checked for 2 delivery projects')).toBeInTheDocument();
+    expect(screen.queryByText('No projects at risk')).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Review at-risk projects' })).not.toBeInTheDocument();
   });
 
-  it('error state renders on mobile', () => {
-    dashState.isError = true;
-    dashState.isPending = false;
-    dashState.data = null;
-    mockIsDesktop = false;
+  it('renders loading and error recovery in the same page frame', () => {
+    dashboardState.data = null;
+    dashboardState.pending = true;
+    const { unmount } = renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-delivery-book')).toBeInTheDocument();
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    unmount();
+
+    dashboardState.pending = false;
+    dashboardState.error = true;
     renderPage();
-    expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
+    const deliveryBook = screen.getByTestId('dashboard-delivery-book');
+    expect(within(deliveryBook).getByText(/Couldn't load the dashboard/i)).toBeInTheDocument();
+    expect(within(deliveryBook).getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['Finance', 'role-finance'],
+    ['Project Manager', 'role-pm'],
+    ['Engineer', 'role-engineer'],
+  ])('routes the %s role to its dashboard body', (role, testId) => {
+    dashboardState.effectiveRole = role;
+    renderPage();
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
+  });
+
+  it('routes Admin through the shared Executive dashboard composition', () => {
+    dashboardState.effectiveRole = 'Admin';
+    renderPage();
+    expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-delivery-book')).toBeInTheDocument();
   });
 });

@@ -22,7 +22,7 @@
  * Bahasa without a write: `I18nProvider` resolves the language only from the signed-in profile,
  * so the profile read is rewritten to `locale: 'id'` (same technique as UXS-006).
  */
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
 import { installIdrDashboardFixture } from './dashboard-idr.fixtures';
 
@@ -54,15 +54,17 @@ interface Route {
   user: string;
   path: string;
   /** A locator-producing hook proving the dashboard has rendered its data. */
-  ready: (page: Page) => ReturnType<Page['getByTestId']>;
+  ready: (page: Page) => Locator;
   widths: readonly number[];
   bahasaWidths: readonly number[];
 }
 
 const ROUTES: Route[] = [
-  { name: 'executive', user: 'exec@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-total-spend').or(p.getByTestId('mobile-contract-book')), widths: WIDTHS, bahasaWidths: [1440, 390] },
-  { name: 'finance', user: 'finance@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-spend'), widths: WIDTHS, bahasaWidths: [1440] },
-  { name: 'pm', user: 'pm@acme.test', path: '/', ready: (p) => p.getByTestId('kpi-my-contract-value'), widths: WIDTHS, bahasaWidths: [] },
+  { name: 'executive', user: 'exec@acme.test', path: '/', ready: (p) => p.getByTestId('dashboard-delivery-book'), widths: WIDTHS, bahasaWidths: [1440, 390] },
+  { name: 'admin', user: 'admin@acme.test', path: '/', ready: (p) => p.getByTestId('dashboard-delivery-book'), widths: [1440, 390], bahasaWidths: [1440] },
+  { name: 'finance', user: 'finance@acme.test', path: '/', ready: (p) => p.getByTestId('finance-next-case'), widths: WIDTHS, bahasaWidths: [1440] },
+  { name: 'pm', user: 'pm@acme.test', path: '/', ready: (p) => p.getByRole('heading', { name: 'My delivery projects' }), widths: WIDTHS, bahasaWidths: [] },
+  { name: 'engineer', user: 'engineer@acme.test', path: '/', ready: (p) => p.getByTestId('engineer-week-summary'), widths: [1440, 390], bahasaWidths: [1440] },
   { name: 'sales pipeline', user: 'exec@acme.test', path: '/sales', ready: (p) => p.locator('main .tabular'), widths: WIDTHS, bahasaWidths: [] },
   { name: 'revenue by project', user: 'exec@acme.test', path: '/revenue-by-project', ready: (p) => p.locator('main .tabular'), widths: [1440, 390], bahasaWidths: [1440] },
   { name: 'management pack', user: 'exec@acme.test', path: '/reports', ready: (p) => p.locator('main .tabular'), widths: [1440, 390], bahasaWidths: [1440] },
@@ -155,4 +157,38 @@ test.describe('AC-RD-GEOM-001: dashboard figures stay inside their boxes', () =>
   }
 
 
+});
+
+test.describe('AC-RD-GEOM-001: phone dashboard actions meet the 44px target', () => {
+  for (const route of ROUTES.filter((candidate) => candidate.path === '/')) {
+    test(`AC-RD-GEOM-001: ${route.name} dashboard has no undersized phone targets`, async ({ page }) => {
+      await installIdrDashboardFixture(page);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await signIn(page, route.user);
+      await page.goto(route.path);
+      await expect(route.ready(page).first()).toBeVisible();
+      await page.waitForLoadState('networkidle', { timeout: 8_000 });
+      const undersized = await page.evaluate(() => {
+        const visible = (element: Element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
+        return [...document.querySelectorAll<HTMLElement>('main a[href], main button, main summary, main select, main input, main textarea, main [role="button"], main [role="link"]')]
+          .filter(visible)
+          .map((element) => {
+            const rect = element.getBoundingClientRect();
+            return {
+              tag: element.tagName.toLowerCase(),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height),
+              label: element.getAttribute('aria-label'),
+              href: element.getAttribute('href'),
+            };
+          })
+          .filter((target) => target.width < 44 || target.height < 44);
+      });
+      expect(undersized, `${route.name}: every main action provides a 44px phone target`).toEqual([]);
+    });
+  }
 });

@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardHead, ListState, TaxBasisLabel } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumberExact } from '@/src/lib/format';
+import { moneyFigure } from '@/src/lib/dashboardMoney';
 
 /** Straight to the work order on its project's Work orders tab — highlighted, scrolled to and focused there. */
 const workOrderHref = (projectId: string, workOrderId: string) =>
@@ -16,16 +17,28 @@ const LINK = 'min-w-0 hover:underline focus-visible:outline focus-visible:outlin
  * DD-MMP-5) are computed server-side by get_unbilled_work_orders, so they are not bounded by max_rows. Work orders that
  * cannot be totalled are counted apart, never added as zero.
  */
-const StillToInvoiceBody: React.FC = () => {
+const StillToInvoiceBody: React.FC<{ excludeWorkOrderId?: string }> = ({ excludeWorkOrderId }) => {
   const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useUnbilledWorkOrders();
   const isClear = !isPending && !isError && data !== undefined
     && data.totals.length === 0 && data.incompleteCount === 0;
+  const title = t('dashboard.stillToInvoice.title', 'Still to invoice on work orders');
+
+  if (isClear) {
+    return (
+      <section aria-labelledby="still-to-invoice-title" data-testid="dashboard-still-to-invoice" className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 id="still-to-invoice-title" className="text-xl font-bold">{title}</h2>
+        <p role="status" data-testid="still-to-invoice-clear" className="text-sm text-muted-foreground">
+          {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
+        </p>
+      </section>
+    );
+  }
 
   return (
     <Card data-testid="dashboard-still-to-invoice">
-      <CardHead>{t('dashboard.stillToInvoice.title', 'Still to invoice on work orders')}</CardHead>
-      <div className={isClear ? 'px-4 py-2' : 'p-4'}>
+      <CardHead className="text-xl font-bold">{title}</CardHead>
+      <div className="p-4">
         {isPending ? (
           <ListState variant="loading" rows={3} testId="still-to-invoice-loading" />
         ) : isError || !data ? (
@@ -34,31 +47,49 @@ const StillToInvoiceBody: React.FC = () => {
             title={t('dashboard.stillToInvoice.error', "Couldn't load what is still to invoice")}
             onRetry={() => refetch()}
           />
-        ) : data.totals.length === 0 && data.incompleteCount === 0 ? (
-          <div
-            role="status"
-            data-testid="still-to-invoice-clear"
-            className="text-[13px] text-muted-foreground"
-          >
-            {t('dashboard.stillToInvoice.empty', 'Nothing left to invoice on issued work orders')}
-          </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <ul className="flex flex-col gap-1" data-testid="still-to-invoice-totals">
-              {data.totals.map((total) => (
-                <li key={total.currency} className="text-[15px] font-bold tabular">
-                  {formatCurrencyCents(total.remaining, total.currency)}{' '}
-                  {/* Every figure here is normalised excl. tax (DD-BWO-3) — the shared basis label (OD-TAX-1). */}
-                  <TaxBasisLabel treatment="exclusive" showDetails={false} testId="still-to-invoice-basis" />
-                  <span className="text-[11px] font-normal text-muted-foreground">
-                    {' · '}
-                    {t('dashboard.stillToInvoice.count', { defaultValue: 'Work orders: {{n}}', n: total.count })}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            <div className="flex flex-col gap-4" data-testid="still-to-invoice-totals">
+              {data.totals.map((total) => {
+                const compact = moneyFigure(total.remaining, total.currency, t('dashboard.stillToInvoice.error', "Couldn't load what is still to invoice"), { code: true });
+                const groupFigure = compact.exactValue ? compact.value : `${total.currency} ${formatNumberExact(total.remaining)}`;
+                const groupRows = data.rows.filter((row) => row.currency === total.currency && row.workOrderId !== excludeWorkOrderId);
+                return <section key={total.currency} aria-label={`${total.currency} ${title}`}>
+                  <h3 className="text-xl font-bold tabular">
+                    {groupFigure} · <TaxBasisLabel treatment="exclusive" showDetails={false} testId={`still-to-invoice-basis-${total.currency.toLowerCase()}`} />
+                  </h3>
+                  {compact.exactValue ? (
+                    <p className="text-sm text-muted-foreground">
+                      {t('dashboard:finance.unbilledExactRemaining', 'Exact remaining: {{amount}} · {{count}} work orders', { amount: formatNumberExact(total.remaining), count: total.count })}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t('dashboard:finance.unbilledCount', '{{count}} work orders', { count: total.count })}</p>
+                  )}
+                  {groupRows.length > 0 && <ul className="mt-2 flex flex-col divide-y divide-border" data-testid="still-to-invoice-rows">
+                    {groupRows.map((row) => (
+                      <li key={row.workOrderId} className="grid min-w-0 grid-cols-1 gap-1 py-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3">
+                        <Link to={workOrderHref(row.projectId, row.workOrderId)} className={LINK}>
+                  <span className="block break-words">{row.woNumber ?? row.title}</span>
+                          {row.woNumber && <span className="block break-words text-sm">{row.title}</span>}
+                          <span className="block break-words text-sm text-muted-foreground">
+                            {row.projectName}
+                            {row.clientPoNumber
+                              ? ` · ${t('dashboard.stillToInvoice.clientPo', { defaultValue: 'Client PO {{po}}', po: row.clientPoNumber, interpolation: { escapeValue: false } })}`
+                              : ''}
+                            {row.daysSinceClosed !== null
+                              ? ` · ${t('dashboard.stillToInvoice.daysSinceClosed', { defaultValue: 'Days since closed: {{days}}', days: row.daysSinceClosed })}`
+                              : ''}
+                          </span>
+                        </Link>
+                        <span className="text-sm tabular sm:text-right">{formatNumberExact(row.remaining)}</span>
+                      </li>
+                    ))}
+                  </ul>}
+                </section>;
+              })}
+            </div>
             {data.incompleteCount > 0 && (
-              <div data-testid="still-to-invoice-incomplete" className="text-[12px] text-muted-foreground">
+              <div data-testid="still-to-invoice-incomplete" className="text-sm text-muted-foreground">
                 <p>
                   {t('dashboard.stillToInvoice.incomplete', {
                     defaultValue: 'Work orders not totalled (an invoice on them has no amount or is in another currency): {{n}}',
@@ -71,7 +102,7 @@ const StillToInvoiceBody: React.FC = () => {
                     {data.incomplete.map((wo) => (
                       <li key={wo.workOrderId}>
                         <Link to={workOrderHref(wo.projectId, wo.workOrderId)} className={LINK}>
-                          <span className="font-medium text-foreground">{wo.woNumber ?? wo.title}</span>
+                          <span className="text-foreground">{wo.woNumber ?? wo.title}</span>
                           {wo.woNumber && <span> · {wo.title}</span>}
                           <span> · {wo.projectName}</span>
                         </Link>
@@ -89,31 +120,6 @@ const StillToInvoiceBody: React.FC = () => {
                 )}
               </div>
             )}
-            <ul className="flex flex-col divide-y divide-border" data-testid="still-to-invoice-rows">
-              {data.rows.map((row) => (
-                <li key={row.workOrderId} className="flex items-baseline justify-between gap-3 py-2">
-                  <Link to={workOrderHref(row.projectId, row.workOrderId)} className={LINK}>
-                    <span className="block truncate font-medium" title={row.woNumber ?? row.title}>{row.woNumber ?? row.title}</span>
-                    {row.woNumber && <span className="block truncate text-[12px]" title={row.title}>{row.title}</span>}
-                    <span className="block truncate text-[12px] text-muted-foreground">
-                      {row.projectName}
-                      {row.clientPoNumber
-                        ? ` · ${t('dashboard.stillToInvoice.clientPo', { defaultValue: 'Client PO {{po}}', po: row.clientPoNumber, interpolation: { escapeValue: false } })}`
-                        : ''}
-                      {row.daysSinceClosed !== null
-                        ? ` · ${t('dashboard.stillToInvoice.daysSinceClosed', { defaultValue: 'Days since closed: {{days}}', days: row.daysSinceClosed })}`
-                        : ''}
-                    </span>
-                  </Link>
-                  <span className="flex shrink-0 flex-col items-end">
-                    <span className="text-[13px] font-semibold tabular">
-                      {formatCurrencyCents(row.remaining, row.currency)}
-                    </span>
-                    <TaxBasisLabel treatment="exclusive" showDetails={false} testId="still-to-invoice-row-basis" />
-                  </span>
-                </li>
-              ))}
-            </ul>
           </div>
         )}
       </div>
@@ -122,7 +128,7 @@ const StillToInvoiceBody: React.FC = () => {
 };
 
 /** Rendered only for the revenue read set (salesInvoice.view); the body (and its query) never mounts otherwise. */
-export const StillToInvoiceCard: React.FC = () => {
+export const StillToInvoiceCard: React.FC<{ excludeWorkOrderId?: string }> = ({ excludeWorkOrderId }) => {
   const may = usePermission();
-  return may('view', 'salesInvoice') ? <StillToInvoiceBody /> : null;
+  return may('view', 'salesInvoice') ? <StillToInvoiceBody excludeWorkOrderId={excludeWorkOrderId} /> : null;
 };

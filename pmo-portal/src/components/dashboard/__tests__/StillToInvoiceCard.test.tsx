@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -22,7 +22,7 @@ const DATA = {
   ],
   incomplete: [{ workOrderId: 'wo-8', woNumber: 'WO-8', title: 'Cabling', projectId: 'p2', projectName: 'Annex' }],
 };
-const renderCard = () => render(<MemoryRouter><StillToInvoiceCard /></MemoryRouter>);
+const renderCard = (excludeWorkOrderId?: string) => render(<MemoryRouter><StillToInvoiceCard excludeWorkOrderId={excludeWorkOrderId} /></MemoryRouter>);
 
 beforeEach(() => {
   h.role = 'Finance';
@@ -37,9 +37,10 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
   it('AC-UNB-005 shows each currency total excl. PPN with its count', () => {
     renderCard();
     const totals = screen.getByTestId('still-to-invoice-totals');
-    expect(totals).toHaveTextContent('$1,300.00');
+    expect(totals).toHaveTextContent('USD 1.3K');
+    expect(totals).toHaveTextContent('Exact remaining: 1,300');
     expect(totals).toHaveTextContent('excl. PPN');
-    expect(totals).toHaveTextContent('Work orders: 2');
+    expect(totals).toHaveTextContent('2 work orders');
   });
   it("AC-UNB-005 lists the work orders with the most left, each linking straight to that work order on its project's Work orders tab", () => {
     renderCard();
@@ -55,6 +56,12 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
     expect(wo1).toHaveTextContent('Survey');
     expect(wo1).toHaveTextContent('Client PO PO-77');
     expect(screen.getByRole('link', { name: /Fit-out/ })).not.toHaveTextContent('Client PO');
+  });
+  it('keeps the promoted primary work order out of the repeated detail rows', () => {
+    renderCard('wo-1');
+    expect(screen.queryByRole('link', { name: /WO-1/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /Fit-out/ })).toHaveAttribute('href', '/projects/p2/work-orders?wo=wo-2');
+    expect(screen.getByTestId('still-to-invoice-totals')).toHaveTextContent('Exact remaining: 1,300');
   });
   it('AC-UNB-005 says how many could not be totalled, and links to each so it can be fixed', () => {
     renderCard();
@@ -72,6 +79,9 @@ describe('StillToInvoiceCard (OD-BILL-1 / #786)', () => {
     h.state = { data: { totals: [], incompleteCount: 0, rows: [], incomplete: [] }, isPending: false, isError: false, refetch: vi.fn() };
     const view = renderCard();
     expect(screen.getByText('Nothing left to invoice on issued work orders')).toBeInTheDocument();
+    const clearRegion = screen.getByRole('region', { name: 'Still to invoice on work orders' });
+    expect(within(clearRegion).getByRole('status')).toHaveTextContent('Nothing left to invoice on issued work orders');
+    expect(screen.getAllByText('Nothing left to invoice on issued work orders')).toHaveLength(1);
     view.unmount();
     h.state = { data: undefined, isPending: true, isError: false, refetch: vi.fn() };
     const loading = renderCard();
