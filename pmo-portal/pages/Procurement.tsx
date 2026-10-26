@@ -569,7 +569,7 @@ const ProcurementPage: React.FC = () => {
             {currencyGroups.map(([currency, rows]) => (
               <section key={currency} aria-label={t('procurement:collection.currencyGroup', '{{currency}} · {{count}} requests', { currency, count: rows.length })}>
                 <div className="flex min-h-10 items-center gap-2 border-y border-border bg-secondary/30 px-3.5 py-2">
-                  <h2 className="text-sm font-semibold text-foreground">{t('procurement:collection.currencyGroup', '{{currency}} · {{count}} requests', { currency, count: rows.length })}</h2>
+                  <h2 className="text-xl font-bold leading-tight text-foreground">{t('procurement:collection.currencyGroup', '{{currency}} · {{count}} requests', { currency, count: rows.length })}</h2>
                 </div>
                 {rows.map((row) => <ProcurementListRow key={row.id} row={row} />)}
               </section>

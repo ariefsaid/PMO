@@ -28,11 +28,11 @@ import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
 const columnGrid = 'grid grid-cols-2 gap-3 md:grid-cols-12';
 const columnFields = [
   { key: 'request', span: 'col-span-2 md:col-span-3' },
-  { key: 'project', span: 'col-span-2 md:col-span-2' },
-  { key: 'requester', span: 'md:col-span-2' },
+  { key: 'project', span: 'hidden md:col-span-2 md:block' },
+  { key: 'requester', span: 'hidden md:col-span-2 md:block' },
   { key: 'statusDate', span: 'col-span-2 md:col-span-2' },
   { key: 'value', span: 'md:col-span-2 md:text-right' },
-  { key: 'actions', span: 'col-span-2 md:col-span-1 md:justify-self-end' },
+  { key: 'actions', span: 'col-span-1 md:col-span-1 md:justify-self-end' },
 ] as const;
 
 export const ProcurementListColumns: React.FC = () => {
@@ -84,7 +84,7 @@ const ExpandedPanel: React.FC<{
       id={panelId}
       role="region"
       aria-label={t('procurement.preview.region', 'Preview for {{title}}', { title: row.title })}
-      className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3"
+      className="mx-3.5 mb-3 border-t border-border pt-3"
     >
       {detail.isPending ? (
         <ListState variant="loading" rows={3} />
@@ -98,6 +98,20 @@ const ExpandedPanel: React.FC<{
       ) : detail.data ? (
         <>
           {/* Budget impact */}
+          <div className="mb-4 grid grid-cols-2 gap-4 md:hidden">
+            <h4 className="col-span-2 text-xl font-bold leading-tight text-foreground">
+              {t('procurement.preview.requestDetails', 'Request details')}
+            </h4>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-muted-foreground">{t('procurement.columns.project', 'Project')}</div>
+              <div className="break-words text-sm text-foreground">{row.project?.name ?? t('common:notAvailable', 'Not available')}</div>
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-muted-foreground">{t('procurement.columns.requester', 'Requester')}</div>
+              <div className="break-words text-sm text-foreground">{row.requested_by?.full_name ?? t('common:notAvailable', 'Not available')}</div>
+            </div>
+          </div>
+
           <DecisionSupportPanel
             projectId={detail.data.project_id}
             totalValue={detail.data.total_value}
@@ -105,13 +119,15 @@ const ExpandedPanel: React.FC<{
             projectLegalName={detail.data.project?.name}
             status={detail.data.status}
             currency={detail.data.currency}
+            showRequestValue={false}
+            showProjectName={false}
           />
 
           {/* Line items */}
           {detail.data.items.length > 0 && (
             <div className="mb-3">
-              <h4 className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-                {t('procurement.preview.lineItems', 'Line items')}
+              <h4 className="mb-2 text-xl font-bold leading-tight text-foreground">
+                {t('procurement.preview.requestedItemsCurrency', 'Requested items · {{currency}}', { currency: detail.data.currency })}
               </h4>
               <ul className="space-y-1" aria-label={t('procurement.preview.lineItems', 'Line items')}>
                 {detail.data.items.map((item) => {
@@ -119,14 +135,11 @@ const ExpandedPanel: React.FC<{
                   return (
                     <li
                       key={item.id}
-                      className="flex items-baseline justify-between gap-2 text-[13px]"
+                      className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-2 text-sm"
                     >
-                      <span className="truncate">{item.name}</span>
-                      <span className="tabular text-muted-foreground shrink-0">
-                        {item.quantity} × {formatCurrency(item.rate, detail.data.currency)} ={' '}
-                        <span className="font-medium text-foreground">
-                          {formatCurrency(lineTotal, detail.data.currency)}
-                        </span>
+                      <span className="min-w-0 break-words text-foreground">{item.name}</span>
+                      <span className="shrink-0 tabular text-muted-foreground">
+                        {item.quantity} × {formatNumber(item.rate)} = <span className="font-medium text-foreground">{formatNumber(lineTotal)}</span>
                       </span>
                     </li>
                   );
@@ -149,7 +162,7 @@ const ExpandedPanel: React.FC<{
                 e.preventDefault();
                 onOpen(`/procurement/${row.id}`);
               }}
-              className="inline-flex min-h-11 min-[921px]:min-h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent"
             >
               {t('procurement.preview.viewFullRequest', 'View full request')}
               <Icon name="chev" aria-hidden />
@@ -195,23 +208,24 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
           trackProcurementDetailOpened('/procurement/:procurementId', 'list');
           openRecord(`/procurement/${row.id}`);
         }}
-        className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-xs text-muted-foreground transition-colors hover:bg-accent/60`}>
+        className={`${columnGrid} cursor-pointer items-start px-3.5 py-3 text-sm text-muted-foreground transition-colors hover:bg-accent/60`}>
         <div className={`${columnFields[0].span} flex min-w-0 items-start gap-2`}>
         {/* Disclosure toggle (AC-FIX5-PREVIEW-01) */}
         <Button
           variant="ghost"
-          size="icon"
+          size="sm"
           aria-expanded={expanded}
           aria-controls={panelId}
           aria-label={t('procurement.preview.toggle', 'Show preview for {{title}}', { title: row.title })}
           onClick={() => setExpanded((v) => !v)}
           className={
             expanded
-              ? 'min-h-11 min-w-11 min-[921px]:min-h-8 min-[921px]:min-w-8 [&_svg]:rotate-90 [&_svg]:transition-transform'
-              : 'min-h-11 min-w-11 min-[921px]:min-h-8 min-[921px]:min-w-8 [&_svg]:transition-transform'
+              ? 'min-h-11 min-[921px]:min-h-8 [&_svg]:rotate-90 [&_svg]:transition-transform'
+              : 'min-h-11 min-[921px]:min-h-8 [&_svg]:transition-transform'
           }
         >
           <Icon name="chev" />
+          <span>{t('procurement.preview.details', 'Details')}</span>
         </Button>
 
         {/* Request info — title is a Link so clicking the row title navigates (AC-NAV-006) */}
@@ -229,7 +243,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
               e.preventDefault();
               openRecord(`/procurement/${row.id}`);
             }}
-            className="block line-clamp-2 break-words font-semibold text-sm text-foreground hover:underline rounded"
+            className="block break-words font-semibold text-sm text-foreground hover:underline rounded"
             title={row.title}
           >
             {row.title}
@@ -259,7 +273,7 @@ export const ProcurementListRow: React.FC<ProcurementListRowProps> = ({ row }) =
                 {formatInstantDate(row.created_at)}
               </time>
               {nextStep && (
-                <span data-testid="procurement-next-step" className="block break-words text-xs text-muted-foreground">
+                <span data-testid="procurement-next-step" className="hidden break-words text-xs text-muted-foreground md:block">
                   {t('uxs19.nextStepPrefix', 'Next:')} {nextStep}
                 </span>
               )}

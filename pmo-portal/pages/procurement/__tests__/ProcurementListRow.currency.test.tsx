@@ -13,7 +13,10 @@ import { ToastProvider } from '@/src/components/ui';
 
 const detailState = {
   data: {
-    project_id: null, // suppresses DecisionSupportPanel (no-op when unset)
+    project_id: 'project-1',
+    project: { name: 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru' },
+    total_value: 25000,
+    status: 'Requested',
     currency: 'EUR',
     items: [{ id: 'i1', name: 'Widget', quantity: 2, rate: 100, amount: null }],
   },
@@ -70,18 +73,24 @@ const wrap = (row: ProcurementWithRefs) =>
     </ImpersonationProvider>,
   );
 
-describe('FR-L10N-020: ProcurementListRow expanded line items — record currency', () => {
-  it('renders the row header total in the ROW currency (USD)', () => {
+describe('FR-L10N-020: ProcurementListRow uses the surrounding currency group', () => {
+  it('renders the exact row total without repeating the group currency', () => {
     wrap(makeRow());
-    expect(screen.getByText('$25,000')).toBeInTheDocument();
+    expect(screen.getByText('25,000')).toBeInTheDocument();
+    expect(screen.queryByText('$25,000')).not.toBeInTheDocument();
   });
 
-  it("renders the expanded line item rate/total in the DETAIL record's currency (EUR), not USD", async () => {
-    wrap(makeRow());
+  it("renders one currency group with exact line values and no duplicate request amount", async () => {
+    wrap(makeRow({ project: { name: 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru', code: 'N48' } }));
     await userEvent.click(screen.getByRole('button', { name: /Show preview for/i }));
     const panel = screen.getByRole('region', { name: /Preview for/i });
-    expect(within(panel).getByText(/€100/)).toBeInTheDocument();
-    expect(within(panel).getByText(/€200/)).toBeInTheDocument();
-    expect(within(panel).queryByText(/\$100|\$200/)).not.toBeInTheDocument();
+    expect(within(panel).getByRole('heading', { name: 'Requested items · EUR' })).toBeInTheDocument();
+    const item = within(panel).getByRole('listitem');
+    expect(within(item).getByText((_, element) =>
+      element?.tagName === 'SPAN' && element.textContent?.replace(/\s+/g, ' ').trim() === '2 × 100 = 200',
+    )).toBeInTheDocument();
+    expect(within(item).queryByText(/€|\$/)).not.toBeInTheDocument();
+    expect(within(panel).queryByText('This request')).not.toBeInTheDocument();
+    expect(within(panel).getByText('Pembangunan Gedung Layanan Terpadu Tahap IV Baru')).toBeInTheDocument();
   });
 });
