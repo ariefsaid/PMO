@@ -2941,7 +2941,7 @@
       "edit": "Edit project"
     },
     "subtitle": {
-      "create": "Enter the required identity and project details.",
+      "create": "Create a project",
       "edit": "Update the project header details"
     },
     "submit": {
