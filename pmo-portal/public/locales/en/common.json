@@ -217,7 +217,6 @@
     "editRate": "Edit rate",
     "date": "Publication date",
     "rate": "IDR per USD",
-    "equivalent": "IDR equivalent",
     "source": "Source",
 
     "denied": "Exchange rates are available to Finance and Admin.",
