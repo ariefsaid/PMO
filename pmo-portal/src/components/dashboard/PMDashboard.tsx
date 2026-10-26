@@ -11,7 +11,7 @@ import { Card, CardHead } from '@/src/components/ui/Card';
 import { StatusPill } from '@/src/components/ui/StatusPill';
 import { ListState } from '@/src/components/ui/ListState';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { DashPageHead } from './layout';
+import { DashPageHead, DashValue } from './layout';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { ACTIVE_PROJECT_STATUSES, isMoneyAtRisk } from '@/src/lib/dashboardConstants';
@@ -138,7 +138,7 @@ export const PMDashboard: React.FC = () => {
   const showUnknownDataNote = !isPending && !isError && (hasUnknownRisk || hasUnknownMargin || hasUnknownContract || hasUnknownDelivery || deliveryError);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8 sm:space-y-12">
       <DashPageHead
         title={t('dashboard:pm.title', 'My Dashboard')}
         sub={t('dashboard:pm.deliveryScope', 'Delivery projects assigned to you.')}
@@ -248,9 +248,8 @@ export const PMDashboard: React.FC = () => {
                         )}
                       </div>
 
-                      <div className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
-                        <p className="flex min-w-0 items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">{t('dashboard:pmRow.delivery', 'Delivery')}</span>
+                      <div className="grid min-w-0 grid-cols-2 gap-4">
+                        <DashValue label={t('dashboard:pmRow.delivery', 'Delivery')}>
                           {deliveryPct?.[project.id] !== undefined ? (
                             <DeliveryPctChip pct={deliveryPct[project.id]} />
                           ) : deliveryError ? (
@@ -265,15 +264,14 @@ export const PMDashboard: React.FC = () => {
                               <span aria-hidden="true">—</span><span className="sr-only">{t('dashboard:pm.deliveryUnavailable', 'No delivery milestones are recorded.')}</span>
                             </span>
                           )}
-                        </p>
-                        <p className="flex min-w-0 items-center gap-2 text-sm">
-                          <span className="text-muted-foreground">{t('dashboard:pmRow.margin', 'Margin to date')}</span>
+                        </DashValue>
+                        <DashValue label={t('dashboard:pmRow.margin', 'Margin to date')}>
                           {margin === null ? (
                             <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.marginUnavailable', 'Margin unavailable')} className="tabular text-muted-foreground">—</span>
                           ) : (
                             <span role="img" aria-label={t('dashboard:pmRow.marginAria', '{{name}} margin to date: {{pct}}%', { name: project.name, pct: margin.toFixed(1) })} className="tabular">{margin.toFixed(1)}%</span>
                           )}
-                        </p>
+                        </DashValue>
                       </div>
 
                       <button
@@ -296,18 +294,16 @@ export const PMDashboard: React.FC = () => {
                       {isExpanded && (
                         <div id={evidenceId} data-testid={`pm-project-evidence-${project.id}`} className="grid min-w-0 gap-3 rounded-md bg-secondary/30 p-3 sm:grid-cols-[minmax(0,1fr)_auto]">
                           <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                            <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                              <span className="text-muted-foreground">{t('dashboard:pm.actual', 'Actual')}</span>
+                            <DashValue label={t('dashboard:pm.actual', 'Actual')}>
                               {actual === null ? (
                                 <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.actualUnavailable', 'Actual unavailable')} className="tabular">—</span>
                               ) : <span role="img" aria-label={`${t('dashboard:pm.actual', 'Actual')}: ${money(actual)} ${project.actual_currency ?? project.currency}`} className="tabular">{money(actual)}</span>}
-                            </p>
-                            <p className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-sm">
-                              <span className="text-muted-foreground">{t('dashboard:pm.contract', 'Contract')}</span>
+                            </DashValue>
+                            <DashValue label={t('dashboard:pm.contract', 'Contract')}>
                               {project.contract_value === null
                                 ? <span role="img" aria-describedby={rowNoteId} aria-label={t('dashboard:pm.contractUnavailable', 'Contract unavailable')} className="tabular">—</span>
                                 : <span role="img" aria-label={`${t('dashboard:pm.contract', 'Contract')}: ${money(project.contract_value)} ${project.currency}`} className="tabular">{money(project.contract_value)}</span>}
-                            </p>
+                            </DashValue>
                             <div className="sm:col-span-2">
                               {barPercent !== null && comparisonPct !== null ? (
                                 <div

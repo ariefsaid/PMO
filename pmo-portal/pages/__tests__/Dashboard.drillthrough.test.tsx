@@ -98,11 +98,11 @@ const renderExec = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
-  it('AC-806-EXEC-SPEND-001: project identity and open action reach the canonical project record', () => {
+  it('AC-806-EXEC-SPEND-001: project identity reaches the canonical project record', () => {
     renderExec();
     const table = screen.getByRole('table', { name: /spending comparison/ });
     expect(within(table).getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '/projects/p1');
-    expect(within(table).getByRole('link', { name: 'Open Alpha' })).toHaveAttribute('href', '/projects/p1');
+    expect(within(table).getByRole('link', { name: 'Beta' })).toHaveAttribute('href', '/projects/p2');
   });
 
   it('AC-806-EXEC-BOOK-001: delivery position shows exact values without a misleading aggregate link', () => {

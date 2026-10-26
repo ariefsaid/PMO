@@ -5,14 +5,14 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useDashboard, useSalesPipeline } from '@/src/hooks/useDashboard';
 import { BoardPackAction } from '@/src/components/reports/BoardPackAction';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
-import { formatNumber, formatNumberExact } from '@/src/lib/format';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatNumber, formatNumberExact, formatFullDate } from '@/src/lib/format';
 import type { ExecutiveDashboard as ExecutiveDashboardData, PipelineStage } from '@/src/lib/db/dashboard';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { BvACard } from '@/src/components/dashboard/BvACard';
 import { executiveRiskState } from '@/src/components/dashboard/executiveProjectOrder';
 import { ProjectedMarginBars } from '@/src/components/dashboard/ProjectedMarginBars';
-import { DashPageHead } from '@/src/components/dashboard/layout';
+import { DashFact, DashPageHead } from '@/src/components/dashboard/layout';
+import { revealDashboardNote } from '@/src/components/dashboard/dashboardNote';
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard';
@@ -97,8 +97,8 @@ const ExecutiveAttention: React.FC<{
       ? t('exec.approvalsLoading', 'Checking approval requests…')
       : approvalCount > 0
         ? approvalCount === 1
-          ? t('exec.pendingApprovalOne', '1 approval request needs a decision')
-          : t('exec.pendingApprovals', '{{count}} approval requests need a decision', { count: approvalCount })
+          ? t('exec.pendingApprovalOneDecision', '1 approval request needs your decision')
+          : t('exec.pendingApprovalsDecision', '{{count}} approval requests need your decision', { count: approvalCount })
         : t('exec.noPendingApprovals', 'No approval requests need a decision');
   const primaryAction = !approvalPending && !approvalError && approvalCount > 0
     ? { label: t('exec.reviewRequests', 'Review requests'), to: '/approvals' }
@@ -107,28 +107,13 @@ const ExecutiveAttention: React.FC<{
       : null;
 
   return (
-    <section aria-labelledby="executive-attention-title" className="border-b border-border pb-4" data-testid="dashboard-attention">
-      <h2 id="executive-attention-title" className="mb-2 text-xs font-semibold text-muted-foreground">
-        {t('uxs03.attentionAndApprovals', 'Attention and approvals')}
-      </h2>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-start sm:gap-6">
-        <div className="min-w-0 space-y-1 text-sm">
-          <p>{riskText}</p>
-          <p className={approvalError ? 'text-muted-foreground' : ''}>{approvalText}</p>
-        </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-          {primaryAction && (
-            <Link to={primaryAction.to} className={buttonClasses('primary', 'default', 'min-h-11 px-4 text-xs font-semibold')}>
-              {primaryAction.label}
-            </Link>
-          )}
-          {approvalError && (
-            <Link to="/approvals" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              {t('exec.openApprovals', 'Open approvals')}
-            </Link>
-          )}
-        </div>
+    <section aria-labelledby="executive-attention-title" className="space-y-2" data-testid="dashboard-attention">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <h2 id="executive-attention-title" className="text-balance text-xl font-bold tabular">{approvalText}</h2>
+        {primaryAction && <Link to={primaryAction.to} className={buttonClasses('primary', 'default', 'min-h-11 px-4 text-xs font-semibold')}>{primaryAction.label}</Link>}
+        {approvalError && <Link to="/approvals" className="inline-flex min-h-11 items-center text-xs font-semibold text-primary-text underline underline-offset-2">{t('exec.openApprovals', 'Open approvals')}</Link>}
       </div>
+      <p className="text-sm"><span>{riskText}</span>{(data?.top_projects ?? []).filter((project) => executiveRiskState(project) === 'at-risk').map((project) => <React.Fragment key={project.id}>{' · '}<Link className="inline-flex min-h-11 items-center text-primary-text underline underline-offset-2" to={`/projects/${project.id}`}>{project.name}</Link></React.Fragment>)}</p>
     </section>
   );
 };
@@ -140,7 +125,8 @@ const DeliveryBook: React.FC<{
   isError: boolean;
   onRetry: () => void;
   canManageAccounting: boolean;
-}> = ({ data, currency, isPending, isError, onRetry, canManageAccounting }) => {
+  updatedAt?: number;
+}> = ({ data, currency, isPending, isError, onRetry, canManageAccounting, updatedAt }) => {
   const { t } = useTranslation('dashboard');
   const actual = data ? actualRows(data, currency) : [];
   const onHand = data ? onHandRows(data, currency) : [];
@@ -197,18 +183,15 @@ const DeliveryBook: React.FC<{
   ).keys()].sort((left, right) => left === currency ? -1 : right === currency ? 1 : left.localeCompare(right));
   const exactValue = (value: number | null | undefined, reason: string, href = '#executive-data-note') =>
     value === null || value === undefined || !Number.isFinite(value)
-      ? <a className="inline-flex min-h-11 min-w-11 items-center justify-end underline underline-offset-2" href={href} title={reason} aria-label={reason}>—</a>
+      ? <a className="inline-flex min-h-11 min-w-11 items-center justify-start underline underline-offset-2" href={href} onClick={revealDashboardNote} title={reason} aria-label={reason}>—</a>
       : <span>{formatNumberExact(value)}</span>;
-  const fact = (label: string, value: number | null | undefined, reason: string, href?: string, currencyCode?: string, options: { fullLine?: boolean; testId?: string } = {}) => (
-    <div key={label} data-testid={options.testId} className={`${options.fullLine ? 'col-span-2 sm:col-span-1 ' : ''}grid min-w-0 grid-cols-1 gap-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline sm:gap-3`}>
-      <dt className="min-w-0 text-xs font-semibold text-muted-foreground">{label}</dt>
-      <dd className="min-w-0 whitespace-nowrap text-sm tabular sm:text-right">{currencyRows.length > 1 && currencyCode && (value === null || value === undefined || !Number.isFinite(value)) && <span>{currencyCode}{' '}</span>}{exactValue(value, currencyCode ? `${currencyCode}: ${reason}` : reason, href)}</dd>
-    </div>
+  const fact = (label: string, value: number | null | undefined, reason: string, currencyCode: string, primary = false, testId?: string, href?: string) => (
+    <DashFact key={label} label={label} primary={primary} testId={testId} value={exactValue(value, `${currencyCode}: ${reason}`, href)} />
   );
 
   return (
-    <section aria-labelledby="executive-delivery-title" className="space-y-4" data-testid="dashboard-delivery-book">
-      <h2 id="executive-delivery-title" className="text-xs font-semibold text-muted-foreground">{t('exec.deliveryBook', 'Delivery book')}</h2>
+    <section aria-label={t('exec.deliveryBook', 'Delivery book')} className="space-y-4" data-testid="dashboard-delivery-book">
+      <h2 id="executive-delivery-title" className="text-xl font-bold">{t('exec.deliveryBook', 'Delivery book')}{currencyRows.length === 1 ? ` · ${currencyRows[0]}` : ''}</h2>
       {isPending && !data ? (
         <ListState variant="loading" rows={5} />
       ) : isError && !data ? (
@@ -222,75 +205,40 @@ const DeliveryBook: React.FC<{
               onRetry={onRetry}
             />
           )}
-          <div className="space-y-8 border-y border-border py-4">
+          <div className="space-y-4">
             {currencyRows.map((currencyCode, index) => {
               const valueFor = (rows: CurrencyValue[]) => rows.find((row) => row.currency === currencyCode)?.value;
-              const primary = valueFor(onHand);
-              const compact = moneyFigure(primary ?? null, currencyCode, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), { code: true });
-              const compactFigure = compact.value === '—' ? `${currencyCode} —` : compact.value;
-              const groupId = `dashboard-position-${currencyCode.toLowerCase()}`;
-              const hasActive = activeContracts.some((row) => row.currency === currencyCode);
-              return (
-                <section key={currencyCode} aria-labelledby={groupId} data-testid={`dashboard-delivery-position-${currencyCode}`}>
-                  <h3 id={groupId} className={`mb-3 text-xl font-bold tabular ${index === 0 ? 'text-foreground' : 'text-muted-foreground'}`}>
-                    {t('dashboard:exec.contractValueOnHandCompact', 'Contract value on hand · {{figure}}', { figure: compactFigure })}
-                  </h3>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
-                    {fact(t('dashboard:exec.exactContractValueOnHand', 'Exact on-hand value'), primary, t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode, { fullLine: true })}
-                    {hasActive && <>
-                      {fact(t('uxs03.activeContractValue', 'Active contract value'), valueFor(activeContracts), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode)}
-                      <div><dt className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.activeDelivery', 'Active delivery')}</dt><dd className="text-sm">{t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}</dd></div>
-                    </>}
-                    {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), '#executive-actual-note', currencyCode, { testId: index === 0 ? 'dashboard-known-actual' : undefined })}
-                    {fact(t('uxs03.contractRemaining', 'Contract remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode)}
-                    {fact(
-                      (data.on_hand_realized_margin_by_currency ?? []).some((row) => row.currency === currencyCode && row.unknown_projects > 0)
-                        ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
-                        : t('uxs03.realizedMargin', 'Margin on billed work'),
-                      valueFor(margin),
-                      t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), undefined, currencyCode,
-                    )}
-                  </dl>
-                </section>
-              );
+              return <section key={currencyCode} aria-label={currencyCode} data-testid={`dashboard-delivery-position-${currencyCode}`}>
+                {currencyRows.length > 1 && <h3 className="mb-2 text-xl font-bold">{currencyCode}</h3>}
+                <p className="mb-4 text-sm text-muted-foreground">
+                  {t('dashboard:kpi.activeProjectsCount', '{{count}} active projects', { count: data.active_projects })}
+                  {' · '}{t('exec.activeContractScope', 'active contract {{amount}}', { amount: valueFor(activeContracts) == null ? '—' : formatNumberExact(valueFor(activeContracts)!) })}
+                  {updatedAt ? <> · {t('exec.figuresAsOf', 'figures as of {{date}}', { date: formatFullDate(new Date(updatedAt)) })}</> : null}
+                </p>
+                <dl className="grid grid-cols-2 items-start gap-4 sm:grid-cols-4">
+                  {fact(t('exec.contractOnHand', 'Contract on hand'), valueFor(onHand), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), currencyCode, true)}
+                  {fact(t('dashboard:exec.knownActual', 'Known Actual'), valueFor(actual), t('exec.actualUnavailable', 'Actual unavailable; see coverage note'), currencyCode, false, index === 0 ? 'dashboard-known-actual' : undefined, '#executive-actual-note')}
+                  {fact(t('exec.remainingAfterActual', 'Remaining after known Actual'), valueFor(remaining), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), currencyCode)}
+                  {fact(t('uxs03.realizedMargin', 'Margin on billed work'), valueFor(margin), t('exec.valueUnavailable', 'Unavailable value; see portfolio data note'), currencyCode)}
+                </dl>
+              </section>;
             })}
           </div>
-          {actualIncomplete && (
-            <aside id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="pt-3 text-sm text-muted-foreground">
-              <details><summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold">{t('dashboard:exec.actualCoverageHead', 'Actual coverage')} · {t('dashboard:exec.viewSourceDetails', 'View source details')}</summary>
-              <p className="mt-1">
-                {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
-                {' · '}
-                {t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
-                {' · '}{mapNote}
-              </p></details>
-            </aside>
-          )}
-
           {hasNoProjects && (
             <p data-testid="dashboard-empty" className="text-sm text-muted-foreground">
               {t('dashboard.empty.title', 'No data yet')} · <Link className="underline underline-offset-2" to="/projects">{t('exec.openProjects', 'Open projects')}</Link>
             </p>
           )}
 
-          {!hasNoProjects && <div className="space-y-2">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-xl font-bold">{t('dashboard:exec.spendingComparison', 'Spending comparison')}</h3>
-              <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:exec.sortAtRiskFirst', 'At-risk projects first, then project name')}</p>
-            </div>
-            <BvACard
-              projects={data.top_projects}
-              currency={currency}
-              isPending={isPending && !data}
-              isError={isError && !data}
-              onRetry={onRetry}
-            />
-          </div>}
-
-          <details className="group border-t border-border pt-2">
+          <details className="group">
           <summary className="flex min-h-11 cursor-pointer items-center text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-              <span>{t('dashboard:exec.howFiguresMeasured', 'How figures are measured')}</span> · {t('dashboard:exec.viewSourceDetails', 'View source details')}
+              <span>{t('dashboard:exec.howFiguresMeasured', 'How figures are measured')}</span>
             </summary>
+            <aside id="executive-actual-note" data-testid="dashboard-actual-coverage-note" className="py-2 text-sm text-muted-foreground">
+              {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: data.on_hand_actual_project_count, total: data.on_hand_actual_project_total })}
+              {' · '}{t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: data.on_hand_actual_coverage_count, total: data.on_hand_actual_coverage_total })}
+              {actualIncomplete && <> · {mapNote}</>}
+            </aside>
             <dl className="grid gap-x-6 gap-y-3 py-3 text-sm sm:grid-cols-2">
               <div><dt className="text-xs font-semibold">{t('uxs03.contractValueOnHand', 'Contract value on hand')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.onHandDefinition', 'Contract value for won, on-hold, delivery, and closed-out work, shown by currency.')}</dd></div>
               <div><dt className="text-xs font-semibold">{t('uxs03.activeContractValue', 'Active contract value')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.activeDefinition', 'Contract value for active delivery projects only.')}</dd></div>
@@ -299,9 +247,9 @@ const DeliveryBook: React.FC<{
               <div><dt className="text-xs font-semibold">{t('uxs03.realizedMargin', 'Margin on billed work')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.marginDefinition', 'Billed-work revenue less recorded Actual; it is not cash received.')}</dd></div>
               <div><dt className="text-xs font-semibold">{t('dashboard:winRate.title', 'Win rate')}</dt><dd className="mt-1 text-sm text-muted-foreground">{t('dashboard:exec.winRateDefinition', 'Wins divided by won plus lost closed project outcomes.')}</dd></div>
             </dl>
-          </details>
+          <div id="executive-data-note">
           {abnormalReasons.length > 0 && (
-            <aside id="executive-data-note" className="border-t border-border pt-3 text-sm text-muted-foreground">
+            <aside className="text-sm text-muted-foreground">
               <p className="text-xs font-semibold text-foreground">{t('dashboard:exec.dataNoteTitle', 'Some portfolio values are unavailable')}</p>
               <ul className="mt-1 list-inside list-disc space-y-1">
                 {abnormalReasons.map((reason, index) => <li key={index}>{reason}</li>)}
@@ -309,6 +257,12 @@ const DeliveryBook: React.FC<{
               {!actualIncomplete && <p className="mt-1">{mapNote}</p>}
             </aside>
           )}
+          {!pipelineMarginUnavailable && <p className="py-2 text-sm text-muted-foreground">{t('exec.forecastMarginDefinition', 'Forecast margin needs complete active budgets and a positive contract value in the same currency.')}</p>}
+          </div>
+          </details>
+          {!hasNoProjects && <div className="pt-4 sm:pt-8">
+            <BvACard projects={data.top_projects} currency={currency} isPending={false} isError={false} onRetry={onRetry} />
+          </div>}
         </>
       ) : null}
     </section>
@@ -337,8 +291,9 @@ const PipelineSection: React.FC<{
   const mixedCurrency = currencyTotals.length > 1;
 
   return (
-    <section aria-labelledby="executive-pipeline-title" className="space-y-4" data-testid="dashboard-pipeline">
-      <h2 id="executive-pipeline-title" className="text-xl font-bold">{t('exec.pipeline', 'Pipeline')}</h2>
+    <section aria-label={t('exec.pipeline', 'Pipeline')} className="space-y-4" data-testid="dashboard-pipeline">
+      <h2 id="executive-pipeline-title" className="text-xl font-bold">{t('exec.pipeline', 'Pipeline')}{!mixedCurrency ? ` · ${currencyTotals[0]?.currency ?? currency}` : ''}</h2>
+      <p className="text-sm text-muted-foreground">{t('exec.pipelineScope', 'Open sales opportunities · weighted by win probability')}</p>
       {dashboardPending && !data ? (
         <ListState variant="loading" rows={4} />
       ) : dashboardError && !data ? (
@@ -354,7 +309,7 @@ const PipelineSection: React.FC<{
               projectedMargin={currencyTotals.length ? (currencyTotals.length === 1 ? currencyTotals[0].forecastMargin : null) : data?.pipeline_projected_margin ?? null}
               stages={pipeline.stages}
               currency={currencyTotals.length === 1 ? currencyTotals[0].currency : currency}
-              currencyTotals={currencyTotals}
+              currencyTotals={currencyTotals.length ? currencyTotals : [{ currency, weightedValue: data?.pipeline_weighted_value ?? null, grossValue: data?.pipeline_total_value ?? null, forecastMargin: data?.pipeline_projected_margin ?? null }]}
               allowStageBars={!mixedCurrency}
             />
           ) : (
@@ -381,7 +336,7 @@ const PurchasingRequests: React.FC<{
     .sort((left, right) => left.status.localeCompare(right.status)), [data?.procurements_by_status]);
 
   return (
-    <details data-testid="dashboard-purchasing" className="group border-t border-border pt-2">
+    <details data-testid="dashboard-purchasing" className="group">
       <summary className="flex min-h-11 cursor-pointer items-center text-xl font-bold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
         {t('dashboard:exec.purchasingRequests', 'Purchasing requests')}
       </summary>
@@ -393,15 +348,15 @@ const PurchasingRequests: React.FC<{
         ) : statusRows.length === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">{t('uxs19.dashboardEmpty', 'No PMO requests to show')}</p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {statusRows.map((row) => (
               <li key={row.status}>
                 <Link
                   to={`/procurement?status=${encodeURIComponent(row.status)}`}
-                  className="flex min-h-11 items-center justify-between gap-3 py-2 text-sm hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  className="flex min-h-11 flex-col items-start gap-1 py-2 text-sm hover:bg-secondary/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                 >
-                  <span className="min-w-0">{statusLabel(row.status)}</span>
-                  <span className="shrink-0 tabular text-muted-foreground">{formatNumber(row.count)}</span>
+                  <span className="min-w-0 text-xs font-semibold text-muted-foreground">{statusLabel(row.status)}</span>
+                  <span className="shrink-0 font-semibold tabular text-foreground">{formatNumber(row.count)}</span>
                 </Link>
               </li>
             ))}
@@ -415,7 +370,7 @@ const PurchasingRequests: React.FC<{
 const ExecutiveDashboard: React.FC = () => {
   const { t } = useTranslation('dashboard');
   const { effectiveRole, realRole } = useEffectiveRole();
-  const { data, isPending, isError, refetch } = useDashboard();
+  const { data, isPending, isError, refetch, dataUpdatedAt } = useDashboard();
   const { data: pipeline, isPending: pipePending, isError: pipeError, refetch: refetchPipe } = useSalesPipeline();
   const { currentUser } = useAuth();
   const { data: procurements, isPending: procPending, isError: procError } = useProcurements();
@@ -436,7 +391,7 @@ const ExecutiveDashboard: React.FC = () => {
   const pipelineData = pipeline as { stages: PipelineStage[] } | undefined;
 
   const renderExecutiveView = () => (
-    <div className="space-y-6">
+    <div className="space-y-8 sm:space-y-12">
       <DashPageHead
         title={t('dashboard.title', 'Executive Dashboard')}
         sub={t('exec.scope', 'Portfolio · delivery and sales evidence')}
@@ -457,6 +412,7 @@ const ExecutiveDashboard: React.FC = () => {
         isError={isError}
         onRetry={() => { void refetch(); }}
         canManageAccounting={canManageAccounting}
+        updatedAt={dataUpdatedAt}
       />
       <StillToInvoiceCard />
       <PipelineSection

@@ -36,7 +36,7 @@ export function sortExecutiveProjects(projects: TopProject[]): TopProject[] {
     'at-risk': 0,
     'within-budget': 1,
     'not-active': 1,
-    unchecked: 2,
+    unchecked: 1,
   };
   return [...projects].sort((left, right) => {
     const riskDifference = riskOrder[executiveRiskState(left)] - riskOrder[executiveRiskState(right)];

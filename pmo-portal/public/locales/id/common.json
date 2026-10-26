@@ -1281,8 +1281,7 @@
     "chart": {
       "pipelineMargin": {
         "empty": "Tidak ada pipeline aktif",
-        "error": "Gagal memuat pipeline",
-        "title": "Margin proyeksi pipeline"
+        "error": "Gagal memuat pipeline"
       },
       "procStatus": {
         "chartLabel": "Pengadaan menurut status",

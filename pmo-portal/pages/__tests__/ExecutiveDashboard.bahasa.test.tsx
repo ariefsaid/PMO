@@ -75,12 +75,12 @@ describe('Executive dashboard Bahasa', () => {
     expect(screen.getByRole('heading', { name: 'Dashboard Eksekutif' })).toBeInTheDocument();
     expect(screen.getByText('Portofolio · data pelaksanaan dan penjualan')).toBeInTheDocument();
     const delivery = screen.getByRole('region', { name: 'Portofolio pelaksanaan' });
-    expect(delivery).toHaveTextContent('Nilai kontrak tersedia · USD 8 jt');
+    expect(delivery).toHaveTextContent('Nilai kontrak dalam portofolio');
     expect(delivery).toHaveTextContent('8.000.000');
     expect(delivery).toHaveTextContent('Aktual yang diketahui');
     expect(screen.getByText('1 proyek berisiko')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Tinjau permintaan' })).toHaveAttribute('href', '/approvals');
-    expect(screen.getByText(/permintaan persetujuan perlu diputuskan/)).toBeInTheDocument();
+    expect(screen.getByText(/permintaan persetujuan menunggu keputusan Anda/)).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Tingkat kemenangan' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Menurut jumlah' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '12 bulan terakhir' })).toBeInTheDocument();

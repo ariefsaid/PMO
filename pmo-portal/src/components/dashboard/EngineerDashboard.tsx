@@ -9,7 +9,7 @@ import { HoursBar } from '@/src/components/ui/HoursBar';
 import { entriesByProject, recentEntries } from '@/src/lib/timesheet-derive';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { formatFullDate, formatNumberExact } from '@/src/lib/format';
-import { DashPageHead } from './layout';
+import { DashPageHead, DashValue } from './layout';
 
 const RECENT_ENTRIES_LIMIT = 8;
 
@@ -81,7 +81,7 @@ export const EngineerDashboard: React.FC = () => {
   const hasCurrentWeekEntries = (current?.entries.length ?? 0) > 0;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-8 sm:space-y-12">
       <DashPageHead
         title={t('dashboard:engineer.title', 'My Dashboard')}
         sub={t('dashboard:engineer.scope', 'Review and log your hours.')}
@@ -96,22 +96,20 @@ export const EngineerDashboard: React.FC = () => {
           </span>
         </CardHead>
         <div className="grid min-w-0 gap-4 px-4 py-4 sm:grid-cols-[minmax(0,1.25fr)_minmax(8rem,0.75fr)]">
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:engineer.calendarWeekLabel', 'Calendar week')}</p>
-            <p data-testid="engineer-week-scope" data-week-start={weekStart} className="mt-1 break-words text-sm">{weekScope}</p>
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-muted-foreground">{t('dashboard:engineer.timesheetStatus', 'Timesheet status')}</p>
-            <div data-testid="engineer-timesheet-status" className="mt-1 min-h-7">
+          <DashValue label={t('dashboard:engineer.calendarWeekLabel', 'Calendar week')}>
+            <p data-testid="engineer-week-scope" data-week-start={weekStart} className="break-words">{weekScope}</p>
+          </DashValue>
+          <DashValue label={t('dashboard:engineer.timesheetStatus', 'Timesheet status')}>
+            <div data-testid="engineer-timesheet-status" className="min-h-7">
               {isPending || isError ? (
                 <span role="img" aria-label={isError ? t('dashboard:engineer.statusUnavailable', 'Timesheet status unavailable') : t('dashboard:loading', 'Loading')} className="text-muted-foreground">—</span>
               ) : current ? (
-                <StatusPill variant={workflowVariant(current.status)}>{statusLabels[current.status] ?? current.status}</StatusPill>
+                <StatusPill variant={workflowVariant(current.status)} className="text-sm font-semibold">{statusLabels[current.status] ?? current.status}</StatusPill>
               ) : (
                 <span className="text-sm text-muted-foreground">{t('dashboard:engineer.noTimesheetThisWeek', 'No timesheet this week')}</span>
               )}
             </div>
-          </div>
+          </DashValue>
           <span data-testid="engineer-hours-total" role="img" className="sr-only" aria-label={isError ? t('dashboard:engineer.hoursUnavailable', 'Hours unavailable') : t('dashboard:engineer.weekHoursAria', 'This week: {{hours}} hours', { hours: formatNumberExact(hoursThisWeek) })}>
             {isPending || isError ? '—' : formatNumberExact(hoursThisWeek)}
           </span>

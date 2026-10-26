@@ -139,7 +139,7 @@ describe('ExecutiveDashboard — approval status errors (AC-W2-4-06)', () => {
     tsState.data = [{ id: 't1' }];
     renderPage();
     const attention = screen.getByTestId('dashboard-attention');
-    expect(attention).toHaveTextContent('1 approval request needs a decision');
+    expect(attention).toHaveTextContent('1 approval request needs your decision');
     expect(within(attention).getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
   });
 });
