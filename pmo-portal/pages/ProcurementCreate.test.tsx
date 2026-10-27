@@ -11,13 +11,18 @@ const mocks = vi.hoisted(() => ({
   toast: vi.fn(),
   canCreate: true,
   currency: 'USD',
+  realRole: 'Admin' as string,
 }));
 vi.mock('react-router', async (importOriginal) => ({ ...await importOriginal<typeof import('react-router')>(), useNavigate: () => mocks.navigate }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => mocks.canCreate }));
+vi.mock('@/src/auth/impersonation', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/src/auth/impersonation')>(),
+  useOptionalRealRole: () => mocks.realRole,
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => mocks.currency }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [{ value: 'p1', label: 'Project One' }] }),
-  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Vendor One' }] }),
+  useVendorOptions: () => ({ data: [{ value: 'v1', label: 'Supplier One', sub: 'Vendor' }] }),
 }));
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
   useCreateProcurement: () => ({ mutateAsync: mocks.createRequest, isPending: false }),
@@ -28,7 +33,7 @@ vi.mock('@/src/components/ui', async (importOriginal) => ({
   useToast: () => ({ toast: mocks.toast }),
 }));
 
-function renderCreate(path = '/procurement/new') {
+function renderCreate(path = '/procurement/new?have=need') {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <Routes><Route path="/procurement/new" element={<ProcurementCreate />} /></Routes>
@@ -41,23 +46,45 @@ describe('AC-PROC1 one-page request creation', () => {
     vi.clearAllMocks();
     mocks.canCreate = true;
     mocks.currency = 'USD';
+    mocks.realRole = 'Admin';
     mocks.createRequest.mockResolvedValue({ id: 'new-id' });
     mocks.createItem.mockResolvedValue({});
   });
 
-  it('AC-PROC1-001 shows inline request fields and line editor but no quotations', () => {
+  it('shows the five intake choices to Finance and four to an Engineer', () => {
+    mocks.realRole = 'Finance';
+    const finance = renderCreate('/procurement/new');
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A new need/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /An order/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A supplier invoice/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A payment/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A document already in the accounting system/i })).toBeVisible();
+    finance.unmount();
+
+    mocks.realRole = 'Engineer';
+    renderCreate('/procurement/new');
+    expect(screen.getByRole('button', { name: /A new need/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /An order/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A supplier invoice/i })).toBeVisible();
+    expect(screen.getByRole('button', { name: /A payment/i })).toBeVisible();
+    expect(screen.queryByRole('button', { name: /A document already in the accounting system/i })).not.toBeInTheDocument();
+  });
+
+  it('AC-PROC1-001 shows the need form fields and line editor but no quotations', () => {
     renderCreate();
-    expect(screen.getByRole('heading', { name: /new purchase request/i })).toBeVisible();
+    expect(screen.getByRole('heading', { name: /new procurement/i })).toBeVisible();
     expect(screen.getByLabelText(/title/i)).toBeVisible();
     expect(screen.getByLabelText(/project/i)).toBeVisible();
-    expect(screen.getByLabelText(/vendor/i)).toBeVisible();
+    expect(screen.getByLabelText(/supplier/i)).toBeVisible();
     expect(screen.getByLabelText(/budget category/i)).toBeVisible();
     expect(screen.getByTestId('line-items-section')).toBeVisible();
     expect(screen.queryByText(/quotation/i)).not.toBeInTheDocument();
   });
 
-  it('AC-PROC1-002 saves the Draft request and its entered line before replacing to detail', async () => {
-    renderCreate();
+  it('AC-PROC1-002 choosing a new need saves the request and its entered line before replacing to detail', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Office supplies' } });
     fireEvent.change(screen.getByLabelText('New item description'), { target: { value: 'Paper' } });
     fireEvent.change(screen.getByLabelText('New item quantity'), { target: { value: '2' } });
@@ -73,16 +100,66 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true });
   });
 
-  it('the create page asks only for a request: no first-document choice, and Save opens the plain purchase page', async () => {
-    renderCreate();
-    expect(screen.queryByLabelText('First document')).toBeNull();
-    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement' } });
+  it('choosing an order saves the header and opens purchase-order capture', async () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /An order/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cement order' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
-    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id', { replace: true }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith('/procurement/new-id/timeline?record=po', { replace: true }));
+    expect(mocks.createRequest).toHaveBeenCalledWith({ title: 'Cement order', projectId: null, vendorId: null });
+    expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['invoice', 'A supplier invoice', 'invoice'],
+    ['payment', 'A payment', 'payment'],
+  ] as const)('choosing %s opens its matching capture without line items', async (have, choice, record) => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(choice, 'i') }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: `Existing ${have}` } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith(`/procurement/new-id/timeline?record=${record}`, { replace: true }));
+    expect(mocks.createItem).not.toHaveBeenCalled();
+  });
+
+  it('takes Finance to accounting-system documents that are not in a procurement', () => {
+    mocks.realRole = 'Finance';
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A document already in the accounting system/i }));
+    expect(mocks.navigate).toHaveBeenCalledWith('/procurement?tab=orphans');
+    expect(mocks.createRequest).not.toHaveBeenCalled();
+  });
+
+  it('uses supplier wording for the supplier option in the shared picker', async () => {
+    renderCreate();
+    fireEvent.click(screen.getByRole('combobox', { name: 'Supplier' }));
+    const supplierOption = await screen.findByRole('option', { name: /Supplier One/ });
+    expect(supplierOption).toHaveTextContent('Supplier');
+    expect(supplierOption).not.toHaveTextContent('Vendor');
+  });
+
+  it('AC-PROC1-004 skips the question for ?have=invoice and omits line items', () => {
+    renderCreate('/procurement/new?have=invoice');
+    expect(screen.queryByRole('heading', { name: 'What do you have?' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/title/i)).toBeVisible();
+    expect(screen.getByLabelText(/project/i)).toBeVisible();
+    expect(screen.getByLabelText(/supplier/i)).toBeVisible();
+    expect(screen.queryByLabelText(/budget category/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('line-items-section')).not.toBeInTheDocument();
+  });
+
+  it('returns to the question without clearing typed form input', () => {
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'Cable' } });
+    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    expect(screen.getByRole('heading', { name: 'What do you have?' })).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
+    expect(screen.getByLabelText(/title/i)).toHaveValue('Cable');
   });
 
   it('AC-PROC1-003 preselects project from query and creates nothing when leaving', () => {
-    const { unmount } = renderCreate('/procurement/new?project=p1');
+    const { unmount } = renderCreate('/procurement/new?project=p1&have=need');
     expect(screen.getByText('Project One')).toBeVisible();
     unmount();
     expect(mocks.createRequest).not.toHaveBeenCalled();
@@ -151,7 +228,7 @@ describe('AC-PROC1 one-page request creation', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/some lines were not saved/i);
     expect(screen.getByLabelText(/title/i)).toBeDisabled();
     expect(screen.getByLabelText(/project/i)).toBeDisabled();
-    expect(screen.getByLabelText(/vendor/i)).toBeDisabled();
+    expect(screen.getByLabelText(/supplier/i)).toBeDisabled();
   });
 
   it('AC-PROC1-006 disables line controls while the request is saving', async () => {
@@ -188,12 +265,14 @@ describe('AC-PROC1 one-page request creation', () => {
   });
 
   it('AC-PROC1-007 holds Back behind a confirm once something is typed, creates nothing', () => {
-    renderCreate();
-    fireEvent.click(screen.getByRole('button', { name: /procurement/i }));
+    renderCreate('/procurement/new');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
     mocks.navigate.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: /A new need/i }));
     fireEvent.change(screen.getByLabelText(/title/i), { target: { value: 'x' } });
-    fireEvent.click(screen.getByRole('button', { name: /procurement/i }));
+    fireEvent.click(screen.getByRole('button', { name: /what do you have/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Procurement' }));
     expect(mocks.navigate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Leave' }));
     expect(mocks.navigate).toHaveBeenCalledWith('/procurement');
