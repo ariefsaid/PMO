@@ -78,10 +78,10 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
-echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
+echo "==> taste (Leonxlnx/taste-skill) — anti-slop craft discipline"
 git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
 rm -rf "${DEST:?}/taste"
-cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
+cp -R "$TMP/taste/skills/taste-skill" "$DEST/taste"
 
 echo "==> ui-ux-pro-max (nextlevelbuilder) — CORE skills only (skip Gemini generative sub-skills)"
 git clone --depth 1 https://github.com/nextlevelbuilder/ui-ux-pro-max-skill.git "$TMP/uupm"
