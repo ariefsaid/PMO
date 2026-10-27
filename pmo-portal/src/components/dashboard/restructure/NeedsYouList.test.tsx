@@ -5,8 +5,8 @@ import { NeedsYouList } from './NeedsYouList';
 import type { NeedsItem } from './useNeedsYou';
 
 const items: NeedsItem[] = [
-  { id: 'approvals', count: 2, label: '2 approvals waiting for you', href: '/approvals', tone: 'warn' },
-  { id: 'overdue', count: 1, label: '1 client invoice overdue', amount: 'USD 1,250', href: '/sales-invoices?overdue=true', tone: 'lost' },
+  { id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' },
+  { id: 'overdue', count: 1, label: 'client invoice overdue', amount: 'USD 1,250', href: '/sales-invoices?overdue=true', tone: 'lost' },
 ];
 
 const renderList = (props: Partial<React.ComponentProps<typeof NeedsYouList>> = {}) =>
@@ -16,10 +16,15 @@ describe('NeedsYouList', () => {
   it('renders each need as one complete link with count, label, amount and tone text', () => {
     renderList();
 
-    const approvals = screen.getByRole('link', { name: /2 approvals waiting for you/i });
-    const overdue = screen.getByRole('link', { name: /1 client invoice overdue/i });
+    const approvals = screen.getByTestId('needs-row-approvals');
+    const overdue = screen.getByTestId('needs-row-overdue');
     expect(approvals).toHaveAttribute('href', '/approvals');
     expect(overdue).toHaveAttribute('href', '/sales-invoices?overdue=true');
+    expect(approvals).toHaveTextContent('2');
+    expect(approvals).toHaveTextContent('approvals waiting for you');
+    expect(approvals).not.toHaveTextContent(/2 approvals waiting/);
+    expect(overdue).toHaveTextContent('client invoice overdue');
+    expect(overdue).not.toHaveTextContent(/1 client invoice overdue/);
     expect(overdue).toHaveTextContent('USD 1,250');
     expect(screen.getByText('Needs attention')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();

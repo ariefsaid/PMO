@@ -88,19 +88,19 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
   const add = (item: NeedsItem | null) => { if (item && item.count > 0) items.push(item); };
   const approvalItem = (count: number | undefined): NeedsItem | null => count === undefined ? null : ({
     id: 'approvals', count, href: '/approvals', tone: 'warn',
-    label: counted(t, 'needs.approvals', '{{count}} approval waiting for you', '{{count}} approvals waiting for you', count),
+    label: counted(t, 'needs.approvals', 'approval waiting for you', 'approvals waiting for you', count),
   });
 
   if (role === 'Executive' || role === 'Admin') {
     add(approvalItem(facts.approvals));
     if (facts.atRiskProjects !== undefined) add({
       id: 'at-risk', count: facts.atRiskProjects,
-      label: counted(t, 'needs.atRisk', '{{count}} project at risk', '{{count}} projects at risk', facts.atRiskProjects),
+      label: counted(t, 'needs.atRisk', 'project at risk', 'projects at risk', facts.atRiskProjects),
       href: '/projects?filter=at-risk', tone: 'warn',
     });
     if (facts.procurementsAwaitingApproval !== undefined) add({
       id: 'procurement-approvals', count: facts.procurementsAwaitingApproval,
-      label: counted(t, 'needs.procurementApproval', '{{count}} procurement awaiting approval', '{{count}} procurements awaiting approval', facts.procurementsAwaitingApproval),
+      label: counted(t, 'needs.procurementApproval', 'procurement awaiting approval', 'procurements awaiting approval', facts.procurementsAwaitingApproval),
       href: '/procurement?status=Requested', tone: 'warn',
     });
   }
@@ -108,7 +108,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
   if (role === 'Finance') {
     const overdue = facts.overdueInvoices;
     if (overdue) {
-      const base = counted(t, 'needs.overdueInvoice', '{{count}} client invoice overdue', '{{count}} client invoices overdue', overdue.count);
+      const base = counted(t, 'needs.overdueInvoice', 'client invoice overdue', 'client invoices overdue', overdue.count);
       const unknown = overdue.unknownBalances > 0
         ? ` · ${t('needs.unknownBalanceDays', '{{count}} balance unknown; {{days}} days overdue', { count: overdue.unknownBalances, days: overdue.oldestDays ?? '—' })}`
         : '';
@@ -116,17 +116,17 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: [counted(t, 'needs.supplierInvoice', '{{count}} supplier invoice to pay', '{{count}} supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
+      label: [counted(t, 'needs.supplierInvoice', 'supplier invoice to pay', 'supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
       amount: amountsText(facts.supplierInvoices.knownTotals, t), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
       id: 'ready-to-bill', count: facts.readyToBill,
-      label: counted(t, 'needs.readyToBill', '{{count}} work order still to invoice', '{{count}} work orders still to invoice', facts.readyToBill),
+      label: counted(t, 'needs.readyToBill', 'work order still to invoice', 'work orders still to invoice', facts.readyToBill),
       href: '/projects', tone: 'neutral',
     });
     if (facts.budgetsOver !== undefined) add({
       id: 'budgets-over', count: facts.budgetsOver,
-      label: counted(t, 'needs.budgetsOver', '{{count}} budget running over', '{{count}} budgets running over', facts.budgetsOver),
+      label: counted(t, 'needs.budgetsOver', 'budget running over', 'budgets running over', facts.budgetsOver),
       href: '/projects', tone: 'lost',
     });
     add(approvalItem(facts.approvals));
@@ -136,17 +136,17 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     add(approvalItem(facts.approvals));
     if (facts.projectsOverBudget !== undefined) add({
       id: 'projects-over-budget', count: facts.projectsOverBudget,
-      label: counted(t, 'needs.pmOverBudget', '{{count}} project over 90% of budget', '{{count}} projects over 90% of budget', facts.projectsOverBudget),
+      label: counted(t, 'needs.pmOverBudget', 'project over 90% of budget', 'projects over 90% of budget', facts.projectsOverBudget),
       href: '/projects?filter=My+Projects', tone: 'warn',
     });
     if (facts.overdueProjectTasks !== undefined) add({
       id: 'overdue-project-tasks', count: facts.overdueProjectTasks,
-      label: counted(t, 'needs.pmTasks', '{{count}} overdue task on your projects', '{{count}} overdue tasks on your projects', facts.overdueProjectTasks),
+      label: counted(t, 'needs.pmTasks', 'overdue task on your projects', 'overdue tasks on your projects', facts.overdueProjectTasks),
       href: '/projects?filter=My+Projects', tone: 'lost',
     });
     if (facts.timesheetsToApprove !== undefined) add({
       id: 'team-timesheets', count: facts.timesheetsToApprove,
-      label: counted(t, 'needs.pmTimesheets', '{{count}} team timesheet to approve', '{{count}} team timesheets to approve', facts.timesheetsToApprove),
+      label: counted(t, 'needs.pmTimesheets', 'team timesheet to approve', 'team timesheets to approve', facts.timesheetsToApprove),
       href: '/approvals?scope=timesheets', tone: 'warn',
     });
   }
@@ -162,12 +162,12 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     });
     if (facts.engineerTasks !== undefined) add({
       id: 'engineer-tasks', count: facts.engineerTasks,
-      label: counted(t, 'needs.engineerTasks', '{{count}} task overdue or due this week', '{{count}} tasks overdue or due this week', facts.engineerTasks),
+      label: counted(t, 'needs.engineerTasks', 'task overdue or due this week', 'tasks overdue or due this week', facts.engineerTasks),
       href: '/my-tasks', tone: 'warn',
     });
     if (facts.returnedExpenses !== undefined) add({
       id: 'returned-expenses', count: facts.returnedExpenses,
-      label: counted(t, 'needs.returnedExpense', '{{count}} expense claim returned', '{{count}} expense claims returned', facts.returnedExpenses),
+      label: counted(t, 'needs.returnedExpense', 'expense claim returned', 'expense claims returned', facts.returnedExpenses),
       href: '/expenses', tone: 'lost',
     });
   }

@@ -403,6 +403,7 @@ export function EngineerRecentEntriesPanel({
           description: entry.notes?.trim() || formatDateOnly(entry.entry_date),
         })}
         accessibleName={t('hub.engineer.recentEntries', 'Recent entries')}
+        embedded
         state={tableState}
         emptyTitle={t('hub.engineer.noRecentEntries', 'No recent time entries')}
         emptySub={t('hub.engineer.noRecentEntriesSub', 'Recorded hours will appear here.')}
@@ -410,7 +411,6 @@ export function EngineerRecentEntriesPanel({
         errorSub={t('hub.engineer.retrySub', 'Retry to check your latest time entries.')}
         onRetry={onRetry}
         tableId="components-dashboard-engineer-recent-entries"
-        className="rounded-t-none border-t-0"
       />
     </AreaPanel>
   );

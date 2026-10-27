@@ -91,6 +91,13 @@ describe('AccountingSnapshotsSection — empty state (unflipped default)', () =>
     expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
   });
 
+  it('renders client receivables as an unframed subsection when embedded in a billing panel', () => {
+    render(<AccountingSnapshotsSection {...emptyProps} showActuals={false} showApAging={false} showArAging embedded />);
+    const heading = screen.getByRole('heading', { name: 'Client receivables (AR)', level: 3 });
+    expect(heading.closest('.rounded-lg.border')).toBeNull();
+    expect(screen.getByText('No aging data to show yet.')).toBeInTheDocument();
+  });
+
   it('distinguishes an unavailable snapshot from a real zero-balance snapshot and gives Finance a usable next step', () => {
     render(<AccountingSnapshotsSection {...emptyProps} />);
     expect(screen.getAllByText(/No aging data to show yet/i)).toHaveLength(2);
@@ -125,8 +132,8 @@ describe('AccountingSnapshotsSection — populated state', () => {
   it('AC-RD-FIN-003: renders Bahasa money labels for accounting snapshots', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><AccountingSnapshotsSection {...emptyProps} actuals={actualsRows} apAging={apRows} arAging={arRows} /></MemoryRouter></BahasaProvider>);
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
-    expect(screen.getByText('Utang kepada vendor (AP)')).toBeInTheDocument();
-    expect(screen.getByText('Piutang pelanggan (AR)')).toBeInTheDocument();
+    expect(screen.getByText('Utang pemasok (AP)')).toBeInTheDocument();
+    expect(screen.getByText('Piutang klien (AR)')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Proyek' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Akun' })).toBeInTheDocument();
   });

@@ -15,6 +15,9 @@ describe('needs-you dashboard selectors', () => {
       [1, '/projects?filter=at-risk'],
       [3, '/procurement?status=Requested'],
     ]);
+    expect(items.map(({ label }) => label)).toEqual([
+      'approvals waiting for you', 'project at risk', 'procurements awaiting approval',
+    ]);
   });
 
   it('shows Finance needs before the company overview and omits zero counts', () => {
@@ -33,6 +36,7 @@ describe('needs-you dashboard selectors', () => {
     ]);
     expect(items[0].label).toContain('1 balance unknown');
     expect(items[1].label).toContain('Unknown balances: 1');
+    expect(items[1].label).not.toContain('4 supplier invoices to pay');
   });
 
   it('shows the Project Manager queue and links it to the owning work areas', () => {
@@ -43,6 +47,10 @@ describe('needs-you dashboard selectors', () => {
     expect(items.map(({ count, href }) => [count, href])).toEqual([
       [2, '/approvals'], [1, '/projects?filter=My+Projects'],
       [5, '/projects?filter=My+Projects'], [3, '/approvals?scope=timesheets'],
+    ]);
+    expect(items.map(({ label }) => label)).toEqual([
+      'approvals waiting for you', 'project over 90% of budget',
+      'overdue tasks on your projects', 'team timesheets to approve',
     ]);
   });
 
@@ -55,6 +63,9 @@ describe('needs-you dashboard selectors', () => {
       [1, '/timesheets'], [2, '/my-tasks'], [1, '/expenses'],
     ]);
     expect(items.map(({ label }) => label).join(' ')).not.toMatch(/\$|Rp|IDR/);
+    expect(items.map(({ label }) => label)).toEqual([
+      "This week's timesheet was returned", 'tasks overdue or due this week', 'expense claim returned',
+    ]);
   });
 
   it('returns no rows when every source is known to be clear', () => {

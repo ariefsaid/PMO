@@ -71,8 +71,8 @@ const claims = [
 
 const attentionItems = [
   { id: 'timesheet-returned', count: 1, label: "This week's timesheet was returned", href: '/timesheets', tone: 'lost' },
-  { id: 'engineer-tasks', count: 2, label: '2 tasks overdue or due this week', href: '/my-tasks', tone: 'warn' },
-  { id: 'returned-expenses', count: 1, label: '1 expense claim returned', href: '/expenses', tone: 'lost' },
+  { id: 'engineer-tasks', count: 2, label: 'tasks overdue or due this week', href: '/my-tasks', tone: 'warn' },
+  { id: 'returned-expenses', count: 1, label: 'expense claim returned', href: '/expenses', tone: 'lost' },
 ];
 
 const LocationProbe = () => {
@@ -130,7 +130,7 @@ describe('Engineer area hub', () => {
     expect(text).not.toMatch(/(?:Rp|USD|IDR|\$|invoice|budget|revenue|spending)/i);
   });
 
-  it('uses the current week for hours, attention panels, and unknown expected hours/deadline', () => {
+  it('uses the current week for hours, attention panels, and a week-only basis when expected hours are unknown', () => {
     renderDashboard();
 
     expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('15.5');
@@ -140,13 +140,15 @@ describe('Engineer area hub', () => {
     expect(screen.getByRole('progressbar', { name: 'Tue: 7.5 h' })).toBeInTheDocument();
     expect(screen.getByText('This week by project')).toBeInTheDocument();
     expect(screen.getByRole('progressbar', { name: /Cedar Works: 15.5 h/ })).toBeInTheDocument();
-    expect(screen.getByText('Due —')).toBeInTheDocument();
+    expect(screen.getByText(/Due Fri/)).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('Week of');
+    expect(screen.getByTestId('kpi-hours-week')).not.toHaveTextContent(/expected hours/i);
 
     fireEvent.focus(screen.getByRole('button', { name: 'Help: Hours this week' }));
     expect(screen.getByRole('tooltip')).toHaveTextContent('Expected weekly hours are not provided by the timesheet data.');
     fireEvent.blur(screen.getByRole('button', { name: 'Help: Hours this week' }));
     fireEvent.focus(screen.getByRole('button', { name: 'Help: Timesheet status' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent('A due date is not available in the timesheet data.');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Status comes from this week’s timesheet. If none exists yet, it is marked Not started. Timesheets are due Friday.');
   });
 
   it('lists overdue and this-week tasks, and only the signed-in engineer’s rejected claims', () => {
@@ -221,6 +223,26 @@ describe('Engineer area hub', () => {
     expect(screen.getByTestId('kpi-hours-week')).toHaveTextContent('0');
     expect(screen.getAllByText('No hours logged this week').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('link', { name: 'Log hours in Timesheets' }).every((link) => link.getAttribute('href') === '/timesheets')).toBe(true);
+  });
+
+  it('keeps Recent entries table content inside the area panel without a second frame', () => {
+    renderDashboard();
+    const heading = screen.getByRole('heading', { name: 'Recent entries' });
+    const panel = heading.closest('.rounded-lg.border');
+    expect(panel).not.toBeNull();
+    expect(panel?.querySelector('.rounded-b-lg.border')).toBeNull();
+  });
+
+  it('shows Not started and Friday due date when this week has no timesheet', () => {
+    state.timesheets.data = sheets.filter((sheet) => sheet.week_start_date !== '2026-06-01');
+    renderDashboard();
+
+    const timesheet = screen.getByTestId('kpi-timesheet-status');
+    expect(timesheet).toHaveTextContent('Not started');
+    expect(timesheet).toHaveTextContent('Due Fri');
+    expect(timesheet).not.toHaveTextContent('—');
+    expect(screen.getByRole('link', { name: 'Open timesheet status' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByRole('link', { name: /2 tasks overdue or due this week/i })).toHaveAttribute('href', '/my-tasks');
   });
 
   it('shows unknown values when a source has no loaded data', () => {

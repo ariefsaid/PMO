@@ -58,12 +58,14 @@ function buildWinRateRange(period: PeriodKey): WinRateRange {
  */
 export interface WinRateCardProps {
   currency: string;
+  /** Omit the standalone card frame when this content sits in an area panel. */
+  embedded?: boolean;
   /** A containing dashboard may own the date range and URL state. */
   range?: WinRateRange;
   hidePeriodControl?: boolean;
 }
 
-export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, range: externalRange, hidePeriodControl = false }) => {
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, embedded = false, range: externalRange, hidePeriodControl = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
@@ -104,9 +106,9 @@ export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, range: exter
     mode === 'count' ? String(n) : formatCurrency(n, valueCurrency);
 
   return (
-    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className="rounded-lg border border-border bg-card p-4">
+    <section aria-label={t('dashboard.winRate.title', 'Win rate')} className={embedded ? 'grid gap-3' : 'rounded-lg border border-border bg-card p-4'}>
       <div className="mb-3.5 flex flex-wrap items-center gap-2">
-        <span className="text-[13.5px] font-semibold">{t('dashboard.winRate.title', 'Win rate')}</span>
+        <h3 className="text-sm font-semibold">{t('dashboard.winRate.title', 'Win rate')}</h3>
         <Tooltip content={t('dashboard:hub.company.help.winRate', 'Won projects divided by won plus lost projects in the selected period. The chart can switch between count and value.')}>
           <button type="button" aria-label={t('dashboard:hub.company.aboutWinRate', 'About win rate')} className="touch-target grid size-11 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="help" className="size-3.5" /></button>
         </Tooltip>

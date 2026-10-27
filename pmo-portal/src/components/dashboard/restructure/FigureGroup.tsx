@@ -25,6 +25,8 @@ export interface FigureGroupProps {
   isError?: boolean;
   onRetry?: () => void;
   className?: string;
+  /** Let the containing area panel own the heading and basis line. */
+  hideHeading?: boolean;
 }
 
 export const FigureGroup: React.FC<FigureGroupProps> = ({
@@ -35,6 +37,7 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
   isError = false,
   onRetry,
   className = '',
+  hideHeading = false,
 }) => {
   const { t } = useTranslation('dashboard');
   if (isPending) return <ListState variant="loading" rows={Math.max(figures.length, 2)} testId="figure-group-loading" className={className} />;
@@ -50,10 +53,10 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
 
   return (
     <section aria-label={basis ? `${heading} · ${basis}` : heading} className={className}>
-      <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+      {!hideHeading && <div className="mb-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <h2 className="text-[18px] font-semibold leading-[1.3]">{heading}</h2>
         {basis && <span className="text-[12px] text-muted-foreground">{basis}</span>}
-      </div>
+      </div>}
       <div className="grid grid-cols-2 gap-x-4 min-[920px]:grid-cols-3 min-[1180px]:grid-cols-4">
         {figures.map((figure) => {
           const value = figure.value === null ? (

@@ -140,6 +140,7 @@ export const EngineerDashboard: React.FC = () => {
   const taskDataError = taskError || (!organizationDay.day && !organizationDay.isPending);
   const recentError = timeError || (!organizationDay.day && !organizationDay.isPending);
   const currentStatus = currentSheet?.status ?? null;
+  const noCurrentSheet = timesheets.data !== undefined && currentSheet === null;
   const statusLabel = currentStatus === 'Rejected'
     ? t('hub.engineer.status.returned', 'Returned')
     : currentStatus === 'Draft'
@@ -148,10 +149,16 @@ export const EngineerDashboard: React.FC = () => {
         ? t('hub.engineer.status.submitted', 'Submitted')
         : currentStatus === 'Approved'
           ? t('hub.engineer.status.approved', 'Approved')
-          : null;
-  const expectedWeekLabel = t('hub.engineer.expectedWeek', '— expected hours · week of {{date}}', {
+          : noCurrentSheet
+            ? t('hub.engineer.notStarted', 'Not started')
+            : null;
+  const expectedWeekLabel = weekStart ? t('hub.engineer.expectedWeek', 'Week of {{date}}', {
     date: formatDateOnly(weekStart),
-  });
+  }) : undefined;
+  const timesheetDueLabel = weekStart ? t('hub.engineer.dueDay', 'Due {{day}} · {{date}}', {
+    day: dayLabels[4],
+    date: formatDateOnly(addDays(weekStart, 4)),
+  }) : undefined;
   const weekAttention = needsYou.items.filter((item) => item.id === 'timesheet-not-submitted' || item.id === 'timesheet-returned');
   const taskAttention = needsYou.items.filter((item) => item.id === 'engineer-tasks');
   const expenseAttention = needsYou.items.filter((item) => item.id === 'returned-expenses');
@@ -191,10 +198,10 @@ export const EngineerDashboard: React.FC = () => {
           tone="violet"
           icon="doc"
           label={t('hub.engineer.timesheetStatus', 'Timesheet status')}
-          value={statusLabel ? <StatusPill variant={workflowVariant(currentStatus ?? 'Draft')}>{statusLabel}</StatusPill> : '—'}
+          value={statusLabel ? <StatusPill variant={currentStatus ? workflowVariant(currentStatus) : 'neutral'}>{statusLabel}</StatusPill> : '—'}
           loading={timeLoading}
           error={timeError || (!weekStart && !organizationDay.isPending)}
-          vs={t('hub.engineer.dueUnavailable', 'Due —')}
+          vs={timesheetDueLabel}
           to="/timesheets"
           linkLabel={t('hub.engineer.openStatus', 'Open timesheet status')}
           help={t('hub.engineer.statusHelp', 'Status comes from this week’s timesheet. If no timesheet exists for this week, status is unavailable. A due date is not available in the timesheet data.')}

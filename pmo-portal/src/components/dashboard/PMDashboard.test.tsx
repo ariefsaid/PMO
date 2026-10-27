@@ -93,8 +93,8 @@ const projects = [
 ];
 
 const approvalItems = [
-  { id: 'approvals', count: 3, label: '3 approvals waiting for you', href: '/approvals', tone: 'warn' },
-  { id: 'team-timesheets', count: 2, label: '2 team timesheets to approve', href: '/approvals?scope=timesheets', tone: 'warn' },
+  { id: 'approvals', count: 3, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' },
+  { id: 'team-timesheets', count: 2, label: 'team timesheets to approve', href: '/approvals?scope=timesheets', tone: 'warn' },
 ];
 
 let queryClient: QueryClient;
@@ -225,8 +225,9 @@ describe('Project Manager area hub', () => {
     renderDashboard();
 
     const contract = screen.getByTestId('kpi-my-contract-value');
-    expect(contract).toHaveTextContent('USD');
-    expect(contract).toHaveTextContent('EUR');
+    expect(contract).toHaveTextContent('$100,000');
+    expect(contract).toHaveTextContent('€80,000');
+    expect(contract).not.toHaveTextContent(/USD\s+\$|IDR\s+IDR/);
 
     cleanup();
     state.projects.data = [
@@ -242,6 +243,19 @@ describe('Project Manager area hub', () => {
     const unknownReason = within(unknownContract).getByRole('button', { name: /one or more project contract values are unavailable/i });
     fireEvent.focus(unknownReason);
     expect(screen.getByRole('tooltip')).toHaveTextContent(/one or more project contract values are unavailable/i);
+  });
+
+  it('states Budget not set once in project metadata without an unknown-risk attention row', () => {
+    state.projects.data = [makeProject({
+      id: 'no-budget', name: 'No Budget Project', status: 'Ongoing Project',
+      budget: null, budget_currency: null, spent: null, actual_complete: false,
+    })];
+    renderDashboard();
+
+    const area = screen.getByRole('heading', { name: 'No Budget Project' }).closest('.rounded-lg.border');
+    expect(area).not.toBeNull();
+    expect(within(area as HTMLElement).getAllByText('Budget not set')).toHaveLength(1);
+    expect(within(area as HTMLElement).queryByText(/budget risk can.t be checked yet/i)).not.toBeInTheDocument();
   });
 
   it('shows loading, retryable error, and the no-project state', () => {

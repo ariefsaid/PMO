@@ -29,19 +29,13 @@ export function projectMoneyFigure(
   const grouped = [...totals].map(([currency, amount]) => ({ currency, amount }));
   const figures = grouped.map(({ currency, amount }) => ({
     currency,
-    figure: moneyFigure(amount, currency, unavailableReason),
+    figure: moneyFigure(amount, currency, unavailableReason, { code: grouped.length > 1 || currency !== orgCurrency }),
   }));
   if (figures.some(({ figure }) => figure.unavailableReason)) {
     return { value: '—', unavailableReason };
   }
-  const value = figures.map(({ currency, figure }) => {
-    const prefix = grouped.length > 1 || currency !== orgCurrency ? `${currency} ` : '';
-    return `${prefix}${figure.value}`;
-  }).join(' · ');
-  const exactValue = figures.map(({ currency, figure }) => {
-    const prefix = grouped.length > 1 || currency !== orgCurrency ? `${currency} ` : '';
-    return `${prefix}${figure.exactValue ?? figure.value}`;
-  }).join(' · ');
+  const value = figures.map(({ figure }) => figure.value).join(' · ');
+  const exactValue = figures.map(({ figure }) => figure.exactValue ?? figure.value).join(' · ');
   return exactValue === value ? { value } : { value, exactValue };
 }
 

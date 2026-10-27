@@ -115,16 +115,6 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
         href: `/projects/${project.id}`,
         tooltip: t('hub.pm.projectAtRiskHelp', 'Recorded actual spending is at least 90% of this project’s positive budget in the same currency.'),
       });
-    } else if (!riskKnown) {
-      items.push({
-        id: 'budget-risk-unknown',
-        tone: 'neutral',
-        icon: 'info',
-        count: '—',
-        label: t('hub.pm.budgetRiskUnknown', 'Budget risk can’t be checked yet'),
-        href: `/projects/${project.id}`,
-        tooltip: t('hub.pm.riskUnavailable', 'Budget risk is unknown because actual spending or budget data is incomplete or in another currency.'),
-      });
     }
     if (overdueTaskCount > 0) {
       items.push({
@@ -132,7 +122,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
         tone: 'lost',
         icon: 'clock',
         count: overdueTaskCount,
-        label: t('hub.pm.overdueTasks', '{{count}} overdue task', { count: overdueTaskCount }),
+        label: t('hub.pm.overdueTasks', overdueTaskCount === 1 ? 'overdue task' : 'overdue tasks', { count: overdueTaskCount }),
         href: `/projects/${project.id}/tasks`,
         tooltip: t('hub.pm.overdueTasksHelp', 'Tasks on this project with an end date before today.'),
       });
@@ -153,7 +143,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       });
     }
     return items;
-  }, [atRisk, overdueTaskCount, procurements, project.id, riskKnown, t]);
+  }, [atRisk, overdueTaskCount, procurements, project.id, t]);
 
   const contractHelp = (
     <>
@@ -183,6 +173,7 @@ export const PMProjectArea: React.FC<PMProjectAreaProps> = ({
       <span>{metaValue(project.client_name, t('hub.pm.clientUnavailable', 'Client name is not available.'))}</span>
       <span aria-hidden="true">·</span>
       <span title={t('hub.pm.projectCurrencyHelp', 'Currency used for this project’s contract and margin figures.')}>{projectCurrency}</span>
+      {(project.budget == null || project.budget <= 0) && <><span aria-hidden="true">·</span><span>{t('hub.pm.budgetNotSet', 'Budget not set')}</span></>}
     </span>
   );
 
