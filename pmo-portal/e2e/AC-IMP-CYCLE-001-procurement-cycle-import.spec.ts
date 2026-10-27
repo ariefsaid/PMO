@@ -471,7 +471,7 @@ test(
 
     // ── Step 1: navigate to /procurement as admin ──────────────────────────────
     await login(page, 'admin@acme.test');
-    await page.goto('/procurement');
+    await page.goto('/procurement?view=table');
     await waitIndexReady(page);
 
     // Confirm neither case exists yet
@@ -537,14 +537,14 @@ test(
 
     // ── GOAL ORACLE 2 (F18): records actually landed — verify via detail page ─
     // Open this run's full case by clicking its row in the list.
-    const fullCaseRow = page.getByText(fullTitle);
-    await fullCaseRow.click();
+    await page.getByRole('button', { name: `Open ${fullTitle}` }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'Open full page' }).click();
 
     // Wait for the detail page to load
     await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
 
-    // Navigate to the Documents tab where the case ledger lives
-    await page.getByRole('tab', { name: /documents/i }).click();
+    // Navigate to the Files tab where the case ledger lives
+    await page.getByRole('tab', { name: 'Files', exact: true }).click();
 
     // The PR and VI references from this run must appear in the ledger.
     await expect(page.getByText(currentFixture.fullPrRef)).toBeVisible({ timeout: 20_000 });
@@ -553,14 +553,14 @@ test(
     // ── GOAL ORACLE 3 (F18): PR-less case also committed — verify via its detail ─
     await page.goBack();
     // goBack from documents tab goes back to overview, not index — navigate to index directly
-    await page.goto('/procurement');
+    await page.goto('/procurement?view=table');
     await waitIndexReady(page);
-    const invoiceCaseRow = page.getByText(invoiceTitle);
-    await invoiceCaseRow.click();
+    await page.getByRole('button', { name: `Open ${invoiceTitle}` }).click();
+    await page.getByRole('dialog').getByRole('link', { name: 'Open full page' }).click();
     await page.waitForURL(/\/procurement\//, { timeout: 20_000 });
 
-    // Navigate to the Documents tab
-    await page.getByRole('tab', { name: /documents/i }).click();
+    // Navigate to the Files tab
+    await page.getByRole('tab', { name: 'Files', exact: true }).click();
 
     // The PR-less case's VI + Payment references from this run must land.
     await expect(page.getByText(currentFixture.invoiceOnlyInvoiceRef)).toBeVisible({ timeout: 20_000 });

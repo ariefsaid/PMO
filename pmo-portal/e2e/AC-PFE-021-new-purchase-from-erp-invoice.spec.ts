@@ -31,7 +31,7 @@ test('AC-PFE-021: New purchase from an ERPNext invoice', async ({ page }) => {
 
     // GOAL: the purchase is at the invoiced step (the status follows the linked invoice).
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Vendor Invoiced', { timeout: 15_000 });
-    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: /Documents/ }).click();
+    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: 'Files' }).click();
     const linked = page.getByRole('row', { name: new RegExp(invoice) });
     await expect(linked).toContainText('From ERPNext');
     // Pre-tax or gross — the invoice's own amount is on the row, in rupiah.

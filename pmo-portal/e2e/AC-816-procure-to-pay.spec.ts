@@ -11,9 +11,10 @@ import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupaba
 // NOTE (OD-UX-1 write policy, supersedes the old confirm-every-write gate): a
 // ConfirmDialog is shown IFF the write is consequential/financial — the set
 // {Approve, Reject, Cancel, Mark-as-Paid}. The ROUTINE reversible forward steps
-// (Submit Request, Request Vendor Quotes, Generate Purchase Order, Confirm Receipt,
-// Mark Vendor Invoiced) are SINGLE-CLICK + a toast (no modal). GR/VI record-creation
-// forms keep their confirm. The goal-oracle is unchanged: the full PR/PO/GR/VI trail
+// (Submit for approval, Request quotations, Record order) are SINGLE-CLICK + a toast
+// (no modal); Record receipt and Record supplier invoice capture their evidence inline.
+// GR/payment record-creation forms keep their confirm. The goal-oracle is unchanged:
+// the full PR/PO/GR/VI trail
 // is minted as the deal walks Draft→Paid; only the per-step interaction changed.
 
 // AC-816 — full procure-to-pay happy path: Draft→Requested→Approved→Ordered→Received→
@@ -22,8 +23,8 @@ import { requireMatchingLocalSupabaseUrls } from '../src/lib/testing/localSupaba
 // Uses PROC-2026-009 (60000000-0000-0000-0000-000000000009) — seeded as Draft,
 // requested_by = pm@acme.test (a2).  SoD strategy:
 //   • pm@acme.test submits (Draft→Requested)
-//   • admin@acme.test approves (Admin break-glass, exempt from SoD-a), orders, confirms receipt, creates GR
-//   • finance@acme.test marks Vendor Invoiced, creates VI, marks Paid (finance ≠ admin/approver → SoD-b passes)
+//   • admin@acme.test approves (Admin break-glass, exempt from SoD-a), records the order and receipt
+//   • finance@acme.test records the supplier invoice and payment (finance ≠ admin/approver → SoD-b passes)
 //
 // (FR-PROC-002/005/006/008/009/010/011, NFR-PROC-UI-001)
 
@@ -117,8 +118,8 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Draft', { timeout: 10_000 });
 
-  // Submit Request is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
-  await page.getByRole('button', { name: 'Submit Request' }).click();
+  // Submit for approval is a ROUTINE forward step (OD-UX-1) → single click, no dialog.
+  await page.getByRole('button', { name: 'Submit for approval' }).click();
 
   // Wait for status to advance to Requested and PR# to appear
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Requested', { timeout: 15_000 });
@@ -134,17 +135,13 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await confirmVia(page, 'Approve');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Approved', { timeout: 15_000 });
 
-  // ── Step 3: admin generates PO (Approved → Ordered) — routine, single click ─
-  await page.getByRole('button', { name: 'Generate Purchase Order' }).click();
+  // ── Step 3: admin records the PO (Approved → Ordered) — routine, single click ─
+  await page.getByRole('button', { name: 'Record order' }).click();
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
   await expect(page.getByText(/^PO-\d{10}$/).first()).toBeVisible({ timeout: 10_000 });
 
-  // ── Step 4: admin confirms receipt (Ordered → Received) — routine, single click ─
-  await page.getByRole('button', { name: 'Confirm Receipt' }).click();
-  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 15_000 });
-
-  // ── Step 5: admin creates GR (Complete) ──────────────────────────────────
-  await page.getByTestId('btn-create-gr').click();
+  // ── Step 4: admin records receipt (Ordered → Received) with its evidence ──
+  await page.getByRole('button', { name: 'Record receipt' }).click();
   await expect(page.getByTestId('form-create-gr')).toBeVisible({ timeout: 5_000 });
 
   // Select Complete status
@@ -153,11 +150,12 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await page.getByTestId('btn-save-gr').click();
   // Confirm inside the dialog that appears (confirmLabel = "Save GR" per confirmCopy.createGR)
   await confirmVia(page, 'Save GR');
+  await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 15_000 });
 
   // GR# should appear in the document trail (rendered in both trail panel and receipts section)
   await expect(page.getByText(/^GR-\d{10}$/).first()).toBeVisible({ timeout: 15_000 });
 
-  // ── Step 6+7: finance marks Vendor Invoiced — O3/OD-W3-3: clicking "Mark Vendor Invoiced"
+  // ── Step 6+7: finance records the supplier invoice — O3/OD-W3-3: clicking "Record supplier invoice"
   //    opens an INLINE capture that records the invoice (status + date) AS PART OF the transition
   //    (evidence-with-state), rather than transitioning first and capturing the VI in a later form. ──
   await login(page, 'finance@acme.test');
@@ -165,10 +163,10 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
   await expect(page.getByTestId('procurement-loading')).not.toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Received', { timeout: 10_000 });
 
-  await page.getByRole('button', { name: 'Mark Vendor Invoiced' }).click();
+  await page.getByRole('button', { name: 'Record supplier invoice' }).click();
   // The inline capture replaces the action button (not a bare transition).
   await expect(page.getByTestId('vi-inline-capture')).toBeVisible({ timeout: 5_000 });
-  // The invoice's receipt status — N1: "Paid" is NOT offered here ("Mark as Paid" is the sole
+  // The invoice's receipt status — N1: "Paid" is NOT offered here ("Record payment" is the sole
   // PR→Paid authority); record the invoice as Scheduled-for-payment + its date.
   await page.getByTestId('vi-status-select').selectOption('Scheduled');
   await page.getByTestId('vi-date-input').fill('2026-06-09');
@@ -185,7 +183,7 @@ test('AC-816 full procure-to-pay happy path: Draft→Requested→Approved→Orde
 
   // ── Step 8: finance marks Paid (Vendor Invoiced → Paid) ──────────────────
   // SoD-b: admin approved (step 2), finance pays — distinct users → allowed.
-  await page.getByRole('button', { name: 'Mark as Paid' }).click();
+  await page.getByRole('button', { name: 'Record payment' }).click();
   await confirmVia(page, 'Mark as Paid');
   await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Paid', { timeout: 15_000 });
 

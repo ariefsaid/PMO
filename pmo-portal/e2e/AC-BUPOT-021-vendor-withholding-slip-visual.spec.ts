@@ -215,7 +215,7 @@ async function openDocuments(page: Page, fixture: Fixture, withDetails: boolean)
   await page.setViewportSize({ width: fixture.width, height: 900 });
   await page.evaluate(() => localStorage.setItem('theme', 'light'));
   const search = withDetails ? `?bupot=${encodeURIComponent(fixture.slipId)}` : '';
-  await page.goto(`/procurement/${fixture.caseId}/documents${search}`);
+  await page.goto(`/procurement/${fixture.caseId}/files${search}`);
   await expect(page.getByTestId('procurement-loading')).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId('procurement-ledger')).toBeVisible({ timeout: 20_000 });
 }

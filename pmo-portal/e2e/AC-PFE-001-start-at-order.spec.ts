@@ -17,6 +17,7 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
   try {
     await signIn(page, 'pm@acme.test');
     await page.goto('/procurement/new');
+    await page.getByRole('button', { name: 'An order' }).click();
     await page.getByLabel('Title').fill(title);
     await pickComboboxOption(page, page, /^project/i);
     await page.getByRole('button', { name: 'Save' }).click();
@@ -26,10 +27,7 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     purchaseId = page.url().match(/procurement\/([0-9a-f-]{36})/)![1];
     await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 15_000 });
 
-    await page.getByRole('tablist', { name: 'Procurement sections' }).getByRole('tab', { name: /Documents/ }).click();
-    // An empty Draft offers "Record the first document": choose Order, then capture it.
-    await page.getByLabel('Record the first document').selectOption({ label: 'Order' });
-    await page.getByTestId('ledger-capture-open').click();
+    // Choosing An order routes directly to the timeline with the purchase-order capture open.
     await page.getByTestId('purchase_order-ref-input').fill(poRef);
     await page.getByTestId('purchase_order-amount-input').fill('5000000');
     await page.getByTestId('purchase_order-save-btn').click();
@@ -37,7 +35,7 @@ test('AC-PFE-001: record an order as the first document of a draft purchase', as
     // GOAL: Ordered, and the PO is on the ledger — the request step was never taken.
     await expect(page.getByTestId('procurement-status-badge')).toHaveAttribute('data-status', 'Ordered', { timeout: 15_000 });
     await expect(page.getByText(poRef).first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole('button', { name: 'Submit Request' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Submit for approval' })).toHaveCount(0);
 
     // Persisted, not just rendered: the order row exists and the purchase is Ordered in the database.
     const { data: po } = await admin.from('purchase_orders').select('id').eq('procurement_id', purchaseId).throwOnError();

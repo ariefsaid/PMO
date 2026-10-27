@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import Procurement from './Procurement';
 import ErpPurchases from './ErpPurchases';
@@ -35,12 +36,16 @@ const authState = { userId: 'u-pm' };
 const roleState = { role: 'Project Manager' as string | null };
 const erpState = { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 vi.mock('@/src/hooks/useErpPurchases', () => ({
+  useErpPurchases: () => erpState,
   useErpOrphans: () => erpState,
   useHasErpPurchases: () => ({ data: false }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useProjectOptions: () => ({ data: [] }),
   useVendorOptions: () => ({ data: [] }),
@@ -51,7 +56,10 @@ vi.mock('@/src/auth/useAuth', () => ({
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleState.role, realRole: roleState.role }),
 }));
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => true }));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => (action: string, entity: string) =>
+    action === 'view' && entity === 'procurement' ? roleState.role !== 'Engineer' : true,
+}));
 
 const RouteProbe = () => {
   const location = useLocation();
@@ -60,12 +68,14 @@ const RouteProbe = () => {
 
 function renderPage(path = '/procurement') {
   return render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[path]}>
-        <RouteProbe />
-        <Procurement />
-      </MemoryRouter>
-    </ToastProvider>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <ToastProvider>
+        <MemoryRouter initialEntries={[path]}>
+          <RouteProbe />
+          <Procurement />
+        </MemoryRouter>
+      </ToastProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -100,10 +110,10 @@ describe('Procurement list restructure', () => {
 
     const needsYou = screen.getByRole('tab', { name: /Needs you/i });
     expect(needsYou).toHaveAttribute('aria-selected', 'true');
-    const reason = screen.getByTestId('needs-you-reason-invoice-old');
-    const invoiceTitle = screen.getByText('Older unpaid invoice');
-    const approvalTitle = screen.getByText('Newer approval');
-    expect(reason).toHaveTextContent(/Unpaid.*12 days/i);
+    const reason = screen.getByText(/Pay invoice.*12d/i);
+    expect(reason).toBeInTheDocument();
+    const invoiceTitle = screen.getByRole('button', { name: 'Open Older unpaid invoice' });
+    const approvalTitle = screen.getByRole('button', { name: 'Open Newer approval' });
     expect(Boolean(reason.compareDocumentPosition(invoiceTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     expect(Boolean(invoiceTitle.compareDocumentPosition(approvalTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
@@ -154,11 +164,11 @@ describe('Procurement list restructure', () => {
 
     expect(screen.getByText('My supplier invoice')).toBeInTheDocument();
     expect(screen.queryByText('Another engineer invoice')).not.toBeInTheDocument();
-    const payTotal = screen.getByTestId('summary-total-pay');
-    expect(payTotal).not.toHaveTextContent('$500');
-    expect(payTotal).not.toHaveTextContent('$300');
-    expect(payTotal).not.toHaveTextContent('$200');
-    expect(payTotal).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
+    const page = screen.getByRole('tabpanel');
+    expect(page).not.toHaveTextContent('$500');
+    expect(page).not.toHaveTextContent('$300');
+    expect(page).not.toHaveTextContent('$200');
+    expect(screen.getByTestId('summary-total-needs-you')).toHaveAttribute('title', expect.stringMatching(/supplier invoice and payment amounts are not shown/i));
   });
 
   it('Finance can open the Not in a procurement tab', () => {
@@ -168,17 +178,17 @@ describe('Procurement list restructure', () => {
     expect(screen.getByRole('tab', { name: /Not in a procurement/i })).toBeInTheDocument();
   });
 
-  it('clicking Order filters the current tab and writes ?stage=order', async () => {
+  it('the grouped Status filter narrows the current tab to ordered procurements', async () => {
     roleState.role = 'Admin';
     procState.data = [
       row({ id: 'request', title: 'Request row', status: 'Requested' }),
       row({ id: 'ordered', title: 'Ordered row', status: 'Ordered' }),
     ];
-    renderPage('/procurement?tab=all');
+    renderPage('/procurement?tab=all&view=grouped');
 
-    await userEvent.click(screen.getByRole('button', { name: /Order stage/i }));
+    await userEvent.selectOptions(screen.getByLabelText('Status'), 'group:Ordered');
 
-    expect(screen.getByTestId('route-path')).toHaveTextContent('?tab=all&stage=order');
+    expect(screen.getByTestId('route-path')).toHaveTextContent('status=group%3AOrdered');
     expect(screen.getByText('Ordered row')).toBeInTheDocument();
     expect(screen.queryByText('Request row')).not.toBeInTheDocument();
   });
@@ -212,19 +222,21 @@ describe('Procurement list restructure', () => {
     })];
     renderPage('/procurement?tab=all');
 
-    const payTotal = screen.getByTestId('summary-total-pay');
+    const payTotal = screen.getByTestId('summary-total-unpaid');
     expect(payTotal).toHaveTextContent('$300');
     expect(payTotal).toHaveAttribute('title', expect.stringMatching(/unpaid balance/i));
   });
 
   it('/erp-purchases redirects to the Procurement orphans tab', () => {
     render(
-      <MemoryRouter initialEntries={['/erp-purchases']}>
-        <Routes>
-          <Route path="/erp-purchases" element={<ErpPurchases />} />
-          <Route path="/procurement" element={<RouteProbe />} />
-        </Routes>
-      </MemoryRouter>,
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+        <MemoryRouter initialEntries={['/erp-purchases']}>
+          <Routes>
+            <Route path="/erp-purchases" element={<ErpPurchases />} />
+            <Route path="/procurement" element={<RouteProbe />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(within(screen.getByTestId('route-path').parentElement as HTMLElement).getByTestId('route-path'))

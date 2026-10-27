@@ -6,12 +6,12 @@ import { login } from './helpers';
  * AC-PROC-001  Procurement CRUD — real user journeys (binding BDD authoring principle).
  *
  * Journey A (any-member raise + line items, goal: a Draft PR with a line item):
- *   AC-PROC-006  Procurement index → "Raise request" CTA is visible to a write-role
- *   AC-PROC-001  Raise request → full-page form captures title + line → Save lands on Draft detail
+ *   AC-PROC-006  Procurement index → "New procurement" CTA is visible to a write-role
+ *   AC-PROC-001  New procurement → choose A new need → full-page form captures title + line → Save lands on Draft detail
  *   AC-PROC-003  add a line item on the Draft PR → it appears with a derived line total
  *
  * Journey B (gating, goal: an Engineer can raise but never approves):
- *   AC-PROC-006b an Engineer reaching /procurement still sees "Raise request"
+ *   AC-PROC-006b an Engineer reaching /procurement still sees "New procurement"
  *
  * Isolation: the unique PR title is generated inside the test so all steps share
  * it with zero seed-coupling (P011 pattern). DB ops (this spec + migration 0015
@@ -52,13 +52,14 @@ test(
     await page.goto('/procurement');
     await waitIndexReady(page);
 
-    // AC-PROC-006: the Raise request CTA is visible for a write-role.
-    const raiseBtn = page.getByRole('button', { name: /raise request/i });
+    // AC-PROC-006: the New procurement CTA is visible for a write-role.
+    const raiseBtn = page.getByRole('button', { name: 'New procurement', exact: true });
     await expect(raiseBtn).toBeVisible({ timeout: 10_000 });
 
     // AC-PROC-001: open the one-page draft form and enter request details + line item.
     await raiseBtn.click();
     await expect(page).toHaveURL(/\/procurement\/new$/);
+    await page.getByRole('button', { name: 'A new need' }).click();
     await page.getByLabel(/title/i).fill(prTitle);
     const addRow = page.getByTestId('line-item-add-row');
     await addRow.getByLabel(/new item description/i).fill(itemDesc);
@@ -103,14 +104,14 @@ test(
 // ── Journey B — Engineer may raise (any member) ──────────────────────────────
 
 test(
-  'AC-PROC-006b gating: an Engineer reaching /procurement still sees Raise request (any member may raise)',
+  'AC-PROC-006b gating: an Engineer reaching /procurement still sees New procurement (any member may raise)',
   async ({ page }) => {
     await login(page, 'engineer@acme.test');
     await page.goto('/procurement');
     await waitIndexReady(page);
 
     // GOAL ORACLE: the create path is open to an Engineer (requester server-stamped).
-    await expect(page.getByRole('button', { name: /raise request/i })).toBeVisible({
+    await expect(page.getByRole('button', { name: 'New procurement', exact: true })).toBeVisible({
       timeout: 10_000,
     });
   },

@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { BahasaProvider } from '@/test/bahasa';
 import Procurement from './Procurement';
@@ -42,11 +43,15 @@ const seed = [
 
 const procState = { data: seed as unknown[], isPending: false, isError: false, refetch: vi.fn() };
 vi.mock('@/src/hooks/useErpPurchases', () => ({
+  useErpPurchases: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useErpOrphans: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useHasErpPurchases: () => ({ data: false }),
 }));
-vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }) }));
-vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState }));
+vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [] }), useProject: () => ({ data: null }) }));
+vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ rows: [], hasBudget: false, isPending: false, actualsPending: false }) }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procState, useProjectProcurements: () => procState }));
 // Project/vendor picker options are cached hooks; stub them so the index test
 // needs no QueryClient.
 vi.mock('@/src/hooks/useFkOptions', () => ({
@@ -66,23 +71,27 @@ const RouteProbe = () => <output data-testid="route-path">{useLocation().pathnam
 // canonical index path (`/procurement`), so the default entry must be `/procurement`, not `/`.
 const renderPage = (initialPath = '/procurement') =>
   render(
-    <ToastProvider>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <RouteProbe />
-        <Procurement />
-      </MemoryRouter>
-    </ToastProvider>,
-  );
-
-const renderPageInLocale = (locale: 'en' | 'id') =>
-  render(
-    <BahasaProvider locale={locale}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={['/procurement']}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <RouteProbe />
           <Procurement />
         </MemoryRouter>
       </ToastProvider>
-    </BahasaProvider>,
+    </QueryClientProvider>,
+  );
+
+const renderPageInLocale = (locale: 'en' | 'id', initialPath = '/procurement') =>
+  render(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
+      <BahasaProvider locale={locale}>
+        <ToastProvider>
+          <MemoryRouter initialEntries={[initialPath]}>
+            <Procurement />
+          </MemoryRouter>
+        </ToastProvider>
+      </BahasaProvider>
+    </QueryClientProvider>,
   );
 
 describe('Procurement index — IA-3 (real data)', () => {
@@ -94,26 +103,26 @@ describe('Procurement index — IA-3 (real data)', () => {
   });
 
   it('renders seeded requests with joined project name (AC-501)', () => {
-    renderPage();
+    renderPage('/procurement?tab=all&view=grouped');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
   });
 
-  it('renders on the shared ListPage shell: header + canonical toolbar (CW-5)', () => {
+  it('renders the shared ListPage header and the procurement view switch (CW-5)', () => {
     renderPage();
     expect(screen.getByTestId('list-page-header')).toBeInTheDocument();
-    expect(screen.getByTestId('list-page-toolbar')).toBeInTheDocument();
+    expect(screen.getByRole('tablist', { name: 'Procurement view' })).toBeInTheDocument();
     // a single H1 lives in the shell header (the title text varies by own-scope)
     expect(within(screen.getByTestId('list-page-header')).getByRole('heading')).toBeInTheDocument();
   });
 
-  it('AC-S19-002: daily rows show the request state and next step without repeating lifecycle pips', () => {
-    renderPage();
+  it('AC-S19-002: daily rows show the procurement stage and its next step', async () => {
+    renderPage('/procurement?tab=all');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Show preview for/i }).length).toBeGreaterThan(0);
-    expect(screen.getByText('Vendor Quote')).toBeInTheDocument();
-    expect(screen.getByText('Next: Select quote')).toBeInTheDocument();
-    expect(screen.queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
+    const row = screen.getByRole('row', { name: /Workstations & AV/ });
+    expect(within(row).getByText('Approved')).toBeInTheDocument();
+    expect(within(row).getByText('Choose a quote')).toBeInTheDocument();
+    expect(within(row).getByRole('button', { name: 'Expand procurement details' })).toBeInTheDocument();
   });
 
   it('AC-S19-002: status, search, create, and More transfer tools are accessible', async () => {
@@ -121,7 +130,7 @@ describe('Procurement index — IA-3 (real data)', () => {
     const header = within(screen.getByTestId('list-page-header'));
     const create = header.getByRole('button', { name: /new procurement/i });
     const filter = screen.getByRole('tab', { name: /^All/ });
-    const search = screen.getByLabelText(/search procurements/i);
+    const search = screen.getByLabelText(/search procurement/i);
     const more = header.getByRole('button', { name: 'More' });
 
     expect(create).toBeInTheDocument();
@@ -155,8 +164,7 @@ describe('Procurement index — IA-3 (real data)', () => {
 
   it('#1155: an outside click closes More without disturbing the status filter or rows', async () => {
     const user = userEvent.setup();
-    renderPage();
-    await user.selectOptions(screen.getByLabelText('Status'), 'Paid');
+    renderPage('/procurement?tab=all&view=grouped&status=Paid');
     const more = screen.getByRole('button', { name: 'More' });
     await user.click(more);
     expect(screen.getByRole('button', { name: 'Import procurements' })).toBeInTheDocument();
@@ -183,24 +191,24 @@ describe('Procurement index — IA-3 (real data)', () => {
   });
 
   it('AC-S19-002: the canonical full status label and next-step copy are localized in Bahasa', () => {
-    renderPageInLocale('id');
+    renderPageInLocale('id', '/procurement?tab=all&view=grouped');
     expect(screen.getByText('Penawaran Vendor')).toBeInTheDocument();
-    expect(screen.getByText('Langkah berikutnya: Pilih penawaran')).toBeInTheDocument();
+    expect(screen.getByText(/Langkah berikutnya:\s*Pilih penawaran/)).toBeInTheDocument();
   });
 
   it('search filters real rows by title/code (AC-504)', async () => {
     renderPage();
-    await userEvent.type(screen.getByPlaceholderText(/Search title/i), 'zzz');
+    await userEvent.type(screen.getByLabelText(/Search procurement/i), 'zzz');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
-    expect(screen.getByText(/No procurements match/i)).toBeInTheDocument();
+    expect(screen.getByText(/No procurement matches these filters/i)).toBeInTheDocument();
   });
 
   // list-working-set-return (#683): the zero-match table state offers a Clear filters action
   // that restores the rows — distinct from the genuine collection-empty state. Supporting case;
   // AC-LRC-012's owning proof is pages/__tests__/listWorkingSet.emptyStates.test.tsx.
   it('a zero-match search offers Clear filters, which restores the rows', async () => {
-    renderPage();
-    await userEvent.type(screen.getByPlaceholderText(/Search title/i), 'zzz');
+    renderPage('/procurement?view=grouped');
+    await userEvent.type(screen.getByLabelText(/Search procurements/i), 'zzz');
     expect(await screen.findByText(/No procurements match/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Clear filters/i }));
     expect(screen.getByRole('link', { name: 'Workstations & AV' })).toBeInTheDocument();
@@ -208,7 +216,7 @@ describe('Procurement index — IA-3 (real data)', () => {
   });
 
   it('status filter narrows the list (Paid only)', async () => {
-    renderPage();
+    renderPage('/procurement?tab=all&view=grouped');
     await userEvent.selectOptions(screen.getByLabelText('Status'), 'Paid');
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
@@ -221,12 +229,11 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(screen.getByTestId('prstage-approved')).getByText('Workstations & AV')).toBeInTheDocument();
   });
 
-  it('AC-NAV-006: activating a row navigates to the procurement detail route (no tab)', () => {
+  it('AC-NAV-006: opening a row drawer exposes the full procurement detail route', async () => {
     renderPage();
-    // The title is now a <Link to="/procurement/:id"> so the row navigates via the
-    // router Link (not navigate()), which is compatible with MemoryRouter in tests.
-    const titleLink = screen.getByRole('link', { name: 'Workstations & AV' });
-    expect(titleLink).toHaveAttribute('href', '/procurement/pc1');
+    await userEvent.click(screen.getByRole('button', { name: 'Open Workstations & AV' }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/procurement/pc1');
   });
 });
 
@@ -249,7 +256,7 @@ describe('Procurement index — states', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
-  it('empty state when zero rows teaches + offers a real Raise request action (AC-PROC-006)', () => {
+  it('empty state when zero rows teaches + offers a real New procurement action (AC-PROC-006)', () => {
     procState.data = [];
     renderPage();
     expect(screen.getByText(/No procurements yet/i)).toBeInTheDocument();
@@ -257,7 +264,7 @@ describe('Procurement index — states', () => {
   });
 });
 
-describe('Procurement index — Raise request gating (AC-PROC-006)', () => {
+describe('Procurement index — New procurement gating (AC-PROC-006)', () => {
   beforeEach(() => {
     procState.data = seed;
     procState.isPending = false;
@@ -301,18 +308,18 @@ describe('Procurement list working set — AC-LRC-001/002', () => {
   });
 
   it('AC-LRC-001: renders the URL-backed working set (status + search + view) and refresh/copy reproduces it', () => {
-    renderPage('/procurement?status=Paid&q=Crane&view=table');
+    renderPage('/procurement?status=Paid&q=Crane&view=grouped');
     // The URL-driven status choice is selected.
     expect(screen.getByLabelText('Status')).toHaveValue('Paid');
     // The URL-driven search is present in the search box.
-    expect(screen.getByPlaceholderText(/Search title/i)).toHaveValue('Crane');
+    expect(screen.getByLabelText(/Search procurements/i)).toHaveValue('Crane');
     // Only the matching row renders.
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     expect(screen.queryByText('Workstations & AV')).not.toBeInTheDocument();
   });
 
   it('AC-LRC-001: a control change writes ONE replace of the list URL (no history entry per click)', async () => {
-    renderPage();
+    renderPage('/procurement?view=grouped');
     await userEvent.selectOptions(screen.getByLabelText('Status'), 'Paid');
     expect(screen.getByText('Crane hire — 6 weeks')).toBeInTheDocument();
     // View change persists AND writes the URL in one event (board renders, the status set moments
