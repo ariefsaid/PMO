@@ -21,6 +21,18 @@ import PipelineLens from './PipelineLens';
 import MilestoneStrip from './MilestoneStrip';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
+import { ActivityFooter } from './ProjectActivity';
+import ProjectDetailOptions, { PrimaryProjectAction } from './ProjectDetailOptions';
+import { areaFromParam, type Area, type Layout } from './projectDetailAreas';
+
+// ponytail: prototype switch for the three IA options; the chosen one replaces the default shell.
+function readLayout(search: string): Layout | null {
+  const fromUrl = new URLSearchParams(search).get('layout');
+  if (fromUrl === 'a' || fromUrl === 'b' || fromUrl === 'c') sessionStorage.setItem('pd-layout', fromUrl);
+  else if (fromUrl === 'off') sessionStorage.removeItem('pd-layout');
+  const v = sessionStorage.getItem('pd-layout');
+  return v === 'a' || v === 'b' || v === 'c' ? v : null;
+}
 
 const OverviewTab = React.lazy(() => import('./tabs/OverviewTab'));
 const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
@@ -205,6 +217,41 @@ const ProjectDetail: React.FC = () => {
           )}
         />
       </>
+    );
+  }
+
+  const layout = readLayout(location.search);
+  if (layout) {
+    const area = areaFromParam(tabParam);
+    const setArea = (next: Area) => navigate(`/projects/${projectId}${next === 'overview' ? '' : `/${next}`}`, { state: withTabSwitchNavState(location.state) });
+    const header = (
+      <>
+        <ProjectDetailHeader project={project} committedSpend={committedSpend} committedOtherCurrencies={committedOtherCurrencies}
+          commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} commitmentPending={commitmentPending}
+          commitmentError={commitmentError} onEditProject={openEditProject} compact
+          primaryAction={<span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} /></span>} />
+        {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
+        <ProjectDetailRail project={project} onEditProject={openEditProject} showActionSection={!isPipelineRecord}
+          summaryLabel={t('projectDetail.rail.detailsShort', 'Details, codes and status')} quiet />
+        <div className="mb-4" />
+      </>
+    );
+    return (
+      <div>
+        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
+        <ProjectDetailOptions project={project} layout={layout} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
+        {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
+        {layout === 'a' && (area === 'overview' || area === 'activity') && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
+        <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} mobileBar />
+        {editOpen && (
+          <ProjectFormModal mode="editHeader" initial={{ ...pickClassification(project), id: project.id, name: project.name, short_name: project.short_name,
+            code: project.code, client_id: project.client_id, project_manager_id: project.project_manager_id,
+            clientName: project.client ? companyDisplayName(project.client) : null, end_client_id: project.end_client_id,
+            endClientName: project.end_client ? companyDisplayName(project.end_client) : null, pmName: project.pm?.full_name ?? null,
+            start_date: project.start_date, end_date: project.end_date }}
+            onClose={closeEditProject} onSave={saveProjectHeader} onError={onProjectEditError} />
+        )}
+      </div>
     );
   }
 

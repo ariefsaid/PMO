@@ -1,0 +1,43 @@
+import React from 'react';
+import { Link } from 'react-router';
+import { useTranslation } from 'react-i18next';
+import { Icon } from '@/src/components/ui';
+import { cn } from '@/src/components/ui/cn';
+import type { AttentionItem } from './useProjectPosition';
+
+/** "Needs attention": what is wrong (with its status word), how big, and the verb that fixes it. */
+export const ProjectAttention: React.FC<{ items: AttentionItem[]; isPending?: boolean; className?: string }> = ({ items, isPending, className }) => {
+  const { t } = useTranslation();
+  if (isPending) return null;
+  if (items.length === 0) {
+    return (
+      <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Icon name="check" className="size-4 text-success-text" />
+          {t('projectDetail.attention.onTrack', 'Nothing needs you on this project right now.')}
+        </p>
+      </section>
+    );
+  }
+  // Flat rows: the status word sits in `what`; its size carries the status colour (UX SD1). No stripes, no pills.
+  return (
+    <section aria-labelledby="pd-attention" className={className}>
+      <h2 id="pd-attention" className="mb-4 text-sm font-semibold text-foreground">
+        {t('projectDetail.attention.title', 'Needs attention')} <span className="font-normal text-muted-foreground">{items.length}</span>
+      </h2>
+      <ul className="divide-y divide-border/70 border-y border-border/70">
+        {items.map((item) => (
+          <li key={item.key}>
+            <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <span className="min-w-0 flex-1">
+                <span className="text-sm font-semibold text-foreground">{item.what}</span>
+                {item.size && <>{' '}<span className={cn('block text-xs font-medium tabular-nums sm:ml-3 sm:inline', item.tone === 'danger' ? 'text-destructive-text' : 'text-warning-foreground')}>{item.size}</span></>}
+              </span>
+              {' '}<span className="shrink-0 text-xs font-semibold text-primary-text">{item.action}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+};

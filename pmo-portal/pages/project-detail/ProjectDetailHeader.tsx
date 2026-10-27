@@ -90,6 +90,14 @@ export interface ProjectDetailHeaderProps {
   commitmentPending?: boolean;
   commitmentError?: boolean;
   onEditProject?: () => void;
+  /** The one filled action for the project's state, top-right of the title row (UX AC1/AC2). */
+  primaryAction?: React.ReactNode;
+  /** Redesign shell: identity only — no money strip (money lives in its own block), quieter actions. */
+  compact?: boolean;
+  /** Increment to open the contract-value editor from elsewhere on the page. */
+  editValueRequest?: number;
+  /** Extra quiet action beside Edit (the Activity drawer button). */
+  secondaryAction?: React.ReactNode;
 }
 
 /**
@@ -114,6 +122,10 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   commitmentPending = false,
   commitmentError = false,
   onEditProject,
+  primaryAction,
+  compact = false,
+  editValueRequest = 0,
+  secondaryAction,
 }) => {
   const { t, i18n } = useTranslation();
   const isDesktop = useIsDesktop();
@@ -211,7 +223,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
-  const meta = (
+  const compactMeta = [
+    <StatusPill key="status" variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>,
+    customerName,
+    project.pm?.full_name ? t('projectDetail.header.pm', 'PM {{name}}', { name: project.pm.full_name }) : null,
+    project.start_date || project.end_date ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}` : null,
+    project.customer_contract_ref ? t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref }) : null,
+  ].filter(Boolean);
+  const meta = compact ? (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
+      {compactMeta.map((part, i) => <span key={i} className="inline-flex items-center">{part}</span>)}
+    </div>
+  ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       {customerName && <span className="font-medium text-foreground">{customerName}</span>}
       {orderReference && <span>{orderReference}</span>}
@@ -310,6 +333,11 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     setValueEditing(true);
   };
 
+  React.useEffect(() => {
+    if (editValueRequest > 0) beginValueEdit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a request counter, not a dependency
+  }, [editValueRequest]);
+
   const cancelValueEdit = () => {
     setValueEditing(false);
     setValueDraft('');
@@ -399,8 +427,35 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     }
   };
 
-  const actions = (
+  const canChangeValue = isDelivery && canEditValue && isFinanceForward;
+  const actions = compact ? (
     <>
+      {primaryAction}
+      {secondaryAction}
+      {canEdit && (
+        <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
+          {t('projectDetail.header.action.edit', 'Edit')}
+        </Button>
+      )}
+      {(canArchive || canDelete || canChangeValue) && (
+        // ponytail: native <details> as the overflow menu; no menu primitive exists yet.
+        <details className="relative">
+          <summary className="touch-target inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium text-foreground hover:bg-accent [&::-webkit-details-marker]:hidden"
+            aria-label={t('projectDetail.header.more', 'More actions')}>
+            {t('projectDetail.header.moreShort', 'More')}
+            <Icon name="chev" className="size-4 rotate-90" />
+          </summary>
+          <div className="absolute right-0 z-20 mt-1 flex min-w-48 flex-col rounded-lg border border-border bg-popover p-1">
+            {canChangeValue && <Button variant="ghost" size="sm" className="justify-start" onClick={() => beginValueEdit()}>{t('projectDetail.header.changeContractValue', 'Change contract value')}</Button>}
+            {canArchive && <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>{t('projectDetail.header.action.archive', 'Archive')}</Button>}
+            {canDelete && <Button variant="ghost" size="sm" className="justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setDeleteOpen(true)}>{t('projectDetail.header.action.delete', 'Delete')}</Button>}
+          </div>
+        </details>
+      )}
+    </>
+  ) : (
+    <>
+      {primaryAction}
       {canEdit && (
         <Button variant="outline" size="sm" onClick={onEditProject}>
           {t('projectDetail.header.action.edit', 'Edit')}
@@ -545,23 +600,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   return (
     <>
       <RecordHeader
-        icon={(projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
+        icon={compact ? null : (projectDisplayName(project).trim().charAt(0) || '•').toUpperCase()}
         iconColor={projectIconColor()}
         name={<span title={project.name}>{projectDisplayName(project)}</span>}
-        status={
-          <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>
-        }
+        status={compact ? null : <StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>}
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
-        actions={canEdit || canArchive || canDelete ? actions : undefined}
+        actions={primaryAction || canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
       />
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.
           The editor and its confirm remain unchanged; no finance or authority changes. */}
-      {isDelivery && isFinanceForward && (
+      {compact && valueEditing && isFinanceForward && <div className="mb-4 rounded-lg border border-border p-4">{sodRow}</div>}
+      {!compact && isDelivery && isFinanceForward && (
         <>
           <div className="mb-1 min-w-0">
             <details open={isDesktop} className="min-w-0">

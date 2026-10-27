@@ -3,6 +3,7 @@ import React from 'react';
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useTranslation } from 'react-i18next';
 import { formatDateOnly } from '@/src/lib/format';
+import { Icon } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
@@ -12,12 +13,16 @@ export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
   onEditProject?: () => void;
   showActionSection?: boolean;
+  /** Disclosure label; defaults to the legacy "Project details and actions". */
+  summaryLabel?: string;
+  /** Quiet variant: a small muted disclosure with no rule above it. */
+  quiet?: boolean;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+  <h2 className="mb-3 text-xs font-semibold text-muted-foreground">
     {children}
-  </div>
+  </h2>
 );
 
 const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
@@ -40,18 +45,19 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
   );
 };
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true, summaryLabel, quiet = false }) => {
   const { t } = useTranslation();
   const notSet = t('projectDetail.rail.notSet', 'Not set');
   return (
     <aside
       data-testid="project-detail-rail"
       aria-label={t('projectDetail.rail.ariaLabel', 'Project details rail')}
-      className="min-w-0 border-t border-border/70 pt-3"
+      className={quiet ? 'min-w-0' : 'min-w-0 border-t border-border/70 pt-3'}
     >
       <details>
-        <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
-          {t('uxs13.projectDetailsAndActions', 'Project details and actions')}
+        <summary className={quiet ? 'touch-target inline-flex cursor-pointer list-none items-center gap-1 rounded-sm py-1 text-xs font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden' : 'touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground'}>
+          {summaryLabel ?? t('uxs13.projectDetailsAndActions', 'Project details and actions')}
+          {quiet && <Icon name="chev" className="size-3 rotate-90 [details[open]_&]:-rotate-90" aria-hidden="true" />}
         </summary>
         <div className="space-y-8 pt-3">
         {showActionSection && (
