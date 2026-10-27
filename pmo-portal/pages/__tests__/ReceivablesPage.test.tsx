@@ -13,7 +13,7 @@ const h = vi.hoisted(() => ({
   invoices: [] as unknown[],
   payments: [] as unknown[],
   position: {
-    overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
+    receivablesCount: 0, overdue: [], overdueTotals: {}, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [],
     unappliedPayments: [], unappliedTotals: {}, payables: [], payablesTotals: {},
     receivablesAgeing: { IDR: { notDue: 0, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 } },
@@ -28,7 +28,10 @@ vi.mock('@/src/hooks/useRevenue', () => ({
   useSalesInvoices: () => ({ data: h.invoices, isPending: false }),
   useIncomingPayments: () => ({ data: h.payments, isPending: false }),
 }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'IDR' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => 'IDR',
+  useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
+}));
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string) => h.role !== 'Executive' || action === 'view',
 }));
@@ -82,6 +85,7 @@ beforeEach(async () => {
     payment({ id: 'payment-scheduled', date: '2026-10-12', amount: 500, received_amount: 500, status: 'Scheduled' }),
   ];
   h.position = {
+    receivablesCount: 2,
     overdue: [{ invoice: invoice({ id: 'overdue', erp_outstanding_amount: 10 }), daysOverdue: 5, outstanding: 1000 }],
     overdueTotals: { IDR: 1000 }, overdueUnknownCount: 0,
     drafts: { canApprove: [], awaitingOther: [], all: [] }, toSend: [], unappliedPayments: [], unappliedTotals: {},
@@ -97,17 +101,51 @@ describe('Receivables page', () => {
     renderPage();
     const owed = screen.getByRole('region', { name: 'Owed to you' });
     expect(within(owed).getByText(/100/)).toBeInTheDocument();
-    expect(within(owed).getByText('2 invoices · 1 clients')).toBeInTheDocument();
+    expect(within(owed).getByText('2 invoices · 1 client')).toBeInTheDocument();
     const overdue = screen.getByRole('region', { name: 'Overdue' });
     expect(within(overdue).getByText(/^IDR/)).toBeInTheDocument();
-    expect(within(overdue).getByText(/10% IDR/)).toBeInTheDocument();
+    expect(within(overdue).getByText(/10% of owed/)).toBeInTheDocument();
+  });
+
+  it('shows whole-unit money for upcoming invoices and keeps other currencies on a muted second line', () => {
+    h.invoices = [
+      invoice({ erp_outstanding_amount: 1250, amount: 1250 }),
+      invoice({ id: 'invoice-usd', si_number: 'SI-USD', currency: 'USD', erp_outstanding_amount: 75, amount: 75 }),
+    ];
+    h.position = {
+      ...h.position,
+      receivablesAgeing: {
+        IDR: { notDue: 90000, d1_30: 10000, d31_60: 0, d61_90: 0, over90: 0 },
+        USD: { notDue: 7500, d1_30: 0, d31_60: 0, d61_90: 0, over90: 0 },
+      },
+      overdueTotals: { IDR: 10000, USD: 5000 },
+      overdue: [{ invoice: invoice({ id: 'late-idr' }), daysOverdue: 12, outstanding: 10000 }],
+    };
+
+    renderPage();
+
+    const owed = screen.getByRole('region', { name: 'Owed to you' });
+    expect(owed.querySelector('[data-figure-value]')).toHaveTextContent(/IDR\s*1,000/);
+    expect(owed.querySelector('[data-figure-value]')).not.toHaveTextContent(/USD|\$|\.00/);
+    expect(within(owed).getByText(/USD.*75|\$75/)).toBeInTheDocument();
+
+    const dueSoon = screen.getByRole('region', { name: 'Due in next 30 days' });
+    expect(dueSoon.querySelector('[data-figure-value]')).toHaveTextContent(/IDR\s*1,250/);
+    expect(dueSoon.querySelector('[data-figure-value]')).not.toHaveTextContent(/^2$/);
+    expect(within(dueSoon).getByText(/2 invoices · next due/)).toBeInTheDocument();
+    expect(within(dueSoon).getByText(/USD.*75|\$75/)).toBeInTheDocument();
+
+    const overdue = screen.getByRole('region', { name: 'Overdue' });
+    expect(within(overdue).getByText(/10% of owed · 1 invoice · oldest 12 days/)).toBeInTheDocument();
+    expect(within(overdue).queryByText(/5%.*USD/)).not.toBeInTheDocument();
   });
 
   it('compares actual received cash month over month and excludes cancelled or scheduled rows', () => {
     renderPage();
     const cash = screen.getByRole('region', { name: 'Received this month' });
     expect(within(cash).getByText(/100/)).toBeInTheDocument();
-    expect(within(cash).getByText(/60/)).toBeInTheDocument();
+    const delta = within(cash).getByText(/60/);
+    expect(delta).toHaveClass('text-[hsl(var(--success-text))]');
     expect(within(cash).queryByText(/999/)).not.toBeInTheDocument();
   });
 

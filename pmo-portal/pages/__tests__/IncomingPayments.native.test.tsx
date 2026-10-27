@@ -36,7 +36,10 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
 }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
   if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
   if (action === 'transition' && entity === 'incomingPayment') return h.role === 'Finance';
@@ -94,7 +97,23 @@ const renderPage = (embedded = false, initialEntry = '/incoming-payments') => re
   </FinanceI18nTestProvider>,
 );
 
-afterEach(() => resetActiveLocale());
+afterEach(() => {
+  resetActiveLocale();
+  vi.unstubAllGlobals();
+});
+
+function mockPhoneViewport() {
+  vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+    matches: !query.includes('min-width: 768px'),
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })));
+}
 
 beforeEach(async () => {
   h.role = 'Finance';
@@ -148,7 +167,11 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(within(drawer).getByText('Cash received')).toBeInTheDocument();
     expect(within(drawer).getByText('Tax withheld')).toBeInTheDocument();
     expect(within(drawer).getAllByText('Not yet applied')).toHaveLength(2);
-    expect(within(drawer).getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+    const headerActions = within(drawer).getByTestId('record-header-actions');
+    expect(within(headerActions).getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
+    expect(within(headerActions).getByRole('button', { name: 'Payment actions' })).toBeInTheDocument();
+    expect(within(drawer).getAllByText('RCV-2610070001')).toHaveLength(1);
+    expect(within(drawer).queryByRole('button', { name: 'Apply to an invoice' })).not.toBeInTheDocument();
   });
 
   it('AC-1405 an Executive may view the payment drawer but has no cancel action', () => {
@@ -156,8 +179,22 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     h.payments.data = [receipt()];
     renderPage(true, '/finance/receivables?view=payments&open=ip-1');
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open full page' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 renders an embedded payment as a compact phone card', () => {
+    mockPhoneViewport();
+    h.payments.data = [receipt({ amount: 500_000, received_amount: 400_000 })];
+    renderPage(true, '/finance/receivables?view=payments');
+
+    const card = rowFor('RCV-2610070001');
+    expect(card).toHaveTextContent('Acme Energy');
+    expect(card).toHaveTextContent('RCV-2610070001');
+    expect(card).toHaveTextContent('Received');
+    expect(card).toHaveTextContent('Oct 7, 2026');
+    expect(card).toHaveTextContent(/of/);
+    expect(card.querySelector('dl')).toBeNull();
   });
 
   it('AC-1405 exports only selected payment rows from the embedded bulk bar', async () => {

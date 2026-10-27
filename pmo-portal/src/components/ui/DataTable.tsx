@@ -113,6 +113,9 @@ export interface DataTableProps<Row> {
   rowLabel?: (row: Row) => string;
   /** Optional accessible name for the active table or mobile list structure. */
   accessibleName?: string;
+  /** Compact mobile title and details for record cards that do not need a field-by-field definition list. */
+  mobileCardTitle?: (row: Row) => React.ReactNode;
+  mobileCardDetails?: (row: Row) => React.ReactNode;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
@@ -328,6 +331,8 @@ export function DataTable<Row>({
   className,
   cardBelow,
   accessibleName,
+  mobileCardTitle,
+  mobileCardDetails,
   tableId,
   groupBy,
   groupHeader,
@@ -840,10 +845,10 @@ export function DataTable<Row>({
                         onClick={() => onActivate(row)}
                         className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                        {mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                      mobileCardTitle ? mobileCardTitle(row) : titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
                   </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
@@ -857,7 +862,7 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {restCols.length > 0 && (
+                {mobileCardDetails ? mobileCardDetails(row) : restCols.length > 0 && (
                   <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
                     {restCols.map((col) => {
                       const content = col.cell(row);

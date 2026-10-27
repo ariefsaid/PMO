@@ -30,11 +30,12 @@ import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useIncomingPayments, useSalesInvoices, useRevenueMutations } from '@/src/hooks/useRevenue';
-import { useClientCompanyOptions } from '@/src/hooks/useFkOptions';
+import { useClientCompanyOptions, useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
 import {
   currencySymbol,
+  formatCurrency,
   formatCurrencyCents,
   formatDateOnly,
   formatMoneyInputValue,
@@ -187,10 +188,9 @@ interface IncomingPaymentsProps {
   embedded?: boolean;
   selectedKeys?: Set<string>;
   onSelectionChange?: (keys: Set<string>) => void;
-  onApplyPayment?: (payment: IncomingPaymentRow) => void;
 }
 
-const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange, onApplyPayment }) => {
+const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -208,6 +208,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
   const { data: invoiceList, isPending: invoiceListPending } = useSalesInvoices();
+  const projectOptions = useInvoiceProjectOptions().data ?? [];
   const invoiceNumberById = useMemo(
     () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
     [invoiceList],
@@ -240,6 +241,17 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   }, { replace: true });
   const openPaymentPanel = (payment: IncomingPaymentRow) => setQueryValue('open', payment.id);
   const closePaymentPanel = () => setQueryValue('open', '');
+  const openFullPayment = () => {
+    if (!panelPayment) return;
+    const query = new URLSearchParams(searchParams);
+    query.delete('open');
+    const queryString = query.toString();
+    const listPath = `${location.pathname}${queryString ? `?${queryString}` : ''}${location.hash}`;
+    navigate(`/incoming-payments/${encodeURIComponent(panelPayment.id)}${queryString ? `?${queryString}` : ''}`, { state: { recordContext: { listPath } } });
+  };
+  const panelInvoice = panelPayment?.sales_invoice_id
+    ? (invoiceList ?? []).find((invoice) => invoice.id === panelPayment.sales_invoice_id)
+    : undefined;
 
   useEffect(() => {
     if (searchParams.get('create') !== '1' || !canCreate || mode === undefined || invoiceListPending) return;
@@ -505,6 +517,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           />
         )
       }
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
       search={
         state !== 'loading' && (
           <SearchMini
@@ -572,6 +585,28 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           rowMenu={rowMenu}
           onActivate={embedded ? openPaymentPanel : undefined}
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
+          mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
+            <span className="shrink-0 font-mono text-[11px] font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+          </span> : undefined}
+          mobileCardDetails={embedded ? (payment) => {
+            const cancelled = Boolean(payment.cancelled_at || payment.erp_cancelled_at);
+            const statusLabel = cancelled
+              ? t('financeCopy.statusCancelled', 'Cancelled')
+              : incomingPaymentStatusLabel(payment.pmo_native && payment.status === 'Paid' ? 'Received' : payment.status, t);
+            const receivedAmount = payment.received_amount ?? payment.amount;
+            const total = payment.amount;
+            return <div className="flex min-w-0 items-center justify-between gap-1.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>
+                <span className="shrink-0 text-[11px] text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
+              </div>
+              <span className="shrink-0 text-right text-[11px] tabular">
+                <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
+                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
+              </span>
+            </div>;
+          } : undefined}
           selectable={embedded}
           selectedKeys={embedded ? effectiveSelectedKeys : undefined}
           onSelectionChange={embedded ? handleSelectionChange : undefined}
@@ -614,39 +649,29 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
 
       <Drawer
         open={Boolean(panelPayment)}
-        title={panelPayment ? t('finance:receivables.paymentDrawerTitle', 'Payment from {{client}} · {{amount}}', {
+        title={panelPayment ? t('finance:receivables.paymentDrawerTitle', '{{client}} · {{amount}}', {
           client: panelPayment.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
           amount: panelPayment.amount == null ? '—' : formatCurrencyCents(panelPayment.amount, panelPayment.currency),
         }) : ''}
         subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
-          <StatusPill variant={panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>
-            {panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? t('finance:receivables.statusCancelled', 'Cancelled') : incomingPaymentStatusLabel(panelPayment.pmo_native && panelPayment.status === 'Paid' ? 'Received' : panelPayment.status, t)}
-          </StatusPill>
           <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
+          {panelInvoice && <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? '—'}</span>}
+          {panelInvoice?.project_id && projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName && <span className="text-xs">{projectOptions.find((project) => project.value === panelInvoice.project_id)?.contractualName}</span>}
         </span> : undefined}
+        icon={<Icon name="dollar" />}
+        status={panelPayment ? <StatusPill variant={panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>
+          {panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? t('finance:receivables.statusCancelled', 'Cancelled') : incomingPaymentStatusLabel(panelPayment.pmo_native && panelPayment.status === 'Paid' ? 'Received' : panelPayment.status, t)}
+        </StatusPill> : undefined}
+        headerActions={panelPayment ? <>
+          <Button type="button" variant="outline" size="sm" onClick={openFullPayment}>{t('finance:receivables.openFullRecord', 'Open full page')}</Button>
+          <MenuButton items={rowMenu(panelPayment)} ariaLabel={t('finance:receivables.paymentActions', 'Payment actions')} />
+        </> : undefined}
         onClose={closePaymentPanel}
         width="lg"
         loading={cancelPayment.isPending}
         nestedOpen={Boolean(formTarget || cancelTarget)}
-        footer={<div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="outline" onClick={() => {
-            if (!panelPayment) return;
-            const query = new URLSearchParams(searchParams);
-            query.delete('open');
-            const queryString = query.toString();
-            const listPath = `${location.pathname}${queryString ? `?${queryString}` : ''}${location.hash}`;
-            navigate(`/incoming-payments/${encodeURIComponent(panelPayment.id)}${queryString ? `?${queryString}` : ''}`, { state: { recordContext: { listPath } } });
-          }}>{t('finance:receivables.openFullRecord', 'Open full record')}</Button>
-          {panelPayment && (knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) }) ?? 0) > 0 && canCancel && onApplyPayment && (
-            <Button type="button" variant="primary" onClick={() => onApplyPayment(panelPayment)}>{t('finance:receivables.applyPayment', 'Apply to an invoice')}</Button>
-          )}
-        </div>}
       >
         {panelPayment && <div className="space-y-5 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-mono text-sm">{receiptNumber(panelPayment) ?? '—'}</p>
-            <MenuButton items={rowMenu(panelPayment)} ariaLabel={t('finance:receivables.paymentActions', 'Payment actions')} />
-          </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>

@@ -38,12 +38,13 @@ import { useAssignInvoiceProject, useSalesInvoices, useRevenueMutations, useSale
 import { useClientCompanyOptions, useInvoiceProjectOptions, type InvoiceProjectOption } from '@/src/hooks/useFkOptions';
 import { useProjects } from '@/src/hooks/useProjects';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
+import type { ProfileRow } from '@/src/lib/db/profiles';
 import { InvoiceProjectModal } from '@/src/components/InvoiceProjectModal';
 import { canAttributeInvoice } from '@/src/lib/invoiceProjectAssignment';
 import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { trackFilterApplied } from '@/src/lib/analytics';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { currencySymbol, formatCurrency, formatCurrencyCents, formatDateOnly, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
 import type { IncomingPaymentRow, SalesInvoiceRow, SalesInvoiceStatus } from '@/src/lib/db/revenue';
 import { deriveArDueDate, overdueAgeDays } from '@/src/lib/repositories/revenueDisplay';
 import { salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
@@ -176,8 +177,18 @@ const needsVatRate = (project?: InvoiceProjectOption): boolean => Boolean(projec
 
 const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ invoice }) => {
   const { t } = useTranslation();
-  const evidence = useSalesInvoiceEvidence(invoice.id, !invoice.pmo_native && invoice.erp_docstatus !== null);
+  const canFetchEvidence = !invoice.pmo_native && invoice.erp_docstatus !== null;
+  const evidence = useSalesInvoiceEvidence(invoice.id, canFetchEvidence);
+  const [pendingTimedOut, setPendingTimedOut] = useState(false);
   const payments = useIncomingPayments(undefined, true, invoice.id);
+  useEffect(() => {
+    if (!canFetchEvidence || !evidence.isPending) {
+      setPendingTimedOut(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setPendingTimedOut(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [canFetchEvidence, evidence.isPending, invoice.id]);
   const paymentEvidence = useMemo(() => {
     const rows = (payments.data ?? []).filter((payment) =>
       payment.status !== 'Scheduled' && !payment.erp_cancelled_at && !payment.cancelled_at,
@@ -200,12 +211,12 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   return (
     <section aria-labelledby="invoice-evidence-heading" className="mb-5 border-b border-border pb-4">
       <h2 id="invoice-evidence-heading" className="mb-3 text-base font-semibold">{t('uxs17.billEvidence', 'Bill evidence')}</h2>
-      {evidence.isPending ? (
+      {evidence.isPending && canFetchEvidence && !pendingTimedOut ? (
         <p className="text-sm text-muted-foreground">{t('uxs17.evidenceLoading', 'Loading invoice evidence…')}</p>
-      ) : evidence.isError ? (
+      ) : !canFetchEvidence || evidence.isError || pendingTimedOut ? (
         <div role="alert" className="flex flex-wrap items-center gap-3">
           <p className="text-sm text-muted-foreground">{t('uxs17.evidenceUnavailable', 'Bill evidence is temporarily unavailable.')}</p>
-          <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>
+          {canFetchEvidence && <Button variant="outline" size="sm" onClick={() => void evidence.refetch()}>{t('uxs17.evidenceRetry', 'Retry invoice evidence')}</Button>}
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-[minmax(0,2fr)_minmax(12rem,1fr)]">
@@ -277,26 +288,61 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
 
 type InvoiceGroupMode = 'none' | 'client' | 'project';
 
-const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: IncomingPaymentRow[] }> = ({ invoice, payments }) => {
+const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: IncomingPaymentRow[]; profiles: ProfileRow[] }> = ({ invoice, payments, profiles }) => {
   const { t } = useTranslation();
-  const { data: profiles = [] } = useAssignableProfiles();
   const approver = invoice.approved_by_id ? profiles.find((profile) => profile.id === invoice.approved_by_id)?.full_name : null;
-
+  const orderedPayments = [...payments]
+    .filter((payment) => payment.status === 'Paid' && !payment.cancelled_at && !payment.erp_cancelled_at)
+    .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  const draft = invoice.status === 'Draft';
+  const received = Boolean(invoice.received_date) || invoice.status === 'Paid';
+  const hasBalance = (invoice.erp_outstanding_amount ?? 0) > 0;
+  const steps: { stage: string; state: 'done' | 'current' | 'future'; content: React.ReactNode }[] = [
+    {
+      stage: 'drafted', state: 'done',
+      content: t('finance:receivables.drafted', 'Drafted {{date}}', { date: formatInstantDate(invoice.created_at) }),
+    },
+    {
+      stage: 'approved', state: draft ? 'current' : 'done',
+      content: invoice.approved_at
+        ? approver
+          ? t('finance:receivables.approvedBySecond', 'Approved {{date}} by {{name}}, a second person', { date: formatInstantDate(invoice.approved_at), name: approver })
+          : t('finance:receivables.approvalRecorded', 'Approval recorded {{date}}', { date: formatInstantDate(invoice.approved_at) })
+        : draft
+          ? t('finance:receivables.awaitingApproval', 'Awaiting approval')
+          : t('finance:receivables.secondApprover', 'Second person approved'),
+    },
+    {
+      stage: 'received', state: received ? 'done' : draft ? 'future' : 'current',
+      content: invoice.received_date
+        ? t('finance:receivables.receivedByClient', 'Sent and received by client {{date}}', { date: formatDateOnly(invoice.received_date) })
+        : draft
+          ? t('finance:receivables.sentToClient', 'Sent and received by client')
+          : t('finance:receivables.notReceivedByClient', 'Not marked received'),
+    },
+    ...orderedPayments.map((payment) => ({
+      stage: 'payment', state: 'done' as const,
+      content: <><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payment received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></>,
+    })),
+    {
+      stage: 'paid',
+      state: invoice.status === 'Paid' ? 'done' : received && hasBalance && invoice.status !== 'Cancelled' ? 'current' : 'future',
+      content: invoice.status === 'Paid'
+        ? t('finance:receivables.statusPaid', 'Paid')
+        : t('finance:receivables.awaitingPayment', 'Awaiting full payment'),
+    },
+  ];
   return (
     <section aria-labelledby="receivable-invoice-timeline">
       <h3 id="receivable-invoice-timeline" className="mb-2 text-sm font-semibold">{t('finance:receivables.timeline', 'Status timeline')}</h3>
-      <ol className="space-y-2 border-l border-border pl-3 text-sm">
-        <li>{t('finance:receivables.drafted', 'Drafted {{date}}', { date: formatInstantDate(invoice.created_at) })}</li>
-        {invoice.status !== 'Draft' && <li>{invoice.approved_at
-          ? approver
-            ? t('finance:receivables.approvedBySecond', 'Approved {{date}} by {{name}}, a second person', { date: formatInstantDate(invoice.approved_at), name: approver })
-            : t('finance:receivables.approvalRecorded', 'Approval recorded {{date}}', { date: formatInstantDate(invoice.approved_at) })
-          : t('finance:receivables.secondApprover', 'Second person approved')}</li>}
-        {invoice.received_date
-          ? <li>{t('finance:receivables.receivedByClient', 'Sent and received by client {{date}}', { date: formatDateOnly(invoice.received_date) })}</li>
-          : invoice.status !== 'Draft' && <li className="text-muted-foreground">{t('finance:receivables.notReceivedByClient', 'Approved · not yet marked received')}</li>}
-        {payments.map((payment) => <li key={payment.id} className="flex justify-between gap-3"><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payments received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></li>)}
-        {invoice.status === 'Paid' && <li>{t('finance:receivables.paid', 'Paid')}</li>}
+      <ol className="relative space-y-3 pl-7 text-sm before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-border">
+        {steps.map((step, index) => <li key={`${step.stage}-${index}`} data-stage={step.stage} data-state={step.state} className="relative flex min-h-4 items-start justify-between gap-3">
+          <span
+            aria-hidden="true"
+            className={`absolute -left-7 top-0.5 size-4 rounded-full border-2 ${step.state === 'done' ? 'border-[hsl(var(--success))] bg-[hsl(var(--success))]' : step.state === 'current' ? 'border-[hsl(var(--warning))] bg-[hsl(var(--warning))]' : 'border-muted-foreground bg-card'}`}
+          />
+          {step.content}
+        </li>)}
       </ol>
     </section>
   );
@@ -319,6 +365,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
   const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded);
+  const { data: profileRows = [] } = useAssignableProfiles();
+  const profilesById = useMemo(() => new Map(profileRows.map((profile) => [profile.id, profile])), [profileRows]);
   const { day: organizationToday } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
@@ -358,6 +406,45 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
     }), [currentUser?.id, may]);
+  const invoiceStatus = (inv: SalesInvoiceRow) => {
+    const gross = invoiceGross(inv);
+    const partlySettled = isPartlyPaid(inv) || (
+      (inv.status === 'Submitted' || inv.status === 'Unpaid')
+      && gross != null
+      && inv.erp_outstanding_amount != null
+      && inv.erp_outstanding_amount > 0
+      && inv.erp_outstanding_amount < gross
+    );
+    const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
+    const lateDays = overdueAgeDays(due, organizationToday) ?? 0;
+    if (inv.status === 'Draft') return {
+      label: canApproveDraft(inv)
+        ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
+        : t('finance:receivables.statusDraftSecond', 'Draft · needs a second approver'),
+      variant: salesInvoiceStatusVariant(inv.status),
+      partlySettled,
+    };
+    if (inv.status === 'Cancelled') return { label: t('finance:receivables.statusCancelled', 'Cancelled'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
+    if (inv.status === 'Paid') return { label: t('finance:receivables.statusPaid', 'Paid'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
+    if (partlySettled) return {
+      label: lateDays > 0
+        ? lateDays === 1
+          ? t('finance:receivables.statusPartlyPaidLateDay', 'Partly paid · {{count}} day late', { count: lateDays })
+          : t('finance:receivables.statusPartlyPaidLateDays', 'Partly paid · {{count}} days late', { count: lateDays })
+        : t('finance:receivables.statusPartlyPaid', 'Partly paid · not yet due'),
+      variant: lateDays > 0 ? 'overdue' as const : salesInvoiceStatusVariant('Unpaid'),
+      partlySettled,
+    };
+    if (lateDays > 0) return {
+      label: lateDays === 1
+        ? t('finance:receivables.statusOverdueDay', 'Overdue · {{count}} day', { count: lateDays })
+        : t('finance:receivables.statusOverdueDays', 'Overdue · {{count}} days', { count: lateDays }),
+      variant: 'overdue' as const,
+      partlySettled,
+    };
+    if (inv.status === 'Submitted') return { label: t('finance:receivables.statusSubmitted', 'Submitted'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
+    return { label: t('finance:receivables.statusUnpaid', 'Unpaid · not yet due'), variant: salesInvoiceStatusVariant(inv.status), partlySettled };
+  };
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -755,9 +842,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
-    header: t('financeCopy.invoice', "Invoice #"),
+    header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
     kind: 'primary',
-    size: 280,
+    size: embedded ? 140 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -819,37 +906,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'status',
     header: t('financeCopy.status', "Status"),
     kind: 'status',
-    // DD-NAR-3: "Partly paid" is a display state of a PMO Unpaid invoice, never a stored status.
+    size: embedded ? 230 : undefined,
     cell: (inv) => {
-      const gross = invoiceGross(inv);
-      const partlySettled = isPartlyPaid(inv) || (
-        (inv.status === 'Submitted' || inv.status === 'Unpaid')
-        && gross != null
-        && inv.erp_outstanding_amount != null
-        && inv.erp_outstanding_amount > 0
-        && inv.erp_outstanding_amount < gross
-      );
-      const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-      const lateDays = overdueAgeDays(due, organizationToday) ?? 0;
-      const statusDetail = inv.status === 'Draft'
-        ? canApproveDraft(inv)
-          ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
-          : t('finance:receivables.statusDraftSecond', 'Draft · needs a second approver')
-        : inv.status === 'Cancelled'
-          ? t('finance:receivables.statusCancelled', 'Cancelled')
-          : inv.status === 'Paid'
-            ? t('finance:receivables.statusPaid', 'Paid')
-            : lateDays > 0
-              ? t('uxs05.overdueDays', '{{count}} days overdue', { count: lateDays })
-              : t('finance:receivables.statusUnpaid', 'Unpaid · not yet due');
-      return (
-        <span className="flex flex-col items-start gap-0.5">
-          {partlySettled
-            ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-            : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>}
-          {embedded && <span className="text-xs text-muted-foreground">{statusDetail}</span>}
-        </span>
-      );
+      const status = invoiceStatus(inv);
+      const legacyLabel = status.partlySettled
+        ? t('financeCopy.statusPartlyPaid', 'Partly paid')
+        : salesInvoiceStatusLabel(inv.status, t);
+      return <StatusPill variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
     },
     exportValue: (inv) => inv.status,
   };
@@ -858,7 +921,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     header: t('financeCopy.amount', "Amount"),
     kind: 'money',
     align: 'num',
-    size: 200,
+    size: embedded ? 140 : 200,
     // OD-TAX-1 §2: `sales_invoices.tax_treatment` is NOT NULL (0188) — the marker exists on every
     // row, so no invoice total may be bare. The basis is the row's own; the org default
     // pre-selects a form and is never read here.
@@ -893,7 +956,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     header: embedded ? <span className="inline-flex items-center gap-1">{t('financeCopy.outstanding', 'Outstanding')}<Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}><button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip></span> : t('financeCopy.outstanding', "Outstanding"),
     kind: 'money',
     align: 'num',
-    size: 170,
+    size: embedded ? 140 : 170,
     cell: (inv) => {
       const overpaid = overpaidBy(inv);
       const paid = paidToDate(inv);
@@ -924,19 +987,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'due_date',
     header: t('financeCopy.dueDate', "Due Date"),
     kind: 'date',
-    size: 130,
+    size: embedded ? 100 : 130,
     cell: (inv) => {
       const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
-      const age = overdueAgeDays(due, organizationToday);
-      const unpaid = inv.status === 'Submitted' || inv.status === 'Unpaid';
-      return (
-        <span className="flex flex-col">
-          <span>{due ? formatDateOnly(due) : '—'}</span>
-          {unpaid && age !== null && age > 0 && <span className="tabular text-xs text-destructive-text">{age === 1
-            ? t('uxs05.overdueDay', '{{count}} day overdue', { count: age })
-            : t('uxs05.overdueDays', '{{count}} days overdue', { count: age })}</span>}
-        </span>
-      );
+      return due ? formatDateOnly(due) : '—';
     },
     exportValue: (inv) => deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date) ?? '',
   };
@@ -945,7 +999,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'efaktur',
     header: t('efaktur.column', 'e-Faktur'),
     kind: 'text',
-    size: 150,
+    size: embedded ? 100 : 150,
     cell: (inv) => <EfakturCell number={inv.efaktur_number} date={inv.efaktur_date} />,
   };
   const columns: Column<SalesInvoiceRow>[] = [
@@ -956,46 +1010,36 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'client',
     header: t('finance:receivables.client', 'Client'),
     kind: 'text',
-    size: 170,
-    cell: (inv) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
-    exportValue: (inv) => inv.customer_name ?? '',
-  };
-  const projectColumn: Column<SalesInvoiceRow> = {
-    key: 'project',
-    header: t('finance:receivables.project', 'Project'),
-    kind: 'text',
-    size: 190,
+    size: 230,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
-      return (
-        <span className="flex min-w-0 flex-col gap-0.5" title={project ?? ''}>
-          <span className="truncate">{project ?? '—'}</span>
-          <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
-              {manager ? manager.charAt(0).toLocaleUpperCase() : '—'}
-            </span>
-            <span className="truncate">{manager || t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
-          </span>
+      const managerInitial = manager?.charAt(0).toLocaleUpperCase() ?? '—';
+      return <span className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate font-medium" title={inv.customer_name ?? ''}>{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+        <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground" title={project ?? ''}>
+          <span className="min-w-0 flex-1 truncate">{project ?? '—'}</span>
+          <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{managerInitial}</span>
+          <span className="max-w-[82px] shrink truncate" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
         </span>
-      );
+      </span>;
     },
-    exportValue: (inv) => projectLabelOf(inv) ?? '',
+    exportValue: (inv) => inv.customer_name ?? '',
   };
   const deliveryColumn: Column<SalesInvoiceRow> = {
     key: 'delivery',
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
-    size: 165,
+    size: embedded ? 150 : 165,
     cell: (inv) => inv.received_date
-      ? formatDateOnly(inv.received_date)
+      ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
       : inv.status === 'Draft'
-        ? t('finance:receivables.draftState', 'Draft')
-        : t('finance:receivables.notReceivedByClient', 'Approved · not yet marked received'),
+        ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
+        : t('finance:receivables.deliveryNotReceived', 'Not marked received'),
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded
-    ? [invoiceColumn, clientColumn, projectColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, efakturColumn]
+    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, efakturColumn]
     : columns;
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
@@ -1157,13 +1201,16 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           <Icon name="plus" />
           {t('financeCopy.newInvoice', "New Invoice")}</Button>
       ) : undefined}
+      desktopToolbarClassName={embedded ? '!mb-0 min-w-0 !flex-nowrap overflow-x-auto !rounded-none !border-x-0 !border-t-0 border-b !bg-transparent !px-0 py-2' : undefined}
       filters={
         state !== 'loading' && (
           <div
             role="region"
             aria-label={t('financeCopy.filterByStatus', "Filter by status")}
             tabIndex={0}
-            className="min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className={embedded
+              ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+              : 'min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
           >
             <ViewToggle<StatusFilter>
               options={statusFilters.map((f) => ({ value: f, label: salesInvoiceStatusLabel(f, t) }))}
@@ -1174,7 +1221,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               }}
               ariaLabel={t('financeCopy.filterByStatus', "Filter by status")}
             />
-            <div className="mt-2 flex flex-wrap items-end gap-2">
+            <div className={embedded ? 'flex shrink-0 items-center gap-2' : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
                   <span role="status" className="min-w-0 break-words text-sm">
@@ -1324,6 +1371,25 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           rowMenu={rowMenu}
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
+          mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 items-center justify-between gap-2">
+            <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
+            <span className="shrink-0 font-mono text-[11px] font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+          </span> : undefined}
+          mobileCardDetails={embedded ? (inv) => {
+            const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
+            const total = invoiceGross(inv) ?? inv.amount;
+            const outstanding = inv.erp_outstanding_amount ?? total;
+            return <div className="flex min-w-0 items-center justify-between gap-1.5">
+              <div className="flex min-w-0 items-center gap-2">
+                {statusColumn.cell(inv)}
+                <span className="shrink-0 text-[11px] text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
+              </div>
+              <span className="shrink-0 text-right text-[11px] tabular">
+                <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
+                {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
+              </span>
+            </div>;
+          } : undefined}
           selectable={embedded}
           selectedKeys={embedded ? effectiveSelectedKeys : undefined}
           onSelectionChange={embedded ? handleSelectionChange : undefined}
@@ -1445,26 +1511,22 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           amount: panelInvoice.amount == null ? '—' : formatCurrencyCents(panelInvoice.amount, panelInvoice.currency),
         }) : ''}
         subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
-          {isPartlyPaid(panelInvoice)
-            ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-            : <StatusPill variant={salesInvoiceStatusVariant(panelInvoice.status)}>{salesInvoiceStatusLabel(panelInvoice.status, t)}</StatusPill>}
           <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? t('finance:receivables.statusDraftApproval', 'Draft · to approve')}</span>
           {projectLabelOf(panelInvoice) && <span className="text-xs">{projectLabelOf(panelInvoice)}</span>}
         </span> : undefined}
+        icon={<Icon name="doc" />}
+        status={panelInvoice ? <StatusPill variant={invoiceStatus(panelInvoice).variant}>{invoiceStatus(panelInvoice).label}</StatusPill> : undefined}
+        headerActions={panelInvoice ? <>
+          {panelPrimary && <Button type="button" variant="primary" size="sm" onClick={panelPrimary.onClick}>{panelPrimary.label}</Button>}
+          <Button type="button" variant="outline" size="sm" onClick={openFullInvoice}>{t('finance:receivables.openFullRecord', 'Open full page')}</Button>
+          <MenuButton items={rowMenu(panelInvoice)} ariaLabel={t('finance:receivables.rowActions', 'Invoice actions')} />
+        </> : undefined}
         onClose={closeInvoicePanel}
         width="lg"
         loading={submitInvoice.isPending || setReceivedDate.isPending}
         nestedOpen={Boolean(submitTarget || receiptTarget || formTarget || cancelTarget || projectTarget || efakturTarget)}
-        footer={<div className="flex flex-wrap items-center justify-between gap-2">
-          <Button type="button" variant="outline" onClick={openFullInvoice}>{t('finance:receivables.openFullRecord', 'Open full record')}</Button>
-          {panelPrimary && <Button type="button" variant="primary" onClick={panelPrimary.onClick}>{panelPrimary.label}</Button>}
-        </div>}
       >
         {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
-          <div className="flex items-center justify-between gap-3">
-            <p className="font-mono text-sm">{invoiceNumber(panelInvoice) ?? '—'}</p>
-            <MenuButton items={rowMenu(panelInvoice)} ariaLabel={t('finance:receivables.rowActions', 'Invoice actions')} />
-          </div>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.outstanding', 'Outstanding · tax included')}</dt><dd className="mt-1 tabular">{panelInvoice.erp_outstanding_amount == null ? '—' : formatCurrencyCents(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.dueDate', 'Due date')}</dt><dd className="mt-1">{deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date) ? formatDateOnly(deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date)!) : '—'}</dd></div>
@@ -1473,7 +1535,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.taxBasis', 'Tax basis')}</dt><dd className="mt-1"><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></dd></div>
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt><dd className="mt-1">{panelInvoice.efaktur_number ?? '—'}{panelInvoice.efaktur_date ? ` · ${formatDateOnly(panelInvoice.efaktur_date)}` : ''}</dd></div>
           </dl>
-          <InvoiceStatusTimeline invoice={panelInvoice} payments={panelPayments} />
+          <InvoiceStatusTimeline invoice={panelInvoice} payments={panelPayments} profiles={profileRows} />
           <SalesInvoiceEvidenceSection invoice={panelInvoice} />
         </div>}
       </Drawer>

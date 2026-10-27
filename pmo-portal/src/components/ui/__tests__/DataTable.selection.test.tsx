@@ -135,4 +135,23 @@ describe('DataTable row selection', () => {
     expect([...onSelectionChange.mock.calls[0][0]]).toEqual(['invoice-2']);
     expect(onActivate).not.toHaveBeenCalled();
   });
+
+  it('uses a compact phone row when the caller supplies mobile title and details', () => {
+    mockViewport(false);
+
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        mobileCardTitle={(row) => <span>{row.group} · {row.name}</span>}
+        mobileCardDetails={(row) => <div>{row.group} status · due today · $25 of $40</div>}
+      />,
+    );
+
+    expect(screen.getByText('Client A · Invoice 1')).toBeInTheDocument();
+    expect(screen.getByText('Client A status · due today · $25 of $40')).toBeInTheDocument();
+    expect(screen.queryByText('Client')).not.toBeInTheDocument();
+    expect(screen.queryByText('Group')).not.toBeInTheDocument();
+  });
 });

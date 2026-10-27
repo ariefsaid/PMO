@@ -3840,8 +3840,6 @@
   },
   "uxs05": {
     "customerReference": "Customer reference",
-    "overdueDay": "{{count}} day overdue",
-    "overdueDays": "{{count}} days overdue",
     "overdueOnly": "Overdue only"
   },
   "financeCopy": {

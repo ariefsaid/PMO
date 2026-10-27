@@ -3840,8 +3840,6 @@
   },
   "uxs05": {
     "customerReference": "Referensi pelanggan",
-    "overdueDay": "Terlambat {{count}} hari",
-    "overdueDays": "Terlambat {{count}} hari",
     "overdueOnly": "Hanya yang terlambat"
   },
   "financeCopy": {
