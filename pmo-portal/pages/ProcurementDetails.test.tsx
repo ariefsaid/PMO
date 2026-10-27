@@ -1665,3 +1665,99 @@ describe('AC-1404: procurement detail composition and role-safe actions', () => 
     expect(screen.getByTestId('procurement-no-access')).toBeInTheDocument();
   });
 });
+
+describe('Procurement detail restructure fixes', () => {
+  beforeEach(() => {
+    detailState.data = { ...baseProcurement };
+    detailState.isPending = false;
+    detailState.isError = false;
+    detailState.error = null;
+    linkedDocsState.data = [];
+    projectScopeState.data = { project_manager_id: 'u-alice' };
+    projectScopeState.isPending = false;
+    projectScopeState.isError = false;
+    mockEffectiveRole = 'Finance';
+  });
+
+  it('shows a skipped request stage and an unknown requested amount when an order exists', () => {
+    detailState.data = {
+      ...orderedProcurement,
+      status: 'Vendor Invoiced',
+      total_value: 110500,
+      purchase_requests: [],
+      purchase_orders: [
+        { ...orderedProcurement.purchase_orders[0], id: 'po-first', po_number: 'PO-2609020001', amount: 84000, date: '2025-09-02', created_at: '2025-09-02T00:00:00Z' },
+        { ...orderedProcurement.purchase_orders[0], id: 'po-second', po_number: 'PO-2609180002', amount: 26500, date: '2025-09-18', created_at: '2025-09-18T00:00:00Z' },
+      ],
+      receipts: [],
+      invoices: [],
+      payments: [],
+    };
+
+    renderPage();
+
+    const tracker = screen.getByTestId('procurement-stage-tracker');
+    const requestLabel = within(tracker).getByText('Request');
+    expect(requestLabel).toHaveClass('text-muted-foreground');
+    expect(within(tracker).getAllByText('Not recorded')).toHaveLength(2);
+    expect(within(tracker).getByText(/Tue 2 Sep/)).toBeInTheDocument();
+
+    const money = screen.getByTestId('procurement-money-summary');
+    const requestedFigure = within(money).getByRole('button', { name: 'Requested calculation' }).parentElement?.parentElement;
+    expect(requestedFigure).toHaveTextContent('—');
+    expect(requestedFigure).toHaveTextContent('No purchase request: started at the order');
+    expect(requestedFigure).not.toHaveTextContent('$110,500');
+  });
+
+  it('labels empty ordered, invoiced, and paid figures as not recorded', () => {
+    renderPage();
+
+    const money = screen.getByTestId('procurement-money-summary');
+    expect(within(money).getAllByText('None recorded')).toHaveLength(3);
+    for (const kind of ['Ordered', 'Invoiced', 'Paid']) {
+      const figure = within(money).getByRole('button', { name: `${kind} calculation` }).parentElement?.parentElement;
+      expect(figure).toHaveTextContent('—');
+      expect(figure).toHaveTextContent('None recorded');
+      expect(figure).not.toHaveTextContent('$0');
+    }
+  });
+
+  it('keeps the engineer approval wait in the header actions without the floating paragraph', () => {
+    mockEffectiveRole = 'Engineer';
+    detailState.data = { ...baseProcurement };
+
+    renderPage();
+
+    const headerActions = screen.getByTestId('record-header-actions');
+    expect(within(headerActions).getByText('Waiting for approval by a project manager or Finance')).toBeInTheDocument();
+    expect(screen.queryByTestId('sod-ready-hint')).toBeNull();
+  });
+
+  it('shows the raised event and the complete status progression in the timeline', () => {
+    detailState.data = {
+      ...baseProcurement,
+      status: 'Paid',
+      statusEvents: [
+        { id: 'submitted', procurement_id: 'proc-001', from_status: 'Draft', to_status: 'Requested', actor_id: 'u-alice', notes: null, created_at: '2026-06-04T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Alice Manager' } },
+        { id: 'approved', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Approved', actor_id: 'u-finance', notes: 'Budget approved', created_at: '2026-06-05T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+        { id: 'returned', procurement_id: 'proc-001', from_status: 'Requested', to_status: 'Rejected', actor_id: 'u-finance', notes: 'Choose a supplier first', created_at: '2026-06-06T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+        { id: 'cancelled', procurement_id: 'proc-001', from_status: 'Approved', to_status: 'Cancelled', actor_id: 'u-alice', notes: 'Project cancelled', created_at: '2026-06-07T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Alice Manager' } },
+        { id: 'paid', procurement_id: 'proc-001', from_status: 'Vendor Invoiced', to_status: 'Paid', actor_id: 'u-finance', notes: null, created_at: '2026-06-08T01:00:00Z', org_id: 'org-1', actor: { full_name: 'Finance User' } },
+      ],
+    };
+
+    renderPage('proc-001', 'timeline');
+
+    const rows = screen.getAllByTestId('procurement-timeline-row');
+    expect(rows).toHaveLength(6);
+    expect(rows[0]).toHaveTextContent('Procurement raised');
+    expect(rows[0]).toHaveTextContent('Alice Manager');
+    expect(rows[0]).toHaveTextContent('Thu 4 Jun');
+    expect(screen.getByText('Submitted for approval')).toBeInTheDocument();
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+    expect(screen.getByText('Returned or rejected')).toBeInTheDocument();
+    expect(screen.getByText('Choose a supplier first')).toBeInTheDocument();
+    expect(screen.getByText('Cancelled')).toBeInTheDocument();
+    expect(rows[5]).toHaveTextContent('Paid');
+  });
+});

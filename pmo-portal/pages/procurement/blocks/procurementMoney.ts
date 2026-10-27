@@ -48,6 +48,7 @@ function sumRows(rows: readonly AmountRow[]): MoneyFigure {
 }
 
 function sumCombined(rows: readonly (AmountRow | { grand_total: number | string | null })[]): MoneyFigure {
+  if (rows.length === 0) return { amount: null, unknown: false };
   let total = 0;
   for (const row of rows) {
     const amount = numeric('amount' in row ? row.amount : row.grand_total);
@@ -67,9 +68,12 @@ export function procurementMoney(input: ProcurementMoneyInput): ProcurementMoney
   const erpOrders = erpDocs.filter((doc) => doc.doctype === 'Purchase Order');
   const erpInvoices = erpDocs.filter((doc) => doc.doctype === 'Purchase Invoice');
   const erpPayments = erpDocs.filter((doc) => doc.doctype === 'Payment Entry');
+  const hasLaterDocuments = orders.length + invoices.length + payments.length + erpDocs.length > 0;
 
   const requested = requests.length > 0
     ? sumRows(requests)
+    : hasLaterDocuments
+      ? { amount: null, unknown: true }
     : (() => {
         const amount = numeric(input.total_value);
         return amount === null ? { amount: null, unknown: true } : { amount, unknown: false };

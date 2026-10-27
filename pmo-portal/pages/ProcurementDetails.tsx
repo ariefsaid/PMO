@@ -581,7 +581,9 @@ const ProcurementDetails: React.FC = () => {
       : t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
     : null;
   const waitingNote = p.status === 'Requested' && isRequester
-    ? t('procurementRecord:waiting.approval', 'Waiting for approval')
+    ? isEngineer
+      ? t('procurementRecord:waiting.engineerApproval', 'Waiting for approval by a project manager or Finance')
+      : t('procurementRecord:waiting.approval', 'Waiting for approval')
     : p.status === 'Vendor Invoiced' && !actionFor('Paid')
       ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
       : null;
@@ -658,7 +660,7 @@ const ProcurementDetails: React.FC = () => {
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
   const gateMsg = sodGateMessage(p, role, isRequester)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
-  const decisionContextNote = gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
+  const decisionContextNote = p.status === 'Requested' && isRequester ? null : gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
     ? t('procurementRecord:sod.approverHint', 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.')
     : null);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
@@ -925,7 +927,7 @@ const ProcurementDetails: React.FC = () => {
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
     p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
-    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">{p.requested_by.full_name.trim().slice(0, 1).toUpperCase()}</span><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
+    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="grid size-6 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{p.requested_by.full_name.trim().slice(0, 1).toUpperCase()}</span><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null)
     .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
 
@@ -1081,6 +1083,8 @@ const ProcurementDetails: React.FC = () => {
 
       {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
+        variant="drawer"
+        className="mb-4"
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
         icon={<Icon name="cart" />}
@@ -1098,10 +1102,10 @@ const ProcurementDetails: React.FC = () => {
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
         actions={<div className="flex flex-wrap items-center justify-end gap-2">
-          {waitingNote && <span className="hidden text-[12px] text-muted-foreground xl:inline">{waitingNote}</span>}
+          {waitingNote && <span className="whitespace-nowrap text-[12px] text-muted-foreground">{waitingNote}</span>}
           <div className="relative hidden sm:block">
             <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
-              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="down" className="size-3.5" />
+              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
             </Button>
             {recordMenuOpen && <div role="menu" aria-label={t('procurementRecord:recordMenu', 'Record another document')} className="absolute right-0 top-full z-30 mt-1 min-w-56 rounded-md border border-border bg-card p-1 shadow-lg">
               {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => beginCapture(kind)}>{recordKindLabels[kind]}</button>)}
@@ -1152,8 +1156,6 @@ const ProcurementDetails: React.FC = () => {
       {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
         <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
       </label>}
-      {waitingNote && <p className="mb-3 text-[12.5px] text-muted-foreground sm:hidden">{waitingNote}</p>}
-
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
         <ProcurementHeaderEdit
@@ -1378,7 +1380,7 @@ const ProcurementDetails: React.FC = () => {
         )}
         {tab === 'details' && <Card data-testid="procurement-detail-dl"><CardHead>{t('procurementRecord:tabs.details', 'Details')}</CardHead><CardPad>
           <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
-            {detailRows.map((row) => <div key={row.label}><dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-[13.5px]">{row.value}</dd></div>)}
+            {detailRows.map((row) => <div key={row.label}><dt className="text-[12px] font-semibold text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-[13.5px]">{row.value}</dd></div>)}
           </dl>
           {canEditHeader && <Button className="mt-4" variant="outline" onClick={() => setHeaderEditOpen(true)}>{t('procurementRecord:editDetails', 'Edit details')}</Button>}
         </CardPad></Card>}

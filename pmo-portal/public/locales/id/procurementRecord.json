@@ -20,7 +20,11 @@
   "close": "Tutup",
   "approval": { "withinLimit": "Dalam batas Anda", "goesTo": "Diteruskan ke {{name}}", "note": "Catatan persetujuan (opsional)" },
   "sod": { "approverHint": "Anda dapat menyetujui atau menolak permintaan ini. Pemohon tidak dapat menyetujui permintaannya sendiri — pemisahan tugas memerlukan peninjau lain." },
-  "waiting": { "approval": "Menunggu persetujuan", "payment": "Pembayaran: menunggu Finance" },
+  "waiting": {
+    "approval": "Menunggu persetujuan",
+    "engineerApproval": "Menunggu persetujuan dari manajer proyek atau Finance",
+    "payment": "Pembayaran: menunggu Finance"
+  },
   "record": {
     "purchaseRequest": "Permintaan pembelian", "quoteRequest": "Permintaan penawaran", "purchaseOrder": "Pesanan pembelian",
     "receipt": "Penerimaan", "supplierInvoice": "Faktur pemasok", "payment": "Pembayaran"
@@ -42,7 +46,18 @@
     "record": "catatan",
     "records": "catatan",
     "startedAt": "Dimulai pada {{stage}}",
-    "partialReceipt": "{{received}} dari {{orders}} pesanan diterima"
+    "partialReceipt": "{{received}} dari {{orders}} pesanan diterima",
+    "purchaseRequest": "permintaan pembelian",
+    "purchaseRequests": "permintaan pembelian",
+    "purchaseOrder": "pesanan",
+    "purchaseOrders": "pesanan",
+    "receipt": "penerimaan",
+    "receipts": "penerimaan",
+    "invoice": "faktur",
+    "invoices": "faktur",
+    "payment": "pembayaran",
+    "payments": "pembayaran",
+    "countAndAmount": "{{count}} {{document}} · {{amount}}"
   },
   "money": {
     "title": "Nilai · {{currency}}, sebelum pajak",
@@ -51,6 +66,8 @@
     "invoiced": "Ditagih",
     "paid": "Dibayar",
     "unpaid": "Belum dibayar",
+    "noneRecorded": "Belum ada catatan",
+    "noPurchaseRequest": "Tidak ada permintaan pembelian: dimulai pada pesanan",
     "amountMissing": "Jumlah belum dicatat",
     "outstanding": "Saldo terutang",
     "due": "Jatuh tempo {{date}}",
@@ -71,6 +88,7 @@
     "title": "Linimasa",
     "inDateOrder": "berdasarkan tanggal · langkah yang tidak tercatat tidak diwajibkan perusahaan",
     "fullHistory": "Riwayat lengkap",
+    "procurementRaised": "Pengadaan diajukan",
     "all": "Semua",
     "financial": "Keuangan",
     "hasFile": "Ada berkas",
@@ -83,11 +101,13 @@
     "dateMissing": "Tanggal belum dicatat",
     "status": "Status",
     "dueDate": "Tanggal jatuh tempo",
+    "supplierReference": "Referensi pemasok",
     "files": "berkas",
     "submitted": "Diajukan untuk persetujuan",
     "approved": "Disetujui",
     "returnedRejected": "Dikembalikan atau ditolak",
     "cancelled": "Dibatalkan",
+    "paid": "Dibayar",
     "record": {
       "PR": "Permintaan pembelian", "RFQ": "Permintaan penawaran", "Quote": "Penawaran", "PO": "Pesanan pembelian",
       "GR": "Penerimaan", "Invoice": "Faktur pemasok", "Payment": "Pembayaran"

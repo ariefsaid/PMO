@@ -20,7 +20,11 @@
   "close": "Close",
   "approval": { "withinLimit": "Within your limit", "goesTo": "Goes to {{name}}", "note": "Approval note (optional)" },
   "sod": { "approverHint": "You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer." },
-  "waiting": { "approval": "Waiting for approval", "payment": "Payment: waiting for Finance" },
+  "waiting": {
+    "approval": "Waiting for approval",
+    "engineerApproval": "Waiting for approval by a project manager or Finance",
+    "payment": "Payment: waiting for Finance"
+  },
   "record": {
     "purchaseRequest": "Purchase request", "quoteRequest": "Quote request", "purchaseOrder": "Purchase order",
     "receipt": "Receipt", "supplierInvoice": "Supplier invoice", "payment": "Payment"
@@ -42,7 +46,18 @@
     "record": "record",
     "records": "records",
     "startedAt": "Started at the {{stage}}",
-    "partialReceipt": "{{received}} of {{orders}} orders received"
+    "partialReceipt": "{{received}} of {{orders}} orders received",
+    "purchaseRequest": "purchase request",
+    "purchaseRequests": "purchase requests",
+    "purchaseOrder": "order",
+    "purchaseOrders": "orders",
+    "receipt": "receipt",
+    "receipts": "receipts",
+    "invoice": "invoice",
+    "invoices": "invoices",
+    "payment": "payment",
+    "payments": "payments",
+    "countAndAmount": "{{count}} {{document}} · {{amount}}"
   },
   "money": {
     "title": "Money · {{currency}}, before tax",
@@ -51,6 +66,8 @@
     "invoiced": "Invoiced",
     "paid": "Paid",
     "unpaid": "Unpaid",
+    "noneRecorded": "None recorded",
+    "noPurchaseRequest": "No purchase request: started at the order",
     "amountMissing": "Amount not recorded",
     "outstanding": "Outstanding balance",
     "due": "Due {{date}}",
@@ -71,6 +88,7 @@
     "title": "Timeline",
     "inDateOrder": "in date order · missing steps aren’t required by your company",
     "fullHistory": "Full history",
+    "procurementRaised": "Procurement raised",
     "all": "All",
     "financial": "Financial",
     "hasFile": "Has file",
@@ -83,11 +101,13 @@
     "dateMissing": "Date not recorded",
     "status": "Status",
     "dueDate": "Due date",
+    "supplierReference": "Supplier reference",
     "files": "files",
     "submitted": "Submitted for approval",
     "approved": "Approved",
     "returnedRejected": "Returned or rejected",
     "cancelled": "Cancelled",
+    "paid": "Paid",
     "record": {
       "PR": "Purchase request", "RFQ": "Quote request", "Quote": "Quotation", "PO": "Purchase order",
       "GR": "Receipt", "Invoice": "Supplier invoice", "Payment": "Payment"

@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, Icon, Tooltip } from '@/src/components/ui';
-import { formatCurrency, formatDateUtc } from '@/src/lib/format';
+import { formatCalendarDayInTimeZone, formatCurrency, formatWeekdayMonthDay } from '@/src/lib/format';
+import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import type { ProcurementDetail } from '@/src/lib/db/procurementLifecycle';
 import type { LedgerRow } from '@/src/lib/db/procurementLedger';
 import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
@@ -30,9 +31,26 @@ const typeLabel: Record<LedgerRow['type'], string> = {
 
 function showDate(value: string | null | undefined, missing = 'Date not recorded'): string {
   if (!value) return missing;
-  const date = new Date(`${value.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return missing;
-  return formatDateUtc(date);
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const instant = new Date(dateOnly ? `${value}T00:00:00Z` : value);
+  if (Number.isNaN(instant.getTime())) return missing;
+  const calendarDate = dateOnly ? value : formatCalendarDayInTimeZone(instant, getActiveLocale().timezone);
+  const [year, month, day] = calendarDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const parts = formatWeekdayMonthDay(date).replace(',', '').split(' ');
+  const [weekday, second, third] = parts;
+  const dayMonth = /^\d+$/.test(second) ? [second, third] : [third, second];
+  return [weekday, ...dayMonth].filter(Boolean).join(' ');
+}
+
+function totalAmount(values: readonly (number | string | null | undefined)[]): number | null {
+  if (values.length === 0) return null;
+  let total = 0;
+  for (const value of values) {
+    if (value == null || !Number.isFinite(Number(value))) return null;
+    total += Number(value);
+  }
+  return total;
 }
 
 export interface ProcurementStageTrackerProps {
@@ -44,12 +62,34 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
   const { t } = useTranslation('procurementRecord');
   const dates = stageDates(procurement, linkedDocuments.map((doc) => ({ doctype: doc.doctype, docDate: doc.docDate })));
   const current = STAGES.findIndex((stage) => stage.label === stageForStatus(procurement.status));
+  const requests = procurement.purchase_requests.map((row) => row.amount);
+  const orders = [
+    ...procurement.purchase_orders.map((row) => row.amount),
+    ...linkedDocuments.filter((doc) => doc.doctype === 'Purchase Order').map((doc) => doc.grandTotal),
+  ];
+  const receipts = procurement.receipts.length + linkedDocuments.filter((doc) => doc.doctype === 'Purchase Receipt').length;
+  const invoices = [
+    ...procurement.invoices.map((row) => row.amount),
+    ...linkedDocuments.filter((doc) => doc.doctype === 'Purchase Invoice').map((doc) => doc.grandTotal),
+  ];
+  const payments = [
+    ...procurement.payments.map((row) => row.amount),
+    ...linkedDocuments.filter((doc) => doc.doctype === 'Payment Entry').map((doc) => doc.grandTotal),
+  ];
   const rowsByStage: Record<StageKey, number> = {
-    request: procurement.purchase_requests.length,
-    order: procurement.purchase_orders.length + linkedDocuments.filter((doc) => doc.doctype === 'Purchase Order').length,
-    receive: procurement.receipts.length + linkedDocuments.filter((doc) => doc.doctype === 'Purchase Receipt').length,
-    pay: procurement.invoices.length + procurement.payments.length + linkedDocuments.filter((doc) => doc.doctype === 'Purchase Invoice' || doc.doctype === 'Payment Entry').length,
+    request: requests.length,
+    order: orders.length,
+    receive: receipts,
+    pay: invoices.length + payments.length,
   };
+  const amountByStage: Record<StageKey, number | null> = {
+    request: totalAmount(requests),
+    order: totalAmount(orders),
+    receive: null,
+    pay: totalAmount(invoices.length > 0 ? invoices : payments),
+  };
+  const orderCount = orders.length;
+  const receivedCount = receipts;
   const partialReceive = procurement.receipts.some((receipt) => receipt.status === 'Partial');
 
   return (
@@ -57,27 +97,44 @@ export const ProcurementStageTracker: React.FC<ProcurementStageTrackerProps> = (
       <CardPad>
         <ol className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
           {STAGES.map((stage, index) => {
-            const done = index < current || (index === current && procurement.status === 'Paid');
+            const count = rowsByStage[stage.key];
+            const done = count > 0 && (index < current || (index === current && procurement.status === 'Paid'));
             const isCurrent = index === current && procurement.status !== 'Paid';
             const partial = stage.key === 'receive' && partialReceive;
-            const count = rowsByStage[stage.key];
             const date = dates[stage.key];
             const stageLabel = t(`stage.${stage.key}`, stage.label);
             const state = partial
-              ? t('stage.partialReceipt', { defaultValue: '{{received}} of {{orders}} orders received', received: procurement.receipts.length, orders: Math.max(procurement.purchase_orders.length, procurement.receipts.length) })
+              ? t('stage.partialReceipt', { defaultValue: '{{received}} of {{orders}} orders received', received: receivedCount, orders: Math.max(orderCount, receivedCount) })
               : count > 0
-                ? `${count} ${count === 1 ? t('stage.record', 'record') : t('stage.records', 'records')}`
+                ? (() => {
+                    const document = stage.key === 'request'
+                      ? count === 1 ? t('stage.purchaseRequest', 'purchase request') : t('stage.purchaseRequests', 'purchase requests')
+                      : stage.key === 'order'
+                        ? count === 1 ? t('stage.purchaseOrder', 'order') : t('stage.purchaseOrders', 'orders')
+                        : stage.key === 'receive'
+                          ? count === 1 ? t('stage.receipt', 'receipt') : t('stage.receipts', 'receipts')
+                          : invoices.length > 0
+                            ? invoices.length === 1 ? t('stage.invoice', 'invoice') : t('stage.invoices', 'invoices')
+                            : count === 1 ? t('stage.payment', 'payment') : t('stage.payments', 'payments');
+                    const amount = amountByStage[stage.key];
+                    const countLabel = `${count} ${document}`;
+                    return amount == null
+                      ? countLabel
+                      : t('stage.countAndAmount', { defaultValue: '{{count}} {{document}} · {{amount}}', count, document, amount: formatCurrency(amount, procurement.currency) });
+                  })()
                 : index === current
                   ? t('stage.startedAt', { defaultValue: 'Started at the {{stage}}', stage: stageLabel.toLowerCase() })
                   : t('stage.notRecorded', 'Not recorded');
+            const meta = [date ? showDate(date, t('timeline.dateMissing', 'Date not recorded')) : null, state].filter(Boolean).join(' · ');
             return (
               <li key={stage.key} aria-current={isCurrent ? 'step' : undefined} className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span aria-hidden="true" className={`h-1.5 flex-1 rounded-full ${done ? 'bg-success' : isCurrent ? 'bg-primary' : 'bg-border/50'} ${partial ? 'relative after:block after:h-full after:w-1/2 after:rounded-full after:bg-primary' : ''}`} />
-                  <span className={`text-[12.5px] font-semibold ${isCurrent ? 'text-primary-text' : done ? 'text-success' : 'text-muted-foreground'}`}>{stageLabel}</span>
+                <div>
+                  <span className={`mb-1 block text-[12.5px] font-semibold ${isCurrent ? 'text-primary-text' : done ? 'text-success-text' : 'text-muted-foreground'}`}>{stageLabel}</span>
+                  <span aria-hidden="true" className={`block h-1.5 rounded-full ${partial ? 'bg-secondary' : done ? 'bg-success' : isCurrent ? 'bg-primary' : 'bg-secondary'}`}>
+                    {partial && <span className="block h-full w-1/2 rounded-full bg-success" />}
+                  </span>
                 </div>
-                <p className="mt-1 text-[12px] text-muted-foreground">{showDate(date, t('timeline.dateMissing', 'Date not recorded'))}</p>
-                <p className="text-[12px] text-muted-foreground">{state}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">{meta}</p>
               </li>
             );
           })}
@@ -148,6 +205,9 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
     payments: procurement.payments.map((row) => ({ amount: row.amount, status: row.status })),
     erpDocuments: linkedDocuments.map((doc) => ({ doctype: doc.doctype, grand_total: doc.grandTotal, outstanding_amount: doc.outstanding })),
   });
+  const requestedStartedLater = procurement.purchase_requests.length === 0 && (
+    procurement.purchase_orders.length + procurement.invoices.length + procurement.payments.length + linkedDocuments.length > 0
+  );
   const kinds: ProcurementMoneyKind[] = isEngineer
     ? ['requested', 'ordered']
     : ['unpaid', 'requested', 'ordered', 'invoiced', 'paid'];
@@ -160,8 +220,10 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
   const overdueDays = dueDay != null && dueDay < todayUtc ? Math.floor((todayUtc - dueDay) / 86_400_000) : 0;
 
-  const help = (kind: ProcurementMoneyKind, unknown: boolean) => {
+  const help = (kind: ProcurementMoneyKind, unknown: boolean, absent: boolean) => {
     const label = t(`money.${kind}`, moneyLabels[kind]);
+    if (kind === 'requested' && requestedStartedLater) return t('money.noPurchaseRequest', 'No purchase request: started at the order');
+    if (absent) return t('money.noneRecorded', 'None recorded');
     if (unknown) return t('money.unknown', { defaultValue: '{{figure}} could not be calculated because a source amount is missing. Source: procurement records and linked accounting-system documents.', figure: label });
     if (kind === 'unpaid') return t('money.unpaidHelp', 'Calculated from invoiced less paid amounts, or from linked accounting-system invoice balances. Source: supplier invoices, payments, and linked accounting-system documents.');
     return t('money.calculation', { defaultValue: 'Sum of recorded {{figure}} amounts. Source: procurement records and linked accounting-system documents.', figure: label.toLowerCase() });
@@ -177,21 +239,29 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
         <div className="grid grid-cols-2 gap-x-5 gap-y-4 sm:grid-cols-5">
           {kinds.map((kind) => {
             const figure = money[kind];
-            const unknown = figure.unknown || figure.amount == null;
+            const unknown = figure.unknown;
+            const absent = figure.amount == null && !unknown;
             const lead = kind === 'unpaid' && !unknown && (figure.amount ?? 0) > 0;
+            const explanation = kind === 'requested' && requestedStartedLater
+              ? t('money.noPurchaseRequest', 'No purchase request: started at the order')
+              : unknown
+                ? t('money.amountMissing', 'Amount not recorded')
+                : absent
+                  ? t('money.noneRecorded', 'None recorded')
+                  : null;
             return (
               <div key={kind} className={lead ? 'sm:col-span-1' : ''}>
-                <Tooltip content={help(kind, unknown)} title={`${t(`money.${kind}`, moneyLabels[kind])} calculation`}>
-                  <button type="button" aria-label={`${t(`money.${kind}`, moneyLabels[kind])} calculation`} className="mb-1 inline-flex items-center gap-1 text-left text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground underline decoration-dotted underline-offset-2">
+                <Tooltip content={help(kind, unknown, absent)} title={`${t(`money.${kind}`, moneyLabels[kind])} calculation`}>
+                  <button type="button" aria-label={`${t(`money.${kind}`, moneyLabels[kind])} calculation`} className="mb-1 inline-flex items-center gap-1 text-left text-[12px] font-semibold text-muted-foreground underline decoration-dotted underline-offset-2">
                     {t(`money.${kind}`, moneyLabels[kind])} <Icon name="info" className="size-3" />
                   </button>
                 </Tooltip>
                 <p className={`${lead ? 'text-[20px] font-semibold text-foreground' : 'text-[16px] font-medium text-foreground'} tabular-nums`}>
-                  {unknown ? '—' : formatCurrency(figure.amount ?? 0, procurement.currency)}
+                  {unknown || absent ? '—' : formatCurrency(figure.amount ?? 0, procurement.currency)}
                 </p>
-                {unknown && <p className="mt-0.5 text-[11px] text-muted-foreground">{t('money.amountMissing', 'Amount not recorded')}</p>}
-                {lead && <p className="mt-0.5 text-[11px] text-muted-foreground">{t('money.outstanding', 'Outstanding balance')}</p>}
-                {lead && nextDueDate && <p className={`mt-0.5 text-[11px] ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                {explanation && <p className="mt-0.5 text-[12px] text-muted-foreground">{explanation}</p>}
+                {lead && <p className="mt-0.5 text-[12px] text-muted-foreground">{t('money.outstanding', 'Outstanding balance')}</p>}
+                {lead && nextDueDate && <p className={`mt-0.5 text-[12px] ${overdueDays > 0 ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
                   {overdueDays > 0
                     ? t('money.overdue', { defaultValue: 'Overdue {{days}} days · due {{date}}', days: overdueDays, date: showDate(nextDueDate) })
                     : t('money.due', { defaultValue: 'Due {{date}}', date: showDate(nextDueDate) })}
@@ -206,20 +276,39 @@ export const ProcurementMoneySummary: React.FC<ProcurementMoneySummaryProps> = (
   );
 };
 
+type TimelineIcon = 'plus' | 'up' | 'check' | 'x' | 'dollar' | 'doc' | 'cart' | 'inbox' | 'invoices' | 'payments';
+
 type TimelineEntry = {
   id: string;
   date: string | null;
   label: string;
   number?: string | null;
-  meta?: string;
+  facts?: string[];
   amount?: number | null;
   currency?: string | null;
   note?: string | null;
   actor?: string | null;
-  source?: string;
+  source: 'raised' | 'status' | 'procurement' | 'accounting-system';
+  icon: TimelineIcon;
+  approval?: boolean;
+  overdueDays?: number;
   ledger?: LedgerRow;
   erp?: ErpPurchaseRow;
 };
+
+function overdueDays(value: string | null | undefined): number {
+  if (!value) return 0;
+  const due = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(due.getTime())) return 0;
+  const now = new Date();
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const dueDay = Date.UTC(due.getUTCFullYear(), due.getUTCMonth(), due.getUTCDate());
+  return dueDay < today ? Math.floor((today - dueDay) / 86_400_000) : 0;
+}
+
+function initials(name: string): string {
+  return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+}
 
 export interface ProcurementTimelineProps {
   procurement: ProcurementDetail;
@@ -235,26 +324,53 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
   const { t } = useTranslation('procurementRecord');
   const [filter, setFilter] = useState<'all' | 'financial' | 'has-file'>('all');
   const entries = useMemo(() => {
+    const raisedEntry: TimelineEntry = {
+      id: `raised-${procurement.id}`,
+      date: procurement.created_at,
+      label: t('timeline.procurementRaised', 'Procurement raised'),
+      actor: procurement.requested_by?.full_name ?? null,
+      source: 'raised',
+      icon: 'plus',
+    };
     const statusEntries: TimelineEntry[] = procurement.statusEvents.map((event) => {
       const joined = event as typeof event & { actor?: { full_name?: string | null } | null };
-      const destination = event.to_status === 'Approved' ? t('timeline.approved', 'Approved') : event.to_status === 'Rejected' ? t('timeline.returnedRejected', 'Returned or rejected') : event.to_status === 'Cancelled' ? t('timeline.cancelled', 'Cancelled') : event.to_status === 'Requested' ? t('timeline.submitted', 'Submitted for approval') : String(event.to_status);
-      return { id: `status-${event.id}`, date: event.created_at, label: destination, note: event.notes, actor: joined.actor?.full_name ?? null, source: 'status' };
+      const destination = event.to_status === 'Approved' ? t('timeline.approved', 'Approved')
+        : event.to_status === 'Rejected' ? t('timeline.returnedRejected', 'Returned or rejected')
+          : event.to_status === 'Cancelled' ? t('timeline.cancelled', 'Cancelled')
+            : event.to_status === 'Requested' ? t('timeline.submitted', 'Submitted for approval')
+              : event.to_status === 'Paid' ? t('timeline.paid', 'Paid')
+                : String(event.to_status);
+      const icon: TimelineIcon = event.to_status === 'Approved' ? 'check'
+        : event.to_status === 'Requested' ? 'up'
+          : event.to_status === 'Paid' ? 'dollar'
+            : event.to_status === 'Rejected' || event.to_status === 'Cancelled' ? 'x'
+              : 'doc';
+      return {
+        id: `status-${event.id}`, date: event.created_at, label: destination, note: event.notes,
+        actor: joined.actor?.full_name ?? null, source: 'status', icon,
+        approval: event.to_status === 'Approved',
+      };
     });
     const recordEntries: TimelineEntry[] = ledgerRows
       .map((row) => ({
-        id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber, meta: row.status,
+        id: row.id, date: row.date, label: t(`timeline.record.${row.type}`, typeLabel[row.type]), number: row.systemNumber,
+        facts: [row.status, row.externalRef, row.groupRef, row.fileCount ? `${row.fileCount} ${t('timeline.files', 'files')}` : null].filter((fact): fact is string => Boolean(fact)),
         amount: isEngineer && (row.type === 'Invoice' || row.type === 'Payment') ? null : row.amount,
         currency: row.currency, source: 'procurement', ledger: row,
+        icon: row.type === 'PO' ? 'cart' : row.type === 'GR' ? 'inbox' : row.type === 'Invoice' ? 'invoices' : row.type === 'Payment' ? 'payments' : 'doc',
       }));
     const erpEntries: TimelineEntry[] = linkedDocuments
       .filter((doc) => !(isEngineer && (doc.doctype === 'Purchase Invoice' || doc.doctype === 'Payment Entry')))
       .map((doc) => ({
         id: `erp-${doc.id}`, date: doc.docDate, label: doc.doctype === 'Purchase Invoice' ? t('timeline.supplierInvoice', 'Supplier invoice') : doc.doctype === 'Purchase Receipt' ? t('timeline.receipt', 'Receipt') : doc.doctype === 'Purchase Order' ? t('timeline.order', 'Order') : t('timeline.payment', 'Payment'), number: doc.name,
-        meta: [doc.supplier, doc.erpStatus].filter(Boolean).join(' · '), amount: isEngineer ? null : doc.grandTotal,
-        currency: doc.currency, source: 'accounting-system', erp: doc,
+        facts: [doc.supplier, doc.erpStatus, doc.billNo ? `${t('timeline.supplierReference', 'Supplier reference')} ${doc.billNo}` : null, doc.dueDate ? `${t('timeline.dueDate', 'Due')} ${showDate(doc.dueDate, t('timeline.dateMissing', 'Date not recorded'))}` : null].filter((fact): fact is string => Boolean(fact)),
+        amount: isEngineer ? null : doc.grandTotal,
+        currency: doc.currency, source: 'accounting-system', erp: doc, overdueDays: (doc.outstanding ?? 0) > 0 ? overdueDays(doc.dueDate) : 0,
+        icon: doc.doctype === 'Purchase Order' ? 'cart' : doc.doctype === 'Purchase Receipt' ? 'inbox' : doc.doctype === 'Purchase Invoice' ? 'invoices' : 'payments',
       }));
-    return [...statusEntries, ...recordEntries, ...erpEntries].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.id.localeCompare(b.id));
-  }, [procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
+    return [raisedEntry, ...statusEntries, ...recordEntries, ...erpEntries]
+      .sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.id.localeCompare(b.id));
+  }, [procurement.created_at, procurement.id, procurement.requested_by?.full_name, procurement.statusEvents, ledgerRows, linkedDocuments, isEngineer, t]);
   const visible = entries.filter((entry) => filter === 'all'
     || (filter === 'financial' ? Boolean(entry.ledger?.financial || entry.erp) : (entry.ledger?.fileCount ?? 0) > 0));
 
@@ -278,21 +394,33 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
             {visible.map((entry) => (
               <li key={entry.id} data-testid="procurement-timeline-row" className="py-2.5 first:pt-0 last:pb-0">
                 <details>
-                  <summary className="grid cursor-pointer list-none grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                    <span aria-hidden="true" className="mt-1.5 size-2 rounded-full bg-primary" />
-                    <span className="min-w-0">
-                      <span className="block text-[13.5px] font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-[12px]">{entry.number}</span> : null}</span>
-                      <span className="block text-[12px] text-muted-foreground">{entry.actor ? `${entry.actor} · ` : ''}{entry.note ?? entry.meta ?? ''}{entry.source === 'accounting-system' ? `${entry.meta ? ' · ' : ''}${t('timeline.fromAccounting', 'from accounting system')}` : ''}{entry.ledger?.fileCount ? ` · ${entry.ledger.fileCount} ${t('timeline.files', 'files')}` : ''}</span>
+                  <summary className="grid cursor-pointer list-none grid-cols-[20px_92px_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring max-[640px]:grid-cols-[20px_minmax(0,1fr)_auto]">
+                    <span aria-hidden="true" className={`grid size-5 place-items-center rounded-full ${entry.source === 'accounting-system' ? 'bg-violet/10 text-status-violet-text' : entry.approval ? 'bg-success/10 text-success-text' : 'bg-secondary text-secondary-foreground'}`}>
+                      <Icon name={entry.icon} className="size-3.5" />
                     </span>
-                    <span className="whitespace-nowrap text-[12px] text-muted-foreground">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
+                    <span className="whitespace-nowrap text-[12px] text-muted-foreground max-[640px]:col-start-2 max-[640px]:row-start-1">{showDate(entry.date, t('timeline.dateMissing', 'Date not recorded'))}</span>
+                    <span className="min-w-0 max-[640px]:col-start-2">
+                      <span className="block text-[13.5px] font-medium">{entry.label}{entry.number ? <span className="ml-1 font-mono text-[12px]">{entry.number}</span> : null}</span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-muted-foreground">
+                        {entry.actor && <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                          <span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[12px] font-semibold text-secondary-foreground">{initials(entry.actor)}</span>
+                          <span>{entry.actor}</span>
+                        </span>}
+                        {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}
+                        {entry.note && <span>{entry.note}</span>}
+                        {entry.source === 'accounting-system' && <span>{t('timeline.fromAccounting', 'from accounting system')}</span>}
+                        {entry.overdueDays ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive-text">{t('money.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}</span> : null}
+                      </span>
+                    </span>
                     {entry.amount != null && entry.currency && !isEngineer && (
-                      <Tooltip content={`Amount on this ${entry.label.toLowerCase()}. Source: ${entry.source === 'accounting-system' ? 'linked accounting-system document' : 'procurement record'}.`}>
-                        <span tabIndex={0} className="col-start-2 text-[12.5px] font-medium tabular-nums">{formatCurrency(Number(entry.amount), entry.currency)}</span>
-                      </Tooltip>
+                      <span className="text-right max-[640px]:col-start-3 max-[640px]:row-start-1">
+                        <Tooltip content={`Amount on this ${entry.label.toLowerCase()}. Source: ${entry.source === 'accounting-system' ? 'linked accounting-system document' : 'procurement record'}.`}>
+                          <span tabIndex={0} className="whitespace-nowrap text-[12.5px] font-medium tabular-nums">{formatCurrency(Number(entry.amount), entry.currency)}</span>
+                        </Tooltip>
+                      </span>
                     )}
                   </summary>
-                  <div className="ml-5 mt-2 border-l border-border pl-3 text-[12.5px] text-muted-foreground">
-                    {entry.note && <p className="mb-2 text-foreground">{entry.note}</p>}
+                  <div className="ml-[128px] mt-2 border-l border-border pl-3 text-[12.5px] text-muted-foreground max-[640px]:ml-8">
                     {entry.erp && <dl className="mb-2 grid grid-cols-2 gap-x-4 gap-y-1"><dt>{t('details.supplier', 'Supplier')}</dt><dd>{entry.erp.supplier ?? '—'}</dd><dt>{t('timeline.status', 'Status')}</dt><dd>{entry.erp.erpStatus ?? '—'}</dd><dt>{t('timeline.dueDate', 'Due date')}</dt><dd>{showDate(entry.erp.dueDate, t('timeline.dateMissing', 'Date not recorded'))}</dd></dl>}
                     {entry.ledger && <>
                       {entry.ledger.groupRef && <p>Group ref · {entry.ledger.groupRef}</p>}
