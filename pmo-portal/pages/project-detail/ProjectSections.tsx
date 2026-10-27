@@ -1,21 +1,15 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, MobileActionBar, Tabs, tabId, tabPanelId, type TabItem } from '@/src/components/ui';
+import { Button, ListState, MobileActionBar, Tabs, tabId, tabPanelId, type TabItem } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
-import { useProjectBudget } from '@/src/hooks/useBudget';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { useProjectProcurements } from '@/src/hooks/useProcurements';
-import { useTasks } from '@/src/hooks/useTasks';
-import { useComments } from '@/src/hooks/useComments';
-import { moneyUnits } from '@/src/lib/projectFinances';
-import { formatNumberWhole } from '@/src/lib/format';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
-import { LatestComments, MyOpenTasks, ProjectActivity } from './ProjectActivity';
+import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
 import ProjectDrawdown from './ProjectDrawdown';
 import { ContractCascade, type CascadeView } from './ContractCascade';
 
@@ -27,13 +21,12 @@ const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
 const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
 const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
 
-import { AREAS, type Area, type Layout } from './projectDetailAreas';
+import { AREAS, type Area } from './projectDetailAreas';
 
 type Lens = 'money' | 'pm' | 'delivery';
 
 interface Props {
   project: ProjectWithRefs;
-  layout: Layout;
   area: Area;
   setArea: (area: Area) => void;
   isPipeline: boolean;
@@ -52,7 +45,7 @@ const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 /** The overview, led by what this role came for (brief: exec/admin/finance money, PM budget, engineer tasks). */
-const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void; withActivity?: boolean }> = ({ project, isPipeline, onOpen, withActivity = false }) => {
+const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
@@ -78,7 +71,6 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <DeliveryBlock projectId={project.id} isPipeline={isPipeline}>{curve}</DeliveryBlock>
         </div>
       )}
-      {withActivity && <ProjectActivity projectId={project.id} compact />}
     </div>
   );
 };
@@ -148,18 +140,21 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
   const may = usePermission();
   const lens = useLens();
   return AREAS.filter((a) => {
+    // A deal not yet won has no orders, billing or purchases (brief addendum, #1402).
     if (a === 'contract') return !isPipeline && lens !== 'delivery' && may('view', 'workOrder');
+    if (a === 'procurement') return !isPipeline;
     if (a === 'budget') return lens !== 'delivery';
     return true;
   });
 }
 
-/* ── Option A+C: tabs for this project's areas; activity on demand in a drawer ─────────────── */
-const TabsLayout: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
+/** The project's areas as tabs under one header (owner pick A+C, #1402); activity opens from the Overview foot. */
+const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
   const { t } = useTranslation();
   const labels = useAreaLabels();
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
-  const panel: Area = area === 'activity' ? 'overview' : area;
+  // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
+  const panel: Area = (areas as Area[]).includes(area) ? area : 'overview';
   const items: TabItem<Area>[] = areas.map((a) => ({ value: a, label: labels[a] }));
   return (
     <>
@@ -172,144 +167,10 @@ const TabsLayout: React.FC<Props> = ({ project, area, setArea, isPipeline, heade
             : <AreaContent project={project} area={panel} />}
         </Suspended>
       </div>
+      {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
+      {panel === 'overview' && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
     </>
   );
-};
-
-/* ── Option B: one long page, jump menu on the left ────────────────────────────────────── */
-const LongPageLayout: React.FC<Props> = ({ project, isPipeline, header }) => {
-  const labels = useAreaLabels();
-  const areas = useVisibleAreas(isPipeline);
-  const jump = (a: Area) => document.getElementById(`pd-area-${a}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  const [active, setActive] = React.useState<Area>('overview');
-  const areaKey = areas.join(',');
-  React.useEffect(() => {
-    const io = new IntersectionObserver((entries) => {
-      const hit = entries.filter((e) => e.isIntersecting).sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)[0];
-      if (hit) setActive(hit.target.id.replace('pd-area-', '') as Area);
-    }, { rootMargin: '0px 0px -70% 0px' });
-    areaKey.split(',').forEach((a) => { const el = document.getElementById(`pd-area-${a}`); if (el) io.observe(el); });
-    return () => io.disconnect();
-  }, [areaKey]);
-  return (
-    <>
-      {header}
-      <div className="lg:grid lg:grid-cols-[176px_minmax(0,1fr)] lg:gap-10">
-        <nav aria-label={labels.overview} className="sticky top-0 z-10 -mx-4 mb-6 overflow-x-auto border-b border-border bg-background px-4 lg:top-6 lg:mx-0 lg:mb-0 lg:self-start lg:border-0 lg:px-0">
-          <ul className="flex gap-1 lg:flex-col">
-            {areas.map((a) => (
-              <li key={a}>
-                <button type="button" onClick={() => jump(a)} aria-current={active === a ? 'location' : undefined}
-                  className={`touch-target whitespace-nowrap rounded-md px-3 py-2 text-left text-sm hover:bg-accent hover:text-foreground lg:w-full ${active === a ? 'bg-accent font-semibold text-foreground' : 'text-muted-foreground'}`}>
-                  {labels[a]}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </nav>
-        <div className="flex min-w-0 flex-col gap-16">
-          {areas.map((a) => (
-            <section key={a} id={`pd-area-${a}`} aria-labelledby={`pd-area-h-${a}`} className="min-w-0 scroll-mt-6">
-              <h2 id={`pd-area-h-${a}`} className="mb-4 border-b border-border pb-2 text-base font-semibold text-foreground">{labels[a]}</h2>
-              <Suspended>
-                {a === 'overview' ? <OverviewContent project={project} isPipeline={isPipeline} onOpen={jump} /> : <AreaContent project={project} area={a} />}
-              </Suspended>
-            </section>
-          ))}
-        </div>
-      </div>
-    </>
-  );
-};
-
-/* ── Option C: overview hub, areas open as their own pages, activity beside ─────────────── */
-/** One work area as a list row: name, its live cue, and a way in. Rows, not a card grid. */
-const AreaRow: React.FC<{ to: string; title: string; line: React.ReactNode; className?: string }> = ({ to, title, line, className }) => (
-  <li className={className}>
-    <Link to={to} className="touch-target flex items-baseline gap-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="w-40 shrink-0 text-sm font-semibold text-foreground">{title}</span>
-      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{line}</span>
-      <Icon name="chev" className="size-4 shrink-0 self-center text-muted-foreground" />
-    </Link>
-  </li>
-);
-
-const AreaCards: React.FC<{ project: ProjectWithRefs; areas: Area[]; base: string }> = ({ project, areas, base }) => {
-  const { t } = useTranslation();
-  const labels = useAreaLabels();
-  const may = usePermission();
-  const tasks = useTasks(project.id);
-  const procs = useProjectProcurements(may('view', 'procurement') ? project.id : null);
-  const finances = useProjectFinances(project.id, { enabled: may('view', 'salesInvoice') });
-  const budget = useProjectBudget(project.id);
-  const comments = useComments('project', project.id);
-  const open = (tasks.data ?? []).filter((x) => x.status !== 'Done').length;
-  const blocked = (tasks.data ?? []).filter((x) => x.status === 'Blocked').length;
-  const openProcs = (procs.data ?? []).filter((p) => !['Paid', 'Cancelled', 'Rejected'].includes(p.status as string)).length;
-  const blockedPart = blocked > 0 ? t('projectDetail.hub.blocked', ' · {{count}} blocked', { count: blocked }) : '';
-  const left = moneyUnits(finances.data?.remaining_to_invoice ?? null);
-  const lines: Record<Area, React.ReactNode> = {
-    overview: null,
-    budget: budget.data ? t('projectDetail.hub.budgetLines', 'Lines, versions and forecast') : t('projectDetail.hub.noBudget', 'No active budget yet'),
-    procurement: procs.data ? t('projectDetail.hub.procurement', '{{count}} open requests', { count: openProcs }) : null,
-    tasks: t('projectDetail.hub.tasks', '{{open}} open on this project', { open }) + blockedPart,
-    contract: left !== null && left > 0n ? t('projectDetail.hub.contractLeft', '{{amount}} {{currency}} left to invoice', { amount: formatNumberWhole(Number(finances.data?.remaining_to_invoice)), currency: project.currency }) : null,
-    documents: null,
-    activity: t('projectDetail.hub.activity', '{{count}} comments', { count: comments.data?.length ?? 0 }),
-  };
-
-  return (
-    <section aria-labelledby="pd-areas">
-      <h2 id="pd-areas" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.hub.title', 'Work areas')}</h2>
-      <ul className="divide-y divide-border/70 border-y border-border/70">
-        {areas.filter((a) => a !== 'overview').map((a) => (
-          // Activity lives in the side panel at xl; below that it is a row like the others.
-          <AreaRow key={a} to={`${base}/${a}`} title={labels[a]} line={lines[a]} className={a === 'activity' ? 'xl:hidden' : undefined} />
-        ))}
-      </ul>
-    </section>
-  );
-};
-
-const HubLayout: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
-  const { t } = useTranslation();
-  const labels = useAreaLabels();
-  const areas = useVisibleAreas(isPipeline);
-  const base = `/projects/${project.id}`;
-  if (area !== 'overview') {
-    return (
-      <>
-        <Link to={base} className="mb-3 inline-flex items-center gap-1 text-sm font-semibold text-primary-text hover:underline">
-          <Icon name="chev" className="size-4 rotate-180" />
-          {t('projectDetail.hub.back', '{{name}} overview', { name: project.short_name || project.name })}
-        </Link>
-        <h1 className="mb-6 text-xl font-semibold text-foreground">{labels[area]}</h1>
-        <Suspended><AreaContent project={project} area={area} /></Suspended>
-      </>
-    );
-  }
-  return (
-    <>
-      {header}
-      <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_340px] xl:gap-10">
-        <div className="flex min-w-0 flex-col gap-10">
-          <Suspended><OverviewContent project={project} isPipeline={isPipeline} onOpen={setArea} /></Suspended>
-          <div className="xl:hidden"><LatestComments projectId={project.id} to={`${base}/activity`} /></div>
-          <AreaCards project={project} areas={areas} base={base} />
-        </div>
-        <aside aria-label={labels.activity} className="hidden min-w-0 border-l border-border pl-6 xl:block">
-          <h2 className="mb-3 text-sm font-semibold text-foreground">{labels.activity}</h2>
-          <ProjectActivity projectId={project.id} compact />
-        </aside>
-      </div>
-    </>
-  );
-};
-
-const ProjectDetailOptions: React.FC<Props> = (props) => {
-  if (props.layout === 'b') return <LongPageLayout {...props} />;
-  if (props.layout === 'c') return <HubLayout {...props} />;
-  return <TabsLayout {...props} />;
 };
 
 /**
@@ -347,4 +208,4 @@ export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeli
     : button;
 };
 
-export default ProjectDetailOptions;
+export default ProjectSections;

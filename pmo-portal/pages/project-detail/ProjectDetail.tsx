@@ -1,9 +1,9 @@
 import { companyDisplayName } from '@/src/lib/companyDisplayName';
 import { pickClassification } from '@/src/lib/projectClassification';
-import React, { useLayoutEffect, useMemo, useState } from 'react';
+import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Tabs, tabId, tabPanelId, ListState, useToast, type TabItem } from '@/src/components/ui';
+import { ListState, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
@@ -11,77 +11,28 @@ import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
-import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
-import ProjectDetailHeader, { hasFinanceView } from './ProjectDetailHeader';
+import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
-import MilestoneStrip from './MilestoneStrip';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
-import { ActivityFooter } from './ProjectActivity';
-import ProjectDetailOptions, { PrimaryProjectAction } from './ProjectDetailOptions';
-import { areaFromParam, type Area, type Layout } from './projectDetailAreas';
-
-// ponytail: prototype switch for the three IA options; the chosen one replaces the default shell.
-function readLayout(search: string): Layout | null {
-  const fromUrl = new URLSearchParams(search).get('layout');
-  if (fromUrl === 'a' || fromUrl === 'b' || fromUrl === 'c') sessionStorage.setItem('pd-layout', fromUrl);
-  else if (fromUrl === 'off') sessionStorage.removeItem('pd-layout');
-  const v = sessionStorage.getItem('pd-layout');
-  return v === 'a' || v === 'b' || v === 'c' ? v : null;
-}
-
-const OverviewTab = React.lazy(() => import('./tabs/OverviewTab'));
-const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
-const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
-const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
-const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
-const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
-const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
-const ProjectProfitLossSection = React.lazy(() => import('./ProjectProfitLossSection'));
-const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
-const CommentsSection = React.lazy(() =>
-  import('@/src/components/comments/CommentsSection').then(({ CommentsSection }) => ({ default: CommentsSection })),
-);
-const RecordHistory = React.lazy(() =>
-  import('@/src/components/history/RecordHistory').then(({ RecordHistory }) => ({ default: RecordHistory })),
-);
-
-type PTab = 'overview' | 'budget' | 'procurement' | 'tasks' | 'work-orders' | 'billing' | 'documents' | 'history';
+import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
+import { areaFromParam, type Area } from './projectDetailAreas';
 
 /**
- * Route shell for `/projects/:projectId` — the ONE canonical detail route for a project at EVERY
- * stage (Model B, ADR-0020). It reads the record by id (`useProject`, never the whole list), which
- * resolves a record at any stage — the canonical route opens regardless of stage. ADR-0021 (supersedes ADR-0020 §1): the page is UNIFIED —
- * the shared header + the five delivery Tabs (Overview/Budget/Procurement/Tasks/Documents) render
- * at every stage; a pipeline | lost record additionally gets the PipelineLens deal-progression
- * banner above the tabs. A cold deep-link shows ListState loading; a truly-absent record shows an
- * error with a Back action.
+ * Route shell for `/projects/:projectId[/:tab]`, the one detail route for a project at every stage
+ * (ADR-0021). Header, then the project's areas as tabs (#1402): Overview · Budget · Procurement · Tasks ·
+ * Contract & billing · Documents. Old `work-orders`/`billing`/`history` links land on their merged area.
+ * A pipeline deal gets the deal banner above the tabs. Activity opens in a drawer from the Overview foot.
  */
-/** Resolve the active tab from the URL :tab param (B-9, AC-W2-IA-004). All five
- *  tabs are now deep-linkable symmetrically; an absent/unknown value defaults to Overview.
- *
- *  CW-7 (coherence wave §3): `/projects/:id` ALWAYS defaults to Overview for EVERY role — the URL
- *  is role-invariant (a role-variant default was a wayfinding bug: the same link landed PM/Admin on
- *  Overview but Engineer on Tasks). Engineer task entry points deep-link to `/projects/:id/tasks`
- *  explicitly (e.g. the My Tasks project headers) rather than mutating the default. An explicit
- *  :tab param always wins (every tab stays deep-linkable). */
-const TAB_VALUES: PTab[] = ['overview', 'budget', 'procurement', 'tasks', 'work-orders', 'billing', 'documents', 'history'];
-function tabFromParam(param: string | undefined): PTab {
-  if (param && (TAB_VALUES as string[]).includes(param)) return param as PTab;
-  return 'overview';
-}
-
 const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { realRole } = useEffectiveRole();
   const may = usePermission();
-  const canSeeBilling = may('view', 'progressClaim');
   const { t } = useTranslation();
   const {
     data: project,
@@ -94,23 +45,6 @@ const ProjectDetail: React.FC = () => {
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
-
-  // Tab labels live here (not at module scope) so they can be translated; the tab
-  // VALUES and their order stay in TAB_VALUES above.
-  const tabItems: TabItem<PTab>[] = useMemo(
-    () => [
-      { value: 'overview', label: t('projectDetail.tabs.overview', 'Overview') },
-      { value: 'budget', label: t('projectDetail.tabs.budget', 'Budget') },
-      { value: 'procurement', label: t('projectDetail.tabs.procurement', 'Procurement') },
-      { value: 'tasks', label: t('projectDetail.tabs.tasks', 'Tasks') },
-      ...(isPipelineRecord ? [] : [{ value: 'work-orders' as const, label: t('projectDetail.tabs.workOrders', 'Work orders') }]),
-      // SUB-A: a pre-win deal has no work orders or billing yet, so those tabs only appear once won.
-      ...(canSeeBilling && !isPipelineRecord ? [{ value: 'billing' as const, label: t('projectDetail.tabs.billing', 'Billing') }] : []),
-      { value: 'documents', label: t('projectDetail.tabs.documents', 'Documents') },
-      { value: 'history', label: t('projectDetail.tabs.history', 'History') },
-    ],
-    [t, canSeeBilling, isPipelineRecord],
-  );
 
   // Committed spend sums every request on the project. A role that reads only the requests it raised
   // (Engineer, migration 0350) would get a partial sum, so it gets no project-wide figure at all.
@@ -135,25 +69,11 @@ const ProjectDetail: React.FC = () => {
     return () => setEntity(undefined);
   }, [project, setEntity]);
 
-  // B-9 (AC-W2-IA-004): tab derived from URL param. CW-7: an absent/unknown :tab defaults to
-  // Overview for EVERY role — the URL is role-invariant. An explicit :tab param always wins.
-  const requestedTab = tabFromParam(tabParam);
-  // SUB-A: a pre-win record has no Work orders / Billing tab; their deep links land on Overview.
-  const tab: PTab = isPipelineRecord && (requestedTab === 'work-orders' || requestedTab === 'billing') ? 'overview' : requestedTab;
-  // OD-W5-C3-A: delivery-forward roles (Engineer, !hasFinanceView) relocate the finance strip into
-  // the Overview tab's "Financial summary" aside (header stays delivery-meta). This still keys on
-  // role — but only the finance-summary PLACEMENT, never the default tab (CW-7).
-  const isDeliveryForward = !hasFinanceView(realRole);
-  const setTab = (next: PTab) => {
+  const area = areaFromParam(tabParam);
+  const setArea = (next: Area) => {
     trackProjectTabViewed(next);
-    // list-working-set-return (#682): forward the current router state so a captured
-    // `pmoListReturn` context (and any one-shot scroll restore) survives a tab switch.
-    // #879: mark the navigation as an in-page tab switch so AppShell's route-focus
-    // effect keeps focus in the tab bar (WCAG 2.4.3); Tabs moves focus to the new tab.
-    navigate(`/projects/${projectId}/${next}`, {
-      replace: true,
-      state: withTabSwitchNavState(location.state),
-    });
+    // #682: keep the captured list-return context; #879: an in-page tab switch keeps focus in the tab bar.
+    navigate(`/projects/${projectId}${next === 'overview' ? '' : `/${next}`}`, { replace: true, state: withTabSwitchNavState(location.state) });
   };
 
   // Back to the Projects index (AC-NAV-007/AC-LRC-003): `returnToList` navigates to the
@@ -220,195 +140,25 @@ const ProjectDetail: React.FC = () => {
     );
   }
 
-  const layout = readLayout(location.search);
-  if (layout) {
-    const area = areaFromParam(tabParam);
-    const setArea = (next: Area) => navigate(`/projects/${projectId}${next === 'overview' ? '' : `/${next}`}`, { state: withTabSwitchNavState(location.state) });
-    const header = (
-      <>
-        <ProjectDetailHeader project={project} committedSpend={committedSpend} committedOtherCurrencies={committedOtherCurrencies}
-          commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} commitmentPending={commitmentPending}
-          commitmentError={commitmentError} onEditProject={openEditProject} compact
-          primaryAction={<span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} /></span>} />
-        {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
-        <ProjectDetailRail project={project} onEditProject={openEditProject} showActionSection={!isPipelineRecord}
-          summaryLabel={t('projectDetail.rail.detailsShort', 'Details, codes and status')} quiet />
-        <div className="mb-4" />
-      </>
-    );
-    return (
-      <div>
-        <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-        <ProjectDetailOptions project={project} layout={layout} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
-        {/* Activity is about the project as a whole, so it lives on Overview only (owner, 2026-10-27). */}
-        {layout === 'a' && (area === 'overview' || area === 'activity') && <ActivityFooter projectId={project.id} initialOpen={area === 'activity'} />}
-        <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} mobileBar />
-        {editOpen && (
-          <ProjectFormModal mode="editHeader" initial={{ ...pickClassification(project), id: project.id, name: project.name, short_name: project.short_name,
-            code: project.code, client_id: project.client_id, project_manager_id: project.project_manager_id,
-            clientName: project.client ? companyDisplayName(project.client) : null, end_client_id: project.end_client_id,
-            endClientName: project.end_client ? companyDisplayName(project.end_client) : null, pmName: project.pm?.full_name ?? null,
-            start_date: project.start_date, end_date: project.end_date }}
-            onClose={closeEditProject} onSave={saveProjectHeader} onError={onProjectEditError} />
-        )}
-      </div>
-    );
-  }
-
-  // ADR-0021 (supersedes ADR-0020 §1): ONE unified detail page at every stage. The full delivery
-  // layout (header + the five tabs) always renders, so a PM can plan budget/tasks/procurement while
-  // a deal is still in the pipeline (the backend gates those writes on org/role, not project
-  // status). A pre-win (pipeline) or terminal (lost) record additionally gets the PipelineLens
-  // deal-progression BANNER above the tabs (stage stepper + Advance/Mark won/Mark lost + deal
-  // figures); on win the banner disappears and the delivery tiles appear — one continuous page.
-  const isPipeline = isPipelineRecord;
-  const tabPanel = (
-    <div
-      role="tabpanel"
-      id={tabPanelId('project-detail', tab)}
-      aria-labelledby={tabId('project-detail', tab)}
-    >
-      <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" testId="project-detail-panel-loading" />}>
-        {tab === 'overview' && (
-          // PD-B: one rhythm (gap-8) and no wrappers — a section with nothing to show renders
-          // nothing, so it leaves no empty slot or stray margin behind.
-          <div className="flex min-w-0 flex-col gap-8">
-            {/* UIP-005: the full actionable planner is Overview work, not common chrome. */}
-            <MilestoneStrip projectId={project.id} compactWhenEmpty={isPipeline} />
-            <OverviewTab
-              project={project}
-              committedSpend={committedSpend}
-              committedOtherCurrencies={committedOtherCurrencies}
-              commitmentSource={commitmentSource}
-              ledgerBasis={ledgerBasis}
-              commitmentPending={commitmentPending}
-              commitmentError={commitmentError}
-              setTab={setTab}
-              // D15 (OD-W5-C3-A): pass the finance summary to delivery-forward roles only.
-              // Finance-forward roles (Admin·Exec·Finance·PM) keep the finance block in the header.
-              showFinanceSummary={isDeliveryForward && !isPipeline}
-            />
-            <React.Suspense fallback={null}>
-              <ProjectProfitLossSection projectId={project.id} />
-            </React.Suspense>
-            {/* AC-IFW-RECORD-02: S-curve is an Overview-panel widget, hidden for pre-win records
-                (no real progress data). Scoped here, not at shell level, so it never bleeds into
-                the other tabs. */}
-            {!isPipeline && (
-              <React.Suspense fallback={null}>
-                <ProjectSCurve projectId={project.id} />
-              </React.Suspense>
-            )}
-            <React.Suspense fallback={<ListState variant="loading" rows={2} className="min-h-32" />}>
-              <CommentsSection entityType="project" entityId={project.id} />
-            </React.Suspense>
-          </div>
-        )}
-        {tab === 'budget' && <BudgetTab projectId={project.id} />}
-        {tab === 'procurement' && <ProcurementTab projectId={project.id} />}
-        {tab === 'tasks' && <TasksTab projectId={project.id} projectName={project.name} />}
-        {tab === 'work-orders' && (
-          <WorkOrdersTab
-            projectId={project.id}
-            currency={project.currency}
-            clientId={project.client_id ?? null}
-            focusWorkOrderId={new URLSearchParams(location.search).get('wo')}
-            projectManagerId={project.project_manager_id ?? null}
-          />
-        )}
-        {tab === 'billing' && canSeeBilling && (
-          <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-            projectManagerId={project.project_manager_id ?? null} />
-        )}
-        {tab === 'documents' && <DocumentsTab projectId={project.id} projectCode={project.code} />}
-        {tab === 'history' && (
-          <RecordHistory entityType="project" entityId={project.id} includeChildren kindFilters />
-        )}
-      </React.Suspense>
-    </div>
+  const header = (
+    <>
+      <ProjectDetailHeader project={project} committedSpend={committedSpend} committedOtherCurrencies={committedOtherCurrencies}
+        commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} commitmentPending={commitmentPending}
+        commitmentError={commitmentError} onEditProject={openEditProject} compact
+        primaryAction={<span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} /></span>} />
+      {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
+      <ProjectDetailRail project={project} onEditProject={openEditProject} showActionSection={!isPipelineRecord}
+        summaryLabel={t('projectDetail.rail.detailsShort', 'Details, codes and status')} quiet />
+      <div className="mb-4" />
+    </>
   );
 
   return (
     <div>
-      {/* C-IMP-1 / #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the
-          loaded record shows the in-page BackBar up to 920px (CSS-only via `phoneOnly`, same
-          rule as every other record page and this page's loading / not-found states). */}
+      {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
-      {/* I7: no in-page Breadcrumb on the success render — above 920px the top-bar
-          breadcrumb (Projects/Sales Pipeline > record) is the single wayfinding surface.
-          The Breadcrumb is kept on the loading / not-found branches above. The shared header renders
-          at every stage so a record's wayfinding is identical regardless of stage. */}
-
-      {/* AC-IFW-RECORD-01 (Lens-D): pre-win layout — sales levers first so the deal
-          actions are above the fold; delivery planner is demoted below; S-curve is hidden
-          (buildSCurve([]) shows an empty chart for a pre-win record — cut the noise).
-          AC-IFW-RECORD-02 (Lens-D): delivery layout — stepper → tabs → S-curve, so the
-          actionable tab bar surfaces above the fold rather than buried beneath the S-curve. */}
-      {isPipeline ? (
-        <>
-          <ProjectDetailHeader
-            project={project}
-            committedSpend={committedSpend}
-            committedOtherCurrencies={committedOtherCurrencies}
-            commitmentSource={commitmentSource}
-            ledgerBasis={ledgerBasis}
-            commitmentPending={commitmentPending}
-            commitmentError={commitmentError}
-            onEditProject={openEditProject}
-          />
-
-          {/* Pre-win: deal-progression banner FIRST (the sales levers). */}
-          <div className="mb-8">
-            <PipelineLens project={project} locationState={location.state} />
-          </div>
-          {/* Classification, codes and the ERP project link live in the one closed details disclosure. */}
-          <ProjectDetailRail project={project} showActionSection={false} />
-
-          {/* Phase planning stays available in Overview at every stage. */}
-          {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
-
-          {/* Pre-win: S-curve is hidden — no real progress data exists yet for an opportunity.
-              Guard: {!isPipeline && <ProjectSCurve …/>} per the design plan. */}
-
-          {/* Delivery tabs rendered for pre-win so budget/tasks/procurement are reachable (ADR-0021). */}
-          <Tabs<PTab>
-            items={tabItems}
-            value={tab}
-            onChange={setTab}
-            ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-            idBase="project-detail"
-          />
-          {tabPanel}
-        </>
-      ) : (
-        <>
-          <div className="min-w-0">
-            <ProjectDetailHeader
-              project={project}
-              committedSpend={committedSpend}
-              committedOtherCurrencies={committedOtherCurrencies}
-              commitmentSource={commitmentSource}
-              ledgerBasis={ledgerBasis}
-              commitmentPending={commitmentPending}
-              commitmentError={commitmentError}
-              onEditProject={openEditProject}
-            />
-            <ProjectDetailRail project={project} onEditProject={openEditProject} />
-
-            {/* Common chrome stays compact; the selected section follows immediately. */}
-            {tab !== 'overview' && <MilestoneStrip projectId={project.id} summary />}
-
-            <Tabs<PTab>
-              items={tabItems}
-              value={tab}
-              onChange={setTab}
-              ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
-              idBase="project-detail"
-            />
-            {tabPanel}
-          </div>
-        </>
-      )}
+      <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
+      <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} mobileBar />
       {editOpen && (
         <ProjectFormModal
           mode="editHeader"
