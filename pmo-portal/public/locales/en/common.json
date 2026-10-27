@@ -1908,46 +1908,8 @@
       "lineItems": "Line items",
       "viewFullRequest": "View full request"
     },
-    "column": {
-      "lifecycle": "Lifecycle",
-      "project": "Project",
-      "request": "Request",
-      "requestedBy": "Requested by",
-      "status": "Status",
-      "value": "Value"
-    },
-    "empty": {
-      "orgWide": {
-        "title": "No purchase requests yet"
-      },
-      "ownScoped": {
-        "title": "You haven't raised any requests yet"
-      }
-    },
-    "error": {
-      "sub": "Something went wrong fetching your requests.",
-      "title": "Couldn't load procurements"
-    },
     "filter": {
-      "all": "All",
-      "needsApproval": "Needs approval",
-      "open": "Open",
-      "ordered": "Ordered",
-      "paid": "Paid",
-      "vendorInvoiced": "Vendor invoiced"
-    },
-    "importCycleData": "Import cycle data",
-    "lifecycleLabel": "Lifecycle",
-    "listLabel": "Procurement requests",
-    "noMatch": {
-      "clearFilters": "Clear filters",
-      "sub": "Try a different status, search term, or clear the filters.",
-      "title": "No requests match your filters"
-    },
-    "raiseRequest": "Raise request",
-    "search": {
-      "label": "Filter requests",
-      "placeholder": "Filter requests or references…"
+      "paid": "Paid"
     },
     "stage": {
       "gr": "Goods Receipt",
@@ -1956,19 +1918,7 @@
       "pr": "Purchase Request",
       "vi": "Vendor Invoice",
       "vq": "Vendor Quote"
-    },
-    "stageEmpty": "No requests at {{stage}}",
-    "statusFilterLabel": "Status filter",
-    "title": {
-      "orgWide": "Procurement",
-      "ownScoped": "Your purchase requests"
-    },
-    "unknownRequester": "Unknown",
-    "view": {
-      "board": "Board",
-      "table": "Table"
-    },
-    "viewToggleLabel": "Procurement view"
+    }
   },
   "procurementLedger": {
     "title": "Case ledger",
@@ -4829,10 +4779,6 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "more": "More",
-    "pageDescriptionOrgWide": "Raise requests and track approvals, orders and payments. Open a request for its full history.",
-    "pageDescriptionOwnScoped": "Track the requests you raised from approval through payment.",
-    "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
     "projectEmptyScope": "This list covers PMO requests. Purchases recorded in ERPNext appear below.",
     "dashboardEmpty": "No PMO requests to show"
   },

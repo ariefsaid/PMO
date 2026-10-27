@@ -1,20 +1,39 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import React from 'react';
-import { Kanban, KanbanColumn, KanbanCard } from '@/src/components/ui';
+import { Kanban, KanbanCard, KanbanColumn } from '@/src/components/ui';
 import { formatCurrency } from '@/src/lib/format';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import type { NeedsYouReason } from '@/pages/procurement/blocks/needsYou';
 import { useTranslation } from 'react-i18next';
-import { useProcurementStageLabel } from '@/src/hooks/useProcurementStageLabel';
-import { PR_STAGES, stageIndexForStatus } from './procurement';
+import { figureForListRow, totalsByCurrency, type ProcurementListRole } from '@/pages/procurement/list/model';
+import { MoneyTotalLines } from '@/pages/procurement/list/MoneyTotalLines';
 
 interface ProcurementBoardProps {
   procurements: ProcurementWithRefs[];
-  /** Drill into a PR's lifecycle detail (opens a workspace record tab). */
+  /** Drill into the procurement lifecycle detail (opens a workspace record tab). */
   onOpen: (procurement: ProcurementWithRefs) => void;
-  /** Currently-open PR id — highlights its card. */
+  /** Currently-open procurement id — highlights its card. */
   selectedId?: string;
+  /** Amount visibility follows the same frontend role scope as the Procurement list. */
+  viewerRole?: ProcurementListRole;
+  /** Needs-you rationale is shown on every board card while that tab is active. */
+  needsYouReasons?: ReadonlyMap<string, { result: NeedsYouReason; text: string }>;
 }
+
+type BoardStageKey = 'request' | 'approved' | 'ordered' | 'received' | 'paid';
+
+const BOARD_STAGES: Array<{
+  key: BoardStageKey;
+  label: string;
+  fallback: string;
+  statuses: readonly string[];
+}> = [
+  { key: 'request', label: 'board.request', fallback: 'Request', statuses: ['Draft', 'Requested'] },
+  { key: 'approved', label: 'board.approved', fallback: 'Approved', statuses: ['Approved', 'Vendor Quoted', 'Quote Selected'] },
+  { key: 'ordered', label: 'board.ordered', fallback: 'Ordered', statuses: ['Ordered'] },
+  { key: 'received', label: 'board.received', fallback: 'Received', statuses: ['Received'] },
+  { key: 'paid', label: 'board.paid', fallback: 'Paid', statuses: ['Vendor Invoiced', 'Paid'] },
+];
 
 /** Initial-letter avatar tile for the requester (categorical, non-interactive). */
 const Initial: React.FC<{ name: string | undefined }> = ({ name }) => {
@@ -30,111 +49,100 @@ const Initial: React.FC<{ name: string | undefined }> = ({ name }) => {
   );
 };
 
-/** A compact purchase-request card (DESIGN.md "Kanban Card" signature, dense). */
+/** A compact procurement card with a computed amount, its basis, and any current action reason. */
 const PrCard: React.FC<{
   pr: ProcurementWithRefs;
   selected: boolean;
+  role: ProcurementListRole;
+  reason?: string;
   onActivate: () => void;
-}> = ({ pr, selected, onActivate }) => (
-  <KanbanCard selected={selected} onActivate={onActivate} aria-label={`Open ${pr.title}`}>
-    <div className="line-clamp-2 text-[13px] font-semibold leading-snug" title={pr.title}>
-      {pr.title}
-    </div>
-    <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
-      {pr.code ?? pr.id.slice(0, 8)}
-    </div>
-    <div className="mt-2 text-[15px] font-bold tabular">{formatCurrency(pr.total_value, pr.currency)}</div>
-    <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
-      <Initial name={pr.requested_by?.full_name} />
-      {/* C-PR-2/E-2: render project as INERT text (not a Link) so the card has
-          a single activation target and there is no nested interactive element
-          inside the role=button KanbanCard (invalid HTML). Navigate to the project
-          via the procurement detail page which already links there. */}
-      <span
-        aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
-        title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
-        className="truncate text-[11px] text-muted-foreground"
-      >
-        {pr.project ? projectDisplayName(pr.project) : '—'}
-      </span>
-    </div>
-  </KanbanCard>
-);
+}> = ({ pr, selected, role, reason, onActivate }) => {
+  const { t } = useTranslation('procurementList');
+  const figure = figureForListRow(pr, role);
+  const amount = figure.unknown || figure.amount === null ? '—' : formatCurrency(figure.amount, pr.currency);
+  const amountKind = figure.kind ? t(`money.kind.${figure.kind}`, figure.kind) : t('money.unavailable', 'Amount unavailable');
+  const tooltip = t(role === 'Engineer' ? 'money.engineer' : 'money.mostReal', role === 'Engineer'
+    ? 'Request amount only. Supplier invoice and payment amounts are not shown.'
+    : 'Most real amount: paid, then supplier invoice, then purchase order, then request.');
+  const statusLabel = pr.status === 'Vendor Invoiced'
+    ? t('status.invoiceToPay', 'Supplier invoice to pay')
+    : pr.status === 'Paid' ? t('status.paid', 'Paid') : undefined;
 
-/**
- * The IA-3 procurement by-stage board: six fixed columns grouped by the PR
- * lifecycle stage (PR → VQ → PO → GR → VI → Paid), reusing the Foundation Kanban
- * shell. Terminal off-track requests (Rejected / Cancelled) never reach a stage
- * node so they are excluded from the board (visible in the Table view). Cards are
- * keyboard-activatable and drill into the PR lifecycle detail page. (Owner
- * directive 2026-06-21: approval is a gate, not a stage — an Approved request
- * sits in the Vendor Quote column, the bar advanced on approval.)
- */
-const ProcurementBoard: React.FC<ProcurementBoardProps> = ({ procurements, onOpen, selectedId }) => {
-  const { t } = useTranslation();
-  const stageLabel = useProcurementStageLabel();
-  // Bucket once: each in-flight request lands in exactly one stage column.
-  const byStage: ProcurementWithRefs[][] = PR_STAGES.map(() => []);
-  for (const pr of procurements) {
-    const idx = stageIndexForStatus(pr.status as ProcurementStatus);
-    if (idx >= 0) byStage[idx].push(pr);
+  return (
+    <KanbanCard selected={selected} onActivate={onActivate} aria-label={t('board.open', { title: pr.title, defaultValue: `Open ${pr.title}` })}>
+      <div className="line-clamp-2 text-[13px] font-semibold leading-snug" title={pr.title}>
+        {pr.title}
+      </div>
+      <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
+        {pr.code ?? pr.id.slice(0, 8)}
+      </div>
+      <span
+        title={tooltip}
+        aria-label={`${amount} ${amountKind}. ${tooltip}`}
+        tabIndex={0}
+        className="mt-2 inline-flex flex-col text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <span className="text-[15px] font-semibold tabular">{amount}</span>
+        <span className="text-[11px] text-muted-foreground">{amountKind}</span>
+      </span>
+      {reason && <div className="mt-2 text-[12px] font-medium text-warning-foreground">{reason}</div>}
+      {statusLabel && <div className="mt-1 text-[11px] text-muted-foreground">{statusLabel}</div>}
+      <div className="mt-2.5 flex items-center gap-2 border-t border-border/70 pt-2">
+        <Initial name={pr.requested_by?.full_name} />
+        {/* Keep the card as a single activation target; project navigation remains on the detail page. */}
+        <span
+          aria-label={pr.project?.name ? `Project: ${projectDisplayName(pr.project)}` : undefined}
+          title={pr.project && projectDisplayName(pr.project) !== pr.project.name ? pr.project.name : undefined}
+          className="truncate text-[11px] text-muted-foreground"
+        >
+          {pr.project ? projectDisplayName(pr.project) : '—'}
+        </span>
+      </div>
+    </KanbanCard>
+  );
+};
+
+/** Five workflow columns. Rejected and cancelled records remain available in Table and Grouped views. */
+const ProcurementBoard: React.FC<ProcurementBoardProps> = ({
+  procurements,
+  onOpen,
+  selectedId,
+  viewerRole,
+  needsYouReasons,
+}) => {
+  const { t } = useTranslation('procurementList');
+  const byStage = new Map<BoardStageKey, ProcurementWithRefs[]>(BOARD_STAGES.map(({ key }) => [key, []]));
+  for (const procurement of procurements) {
+    const stage = BOARD_STAGES.find(({ statuses }) => statuses.includes(procurement.status));
+    if (stage) byStage.get(stage.key)?.push(procurement);
   }
 
   return (
-    <Kanban aria-label="Procurement by-stage board">
-      {PR_STAGES.map((stage, i) => {
-        const items = byStage[i];
-        // DD-CUR-6 (#530 item 3): a mixed-currency total is a PER-CURRENCY BREAKDOWN, never a
-        // converted figure and never the first row's label on everyone's money.
-        //
-        // ⛔ What this replaces was silently wrong the moment a stage held two currencies: it summed
-        // across them and labelled the result with `items[0].currency`, so an IDR request sitting
-        // behind a USD one turned the column total into a number that is not any real quantity —
-        // rendered with the confidence of a real one, and the reader could not recover the parts.
-        //
-        // Not converted, because PMO holds no exchange rates: acquiring them is a commercial
-        // decision carrying a staleness policy and an "as of when" on every figure, and a converted
-        // total is LOSSIER than its inputs. A breakdown is exact, needs nothing we do not already
-        // hold, and degrades to exactly today's single line when a stage is single-currency —
-        // which is every stage in a single-currency org.
-        const stageTotals = (() => {
-          const byCurrency = new Map<string, number>();
-          for (const p of items) {
-            byCurrency.set(p.currency, (byCurrency.get(p.currency) ?? 0) + p.total_value);
-          }
-          // Deterministic order: a column that reshuffles its subtotals between renders reads as
-          // movement in the data.
-          return [...byCurrency.entries()].sort(([a], [b]) => a.localeCompare(b));
-        })();
+    <Kanban aria-label={t('board.label', 'Procurement by stage')}>
+      {BOARD_STAGES.map(({ key, label, fallback }) => {
+        const items = byStage.get(key) ?? [];
+        const totals = totalsByCurrency(items, viewerRole);
+        const tooltip = t(viewerRole === 'Engineer' ? 'money.engineer' : 'money.mostReal', viewerRole === 'Engineer'
+          ? 'Request amount only. Supplier invoice and payment amounts are not shown.'
+          : 'Most real amount per procurement: paid, then supplier invoice, then purchase order, then request. Summed by currency.');
+        const stageTitle = t(label, fallback);
         return (
-          <div key={stage.key} data-testid={`prstage-${stage.key}`} className="flex min-w-0 flex-col">
+          <div key={key} data-testid={`prstage-${key}`} className="flex min-w-0 flex-col">
             <KanbanColumn
-              title={stageLabel(stage)}
-              // I2 — ONE board convention (matches the sales board): quiet
-              // neutral upstream columns, the status hue only at the terminal.
-              // The board groups ALL records by stage, so there is no single
-              // "active" stage to render blue (mirrors the procurement pill).
-              dotColor={stage.key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'}
+              title={stageTitle}
+              dotColor={key === 'paid' ? 'hsl(var(--success))' : 'hsl(var(--muted-foreground))'}
               count={items.length}
-              totals={
-                items.length > 0 ? (
-                  <span data-testid={`prstage-${stage.key}-totals`} className="flex flex-col items-end">
-                    {stageTotals.map(([code, sum]) => (
-                      <span key={code} className="text-[13px] font-bold tabular">
-                        {formatCurrency(sum, code)}
-                      </span>
-                    ))}
-                  </span>
-                ) : undefined
-              }
-              emptyMessage={t('procurement.stageEmpty', 'No requests at {{stage}}', { stage: stageLabel(stage) })}
+              totals={<MoneyTotalLines totals={totals} tooltip={tooltip} testId={`prstage-${key}-totals`} className="items-end" />}
+              emptyMessage={t('board.empty', { stage: stageTitle, defaultValue: `No procurements at ${stageTitle}` })}
             >
-              {items.map((pr) => (
+              {items.map((procurement) => (
                 <PrCard
-                  key={pr.id}
-                  pr={pr}
-                  selected={pr.id === selectedId}
-                  onActivate={() => onOpen(pr)}
+                  key={procurement.id}
+                  pr={procurement}
+                  selected={procurement.id === selectedId}
+                  role={viewerRole}
+                  reason={needsYouReasons?.get(procurement.id)?.text}
+                  onActivate={() => onOpen(procurement)}
                 />
               ))}
             </KanbanColumn>

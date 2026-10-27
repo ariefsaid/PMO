@@ -65,9 +65,14 @@ describe('listProcurements', () => {
     expect(mockSelect.mock.calls.at(-1)![0]).not.toMatch(/external_ref/);
     await listProcurements(undefined, { withRefs: true });
     const sel = mockSelect.mock.calls.at(-1)![0] as string;
+    expect(sel).toContain('project:projects(name,short_name,code,project_manager_id)');
     expect(sel).toContain('pr_refs:purchase_requests(external_ref)');
     expect(sel).toContain('po_refs:purchase_orders(external_ref)');
     expect(sel).toContain('vi_refs:procurement_invoices(external_ref)');
+    expect(sel).toContain('purchase_requests(amount,date,created_at)');
+    expect(sel).toContain('purchase_orders(amount,date,created_at)');
+    expect(sel).toContain('procurement_invoices(amount,erp_outstanding_amount,invoice_date,created_at)');
+    expect(sel).toContain('payments(amount,status,date,created_at)');
   });
 
   it('sends no org_id (RLS scopes it) (FR-DAL-PROC-001)', async () => {

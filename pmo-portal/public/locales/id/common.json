@@ -1908,46 +1908,8 @@
       "lineItems": "Rincian barang",
       "viewFullRequest": "Lihat permintaan lengkap"
     },
-    "column": {
-      "lifecycle": "Siklus",
-      "project": "Proyek",
-      "request": "Permintaan",
-      "requestedBy": "Diminta oleh",
-      "status": "Status",
-      "value": "Nilai"
-    },
-    "empty": {
-      "orgWide": {
-        "title": "Belum ada permintaan pembelian"
-      },
-      "ownScoped": {
-        "title": "Anda belum mengajukan permintaan"
-      }
-    },
-    "error": {
-      "sub": "Terjadi kesalahan saat mengambil permintaan Anda.",
-      "title": "Gagal memuat pengadaan"
-    },
     "filter": {
-      "all": "Semua",
-      "needsApproval": "Perlu persetujuan",
-      "open": "Aktif",
-      "ordered": "Dipesan",
-      "paid": "Lunas",
-      "vendorInvoiced": "Invoice diterima"
-    },
-    "importCycleData": "Impor data siklus",
-    "lifecycleLabel": "Siklus",
-    "listLabel": "Permintaan pengadaan",
-    "noMatch": {
-      "clearFilters": "Hapus filter",
-      "sub": "Coba status atau kata kunci lain, atau hapus filter.",
-      "title": "Tidak ada permintaan yang cocok dengan filter"
-    },
-    "raiseRequest": "Ajukan permintaan",
-    "search": {
-      "label": "Filter permintaan",
-      "placeholder": "Filter permintaan atau referensi…"
+      "paid": "Lunas"
     },
     "stage": {
       "gr": "Penerimaan Barang",
@@ -1956,19 +1918,7 @@
       "pr": "Permintaan Pembelian",
       "vi": "Invoice Vendor",
       "vq": "Penawaran Vendor"
-    },
-    "stageEmpty": "Tidak ada permintaan pada tahap {{stage}}",
-    "statusFilterLabel": "Filter status",
-    "title": {
-      "orgWide": "Pengadaan",
-      "ownScoped": "Permintaan pembelian Anda"
-    },
-    "unknownRequester": "Tidak diketahui",
-    "view": {
-      "board": "Board",
-      "table": "Tabel"
-    },
-    "viewToggleLabel": "Tampilan pengadaan"
+    }
   },
   "procurementLedger": {
     "title": "Buku besar kasus",
@@ -4829,10 +4779,6 @@
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",
-    "more": "Lainnya",
-    "pageDescriptionOrgWide": "Ajukan dan lacak permintaan pembelian, persetujuan, pesanan, dan pembayaran. Buka permintaan untuk melihat riwayat lengkapnya.",
-    "pageDescriptionOwnScoped": "Lacak permintaan yang Anda ajukan dari persetujuan hingga pembayaran.",
-    "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
     "projectEmptyScope": "Daftar ini hanya memuat permintaan PMO. Pembelian yang tercatat di ERPNext tampil di bawah.",
     "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
   },

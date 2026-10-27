@@ -8,9 +8,20 @@ export type ProcurementRow = Tables<'procurements'>;
 
 /** A procurement row with project/vendor/requester names resolved in SQL (kills render-time .find()). */
 export type ProcurementWithRefs = ProcurementRow & {
-  project: { name: string; short_name?: string | null; code: string | null; pmo_project_number?: string | null } | null;
+  project: {
+    name: string;
+    short_name?: string | null;
+    code: string | null;
+    pmo_project_number?: string | null;
+    project_manager_id?: string | null;
+  } | null;
   vendor: { name: string } | null;
   requested_by: { full_name: string } | null;
+  /** Procurement list evidence used by the shared stage, attention and money calculations. */
+  purchase_requests?: Tables<'purchase_requests'>[];
+  purchase_orders?: Tables<'purchase_orders'>[];
+  procurement_invoices?: Tables<'procurement_invoices'>[];
+  payments?: Tables<'payments'>[];
   /** #803: present only on a Requested row whose route was read (see attachApprovalRoutes). */
   approvalRoute?: ApprovalRoute;
   /** #769: the parent group's numbers on this case's PR / PO / vendor-invoice records (search + export). */
@@ -34,7 +45,7 @@ const SELECT =
 /** #769: the Procurement index's OWN select — adds the three record-reference embeds (search + export).
  *  Approvals, dashboards and every other `listProcurements` caller keep the lean `SELECT`. */
 const SELECT_WITH_REFS =
-  `${SELECT}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref)`;
+  `${SELECT.replace('project:projects(name,short_name,code)', 'project:projects(name,short_name,code,project_manager_id)')}, pr_refs:purchase_requests(external_ref), po_refs:purchase_orders(external_ref), vi_refs:procurement_invoices(external_ref), purchase_requests(amount,date,created_at), purchase_orders(amount,date,created_at), procurement_invoices(amount,erp_outstanding_amount,invoice_date,created_at), payments(amount,status,date,created_at)`;
 
 /**
  * Committed-spend basis for ONE project (OD-W5-4): Σ procurement total_value where the PR is
