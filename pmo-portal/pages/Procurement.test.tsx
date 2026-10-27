@@ -120,7 +120,8 @@ describe('Procurement index — IA-3 (real data)', () => {
     renderPage('/procurement?tab=all');
     expect(screen.getByText('Workstations & AV')).toBeInTheDocument();
     const row = screen.getByRole('row', { name: /Workstations & AV/ });
-    expect(within(row).getByText('Approved')).toBeInTheDocument();
+    // Four user-facing stages (Request · Order · Receive · Pay): an approved request is still at Request.
+    expect(within(row).getByText('Request')).toBeInTheDocument();
     expect(within(row).getByText('Choose a quote')).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: 'Expand procurement details' })).toBeInTheDocument();
   });
