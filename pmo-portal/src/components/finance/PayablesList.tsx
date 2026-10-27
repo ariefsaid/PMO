@@ -29,7 +29,7 @@ export const PayablesList: React.FC<PayablesListProps> = ({ position, isPending,
       cell: (row) => (
         <div className="min-w-0">
           <div className="truncate font-medium" title={row.procurement.title}>{row.procurement.title}</div>
-          <div className="font-mono text-[11px] text-muted-foreground">{row.procurement.code ?? row.procurement.id.slice(0, 8)}</div>
+          <div className="font-mono text-xs text-muted-foreground">{row.procurement.code ?? row.procurement.id.slice(0, 8)}</div>
         </div>
       ),
     },

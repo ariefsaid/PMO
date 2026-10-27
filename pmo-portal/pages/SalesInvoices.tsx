@@ -334,7 +334,7 @@ const InvoiceStatusTimeline: React.FC<{ invoice: SalesInvoiceRow; payments: Inco
   ];
   return (
     <section aria-labelledby="receivable-invoice-timeline">
-      <h3 id="receivable-invoice-timeline" className="mb-2 text-sm font-semibold">{t('finance:receivables.timeline', 'Status timeline')}</h3>
+      <h2 id="receivable-invoice-timeline" className="mb-2 text-sm font-semibold">{t('finance:receivables.timeline', 'Status timeline')}</h2>
       <ol className="relative space-y-3 pl-7 text-sm before:absolute before:bottom-2 before:left-[7px] before:top-2 before:w-px before:bg-border">
         {steps.map((step, index) => <li key={`${step.stage}-${index}`} data-stage={step.stage} data-state={step.state} className="relative flex min-h-4 items-start justify-between gap-3">
           <span
@@ -840,11 +840,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   // columns. Dates other than Due, and the separate Customer, are export-only below.
   const projectLabelOf = (inv: SalesInvoiceRow) => projectOptions?.find((option) => option.value === inv.project_id)?.contractualName;
   const showEfaktur = all.some((inv) => inv.efaktur_number || inv.efaktur_date);
+  // Lists show whole units (G1); exact cents stay on the record page.
+  const listMoney = embedded ? formatCurrency : formatCurrencyCents;
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
     kind: 'primary',
-    size: embedded ? 140 : 280,
+    size: embedded ? 132 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -906,7 +908,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'status',
     header: t('financeCopy.status', "Status"),
     kind: 'status',
-    size: embedded ? 230 : undefined,
+    size: embedded ? 190 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
       const legacyLabel = status.partlySettled
@@ -932,7 +934,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
           <span className="inline-flex items-baseline justify-end gap-1">
             <span className="tabular text-right text-[13px]">
-              {inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}
+              {inv.amount != null ? listMoney(inv.amount, inv.currency) : '—'}
             </span>
             {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
           </span>
@@ -941,7 +943,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
-              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: formatCurrencyCents(invoiceGross(inv)!, inv.currency) })}
+              {t('financeCopy.totalDueAmount', 'Total due {{amount}}', { amount: listMoney(invoiceGross(inv)!, inv.currency) })}
               <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />
             </span>
           )}
@@ -963,19 +965,19 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right">
           <span className="tabular text-[13px]">
-            {inv.erp_outstanding_amount != null ? formatCurrencyCents(inv.erp_outstanding_amount, inv.currency) : '—'}
+            {inv.erp_outstanding_amount != null ? listMoney(inv.erp_outstanding_amount, inv.currency) : '—'}
           </span>
           {inv.erp_outstanding_amount != null && <FxEquivalent amount={inv.erp_outstanding_amount} currency={inv.currency} date="latest" />}
           {/* I-4: what a PMO invoice has been paid so far (total due − paid = outstanding). */}
           {paid != null && (
             <span className="text-xs text-muted-foreground">
-              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: formatCurrencyCents(paid, inv.currency) })}
+              {t('financeCopy.paidToDateAmount', 'Paid {{amount}}', { amount: listMoney(paid, inv.currency) })}
             </span>
           )}
           {/* #784 DD-NAR-17: a receipt above the balance is kept; the excess is shown, never hidden. */}
           {overpaid != null && (
             <span className="text-xs text-muted-foreground">
-              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: formatCurrencyCents(overpaid, inv.currency) })}
+              {t('financeCopy.overpaidBy', 'Overpaid by {{amount}}', { amount: listMoney(overpaid, inv.currency) })}
             </span>
           )}
         </span>
@@ -1010,14 +1012,14 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'client',
     header: t('finance:receivables.client', 'Client'),
     kind: 'text',
-    size: 230,
+    size: 210,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
       const managerInitial = manager?.charAt(0).toLocaleUpperCase() ?? '—';
       return <span className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate font-medium" title={inv.customer_name ?? ''}>{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-        <span className="flex min-w-0 items-center gap-1 text-[11px] text-muted-foreground" title={project ?? ''}>
+        <span className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground" title={project ?? ''}>
           <span className="min-w-0 flex-1 truncate">{project ?? '—'}</span>
           <span aria-hidden="true" className="inline-grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{managerInitial}</span>
           <span className="max-w-[82px] shrink truncate" title={manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}>{manager ?? t('finance:receivables.unassignedProjectManager', 'Unassigned PM')}</span>
@@ -1030,7 +1032,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'delivery',
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
-    size: embedded ? 150 : 165,
+    size: embedded ? 140 : 165,
     cell: (inv) => inv.received_date
       ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
       : inv.status === 'Draft'
@@ -1039,7 +1041,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded
-    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, efakturColumn]
+    // ponytail: e-Faktur lives in the drawer and the export on the embedded list, so the money columns fit at 1440.
+    ? [invoiceColumn, clientColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, { ...efakturColumn, exportOnly: true }]
     : columns;
   const groupRowsBy = groupMode === 'client'
     ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
@@ -1373,7 +1376,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
           mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 items-center justify-between gap-2">
             <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="shrink-0 font-mono text-[11px] font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="shrink-0 font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (inv) => {
             const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
@@ -1382,9 +1385,9 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             return <div className="flex min-w-0 items-center justify-between gap-1.5">
               <div className="flex min-w-0 items-center gap-2">
                 {statusColumn.cell(inv)}
-                <span className="shrink-0 text-[11px] text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-[11px] tabular">
+              <span className="shrink-0 text-right text-xs tabular">
                 <span>{outstanding == null ? '—' : formatCurrency(outstanding, inv.currency)}</span>
                 {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, inv.currency) })}</span>}
               </span>
@@ -1508,7 +1511,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         open={Boolean(panelInvoice)}
         title={panelInvoice ? t('finance:receivables.drawerTitle', '{{client}} · {{amount}}', {
           client: panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
-          amount: panelInvoice.amount == null ? '—' : formatCurrencyCents(panelInvoice.amount, panelInvoice.currency),
+          amount: panelInvoice.amount == null ? '—' : formatCurrency(panelInvoice.amount, panelInvoice.currency),
         }) : ''}
         subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? t('finance:receivables.statusDraftApproval', 'Draft · to approve')}</span>

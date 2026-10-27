@@ -587,7 +587,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
           mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 items-center justify-between gap-2">
             <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
-            <span className="shrink-0 font-mono text-[11px] font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+            <span className="shrink-0 font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = Boolean(payment.cancelled_at || payment.erp_cancelled_at);
@@ -599,9 +599,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             return <div className="flex min-w-0 items-center justify-between gap-1.5">
               <div className="flex min-w-0 items-center gap-2">
                 <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>
-                <span className="shrink-0 text-[11px] text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
+                <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
               </div>
-              <span className="shrink-0 text-right text-[11px] tabular">
+              <span className="shrink-0 text-right text-xs tabular">
                 <span>{receivedAmount == null ? '—' : formatCurrency(receivedAmount, payment.currency)}</span>
                 {total != null && <span className="ml-1 text-muted-foreground">{t('finance:receivables.ofTotal', 'of {{total}}', { total: formatCurrency(total, payment.currency) })}</span>}
               </span>

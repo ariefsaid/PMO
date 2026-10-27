@@ -277,7 +277,8 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByRole('columnheader', { name: 'Client' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Project' })).not.toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Delivery' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'e-Faktur' })).toBeInTheDocument();
+    // e-Faktur moved to the side panel and the export to give the money columns room (owner bar, 1440).
+    expect(screen.queryByRole('columnheader', { name: 'e-Faktur' })).not.toBeInTheDocument();
   });
 
   it('AC-1405 renders an embedded invoice as a compact phone card', () => {
