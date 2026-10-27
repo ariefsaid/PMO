@@ -232,8 +232,9 @@ export default function ReceivablesPage() {
         <Button type="button" variant="outline" size="sm" onClick={finance.retry}>{t('ui.listState.retry', 'Retry')}</Button>
       </div>}
 
-      <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="rounded-lg border border-border bg-card">
-        <div className="border-b border-border px-3 pt-3 sm:px-4">
+      <section aria-label={t('finance:area.viewInvoicesOrPayments', 'Receivables list')} className="min-w-0">
+        {/* ponytail: no outer card — the DataTable frame is the one container (no card inside a card). */}
+        <div className="mb-3">
           <ViewToggle<ReceivablesView>
             options={[
               { value: 'invoices', label: `${t('finance:area.invoicesList', 'Invoices')} · ${invoices.length}` },
@@ -244,7 +245,7 @@ export default function ReceivablesPage() {
             ariaLabel={t('finance:area.viewInvoicesOrPayments', 'Receivables list')}
           />
         </div>
-        <div className="p-3 sm:p-4">
+        <div>
           {view === 'invoices'
             ? <SalesInvoices embedded onRecordPayment={recordPayment} />
             : <IncomingPayments embedded />}

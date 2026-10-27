@@ -1374,16 +1374,17 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
           rowMenu={rowMenu}
           onActivate={embedded ? openInvoicePanel : undefined}
           rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
-          mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 items-center justify-between gap-2">
+          mobileCardTitle={embedded ? (inv) => <span className="flex min-w-0 flex-col gap-0.5">
             <span className="min-w-0 truncate text-[13px] font-semibold">{inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')}</span>
-            <span className="shrink-0 font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
+            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{invoiceNumber(inv) ?? t('financeCopy.draftInvoiceLabel', 'Draft · {{customer}}', { customer: inv.customer_name ?? '—' })}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (inv) => {
             const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
             const total = invoiceGross(inv) ?? inv.amount;
             const outstanding = inv.erp_outstanding_amount ?? total;
-            return <div className="flex min-w-0 items-center justify-between gap-1.5">
-              <div className="flex min-w-0 items-center gap-2">
+            // ponytail: wrap instead of overlap — the money drops to its own line when status + date fill the row.
+            return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 {statusColumn.cell(inv)}
                 <span className="shrink-0 text-xs text-muted-foreground">{due ? formatDateOnly(due) : '—'}</span>
               </div>

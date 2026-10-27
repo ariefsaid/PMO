@@ -585,9 +585,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
           rowMenu={rowMenu}
           onActivate={embedded ? openPaymentPanel : undefined}
           rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
-          mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 items-center justify-between gap-2">
+          mobileCardTitle={embedded ? (payment) => <span className="flex min-w-0 flex-col gap-0.5">
             <span className="min-w-0 truncate text-[13px] font-semibold">{payment.customer_name ?? '—'}</span>
-            <span className="shrink-0 font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
+            <span className="min-w-0 truncate font-mono text-xs font-normal text-muted-foreground">{receiptNumber(payment) ?? '—'}</span>
           </span> : undefined}
           mobileCardDetails={embedded ? (payment) => {
             const cancelled = Boolean(payment.cancelled_at || payment.erp_cancelled_at);
@@ -596,8 +596,9 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
               : incomingPaymentStatusLabel(payment.pmo_native && payment.status === 'Paid' ? 'Received' : payment.status, t);
             const receivedAmount = payment.received_amount ?? payment.amount;
             const total = payment.amount;
-            return <div className="flex min-w-0 items-center justify-between gap-1.5">
-              <div className="flex min-w-0 items-center gap-2">
+            // ponytail: wrap instead of overlap, same as the invoice cards.
+            return <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                 <StatusPill variant={cancelled ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(payment.status)}>{statusLabel}</StatusPill>
                 <span className="shrink-0 text-xs text-muted-foreground">{payment.date ? formatDateOnly(payment.date) : '—'}</span>
               </div>
