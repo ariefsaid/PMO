@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import type { Role } from '@/src/auth/AuthContext';
@@ -76,11 +76,16 @@ const bill = (over: Partial<WorkOrderBillingRow> = {}): WorkOrderBillingRow => (
   workOrderId: 'wo-1', projectId: 'p1', status: 'Issued', currency: 'USD', orderNet: 500_000, invoiced: 330_000,
   pending: 90_000, paid: 100_000, remaining: 80_000, figuresComplete: true, lineCount: 6, unpaidCount: 3, ...over,
 });
-const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null) => {
+const renderTab = (role: Role = 'Finance', clientId: string | null = 'c-1', focusWorkOrderId: string | null = null, initialEntry = '/') => {
   h.role = role;
   return render(
-    <MemoryRouter><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /></ToastProvider></MemoryRouter>,
+    <MemoryRouter initialEntries={[initialEntry]}><ToastProvider><WorkOrdersTab projectId="p1" currency="USD" clientId={clientId} focusWorkOrderId={focusWorkOrderId} /><RouteSearch /></ToastProvider></MemoryRouter>,
   );
+};
+
+const RouteSearch = () => {
+  const location = useLocation();
+  return <output data-testid="route-search" aria-hidden="true">{location.search}</output>;
 };
 
 beforeEach(() => {
@@ -96,6 +101,61 @@ beforeEach(() => {
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
+  it('AC-1402 filters customer-order cards by the selected status', async () => {
+    h.list.data = [wo(), wo({ id: 'wo-closed', wo_number: 'WO-2', status: 'Closed' })];
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.selectOptions(screen.getByLabelText('Status'), 'Closed');
+
+    expect(screen.queryByTestId('customer-order-wo-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('customer-order-wo-closed')).toBeInTheDocument();
+  });
+
+  it('AC-1402 opens the customer-order drawer from its order number', async () => {
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'View details for WO-1' }));
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(within(screen.getByRole('dialog')).getByText('Customer PO')).toBeInTheDocument();
+    expect(screen.getByTestId('route-search')).toHaveTextContent('open=wo-1');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('openType=workOrder');
+  });
+
+  it('AC-1402 an Engineer can read orders without seeing invoice, rate, or drawdown money', () => {
+    h.invoices = { data: [{ id: 'si-1', work_order_id: 'wo-1', status: 'Unpaid', amount: 100_000, erp_outstanding_amount: 100_000, si_number: 'INV-1' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab('Engineer');
+
+    expect(screen.getByTestId('customer-order-wo-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-money-wo-1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Drawdown headroom')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Raise invoice/ })).not.toBeInTheDocument();
+    expect(screen.queryByText('INV-1')).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 clicking an allocated line opens its quantity history drawer', async () => {
+    h.boq.data = [{ id: 'boq-1', project_id: 'p1', item_code: 'L-1', description: 'Cable installation', unit: 'm', quantity: 10, rate: 25_000, earning_basis: 'unit_rate', line_no: 1 }];
+    h.projectBilling.data = {
+      currency: 'USD', contractNet: 250_000, workBilled: 0, dpBilled: 0, dpRecovered: 0, notSubmitted: 0,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0,
+      contractLines: [{ boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 5, acceptedQuantity: 3, closedFinal: 0, earnedQuantity: 0, contractBalance: 5,
+        allocations: [{ workOrderId: 'wo-1', boqItemId: 'boq-1', quantity: 5, claimedQuantity: 1, acceptedQuantity: 3, final: false }] }],
+    };
+    h.billing.data = [bill({ lineCount: 1, remaining: 80_000 })];
+    h.orderLines.data = [{ id: 'line-1', work_order_id: 'wo-1', boq_item_id: 'boq-1', quantity: 5 }];
+    const user = userEvent.setup();
+    renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'Open Cable installation quantity history' }));
+
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Per-order split')).toBeInTheDocument();
+    expect(within(drawer).getByText('Quantity history')).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/projects/p1/work-orders?wo=wo-1');
+  });
+
   it('AC-1402 omits aggregate payment figures until every invoice balance is known', async () => {
     h.invoices = {
       data: [
@@ -116,9 +176,10 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.queryByText('Paid')).not.toBeInTheDocument();
     expect(order).not.toHaveTextContent('Unpaid 200,000');
     expect(within(order).getByText('Invoice figures are incomplete.')).toBeInTheDocument();
-    await userEvent.click(within(order).getByText('Invoices (3)'));
-    expect(order).toHaveTextContent('INV-1');
-    expect(order).toHaveTextContent('INV-2');
+    expect(within(order).getByRole('button', { name: 'Open invoice INV-1' })).toBeInTheDocument();
+    expect(within(order).getByRole('button', { name: 'Open invoice INV-2' })).toBeInTheDocument();
+    await userEvent.click(within(order).getByRole('button', { name: 'Open invoice INV-1' }));
+    expect(within(screen.getByRole('dialog')).getByRole('heading', { name: 'INV-1' })).toBeInTheDocument();
   });
 
   it('AC-1402 sums settled amounts when all submitted invoice balances are known', () => {
@@ -143,7 +204,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab('Admin');
 
     expect(screen.getByText('No contract lines or customer orders yet.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New customer order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
   });
@@ -171,19 +232,21 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     ], isPending: false, isError: false, refetch: vi.fn() };
     h.claims = [{ id: 'si-paid', work_order_id: 'wo-1', kind: 'down_payment', withdrawn_at: null,
       down_payment_amount: 330_000, gross_amount: 330_000, invoice: { status: 'Paid', si_number: 'INV-PAID', amount: 330_000 } }];
+    h.projectBilling.data = { currency: 'USD', contractNet: 500_000, workBilled: 0, dpBilled: 330_000, dpRecovered: 0,
+      notSubmitted: 0, assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [] };
     renderTab();
-    const order = screen.getByTestId('customer-order-wo-1');
     const figures = within(screen.getByTestId('wo-money-wo-1'));
     expect(figures.getByText('Invoiced')).toBeInTheDocument();
     expect(figures.getByText('Paid')).toBeInTheDocument();
     expect(figures.getAllByText('330,000')).toHaveLength(2);
-    await userEvent.click(within(order).getByText('More'));
-    expect(order).toHaveTextContent('Down payment 330,000');
+    expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
+    expect(screen.getByText('Down payment held')).toBeInTheDocument();
+    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000.00')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Raise invoice/ }));
     expect(screen.getByTestId('invoice-modal')).toHaveTextContent('wo-1|80000|c-1');
   });
 
@@ -191,7 +254,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     h.list.data = [wo({ status: 'Closed' })];
     h.billing.data = [bill({ status: 'Closed' })];
     renderTab();
-    expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Raise invoice/ })).toBeInTheDocument();
   });
 
   it.each([
@@ -204,31 +267,31 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   ])('AC-BWO-004 no Invoice for %s', (_label, arrange, role, clientId) => {
     arrange();
     renderTab(role, clientId);
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Raise invoice/ })).toBeNull();
   });
 
   it('#913 an undecidable revenue mode (undefined — the routing cache is not synced yet) offers no Invoice action', () => {
     h.mode = undefined;
     renderTab();
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Raise invoice/ })).toBeNull();
   });
 
   it('#913 ownership loaded but repository route not ready offers no Invoice action', () => {
     h.routeReady = false;
     renderTab();
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Raise invoice/ })).toBeNull();
   });
 
   it('#913 an org where PMO owns revenue gets Invoice too — the same dialog, the same remaining', async () => {
     h.mode = 'native';
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Raise invoice/ }));
     expect(screen.getByTestId('invoice-modal')).toHaveTextContent('wo-1|80000|c-1');
   });
 
   it('#913 an ERP-owned org reports the created draft by its ERP number', async () => {
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Raise invoice/ }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
     const toast = await findToastAnnouncement('status', 'Draft invoice created');
     expect(toast).not.toHaveTextContent('submit it from Sales Invoices');
@@ -247,7 +310,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
           </MemoryRouter>
         </FinanceI18nTestProvider>,
       );
-      await userEvent.click(screen.getByRole('button', { name: 'Tagih' }));
+      await userEvent.click(screen.getByRole('button', { name: /^Tagih/ }));
       await userEvent.click(screen.getByRole('button', { name: 'modal-created-numbered' }));
       expect(screen.getByText('Draf dibuat. Pengguna Finance atau Admin lain harus mengajukan faktur ini.')).toBeInTheDocument();
     } finally {
@@ -258,7 +321,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   it('#913 a PMO-native draft is named by its work order and routed to a second person for approval', async () => {
     h.mode = 'native';
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    await userEvent.click(screen.getByRole('button', { name: /^Raise invoice/ }));
     await userEvent.click(screen.getByRole('button', { name: 'modal-created-unnamed' }));
     const toast = await findToastAnnouncement('status', 'Draft invoice created in PMO');
     expect(toast).not.toHaveTextContent('approves it from Sales Invoices');
@@ -267,13 +330,13 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
   });
 
   it('AC-BWO-004 an Engineer sees no sales-invoice totals or invoice actions', () => {
-    renderTab('Engineer');
+    renderTab('Engineer', 'c-1', null, '/projects/p1/work-orders?open=si-orphan&openType=workOrderInvoice');
     const order = screen.getByTestId('customer-order-wo-1');
     expect(order).not.toHaveTextContent('Invoiced');
     expect(order).not.toHaveTextContent('Paid');
     expect(within(order).queryByTestId('wo-value-wo-1')).not.toBeInTheDocument();
     expect(within(order).queryByTestId('wo-closing-wo-1')).not.toBeInTheDocument();
-    expect(within(order).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    expect(within(order).queryByRole('button', { name: /^Raise invoice/ })).toBeNull();
   });
 
   it('AC-1402 a failed invoice read never renders zero money totals', () => {
@@ -286,35 +349,38 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(order).getByRole('button', { name: 'Retry invoice figures' })).toBeInTheDocument();
   });
 
-  it('AC-1402 keeps invoices without a customer order visible and links to the invoice record', () => {
+  it('AC-1402 keeps orderless invoices visible and opens their detail drawer', async () => {
     h.list.data = [];
     h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
       erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN', invoice_date: '2026-10-04', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
+    const user = userEvent.setup();
     renderTab();
 
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
-    expect(within(section).getAllByRole('link', { name: 'INV-ORPHAN' }).every((link) => link.getAttribute('href') === '/sales-invoices/si-orphan')).toBe(true);
+    const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
+    expect(openButtons.length).toBeGreaterThan(0);
     expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
     expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
     expect(section).toHaveTextContent('Unpaid');
     expect(section.textContent).not.toMatch(/\$|\.00/);
+    await user.click(openButtons[0]);
+    expect(within(screen.getByRole('dialog')).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/sales-invoices/si-orphan');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('open=si-orphan&openType=workOrderInvoice');
   });
 
-  it('AC-1402 collapses invoice rows and omits an empty Actions column', async () => {
+  it('AC-1402 opens the invoice detail drawer from its status pill', async () => {
     h.invoices = { data: [{ id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
       erp_outstanding_amount: 8_000, si_number: 'INV-DIRECT', invoice_date: '2026-10-05', currency: 'USD' }],
     isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
 
-    const disclosure = screen.getByText('Invoices (1)').closest('details')!;
-    expect(disclosure).not.toHaveAttribute('open');
-    await userEvent.click(within(disclosure).getByText('Invoices (1)'));
-    expect(within(disclosure).getAllByRole('link', { name: 'INV-DIRECT' }).every((link) => link.getAttribute('href') === '/sales-invoices/si-direct')).toBe(true);
-    expect(within(disclosure).queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
-    expect(within(disclosure).queryByText('—')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Open invoice INV-DIRECT' }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/sales-invoices/si-direct');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('open=si-direct&openType=workOrderInvoice');
   });
 
   it('AC-1402 omits unknown invoice figures and offers one retry for the order block', async () => {
@@ -370,13 +436,13 @@ describe('WorkOrdersTab — billing actions', () => {
     );
     try {
       renderTab();
-      expect(screen.getAllByRole('button', { name: 'Raise invoice' })).toHaveLength(1);
+      expect(screen.getAllByRole('button', { name: /^Raise invoice/ })).toHaveLength(1);
     } finally {
       vi.restoreAllMocks();
     }
   });
 
-  it('AC-1402 line quantities stay in a scrollable order table and prefill the claim flow', async () => {
+  it('AC-1402 allocated line opens quantity history and prefills the claim flow', async () => {
     const allocation = { workOrderId: 'wo-1', boqItemId: 'boq-1', quantity: 100, claimedQuantity: 20, acceptedQuantity: 98, final: true };
     h.boq = { data: [{ id: 'boq-1', item_code: 'SURVEY', description: 'Survey route', unit: 'km', quantity: 100, rate: 1_000, earning_basis: 'unit_rate' }], isPending: false, isError: false, refetch: vi.fn() };
     h.orderLines = { data: [{ id: 'line-1', work_order_id: 'wo-1', boq_item_id: 'boq-1', quantity: 100 }], isPending: false, isError: false, refetch: vi.fn() };
@@ -386,36 +452,21 @@ describe('WorkOrdersTab — billing actions', () => {
       contractLines: [{ boqItemId: 'boq-1', earningBasis: 'unit_rate', lineNo: 1, orderedQuantity: 100,
         acceptedQuantity: 98, closedFinal: 0, earnedQuantity: 98, contractBalance: 0, allocations: [allocation] }],
     }, isPending: false, isError: false, refetch: vi.fn() };
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
-      () => ({ width: 602, height: 0, top: 0, left: 0, right: 602, bottom: 0, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,
-    );
-    try {
-      renderTab();
-      const scroll = screen.getByTestId('wo-lines-table-scroll-wo-1');
-      expect(scroll).toHaveClass('overflow-x-auto');
-      expect(scroll).toHaveAttribute('tabindex', '0');
-      expect(scroll).toHaveAttribute('role', 'region');
-      expect(scroll).toHaveAccessibleName('Contract quantities for WO-1');
-      expect(within(scroll).getByRole('table')).toBeInTheDocument();
-      const line = within(scroll).getAllByRole('row')[1];
-      expect(line).toHaveTextContent('Survey route');
-      expect(line).toHaveTextContent('100');
-      expect(line).toHaveTextContent('98');
-      expect(line).toHaveTextContent('20');
-      expect(line).toHaveTextContent('78');
-      const phoneLine = screen.getByTestId('wo-lines-mobile-wo-1');
-      expect(phoneLine).toHaveTextContent('Survey route');
-      expect(phoneLine).toHaveTextContent('Ordered 100');
-      expect(phoneLine).toHaveTextContent('Delivered 98');
-      expect(phoneLine).toHaveTextContent('Invoiced 20');
-      expect(phoneLine).toHaveTextContent('Can invoice 78');
-      expect(screen.getByRole('button', { name: 'Record delivery' })).toHaveClass('touch-target');
-      await userEvent.click(within(screen.getByTestId('customer-order-wo-1')).getByRole('button', { name: 'Raise invoice' }));
-      expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
-      expect(screen.getByLabelText(/SURVEY/)).toHaveValue('78');
-    } finally {
-      vi.restoreAllMocks();
-    }
+    renderTab();
+    const lineTrigger = screen.getByRole('button', { name: 'Open Survey route quantity history' });
+    await userEvent.click(lineTrigger);
+    const drawer = screen.getByRole('dialog');
+    expect(screen.getByTestId('route-search')).toHaveTextContent('open=boq-1-wo-1&openType=workOrderLine');
+    expect(within(drawer).getByText('Quantity history')).toBeInTheDocument();
+    expect(drawer).toHaveTextContent(/Ordered\s*100 km/);
+    expect(drawer).toHaveTextContent(/Delivered\s*98 km/);
+    expect(drawer).toHaveTextContent(/Invoiced\s*20 km/);
+    expect(drawer).toHaveTextContent(/Can invoice\s*78 km/);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.getByTestId('route-search')).not.toHaveTextContent('open=');
+    await userEvent.click(within(screen.getByTestId('customer-order-wo-1')).getByRole('button', { name: /^Raise invoice/ }));
+    expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
+    expect(screen.getByLabelText(/SURVEY/)).toHaveValue('78');
   });
 });
 
@@ -426,7 +477,7 @@ describe('WorkOrdersTab — arriving from a dashboard link to one work order (#7
     h.list.data = [wo(), wo({ id: 'wo-2', wo_number: 'WO-2', title: 'Phase 2 install' })];
     h.billing.data = [bill(), bill({ workOrderId: 'wo-2' })];
     renderTab('Finance', 'c-1', 'wo-2');
-    const target = screen.getByText('WO-2').closest('[data-wo-anchor]') as HTMLElement;
+    const target = screen.getByRole('button', { name: 'View details for WO-2' }).closest('[data-wo-anchor]') as HTMLElement;
     await vi.waitFor(() => expect(target).toHaveFocus());
     expect(scrollIntoView).toHaveBeenCalled();
     expect(target).toHaveTextContent('WO-2');

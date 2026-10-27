@@ -1,15 +1,27 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import {
   Button,
+  Card,
+  CardHead,
+  CardPad,
+  cn,
   ConfirmDialog,
+  DataTable,
+  Drawer,
   GateNotice,
   ListState,
+  MenuButton,
+  ProgressBar,
   StatusPill,
+  Tooltip,
   useToast,
+  type Column,
+  type RowMenuItem,
   type StatusVariant,
 } from '@/src/components/ui';
+import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, formatNumberWhole, currencySymbol } from '@/src/lib/format';
@@ -34,12 +46,13 @@ import WorkOrderLinesModal from '../WorkOrderLinesModal';
 import WorkOrderAcceptanceModal from '../WorkOrderAcceptanceModal';
 import WorkOrderAcceptances from '../WorkOrderAcceptances';
 import ProgressClaimModal from '../ProgressClaimModal';
+import ProgressAssessmentModal from '../ProgressAssessmentModal';
 import ClaimEvidenceModal from '../ClaimEvidenceModal';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
-import type { ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
-import { claimNet, summarizeBilling } from '@/src/lib/progressBilling';
+import type { BoqItemRow, ProgressAssessmentInput, ProgressClaimWithInvoice } from '@/src/lib/db/progressBilling';
+import { claimNet, summarizeBilling, type AllocationFacts } from '@/src/lib/progressBilling';
 import { summarizeInvoiceSettlement } from '../ContractCascade';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
@@ -78,6 +91,14 @@ export interface WorkOrdersTabProps {
 
 type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
+interface OrderLineView {
+  key: string;
+  order: WorkOrderRow;
+  item: BoqItemRow | null;
+  allocation: AllocationFacts;
+  rate: number | null;
+}
+
 function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
   if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
   if (invoice.amount === null) return { paid: null, unpaid: null };
@@ -91,6 +112,11 @@ function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | 
 function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function thisMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 }
 
 const ROLE_RANK: Record<string, number> = {
@@ -109,6 +135,7 @@ interface PendingTransition {
 
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
@@ -120,8 +147,41 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
   const [valueFor, setValueFor] = useState<WorkOrderRow | null>(null);
   const [pending, setPending] = useState<PendingTransition | null>(null);
+  const [orderFilter, setOrderFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | 'all'>('all');
+  const [deliverySelectorOpen, setDeliverySelectorOpen] = useState(false);
+  const [lineDrawerFor, setLineDrawerFor] = useState<OrderLineView | null>(null);
+  const [poDrawerFor, setPoDrawerFor] = useState<WorkOrderRow | null>(null);
+  const [invoiceDrawerFor, setInvoiceDrawerFor] = useState<InvoiceWithWorkOrder | null>(null);
+  const [claimDrawerFor, setClaimDrawerFor] = useState<ProgressClaimWithInvoice | null>(null);
+  const [newClaimOpen, setNewClaimOpen] = useState(false);
+  const [assessOpen, setAssessOpen] = useState(false);
   /** The server's own over-ceiling refusal, held until the user answers it. */
   const [overCommit, setOverCommit] = useState<{ row: WorkOrderRow; message: string } | null>(null);
+  const openRecordId = searchParams.get('open');
+  const openRecordType = searchParams.get('openType');
+  const updateOpenRecord = (id: string, type: 'workOrder' | 'workOrderLine' | 'workOrderInvoice' | 'workOrderClaim') => {
+    const next = new URLSearchParams(searchParams);
+    next.set('open', id);
+    next.set('openType', type);
+    setSearchParams(next);
+  };
+  const closeOpenRecord = (id: string, type: 'workOrder' | 'workOrderLine' | 'workOrderInvoice' | 'workOrderClaim') => {
+    if (openRecordId === id && openRecordType === type) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('open');
+      next.delete('openType');
+      setSearchParams(next, { replace: true });
+    }
+    if (type === 'workOrder') setPoDrawerFor(null);
+    if (type === 'workOrderLine') setLineDrawerFor(null);
+    if (type === 'workOrderInvoice') setInvoiceDrawerFor(null);
+    if (type === 'workOrderClaim') setClaimDrawerFor(null);
+  };
+  const openPoDrawer = (row: WorkOrderRow) => { setPoDrawerFor(row); updateOpenRecord(row.id, 'workOrder'); };
+  const openLineDrawer = (line: OrderLineView) => { setLineDrawerFor(line); updateOpenRecord(line.key, 'workOrderLine'); };
+  const openInvoiceDrawer = (invoice: InvoiceWithWorkOrder) => { setInvoiceDrawerFor(invoice); updateOpenRecord(invoice.id, 'workOrderInvoice'); };
+  const openClaimDrawer = (claim: ProgressClaimWithInvoice) => { setClaimDrawerFor(claim); updateOpenRecord(claim.id, 'workOrderClaim'); };
 
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
@@ -137,13 +197,27 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const billingMutations = useProgressBillingMutations(projectId);
   const claimsQuery = useProjectClaims(projectId);
   const boqRows = useMemo(() => boq.data ?? [], [boq.data]);
-  const claimRows = claimsQuery.data ?? [];
+  const claimRows = useMemo(() => claimsQuery.data ?? [], [claimsQuery.data]);
   const summary = projectBilling.data ? summarizeBilling(projectBilling.data) : null;
   const allocationsByWo = useMemo(() => {
     const grouped = new Map<string, WorkOrderLineRow[]>();
     for (const row of lines.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
     return grouped;
   }, [lines.data]);
+  const drawerLineRows = useMemo<OrderLineView[]>(() => rows.flatMap((order) =>
+    (projectBilling.data?.contractLines ?? []).flatMap((contractLine) => contractLine.allocations
+      .filter((allocation) => allocation.workOrderId === order.id)
+      .map((allocation) => {
+        const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId) ?? null;
+        return {
+          key: `${allocation.boqItemId}-${order.id}`,
+          order,
+          item,
+          allocation,
+          rate: item?.rate == null ? null : Number(item.rate),
+        };
+      })),
+  ), [rows, projectBilling.data, boqRows]);
   const acceptancesByWo = useMemo(() => {
     const grouped = new Map<string, WorkOrderAcceptanceWithLines[]>();
     for (const row of acceptancesQuery.data ?? []) grouped.set(row.work_order_id, [...(grouped.get(row.work_order_id) ?? []), row]);
@@ -198,7 +272,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const [withdrawClaimFor, setWithdrawClaimFor] = useState<ProgressClaimWithInvoice | null>(null);
   const claimScopeReady = !lines.isPending && !lines.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && Boolean(clientId) && claimScopeReady && Boolean(summary);
+  const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((claim) => claim.kind === 'down_payment' && !claim.withdrawn_at && claim.invoice?.status !== 'Cancelled');
+  const canPrepareForOrder = (row: WorkOrderRow): boolean => row.status === 'Issued'
+    && (allocationsByWo.get(row.id) ?? []).length > 0
+    && may('create', 'workOrderAcceptance', { currentUserId: currentUser?.id, record: { status: row.status, project_manager_id: projectManagerId } });
 
   // ── Arriving from a dashboard link (`?wo=`): bring that work order into view once its row exists.
   const focusedOnce = useRef(false);
@@ -326,7 +404,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     const id = await billingMutations.createClaim.mutateAsync(input);
     toast(t('projectDetail.billing.claims.toast.created', 'Billing claim created'), undefined, 'success');
     setClaimFor(null);
+    setNewClaimOpen(false);
     if (typeof id === 'string') setEvidenceFor(id);
+  };
+
+  const saveAssessment = async (input: Omit<ProgressAssessmentInput, 'projectId'>) => {
+    const pct = await billingMutations.recordAssessment.mutateAsync(input);
+    toast(t('projectDetail.billing.assessment.toast.saved', 'Progress recorded: {{pct}}% complete', { pct: formatNumberExact(Number(pct)) }), undefined, 'success');
+    setAssessOpen(false);
   };
 
   const attachEvidence = async (documentId: string) => {
@@ -404,15 +489,64 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     };
   };
 
+  const customerOrders = rows.filter((row) => row.status !== 'Draft')
+    .sort((a, b) => (a.wo_number ?? a.title).localeCompare(b.wo_number ?? b.title));
   const liveOrders = rows.filter((row) => row.status === 'Issued' || row.status === 'Closed')
     .sort((a, b) => (a.wo_number ?? '').localeCompare(b.wo_number ?? ''));
   const draftOrders = rows.filter((row) => row.status === 'Draft')
     .sort((a, b) => (a.wo_number ?? a.title).localeCompare(b.wo_number ?? b.title));
+  const filteredOrders = rows.filter((row) => (orderFilter === 'all' || row.id === orderFilter)
+    && (statusFilter === 'all' || row.status === statusFilter));
+  const filteredOrderIds = new Set(filteredOrders.map((row) => row.id));
+  const visibleCustomerOrders = customerOrders.filter((row) => filteredOrderIds.has(row.id));
+  const visibleDraftOrders = draftOrders.filter((row) => filteredOrderIds.has(row.id));
+  const deliveryCandidates = liveOrders.filter(canPrepareForOrder);
+  const drawdownHeadroom = canViewBilling && summary && billing.data && !billing.isPending && !billing.isError
+    ? summary.contractNet - billing.data.filter((row) => row.status === 'Issued' || row.status === 'Closed').reduce((sum, row) => sum + row.orderNet, 0)
+    : null;
+  const orderExportColumns: Column<WorkOrderRow>[] = [
+    { key: 'number', header: t('projectDetail.workOrders.export.number', 'Work order'), cell: (row) => row.wo_number ?? row.title, exportValue: (row) => row.wo_number ?? row.title },
+    { key: 'title', header: t('projectDetail.workOrders.export.title', 'Title'), cell: (row) => row.title, exportValue: (row) => row.title },
+    { key: 'customerPo', header: t('projectDetail.workOrders.export.customerPo', 'Customer PO'), cell: (row) => row.client_po_number ?? '', exportValue: (row) => row.client_po_number ?? '' },
+    { key: 'status', header: t('projectDetail.workOrders.export.status', 'Status'), cell: (row) => row.status, exportValue: (row) => row.status },
+    ...(canViewBilling ? [{ key: 'value', header: t('projectDetail.workOrders.export.value', 'Order value'), cell: (row: WorkOrderRow) => row.order_value ?? '', align: 'num' as const, exportValue: (row: WorkOrderRow) => row.order_value ?? '' }] : []),
+  ];
+  const projectClaimColumns: Column<ProgressClaimWithInvoice>[] = [
+    { key: 'claim', header: t('projectDetail.billing.claims.column.claim', 'Claim'), kind: 'primary', rowHeader: true,
+      cell: (claim) => claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
+      secondaryCell: (claim) => formatDateOnly(claim.created_at) },
+    { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Gross'), align: 'num', kind: 'money',
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from the accepted quantities and contract rates.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.gross_amount), currency)}</span></Tooltip>,
+      exportValue: (claim) => Number(claim.gross_amount) },
+    { key: 'recovery', header: t('projectDetail.billing.claims.column.recovery', 'DP recovery'), align: 'num', kind: 'money',
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.dp_recovery_amount), currency)}</span></Tooltip>,
+      exportValue: (claim) => Number(claim.dp_recovery_amount) },
+    { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num', kind: 'money',
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') }><span className="cursor-help tabular-nums font-semibold">{formatCurrencyCents(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency)}</span></Tooltip>,
+      exportValue: (claim) => claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)) },
+    { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (claim) => {
+      const invoiceId = claim.invoice ? claim.id : null;
+      const label = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
+      const variant: StatusVariant = claim.withdrawn_at ? 'lost' : claim.invoice?.status === 'Paid' ? 'won' : claim.invoice?.status === 'Unpaid' || claim.invoice?.status === 'Submitted' ? 'warn' : 'neutral';
+      return <Tooltip content={t('projectDetail.billing.claims.source.invoice', 'Source: invoice status linked to this claim.') }>
+        {invoiceId ? <Link to={`/sales-invoices/${encodeURIComponent(invoiceId)}`} className="cursor-help"><StatusPill variant={variant}>{claim.invoice?.si_number ?? label}</StatusPill></Link> : <StatusPill variant={variant}>{label}</StatusPill>}
+      </Tooltip>;
+    } },
+    { key: 'evidence', header: t('projectDetail.billing.claims.column.evidence', 'Evidence'), align: 'num', kind: 'number',
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.') }><span className="cursor-help tabular-nums">{formatNumberExact(claim.evidence?.length ?? 0)}</span></Tooltip>,
+      exportValue: (claim) => claim.evidence?.length ?? 0 },
+  ];
   const orderlessInvoices = invoiceRows.filter((invoice) => !invoice.work_order_id);
-  const invoiceById = new Map(invoiceRows.map((invoice) => [invoice.id, invoice]));
   const lineReadsPending = boq.isPending || projectBilling.isPending || lines.isPending;
   const lineReadsFailed = boq.isError || projectBilling.isError || lines.isError;
   const invoiceReadReady = !canViewBilling || (!invoicesQuery.isPending && !invoicesQuery.isError);
+
+  useEffect(() => {
+    setPoDrawerFor(openRecordType === 'workOrder' ? rows.find((row) => row.id === openRecordId) ?? null : null);
+    setLineDrawerFor(openRecordType === 'workOrderLine' ? drawerLineRows.find((line) => line.key === openRecordId) ?? null : null);
+    setInvoiceDrawerFor(openRecordType === 'workOrderInvoice' ? invoiceRows.find((invoice) => invoice.id === openRecordId) ?? null : null);
+    setClaimDrawerFor(openRecordType === 'workOrderClaim' && canViewBilling ? claimRows.find((claim) => claim.id === openRecordId) ?? null : null);
+  }, [openRecordId, openRecordType, rows, drawerLineRows, invoiceRows, claimRows, canViewBilling]);
 
   return (
     <div className="space-y-8">
@@ -438,16 +572,54 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       )}
 
       <section aria-labelledby="pd-customer-orders" className="min-w-0">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
           <h2 id="pd-customer-orders" className="text-sm font-semibold text-foreground">
             {t('projectDetail.contract.orders', 'Customer orders')}
           </h2>
-          {may('create', 'workOrder') && (
-            <Button variant="outline" size="sm" onClick={() => setFormFor(null)}>
-              {t('projectDetail.workOrders.action.newCustomerOrder', 'New customer order')}
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {deliveryCandidates.length > 0 && (
+              <Button variant="outline" size="sm" onClick={() => deliveryCandidates.length === 1
+                ? setBastFor({ row: deliveryCandidates[0], draft: null })
+                : setDeliverySelectorOpen(true)}>
+                {t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')}
+              </Button>
+            )}
+            {may('create', 'workOrder') && (
+              <Button variant="outline" size="sm" onClick={() => setFormFor(null)}>
+                {t('projectDetail.workOrders.action.addCustomerOrder', 'Add customer order')}
+              </Button>
+            )}
+            <ExportButton rows={filteredOrders} columns={orderExportColumns} entity="Customer orders"
+              label={t('common.export', 'Export')} />
+          </div>
         </div>
+
+        <div className="mb-4 flex flex-wrap items-end gap-2">
+          <label className="flex min-w-[190px] flex-1 flex-col gap-1 text-xs text-muted-foreground sm:flex-none">
+            {t('projectDetail.workOrders.filter.orders', 'Order')}
+            <select aria-label={t('projectDetail.workOrders.filter.orders', 'Order')} value={orderFilter} onChange={(event) => setOrderFilter(event.target.value)}
+              className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <option value="all">{t('projectDetail.workOrders.filter.allOrders', 'All orders')}</option>
+              {rows.map((row) => <option key={row.id} value={row.id}>{row.wo_number ?? row.title}</option>)}
+            </select>
+          </label>
+          <label className="flex min-w-[160px] flex-col gap-1 text-xs text-muted-foreground">
+            {t('projectDetail.workOrders.filter.status', 'Status')}
+            <select aria-label={t('projectDetail.workOrders.filter.status', 'Status')} value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
+              className="min-h-10 min-w-0 rounded-sm border border-input bg-background px-3 text-sm text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <option value="all">{t('projectDetail.workOrders.filter.allStatuses', 'All statuses')}</option>
+              {(['Draft', 'Issued', 'Closed', 'Cancelled'] as const).map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </label>
+        </div>
+        {canViewBilling && <div className="mb-4 border-l-2 border-border pl-3 text-sm" role="status">
+          <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
+          <Tooltip content={t('projectDetail.workOrders.drawdown.source', 'Computed as net contract value less the net value of issued and closed work orders.') }>
+            <strong className={`ml-2 cursor-help tabular-nums ${drawdownHeadroom !== null && drawdownHeadroom < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
+              {drawdownHeadroom === null ? '—' : formatCurrencyCents(drawdownHeadroom, currency)}
+            </strong>
+          </Tooltip>
+        </div>}
 
         {isPending ? (
           <ListState variant="loading" rows={4} />
@@ -460,24 +632,24 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           />
         ) : (
           <>
-            {!showQuantities && liveOrders.length === 0 && draftOrders.length === 0 && (
+            {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
               <p className="py-3 text-sm text-muted-foreground">
                 {t('projectDetail.contract.empty', 'No contract lines or customer orders yet.')}
               </p>
             )}
-            {showQuantities && liveOrders.length === 0 && draftOrders.length === 0 && (
+            {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
               <p className="py-3 text-sm text-muted-foreground">
                 {t('projectDetail.contract.noOrders', 'No customer orders yet.')}
               </p>
             )}
 
-            {draftOrders.length > 0 && (
+            {visibleDraftOrders.length > 0 && (
               <section aria-labelledby="pd-draft-orders" className="mb-6">
                 <h3 id="pd-draft-orders" className="mb-2 text-xs font-medium text-muted-foreground">
                   {t('projectDetail.workOrders.drafts', 'Draft orders')}
                 </h3>
                 <ul className="divide-y divide-border/70">
-                  {draftOrders.map((row) => {
+                  {visibleDraftOrders.map((row) => {
                     const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
                     const canSetValue = may('setValue', 'workOrder', { record: { status: row.status } });
                     const canTransition = may('transition', 'workOrder');
@@ -496,7 +668,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     return (
                       <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                         <div className="min-w-0">
-                          <span className="font-medium text-foreground">{row.wo_number ?? row.title}</span>
+                          <button type="button" className="rounded-sm text-left font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                            aria-label={t('projectDetail.workOrders.action.openDetails', 'View details for {{order}}', { order: row.wo_number ?? row.title })}
+                            onClick={() => openPoDrawer(row)}>
+                            {row.wo_number ?? row.title}
+                          </button>
                           {row.wo_number && <span className="ml-2 text-sm text-muted-foreground">{row.title}</span>}
                           {row.client_po_number && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}</span>}
                         </div>
@@ -506,6 +682,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">{issueGateBody}</GateNotice>
                             : canTransition && <Button variant="ghost" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
                           {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancel', 'Cancel')}</Button>}
+                          <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[
+                            ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
+                            ...(canSetValue ? [{ label: t('projectDetail.workOrders.action.setValue', 'Set value'), onClick: () => setValueFor(row) }] : []),
+                            ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => setPending({ row, to: 'Issued' }) }] : []),
+                            ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancel', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
+                            { label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) },
+                          ]} />
                         </div>
                       </li>
                     );
@@ -514,7 +697,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </section>
             )}
 
-            {liveOrders.map((row) => {
+            {visibleCustomerOrders.map((row) => {
               const orderAllocations = (projectBilling.data?.contractLines ?? []).flatMap((line) =>
                 line.allocations.filter((allocation) => allocation.workOrderId === row.id).map((allocation) => ({ line, allocation })),
               );
@@ -527,11 +710,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const billingRow = billingById.get(row.id);
               const orderInvoices = invoicesByWo.get(row.id) ?? [];
               const settlement = invoiceReadReady ? summarizeInvoiceSettlement(orderInvoices) : null;
-              const orderClaims = claimRows.filter((claim) => claim.work_order_id === row.id);
-              const claimIds = new Set(orderClaims.map((claim) => claim.id));
-              const directInvoices = orderInvoices.filter((invoice) => !claimIds.has(invoice.id));
-              const canPrepare = row.status === 'Issued' && rawLines.length > 0
-                && may('create', 'workOrderAcceptance', { currentUserId: currentUser?.id, record: { status: row.status, project_manager_id: projectManagerId } });
+              const canPrepare = canPrepareForOrder(row);
               const canConfirm = Boolean(pendingBast) && may('confirm', 'workOrderAcceptance', {
                 currentUserId: currentUser?.id,
                 record: { status: pendingBast?.status, prepared_by: pendingBast?.prepared_by },
@@ -539,36 +718,100 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const canEdit = may('edit', 'workOrder', { record: { status: row.status } });
               const canTransition = may('transition', 'workOrder');
               const invoiceForOrder = billingRow && canInvoiceWorkOrder(row.status, billingRow);
-              const invoiceTable = canViewBilling && (orderClaims.length > 0 || directInvoices.length > 0);
+              const canRaiseOrderInvoice = Boolean((hasOrderLines ? canBill : canInvoice) && invoiceForOrder && billingRow && billingRow.remaining > 0);
               const orderFiguresComplete = Boolean(settlement)
                 && settlement?.invoiced !== null
                 && settlement?.balancesKnown
                 && billingRow?.figuresComplete !== false;
               const orderFiguresMissing = canViewBilling && !orderFiguresComplete;
-              const hasInvoiceActions = orderClaims.some((claim) => !claim.withdrawn_at
-                && !invoiceById.has(claim.id)
-                && !claim.invoice
-                && canBill);
-              const claimDownPayment = orderClaims.find((claim) => claim.kind === 'down_payment' && !claim.withdrawn_at && claim.invoice?.status !== 'Cancelled');
-              const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : 'progress';
+              const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : row.status === 'Cancelled' ? 'lost' : 'progress';
+              const latestConfirmedBast = bastList.find((acceptance) => acceptance.status === 'Confirmed');
+              const orderOverdue = orderInvoices.reduce((sum, invoice) => {
+                if (!invoice.erp_due_date || invoice.erp_due_date >= todayIso() || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
+                const balance = invoice.status === 'Paid' ? 0 : invoice.erp_outstanding_amount;
+                return balance === null ? sum : sum + Math.max(0, balance);
+              }, 0);
+              const raiseOrderInvoice = () => {
+                if (!billingRow) return;
+                setCreatedInvoice(null);
+                if (hasOrderLines) setClaimFor(row);
+                else setInvoiceFor({ row, remaining: billingRow.remaining });
+              };
+              const canEditLines = may('create', 'workOrderLine', { record: { status: row.status } });
+              const orderActions: RowMenuItem[] = [
+                ...(canPrepare ? [{ label: t('projectDetail.workOrders.action.recordDelivery', 'Record delivery'), onClick: () => setBastFor({ row, draft: null }) }] : []),
+                ...(canConfirm && pendingBast ? [{ label: t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm draft BAST'), onClick: () => setConfirmFor({ acceptance: pendingBast, error: null }) }] : []),
+                ...(canRaiseOrderInvoice ? [{ label: `${t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')} · ${formatCurrency(billingRow!.remaining, currency)}`, onClick: raiseOrderInvoice }] : []),
+                ...(canEditLines ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
+                ...(row.client_po_number ? [{ label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) }] : []),
+                ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
+                ...(row.status === 'Issued' && canTransition && !closeByBast(row.id) ? [{ label: t('projectDetail.workOrders.action.close', 'Close order'), onClick: () => setPending({ row, to: 'Closed' }) }] : []),
+                ...((row.status === 'Issued' || row.status === 'Draft') && canTransition ? [{ label: t('projectDetail.workOrders.action.cancel', 'Cancel order'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
+              ];
+              const orderLineRows = drawerLineRows.filter((line) => line.order.id === row.id);
+              const lineColumns: Column<OrderLineView>[] = [
+                {
+                  key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
+                  cell: (line) => <span>{line.item?.item_code ? <span className="mr-2 text-xs text-muted-foreground">{line.item.item_code}</span> : null}{line.item?.description ?? line.allocation.boqItemId}</span>,
+                  secondaryCell: (line) => t('projectDetail.cascade.contractQuantity', 'Contract quantity {{quantity}} {{unit}}', { quantity: formatNumberExact(line.allocation.quantity), unit: line.item?.unit ?? '' }),
+                },
+                { key: 'unit', header: t('projectDetail.cascade.colUnit', 'Unit'), cell: (line) => <span className="text-muted-foreground">{line.item?.unit ?? '—'}</span>, kind: 'meta' },
+                ...(canViewBilling ? [{ key: 'rate', header: t('projectDetail.cascade.colRate', 'Rate'), align: 'num' as const, kind: 'money' as const,
+                  cell: (line: OrderLineView) => <Tooltip content={t('projectDetail.cascade.source.rate', 'Source: the rate on this bill of quantities line.') }><span className="cursor-help tabular-nums">{line.rate === null ? '—' : formatCurrency(line.rate, currency)}</span></Tooltip>,
+                  exportValue: (line: OrderLineView) => line.rate ?? '',
+                }] : []),
+                { key: 'ordered', header: t('projectDetail.cascade.colOrdered', 'Ordered'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.') }><span className="cursor-help tabular-nums">{formatNumberExact(line.allocation.quantity)}</span></Tooltip>, exportValue: (line) => line.allocation.quantity },
+                { key: 'delivered', header: t('projectDetail.cascade.colDelivered', 'Delivered'), cell: (line) => {
+                  const deliveredQuantity = line.allocation.acceptedQuantity;
+                  const short = deliveredQuantity !== null && deliveredQuantity < line.allocation.quantity && line.allocation.final;
+                  const percentDone = deliveredQuantity === null || line.allocation.quantity <= 0 ? null : Math.round(deliveredQuantity / line.allocation.quantity * 100);
+                  return <div className="min-w-24">
+                    <Tooltip content={t('projectDetail.cascade.source.lineDelivered', 'Source: total quantity accepted on confirmed BASTs for this work order.') }>
+                      <span className={cn('cursor-help tabular-nums', short && 'text-warning-foreground')}>{deliveredQuantity === null ? '—' : formatNumberExact(deliveredQuantity)}</span>
+                    </Tooltip>
+                    {percentDone !== null && <Tooltip content={t('projectDetail.cascade.source.lineDeliveryProgress', 'Accepted quantity ÷ ordered quantity. A final short delivery is flagged.') }>
+                      <span className="mt-1 block w-full max-w-24 cursor-help"><ProgressBar value={percentDone} widthless aria-label={t('projectDetail.cascade.deliveryProgress', 'Delivered percentage')} /></span>
+                    </Tooltip>}
+                    {short && <span className="block text-[11px] text-warning-foreground">{t('projectDetail.cascade.short', '({{n}} short)', { n: formatNumberExact(line.allocation.quantity - deliveredQuantity) })}</span>}
+                  </div>;
+                }, exportValue: (line) => line.allocation.acceptedQuantity ?? '' },
+                { key: 'invoiced', header: t('projectDetail.cascade.colInvoiced', 'Invoiced'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineInvoiced', 'Source: quantity already claimed against this work order allocation.') }><span className="cursor-help tabular-nums">{formatNumberExact(line.allocation.claimedQuantity)}</span></Tooltip>, exportValue: (line) => line.allocation.claimedQuantity },
+                { key: 'canInvoice', header: t('projectDetail.cascade.colCanInvoice', 'Can invoice'), align: 'num', kind: 'number', cell: (line) => <Tooltip content={t('projectDetail.cascade.source.lineCanInvoice', 'Accepted quantity less already claimed quantity. No figure appears until a BAST is confirmed.') }><span className="cursor-help tabular-nums font-semibold">{line.allocation.acceptedQuantity === null ? '—' : formatNumberExact(Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity))}</span></Tooltip>, exportValue: (line) => line.allocation.acceptedQuantity === null ? '' : Math.max(0, line.allocation.acceptedQuantity - line.allocation.claimedQuantity) },
+              ];
 
               return (
-                <article key={row.id} data-testid={`customer-order-${row.id}`} className="min-w-0 border-b border-border/70 py-5 first:pt-1">
+                <article key={row.id} data-testid={`customer-order-${row.id}`} className="min-w-0 rounded-md border border-border p-4">
                   <header className="flex flex-col gap-3">
                     <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
                       <h3 data-wo-anchor={row.id} tabIndex={-1}
                         className="rounded-sm text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                        {row.wo_number ?? t('projectDetail.workOrders.notYetIssued', 'Not issued yet')}
+                        <button type="button"
+                          className="touch-target rounded-sm text-left underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                          aria-label={t('projectDetail.workOrders.action.openDetails', 'View details for {{order}}', { order: row.wo_number ?? row.title })}
+                          onClick={() => openPoDrawer(row)}>
+                          {row.wo_number ?? t('projectDetail.workOrders.notYetIssued', 'Not issued yet')}
+                        </button>
                       </h3>
                       <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
                       <StatusPill variant={workOrderStatusTone}>{row.status}</StatusPill>
                       {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}</span>}
+                      <div className="ml-auto flex flex-wrap items-center gap-2">
+                        {canRaiseOrderInvoice && billingRow && <Tooltip content={t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.') }>
+                          <Button variant="primary" size="sm" onClick={raiseOrderInvoice}>
+                            {`${t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')} · ${formatCurrency(billingRow.remaining, currency)}`}
+                          </Button>
+                        </Tooltip>}
+                        {canPrepare && <Button variant="outline" size="sm" onClick={() => setBastFor({ row, draft: null })}>
+                          {t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')}
+                        </Button>}
+                        {orderActions.length > 0 && <MenuButton items={orderActions} ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} />}
+                      </div>
                     </div>
 
                     {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`}>
-                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} />}
-                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} />}
-                      {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} destructive={settlement.unpaid > 0} />}
+                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
+                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
+                      {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
                     </dl>}
 
                     {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesQuery.isError || billing.isError ? 'alert' : 'status'}>
@@ -582,36 +825,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       </button>
                     </p>}
 
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
-                      {canPrepare && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setBastFor({ row, draft: null })}>{t('projectDetail.procurement.nextStep.ordered', 'Record delivery')}</button>}
-                      {canConfirm && pendingBast && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setConfirmFor({ acceptance: pendingBast, error: null })}>{t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm delivery')}</button>}
-                      {hasOrderLines && summary && canBill && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setClaimFor(row)}>{t('projectDetail.workOrders.billing.raiseProgressClaim', 'Raise invoice')}</button>}
-                      {!hasOrderLines && canInvoice && invoiceForOrder && billingRow && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => { setCreatedInvoice(null); setInvoiceFor({ row, remaining: billingRow.remaining }); }}>{t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')}</button>}
-                      {canEdit && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setFormFor(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</button>}
-                      {row.status === 'Issued' && canTransition && !closeByBast(row.id) && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setPending({ row, to: 'Closed' })}>{t('projectDetail.workOrders.action.close', 'Close')}</button>}
-                      {(row.status === 'Issued' || row.status === 'Draft') && canTransition && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-destructive-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-                        onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancel', 'Cancel')}</button>}
-                      <details className="min-w-0">
-                        <summary className="touch-target min-h-8 cursor-pointer py-2 text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                            {t('projectDetail.workOrders.action.more', 'More')}
-                        </summary>
-                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-2 text-xs text-muted-foreground">
-                          {canViewBilling && row.order_value != null && <span data-testid={`wo-value-${row.id}`}>{t('projectDetail.workOrders.orderValue', 'Order value')} <b className="font-medium text-foreground">{formatNumberWhole(Number(row.order_value))}</b> · {basisNote(row)}</span>}
-                          {canViewBilling && row.closing_value != null && <span data-testid={`wo-closing-${row.id}`}>{t('projectTabs:contractQuantities.workOrders.closing.closedAtLabel', 'Closed value')} <b className="font-medium text-foreground">{formatNumberWhole(Number(row.closing_value))}</b></span>}
-                          {canViewBilling && claimDownPayment && <span>{t('projectDetail.cascade.includingDownPayment', 'Down payment {{amount}}', { amount: formatNumberWhole(Number(claimDownPayment.down_payment_amount ?? claimDownPayment.gross_amount)) })}</span>}
-                          {hasOrderLines && canInvoice && invoiceForOrder && billingRow && <button type="button" className="touch-target min-h-8 text-primary-text underline underline-offset-2"
-                              onClick={() => { setCreatedInvoice(null); setInvoiceFor({ row, remaining: billingRow.remaining }); }}>
-                              {t('projectDetail.workOrders.billing.invoiceByAmount', 'Invoice by amount')}
-                          </button>}
-                        </div>
-                      </details>
-                    </div>
+                    {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
+                      <span className="inline-flex w-fit cursor-help items-center gap-2 text-xs text-warning-foreground tabular-nums">
+                        <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
+                        <strong>{currency} {formatNumberWhole(orderOverdue)}</strong>
+                      </span>
+                    </Tooltip>}
                   </header>
 
                   {pendingBast && <p className="mt-2 text-xs text-muted-foreground" role="status">
@@ -625,88 +844,50 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       ? <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void projectBilling.refetch(); void lines.refetch(); }} />
                       : <ListState variant="loading" rows={3} />
                   ) : hasOrderLines ? (
-                    <>
-                    <div className="mt-4 hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.cascade.linesScroll', 'Contract quantities for {{wo}}', { wo: row.wo_number ?? row.title })} data-testid={`wo-lines-table-scroll-${row.id}`}>
-                      <table className="w-full min-w-[46rem] text-sm">
-                        <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
-                          {[t('projectDetail.cascade.colItem', 'Item'), t('projectDetail.cascade.colUnit', 'Unit'), t('projectDetail.cascade.colOrdered', 'Ordered'), t('projectDetail.cascade.colDelivered', 'Delivered'), t('projectDetail.cascade.colInvoiced', 'Invoiced'), t('projectDetail.cascade.colCanInvoice', 'Can invoice')].map((heading) => (
-                            <th key={heading} scope="col" className="px-3 py-2 text-right font-medium first:text-left">{heading}</th>
-                          ))}
-                        </tr></thead>
-                        <tbody>
-                          {orderAllocations.map(({ line, allocation }) => {
-                            const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId);
-                            const deliveredQuantity = allocation.acceptedQuantity;
-                            const canInvoiceQuantity = deliveredQuantity === null ? null : Math.max(0, deliveredQuantity - allocation.claimedQuantity);
-                            return (
-                              <tr key={`${line.boqItemId}-${row.id}`} className="border-t border-border/70">
-                                <td className="px-3 py-2"><span className="mr-2 text-xs text-muted-foreground">{item?.item_code ?? ''}</span>{item?.description ?? allocation.boqItemId}</td>
-                                <td className="px-3 py-2 text-right text-muted-foreground">{item?.unit ?? ''}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{formatNumberExact(allocation.quantity)}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">
-                                  {deliveredQuantity === null ? '—' : <span className={deliveredQuantity < allocation.quantity && allocation.final ? 'text-warning-foreground' : undefined}>
-                                    {formatNumberExact(deliveredQuantity)}{deliveredQuantity < allocation.quantity && allocation.final && <span className="ml-1 text-xs">{t('projectDetail.cascade.short', '({{n}} short)', { n: formatNumberExact(allocation.quantity - deliveredQuantity) })}</span>}
-                                  </span>}
-                                </td>
-                                <td className="px-3 py-2 text-right tabular-nums">{formatNumberExact(allocation.claimedQuantity)}</td>
-                                <td className="px-3 py-2 text-right tabular-nums">{canInvoiceQuantity === null ? '—' : formatNumberExact(canInvoiceQuantity)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                    <div className="mt-4" data-testid={`wo-lines-table-scroll-${row.id}`}>
+                      <DataTable<OrderLineView>
+                        rows={orderLineRows}
+                        columns={lineColumns}
+                        rowKey={(line) => line.key}
+                        rowLabel={(line) => t('projectDetail.cascade.openLine', 'Open {{item}} quantity history', { item: line.item?.description ?? line.allocation.boqItemId })}
+                        accessibleName={t('projectDetail.cascade.linesScroll', 'Contract quantities for {{wo}}', { wo: row.wo_number ?? row.title })}
+                        onActivate={openLineDrawer}
+                        rowMenu={(line) => [
+                          { label: t('projectDetail.cascade.viewQuantityHistory', 'View quantity history'), onClick: () => openLineDrawer(line) },
+                          ...(canEditLines ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
+                        ]}
+                        cardBelow={720}
+                        tableId={`project-detail-contract-order-${row.id}`}
+                      />
                     </div>
-                    <ul className="mt-4 divide-y divide-border border-y border-border text-sm md:hidden" data-testid={`wo-lines-mobile-${row.id}`}>
-                      {orderAllocations.map(({ line, allocation }) => {
-                        const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId);
-                        const deliveredQuantity = allocation.acceptedQuantity;
-                        const canInvoiceQuantity = deliveredQuantity === null ? null : Math.max(0, deliveredQuantity - allocation.claimedQuantity);
-                        const name = item?.description ?? allocation.boqItemId;
-                        return <li key={`${line.boqItemId}-${row.id}`} className="py-3">
-                          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-                            <span className="min-w-0 break-words font-medium">{item?.item_code && <span className="mr-1 text-xs text-muted-foreground">{item.item_code}</span>}{name}</span>
-                            {item?.unit && <span className="text-xs text-muted-foreground">{item.unit}</span>}
-                          </div>
-                          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                            <QuantityFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={formatNumberExact(allocation.quantity)} />
-                            <QuantityFigure label={t('projectDetail.cascade.colDelivered', 'Delivered')} value={deliveredQuantity === null ? '—' : formatNumberExact(deliveredQuantity)} />
-                            <QuantityFigure label={t('projectDetail.cascade.colInvoiced', 'Invoiced')} value={formatNumberExact(allocation.claimedQuantity)} />
-                            <QuantityFigure label={t('projectDetail.cascade.colCanInvoice', 'Can invoice')} value={canInvoiceQuantity === null ? '—' : formatNumberExact(canInvoiceQuantity)} />
-                          </dl>
-                        </li>;
-                      })}
-                    </ul>
-                    </>
                   ) : (
                     <p className="mt-3 text-xs text-muted-foreground">{t('projectDetail.cascade.moneyOnly', 'Money-only order')}</p>
                   )}
 
-                  {invoiceTable && (
-                    <section className="mt-4" aria-label={t('projectDetail.cascade.claimsHeading', 'Invoices and claims')}>
-                      <details>
-                        <summary className="touch-target min-h-8 cursor-pointer py-2 text-xs font-medium text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                          {t('projectDetail.workOrders.billing.invoicesCount', 'Invoices ({{count}})', { count: orderClaims.length + directInvoices.length })}
-                        </summary>
-                        {invoiceReadReady && <>
-                          <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.workOrders.billing.invoicesScroll', 'Invoices for {{wo}}', { wo: row.wo_number ?? row.title })} data-testid={`wo-invoices-scroll-${row.id}`}>
-                            <table className="w-full min-w-[50rem] text-xs">
-                              <thead><tr className="border-b border-border text-left text-muted-foreground">
-                                {[t('projectDetail.cascade.invoiceNumber', 'Claim / invoice'), t('projectDetail.cascade.invoiceDate', 'Date'), t('projectDetail.cascade.invoiceAmount', 'Amount'), t('projectDetail.cascade.invoiceStatus', 'Status'), t('projectDetail.cascade.paid', 'Paid'), t('projectDetail.cascade.unpaid', 'Unpaid'), ...(hasInvoiceActions ? [t('projectDetail.cascade.invoiceActions', 'Actions')] : [])].map((heading) => <th key={heading} scope="col" className="px-2 py-2 font-medium">{heading}</th>)}
-                              </tr></thead>
-                              <tbody>
-                                {orderClaims.map((claim) => <InvoiceClaimRow key={claim.id} claim={claim} invoice={invoiceById.get(claim.id)} showActions={hasInvoiceActions} canBill={canBill} onAttach={() => setEvidenceFor(claim.id)} onRaise={() => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })} onWithdraw={() => setWithdrawClaimFor(claim)} />)}
-                                {directInvoices.map((invoice) => <InvoiceTableRow key={invoice.id} invoice={invoice} />)}
-                              </tbody>
-                            </table>
-                          </div>
-                          <ul className="divide-y divide-border border-y border-border text-sm md:hidden" data-testid={`wo-invoices-mobile-${row.id}`}>
-                            {orderClaims.map((claim) => <InvoiceClaimCard key={claim.id} claim={claim} invoice={invoiceById.get(claim.id)} canBill={canBill} onAttach={() => setEvidenceFor(claim.id)} onRaise={() => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })} onWithdraw={() => setWithdrawClaimFor(claim)} />)}
-                            {directInvoices.map((invoice) => <InvoiceCard key={invoice.id} invoice={invoice} />)}
-                          </ul>
-                        </>}
-                      </details>
-                    </section>
-                  )}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'BAST state')}</span>
+                      {pendingBast ? <StatusPill variant="warn">{t('projectDetail.cascade.pendingAcceptance', 'Delivery awaiting confirmation')}</StatusPill>
+                        : latestConfirmedBast ? <StatusPill variant="won">{latestConfirmedBast.is_final
+                          ? t('projectTabs:contractQuantities.workOrders.acceptances.finalConfirmed', 'Final confirmed')
+                          : t('projectTabs:contractQuantities.workOrders.acceptances.confirmed', 'Confirmed')}</StatusPill>
+                          : <StatusPill variant="neutral">{t('projectDetail.cascade.noBast', 'No BAST yet')}</StatusPill>}
+                    </div>
+                    {canViewBilling && <div className="flex flex-wrap items-center gap-2" aria-label={t('projectDetail.cascade.invoiceStatus', 'Invoice status')}>
+                      <span className="text-muted-foreground">{t('projectDetail.cascade.invoices', 'Invoices')}</span>
+                      {orderInvoices.length === 0 ? <span className="text-muted-foreground">—</span> : orderInvoices.map((invoice) => {
+                        const tone: StatusVariant = invoice.status === 'Paid' ? 'won'
+                          : invoice.status === 'Unpaid' || invoice.status === 'Submitted' ? 'warn'
+                            : invoice.status === 'Cancelled' ? 'lost' : 'neutral';
+                        return <Tooltip key={invoice.id} content={t('projectDetail.cascade.invoicePillSource', 'Source: invoice status mirrored from accounting.') }>
+                          <button type="button" className="touch-target rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-label={t('projectDetail.cascade.openInvoice', 'Open invoice {{invoice}}', { invoice: invoice.si_number ?? invoice.status })} onClick={() => openInvoiceDrawer(invoice)}>
+                            <span className="mr-1 text-[11px] text-muted-foreground">{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</span>
+                            <StatusPill variant={tone}>{invoice.status}</StatusPill>
+                          </button>
+                        </Tooltip>;
+                      })}
+                    </div>}
+                  </div>
 
                   <div className="mt-4 flex flex-col gap-3">
                     {lines.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />}
@@ -757,7 +938,66 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         )}
       </section>
 
-      {canViewBilling && (orderlessInvoices.length > 0 || ((!liveOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
+      {canViewBilling && <Card variant="bare" className="min-w-0">
+        <CardHead level={2} className="text-base" actions={<div className="flex flex-wrap items-center gap-2">
+          {canAssess && boqRows.length > 0 && <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
+            {t('projectDetail.billing.assessment.record', 'Record progress')}
+          </Button>}
+          {canBill && <Button variant="primary" size="sm" onClick={() => setNewClaimOpen(true)}>
+            {t('projectDetail.billing.claims.new', 'New claim')}
+          </Button>}
+        </div>}>
+          {t('projectDetail.billing.claims.title', 'Claims & down payment')}
+        </CardHead>
+        <CardPad>
+          <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
+              <Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }>
+                <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums">{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatCurrencyCents(summary.unbilledWork, currency)}</dd>
+              </Tooltip>
+            </div>
+            <div>
+              <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
+              <Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }>
+                <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums">{summary ? formatCurrencyCents(summary.dpHeld, currency) : '—'}</dd>
+              </Tooltip>
+            </div>
+            <div className="col-span-2 text-xs text-muted-foreground sm:col-span-1">
+              {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
+            </div>
+          </dl>
+          <DataTable<ProgressClaimWithInvoice>
+            rows={claimRows}
+            columns={projectClaimColumns}
+            rowKey={(claim) => claim.id}
+            rowLabel={(claim) => t('projectDetail.billing.claims.openLabel', 'Open {{kind}} claim from {{date}}', {
+              kind: claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
+              date: formatDateOnly(claim.created_at),
+            })}
+            accessibleName={t('projectDetail.billing.claims.title', 'Claims & down payment')}
+            onActivate={openClaimDrawer}
+            rowMenu={(claim) => {
+              const open = !claim.withdrawn_at && !claim.invoice;
+              return [
+                ...(open && canBill ? [{ label: t('projectDetail.billing.claims.attachEvidence', 'Attach evidence'), onClick: () => setEvidenceFor(claim.id) }] : []),
+                ...(open && canBill && (claim.evidence?.length ?? 0) > 0 ? [{ label: t('projectDetail.billing.claims.raise', 'Raise invoice'), onClick: () => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() }) }] : []),
+                ...(open && canBill ? [{ label: t('projectDetail.billing.claims.withdraw', 'Withdraw'), danger: true, onClick: () => setWithdrawClaimFor(claim) }] : []),
+              ];
+            }}
+            state={claimsQuery.isPending ? 'loading' : claimsQuery.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
+            emptySub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or accepted quantities as one invoice.')}
+            errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
+            errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
+            onRetry={() => void claimsQuery.refetch()}
+            cardBelow={720}
+            tableId="project-detail-claims-register"
+          />
+        </CardPad>
+      </Card>}
+
+      {canViewBilling && (orderlessInvoices.length > 0 || ((!customerOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
         <div className="mb-3 border-b border-border pb-2">
           <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
         </div>
@@ -784,14 +1024,139 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
                 {[t('projectDetail.cascade.invoiceNumber', 'Invoice'), t('projectDetail.cascade.invoiceDate', 'Date'), t('projectDetail.cascade.invoiceAmount', 'Amount'), t('projectDetail.cascade.invoiceStatus', 'Status'), t('projectDetail.cascade.paid', 'Paid'), t('projectDetail.cascade.unpaid', 'Unpaid')].map((heading) => <th key={heading} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}
               </tr></thead>
-              <tbody>{orderlessInvoices.map((invoice) => <InvoiceTableRow key={invoice.id} invoice={invoice} />)}</tbody>
+            <tbody>{orderlessInvoices.map((invoice) => <InvoiceTableRow key={invoice.id} invoice={invoice} onOpen={() => openInvoiceDrawer(invoice)} />)}</tbody>
             </table>
           </div>
           <ul className="divide-y divide-border border-y border-border text-sm md:hidden">
-            {orderlessInvoices.map((invoice) => <InvoiceCard key={invoice.id} invoice={invoice} />)}
+            {orderlessInvoices.map((invoice) => <InvoiceCard key={invoice.id} invoice={invoice} onOpen={() => openInvoiceDrawer(invoice)} />)}
           </ul>
         </>}
       </section>}
+
+      {deliverySelectorOpen && <Drawer open title={t('projectDetail.workOrders.action.recordDelivery', 'Record delivery')} onClose={() => setDeliverySelectorOpen(false)}>
+        <div className="flex flex-col gap-2 p-4">
+          <p className="text-sm text-muted-foreground">{t('projectDetail.workOrders.delivery.chooseOrder', 'Choose the customer order receiving this delivery.')}</p>
+          {deliveryCandidates.map((order) => <Button key={order.id} variant="outline" className="justify-start" onClick={() => {
+            setDeliverySelectorOpen(false);
+            setBastFor({ row: order, draft: null });
+          }}>{order.wo_number ?? order.title} · {order.title}</Button>)}
+        </div>
+      </Drawer>}
+
+      {lineDrawerFor && (() => {
+        const selected = lineDrawerFor;
+        const fact = projectBilling.data?.contractLines.find((line) => line.boqItemId === selected.allocation.boqItemId);
+        const split = fact?.allocations ?? [];
+        const history = (acceptancesByWo.get(selected.order.id) ?? []).flatMap((acceptance) => acceptance.lines
+          .filter((line) => line.boq_item_id === selected.allocation.boqItemId)
+          .map((line) => ({ acceptance, quantity: Number(line.quantity) })));
+        return <Drawer open title={selected.item?.description ?? selected.allocation.boqItemId}
+          subtitle={`${selected.item?.item_code ?? ''}${selected.item?.unit ? ` · ${selected.item.unit}` : ''}`}
+          status={<StatusPill variant={selected.order.status === 'Closed' ? 'won' : 'progress'}>{selected.order.status}</StatusPill>}
+          onClose={() => closeOpenRecord(selected.key, 'workOrderLine')}
+          headerActions={<div className="flex flex-wrap items-center gap-2">
+            {may('create', 'workOrderLine', { record: { status: selected.order.status } }) && <Button variant="outline" size="sm" onClick={() => {
+              closeOpenRecord(selected.key, 'workOrderLine');
+              setLinesFor(selected.order);
+            }}>{t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}</Button>}
+            <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(selected.order.id)}`} onClick={() => closeOpenRecord(selected.key, 'workOrderLine')}>
+              {t('projectDetail.drawer.openFullPage', 'Open full page')}
+            </Link>
+          </div>}>
+          <div className="flex flex-col gap-5 p-4">
+            <dl className="grid grid-cols-2 gap-3 text-sm">
+              <QuantityFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={`${formatNumberExact(selected.allocation.quantity)} ${selected.item?.unit ?? ''}`} detail={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.')} />
+              <QuantityFigure label={t('projectDetail.cascade.colDelivered', 'Delivered')} value={selected.allocation.acceptedQuantity === null ? '—' : `${formatNumberExact(selected.allocation.acceptedQuantity)} ${selected.item?.unit ?? ''}`} detail={t('projectDetail.cascade.source.lineDelivered', 'Source: total quantity accepted on confirmed BASTs for this work order.')} />
+              <QuantityFigure label={t('projectDetail.cascade.colInvoiced', 'Invoiced')} value={`${formatNumberExact(selected.allocation.claimedQuantity)} ${selected.item?.unit ?? ''}`} detail={t('projectDetail.cascade.source.lineInvoiced', 'Source: quantity already claimed against this work order allocation.')} />
+              <QuantityFigure label={t('projectDetail.cascade.colCanInvoice', 'Can invoice')} value={selected.allocation.acceptedQuantity === null ? '—' : `${formatNumberExact(Math.max(0, selected.allocation.acceptedQuantity - selected.allocation.claimedQuantity))} ${selected.item?.unit ?? ''}`} detail={t('projectDetail.cascade.source.lineCanInvoice', 'Accepted quantity less already claimed quantity. No figure appears until a BAST is confirmed.')} />
+              {canViewBilling && selected.rate !== null && <QuantityFigure label={t('projectDetail.cascade.colRate', 'Rate')} value={formatCurrency(selected.rate, currency)} detail={t('projectDetail.cascade.source.rate', 'Source: the rate on this bill of quantities line.')} />}
+            </dl>
+            <section aria-labelledby="line-order-split">
+              <h4 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h4>
+              {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+                {split.map((allocation) => {
+                  const order = rows.find((candidate) => candidate.id === allocation.workOrderId);
+                  return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                    <span>{order?.wo_number ?? order?.title ?? allocation.workOrderId}</span>
+                    <Tooltip content={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.')}>
+                      <span className="cursor-help tabular-nums">{formatNumberExact(allocation.quantity)} {selected.item?.unit ?? ''}</span>
+                    </Tooltip>
+                  </li>;
+                })}
+              </ul>}
+            </section>
+            <section aria-labelledby="line-quantity-history">
+              <h4 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h4>
+              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+                {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>
+                  <Tooltip content={t('projectDetail.cascade.source.acceptedHistory', 'Source: quantity recorded on this BAST.') }><span className="cursor-help tabular-nums">{formatNumberExact(quantity)} {selected.item?.unit ?? ''}</span></Tooltip>
+                </li>)}
+              </ul>}
+            </section>
+          </div>
+        </Drawer>;
+      })()}
+
+      {poDrawerFor && <Drawer open title={t('projectDetail.workOrders.action.viewPo', 'View customer PO')} subtitle={poDrawerFor.title}
+        status={<StatusPill variant={poDrawerFor.status === 'Closed' ? 'won' : 'progress'}>{poDrawerFor.status}</StatusPill>}
+        onClose={() => closeOpenRecord(poDrawerFor.id, 'workOrder')}
+        headerActions={<div className="flex flex-wrap items-center gap-2">
+          {may('edit', 'workOrder', { record: { status: poDrawerFor.status } }) && <Button variant="outline" size="sm" onClick={() => { closeOpenRecord(poDrawerFor.id, 'workOrder'); setFormFor(poDrawerFor); }}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
+          <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/work-orders?wo=${encodeURIComponent(poDrawerFor.id)}`} onClick={() => closeOpenRecord(poDrawerFor.id, 'workOrder')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+        </div>}>
+        <dl className="space-y-4 p-4 text-sm">
+          <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')}</dt><dd className="mt-1 font-medium">{poDrawerFor.client_po_number ?? '—'}</dd></div>
+          {poDrawerFor.description && <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.description', 'Description')}</dt><dd className="mt-1 whitespace-pre-wrap">{poDrawerFor.description}</dd></div>}
+          {canViewBilling && poDrawerFor.order_value !== null && <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderValue', 'Order value')}</dt><Tooltip content={t('projectDetail.workOrders.orderValueSource', 'Source: the customer order value set by an authorized reviewer.') }><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums">{formatCurrency(Number(poDrawerFor.order_value), currency)} · {basisNote(poDrawerFor)}</dd></Tooltip></div>}
+        </dl>
+      </Drawer>}
+
+      {invoiceDrawerFor && <Drawer open title={invoiceDrawerFor.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}
+        status={<StatusPill variant={invoiceDrawerFor.status === 'Paid' ? 'won' : invoiceDrawerFor.status === 'Unpaid' || invoiceDrawerFor.status === 'Submitted' ? 'warn' : invoiceDrawerFor.status === 'Cancelled' ? 'lost' : 'neutral'}>{invoiceDrawerFor.status}</StatusPill>}
+        onClose={() => closeOpenRecord(invoiceDrawerFor.id, 'workOrderInvoice')}
+        headerActions={<Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoiceDrawerFor.id)}`} onClick={() => closeOpenRecord(invoiceDrawerFor.id, 'workOrderInvoice')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>}>
+        {(() => {
+          const figures = invoiceBalanceFigures(invoiceDrawerFor);
+          const invoiceCurrency = invoiceDrawerFor.currency || currency;
+          return <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
+            {invoiceDrawerFor.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDateOnly(invoiceDrawerFor.invoice_date)} />}
+            {invoiceDrawerFor.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrencyCents(invoiceDrawerFor.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
+            {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrencyCents(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') } />}
+            {figures.unpaid !== null && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatCurrencyCents(figures.unpaid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') } />}
+            {invoiceDrawerFor.erp_due_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDueDate', 'Due date')} value={formatDateOnly(invoiceDrawerFor.erp_due_date)} />}
+          </dl>;
+        })()}
+      </Drawer>}
+
+      {claimDrawerFor && <Drawer open title={claimDrawerFor.kind === 'down_payment'
+        ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
+        : t('projectDetail.billing.claims.kind.progress', 'Progress')}
+        subtitle={formatDateOnly(claimDrawerFor.created_at)}
+        status={<StatusPill variant={claimDrawerFor.withdrawn_at ? 'lost' : claimDrawerFor.invoice?.status === 'Paid' ? 'won' : 'neutral'}>{claimDrawerFor.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : claimDrawerFor.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised')}</StatusPill>}
+        onClose={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}
+        headerActions={<div className="flex flex-wrap items-center gap-2">
+          {!claimDrawerFor.withdrawn_at && !claimDrawerFor.invoice && canBill && ((claimDrawerFor.evidence?.length ?? 0) > 0
+            ? <Button variant="primary" size="sm" onClick={() => { closeOpenRecord(claimDrawerFor.id, 'workOrderClaim'); setRaiseFor({ claim: claimDrawerFor, idempotencyKey: crypto.randomUUID() }); }}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>
+            : <Button variant="outline" size="sm" onClick={() => { closeOpenRecord(claimDrawerFor.id, 'workOrderClaim'); setEvidenceFor(claimDrawerFor.id); }}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>)}
+          <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claimDrawerFor.invoice ? `/sales-invoices/${encodeURIComponent(claimDrawerFor.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
+        </div>}>
+        <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
+          <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrencyCents(Number(claimDrawerFor.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from the accepted quantities and contract rates.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatCurrencyCents(Number(claimDrawerFor.dp_recovery_amount), currency)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatCurrencyCents(claimNet(Number(claimDrawerFor.gross_amount), Number(claimDrawerFor.dp_recovery_amount)), currency)} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.evidence', 'Evidence')} value={formatNumberExact(claimDrawerFor.evidence?.length ?? 0)} detail={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.') } />
+        </dl>
+        <section className="border-t border-border px-4 py-3">
+          <h3 className="text-sm font-semibold">{t('projectDetail.billing.claims.evidence', 'Evidence')}</h3>
+          {(claimDrawerFor.evidence ?? []).length === 0 ? <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.billing.claims.noEvidence', 'No evidence attached yet.')}</p> : <ul className="mt-2 divide-y divide-border border-y border-border text-sm">
+            {(claimDrawerFor.evidence ?? []).map((evidence) => <li key={evidence.id} className="flex items-center justify-between gap-3 py-2"><span>{evidence.document_id}</span><StatusPill variant={evidence.document_status === 'active' ? 'won' : 'neutral'}>{evidence.document_status}</StatusPill></li>)}
+          </ul>}
+        </section>
+      </Drawer>}
+
+      {assessOpen && summary && <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary.assessedByBoqItem} defaultMonth={thisMonth()}
+        onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />}
 
       {formFor !== undefined && (
         <WorkOrderFormModal
@@ -903,7 +1268,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         />
       )}
 
-      {claimFor && summary && (
+      {(claimFor || newClaimOpen) && summary && (
         <ProgressClaimModal
           boqItems={boqRows}
           workOrders={rows}
@@ -915,8 +1280,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           claimedByBoqItem={summary.claimedByBoqItem}
           assessedByBoqItem={summary.assessedByBoqItem}
           assessmentMonth={summary.assessment?.month ?? null}
-          initialWorkOrderId={claimFor.id}
-          onClose={() => setClaimFor(null)}
+          initialWorkOrderId={claimFor?.id}
+          onClose={() => { setClaimFor(null); setNewClaimOpen(false); }}
           onSave={saveClaim}
           onError={failClaim}
         />
@@ -1014,38 +1379,40 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   );
 };
 
-const MoneyFigure: React.FC<{ label: string; value: string; destructive?: boolean }> = ({ label, value, destructive = false }) => (
+const MoneyFigure: React.FC<{ label: string; value: string; detail?: string; destructive?: boolean }> = ({ label, value, detail, destructive = false }) => (
   <div className="min-w-20">
-    <dt className="text-xs text-muted-foreground">{label}</dt>
-    <dd className={`text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}>{value}</dd>
+    <dt className="text-xs text-muted-foreground"><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span className="cursor-help">{label}</span></Tooltip></dt>
+    <Tooltip content={detail ?? 'Source: billing records for this customer order.'}><dd className={`cursor-help text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}>{value}</dd></Tooltip>
   </div>
 );
 
-const QuantityFigure: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+const QuantityFigure: React.FC<{ label: string; value: string; detail?: string }> = ({ label, value, detail }) => (
   <div className="flex items-baseline justify-between gap-2">
-    <dt>{label}</dt><dd className="tabular-nums text-foreground"> {value}</dd>
+    <dt><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
+    <Tooltip content={detail ?? 'Source: project billing records.'}><dd className="cursor-help tabular-nums text-foreground">{value}</dd></Tooltip>
   </div>
 );
 
-const InvoiceTableRow: React.FC<{ invoice: InvoiceWithWorkOrder }> = ({ invoice }) => {
+const InvoiceTableRow: React.FC<{ invoice: InvoiceWithWorkOrder; onOpen: () => void }> = ({ invoice, onOpen }) => {
+  const { t } = useTranslation();
   const figures = invoiceBalanceFigures(invoice);
   const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
   return <tr className="border-t border-border/70">
-    <td className="px-3 py-2 font-medium"><Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`}>{invoice.si_number ?? 'Invoice draft'}</Link></td>
-    <td className="px-3 py-2 tabular-nums">{invoice.invoice_date ? formatDateOnly(invoice.invoice_date) : ''}</td>
-    <td className="px-3 py-2 tabular-nums">{invoice.amount === null ? '' : formatNumberWhole(invoice.amount)}</td>
-    <td className="px-3 py-2">{invoice.status}</td>
-    <td className="px-3 py-2 tabular-nums">{notApplicable ? '—' : figures.paid === null ? '' : formatNumberWhole(figures.paid)}</td>
-    <td className="px-3 py-2 tabular-nums">{notApplicable ? '—' : figures.unpaid === null ? '' : formatNumberWhole(figures.unpaid)}</td>
+    <td className="px-3 py-2 font-medium"><button type="button" className="text-left text-primary-text underline underline-offset-2" aria-label={t('projectDetail.cascade.openInvoice', 'Open invoice {{invoice}}', { invoice: invoice.si_number ?? invoice.status })} onClick={onOpen}>{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</button></td>
+    <td className="px-3 py-2 tabular-nums"><Tooltip content={t('projectDetail.cascade.invoiceDateSource', 'Source: invoice date from accounting.') }><span className="cursor-help">{invoice.invoice_date ? formatDateOnly(invoice.invoice_date) : ''}</span></Tooltip></td>
+    <td className="px-3 py-2 tabular-nums"><Tooltip content={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') }><span className="cursor-help">{invoice.amount === null ? '' : formatNumberWhole(invoice.amount)}</span></Tooltip></td>
+    <td className="px-3 py-2"><Tooltip content={t('projectDetail.cascade.invoicePillSource', 'Source: invoice status mirrored from accounting.') }><span className="cursor-help">{invoice.status}</span></Tooltip></td>
+    <td className="px-3 py-2 tabular-nums"><Tooltip content={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') }><span className="cursor-help">{notApplicable ? '—' : figures.paid === null ? '' : formatNumberWhole(figures.paid)}</span></Tooltip></td>
+    <td className="px-3 py-2 tabular-nums"><Tooltip content={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') }><span className="cursor-help">{notApplicable ? '—' : figures.unpaid === null ? '' : formatNumberWhole(figures.unpaid)}</span></Tooltip></td>
   </tr>;
 };
 
-const InvoiceCard: React.FC<{ invoice: InvoiceWithWorkOrder }> = ({ invoice }) => {
+const InvoiceCard: React.FC<{ invoice: InvoiceWithWorkOrder; onOpen: () => void }> = ({ invoice, onOpen }) => {
   const { t } = useTranslation();
   const figures = invoiceBalanceFigures(invoice);
   const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
   return <li className="min-w-0 py-3" data-testid={`invoice-card-${invoice.id}`}>
-    <div className="min-w-0 break-words font-medium"><Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`}>{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</Link></div>
+    <div className="min-w-0 break-words font-medium"><button type="button" className="text-left text-primary-text underline underline-offset-2" aria-label={t('projectDetail.cascade.openInvoice', 'Open invoice {{invoice}}', { invoice: invoice.si_number ?? invoice.status })} onClick={onOpen}>{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</button></div>
     <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
       {invoice.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDateOnly(invoice.invoice_date)} />}
       {invoice.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatNumberWhole(invoice.amount)} />}
@@ -1053,75 +1420,6 @@ const InvoiceCard: React.FC<{ invoice: InvoiceWithWorkOrder }> = ({ invoice }) =
       {(notApplicable || figures.paid !== null) && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={notApplicable ? '—' : formatNumberWhole(figures.paid!)} />}
       {(notApplicable || figures.unpaid !== null) && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={notApplicable ? '—' : formatNumberWhole(figures.unpaid!)} />}
     </dl>
-  </li>;
-};
-
-const InvoiceClaimRow: React.FC<{
-  claim: ProgressClaimWithInvoice;
-  invoice: InvoiceWithWorkOrder | undefined;
-  showActions: boolean;
-  canBill: boolean;
-  onAttach: () => void;
-  onRaise: () => void;
-  onWithdraw: () => void;
-}> = ({ claim, invoice, showActions, canBill, onAttach, onRaise, onWithdraw }) => {
-  const { t } = useTranslation();
-  const status = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : invoice?.status ?? claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
-  const linkedInvoiceId = invoice?.id ?? (claim.invoice ? claim.id : null);
-  const amount = invoice?.amount ?? claim.invoice?.amount ?? Number(claim.gross_amount);
-  const figures = invoice ? invoiceBalanceFigures(invoice) : null;
-  const notApplicable = invoice?.status === 'Draft' || invoice?.status === 'Cancelled';
-  const isOpen = !claim.withdrawn_at && !invoice && !claim.invoice;
-  return <tr className="border-t border-border/70">
-    <td className="px-2 py-2 font-medium">{linkedInvoiceId
-      ? <Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(linkedInvoiceId)}`}>{invoice?.si_number ?? claim.invoice?.si_number ?? `Claim ${claim.id.slice(0, 8)}`}</Link>
-      : `Claim ${claim.id.slice(0, 8)}`}</td>
-    <td className="px-2 py-2 tabular-nums">{invoice?.invoice_date ? formatDateOnly(invoice.invoice_date) : formatDateOnly(claim.created_at)}</td>
-    <td className="px-2 py-2 tabular-nums">{Number.isFinite(amount) ? formatNumberWhole(amount) : ''}</td>
-    <td className="px-2 py-2">{status}</td>
-    <td className="px-2 py-2 tabular-nums">{notApplicable ? '—' : figures?.paid == null ? '' : formatNumberWhole(figures.paid)}</td>
-    <td className="px-2 py-2 tabular-nums">{notApplicable ? '—' : figures?.unpaid == null ? '' : formatNumberWhole(figures.unpaid)}</td>
-    {showActions && <td className="px-2 py-1.5"><div className="flex flex-wrap items-center gap-1">
-      {isOpen && canBill && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onAttach}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>}
-      {isOpen && canBill && claim.evidence.length > 0 && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onRaise}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>}
-      {isOpen && canBill && claim.evidence.length === 0 && <span className="px-2 text-xs text-muted-foreground">{t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}</span>}
-      {isOpen && canBill && <Button variant="ghost" size="sm" className="touch-target min-h-8 text-destructive-text" onClick={onWithdraw}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>}
-    </div></td>}
-  </tr>;
-};
-
-const InvoiceClaimCard: React.FC<{
-  claim: ProgressClaimWithInvoice;
-  invoice: InvoiceWithWorkOrder | undefined;
-  canBill: boolean;
-  onAttach: () => void;
-  onRaise: () => void;
-  onWithdraw: () => void;
-}> = ({ claim, invoice, canBill, onAttach, onRaise, onWithdraw }) => {
-  const { t } = useTranslation();
-  const status = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : invoice?.status ?? claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
-  const linkedInvoiceId = invoice?.id ?? (claim.invoice ? claim.id : null);
-  const amount = invoice?.amount ?? claim.invoice?.amount ?? Number(claim.gross_amount);
-  const figures = invoice ? invoiceBalanceFigures(invoice) : null;
-  const notApplicable = invoice?.status === 'Draft' || invoice?.status === 'Cancelled';
-  const isOpen = !claim.withdrawn_at && !invoice && !claim.invoice;
-  return <li className="min-w-0 py-3">
-    <div className="min-w-0 break-words font-medium">{linkedInvoiceId
-      ? <Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(linkedInvoiceId)}`}>{invoice?.si_number ?? claim.invoice?.si_number ?? `Claim ${claim.id.slice(0, 8)}`}</Link>
-      : `Claim ${claim.id.slice(0, 8)}`}</div>
-    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
-      <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={invoice?.invoice_date ? formatDateOnly(invoice.invoice_date) : formatDateOnly(claim.created_at)} />
-      {Number.isFinite(amount) && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatNumberWhole(amount)} />}
-      <QuantityFigure label={t('projectDetail.cascade.invoiceStatus', 'Status')} value={status} />
-      {(notApplicable || figures?.paid != null) && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={notApplicable ? '—' : formatNumberWhole(figures!.paid!)} />}
-      {(notApplicable || figures?.unpaid != null) && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={notApplicable ? '—' : formatNumberWhole(figures!.unpaid!)} />}
-    </dl>
-    {isOpen && canBill && <div className="mt-2 flex flex-wrap gap-2">
-      <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onAttach}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>
-      {claim.evidence.length > 0 && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onRaise}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>}
-      {claim.evidence.length === 0 && <span className="self-center text-xs text-muted-foreground">{t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}</span>}
-      <Button variant="ghost" size="sm" className="touch-target min-h-8 text-destructive-text" onClick={onWithdraw}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>
-    </div>}
   </li>;
 };
 

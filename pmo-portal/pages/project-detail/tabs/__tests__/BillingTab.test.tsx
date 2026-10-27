@@ -6,7 +6,7 @@ import i18next from 'i18next';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { I18nextProvider } from 'react-i18next';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { formatCurrencyCents } from '@/src/lib/format';
@@ -78,10 +78,15 @@ beforeEach(() => {
     .map((name) => [name, { mutateAsync: vi.fn().mockResolvedValue(undefined), isPending: false }]));
 });
 
-function renderTab(clientId: string | null = 'c1') {
-  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+function renderTab(clientId: string | null = 'c1', initialEntry = '/') {
+  render(<MemoryRouter initialEntries={[initialEntry]}><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /><RouteSearch /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
+
+const RouteSearch = () => {
+  const location = useLocation();
+  return <output data-testid="billing-route-search" aria-hidden="true">{location.search}</output>;
+};
 
 // #891: the withdrawn-claim refusal headline is LOCALIZED — assertions pin the REAL shipped copy.
 const readCatalogue = (lng: 'en' | 'id') =>
@@ -141,6 +146,16 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-not-submitted')).toHaveTextContent(money(40_000));
   });
 
+  it('AC-1402 an Engineer does not see contract totals, claim amounts, or BoQ rates on a direct billing route', () => {
+    h.role = 'Engineer';
+    renderTab('c1', '/projects/p1/billing?open=k1&openType=billingClaim');
+
+    expect(screen.queryByTestId('billing-contract')).not.toBeInTheDocument();
+    expect(screen.queryByText(money(50_000))).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Billing claims' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start invoice' })).not.toBeInTheDocument();
+  });
+
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
     renderTab();
     expect(screen.getByTestId('billing-not-submitted').closest('div')).toHaveTextContent('Claims raised, not yet submitted');
@@ -168,6 +183,24 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
+  });
+
+  it('AC-1402 opens a claim drawer from the row with sourced amounts and evidence', async () => {
+    const user = renderTab();
+    await user.click(screen.getAllByRole('button', { name: /Open Progress claim from/ })[0]);
+
+    expect(screen.getByRole('heading', { name: 'Progress' })).toBeInTheDocument();
+    expect(screen.getByTestId('billing-route-search')).toHaveTextContent('open=k1&openType=billingClaim');
+    expect(screen.getByText('No evidence attached yet.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+  });
+
+  it('AC-1402 restores a billing record drawer from the open URL', async () => {
+    renderTab('c1', '/projects/p1/billing?open=b1&openType=billingBoq');
+
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Route survey' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
   });
 
   it('AC-PB-008 a claim without evidence can be evidenced but not raised', () => {

@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { AppError } from '@/src/lib/appError';
 import type { Role } from '@/src/auth/AuthContext';
@@ -120,9 +121,11 @@ const row = (over: Partial<WorkOrderRow> = {}): WorkOrderRow =>
 const renderTab = (role: Role = 'Project Manager') => {
   realRole = role;
   return render(
-    <ToastProvider>
-      <WorkOrdersTab projectId="p1" currency="USD" />
-    </ToastProvider>,
+    <MemoryRouter>
+      <ToastProvider>
+        <WorkOrdersTab projectId="p1" currency="USD" />
+      </ToastProvider>
+    </MemoryRouter>,
   );
 };
 
@@ -165,33 +168,45 @@ describe('list states', () => {
 // ── The rows ──────────────────────────────────────────────────────────────────
 
 describe('the rows', () => {
-  it('OD-TAX-1: an order value never renders bare — it carries its tax basis', () => {
+  it('OD-TAX-1: an order value in the customer-order drawer carries its tax basis', async () => {
     listState.data = [
       row({ id: 'wo-1', status: 'Issued', tax_treatment: 'exclusive' }),
       row({ id: 'wo-2', tax_treatment: 'inclusive', order_value: 111_000, wo_number: 'WO-0001', status: 'Issued' }),
     ];
-    renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent('$250,000 excl. PPN');
-    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('$111,000 incl. PPN');
+    const user = userEvent.setup();
+    renderTab('Finance');
+    await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
+    const firstDrawer = screen.getByRole('dialog');
+    expect(firstDrawer).toHaveTextContent('$250,000 · excl. PPN');
+    await user.click(within(firstDrawer).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for WO-0001' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('$111,000 · incl. PPN');
   });
 
-  it('SUB-C: rate and DPP are shown only when DPP is not 1/1 or the rate is missing', () => {
+  it('SUB-C: rate and DPP details remain available in the customer-order drawer', async () => {
     listState.data = [
-      row({ id: 'wo-1', status: 'Issued', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
-      row({ id: 'wo-2', status: 'Issued', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
-      row({ id: 'wo-3', status: 'Issued', tax_rate: null }),
+      row({ id: 'wo-1', title: 'Standard tax', status: 'Issued', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
+      row({ id: 'wo-2', title: 'Reduced tax base', status: 'Issued', wo_number: 'WO-2', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
+      row({ id: 'wo-3', title: 'Unknown tax rate', status: 'Issued', tax_rate: null }),
     ];
-    renderTab();
-    expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^\$250,000\s*excl\. PPN$/);
-    expect(screen.getByTestId('wo-value-wo-2')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
-    expect(screen.getByTestId('wo-value-wo-3')).toHaveTextContent('rate not recorded');
+    const user = userEvent.setup();
+    renderTab('Finance');
+    await user.click(screen.getByRole('button', { name: 'View details for Standard tax' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('11%');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for WO-2' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('excl. PPN 11% · DPP 11/12');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: 'View details for Unknown tax rate' }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('rate not recorded');
   });
 
   it('AC-1402 keeps draft orders in their quiet section with the order title', () => {
     listState.data = [row({ wo_number: null })];
     renderTab();
     expect(screen.getByRole('heading', { name: 'Draft orders' })).toBeInTheDocument();
-    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: 'Draft orders' })).getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
     expect(screen.queryByText('Not issued yet')).not.toBeInTheDocument();
   });
 });
@@ -248,7 +263,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'New customer order' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
     for (const name of ['Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
@@ -281,29 +296,37 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
   it('an Engineer may READ work orders but gets no write affordance anywhere', () => {
     listState.data = [row()];
     renderTab('Engineer');
-    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
-    for (const name of ['New customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
+    expect(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
+    for (const name of ['Add customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
 
-  it('an ISSUED row offers Close and Cancel but neither Edit nor Set value (the body freezes)', () => {
+  it('an ISSUED row offers Close and Cancel in its action menu but neither Edit nor Set value (the body freezes)', async () => {
     listState.data = [row({ status: 'Issued', wo_number: 'WO-0001' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for WO-0001' }));
+    expect(screen.getByRole('menuitem', { name: 'Close order' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Cancel order' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument();
   });
 
-  it('a terminal row offers nothing — Closed and Cancelled are the end of the line', () => {
+  it('a terminal row keeps only the view-only customer-PO action', async () => {
     listState.data = [
       row({ id: 'wo-1', status: 'Closed', wo_number: 'WO-0001' }),
       row({ id: 'wo-2', status: 'Cancelled', wo_number: 'WO-0002' }),
     ];
+    const user = userEvent.setup();
     renderTab('Project Manager');
-    for (const name of ['Edit', 'Set value', 'Issue', 'Close', 'Cancel']) {
-      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    for (const id of ['wo-1', 'wo-2']) {
+      const order = within(screen.getByTestId(`customer-order-${id}`));
+      await user.click(order.getByRole('button', { name: /Actions for/ }));
+      const menu = screen.getByRole('menu');
+      expect(within(menu).getByRole('menuitem', { name: 'View customer PO' })).toBeInTheDocument();
+      for (const label of ['Close order', 'Cancel order', 'Edit order', 'Set value']) {
+        expect(within(menu).queryByRole('menuitem', { name: label })).not.toBeInTheDocument();
+      }
     }
   });
 });
