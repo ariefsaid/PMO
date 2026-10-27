@@ -335,6 +335,7 @@
       "openSales": "Open sales",
       "openInvoices": "Open invoices",
       "openProcurements": "Open procurements",
+      "openFigure": "Open related records for {{metric}}.",
       "positionToday": "Position today · record currency",
       "export": "Export",
       "clientAgingTitle": "Client receivables (AR)",

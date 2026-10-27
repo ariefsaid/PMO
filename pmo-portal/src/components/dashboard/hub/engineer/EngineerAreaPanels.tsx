@@ -114,15 +114,15 @@ export function EngineerTimePanel({
             ) : (
               <div className="grid gap-2">
                 <p className="text-sm text-muted-foreground">{t('hub.engineer.noHours', 'No hours logged this week')}</p>
-                <Link to="/timesheets" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-                  {t('hub.engineer.logHours', 'Log hours in Timesheets')}
-                  <Icon name="chev" className="size-4" />
-                </Link>
               </div>
             )}
           </div>
         </>
       )}
+      <Link to="/timesheets" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+        {t('hub.engineer.logHours', 'Log hours in Timesheets')}
+        <Icon name="chev" className="size-4" />
+      </Link>
     </AreaPanel>
   );
 }
@@ -315,10 +315,6 @@ export function EngineerProjectHoursPanel({
           ) : (
             <p className="text-sm text-muted-foreground">{t('hub.engineer.noProjectHours', 'No project hours logged this week.')}</p>
           )}
-          <Link to="/timesheets" className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-            {t('hub.engineer.logHours', 'Log hours in Timesheets')}
-            <Icon name="chev" className="size-4" />
-          </Link>
         </>
       )}
     </AreaPanel>

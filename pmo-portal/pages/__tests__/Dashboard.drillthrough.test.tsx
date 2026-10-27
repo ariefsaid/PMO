@@ -23,6 +23,9 @@ const dash = {
   total_contract_value: 8_000_000, currency: 'USD',
   on_hand_margin: 0.25,
   on_hand_value: 6_000_000,
+  on_hand_contract_remaining: 4_000_000,
+  on_hand_realized_margin: 1_000_000,
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1_000_000, unknown_projects: 0 }],
   pipeline_weighted_value: 800_000,
   pipeline_projected_margin: 0.2,
   pipeline_total_value: 2_000_000,
@@ -40,16 +43,31 @@ const procurements = [
   { id: 'pr2', status: 'Paid', total_value: 999_999, currency: 'USD', requested_by_id: 'u1' },
 ];
 
-// FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
-// than left to a real query. ⚑ At LINE-START — inside a neighbouring vi.mock it parses as a
-// syntax error and hides every real error beneath it.
-// BoardPackAction (#765) reads the management pack via react-query; these tests render without a QueryClient.
-// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
+// Keep the company-hub data sources deterministic so these checks bind KPI destinations and names.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
-  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+  useUnbilledWorkOrders: () => ({ data: { totals: [], incompleteCount: 0 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: () => null }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrency: () => 'USD',
+  useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true, isError: false }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-06-03', isPending: false, isError: false, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useManagementPack', () => ({
+  useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useExpenseClaims', () => ({
+  useExpenseClaims: () => ({ data: { rows: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useMyTasks', () => ({
+  useMyTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   usePMDashboardProjects: () => ({ data: mine ?? [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -86,72 +104,80 @@ vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
 }));
 
-import ExecutiveDashboard from '../ExecutiveDashboard';
+import { CompanyDashboard } from '@/src/components/dashboard/hub/company/CompanyDashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { KPITile } from '@/src/components/ui/KPITile';
 
 const renderExec = () =>
   render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ExecutiveDashboard />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <ToastProvider>
+          <CompanyDashboard role="Executive" />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
+const companyFigureTile = (label: string) => {
+  const section = screen.getByRole('region', { name: 'Company figures' });
+  const labelElement = within(section).getByText(label, { exact: true });
+  const tile = labelElement.parentElement?.parentElement?.parentElement;
+  expect(tile).not.toBeNull();
+  return tile as HTMLElement;
+};
+
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
-  it('AC-IXD-DASH-W5-C2A-EXEC-1: the active-projects count (on the contract tile, SL-B) drills to /projects?filter=Ongoing', () => {
+  const executiveDrills = [
+    ['Contract on hand', '/projects'],
+    ['Margin on billed work', '/sales-invoices'],
+    ['Pipeline (weighted)', '/sales'],
+    ['Owed by clients · overdue', '/sales-invoices?overdue=true'],
+    ['Owed to suppliers', '/procurement?status=Vendor+Invoiced'],
+    ['Still to invoice on work orders', '/projects'],
+  ] as const;
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-1: each company KPI with a destination links to its owning page', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-total-contract-value');
-    expect(tile).toHaveTextContent(/\d+ active projects/);
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+    for (const [label, href] of executiveDrills) {
+      const tile = companyFigureTile(label);
+      expect(within(tile).getByRole('link')).toHaveAttribute('href', href);
+    }
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-2: "Total contract value" tile drills to /projects?filter=Ongoing', () => {
-    renderExec();
-    const tile = screen.getByTestId('kpi-total-contract-value');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+  it('AC-IXD-DASH-W5-C2A-EXEC-2: a KPI without a destination does not render a drill link', () => {
+    render(<KPITile testId="kpi-without-destination" icon="grid" tone="blue" label="Unlinked figure" value="—" />);
+    expect(within(screen.getByTestId('kpi-without-destination')).queryByRole('link')).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-2: "Total contract value" vs copy says "active" not "active + closed-out"', () => {
+  it('AC-UX-017: contract remainder and billed-work margin remain clear with links to their related records', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-total-contract-value');
-    expect(tile).not.toHaveTextContent('active + closed-out');
-    expect(tile).toHaveTextContent(/active/i);
+    const contractTile = companyFigureTile('Contract on hand');
+    expect(contractTile).toHaveTextContent('$6M');
+    expect(contractTile).toHaveTextContent(/Left after spending:/);
+    expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects');
+
+    const marginTile = companyFigureTile('Margin on billed work');
+    expect(marginTile).toHaveTextContent('$1M');
+    expect(marginTile).toHaveTextContent(/Percent of billed work: —/);
+    expect(within(marginTile).getByRole('link')).toHaveAttribute('href', '/sales-invoices');
   });
 
-  it('AC-IXD-DASH-W5-C2A-EXEC-3: "Total project spend" tile drills to /projects?filter=Ongoing', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-6: pipeline forecast margin is shown as a sub-line, not a separate drill tile', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-total-spend');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-EXEC-4: "Pipeline (weighted)" tile drills to /sales', () => {
-    renderExec();
-    const tile = screen.getByTestId('kpi-pipeline-weighted-value');
+    const tile = companyFigureTile('Pipeline (weighted)');
+    expect(tile).toHaveTextContent(/Forecast margin: 20\.0%/);
+    expect(within(tile).getAllByRole('link')).toHaveLength(1);
     expect(within(tile).getByRole('link')).toHaveAttribute('href', '/sales');
   });
 
-  it('AC-UX-017: contracted revenue separates contract remainder and billed-work margin without a misleading drill link', () => {
+  it('AC-IXD-DASH-W5-C2A-a11y: each company drill link has a full-sentence accessible name', () => {
     renderExec();
-    const tile = screen.getByTestId('kpi-on-hand-margin');
-    expect(tile.tagName).toBe('DIV');
-    expect(tile).not.toHaveAttribute('href');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-EXEC-6: "Pipeline forecast margin" tile is NOT a link (OD-W5-C2-D)', () => {
-    renderExec();
-    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    expect(tile.tagName).toBe('DIV');
-    expect(tile).not.toHaveAttribute('href');
-  });
-
-  it('AC-IXD-DASH-W5-C2A-a11y: each drill tile has a non-empty aria-label (full sentence)', () => {
-    renderExec();
-    for (const testId of ['kpi-total-contract-value', 'kpi-total-spend', 'kpi-pipeline-weighted-value']) {
-      const tile = screen.getByTestId(testId);
-      const label = within(tile).getByRole('link').getAttribute('aria-label');
-      expect(label, `${testId} should have aria-label`).toBeTruthy();
-      expect(label!.length, `${testId} aria-label should be a full sentence`).toBeGreaterThan(10);
+    for (const [label] of executiveDrills) {
+      const link = within(companyFigureTile(label)).getByRole('link');
+      const name = link.getAttribute('aria-label');
+      expect(name, `${label} should have an accessible name`).toMatch(/^Open related records for .+\.$/);
+      expect(name).toContain(label);
     }
   });
 });
@@ -162,9 +188,11 @@ import { FinanceDashboard } from '@/src/components/dashboard/FinanceDashboard';
 
 const renderFinance = () =>
   render(
-    <MemoryRouter>
-      <FinanceDashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <FinanceDashboard />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
@@ -222,9 +250,13 @@ vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
 }));
-vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
-  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
-}));
+vi.mock('@/src/components/dashboard/restructure/useNeedsYou', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/components/dashboard/restructure/useNeedsYou')>();
+  return {
+    ...actual,
+    useNeedsYou: () => ({ items: [], areaItems: [], pmOverdueTasksByProject: {}, isPending: false, isError: false, refetch: vi.fn() }),
+  };
+});
 
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 
@@ -283,9 +315,11 @@ import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard'
 
 const renderEngineer = () =>
   render(
-    <MemoryRouter>
-      <EngineerDashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter>
+        <EngineerDashboard />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
@@ -303,10 +337,12 @@ describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
 
   it('AC-IXD-DASH-W5-C2A-ENG-3: drill tiles have descriptive aria-labels', () => {
     renderEngineer();
-    for (const testId of ['kpi-hours-week', 'kpi-timesheet-status']) {
+    for (const [testId, accessibleName] of [
+      ['kpi-hours-week', 'Open timesheets for this week'],
+      ['kpi-timesheet-status', 'Open timesheet status'],
+    ]) {
       const tile = screen.getByTestId(testId);
-      const label = within(tile).getByRole('link').getAttribute('aria-label');
-      expect(label, `${testId} should have aria-label`).toBeTruthy();
+      expect(within(tile).getByRole('link')).toHaveAccessibleName(accessibleName);
     }
   });
 });

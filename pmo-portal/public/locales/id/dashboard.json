@@ -335,6 +335,7 @@
       "openSales": "Buka penjualan",
       "openInvoices": "Buka faktur",
       "openProcurements": "Buka pengadaan",
+      "openFigure": "Buka catatan terkait untuk {{metric}}.",
       "positionToday": "Posisi hari ini · mata uang catatan",
       "export": "Ekspor",
       "clientAgingTitle": "Piutang klien (AR)",
