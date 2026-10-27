@@ -1266,12 +1266,8 @@
     },
     "delivery": { "percent": "Progres {{rounded}}%" },
     "engineer": {
-      "title": "Dashboard saya", "subtitle": "Jam kerja minggu ini dan status timesheet Anda.", "logHours": "Catat jam kerja minggu ini", "logHoursShort": "Catat jam kerja", "kpiBand": "KPI saya",
-      "hoursThisWeek": "Jam minggu ini", "weeklyHoursCardTitle": "Jam Kerja Minggu Ini", "weekOf": "minggu mulai {{date}}", "openTimesheetsLog": "Buka timesheet untuk mencatat jam kerja minggu ini", "hoursHelp": "Total jam pada timesheet terbaru Anda.",
-      "timesheetStatus": "Status timesheet", "noneThisPeriod": "Tidak ada untuk periode ini", "openTimesheetsStatus": "Buka timesheet untuk melihat status terbaru", "statusHelp": "Status timesheet terbaru Anda.",
-      "loadError": "Gagal memuat timesheet Anda", "recentError": "Gagal memuat entri terbaru", "noHours": "Belum ada jam kerja minggu ini", "noHoursSub": "Catat jam kerja untuk melihat ringkasan mingguan.", "projectBreakdownSub": "Catat jam kerja untuk melihat rincian proyek.",
-      "hoursByDay": "Jam minggu ini menurut hari", "dayHours": "{{day}}: {{hours}} jam", "byProject": "Minggu ini menurut proyek", "recentEntries": "Entri terbaru", "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam",
-      "day": { "sun": "Min", "mon": "Sen", "tue": "Sel", "wed": "Rab", "thu": "Kam", "fri": "Jum", "sat": "Sab" }
+      "noHours": "Belum ada jam kerja minggu ini",
+      "entriesEmptySub": "Jam yang Anda catat akan muncul di sini.", "noNote": "Tidak ada catatan", "unknownProject": "Tidak diketahui", "hoursShort": "{{hours}} jam", "hoursSpoken": "{{hours}} {{unit}}", "hoursUnit": "jam"
     },
     "atRisk": {
       "reviewSingle": "Tinjau {{count}} proyek berisiko",
