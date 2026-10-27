@@ -25,7 +25,10 @@ vi.mock('@/src/hooks/useRevenue', () => ({
     pendingPush: { status: 'idle', lastError: null, lastPushAt: null },
   }),
 }));
-vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
+vi.mock('@/src/hooks/useFkOptions', () => ({
+  useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
+}));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
   if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
   return true;

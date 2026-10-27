@@ -34,6 +34,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 }));
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: clientOptions }),
+  useInvoiceProjectOptions: () => ({ data: [] }),
 }));
 vi.mock('@/src/hooks/useRevenueMode', () => ({ useRevenueMode: () => 'native' }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));

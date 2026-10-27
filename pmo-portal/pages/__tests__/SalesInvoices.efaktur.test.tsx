@@ -21,6 +21,7 @@ const h = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useRevenue', () => ({
   useAssignInvoiceProject: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSalesInvoices: () => ({ data: h.invoices, isPending: false, isError: false, refetch: vi.fn() }),
+  useIncomingPayments: () => ({ data: [], isPending: false, isError: false }),
   useRevenueMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     setReceivedDate: { mutateAsync: vi.fn(), isPending: false },
