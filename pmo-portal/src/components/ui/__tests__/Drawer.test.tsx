@@ -305,14 +305,24 @@ describe('Drawer: nested ConfirmDialog inert-the-panel (AC-W5-C6-DRAWER)', () =>
   });
 });
 
-describe('Drawer: width preset (AC-W5-C6-DRAWER)', () => {
+describe('Drawer: responsive width (AC-W5-C6-DRAWER)', () => {
+  it('fills the viewport below the sm breakpoint for every record drawer', () => {
+    render(
+      <Drawer {...baseProps}>
+        <p>body</p>
+      </Drawer>,
+    );
+    expect(screen.getByRole('dialog').className).toContain('w-full');
+    expect(screen.getByRole('dialog').className).toContain('sm:w-[min(420px,92vw)]');
+  });
+
   it('width="lg" applies the wider preset', () => {
     render(
       <Drawer {...baseProps} width="lg">
         <p>body</p>
       </Drawer>,
     );
-    expect(screen.getByRole('dialog').className).toContain('560px');
+    expect(screen.getByRole('dialog').className).toContain('sm:w-[min(560px,92vw)]');
   });
 
   it('default (sm) applies the 420px preset', () => {
@@ -321,6 +331,6 @@ describe('Drawer: width preset (AC-W5-C6-DRAWER)', () => {
         <p>body</p>
       </Drawer>,
     );
-    expect(screen.getByRole('dialog').className).toContain('420px');
+    expect(screen.getByRole('dialog').className).toContain('sm:w-[min(420px,92vw)]');
   });
 });

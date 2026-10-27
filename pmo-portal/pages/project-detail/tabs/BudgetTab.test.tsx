@@ -16,13 +16,14 @@ vi.mock('../../ProjectBudget', () => ({
 import BudgetTab from './BudgetTab';
 
 describe('BudgetTab', () => {
-  it('passes the project context to the budget view without mounting forecast surfaces', () => {
+  it('passes the project context to the single Budget view', () => {
     projectQuery.data = { id: 'p-1', currency: 'USD' };
 
     render(<BudgetTab projectId="p-1" />);
 
     expect(screen.getByTestId('pmo-budget')).toHaveTextContent('p-1 · USD');
-    expect(screen.queryByText(/forecast|cost-to-finish|attributed spending/i)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-option-b')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('budget-option-c')).not.toBeInTheDocument();
   });
 
   it('shows a loading state until the project context is available', () => {

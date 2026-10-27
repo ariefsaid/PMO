@@ -3,7 +3,7 @@ import { pickClassification } from '@/src/lib/projectClassification';
 import React, { useLayoutEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ListState, useToast } from '@/src/components/ui';
+import { ListState, ProgressBar, Tooltip, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
@@ -13,12 +13,67 @@ import type { ProjectHeaderInput } from '@/src/lib/db/projects';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
+import { useMilestones } from '@/src/hooks/useMilestones';
+import { formatCurrency, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
+import { usePermission } from '@/src/auth/usePermission';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import ProjectDetailRail from './ProjectDetailRail';
 import ProjectFormModal from '../../components/ProjectFormModal';
 import ProjectSections, { PrimaryProjectAction } from './ProjectSections';
 import { areaFromParam, type Area } from './projectDetailAreas';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+
+const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation();
+  const may = usePermission();
+  const phases = useMilestones(project.id);
+  const milestones = phases.data ?? [];
+  const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
+  const progress = totalWeight > 0
+    ? Math.round(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
+    : null;
+  const manager = project.pm?.full_name;
+  const initial = manager?.trim().charAt(0).toUpperCase() || '?';
+  const dates = project.start_date || project.end_date
+    ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`
+    : t('projectDetail.facts.noDates', 'Dates not set');
+  const updated = project.last_update ? formatRelativeTime(project.last_update) : null;
+  return (
+    <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border/70 pb-4 text-xs text-muted-foreground">
+      {manager && (
+        <span className="inline-flex min-w-0 items-center gap-2" aria-label={t('projectDetail.facts.projectManager', 'Project manager: {{name}}', { name: manager })}>
+          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
+          <span className="truncate font-medium text-foreground">{manager}</span>
+        </span>
+      )}
+      <span>{dates}</span>
+      {may('view', 'salesInvoice') && (
+        <Tooltip content={t('projectDetail.facts.contractTooltip', 'Approved contract value on the project record; source: project contract value and stated currency.')}>
+          <span tabIndex={0} className="font-semibold tabular-nums text-foreground">
+            {t('projectDetail.facts.contract', 'Contract')} · {project.contract_value == null ? t('common.notSet', 'Not set') : formatCurrency(project.contract_value, project.currency)}
+          </span>
+        </Tooltip>
+      )}
+      {progress !== null && (
+        <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
+          <span tabIndex={0} className="inline-flex min-w-40 items-center gap-2">
+            <span>{t('projectDetail.facts.progress', 'Progress')}</span>
+            <ProgressBar value={progress} showValue widthless aria-label={t('projectDetail.facts.progressAria', 'Project progress {{percent}}%', { percent: progress })} />
+          </span>
+        </Tooltip>
+      )}
+      {phases.isPending && <span>{t('projectDetail.facts.progressLoading', 'Progress loading')}</span>}
+      {updated && (
+        <Tooltip content={t('projectDetail.facts.updatedTooltip', 'Last updated on {{date}}.', { date: formatInstantDate(project.last_update) })}>
+          <time tabIndex={0} dateTime={project.last_update} className="ml-auto text-muted-foreground">
+            {t('projectDetail.facts.updated', 'Updated {{when}}', { when: updated })}
+          </time>
+        </Tooltip>
+      )}
+    </section>
+  );
+};
 
 /**
  * Route shell for `/projects/:projectId[/:tab]`, the one detail route for a project at every stage
@@ -131,10 +186,10 @@ const ProjectDetail: React.FC = () => {
   const header = (
     <>
       <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
-        primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined} />
+        primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined}
+        menuContent={<ProjectDetailRail project={project} detailsOnly />} />
+      <ProjectHeaderFacts project={project} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
-      <ProjectDetailRail project={project} onEditProject={openEditProject} showActionSection={!isPipelineRecord}
-        summaryLabel={t('projectDetail.rail.detailsShort', 'Details, codes and status')} quiet />
       <div className="mb-4" />
     </>
   );

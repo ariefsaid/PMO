@@ -1,23 +1,30 @@
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, Icon, ListState, ProgressBar, TaxBasisLabel } from '@/src/components/ui';
+import { Button, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
+import { useTasks } from '@/src/hooks/useTasks';
+import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
+import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { formatDateOnly, formatNumberWhole } from '@/src/lib/format';
+import { formatNumberWhole } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
+import { deriveMargin, formatExactMoney } from '@/src/lib/projectFinances';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from './useProjectPosition';
+import { summarizeInvoiceSettlement } from './ContractCascade';
+import ProjectProfitLossSection from './ProjectProfitLossSection';
+
+const ProjectGantt = React.lazy(() => import('./ProjectGantt'));
 
 /** Whole units, no currency symbol: the block heading names the currency once. */
 const whole = (value: number) => formatNumberWhole(value);
-const num = (exact: string | null | undefined): number | null => (exact == null || exact === '' ? null : Number(exact));
 const pctOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 
 /** The one style for an in-block action: a quiet text action on the heading row, 44px tap area. */
@@ -40,13 +47,14 @@ const Block: React.FC<{ id: string; title: string; unit?: React.ReactNode; actio
   </section>
 );
 
-const Headline: React.FC<{ tone?: 'danger'; children: React.ReactNode }> = ({ tone, children }) => (
-  <p className={cn('text-lg font-semibold leading-tight tabular-nums sm:text-xl', tone === 'danger' ? 'text-destructive-text' : 'text-foreground')}>{children}</p>
+const Headline: React.FC<{ tone?: 'danger'; tooltip?: string; children: React.ReactNode }> = ({ tone, tooltip, children }) => (
+  <p className={cn('text-lg font-semibold leading-tight tabular-nums sm:text-xl', tone === 'danger' ? 'text-destructive-text' : 'text-foreground')}>
+    {tooltip ? <Tooltip content={tooltip}><span tabIndex={0}>{children}</span></Tooltip> : children}
+  </p>
 );
-const Sub: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <p className="mt-1 text-xs tabular-nums text-muted-foreground">{children}</p>
+const Sub: React.FC<{ tooltip?: string; children: React.ReactNode }> = ({ tooltip, children }) => (
+  <p className="mt-1 text-xs tabular-nums text-muted-foreground">{tooltip ? <Tooltip content={tooltip}><span tabIndex={0}>{children}</span></Tooltip> : children}</p>
 );
-const Strong: React.FC<{ children: React.ReactNode }> = ({ children }) => <span className="font-semibold text-foreground">{children}</span>;
 const Note: React.FC<{ children: React.ReactNode }> = ({ children }) => <p className="mt-4 text-xs text-muted-foreground">{children}</p>;
 const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, children }) => (
   <Link to={to} className="font-semibold text-primary-text hover:underline">{children}</Link>
@@ -54,72 +62,135 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const q = useProjectFinances(project.id);
+  const may = usePermission();
+  const canViewMoney = may('view', 'salesInvoice');
+  const boq = useBoqItems(project.id);
+  const billing = useProjectBilling(project.id);
+  const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
+  const budget = useBudgetPosition(project);
   const unit = (
     <>
       {project.currency}
       {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
     </>
   );
-  const title = t('projectDetail.money.title', 'Contract billing');
-  if (q.isPending) return <Block id="pd-money" title={title} unit={unit}><ListState variant="loading" rows={2} /></Block>;
-  if (q.isError || !q.data) {
-    return <Block id="pd-money" title={title}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load billing")} onRetry={() => void q.refetch()} /></Block>;
+  const title = t('projectDetail.money.positionTitle', 'Money position');
+  if (q.isPending || boq.isPending || billing.isPending) return <Block id="pd-money" title={title} unit={unit}><ListState variant="loading" rows={4} /></Block>;
+  if (q.isError || !q.data || boq.isError || billing.isError || !billing.data) {
+    return <Block id="pd-money" title={title}><ListState variant="error" title={t('projectDetail.money.error', "Couldn't load the money position")} onRetry={() => { void q.refetch(); void boq.refetch(); void billing.refetch(); }} /></Block>;
   }
-  const contract = project.contract_value;
-  if (contract == null) {
-    return (
-      <Block id="pd-money" title={title}>
-        <p className="text-sm text-muted-foreground">{t('projectDetail.money.noContract', 'No contract value yet. Set it from More › Change contract value to track billing.')}</p>
-      </Block>
-    );
-  }
+
   const data = q.data;
-  const invoiced = num(data.contract_invoiced) ?? 0;
-  const leftToInvoice = num(data.remaining_to_invoice);
-  const buckets = data.invoices.filter((b) => b.currency === project.currency);
-  const cash = data.cash_received;
-  const received = cash?.state === 'known'
-    ? cash.buckets.filter((b) => b.currency === project.currency).reduce((s, b) => s + Number(b.amount), 0)
+  const boqItems = boq.data ?? [];
+  const hasBoq = boqItems.length > 0;
+  const rates = new Map(boqItems.map((item) => [item.id, Number(item.rate)]));
+  const contractValue = hasBoq
+    ? boqItems.reduce((sum, item) => sum + Number(item.quantity) * Number(item.rate), 0)
+    : project.contract_value;
+  const allocations = billing.data.contractLines.flatMap((line) => line.allocations);
+  const ordered = hasBoq
+    ? allocations.reduce((sum, allocation) => sum + allocation.quantity * (rates.get(allocation.boqItemId) ?? 0), 0)
     : null;
-  const outstandingKnown = buckets.length > 0 && buckets.every((b) => b.missing_outstanding === 0 && b.outstanding !== null);
-  const outstanding = outstandingKnown ? buckets.reduce((s, b) => s + Number(b.outstanding), 0) : null;
-  const invoicedPct = Math.min(100, pctOf(invoiced, contract));
-  const receivedPct = received === null ? 0 : Math.min(100, pctOf(received, contract));
-  // Owner spec: one line contract → invoiced → received, values large, labels small; read as a flow.
-  const step = (label: string, value: number, extra?: React.ReactNode) => (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-lg font-semibold tabular-nums leading-tight text-foreground sm:text-xl">{whole(value)}</dd>
-      {extra && <dd className="mt-1">{extra}</dd>}
-    </div>
+  const delivered = hasBoq
+    ? allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rates.get(allocation.boqItemId) ?? 0), 0)
+    : null;
+  const invoiceRows = (invoices.data ?? []).filter((invoice) => invoice.currency === project.currency);
+  const settlement = summarizeInvoiceSettlement(invoiceRows.map((invoice) => ({
+    status: invoice.status,
+    amount: invoice.amount,
+    erp_outstanding_amount: invoice.erp_outstanding_amount,
+  })));
+  const invoiced = !invoices.isPending && !invoices.isError ? settlement.invoiced : null;
+  const paid = !invoices.isPending && !invoices.isError && settlement.balancesKnown ? settlement.paid : null;
+  const cash = data.cash_received;
+  const cashReceived = cash?.state === 'known'
+    ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
+    : null;
+  const sameCurrencyInvoices = data.invoices.filter((bucket) => bucket.currency === project.currency);
+  const marginBucket = sameCurrencyInvoices[0];
+  const margin = marginBucket && data.actuals ? deriveMargin(marginBucket, data.actuals) : null;
+  const moneyText = (value: number | null) => value === null ? t('projectDetail.money.unavailable', 'Unavailable') : whole(value);
+  const explain = (content: string, value: React.ReactNode) => (
+    <Tooltip content={content}><span tabIndex={0} className="font-semibold tabular-nums text-foreground">{value}</span></Tooltip>
   );
-  const arrow = <Icon name="chev" className="mt-6 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />;
+  const steps: Array<{ label: string; value: number | null; source: string }> = [
+    { label: t('projectDetail.money.contract', 'Contract'), value: contractValue, source: hasBoq
+      ? t('projectDetail.money.contractSourceBoq', 'Sum of contract quantities multiplied by unit rates from the project BoQ.')
+      : t('projectDetail.money.contractSourceRecord', 'Approved contract value from the project record.') },
+    { label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
+    { label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
+    { label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
+    { label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
+  ];
+  const budgetPercent = budget.budget > 0 && budget.spent !== null ? pctOf(budget.spent, budget.budget) : null;
+  const marginValue = margin?.amount === null || !margin ? t('projectDetail.money.unavailable', 'Unavailable') : formatExactMoney(margin.amount, project.currency, i18n.language) ?? t('projectDetail.money.unavailable', 'Unavailable');
+  const marginReason = margin?.reason === 'different-currencies' ? t('projectDetail.money.marginDifferentCurrency', 'Actual spending and billed work use different currencies.')
+    : margin?.reason === 'work-unavailable' ? t('projectDetail.money.marginWorkUnavailable', 'Billed-work revenue is incomplete.')
+      : margin?.reason === 'restricted-rows' ? t('projectDetail.money.marginRestricted', 'Actual spending excludes restricted rows.')
+        : margin?.reason === 'actuals-unavailable' ? t('projectDetail.money.marginActualsUnavailable', 'Complete actual spending is not available yet.')
+          : t('projectDetail.money.marginSource', 'Billed-work revenue less complete recorded spending in the same currency.');
+
   return (
     <Block id="pd-money" title={title} unit={unit}>
-      <dl className="flex items-start gap-3 sm:gap-5">
-        {/* AC-FX-011: a foreign-currency contract also shows its org-currency equivalent at the contract date. */}
-        {step(t('projectDetail.money.contract', 'Contract'), contract, <FxEquivalent amount={contract} currency={project.currency} date={project.contract_date} compact />)}
-        {arrow}
-        {step(t('projectDetail.money.invoiced', 'Invoiced'), invoiced)}
-        {received !== null && <>{arrow}{step(t('projectDetail.money.received', 'Received'), received)}</>}
+      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 xl:grid-cols-5">
+        {steps.map((step) => (
+          <div key={step.label} className="min-w-0">
+            <dt className="text-xs text-muted-foreground">{step.label}</dt>
+            <dd className="mt-1 break-words text-sm font-semibold tabular-nums leading-tight text-foreground">
+              {explain(step.source, step.value === null ? moneyText(null) : whole(step.value))}
+            </dd>
+            {step.label === t('projectDetail.money.contract', 'Contract') && contractValue !== null && (
+              <dd className="mt-1"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
+            )}
+            {step.value !== null && contractValue !== null && contractValue > 0 && (
+              <div className="mt-2" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })}>
+                <Tooltip content={step.source}>
+                  <span tabIndex={0} className="block">
+                    <ProgressBar value={pctOf(step.value, contractValue)} widthless aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
+                  </span>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+        ))}
       </dl>
-      <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-secondary" role="img"
-        aria-label={t('projectDetail.money.barLabel', '{{inv}}% of the contract invoiced, {{rec}}% received', { inv: invoicedPct, rec: receivedPct })}>
-        <span className="bg-success" style={{ width: `${receivedPct}%` }} />
-        <span className="bg-primary" style={{ width: `${Math.max(0, invoicedPct - receivedPct)}%` }} />
-      </div>
-      <Sub>
-        {outstanding !== null && <>{t('projectDetail.money.outstanding', 'Outstanding')} <Strong>{whole(outstanding)}</Strong> · </>}
-        {leftToInvoice !== null && <>{t('projectDetail.money.leftToInvoice', 'Left to invoice')} <Strong>{whole(leftToInvoice)}</Strong></>}
-      </Sub>
-      {received === null && invoiced > 0 && (
+      {!hasBoq && <Note>{t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.')}</Note>}
+      {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {cashReceived === null && (
         <Note>
-          {t('projectDetail.money.paymentsMissing', 'Payments aren’t matched to these invoices yet, so received is left out.')}{' '}
-          <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
+          {t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.')}{' '}
+          {cash?.state === 'known' ? null : <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
+      <dl className="mt-6 grid min-w-0 gap-4 border-t border-border/70 pt-4 sm:grid-cols-3">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.spentBudget', 'Spent vs budget')}</dt>
+          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">
+            {!budget.hasBudget
+              ? t('projectDetail.money.noActiveBudget', 'No active budget')
+              : budget.spent === null
+                ? explain(t('projectDetail.money.spentSourceUnknown', 'Actual spending needs complete mapped category data; budget comes from the active project budget.'), `${t('projectDetail.money.spent', 'Spent')} ${t('projectDetail.money.unavailable', 'Unavailable')} · ${t('projectDetail.money.budget', 'Budget')} ${whole(budget.budget)}`)
+              : explain(t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.'), `${whole(budget.spent)} / ${whole(budget.budget)}`)}
+          </dd>
+          {budgetPercent !== null && <Tooltip content={t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.')}>
+            <span tabIndex={0} className="mt-2 block"><ProgressBar value={budgetPercent} widthless className="w-full" aria-label={t('projectDetail.money.budgetUse', 'Budget use {{percent}}%', { percent: budgetPercent })} /></span>
+          </Tooltip>}
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>
+          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">{explain(marginReason, marginValue)}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.cashReceived', 'Cash received')}</dt>
+          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">{explain(
+            t('projectDetail.money.cashSource', 'Receipt cash allocated to invoices for this project; separate from invoice settlement.'),
+            cashReceived === null ? t('projectDetail.money.unavailable', 'Unavailable') : whole(cashReceived),
+          )}</dd>
+        </div>
+      </dl>
+      <div className="mt-6 border-t border-border/70 pt-4"><ProjectProfitLossSection projectId={project.id} /></div>
     </Block>
   );
 };
@@ -137,7 +208,7 @@ const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project 
   const amount = project.budget;
   return (
     <Block id="pd-cost" title={t('projectDetail.cost.estimateTitle', 'Budget')} unit={<CostUnit project={project} />}>
-      <Headline>{amount == null
+      <Headline tooltip={t('projectDetail.cost.estimateTooltip', 'Estimated budget from the project record; not an active budget version.')}>{amount == null
         ? t('projectDetail.cost.noEstimate', 'No estimated budget yet')
         : t('projectDetail.cost.estimated', 'Estimated budget {{amount}}', { amount: whole(Number(amount)) })}</Headline>
     </Block>
@@ -170,29 +241,38 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     );
   }
   const worst = pos.overRows[0];
-  const started = pos.rows.filter((r): r is typeof r & { actual: number } => r.actual !== null && r.actual > 0)
-    .sort((a, b) => b.actual / (b.budget || 1) - a.actual / (a.budget || 1));
-  const notStarted = pos.rows.filter((r) => r.actual === 0);
+  const summaryTooltip = t('projectDetail.cost.summaryTooltip', 'Compares mapped actual spending with the active project budget. Source: active budget categories and project finance records.');
+  const rows = pos.rows.slice().sort((a, b) => {
+    if (a.actual === null) return b.actual === null ? label(a.category).localeCompare(label(b.category)) : 1;
+    if (b.actual === null) return -1;
+    const aOver = a.actual > a.budget ? 1 : 0;
+    const bOver = b.actual > b.budget ? 1 : 0;
+    if (aOver !== bOver) return bOver - aOver;
+    if (aOver && bOver) return (b.actual! - b.budget) - (a.actual! - a.budget);
+    const aUse = a.budget > 0 ? a.actual / a.budget : a.actual > 0 ? Number.POSITIVE_INFINITY : 0;
+    const bUse = b.budget > 0 ? b.actual / b.budget : b.actual > 0 ? Number.POSITIVE_INFINITY : 0;
+    return bUse - aUse;
+  });
   const committedFigure = committed.commitmentSource === 'pmo' && committed.data !== undefined ? committed.data : null;
-  const hasComparisons = !pos.canSeeActual || pos.spent !== null;
+  const hasComparisons = !pos.canSeeActual || pos.rows.length > 0;
 
   const answer = !pos.canSeeActual || pos.spent === null ? (
-    <Headline>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
+    <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
   ) : pos.projectOver !== null ? (
     <>
-      <Headline tone="danger">{t('projectDetail.cost.projectOver', '{{amount}} over budget', { amount: whole(pos.projectOver) })}</Headline>
-      <Sub>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
+      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.projectOver', '{{amount}} over budget', { amount: whole(pos.projectOver) })}</Headline>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.projectOverSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent!), budget: whole(pos.budget) })}
         {worst && <> · {t('projectDetail.cost.mostly', 'mostly {{category}}', { category: label(worst.category) })}</>}</Sub>
     </>
   ) : worst ? (
     <>
-      <Headline tone="danger">{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over budget', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
-      <Sub>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
+      <Headline tone="danger" tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOver', '{{category}} is {{amount}} over budget', { category: label(worst.category), amount: whole(worst.actual! - worst.budget) })}</Headline>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.categoryOverSub', 'Spent {{spent}} of its {{budget}} budget', { spent: whole(worst.actual!), budget: whole(worst.budget) })}</Sub>
     </>
   ) : pos.spent !== null ? (
     <>
-      <Headline>{t('projectDetail.cost.within', 'Within budget')}</Headline>
-      <Sub>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
+      <Headline tooltip={summaryTooltip}>{t('projectDetail.cost.within', 'Within budget')}</Headline>
+      <Sub tooltip={summaryTooltip}>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
     </>
   ) : null;
 
@@ -209,38 +289,46 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
         </Note>
       )}
-      {hasComparisons && committedFigure !== null && <Sub>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
-      {hasComparisons && pos.canSeeActual && started.length > 0 && (
-        <ul className="@container mt-6 flex flex-col gap-3">
-          {started.map((r) => {
-            const over = r.actual > r.budget;
-            const pct = pctOf(r.actual, r.budget);
+      {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Sum of project purchase orders in the commitment states shown in Procurement.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
+      {hasComparisons && rows.length > 0 && (
+        <ul className="mt-6 flex min-w-0 flex-col border-y border-border/70">
+          {rows.map((r) => {
+            const over = r.actual !== null && r.actual > r.budget;
+            const pct = r.actual === null ? null : r.budget > 0 ? pctOf(r.actual, r.budget) : r.actual > 0 ? 101 : 0;
+            const detail = t('projectDetail.cost.categoryTooltip', 'Active budget and mapped actual spending for this category. Source: the active budget and project finance records.');
             return (
-              <li key={r.category} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 @md:grid-cols-[9rem_minmax(0,1fr)_auto]">
-                <span className="truncate text-sm text-foreground">{label(r.category)}</span>
-                <span className={cn('text-right text-xs tabular-nums @md:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
-                  {t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
-                </span>
-                <ProgressBar value={pct} tone={over ? 'destructive' : 'primary'} widthless className="col-span-2 w-full @md:col-span-1" aria-label={`${label(r.category)} ${pct}%`} />
+              <li key={r.category} className="border-b border-border/70 last:border-b-0">
+                <Tooltip content={detail} className="w-full">
+                  <Link to={`/projects/${project.id}/budget`} onClick={onOpenBudget ? (event) => { event.preventDefault(); onOpenBudget(); } : undefined}
+                    aria-label={t('projectDetail.cost.openCategory', 'Open {{category}} in Budget', { category: label(r.category) })}
+                    className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid-cols-[minmax(8rem,0.8fr)_minmax(5rem,auto)_minmax(5rem,1fr)]">
+                    <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
+                    <span className={cn('text-right text-xs tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
+                      {r.actual === null
+                        ? t('projectDetail.cost.rowUnavailable', 'Actual unavailable · budget {{budget}}', { budget: whole(r.budget) })
+                        : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
+                    </span>
+                    {pct !== null && <span className="col-span-2 w-full sm:col-span-1">
+                      <ProgressBar value={pct} widthless className="w-full" aria-label={r.budget === 0 && r.actual! > 0
+                        ? t('projectDetail.cost.categoryNoBudget', '{{category}} has spending with no budget', { category: label(r.category) })
+                        : t('projectDetail.cost.categoryUse', '{{category}} uses {{percent}}% of budget', { category: label(r.category), percent: pct })} />
+                    </span>}
+                  </Link>
+                </Tooltip>
               </li>
             );
           })}
         </ul>
       )}
-      {hasComparisons && pos.canSeeActual && notStarted.length > 0 && (
-        <Note>{t('projectDetail.cost.notStarted', 'No spending yet: {{list}}', { list: notStarted.map((r) => label(r.category)).join(', ') })}</Note>
-      )}
     </Block>
   );
 };
 
-/* ── Delivery: how far along are we, and which phase is late? ─────────────────────────────── */
-const todayIso = () => new Date().toISOString().slice(0, 10);
-const daysLate = (iso: string) => Math.max(1, Math.round((Date.parse(todayIso()) - Date.parse(iso)) / 86_400_000));
+/* ── Delivery: phase progress, dated task work, and phase planning ────────────────────────── */
 
 export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; children?: React.ReactNode }> = ({ projectId, isPipeline = false, children }) => {
   const { t } = useTranslation();
-  const title = t('projectDetail.delivery.title', 'Delivery');
+  const title = t('projectDetail.delivery.timelineTitle', 'Phase timeline');
   if (isPipeline) {
     return <Block id="pd-delivery" title={title}><p className="text-sm text-muted-foreground">{t('projectDetail.delivery.emptyPipeline', 'Phases are planned once the deal is won.')}</p></Block>;
   }
@@ -250,16 +338,18 @@ export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; 
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation();
   const may = usePermission();
+  const navigate = useNavigate();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
+  const tasks = useTasks(projectId);
   const action = may('edit', 'project') && (
-    <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing} className="max-md:hidden">
+    <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing}>
       {managing ? t('projectDetail.delivery.doneManaging', 'Done') : t('projectDetail.delivery.manage', 'Update phases')}
     </BlockAction>
   );
   if (managing) return <Block id="pd-delivery" title={title} action={action}><MilestoneStrip projectId={projectId} /></Block>;
-  if (q.isPending) return <Block id="pd-delivery" title={title}><ListState variant="loading" rows={3} /></Block>;
-  if (q.isError) return <Block id="pd-delivery" title={title}><ListState variant="error" title={t('projectDetail.delivery.error', "Couldn't load phases")} onRetry={() => void q.refetch()} /></Block>;
+  if (q.isPending || tasks.isPending) return <Block id="pd-delivery" title={title}><ListState variant="loading" rows={3} /></Block>;
+  if (q.isError || tasks.isError) return <Block id="pd-delivery" title={title}><ListState variant="error" title={t('projectDetail.delivery.error', "Couldn't load the phase timeline")} onRetry={() => { void q.refetch(); void tasks.refetch(); }} /></Block>;
   const all = q.data ?? [];
   if (all.length === 0) {
     return (
@@ -270,31 +360,25 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
   }
   const totalWeight = all.reduce((s, m) => s + m.weight, 0);
   const pct = totalWeight > 0 ? Math.round(all.reduce((s, m) => s + m.weight * m.effective_pct, 0) / totalWeight) : 0;
-  const isLate = (m: (typeof all)[number]) => Boolean(m.target_date && m.target_date < todayIso() && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
-  const current = all.find((m) => m.effective_pct < 100);
   return (
     <Block id="pd-delivery" title={title} action={action}>
-      <Headline>{t('projectDetail.delivery.pct', '{{pct}}% delivered', { pct })}</Headline>
-      <div className="mt-4 flex h-2 gap-0.5 overflow-hidden rounded-full" aria-hidden="true">
-        {all.map((m) => (
-          <span key={m.id} className="relative h-full overflow-hidden bg-secondary" style={{ flexGrow: m.weight || 1, flexBasis: 0 }}>
-            <span className={cn('absolute inset-y-0 left-0', m.effective_pct >= 100 ? 'bg-success' : isLate(m) ? 'bg-warning' : 'bg-primary')} style={{ width: `${Math.min(100, m.effective_pct)}%` }} />
-          </span>
-        ))}
+      <Tooltip content={t('projectDetail.delivery.progressTooltip', 'Weighted average of phase completion using each phase weight; source: the project phase plan and linked task progress.')}>
+        <span tabIndex={0}><Headline>{t('projectDetail.delivery.pct', '{{pct}}% delivered', { pct })}</Headline></span>
+      </Tooltip>
+      <div className="mt-4">
+        <React.Suspense fallback={<ListState variant="loading" rows={3} />}>
+          <ProjectGantt
+            tasks={tasks.data ?? []}
+            milestones={all}
+            onActivateTask={(task) => navigate(`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`)}
+            onSwitchView={(view) => navigate(`/projects/${projectId}/tasks?view=${view}`)}
+            rowMenu={(task) => [{
+              label: t('projectDetail.delivery.openTaskAction', 'Open task'),
+              onClick: () => navigate(`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`),
+            }]}
+          />
+        </React.Suspense>
       </div>
-      <ol className="mt-4 flex flex-col">
-        {all.map((m) => (
-          <li key={m.id} className="grid grid-cols-[minmax(0,1fr)_auto_3rem] items-baseline gap-x-4 border-t border-border/70 py-2 text-sm first:border-t-0">
-            <span className={cn('min-w-0 text-foreground', m.id === current?.id && 'font-semibold')}>{m.name}</span>
-            <span className={cn('text-xs tabular-nums', isLate(m) ? 'font-semibold text-warning-foreground' : 'text-muted-foreground')}>
-              {m.effective_pct >= 100 ? t('projectDetail.delivery.phaseDone', 'Done')
-                : isLate(m) && m.target_date ? t('projectDetail.delivery.lateBy', '{{days}} days late', { days: daysLate(m.target_date) })
-                : m.target_date ? t('projectDetail.delivery.target', 'Due {{date}}', { date: formatDateOnly(m.target_date) }) : ''}
-            </span>
-            <span className={cn('text-right tabular-nums', isLate(m) ? 'text-foreground' : 'text-muted-foreground')}>{m.effective_pct >= 100 ? '' : `${m.effective_pct}%`}</span>
-          </li>
-        ))}
-      </ol>
       {children && <div className="mt-8">{children}</div>}
     </Block>
   );

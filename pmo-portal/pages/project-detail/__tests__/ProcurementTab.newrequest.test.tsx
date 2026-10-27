@@ -1,22 +1,15 @@
-/**
- * Project Procurement tab — project-scoped procurement visibility and create flow.
- *
- * When a user is on a project's Procurement tab they should be able to raise a
- * procurement against THIS project without leaving the tab. The button is gated by
- * can('create', 'procurement') (ALL roles). Clicking it navigates to the full-page
- * create route with the project id in the query string.
- */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
-import { MemoryRouter } from 'react-router';
+import { formatCurrency } from '@/src/lib/format';
+import { MemoryRouter, useLocation } from 'react-router';
+import { ProcurementBlock } from '@/src/components/procurement/ProcurementBlock';
 
-// ── Mocks ─────────────────────────────────────────────────────────────────────
-
-const { procState, projectState } = vi.hoisted(() => ({
+const { procState, projectState, erpState, detailState, budgetState } = vi.hoisted(() => ({
   procState: {
     data: [] as unknown[],
     isPending: false,
@@ -26,277 +19,314 @@ const { procState, projectState } = vi.hoisted(() => ({
   projectState: {
     data: { id: 'proj-abc', currency: 'USD' } as { id: string; currency: string } | null,
   },
+  erpState: { data: [] as unknown[], isError: false, refetch: vi.fn() },
+  detailState: { data: null as unknown, isPending: false, isError: false, refetch: vi.fn() },
+  budgetState: {
+    rows: [{ category: 'Materials', budget: 10_000, actual: 1_500 }],
+    hasBudget: true,
+    isPending: false,
+    actualsPending: false,
+  },
 }));
 
-const { erpState } = vi.hoisted(() => ({ erpState: { data: [] as unknown[] } }));
 vi.mock('@/src/hooks/useErpPurchaseLinks', () => ({ useLinkErpDocuments: () => ({ mutateAsync: vi.fn(), isPending: false }) }));
-vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => erpState, useErpOrphans: () => ({ data: erpState.data.filter((r) => (r as { procurementId: string | null }).procurementId === null) }), useHasErpPurchases: () => ({ data: false }) }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({
+  useErpPurchases: () => erpState,
+  useErpOrphans: () => ({ data: erpState.data.filter((row) => (row as { procurementId: string | null }).procurementId === null), isError: false, refetch: vi.fn() }),
+  useHasErpPurchases: () => ({ data: false }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => procState,
   useProjectProcurements: () => procState,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProject: () => projectState }));
+vi.mock('@/src/hooks/useProcurementDetail', () => ({ useProcurementDetail: () => detailState }));
+vi.mock('../useProjectPosition', () => ({ useBudgetPosition: () => budgetState }));
 
 vi.mock('@/src/hooks/useFkOptions', () => ({
-  useProjectOptions: () => ({
-    data: [{ value: 'proj-abc', label: 'Test Project', sub: 'PRJ-ABC' }],
-  }),
+  useProjectOptions: () => ({ data: [{ value: 'proj-abc', label: 'Test Project', sub: 'PRJ-ABC' }] }),
   useVendorOptions: () => ({ data: [] }),
 }));
-
 vi.mock('@/src/hooks/useProcurementCrud', () => ({
-  useCreateProcurement: () => ({
-    mutateAsync: vi.fn().mockResolvedValue({ id: 'new-pr-1' }),
-    isPending: false,
-  }),
+  useCreateProcurement: () => ({ mutateAsync: vi.fn().mockResolvedValue({ id: 'new-pr-1' }), isPending: false }),
 }));
 
 const mockNavigate = vi.fn();
 vi.mock('react-router', async (orig) => {
   const real = await orig<typeof import('react-router')>();
-  return {
-    ...real,
-    useNavigate: () => mockNavigate,
-  };
+  return { ...real, useNavigate: () => mockNavigate };
 });
 
 let realRole: Role = 'Project Manager';
-vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ realRole, effectiveRole: realRole }),
-}));
-vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: realRole }),
-}));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole, effectiveRole: realRole }) }));
+vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: realRole }) }));
 
 import ProcurementTab from '../tabs/ProcurementTab';
 
 const renderTab = (role: Role = 'Project Manager') => {
   realRole = role;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
   return render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ProcurementTab projectId="proj-abc" />
-      </ToastProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <ToastProvider>
+          <ProcurementTab projectId="proj-abc" />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
 };
 
-beforeEach(() => {
-  erpState.data = [];
-  procState.data = [];
-  procState.isPending = false;
-  procState.isError = false;
-  procState.refetch.mockClear();
-  projectState.data = { id: 'proj-abc', currency: 'USD' };
-  mockNavigate.mockClear();
-  realRole = 'Project Manager';
-});
+const renderBlock = (role: Role = 'Project Manager', initialEntry = '/projects/proj-abc?tab=procurement') => {
+  realRole = role;
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <ToastProvider>
+          <ProcurementBlock projectId="proj-abc" />
+          <LocationSearch />
+        </ToastProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+};
 
-// ── AC-JR-T13: header button visible ──────────────────────────────────────────
-
-describe('project procurement actions and empty state', () => {
-  it('shows the "New procurement" action when the user can create procurement', () => {
-    renderTab('Project Manager');
-    expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
-  });
-
-  it('shows the required empty state and keeps a single create action', () => {
-    procState.data = [];
-    renderTab('Project Manager');
-    expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
-    expect(screen.queryByText('Requests raised against this project, tracked through their lifecycle.')).toBeNull();
-  });
-
-  it('mentions the ERPNext section only when its documents are available below', () => {
-    procState.data = [];
-    const { unmount } = renderTab('Project Manager');
-    expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
-    expect(screen.queryByText(/appear below/)).toBeNull();
-    unmount();
-    erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'],
-      currency: 'IDR', outstanding: 0, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
-    renderTab('Project Manager');
-    expect(screen.getByText(/appear below/)).toBeInTheDocument();
-  });
-
-  it('shows "New procurement" for Engineer too (create: allow(ALL))', () => {
-    // The policy says create: allow(ALL) so ALL roles including Engineer can create procurements.
-    renderTab('Engineer');
-    const buttons = screen.getAllByRole('button', { name: /new procurement/i });
-    expect(buttons.length).toBeGreaterThanOrEqual(1);
-  });
-});
+const LocationSearch = () => <output data-testid="location-search">{useLocation().search}</output>;
 
 const procurement = (id: string, status: string, overrides: Record<string, unknown> = {}) => ({
   id,
   code: `PR-${id}`,
   title: id,
   status,
-  total_value: 100,
+  total_value: 1_250,
   approved_total_value: null,
   currency: 'USD',
   project_id: 'proj-abc',
+  budget_category: 'Materials',
   requested_by_id: 'u-1',
   vendor_id: null,
   created_at: '2026-10-01T00:00:00.000Z',
   updated_at: '2026-10-01T00:00:00.000Z',
+  status_events: [{ to_status: 'Requested', created_at: '2026-10-02T00:00:00.000Z' }],
   project: { name: 'Test Project', code: 'PRJ-ABC' },
   vendor: { name: 'Northwind Supplies' },
   requested_by: { full_name: 'Project Manager' },
   ...overrides,
 });
 
-describe('project procurement stages and actions', () => {
-  it('uses the requested stage copy, next step, and record route', () => {
-    procState.data = [
-      procurement('proc-network', 'Vendor Quoted', { title: 'Network equipment' }),
-    ];
-
-    renderTab('Project Manager');
-
-    expect(screen.getByText('Getting quotes')).toBeInTheDocument();
-    expect(screen.getByText('Choose a quote')).toBeInTheDocument();
-    expect(screen.getByText('Northwind Supplies')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Network equipment/ })).toHaveAttribute('href', '/procurement/proc-network');
-    expect(screen.getByRole('button', { name: /New procurement/i })).toBeInTheDocument();
-  });
-
-  it.each([
-    ['Draft', 'Draft', 'Submit for approval'],
-    ['Requested', 'Awaiting approval', 'Approve or reject'],
-    ['Approved', 'Approved', 'Get quotes or order'],
-    ['Vendor Quoted', 'Getting quotes', 'Choose a quote'],
-    ['Quote Selected', 'Quote chosen', 'Raise the order'],
-    ['Ordered', 'Ordered', 'Record delivery'],
-    ['Received', 'Delivered', 'Record supplier invoice'],
-    ['Vendor Invoiced', 'Supplier invoiced', 'Pay'],
-    ['Paid', 'Paid', null],
-    ['Rejected', 'Rejected', null],
-    ['Cancelled', 'Cancelled', null],
-  ])('maps %s to %s and its next step', (status, label, nextStep) => {
-    procState.data = [procurement(`row-${status}`, status)];
-    renderTab('Project Manager');
-    const rowLink = screen.getByRole('link', { name: new RegExp(`row-${status}`) });
-    expect(within(rowLink).getByText(label)).toBeInTheDocument();
-    if (nextStep) expect(within(rowLink).getByText(nextStep)).toBeInTheDocument();
-    else expect(screen.queryByText(/Submit for approval|Approve or reject|Get quotes or order|Choose a quote|Raise the order|Record delivery|Record supplier invoice|^Pay$/)).toBeNull();
-  });
-
-  it('groups rows, omits empty groups, and orders each group by most recently updated', () => {
-    procState.data = [
-      procurement('old draft', 'Draft', { updated_at: '2026-10-01T00:00:00.000Z' }),
-      procurement('new draft', 'Draft', { updated_at: '2026-10-03T00:00:00.000Z' }),
-      procurement('quote chosen', 'Quote Selected'),
-      procurement('ordered', 'Ordered'),
-      procurement('rejected', 'Rejected'),
-    ];
-    renderTab('Project Manager');
-    expect(screen.getByRole('heading', { name: 'Needs action 3' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'In progress 1' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Invoiced or paid' })).not.toBeInTheDocument();
-    const details = screen.getByText(/Rejected or cancelled/).closest('details');
-    expect(details).not.toHaveAttribute('open');
-    const draftLinks = screen.getAllByRole('link').filter((link) => /draft/i.test(link.textContent ?? ''));
-    expect(draftLinks[0]).toHaveTextContent('new draft');
-    expect(draftLinks[1]).toHaveTextContent('old draft');
-  });
-
-  it('AC-1402 wraps procurement identity and shows a quiet dash when supplier is missing', () => {
-    const title = 'A long procurement title that must wrap on a phone without losing its full identity';
-    procState.data = [procurement('proc-long', 'Requested', { title, vendor: null })];
-    renderTab('Project Manager');
-
-    const titleNode = screen.getByText(title);
-    expect(titleNode).toHaveClass('whitespace-normal');
-    expect(titleNode).toHaveClass('break-words');
-    const row = screen.getByRole('link', { name: new RegExp(title) });
-    expect(within(row).getByText('—')).toHaveClass('text-muted-foreground');
-    expect(within(row).queryByText('No supplier yet')).not.toBeInTheDocument();
-  });
-
-  it('shows project-currency totals to money roles, using approved values when present', () => {
-    procState.data = [
-      procurement('waiting', 'Requested', { total_value: 1250, approved_total_value: null }),
-      procurement('reserved', 'Approved', { total_value: 2000, approved_total_value: 1750 }),
-      procurement('committed', 'Ordered', { total_value: 3000, approved_total_value: 2800 }),
-      procurement('paid', 'Paid', { total_value: 900, approved_total_value: 850 }),
-    ];
-    renderTab('Finance');
-    expect(screen.getByRole('heading', { name: 'Procurement · USD' })).toBeInTheDocument();
-    expect(screen.getByText('Awaiting approval', { selector: 'dt' })).toBeInTheDocument();
-    expect(screen.getByText('Reserved', { selector: 'dt' })).toBeInTheDocument();
-    expect(screen.getByText('Committed', { selector: 'dt' })).toBeInTheDocument();
-    expect(screen.getByText('Paid', { selector: 'dt' })).toBeInTheDocument();
-    const summary = screen.getByRole('heading', { name: 'Procurement · USD' }).parentElement!.querySelector('dl')!;
-    for (const amount of ['1,250', '1,750', '3,650', '850']) {
-      expect(within(summary).getByText(amount)).toBeInTheDocument();
-    }
-  });
-
-  it('hides project-wide totals from Engineers who only see their own procurements', () => {
-    procState.data = [procurement('own request', 'Draft')];
-    renderTab('Engineer');
-    expect(screen.queryByText('Awaiting approval')).not.toBeInTheDocument();
-    expect(screen.getByText('own request')).toBeInTheDocument();
-  });
-
-  it('hides Engineer amounts and keeps mixed-currency totals separate for Finance', () => {
-    procState.data = [
-      procurement('own request', 'Draft', { total_value: 1250, currency: 'USD' }),
-      procurement('euro request', 'Draft', { total_value: 250, currency: 'EUR' }),
-    ];
-    const { unmount } = renderTab('Engineer');
-    expect(screen.getByRole('heading', { name: 'Procurement' })).toBeInTheDocument();
-    expect(screen.queryByText('Procurement · USD')).not.toBeInTheDocument();
-    expect(screen.queryByText('Value')).not.toBeInTheDocument();
-    expect(screen.queryByText('1,250')).not.toBeInTheDocument();
-    expect(screen.queryByText('250')).not.toBeInTheDocument();
-
-    unmount();
-    procState.data = [
-      procurement('usd-request', 'Requested', { total_value: 1250, currency: 'USD' }),
-      procurement('usd-order', 'Ordered', { total_value: 500, currency: 'USD' }),
-      procurement('eur-request', 'Requested', { total_value: 250, currency: 'EUR' }),
-    ];
-    renderTab('Finance');
-    expect(screen.getByRole('heading', { name: 'Procurement · USD' })).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'USD totals' })).toHaveTextContent('1,250');
-    expect(screen.getByRole('group', { name: 'USD totals' })).toHaveTextContent('500');
-    expect(screen.getByRole('group', { name: 'EUR totals' })).toHaveTextContent('250');
-    expect(screen.getByText('Procurement', { exact: true })).toBeInTheDocument();
-    expect(screen.getByText('Supplier', { exact: true })).toBeInTheDocument();
-    expect(screen.getAllByText('Value', { exact: true })).toHaveLength(1);
-    expect(screen.getAllByText('Stage', { exact: true })).toHaveLength(1);
-  });
+beforeEach(() => {
+  procState.data = [];
+  procState.isPending = false;
+  procState.isError = false;
+  procState.refetch.mockClear();
+  projectState.data = { id: 'proj-abc', currency: 'USD' };
+  erpState.data = [];
+  erpState.isError = false;
+  detailState.data = null;
+  detailState.isPending = false;
+  detailState.isError = false;
+  detailState.refetch.mockClear();
+  mockNavigate.mockClear();
+  realRole = 'Project Manager';
 });
 
-// ── AC-JR-T13: one-page create route and project context ──────────────────────
-
-describe('New procurement navigates to the project-scoped create route', () => {
-  it('clicking New procurement keeps this project in the create URL', async () => {
+describe('project procurement tab', () => {
+  it('keeps New procurement available from the project and passes its id to the create route', async () => {
     renderTab('Project Manager');
-    const [headerBtn] = screen.getAllByRole('button', { name: /new procurement/i });
-    await userEvent.click(headerBtn);
+    await userEvent.click(screen.getByRole('button', { name: /new procurement/i }));
     expect(mockNavigate).toHaveBeenCalledWith('/procurement/new?project=proj-abc');
   });
+
+  it('shows the project-scoped empty state and one create action', () => {
+    renderTab('Project Manager');
+    expect(screen.getByText('No procurement on this project yet.')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
+  });
+
+  it.each(['Admin', 'Finance', 'Project Manager'] as const)('shows money for %s', (role) => {
+    procState.data = [procurement('requested probes', 'Requested')];
+    renderTab(role);
+    expect(screen.getByRole('columnheader', { name: /Value/ })).toBeInTheDocument();
+    const amount = formatCurrency(1_250, 'USD');
+    expect(screen.getAllByText((_, element) => element?.textContent === amount).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('AC-1402 hides every procurement amount from Engineer while keeping the same stage and list', () => {
+    procState.data = [procurement('own request', 'Draft')];
+    renderTab('Engineer');
+    expect(screen.getByText('own request')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Request/ })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Value/ })).not.toBeInTheDocument();
+    const amount = formatCurrency(1_250, 'USD');
+    expect(screen.queryByText((_, element) => element?.textContent === amount)).not.toBeInTheDocument();
+  });
+
+  it('shows approvers an action and tells other roles the request is waiting on an approver', () => {
+    procState.data = [procurement('awaiting review', 'Requested', { requested_by_id: 'u-2' })];
+    const { unmount } = renderTab('Finance');
+    expect(screen.getByText('Approve or return')).toBeInTheDocument();
+    unmount();
+    renderTab('Engineer');
+    expect(screen.getByText('Waiting on approver')).toBeInTheDocument();
+  });
+
+  it('counts only requests that are waiting for this approver, excluding their own requests', () => {
+    procState.data = [
+      procurement('for another approver', 'Requested', { requested_by_id: 'u-2' }),
+      procurement('own request', 'Requested', { requested_by_id: 'u-1' }),
+    ];
+    renderTab('Finance');
+    expect(screen.getByText('1 for you')).toBeInTheDocument();
+  });
+
+  it('opens the shared drawer from a row and shows the category, budget position, timeline, and documents', async () => {
+    procState.data = [procurement('proc-1', 'Requested', { title: 'ultrasonic probes' })];
+    detailState.data = {
+      statusEvents: [{ to_status: 'Requested', created_at: '2026-10-02T00:00:00.000Z' }],
+      purchase_requests: [],
+      quotations: [{ vq_number: 'VQ-100', reference: null }],
+      purchase_orders: [],
+      receipts: [],
+      invoices: [],
+      payments: [],
+    };
+    renderTab('Finance');
+    await userEvent.click(screen.getByRole('button', { name: 'Open ultrasonic probes' }));
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByText('Materials')).toBeInTheDocument();
+    expect(within(drawer).getByText('Budget left in category')).toBeInTheDocument();
+    expect(within(drawer).getByText(formatCurrency(7_250, 'USD'))).toBeInTheDocument();
+    expect(within(drawer).getByText('Step timeline')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('Not recorded').length).toBeGreaterThan(0);
+    expect(within(drawer).getByText('Quotation')).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toHaveAttribute('href', '/procurement/proc-1');
+  });
+
+  it('switches the displayed records from the stage band and can clear the stage filter', async () => {
+    procState.data = [
+      procurement('awaiting review', 'Requested'),
+      procurement('approved order', 'Approved'),
+    ];
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByRole('button', { name: /Approved/ }));
+    expect(screen.getByText('approved order')).toBeInTheDocument();
+    expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
+    expect(screen.getByText('awaiting review')).toBeInTheDocument();
+  });
+
+  it('reveals approval and export actions when an approver selects rows', async () => {
+    procState.data = [procurement('awaiting review', 'Requested', { requested_by_id: 'u-2' })];
+    renderTab('Finance');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select awaiting review' }));
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
+  });
+
+  it('preserves stage-specific next steps for the lifecycle statuses', () => {
+    procState.data = [
+      procurement('request', 'Draft'),
+      procurement('in flight', 'Vendor Quoted'),
+      procurement('order', 'Ordered'),
+      procurement('received', 'Received'),
+      procurement('invoice', 'Vendor Invoiced'),
+      procurement('paid', 'Paid'),
+    ];
+    renderTab('Project Manager');
+    expect(screen.getByText('Submit for approval')).toBeInTheDocument();
+    expect(screen.getByText('Choose a quote')).toBeInTheDocument();
+    expect(screen.getByText('Record delivery')).toBeInTheDocument();
+    expect(screen.getByText('Record supplier invoice')).toBeInTheDocument();
+    expect(screen.getByText('Pay')).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0);
+  });
+
+  it('shows an ERP hint in the procurement empty state when accounting documents are available', () => {
+    erpState.data = [{ id: 'd1', procurementId: null, doctype: 'Purchase Invoice', name: 'PINV-1', projectIds: ['proj-abc'], currency: 'USD', outstanding: 1, dueDate: null, docDate: null, isReturn: false, grandTotal: 1, netTotal: 1 }];
+    renderTab('Finance');
+    expect(screen.getByText('Purchases recorded in the accounting system appear below.')).toBeInTheDocument();
+  });
 });
 
-// ── AC-JR-T13: loading + error states unaffected ─────────────────────────────
+describe('shared procurement block', () => {
+  it('AC-1402 keeps every amount hidden from Engineers', () => {
+    procState.data = [procurement('own request', 'Draft')];
+    renderBlock('Engineer');
+    expect(screen.getByText('own request')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Value/ })).not.toBeInTheDocument();
+    expect(screen.queryByText((_, element) => element?.textContent === formatCurrency(1_250, 'USD'))).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unpaid/i)).not.toBeInTheDocument();
+  });
 
-describe('AC-JR-T13: loading and error states', () => {
-  it('AC-JR-T13: loading state renders the aria-busy loading skeleton', () => {
+  it('opens the drawer from ?open=<id> and removes that parameter when closed', async () => {
+    procState.data = [procurement('proc-1', 'Requested', { title: 'ultrasonic probes' })];
+    renderBlock('Finance', '/projects/proj-abc?tab=procurement&open=proc-1');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'ultrasonic probes' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /close/i }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByTestId('location-search')).toHaveTextContent('?tab=procurement');
+  });
+
+  it('uses DataTable selection to expose approver bulk actions', async () => {
+    procState.data = [procurement('awaiting review', 'Requested', { requested_by_id: 'u-2' })];
+    renderBlock('Finance');
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select awaiting review' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Return' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
+  });
+
+  it('shows the most recorded payment amount and the finance unpaid line', () => {
+    procState.data = [procurement('paid record', 'Paid', {
+      purchase_requests: [{ amount: 1_000, date: '2026-09-01', created_at: '2026-09-01T00:00:00.000Z', external_ref: null }],
+      purchase_orders: [{ amount: 900, date: '2026-09-02', created_at: '2026-09-02T00:00:00.000Z', external_ref: null }],
+      receipts: [{ receipt_date: '2026-09-03', created_at: '2026-09-03T00:00:00.000Z' }],
+      procurement_invoices: [{ amount: 800, invoice_date: '2026-09-04', created_at: '2026-09-04T00:00:00.000Z', erp_outstanding_amount: null, external_ref: null }],
+      payments: [{ amount: 300, date: '2026-09-05', created_at: '2026-09-05T00:00:00.000Z', status: 'Paid' }],
+    })];
+    renderBlock('Finance');
+    expect(screen.getAllByText((_, element) => element?.textContent === formatCurrency(300, 'USD')).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Unpaid/)).toBeInTheDocument();
+  });
+
+  it('expands procurement facts, line items, next step, budget impact, and drawer entry', async () => {
+    procState.data = [procurement('expandable', 'Requested')];
+    detailState.data = {
+      id: 'expandable',
+      items: [{ id: 'item-1', name: 'Probe', description: 'Ultrasonic', quantity: 2 }],
+      purchase_requests: [],
+      purchase_orders: [],
+      receipts: [],
+      invoices: [],
+      payments: [],
+      quotations: [],
+      statusEvents: [],
+    };
+    renderBlock('Finance');
+    await userEvent.click(screen.getByRole('button', { name: 'Expand procurement details' }));
+    expect(screen.getByText('Line items')).toBeInTheDocument();
+    expect(screen.getByText('Probe · Ultrasonic · 2')).toBeInTheDocument();
+    expect(screen.getByText('Budget left in category')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open procurement' })).toBeInTheDocument();
+  });
+});
+
+describe('project procurement loading and error states', () => {
+  it('renders an aria-busy loading skeleton', () => {
     procState.isPending = true;
     renderTab('Project Manager');
-    // The tab returns early with ListState variant="loading", which renders an
-    // aria-busy="true" wrapper around the skeleton rows (see ListState.tsx).
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
-  it('AC-JR-T13: error state shows retry, header button still visible', () => {
+  it('shows a retry action after a procurement read failure', async () => {
     procState.isError = true;
-    procState.data = undefined as unknown as never[];
+    procState.data = undefined as unknown as unknown[];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: /try again|retry/i })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /try again|retry/i }));
+    expect(procState.refetch).toHaveBeenCalled();
   });
 });

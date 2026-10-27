@@ -83,6 +83,10 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useProjectFinances', () => ({
   useProjectFinances: () => ({ data: { project_id: 'p1', contract_invoiced: null, remaining_to_invoice: null, invoices: [], budget: null, actuals: { currency: 'USD', total: '2350000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '2350000.00' }] } }, isPending: false, isError: false }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -120,6 +124,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
     removeDependency: { mutateAsync: vi.fn(), isPending: false },
   }),
 }));
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => <div data-testid="project-erp-link">ERP link</div> }));
 // The Documents tab is now a real register (no longer a deferred placeholder); stub its
 // data hooks so the shell test stays a pure shell test (no network / no QueryClient needed).
 vi.mock('@/src/hooks/useDocuments', () => ({
@@ -188,25 +193,30 @@ describe('ProjectDetail shell (decomposition)', () => {
     });
   });
 
-  it('renders the cached project identity and persistent details rail, with Overview selected by default', async () => {
+  it('renders the cached identity and opens project details and actions from the header menu', async () => {
     await renderAt('/projects/p1');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
 
-    const rail = screen.getByTestId('project-detail-rail');
-    expect(within(rail).getByText('Details')).toBeInTheDocument();
-    expect(within(rail).getByText('Customer')).toBeInTheDocument();
-    expect(within(rail).getByText('Innovate Corp')).toBeInTheDocument();
-    expect(within(rail).getByText('Project manager')).toBeInTheDocument();
-    expect(within(rail).getByText('Alice Manager')).toBeInTheDocument();
-    expect(within(rail).getByText('Customer PO ref')).toBeInTheDocument();
-    expect(within(rail).getByText('CPO-2026-001')).toBeInTheDocument();
-    expect(within(rail).getByText('Details, codes and status')).toBeInTheDocument();
-    expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    // PD-A: the header status pill is the one status display; the rail has no Status row or help paragraph.
-    expect(within(rail).queryByText('Status')).not.toBeInTheDocument();
-    expect(within(rail).queryByText(/Move the project through its delivery stages/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'false');
+    expect(within(menu!).getByRole('button', { name: 'Change status' })).toBeInTheDocument();
+    expect(within(menu!).getByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(within(menu!).getByTestId('project-erp-link')).toBeInTheDocument();
+
+    await userEvent.click(within(menu!).getByRole('button', { name: 'Project details' }));
+    const details = within(menu!).getByTestId('project-detail-rail');
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toHaveAttribute('aria-expanded', 'true');
+    expect(within(details).getByText('Customer')).toBeInTheDocument();
+    expect(within(details).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(details).getByText('Project manager')).toBeInTheDocument();
+    expect(within(details).getByText('Alice Manager')).toBeInTheDocument();
+    expect(within(details).getByText('Customer PO ref')).toBeInTheDocument();
+    expect(within(details).getByText('CPO-2026-001')).toBeInTheDocument();
+    expect(within(details).getByText('Contract date')).toBeInTheDocument();
 
     expect(screen.queryByText('Project information')).not.toBeInTheDocument();
   });
@@ -223,9 +233,10 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('opens the project edit form from the single header Edit action', async () => {
     await renderAt('/projects/p1');
-    expect(screen.getAllByRole('button', { name: /^Edit$/i })).toHaveLength(1);
+    const editActions = within(screen.getByTestId('record-header-actions')).getAllByRole('button', { name: /^Edit$/i });
+    expect(editActions.length).toBeGreaterThan(0); // desktop action + responsive menu action share one edit behavior
 
-    await userEvent.click(screen.getByRole('button', { name: /^Edit$/i }));
+    await userEvent.click(editActions[0]);
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByDisplayValue('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
   });
@@ -252,10 +263,9 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
     expect(screen.queryByText('$2,350,000.00')).not.toBeInTheDocument();
     expect(screen.queryByText(/committed in purchase orders/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Contract billing' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Money position' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Budget vs actual' })).not.toBeInTheDocument();
-    expect(committedSpendHook).toHaveBeenCalled();
-    for (const [projectId] of committedSpendHook.mock.calls) expect(projectId).toBeNull();
+    expect(committedSpendHook).not.toHaveBeenCalled();
   });
 
   it('switches to the Procurement tab and shows its real (empty) state', async () => {
@@ -310,11 +320,13 @@ describe('ProjectDetail shell (decomposition)', () => {
     expect(tabs).not.toContain('Timesheets');
   });
 
-  it('pre-selects the Budget tab on the /budget deep-link route and keeps the right rail mounted', async () => {
+  it('pre-selects the Budget tab on the /budget deep-link route and keeps project details available', async () => {
     await renderAt('/projects/p1/budget');
     const tabs = screen.getByRole('tablist', { name: /project sections/i });
     expect(within(tabs).getByRole('tab', { name: 'Budget' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByTestId('project-detail-rail')).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(within(menu!).getByRole('button', { name: 'Project details' })).toBeInTheDocument();
     // AC-W6-IXD-BUDHEAD (deliberate UX change): the redundant "Project Budget" <h2>
     // was dropped — the selected "Budget" tab is the section label and the "Active
     // budget" line is the section lead. Oracle updated per the BDD authoring rule:

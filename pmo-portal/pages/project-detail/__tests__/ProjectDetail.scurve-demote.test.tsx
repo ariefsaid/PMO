@@ -72,6 +72,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({
+    data: { project_id: 'del1', contract_invoiced: '0', remaining_to_invoice: '3000000', invoices: [], budget: null,
+      cash_received: { state: 'known', buckets: [], receipt_count: 0 },
+      actuals: { currency: 'USD', as_of: null, total: '0.00', excludes_restricted_rows: false, categories: [] } },
+    isPending: false, isError: false, refetch: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useProgressBilling', () => ({
+  useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', async (orig) => ({
+  ...(await orig<typeof import('@/src/hooks/useRevenue')>()),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
+
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),

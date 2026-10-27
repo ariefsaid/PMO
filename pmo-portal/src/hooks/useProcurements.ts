@@ -18,15 +18,19 @@ export { procurementsKey } from './approvalsQueryKeys';
  * Org-scoped procurement list. queryKey includes org_id so cache is tenant-scoped (FR-QRY-PROC-001).
  * `withRefs` (#769) is the Procurement index only: it adds the record-reference embeds for search/export
  * under its own cache key, so Approvals/dashboards keep the lean payload. Both keys share the
- * `['procurements', orgId]` prefix, so existing invalidations still refetch it.
+ * `['procurements', orgId]` prefix, so existing invalidations still refetch it. `withSharedDetails`
+ * adds the batched money/stage inputs needed by the shared procurement block under a third cache key.
  */
-export function useProcurements(opts?: { withRefs?: boolean; enabled?: boolean }) {
+export function useProcurements(opts?: { withRefs?: boolean; withSharedDetails?: boolean; enabled?: boolean }) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   const withRefs = opts?.withRefs === true;
+  const withSharedDetails = opts?.withSharedDetails === true;
   return useQuery<ProcurementWithRefs[]>({
-    queryKey: procurementsKey(orgId, withRefs),
-    queryFn: () => listProcurements(undefined, withRefs ? { withRefs: true } : undefined),
+    queryKey: procurementsKey(orgId, withRefs, withSharedDetails),
+    queryFn: () => listProcurements(undefined, withSharedDetails
+      ? { withRefs: true, withSharedDetails: true }
+      : withRefs ? { withRefs: true } : undefined),
     enabled: Boolean(orgId) && opts?.enabled !== false,
   });
 }

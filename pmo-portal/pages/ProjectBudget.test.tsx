@@ -57,6 +57,8 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => procurementsState }));
 vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () => positionState }));
+vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
+vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
 vi.mock('@/src/lib/repositories/budgetProjection', () => ({
   fetchBudgetPushStatus: () => Promise.resolve(budgetPushState.rows),
   retryActiveBudgetPush: vi.fn(),
@@ -87,8 +89,8 @@ const EN_LOCALE = { locale: 'en', numberLocale: 'en-US', timezone: 'UTC' };
 const ID_LOCALE = { locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' };
 
 const project = { id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs;
-const renderPage = (projectId = 'p-1') =>
-  render(
+const renderPage = (projectId = 'p-1') => {
+  const result = render(
     <FinanceI18nTestProvider>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <MemoryRouter>
@@ -99,6 +101,14 @@ const renderPage = (projectId = 'p-1') =>
       </QueryClientProvider>
     </FinanceI18nTestProvider>
   );
+  // Existing lifecycle/editor proofs exercise the line editor itself. The new composed tab keeps it
+  // behind the draft banner, so open that disclosure for this behavior-focused suite.
+  if (versionsState.data?.some((version) => (version as { status?: string }).status === 'Draft')) {
+    const editDraft = screen.queryByRole('button', { name: 'Edit draft' });
+    if (editDraft) fireEvent.click(editDraft);
+  }
+  return result;
+};
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -201,7 +211,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
     await financeTestI18n.changeLanguage('id');
     const cases = [
       { versions: [], trigger: /Create budget/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
-      { versions: [draftVersion], trigger: /^Aktifkan$/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
+      { versions: [draftVersion], trigger: /Activate v2|Aktifkan v2/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
       { versions: [activeVersion], trigger: /Update budget/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
       { versions: [activeVersion], trigger: /Arsipkan/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif', openVersions: true },
       { versions: [draftVersion], trigger: /Hapus draf/i, confirm: /Hapus draf/i, body: 'Ini menghapus draf Draft v2 (v2) secara permanen', openVersions: true },
@@ -215,7 +225,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
         await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
         await userEvent.type(screen.getByPlaceholderText(/nama versi/i), 'Anggaran baru');
       } else {
-        if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+        if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
         await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
       }
       if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
@@ -294,32 +304,29 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     resetState();
   });
 
-  it('renders the active version sum as the answer before its category table (AC-720 view side)', () => {
+  it('renders active budget KPIs before the budget-by-category table', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    const answer = screen.getByTestId('budget-answer');
-    const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(answer).toHaveTextContent('Budget 4,700,000');
-    expect(answer.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(table).getByText('2,000,000')).toBeInTheDocument();
-    expect(screen.getByText('USD')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(screen.getAllByText(/4,700,000/).length).toBeGreaterThan(0);
+    expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Committed' })).toBeInTheDocument();
+    expect(within(table).getByRole('columnheader', { name: 'Left' })).toBeInTheDocument();
+    expect(within(table).getAllByText(/2,000,000/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/USD/).length).toBeGreaterThan(0);
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
     resetState();
   });
 
-  it('keeps the budget answer first, shows budget when category spending is unknown, and says the remedy once', () => {
+  it('shows the source remedy once while keeping unknown spending visibly unavailable', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [activeVersion];
     positionState.unknown = 3;
     renderPage();
 
-    const mobileCategories = screen.getByRole('list', { name: 'Budget categories' });
-    const answer = screen.getByTestId('budget-answer');
-    const labor = within(mobileCategories).getByRole('button', { name: /Labor/ });
-    expect(answer.compareDocumentPosition(mobileCategories) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(labor).toHaveTextContent('Budget 2,000,000');
-    expect(labor).toHaveClass('touch-target');
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getByRole('row', { name: /Labor/ })).toHaveTextContent('—');
     expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
   });
 
@@ -332,16 +339,17 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     ];
     roleState.realRole = 'Admin';
     const adminView = renderPage();
+    await userEvent.click(screen.getByText('Sources and budget enforcement'));
     const notice = await screen.findByTestId('budget-erp-notice');
-    const answer = screen.getByTestId('budget-answer');
-    const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(answer.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(table).toBeInTheDocument();
     expect(table.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(notice.querySelectorAll('p')).toHaveLength(0);
     adminView.unmount();
 
     roleState.realRole = 'Finance';
     const financeView = renderPage();
+    await userEvent.click(screen.getByText('Sources and budget enforcement'));
     expect(await screen.findByTestId('budget-erp-notice')).toBeInTheDocument();
     financeView.unmount();
 
@@ -364,9 +372,9 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     budgetState.data = 1234.5;
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
-    const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(within(table).getByText('1,234.5')).toBeInTheDocument();
-    expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getAllByText(/1,234\.5/).length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId('dt-table-branch').length).toBeGreaterThan(0);
   });
 
   it('the Draft editor total is a <tfoot> row inside the table, with the full amount', () => {
@@ -397,7 +405,7 @@ describe('ProjectBudget T5 DataTable adoption', () => {
       budgetState.data = 0;
       versionsState.data = [draftVersion];
       renderPage();
-      expect(screen.getByTestId('dt-card-branch')).toBeInTheDocument();
+      expect(within(screen.getByTestId('budget-draft-editor')).getByTestId('dt-card-branch')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Edit line item Labor' })).toBeInTheDocument();
     } finally {
       window.matchMedia = original;
@@ -429,26 +437,26 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const soleView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByText('Activated by sole operator')).toBeInTheDocument();
     soleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: 'standard' }];
     const standardView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.queryByText('Activated by sole operator')).not.toBeInTheDocument();
     standardView.unmount();
 
     await financeTestI18n.changeLanguage('id');
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const idSoleView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByText('Diaktifkan oleh operator tunggal')).toBeInTheDocument();
     idSoleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: null }];
     const legacyView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.queryByText('Diaktifkan oleh operator tunggal')).not.toBeInTheDocument();
     legacyView.unmount();
   });
@@ -456,8 +464,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
-    expect(screen.getByText('Draft')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Draft')).toBeInTheDocument();
     resetState();
   });
 
@@ -465,8 +473,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
-    expect(screen.getByText('Active')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Active')).toBeInTheDocument();
     resetState();
   });
 
@@ -474,8 +482,8 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
-    expect(screen.getByText('Archived')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Archived')).toBeInTheDocument();
     resetState();
   });
 });
@@ -489,7 +497,7 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [draftVersion];
     renderPage();
     expect(screen.getByRole('button', { name: /Activate/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
     resetState();
   });
@@ -498,7 +506,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     // Owner rule: nothing mutates on the first click.
     expect(mockActivate).not.toHaveBeenCalled();
     // Default tone => role=dialog.
@@ -519,7 +527,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     const toast = await findToastAnnouncement('alert', /activated/i);
     expect(toast).toHaveTextContent(/ERPNext/i);
@@ -536,7 +544,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Activate version/i }));
     const toast = await findToastAnnouncement('alert', /activated/i);
     expect(toast).toHaveTextContent(/no budget lines/i);
@@ -551,7 +559,7 @@ describe('ProjectBudget Draft version actions', () => {
     activationModeState.data = 'sole_operator';
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^Activate v2$/i }));
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveTextContent("You're the only person in this organisation, so you can activate a budget you prepared yourself.");
     expect(mockActivate).not.toHaveBeenCalled();
@@ -563,10 +571,10 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
     expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
     // The drafter keeps every other Draft affordance.
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
   });
 
@@ -575,7 +583,7 @@ describe('ProjectBudget Draft version actions', () => {
     // u2 drafted; the signed-in u1 edited a line, so u1 may not activate either.
     versionsState.data = [{ ...draftVersion, created_by: 'u2', editor_ids: ['u1'] }];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
     expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
   });
 
@@ -583,7 +591,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [{ ...draftVersion, created_by: null }];
     renderPage();
-    expect(screen.queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
     expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
   });
 
@@ -592,7 +600,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [{ ...draftVersion, created_by: null }];
     renderPage();
-    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
     expect(screen.queryByText('Waiting for approval by finance')).not.toBeInTheDocument();
   });
 
@@ -608,7 +616,7 @@ describe('ProjectBudget Draft version actions', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
     expect(mockDeleteDraft).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
@@ -660,7 +668,7 @@ describe('ProjectBudget Active version actions', () => {
     versionsState.data = [activeVersion];
     renderPage();
     expect(screen.getByRole('button', { name: 'Update budget' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByRole('button', { name: /^Archive$/i })).toBeInTheDocument();
     resetState();
   });
@@ -669,7 +677,7 @@ describe('ProjectBudget Active version actions', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     // Owner rule: nothing mutates on the first click; a destructive modal appears.
     expect(mockArchive).not.toHaveBeenCalled();
@@ -683,7 +691,7 @@ describe('ProjectBudget Active version actions', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -712,8 +720,8 @@ describe('ProjectBudget Archived version actions', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    expect(screen.getByRole('button', { name: 'Create budget' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    expect(screen.getByRole('button', { name: 'New version' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByRole('button', { name: /Clone to revise/i })).toBeInTheDocument();
     resetState();
   });
@@ -722,7 +730,7 @@ describe('ProjectBudget Archived version actions', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.queryByRole('button', { name: /Activate/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Archive$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete draft/i })).not.toBeInTheDocument();
@@ -747,6 +755,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     render(<BahasaProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
     await userEvent.click(screen.getByText(/Tambah item anggaran/i));
     expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Kategori item anggaran' }), 'Special expenses');
@@ -838,8 +847,8 @@ describe('ProjectBudget Create budget form (empty state)', () => {
     budgetState.data = 0;
     versionsState.data = [];
     renderPage();
-    expect(screen.getByTestId('budget-empty')).toBeInTheDocument();
-    expect(screen.getByText('No active budget')).toBeInTheDocument();
+    expect(screen.getByTestId('budget-option-a')).toBeInTheDocument();
+    expect(screen.getByText('Budget details are available to project management and finance.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Create budget' })).not.toBeInTheDocument();
     resetState();
   });
@@ -884,8 +893,8 @@ describe('ProjectBudget spending source (C-4)', () => {
     versionsState.data = [{ ...activeVersion, line_items: activeVersion.line_items.map((li) => ({ ...li, actual_amount: 123456789 })) }];
     positionState.rows = [{ category: 'Labor', budget: 2000000, actual: 1200000 }];
     renderPage();
-    const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(within(table).getByText('1,200,000')).toBeInTheDocument();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getByText(/1,200,000/)).toBeInTheDocument();
     expect(screen.queryByText('123,456,789')).not.toBeInTheDocument();
   });
 });
@@ -982,7 +991,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   it('AC-M365DOC-052 mounts the Microsoft evidence panel beneath the selected version only', async () => {
     versionsState.data = [{ ...activeVersion, line_items: [] }];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
     expect(screen.getByTestId('evidence-v-active')).toBeInTheDocument();
   });
 });

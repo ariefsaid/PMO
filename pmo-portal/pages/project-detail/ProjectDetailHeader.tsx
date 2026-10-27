@@ -51,6 +51,8 @@ import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { ON_HAND_STATUSES, projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { pillVariantForProjectStatus, projectIconColor } from '../../components/projects';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import ProjectStatusControl from '../../components/ProjectStatusControl';
+import { ProjectErpLink } from './ProjectErpLink';
 
 /**
  * Finance-forward roles: Admin · Executive · Finance · Project Manager (the PM owns the P&L).
@@ -98,6 +100,8 @@ export interface ProjectDetailHeaderProps {
   editValueRequest?: number;
   /** Extra quiet action beside Edit (the Activity drawer button). */
   secondaryAction?: React.ReactNode;
+  /** Existing project detail content mounted from the header's single overflow menu. */
+  menuContent?: React.ReactNode;
 }
 
 interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
@@ -266,6 +270,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   compact = false,
   editValueRequest = 0,
   secondaryAction,
+  menuContent,
 }) => {
   const { t } = useTranslation();
 
@@ -277,6 +282,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
 
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [projectDetailsOpen, setProjectDetailsOpen] = useState(false);
   // contract_value inline-edit state.
   const [valueEditing, setValueEditing] = useState(false);
   const [lockReasonOpen, setLockReasonOpen] = useState(false);
@@ -315,6 +321,9 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
   const canEditValue = may('editContractValue', 'project', { record: { status } });
   const canSetVat = may('setVatFlag', 'project');
+  const canViewMoney = may('view', 'salesInvoice');
+  const taxDetailsNeeded = project.tax_rate == null
+    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
 
   const customerName = project.client ? companyDisplayName(project.client) : null;
   const orderReference = project.customer_contract_ref
@@ -329,9 +338,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
       <span className="inline-flex items-center"><StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill></span>
       {customerName && <span className="inline-flex items-center">{customerName}</span>}
-      {project.pm?.full_name && <span className="inline-flex items-center">{t('projectDetail.header.pm', 'PM {{name}}', { name: project.pm.full_name })}</span>}
-      {(project.start_date || project.end_date) && <span className="hidden items-center md:inline-flex">{`${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`}</span>}
-      {project.customer_contract_ref && <span className="hidden items-center md:inline-flex">{t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })}</span>}
     </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -448,6 +454,15 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   };
 
   const canChangeValue = isDelivery && canEditValue && isFinanceForward;
+  const copyProjectLink = async () => {
+    const href = `${window.location.origin}/projects/${project.id}`;
+    try {
+      await navigator.clipboard.writeText(href);
+      toast(t('projectDetail.header.toast.linkCopied', 'Project link copied'), project.name, 'success');
+    } catch {
+      toast(t('projectDetail.header.toast.linkCopyFailed', 'Could not copy project link'), href, 'warning');
+    }
+  };
   const actions = compact ? (
     <>
       {primaryAction}
@@ -459,15 +474,45 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           </Button>
         </span>
       )}
-      {(canEdit || canArchive || canDelete || canChangeValue) && (
+      {(menuContent || canEdit || canArchive || canDelete || canChangeValue) && (
         // ponytail: native <details> as the overflow menu; no menu primitive exists yet.
-        <details className={`relative ${canArchive || canDelete || canChangeValue ? '' : 'md:hidden'}`}>
+        <details className="relative">
           <summary className="touch-target inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium text-foreground hover:bg-accent [&::-webkit-details-marker]:hidden"
             aria-label={t('projectDetail.header.more', 'More actions')}>
-            {t('projectDetail.header.moreShort', 'More')}
-            <Icon name="chev" className="size-4 rotate-90" />
+            <span aria-hidden="true" className="text-xl leading-none">⋯</span>
           </summary>
-          <div className="absolute right-0 z-20 mt-1 flex min-w-48 flex-col rounded-lg border border-border bg-popover p-1">
+          <div className="absolute right-0 z-20 mt-1 flex max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-lg border border-border bg-popover p-1">
+            {menuContent && (
+              <>
+                <Button variant="ghost" size="sm" className="justify-start" aria-expanded={projectDetailsOpen}
+                  aria-controls="project-menu-details"
+                  onClick={() => setProjectDetailsOpen((open) => !open)}>
+                  {t('projectDetail.header.projectDetails', 'Project details')}
+                </Button>
+                <div id="project-menu-details" hidden={!projectDetailsOpen} className="border-b border-border px-2 py-3">
+                  {projectDetailsOpen && menuContent}
+                </div>
+                {isDelivery && <div className="border-b border-border px-3 py-3">
+                  <p className="mb-2 text-xs font-medium text-muted-foreground">
+                    {t('projectDetail.header.changeDeliveryStatus', 'Change delivery status')}
+                  </p>
+                  <ProjectStatusControl project={project} triggerVariant="outline" triggerSize="sm" />
+                </div>}
+                <div className="border-b border-border px-3 py-3">
+                  <ProjectErpLink projectId={project.id} />
+                </div>
+              </>
+            )}
+            {canViewMoney && project.tax_treatment && (
+              <div className="border-b border-border px-3 py-2">
+                <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
+                  taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
+                  showDetails={taxDetailsNeeded} detailsMode="disclosure" />
+              </div>
+            )}
+            <Button variant="ghost" size="sm" className="justify-start" onClick={() => void copyProjectLink()}>
+              {t('projectDetail.header.copyLink', 'Copy link')}
+            </Button>
             {canEdit && <Button variant="ghost" size="sm" className="justify-start md:hidden" onClick={onEditProject}>{t('projectDetail.header.action.edit', 'Edit')}</Button>}
             {canChangeValue && <Button variant="ghost" size="sm" className="justify-start" onClick={() => beginValueEdit()}>{t('projectDetail.header.changeContractValue', 'Change contract value')}</Button>}
             {canArchive && <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>{t('projectDetail.header.action.archive', 'Archive')}</Button>}
@@ -630,7 +675,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         // Phone keeps identity/status; the persistent Details rail below the
         // selected work already carries these codes, customer and PO facts.
         meta={meta}
-        actions={primaryAction || canEdit || canArchive || canDelete ? actions : undefined}
+        actions={primaryAction || menuContent || canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
         className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
       />

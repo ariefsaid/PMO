@@ -9,6 +9,7 @@ describe('approval queue query key factories', () => {
   it('AC-FAA-007 preserves each owner cache tuple, including optional scopes', () => {
     expect(procurementsKey('org-1')).toEqual(['procurements', 'org-1']);
     expect(procurementsKey('org-1', true)).toEqual(['procurements', 'org-1', 'with-refs']);
+    expect(procurementsKey('org-1', true, true)).toEqual(['procurements', 'org-1', 'shared-list']);
     expect(expenseClaimsAwaitingKey('org-1')).toEqual(['expense-claims-awaiting', 'org-1']);
     expect(awaitingApprovalKey('org-1', 'user-1', 'Project Manager')).toEqual([
       'timesheets-awaiting', 'org-1', 'user-1', 'Project Manager',

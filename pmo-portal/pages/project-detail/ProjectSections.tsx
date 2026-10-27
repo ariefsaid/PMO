@@ -23,7 +23,7 @@ const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
 
 import { AREAS, type Area } from './projectDetailAreas';
 
-type Lens = 'money' | 'pm' | 'delivery';
+type Lens = 'money' | 'delivery';
 
 interface Props {
   project: ProjectWithRefs;
@@ -36,7 +36,7 @@ interface Props {
 function useLens(): Lens {
   const { realRole } = useEffectiveRole();
   if (realRole === 'Admin' || realRole === 'Executive' || realRole === 'Finance') return 'money';
-  if (realRole === 'Project Manager') return 'pm';
+  if (realRole === 'Project Manager') return 'money';
   return 'delivery';
 }
 
@@ -44,34 +44,59 @@ const Suspended: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <React.Suspense fallback={<ListState variant="loading" rows={4} className="min-h-80" />}>{children}</React.Suspense>
 );
 
-/** The overview, led by what this role came for (brief: exec/admin/finance money, PM budget, engineer tasks). */
+/** The overview, led by the approved role-specific composition: money cockpit for finance roles, task lead for engineers. */
 const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; onOpen: (a: Area) => void }> = ({ project, isPipeline, onOpen }) => {
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
   const curve = !isPipeline && lens !== 'delivery'
-    // Phone is for checking health and acting; the curve is for the weekly review at a desk.
-    ? <div className="hidden md:block"><React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense></div>
+    ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null;
-  return (
-    <div className="flex min-w-0 flex-col gap-12">
-      {lens !== 'delivery' && !isPipeline && <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />}
-      {lens === 'delivery' ? (
-        <div className="grid min-w-0 gap-12 xl:grid-cols-2">
-          <MyOpenTasks projectId={project.id} />
-          <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
-        </div>
-      ) : (
-        // Grouped by question: money (billing, then cost) on the left; schedule (phases, then curve) on the right.
-        <div className="grid min-w-0 gap-12 xl:grid-cols-2">
-          <div className="flex min-w-0 flex-col gap-12">
-            {lens === 'money' && may('view', 'salesInvoice') && !isPipeline && <MoneyBlock project={project} />}
-            <CostBlock project={project} isPipeline={isPipeline} onOpenBudget={() => onOpen('budget')} />
+  if (isPipeline) {
+    if (lens === 'delivery') {
+      return (
+        <div className="flex min-w-0 flex-col gap-10">
+          <div className="grid min-w-0 gap-8 xl:grid-cols-2">
+            <MyOpenTasks projectId={project.id} />
+            <section className="min-w-0 border-y border-border/70 py-4">
+              <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
+            </section>
           </div>
-          <DeliveryBlock projectId={project.id} isPipeline={isPipeline}>{curve}</DeliveryBlock>
+          <DeliveryBlock projectId={project.id} isPipeline />
         </div>
-      )}
-    </div>
+      );
+    }
+    return (
+      <div className="grid min-w-0 gap-12 xl:grid-cols-2">
+        <CostBlock project={project} isPipeline onOpenBudget={() => onOpen('budget')} />
+        <DeliveryBlock projectId={project.id} isPipeline={isPipeline} />
+      </div>
+    );
+  }
+  return (
+    lens === 'delivery' ? (
+      <div className="flex min-w-0 flex-col gap-10">
+        <div className="grid min-w-0 gap-8 xl:grid-cols-2">
+          <MyOpenTasks projectId={project.id} />
+          <section className="min-w-0 border-y border-border/70 py-4">
+            <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
+          </section>
+        </div>
+        <DeliveryBlock projectId={project.id} />
+      </div>
+    ) : (
+      <div className="flex min-w-0 flex-col gap-10">
+        <div className="grid min-w-0 items-start gap-8 border-y border-border/70 py-4 xl:grid-cols-2">
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
+          {may('view', 'salesInvoice') && <MoneyBlock project={project} />}
+        </div>
+        <div className="grid min-w-0 items-start gap-10 xl:grid-cols-2">
+          <CostBlock project={project} onOpenBudget={() => onOpen('budget')} />
+          {curve}
+        </div>
+        <DeliveryBlock projectId={project.id} />
+      </div>
+    )
   );
 };
 

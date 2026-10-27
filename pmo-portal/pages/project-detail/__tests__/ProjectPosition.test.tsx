@@ -28,6 +28,7 @@ const state = vi.hoisted(() => ({
   procurementsError: false,
   procurementsRefetch: vi.fn(),
   billing: { contractLines: [] as unknown[] },
+  boqItems: [] as unknown[],
   tasks: [] as unknown[],
 }));
 
@@ -74,8 +75,9 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => ({ data: state.procurements, isPending: state.procurementsPending, isError: state.procurementsError, refetch: state.procurementsRefetch }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/hooks/useProgressBilling', () => ({ useProjectBilling: () => ({ data: state.billing, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: state.boqItems, isPending: false, isError: false, refetch: vi.fn() }), useProjectBilling: () => ({ data: state.billing, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('../ProjectProfitLossSection', () => ({ default: () => null }));
 
 import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '../useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
@@ -124,6 +126,7 @@ beforeEach(() => {
   state.procurementsError = false;
   state.procurementsRefetch.mockReset();
   state.billing = { contractLines: [] };
+  state.boqItems = [];
   state.tasks = [];
 });
 
@@ -216,7 +219,7 @@ describe('project money position', () => {
     expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
   });
 
-  it('returns no attention items for the Engineer delivery lens', () => {
+  it('shows the Engineer only their overdue or blocked task attention', () => {
     state.role = 'Engineer';
     // Exercise the lens rule independently of the invoice permission gate: even if a stale or
     // overbroad reader supplies receivables, the delivery lens must not surface money attention.
@@ -226,9 +229,19 @@ describe('project money position', () => {
     state.invoices = [invoice()];
     state.milestones = [{ id: 'm1', name: 'Late phase', target_date: '2000-01-01', effective_pct: 40, task_count: 2 }];
     state.procurements = [{ id: 'req-1', status: 'Requested', requested_by_id: 'other', approvalRoute: { route: 'flat', approvers: [] } }];
+    state.tasks = [
+      { id: 'task-1', name: 'Review drawings', status: 'Blocked', assignee_id: 'viewer-1', end_date: '2000-01-01' },
+      { id: 'task-2', name: 'Someone else task', status: 'Blocked', assignee_id: 'other', end_date: '2000-01-01' },
+      { id: 'task-3', name: 'Finished task', status: 'Done', assignee_id: 'viewer-1', end_date: '2000-01-01' },
+    ];
 
     const { result } = renderHook(() => useProjectAttention(project(), 'delivery'));
-    expect(result.current.items).toEqual([]);
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.items[0]).toMatchObject({
+      key: 'task-task-1', what: 'Review drawings is blocked', tone: 'danger',
+      action: 'Open task', to: '/projects/p1/tasks?open=task-1',
+    });
+    expect(result.current.items[0]?.what).not.toContain('budget');
   });
 
   it.each(['milestones', 'budget actuals', 'receivables', 'procurements'])(
@@ -244,6 +257,7 @@ describe('project money position', () => {
       const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
       expect(result.current.isPending).toBe(true);
       const view = render(<ProjectAttention items={result.current.items} isPending={result.current.isPending} />);
+      expect(view.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
       expect(view.queryByText(/Nothing needs you/i)).not.toBeInTheDocument();
     },
   );
@@ -391,20 +405,59 @@ describe('pipeline overview blocks and engineer task links', () => {
     expect(screen.queryByText(/categories have no spending linked yet/i)).not.toBeInTheDocument();
   });
 
-  it('hides phase editing below the medium breakpoint', () => {
+  it('shows category rows worst first and opens the Budget area from a category row', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([
+      { category: 'Labor', budgeted_amount: '100' },
+      { category: 'Materials', budgeted_amount: '100' },
+    ])];
+    state.finances = actuals([
+      { category: 'Labor', mapped: true, amount: '150' },
+      { category: 'Materials', mapped: true, amount: '50' },
+    ]);
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    const links = screen.getAllByRole('link', { name: /Open .* in Budget/ });
+    expect(links.map((link) => link.getAttribute('aria-label'))).toEqual([
+      'Open Labor in Budget', 'Open Materials in Budget',
+    ]);
+    expect(links[0]).toHaveAttribute('href', '/projects/p1/budget');
+  });
+
+  it('keeps phase editing reachable on phone layouts', () => {
     renderWithQueryClient(<MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter>);
-    expect(screen.getByRole('button', { name: 'Update phases' })).toHaveClass('max-md:hidden');
+    expect(screen.getByRole('button', { name: 'Update phases' })).not.toHaveClass('max-md:hidden');
   });
 
   it('links an overdue task to its task anchor and uses destructive text for urgency', () => {
     state.tasks = [{ id: 'task-17', name: 'Review drawings', status: 'In Progress', assignee_id: 'viewer-1', end_date: '2000-01-01' }];
     renderWithQueryClient(<MemoryRouter><MyOpenTasks projectId="p1" /></MemoryRouter>);
-    expect(screen.getByRole('link', { name: /Review drawings/i })).toHaveAttribute('href', '/projects/p1/tasks#task-task-17');
+    expect(screen.getByRole('link', { name: /Review drawings/i })).toHaveAttribute('href', '/projects/p1/tasks?open=task-17');
     expect(screen.getByText(/Overdue ·/)).toHaveClass('text-destructive-text');
   });
 });
 
 describe('contract billing block', () => {
+  it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {
+    state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
+    state.billing = { contractLines: [{ allocations: [
+      { boqItemId: 'boq-1', quantity: 5, acceptedQuantity: 4 },
+    ] }] };
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750', invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '150' }], receipt_count: 1 },
+      actuals: { currency: 'USD', total: '100.00', as_of: null, excludes_restricted_rows: false, categories: [] },
+    };
+
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
+    expect(screen.getByText('1,000')).toBeInTheDocument();
+    expect(screen.getByText('500')).toBeInTheDocument();
+    expect(screen.getByText('400')).toBeInTheDocument();
+    expect(screen.getByText('250')).toBeInTheDocument();
+    expect(screen.getByText('200')).toBeInTheDocument();
+  });
+
   it('AC-FX-011: shows the contract equivalent using the project contract date', () => {
     state.finances = {
       contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
@@ -449,10 +502,11 @@ describe('contract billing block', () => {
     renderWithQueryClient(
       <MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>,
     );
-    expect(screen.getByText('Contract billing')).toBeInTheDocument();
+    expect(screen.getByText('Money position')).toBeInTheDocument();
     expect(screen.getByText('Match payments')).toHaveAttribute('href', '/incoming-payments');
+    expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
     expect(screen.queryByText('Received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByText(/not available/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
   });
 });

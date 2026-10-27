@@ -1,37 +1,51 @@
 import React, { useState, useMemo } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
+import { Link, useSearchParams } from 'react-router';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
+import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
+import { useUsers } from '@/src/hooks/useUsers';
 import { useProjectProcurements } from '@/src/hooks/useProcurements';
+import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
   formatCurrencyAuto,
-  formatNumberMax2,
   formatMoneyInputValue,
+  formatInstantDate,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
+import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import {
   Button,
+  Icon,
   ListState,
   Toolbar,
   DataTable,
   type Column,
+  type RowMenuItem,
   ConfirmDialog,
   useToast,
   NumberField,
   TaxBasisLabel,
+  StatusPill,
+  Tooltip,
+  KPITile,
+  ViewToggle,
+  ProgressBar,
+  Drawer,
 } from '@/src/components/ui';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
-import BudgetSummary from './project-detail/budget/BudgetSummary';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
-import { compareBudgetVersions, type BudgetComparisonRow } from './project-detail/budget/budgetModel';
+import { buildBudgetSummaryRows, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
+import BudgetProjection from './BudgetProjection';
+import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -507,23 +521,55 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const { t } = useTranslation();
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
+  const canReadMoney = can('view', 'salesInvoice');
   const canReadProcurements = can('view', 'procurement');
   const canManageAccounting = can('manage', 'orgAccounting');
+  const { realRole } = useEffectiveRole();
+  const canViewBudgetEnforcement = realRole === 'Admin' || realRole === 'Finance';
   const { currentUser } = useAuth();
+  const usersQuery = useUsers();
+  const erpBindingQuery = useErpnextBinding();
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get('budgetView') === 'forecast' ? 'forecast' : 'actual';
+  const setBudgetView = (nextView: 'actual' | 'forecast') => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    if (nextView === 'forecast') next.set('budgetView', 'forecast');
+    else next.delete('budgetView');
+    setSearchParams(next, { replace: true });
+  };
+  const openCategory = (row: BudgetSummaryRow) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('open', row.category);
+    setSearchParams(next);
+  };
+  const closeCategory = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    setSearchParams(next, { replace: true });
+  };
 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
   const position = useBudgetPosition(project);
   const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
+  const pushStatusQuery = useQuery<BudgetPushStatusRow[]>({
+    queryKey: ['budget-push-status', projectId],
+    queryFn: () => fetchBudgetPushStatus(projectId),
+    enabled: canViewBudgetEnforcement && Boolean(projectId),
+  });
 
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [draftEditorOpen, setDraftEditorOpen] = useState(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
 
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
@@ -531,6 +577,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
   const draftVersion = versions.find((version) => version.status === 'Draft');
+  const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
+  const selectedVersion = view === 'forecast'
+    ? activeVersion
+    : versions.find((version) => version.id === selectedVersionId) ?? activeVersion ?? draftVersion ?? orderedVersions.at(-1);
   const activationModeQuery = useBudgetActivationMode(draftVersion?.id);
 
   if (budgetQuery.isPending || versionsQuery.isPending) {
@@ -565,6 +615,203 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const requestArchive = (id: string) => setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
   const requestDeleteDraft = (id: string) => setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
   const requestDeleteLineItem = (id: string) => setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
+
+  const canSeeActuals = canReadMoney && position.canSeeActual;
+  const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
+  const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
+  const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
+    lines: selectedVersion.line_items,
+    actuals: position.rows,
+    procurements: procurementsQuery.data,
+    canReadProcurements: canSeeCommitments,
+    currency: project.currency,
+  }) : [];
+  const enrichedRows = summaryRows.map((row) => {
+    const actualKnown = canSeeActuals && row.spent !== null;
+    const committedKnown = canSeeCommitments && row.committed !== null;
+    const left = actualKnown && committedKnown ? row.budget - (row.spent ?? 0) - (row.committed ?? 0) : null;
+    const used = row.budget > 0 && actualKnown && committedKnown
+      ? ((row.spent ?? 0) + (row.committed ?? 0)) / row.budget * 100
+      : null;
+    return { ...row, left, used };
+  });
+  const selectedCategory = view === 'actual'
+    ? enrichedRows.find((row) => row.category === searchParams.get('open')) ?? null
+    : null;
+  const totalBudget = activeVersion?.total ?? null;
+  const tableBudgetTotal = selectedVersion?.total ?? null;
+  const totalSpent = enrichedRows.length > 0 && enrichedRows.every((row) => row.spent !== null && canSeeActuals)
+    ? enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
+    : null;
+  const totalCommitted = enrichedRows.length > 0 && enrichedRows.every((row) => row.committed !== null && canSeeCommitments)
+    ? enrichedRows.reduce((sum, row) => sum + (row.committed ?? 0), 0)
+    : null;
+  const totalLeft = totalBudget !== null && totalSpent !== null && totalCommitted !== null
+    ? totalBudget - totalSpent - totalCommitted
+    : null;
+  const tableLeftTotal = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
+    ? tableBudgetTotal - totalSpent - totalCommitted
+    : null;
+  const authorName = (version: BudgetVersionWithItems) => version.created_by != null && version.created_by === currentUserId
+    ? t('common.you', 'You')
+    : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name
+      ?? t('projectDetail.budget.authorUnavailable', 'Author unavailable');
+  const dateLabel = (version: BudgetVersionWithItems) => version.created_at
+    ? formatInstantDate(version.created_at)
+    : t('projectDetail.budget.dateUnavailable', 'Date unavailable');
+  const getStatus = (row: { used: number | null; left: number | null }) => {
+    if (row.used === null || row.left === null) return { variant: 'neutral' as const, label: t('projectDetail.budget.unavailable', 'Unavailable') };
+    if (row.left < 0) return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
+    if (row.used >= 90) return { variant: 'lost' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
+    if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
+    return { variant: 'won' as const, label: t('projectDetail.budget.onTrack', 'On track') };
+  };
+  const formatAmount = (value: number | null) => value === null ? '—' : formatCurrencyAuto(value, project.currency);
+  const actualSource = t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
+  const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
+    const header = ['Category', 'Budget', 'Spent', 'Committed', 'Left'];
+    const csv = [header, ...rows.map((row) => {
+      const left = canSeeActuals && row.spent !== null && canSeeCommitments && row.committed !== null
+        ? row.budget - row.spent - row.committed
+        : null;
+      return [budgetCategoryLabel(row.category, t), row.budget, row.spent ?? '', row.committed ?? '', left ?? ''];
+    })].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${filename}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+  const openDraftEditor = () => {
+    if (draftVersion) {
+      setBudgetView('actual');
+      setSelectedVersionId(draftVersion.id);
+      setDraftEditorOpen(true);
+    }
+  };
+  const adjustInDraft = () => {
+    if (draftVersion) openDraftEditor();
+    else {
+      closeCategory();
+      setBudgetView('actual');
+      if (activeVersion && canWrite) requestClone(activeVersion.id);
+      else if (canWrite) setShowNewVersionForm(true);
+    }
+  };
+
+  const actualColumns: Column<(typeof enrichedRows)[number]>[] = [
+    {
+      key: 'category',
+      header: t('financeCopy.category', 'Category'),
+      kind: 'primary',
+      rowHeader: true,
+      size: 220,
+      cell: (row) => {
+        const name = budgetCategoryLabel(row.category, t);
+        const author = selectedVersion ? authorName(selectedVersion) : t('projectDetail.budget.projectTeam', 'Project team');
+        const hasAuthor = Boolean(selectedVersion?.created_by && (selectedVersion.created_by === currentUserId || usersQuery.data?.some((user) => user.id === selectedVersion.created_by)));
+        const initials = hasAuthor ? author.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() : '';
+        return <div className="flex min-w-0 items-center gap-2">
+          <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>
+          <Tooltip content={t('projectDetail.budget.versionAuthorSource', 'Version author and creation date. Category-level ownership and line update time are not recorded.')}>
+            <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground" aria-label={t('projectDetail.budget.versionAuthor', 'Version author: {{author}}', { author })}>
+              {hasAuthor && <span aria-hidden="true" className="grid size-6 place-items-center rounded-full border border-border bg-secondary text-[10px] font-semibold text-foreground">{initials}</span>}
+              <span className="hidden max-w-24 truncate xl:inline">{author}</span>
+            </span>
+          </Tooltip>
+        </div>;
+      },
+      secondaryCell: () => selectedVersion && <span className="text-xs text-muted-foreground">{t('projectDetail.budget.versionCreated', 'Version created {{date}}', { date: dateLabel(selectedVersion) })}</span>,
+    },
+    {
+      key: 'budget', header: t('financeCopy.budget', 'Budget'), kind: 'money', align: 'num',
+      cell: (row) => <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span>{formatAmount(row.budget)}</span></Tooltip>,
+    },
+    {
+      key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num',
+      cell: (row) => <Tooltip content={actualSource}><span>{canSeeActuals ? formatAmount(row.spent) : '—'}</span></Tooltip>,
+    },
+    {
+      key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num',
+      cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
+    },
+    {
+      key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num',
+      cell: (row) => <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left !== null && row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
+    },
+    {
+      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num',
+      cell: (row) => row.used === null
+        ? <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span>—</span></Tooltip>
+        : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
+    },
+    {
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status',
+      cell: (row) => { const status = getStatus(row); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; },
+    },
+  ];
+  const actualTotals = enrichedRows.length ? [{
+    key: 'total', label: t('financeCopy.total', 'Total'),
+    values: {
+      budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span tabIndex={0}>{formatAmount(tableBudgetTotal)}</span></Tooltip>,
+      spent: <Tooltip content={actualSource}><span tabIndex={0}>{formatAmount(totalSpent)}</span></Tooltip>,
+      committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
+      left: <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
+      used: tableBudgetTotal && totalSpent !== null && totalCommitted !== null
+        ? <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}>{Math.round((totalSpent + totalCommitted) / tableBudgetTotal * 100)}%</span></Tooltip>
+        : '—',
+    },
+  }] : [];
+  const categoryMenu = (row: (typeof enrichedRows)[number]): RowMenuItem[] => [
+    ...(canWrite ? [{ label: t('projectDetail.budget.adjustInDraft', 'Adjust in a draft'), onClick: adjustInDraft }] : []),
+    { label: t('projectDetail.budget.exportCategory', 'Export category'), onClick: () => exportRows([row], `Budget_${row.category}`) },
+  ];
+  const versionRows = orderedVersions.slice().reverse();
+  const versionColumns: Column<BudgetVersionWithItems>[] = [
+    {
+      key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
+      cell: (version) => <span><span className="font-mono text-xs text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
+      secondaryCell: (version) => <span className="text-xs text-muted-foreground">{dateLabel(version)} · {authorName(version)}</span>,
+    },
+    { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill variant={budgetVersionVariant(version.status)}>{version.status}</StatusPill> },
+    { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{formatAmount(version.total)}</span></Tooltip> },
+    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
+      const index = orderedVersions.findIndex((item) => item.id === version.id);
+      const previous = index > 0 ? orderedVersions[index - 1] : null;
+      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? '+' : ''}{formatCurrencyAuto(version.total - previous.total, version.currency)}</span></Tooltip> : '—';
+    } },
+    { key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version) => {
+      if (version.status !== 'Active') return '—';
+      if (!canViewBudgetEnforcement) return '—';
+      if (pushStatusQuery.isPending) return <span className="text-muted-foreground">{t('projectDetail.budget.checkingPushState', 'Checking')}</span>;
+      if (pushStatusQuery.isError) return <span className="text-muted-foreground">{t('projectDetail.budget.pushStateUnavailable', 'Unavailable')}</span>;
+      const states = (pushStatusQuery.data ?? []).filter((row) => row.pushState !== null);
+      if (!states.length) return <StatusPill variant="neutral">{t('projectDetail.budget.pushNotEnforced', 'Not enforced')}</StatusPill>;
+      const labels: Record<string, { label: string; variant: 'won' | 'warn' | 'lost' | 'progress' }> = {
+        pushed: { label: t('financeCopy.enforcedByERPNext', 'Enforced by ERPNext'), variant: 'won' },
+        pending: { label: t('projectDetail.budget.pushQueued', 'Queued'), variant: 'progress' },
+        pushing: { label: t('projectDetail.budget.pushSending', 'Sending'), variant: 'progress' },
+        failed: { label: t('projectDetail.budget.pushFailed', 'Not sent'), variant: 'lost' },
+        held: { label: t('projectDetail.budget.pushHeld', 'On hold'), variant: 'warn' },
+        'never-pushed': { label: t('projectDetail.budget.neverPushed', 'No ERP budget yet'), variant: 'lost' },
+        'unstamped-activation': { label: t('projectDetail.budget.activationDateNeeded', 'Add an activation date'), variant: 'lost' },
+      };
+      return <span className="flex flex-wrap gap-x-3 gap-y-1">{states.map((row, index) => {
+        const state = labels[row.pushState ?? ''] ?? { label: t('projectDetail.budget.pushNotEnforced', 'Not enforced'), variant: 'lost' as const };
+        return <StatusPill key={`${row.fiscalYear ?? 'project'}-${index}`} variant={state.variant}>{state.label}{row.fiscalYear ? ` · ${row.fiscalYear}` : ''}</StatusPill>;
+      })}</span>;
+    } },
+  ];
+  const versionMenu = (version: BudgetVersionWithItems): RowMenuItem[] => [
+    { label: t('projectDetail.budget.openVersion', 'Open version'), onClick: () => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); } },
+    { label: t('projectDetail.budget.compare', 'Compare'), onClick: () => setVersionsOpen(true) },
+    ...(canWrite && !draftVersion && (version.status === 'Active' || version.status === 'Archived') ? [{ label: t('financeCopy.cloneToRevise', 'Clone to revise'), onClick: () => requestClone(version.id) }] : []),
+    ...(canWrite && version.status === 'Active' ? [{ label: t('financeCopy.archive', 'Archive'), onClick: () => requestArchive(version.id), danger: true }] : []),
+    ...(canWrite && version.status === 'Draft' && canActivate ? [{ label: t('financeCopy.activate', 'Activate'), onClick: () => requestActivate(version.id) }] : []),
+    ...(canWrite && version.status === 'Draft' ? [{ label: t('financeCopy.deleteDraft', 'Delete draft'), onClick: () => requestDeleteDraft(version.id), danger: true }] : []),
+  ];
 
   const commitBudgetConfirm = async () => {
     const confirm = pendingConfirm;
@@ -666,120 +913,217 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     />
   );
 
-  const categoryLabel = (category: string) => budgetCategoryLabel(category, t);
-  const proposedChanges = activeVersion && draftVersion
-    ? compareBudgetVersions(activeVersion.line_items, draftVersion.line_items)
-    : [];
-  const comparisonColumns: Column<BudgetComparisonRow>[] = [
-    { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'text', size: 180, cell: (row) => categoryLabel(row.category) },
-    { key: 'current', header: t('projectDetail.budget.current', 'Current'), kind: 'money', align: 'num', size: 145, cell: (row) => formatNumberMax2(row.a) },
-    { key: 'proposed', header: t('projectDetail.budget.proposed', 'Proposed'), kind: 'money', align: 'num', size: 145, cell: (row) => formatNumberMax2(row.b) },
-    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', size: 140, cell: (row) => (
-      <span className={row.change > 0 ? 'text-destructive-text' : undefined}>{row.change > 0 ? '+' : ''}{formatNumberMax2(row.change)}</span>
-    ) },
-  ];
-  const draftEditor = draftVersion && canWrite ? (
-    <>
-      <div data-testid="budget-draft-editor" className="hidden md:block">
-        <LineItemEditor
-          key={draftVersion.id}
-          lineItems={draftVersion.line_items}
-          currency={draftVersion.currency}
-          onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
-          onDeleteLineItem={requestDeleteLineItem}
-          onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
-          onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
-          createIsPending={mutations.createLineItem.isPending}
-          updateIsPending={mutations.updateLineItem.isPending}
-          onSaveError={(error) => {
-            const { headline, detail } = classifyMutationError(error);
-            toast(headline, detail, 'warning');
-          }}
-        />
+  const draftEditor = draftVersion && canWrite && draftEditorOpen && selectedVersion?.id === draftVersion.id ? (
+    <section aria-label={t('projectDetail.budget.draftEditor', 'Draft budget editor')} className="min-w-0 space-y-3" data-testid="budget-draft-editor">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold">{draftVersion.name} · v{draftVersion.version}</h3>
+        <Button variant="ghost" size="sm" onClick={() => setDraftEditorOpen(false)}>{t('common.close', 'Close')}</Button>
       </div>
-      <p className="text-sm text-muted-foreground md:hidden">{t('projectDetail.budget.editLargerScreen', 'Edit the budget on a larger screen.')}</p>
-    </>
+      <LineItemEditor
+        key={draftVersion.id}
+        lineItems={draftVersion.line_items}
+        currency={draftVersion.currency}
+        onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
+        onDeleteLineItem={requestDeleteLineItem}
+        onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
+        onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
+        createIsPending={mutations.createLineItem.isPending}
+        updateIsPending={mutations.updateLineItem.isPending}
+        onSaveError={(error) => {
+          const { headline, detail } = classifyMutationError(error);
+          toast(headline, detail, 'warning');
+        }}
+      />
+    </section>
   ) : null;
 
-  // The page header carries the one filled action; a tab's own action stays outline.
-  const primaryAction = !activeVersion && !draftVersion && canWrite
-    ? <Button id="budget-primary-action" variant="outline" onClick={() => setShowNewVersionForm(true)}>{t('projectDetail.budget.createBudget', 'Create budget')}</Button>
-    : !activeVersion && draftVersion && canActivate
-      ? <Button id="budget-primary-action" variant="outline" onClick={() => requestActivate(draftVersion.id)}>{t('financeCopy.activate', 'Activate')}</Button>
-      : activeVersion && !draftVersion && canWrite
-        ? <Button id="budget-primary-action" variant="outline" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>
-        : null;
+  if (!canReadMoney) {
+    return (
+      <section className="rounded-lg border border-border bg-card p-4" data-testid="budget-option-a">
+        <h2 className="text-base font-semibold">{t('projectDetail.budget.title', 'Project budget')}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t('projectDetail.budget.noMoneyAccess', 'Budget details are available to project management and finance.')}</p>
+      </section>
+    );
+  }
 
   return (
-    <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : undefined}>
+    <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-base font-semibold text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
-          <p className="mt-1 flex items-baseline gap-2 text-xs text-muted-foreground">
-            <span>{project.currency}</span>
-            {project.tax_treatment && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" />}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {primaryAction}
-          {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.versions', 'Versions')}</Button>}
         </div>
       </header>
 
-      {showNewVersionForm && !activeVersion && !draftVersion && canWrite && (
-        <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />
+      {draftVersion && (
+        <section aria-label={t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')} className="flex min-w-0 flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-4" data-testid="budget-draft-banner">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <StatusPill variant="draft">{t('financeCopy.statusDraft', 'Draft')}</StatusPill>
+              <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
+              <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
+            </div>
+            {!canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+            {canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && <Button variant="outline" size="sm" onClick={() => { setSelectedVersionId(draftVersion.id); setDraftEditorOpen(true); }}>{t('projectDetail.budget.editDraft', 'Edit draft')}</Button>}
+            {canActivate && <Button variant="success" size="sm" onClick={() => requestActivate(draftVersion.id)}>{t('projectDetail.budget.activateVersionNamed', 'Activate v{{version}}', { version: draftVersion.version })}</Button>}
+          </div>
+        </section>
       )}
+      {!activeVersion && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.budget.noActiveBudget', 'No active budget')}</p>}
 
-      {!activeVersion && !draftVersion && versions.length === 0 && (
-        <div className="border-t border-border pt-4">
-          <ListState
-            variant="empty"
-            icon="dollar"
-            title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')}
-            sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')}
+      {showNewVersionForm && canWrite && <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />}
+
+      {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
+
+      <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} value={formatAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.')} help={actualSource} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.')} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.')} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
+      </div>
+
+      <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
+        {selectedRows.size > 0 && view === 'actual' ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-2" role="toolbar" aria-label={t('projectDetail.budget.selectedCategories', 'Selected categories')}>
+            <span className="text-sm font-medium">{t('projectDetail.budget.selectedCount', '{{count}} selected', { count: selectedRows.size })}</span>
+            {canWrite && <Button variant="outline" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
+            <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows.filter((row) => selectedRows.has(row.category)), 'ProjectBudgetSelected')}>{t('projectDetail.budget.exportRows', 'Export rows')}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setSelectedRows(new Set())}>{t('common.clear', 'Clear')}</Button>
+          </div>
+        ) : <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+          <ViewToggle
+            ariaLabel={t('projectDetail.budget.budgetView', 'Budget view')}
+            value={view}
+            onChange={(next) => { setBudgetView(next); setSelectedRows(new Set()); if (next === 'forecast') setDraftEditorOpen(false); }}
+            options={[
+              { value: 'actual', label: t('projectDetail.budget.budgetVsActual', 'Budget vs actual') },
+              ...(hasActiveErpBinding && activeVersion ? [{ value: 'forecast' as const, label: t('projectDetail.budget.forecast', 'Forecast') }] : []),
+            ]}
           />
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{t('projectDetail.budget.version', 'Version')}</span>
+              <select aria-label={t('projectDetail.budget.version', 'Version')} value={selectedVersion?.id ?? ''} disabled={view === 'forecast'} onChange={(event) => { setSelectedVersionId(event.target.value); setDraftEditorOpen(false); }} className="h-9 max-w-52 rounded-md border border-input bg-background px-2 text-sm text-foreground disabled:opacity-70">
+                {versions.map((version) => <option key={version.id} value={version.id}>v{version.version} · {version.status}</option>)}
+              </select>
+            </label>
+            <span className="text-xs text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
+            <span className="text-xs text-muted-foreground">{project.currency} · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></span>
+            {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
+            {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
+          </div>
+        </div>}
+        {view === 'actual' ? (
+          selectedVersion ? <>
+            {selectedVersion.status !== 'Active' && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.viewingVersion', 'Viewing {{status}} v{{version}}; project spending and commitments reflect the current project totals.', { status: selectedVersion.status, version: selectedVersion.version })}</p>}
+            {draftEditor}
+            <DataTable
+              rows={enrichedRows}
+              columns={actualColumns}
+              rowKey={(row) => row.category}
+              onActivate={openCategory}
+              selectedKey={selectedCategory?.category}
+              selection={{
+                selectedIds: selectedRows,
+                onChange: setSelectedRows,
+                rowLabel: (row) => t('projectDetail.budget.selectCategory', 'Select {{category}}', { category: budgetCategoryLabel(row.category, t) }),
+              }}
+              rowMenu={categoryMenu}
+              tableId="project-budget-option-a"
+              accessibleName={t('projectDetail.budget.actualTable', 'Budget vs actual by category')}
+              cardBelow={600}
+              totals={actualTotals}
+              emptyTitle={t('projectDetail.budget.noCategories', 'No budget categories in this version')}
+              emptySub={t('projectDetail.budget.noCategoriesSub', 'Add budget lines to show the category breakdown.')}
+            />
+            {position.actualsPending && <p role="status" className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>}
+            {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
+            {canSeeActuals && position.unknown > 0 && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
+          </> : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
+        ) : activeVersion ? <BudgetProjection projectId={projectId} currency={project.currency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
+          const headers = ['Category', 'Budget', 'Spent', 'Cost to finish', 'Forecast final', 'Forecast remaining'];
+          const csv = [headers, ...rows.map((row) => [budgetCategoryLabel(row.category, t), row.pmoBudgetAmount ?? '', row.actualsToDate ?? '', row.pmoEtc, row.projectedFinalCost ?? '', row.projectedVariance ?? ''])].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
+          const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+          const link = document.createElement('a'); link.href = url; link.download = 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
+        }} /> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
+      </section>
+
+      <section aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold">{t('projectDetail.budget.versionsTitle', 'Budget versions')}</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {canWrite && versions.length > 0 && !draftVersion && <Button variant="outline" size="sm" onClick={() => setShowNewVersionForm(true)}>{t('projectDetail.budget.newVersion', 'New version')}</Button>}
+            {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.manageVersions', 'Manage versions')}</Button>}
+          </div>
         </div>
-      )}
+        {versions.length > 0 ? <DataTable
+          rows={versionRows}
+          columns={versionColumns}
+          rowKey={(version) => version.id}
+          onActivate={(version) => { setBudgetView('actual'); setSelectedVersionId(version.id); setVersionsOpen(true); }}
+          selectedKey={selectedVersion?.id}
+          rowMenu={versionMenu}
+          tableId="project-budget-versions-card"
+          accessibleName={t('projectDetail.budget.versionsTitle', 'Budget versions')}
+          cardBelow={600}
+        /> : null}
+      </section>
 
-      {activeVersion && draftVersion && (
-        <section aria-label={t('projectDetail.budget.proposedUpdate', 'Proposed update')} className="min-w-0 space-y-3" data-testid="budget-proposed-update">
-          <h3 className="text-sm font-semibold">{t('projectDetail.budget.proposedUpdate', 'Proposed update')}</h3>
-          <DataTable
-            rows={proposedChanges}
-            columns={comparisonColumns}
-            rowKey={(row) => row.category}
-            tableId="project-budget-proposed-update"
-            accessibleName={t('projectDetail.budget.proposedUpdateTable', 'Proposed budget changes')}
-            cardBelow={600}
-            className="rounded-none border-0 bg-transparent"
-          />
-          {draftEditor}
-          {canActivate
-            ? <Button variant="success" onClick={() => requestActivate(draftVersion.id)}>{t('financeCopy.activate', 'Activate')}</Button>
-            : <p className="text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
-        </section>
-      )}
+      {canViewBudgetEnforcement && <details className="rounded-lg border border-border bg-card p-3 sm:p-4">
+        <summary className="touch-target cursor-pointer text-sm font-semibold">{t('projectDetail.budget.sourcesEnforcement', 'Sources and budget enforcement')}</summary>
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-muted-foreground">{t('projectDetail.budget.sourceDescription', 'Budget totals come from version line items. Spent comes from project finance. Commitments come from qualifying procurement records. Forecasts use the ERP ledger and estimates for the selected client fiscal year.')}</p>
+          <BudgetErpNotice projectId={projectId} activeVersion={activeVersion} />
+        </div>
+      </details>}
 
-      {!activeVersion && draftVersion && (
-        <section aria-label={t('projectDetail.budget.draftBudget', 'Draft budget')} className="min-w-0 space-y-3">
-          {draftEditor}
-          {!canActivate && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
-        </section>
-      )}
-
-      <BudgetSummary
-        project={project}
-        activeVersion={activeVersion}
-        position={position}
-        procurements={procurementsQuery.data}
-        canReadProcurements={canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError}
-        canManageAccounting={canManageAccounting}
-      />
-
-      <BudgetErpNotice
-        projectId={projectId}
-        activeVersion={activeVersion}
-      />
+      <Drawer
+        open={Boolean(selectedCategory)}
+        title={selectedCategory ? budgetCategoryLabel(selectedCategory.category, t) : ''}
+        icon={<Icon name="dollar" />}
+        status={selectedCategory && (() => { const status = getStatus(selectedCategory); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; })()}
+        onClose={closeCategory}
+        width="lg"
+        nestedOpen={Boolean(pendingConfirm)}
+        headerActions={selectedCategory && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+          {canWrite && <Button variant="primary" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
+          <Link className="touch-target inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent" to={`/projects/${encodeURIComponent(projectId)}/budget`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
+        </div>}
+        footer={selectedCategory && <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={() => exportRows([selectedCategory], `Budget_${selectedCategory.category}`)}>{t('projectDetail.budget.export', 'Export')}</Button>
+        </div>}
+      >
+        {selectedCategory && <div className="space-y-5">
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            {[
+              [t('financeCopy.budget', 'Budget'), formatAmount(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')],
+              [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
+              [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')],
+              [t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
+              [t('projectDetail.budget.costToFinish', 'Cost to finish'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+              [t('projectDetail.budget.forecastFinal', 'Forecast final'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+            ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><Tooltip content={source}><dd tabIndex={0} className="mt-1 font-semibold tabular-nums">{value}</dd></Tooltip></div>)}
+          </dl>
+          {selectedCategory.used !== null && <div><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
+          <section aria-labelledby="budget-records-heading" className="space-y-2">
+            <h3 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h3>
+            <p className="text-sm text-muted-foreground">{t('projectDetail.budget.ledgerRowsUnavailable', 'Transaction-level ledger records are unavailable in the project finance summary.')}</p>
+          </section>
+          <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
+            <h3 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h3>
+            <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
+              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}</span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatAmount(Number(line.budgeted_amount))}</span></Tooltip></li>)}
+              {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
+            </ul>
+          </section>
+          <section aria-labelledby="budget-notes-heading" className="space-y-2">
+            <h3 id="budget-notes-heading" className="text-sm font-semibold">{t('projectDetail.budget.notes', 'Notes')}</h3>
+            <p className="text-sm text-muted-foreground">{t('projectDetail.budget.categoryNotesUnavailable', 'No category notes are recorded.')}</p>
+          </section>
+        </div>}
+      </Drawer>
 
       <BudgetVersionsDrawer
         open={versionsOpen}

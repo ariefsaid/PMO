@@ -1,6 +1,6 @@
 /**
  * AC-DEL-010 — Tasks tab groups tasks under their milestone; ungrouped tasks appear last.
- * FR-DEL-015 — Each milestone heading shows name + target date only.
+ * AC-1402 — each phase keeps its own DataTable, progress, dates and collapsed Done rows.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -59,6 +59,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'pm-1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
 
 import TasksTab from '../tabs/TasksTab';
 
@@ -103,21 +105,21 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     render$();
 
     // Engineering design group
-    const m1Section = screen.getByRole('rowgroup', { name: /Engineering design/i });
+    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
     expect(within(m1Section).getByText('Detail drawings')).toBeInTheDocument();
     expect(within(m1Section).getByText('Site survey')).toBeInTheDocument();
     expect(within(m1Section).queryByText('Buy steel')).toBeNull();
 
     // Procurement group
-    const m2Section = screen.getByRole('rowgroup', { name: /Procurement/i });
+    const m2Section = screen.getByRole('region', { name: /Procurement/i });
     expect(within(m2Section).getByText('Buy steel')).toBeInTheDocument();
 
     // Ungrouped section
-    const ungroupedSection = screen.getByRole('rowgroup', { name: /ungrouped/i });
+    const ungroupedSection = screen.getByRole('region', { name: /ungrouped/i });
     expect(within(ungroupedSection).getByText('Admin task')).toBeInTheDocument();
   });
 
-  it('FR-DEL-015: each milestone heading shows its name + target date only', () => {
+  it('AC-1402: a phase row shows its target date and server-derived progress', () => {
     const m1: MilestoneWithProgress = {
       id: 'm1', project_id: 'p1', name: 'Engineering design', sort_order: 0,
       target_date: '2026-08-15', weight: 1, input_pct: null, task_count: 2,
@@ -129,13 +131,13 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     ];
     render$();
 
-    const m1Section = screen.getByRole('rowgroup', { name: /Engineering design/i });
+    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
     expect(within(m1Section).getByText(/Engineering design/i)).toBeInTheDocument();
-    expect(within(m1Section).getByText('Target 15 Aug')).toBeInTheDocument();
-    expect(within(m1Section).queryByText(/50%/i)).toBeNull();
+    expect(within(m1Section).getByText(/Target Aug 15, 2026/)).toBeInTheDocument();
+    expect(within(m1Section).getByText('50%')).toBeInTheDocument();
   });
 
-  it('keeps one shared header, sorts open phases first, and collapses all-Done phases', async () => {
+  it('sorts open phases first and folds Done tasks within each completed phase', async () => {
     const completed: MilestoneWithProgress = {
       id: 'done', project_id: 'p1', name: 'Completed phase', sort_order: 0,
       target_date: null, weight: 1, input_pct: null, task_count: 2,
@@ -155,14 +157,14 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     ];
     render$();
 
-    expect(screen.getAllByRole('columnheader', { name: 'Task' })).toHaveLength(1);
-    expect(screen.getByText('Completed phase · Done · 2 tasks')).toBeInTheDocument();
+    const activeSection = screen.getByRole('region', { name: /Active phase/i });
+    const completedSection = screen.getByRole('region', { name: /Completed phase/i });
     expect(screen.queryByText('Done task one')).not.toBeInTheDocument();
     expect(screen.queryByText('Done task two')).not.toBeInTheDocument();
     expect(screen.getByText('Sooner due').compareDocumentPosition(screen.getByText('Later due')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText('Sooner due').compareDocumentPosition(screen.getByText('Completed phase · Done · 2 tasks')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(activeSection.compareDocumentPosition(completedSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Completed phase · Done · 2 tasks' }));
+    await userEvent.click(within(completedSection).getByRole('button', { name: '2 done' }));
     expect(screen.getByText('Done task one')).toBeInTheDocument();
     expect(screen.getByText('Done task two')).toBeInTheDocument();
   });
@@ -190,6 +192,23 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     expect(screen.getByText('Completed task')).toBeInTheDocument();
   });
 
+  it('AC-1402 shares selected task ids across phase tables for bulk actions', async () => {
+    milestoneState.data = [
+      { id: 'm1', project_id: 'p1', name: 'Phase one', sort_order: 0, target_date: null, weight: 1, input_pct: null, task_count: 1, calculated_pct: 0, effective_pct: 0 },
+      { id: 'm2', project_id: 'p1', name: 'Phase two', sort_order: 1, target_date: null, weight: 1, input_pct: null, task_count: 1, calculated_pct: 0, effective_pct: 0 },
+    ];
+    tasksState.data = [
+      { id: 'task-a', project_id: 'p1', milestone_id: 'm1', name: 'Task A', status: 'To Do', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+      { id: 'task-b', project_id: 'p1', milestone_id: 'm2', name: 'Task B', status: 'In Progress', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+    ];
+    render$();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Task A' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Select task Task B' }));
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change status' })).toBeInTheDocument();
+  });
+
   it('keeps task activation available from rows inside a phase', async () => {
     milestoneState.data = [{
       id: 'm1', project_id: 'p1', name: 'Engineering design', sort_order: 0,
@@ -201,8 +220,8 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     ];
     render$();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Edit Detail drawings' }));
-    const dialog = await screen.findByRole('dialog');
-    expect(within(dialog).getByLabelText(/task name/i)).toHaveValue('Detail drawings');
+    await userEvent.click(screen.getByRole('button', { name: 'Open task Detail drawings' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Detail drawings' });
+    expect(within(dialog).getByText('Details')).toBeInTheDocument();
   });
 });

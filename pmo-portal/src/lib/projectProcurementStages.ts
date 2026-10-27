@@ -1,35 +1,60 @@
-import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
+import type { ProcurementStatus } from './db/procurementLifecycle';
 
-export interface ProjectProcurementStageCopy {
-  label: string;
-  nextStep?: string;
+export type ProcurementProjectStage = 'Request' | 'Approved' | 'Ordered' | 'Received' | 'Paid';
+
+export interface ProcurementStageDefinition {
+  key: ProcurementProjectStage;
+  statuses: ProcurementStatus[];
 }
 
-/** Plain-language procurement labels used by the project tab for every lifecycle stage. */
-export const PROJECT_PROCUREMENT_STAGE_COPY: Record<ProcurementStatus, ProjectProcurementStageCopy> = {
-  Draft: { label: 'Draft', nextStep: 'Submit for approval' },
-  Requested: { label: 'Awaiting approval', nextStep: 'Approve or reject' },
-  Approved: { label: 'Approved', nextStep: 'Get quotes or order' },
-  'Vendor Quoted': { label: 'Getting quotes', nextStep: 'Choose a quote' },
-  'Quote Selected': { label: 'Quote chosen', nextStep: 'Raise the order' },
-  Ordered: { label: 'Ordered', nextStep: 'Record delivery' },
-  Received: { label: 'Delivered', nextStep: 'Record supplier invoice' },
-  'Vendor Invoiced': { label: 'Supplier invoiced', nextStep: 'Pay' },
-  Paid: { label: 'Paid' },
-  Rejected: { label: 'Rejected' },
-  Cancelled: { label: 'Cancelled' },
-};
-
-export interface ProjectProcurementGroup {
-  key: 'needs-action' | 'in-progress' | 'invoiced-or-paid' | 'rejected-or-cancelled';
-  label: string;
-  statuses: readonly ProcurementStatus[];
-  folded?: boolean;
-}
-
-export const PROJECT_PROCUREMENT_GROUPS: readonly ProjectProcurementGroup[] = [
-  { key: 'needs-action', label: 'Needs action', statuses: ['Draft', 'Requested', 'Quote Selected'] },
-  { key: 'in-progress', label: 'In progress', statuses: ['Approved', 'Vendor Quoted', 'Ordered', 'Received'] },
-  { key: 'invoiced-or-paid', label: 'Invoiced or paid', statuses: ['Vendor Invoiced', 'Paid'] },
-  { key: 'rejected-or-cancelled', label: 'Rejected or cancelled', statuses: ['Rejected', 'Cancelled'], folded: true },
+export const PROJECT_PROCUREMENT_STAGES: ProcurementStageDefinition[] = [
+  { key: 'Request', statuses: ['Draft', 'Requested'] },
+  { key: 'Approved', statuses: ['Approved', 'Vendor Quoted', 'Quote Selected'] },
+  { key: 'Ordered', statuses: ['Ordered'] },
+  { key: 'Received', statuses: ['Received', 'Vendor Invoiced'] },
+  { key: 'Paid', statuses: ['Paid'] },
 ];
+
+export interface ProcurementStageEvent {
+  to_status: ProcurementStatus;
+  created_at: string;
+}
+
+export interface ProcurementTimelineStep {
+  key: ProcurementProjectStage;
+  date: string | null;
+}
+
+/** Compact the procurement status history into the five milestones used on project detail. */
+export function projectProcurementStage(status: ProcurementStatus): ProcurementProjectStage | null {
+  return PROJECT_PROCUREMENT_STAGES.find((stage) => stage.statuses.includes(status))?.key ?? null;
+}
+
+/**
+ * Return milestone dates from the append-only status log. The request date comes from the
+ * procurement record's created_at because legacy requests predate the transition log.
+ */
+export function procurementTimeline(
+  events: ProcurementStageEvent[] | null | undefined,
+  createdAt: string,
+): ProcurementTimelineStep[] {
+  const orderedEvents = [...(events ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
+  return PROJECT_PROCUREMENT_STAGES.map(({ key }) => {
+    if (key === 'Request') {
+      const requested = orderedEvents.filter((event) => event.to_status === 'Requested').at(-1);
+      return { key, date: requested?.created_at ?? createdAt };
+    }
+
+    const milestoneStatus: Partial<Record<ProcurementProjectStage, ProcurementStatus>> = {
+      Approved: 'Approved',
+      Ordered: 'Ordered',
+      Received: 'Received',
+      Paid: 'Paid',
+    };
+    const status = milestoneStatus[key];
+    const recordedEvent = status
+      ? orderedEvents.filter((event) => event.to_status === status).at(-1)
+      : undefined;
+    return { key, date: recordedEvent?.created_at ?? null };
+  });
+}

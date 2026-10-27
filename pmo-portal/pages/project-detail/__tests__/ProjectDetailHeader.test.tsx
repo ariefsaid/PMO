@@ -192,7 +192,7 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
 
-  it('keeps phone identity in the compact header and places dates and PO in the details disclosure', () => {
+  it('keeps phone identity focused on status and customer', () => {
     desktopBox.value = false;
     render(
       <MemoryRouter>
@@ -205,9 +205,9 @@ describe('ProjectDetailHeader — content', () => {
     expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
     expect(within(header).getByText('Innovate Corp')).toBeInTheDocument();
-    expect(within(header).getByText('PM Alice Manager')).toBeInTheDocument();
-    expect(within(header).getByText('Jan 1, 2026 – Dec 18, 2026').closest('span.hidden')).toHaveClass('md:inline-flex');
-    expect(within(header).getByText('PO CPO-2026-001').closest('span.hidden')).toHaveClass('md:inline-flex');
+    expect(within(header).queryByText('PM Alice Manager')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Jan 1, 2026 – Dec 18, 2026')).not.toBeInTheDocument();
+    expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
   });
 
   it('moves Edit into the compact More menu on phone while keeping the desktop action', async () => {
@@ -223,9 +223,9 @@ describe('ProjectDetailHeader — content', () => {
     const header = screen.getByTestId('record-header');
     const desktopEdit = within(header).getAllByRole('button', { name: /^Edit$/i }).find((button) => button.parentElement?.classList.contains('hidden'))!;
     expect(desktopEdit.parentElement).toHaveClass('hidden', 'md:inline-flex');
-    const menu = within(header).getByText('More').closest('details');
+    const menu = within(header).getByLabelText('More actions').closest('details');
     expect(menu).not.toBeNull();
-    await userEvent.click(within(menu!).getByText('More'));
+    await userEvent.click(within(menu!).getByLabelText('More actions'));
     const phoneEdit = within(menu!).getByRole('button', { name: /^Edit$/i });
     expect(phoneEdit).toHaveClass('md:hidden');
     await userEvent.click(phoneEdit);

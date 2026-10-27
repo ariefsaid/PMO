@@ -105,7 +105,7 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
 
   it('AC-CHG-018: Activity is available from Overview only and closing its drawer restores focus', async () => {
     const overviewPage = await renderAt('/projects/p1');
-    const activityLine = screen.getByRole('button', { name: /Activity · no comments yet/i });
+    const activityLine = screen.getByRole('button', { name: /Activity · 0 comments/i });
     expect(activityLine).toBeInTheDocument();
 
     await userEvent.click(activityLine);
@@ -117,7 +117,7 @@ describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
 
     const tasksPage = await renderAt('/projects/p1/tasks');
     expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Activity · no comments yet/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Activity · 0 comments/i })).not.toBeInTheDocument();
     tasksPage.unmount();
   });
 });

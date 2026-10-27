@@ -17,6 +17,8 @@ export interface ProjectDetailRailProps {
   summaryLabel?: string;
   /** Quiet variant: a small muted disclosure with no rule above it. */
   quiet?: boolean;
+  /** Render only the existing detail rows for the header menu; no second disclosure or actions. */
+  detailsOnly?: boolean;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -45,9 +47,58 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
   );
 };
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true, summaryLabel, quiet = false }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true, summaryLabel, quiet = false, detailsOnly = false }) => {
   const { t } = useTranslation();
   const notSet = t('projectDetail.rail.notSet', 'Not set');
+  const detailSection = (
+    <section aria-labelledby="project-details-heading">
+      <RailSectionLabel>
+        <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
+      </RailSectionLabel>
+      <dl className="divide-y divide-border/70 border-y border-border/70">
+        {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
+        {projectDisplayName(project) !== project.name && (
+          <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
+        )}
+        <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
+        {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
+            is omitted rather than rendered as "Not set". */}
+        {project.end_client && (
+          <DetailRow
+            label={t('projectDetail.rail.endCustomer', 'End customer')}
+            value={companyDisplayName(project.end_client)}
+          />
+        )}
+        <DetailRow
+          label={t('projectDetail.rail.projectManager', 'Project manager')}
+          value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
+        />
+        <ProjectClassificationRows project={project} />
+        <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
+        <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
+        {project.contract_date && <DetailRow label={t('projectDetail.rail.contractDate', 'Contract date')} value={formatDateOnly(project.contract_date)} />}
+        <DetailRow
+          label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
+          value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
+        />
+        <DetailRow
+          label={t('projectDetail.rail.clientCode', 'Client Project Code')}
+          value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
+        />
+        <DetailRow
+          label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
+          value={project.customer_contract_ref ? <span className="font-mono text-[13px]">{project.customer_contract_ref}</span> : notSet}
+        />
+      </dl>
+    </section>
+  );
+  if (detailsOnly) {
+    return (
+      <aside data-testid="project-detail-rail" aria-label={t('projectDetail.rail.ariaLabel', 'Project details rail')} className="min-w-0">
+        {detailSection}
+      </aside>
+    );
+  }
   return (
     <aside
       data-testid="project-detail-rail"
@@ -73,51 +124,7 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActi
           </section>
         )}
 
-        <section aria-labelledby="project-details-heading">
-          <RailSectionLabel>
-            <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
-          </RailSectionLabel>
-          <dl className="divide-y divide-border/70 border-y border-border/70">
-            {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
-            {projectDisplayName(project) !== project.name && (
-              <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
-            )}
-            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
-            {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
-                is omitted rather than rendered as "Not set". */}
-            {project.end_client && (
-              <DetailRow
-                label={t('projectDetail.rail.endCustomer', 'End customer')}
-                value={companyDisplayName(project.end_client)}
-              />
-            )}
-            <DetailRow
-              label={t('projectDetail.rail.projectManager', 'Project manager')}
-              value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
-            />
-            <ProjectClassificationRows project={project} />
-            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
-            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
-            <DetailRow
-              label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
-              value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
-            />
-            <DetailRow
-              label={t('projectDetail.rail.clientCode', 'Client Project Code')}
-              value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
-            />
-            <DetailRow
-              label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
-              value={
-                project.customer_contract_ref ? (
-                  <span className="font-mono text-[13px]">{project.customer_contract_ref}</span>
-                ) : (
-                  notSet
-                )
-              }
-            />
-          </dl>
-        </section>
+        {detailSection}
         <ProjectErpLink projectId={project.id} />
         </div>
       </details>
