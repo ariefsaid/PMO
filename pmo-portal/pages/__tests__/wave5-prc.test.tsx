@@ -7,6 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -50,6 +51,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => projState,
+  useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
   useClientCompanies: () => ({ data: [] }),
   useProjectManagers: () => ({ data: [] }),
   useProjectMutations: () => ({
@@ -85,6 +87,10 @@ vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
   useProjectsDeliverySummary: () => ({ data: deliverySummaryState }),
 }));
+vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status }));
+vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useProjectsMoneyCollection', () => ({ useProjectsMoneyCollection: () => projectMoneyState }));
 vi.mock('../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useTimesheets', () => ({
@@ -98,6 +104,12 @@ import { EngineerDashboard } from '@/src/components/dashboard/EngineerDashboard'
 import Projects from '../Projects';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
+
+const renderPMDashboard = () => render(
+  <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <MemoryRouter><PMDashboard /></MemoryRouter>
+  </QueryClientProvider>,
+);
 
 // ─── PM fixture data ─────────────────────────────────────────────────────────
 
@@ -138,62 +150,46 @@ const otherUser = {
 
 // ─── PMDashboard: risk-sort tests ───────────────────────────────────────────
 
-describe('AC-IXD-DASH-W5-C2C — PMDashboard: Project Status list is risk-sorted', () => {
+describe('AC-IXD-DASH-W5-C2C — PMDashboard: attention areas are risk-sorted', () => {
   beforeEach(() => {
     projState.data = [...pmFixtures, otherUser];
     projState.isPending = false;
     projState.isError = false;
   });
 
-  it('C2C-PM-1: at-risk rows appear before safe rows in the Project Status list', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const itemTexts = listItems.map((li) => li.textContent ?? '');
-    const highBurnIdx = itemTexts.findIndex((t) => t.includes('High Burn Project'));
-    const thresholdIdx = itemTexts.findIndex((t) => t.includes('At Threshold Project'));
-    const safeIdx = itemTexts.findIndex((t) => t.includes('Safe Project'));
+  it('C2C-PM-1: at-risk project areas appear before safe areas', () => {
+    renderPMDashboard();
+    const projectNames = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent);
+    const highBurnIdx = projectNames.indexOf('High Burn Project');
+    const thresholdIdx = projectNames.indexOf('At Threshold Project');
+    const safeIdx = projectNames.indexOf('Safe Project');
 
     expect(highBurnIdx).toBeGreaterThanOrEqual(0);
     expect(thresholdIdx).toBeGreaterThanOrEqual(0);
     expect(safeIdx).toBeGreaterThanOrEqual(0);
-    // Both at-risk projects must come BEFORE the safe project
     expect(highBurnIdx).toBeLessThan(safeIdx);
     expect(thresholdIdx).toBeLessThan(safeIdx);
   });
 
-  it('C2C-PM-2: at-risk active rows show the "At risk" StatusPill (text+dot, not color-only)', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    // p2 (95%) and p3 (90%) are active + at-risk → 2 pills
-    const atRiskPills = screen.getAllByText('At risk');
-    expect(atRiskPills.length).toBeGreaterThanOrEqual(2);
+  it('C2C-PM-2: each at-risk project exposes a descriptive link to its owning page', () => {
+    renderPMDashboard();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks).toHaveLength(2);
+    expect(riskLinks.map((link) => link.getAttribute('href'))).toEqual(['/projects/p2', '/projects/p3']);
+    expect(riskLinks.every((link) => (link.getAttribute('aria-label') ?? link.textContent ?? '').trim().length > 10)).toBe(true);
   });
 
-  it('C2C-PM-3: safe project does NOT show an "At risk" pill', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const safeItem = listItems.find((li) => li.textContent?.includes('Safe Project'));
-    expect(safeItem).toBeDefined();
-    expect(safeItem?.textContent).not.toContain('At risk');
+  it('C2C-PM-3: safe project has no budget-risk attention link', () => {
+    renderPMDashboard();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p1')).toBe(false);
   });
 
   it('C2C-PM-4: completed project is NOT flagged at-risk even when high utilization', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    const listItems = screen.getAllByRole('listitem');
-    const completedItem = listItems.find((li) => li.textContent?.includes('Completed High Burn'));
-    if (completedItem) {
-      expect(completedItem.textContent).not.toContain('At risk');
-    }
-  });
-
-  it('C2C-PM-5: the "At risk" pill in the Project Status list has the dot indicator (not color-only, a11y)', () => {
-    render(<MemoryRouter><PMDashboard /></MemoryRouter>);
-    // The StatusPill "At risk" in the list items — find via listitem context to skip the KPI tile
-    const listItems = screen.getAllByRole('listitem');
-    const atRiskItem = listItems.find((li) => li.textContent?.includes('High Burn Project'));
-    expect(atRiskItem).toBeDefined();
-    // The "At risk" StatusPill inside this row must carry data-pill-dot (dot indicator)
-    const pillDot = atRiskItem?.querySelector('[data-pill-dot]');
-    expect(pillDot).toBeTruthy();
+    renderPMDashboard();
+    expect(screen.getByRole('heading', { name: 'Completed High Burn' })).toBeInTheDocument();
+    const riskLinks = screen.getAllByRole('link', { name: /budget is at least 90% spent/i });
+    expect(riskLinks.some((link) => link.getAttribute('href') === '/projects/p4')).toBe(false);
   });
 });
 

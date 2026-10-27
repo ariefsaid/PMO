@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
@@ -32,11 +33,18 @@ vi.mock('@/src/hooks/useDashboard', () => ({
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: { p1: 32 } }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status }));
 vi.mock('@/src/hooks/useTimesheetApproval', () => ({
   useTimesheetsAwaitingApproval: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false }),
+}));
+vi.mock('../restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Project Manager' }),
@@ -46,15 +54,16 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 
 describe('PMDashboard delivery mini-bar', () => {
-  it('renders the delivery mini-bar beside the status pill and preserves the accessible label', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <PMDashboard />
-      </MemoryRouter>,
+  it('preserves the delivery progress label and project status in the project area', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter><PMDashboard /></MemoryRouter>
+      </QueryClientProvider>,
     );
 
     expect(screen.getByLabelText('Delivery 32%')).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    expect(container.querySelector('[class*="h-1.5"][class*="w-12"]')).not.toBeNull();
+    expect(screen.getByRole('link', { name: 'Meridian Steelworks' })).toHaveAttribute('href', '/projects/p1');
   });
 });
