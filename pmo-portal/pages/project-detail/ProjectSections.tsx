@@ -50,6 +50,11 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
   const attentionProps = { items: attention.items, isPending: attention.isPending, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
+  const visibleDeliveryAttention = lens === 'delivery'
+    ? attention.items.filter((item) => !attention.myVisibleTaskKeys.has(item.key))
+    : [];
+  const showDeliveryAttention = lens === 'delivery'
+    && (attention.isPending || Boolean(attention.error) || visibleDeliveryAttention.length > 0);
   const curve = !isPipeline && lens !== 'delivery'
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null;
@@ -57,11 +62,11 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     if (lens === 'delivery') {
       return (
         <div className="flex min-w-0 flex-col gap-10">
-          <div className="grid min-w-0 gap-8 xl:grid-cols-2">
+          <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
             <MyOpenTasks projectId={project.id} />
-            <section className="min-w-0 border-y border-border/70 py-4">
+            {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
               <ProjectAttention {...attentionProps} />
-            </section>
+            </section>}
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
         </div>
@@ -77,11 +82,11 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   return (
     lens === 'delivery' ? (
       <div className="flex min-w-0 flex-col gap-10">
-        <div className="grid min-w-0 gap-8 xl:grid-cols-2">
+        <div className={`grid min-w-0 gap-8 ${showDeliveryAttention ? 'xl:grid-cols-2' : 'xl:grid-cols-1'}`}>
           <MyOpenTasks projectId={project.id} />
-          <section className="min-w-0 border-y border-border/70 py-4">
+          {showDeliveryAttention && <section className="min-w-0 border-y border-border/70 py-4">
             <ProjectAttention {...attentionProps} />
-          </section>
+          </section>}
         </div>
         <DeliveryBlock projectId={project.id} />
       </div>

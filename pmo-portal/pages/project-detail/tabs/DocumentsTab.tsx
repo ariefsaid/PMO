@@ -898,7 +898,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      <Toolbar standalone className="mb-3.5 min-w-0">
+      <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
           <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}

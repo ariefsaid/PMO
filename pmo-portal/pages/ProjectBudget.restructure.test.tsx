@@ -161,6 +161,18 @@ describe('ProjectBudget Option A', () => {
     expect(screen.getByRole('button', { name: 'Export rows' })).toBeInTheDocument();
   });
 
+  it('AC-1402 summary tiles show the same spent and committed totals as the table, not a dash', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' }];
+
+    renderPage();
+
+    expect(screen.queryByRole('button', { name: 'Spending is unknown or unavailable.' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Commitments are unknown or unavailable.' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Left is unknown/ })).not.toBeInTheDocument();
+  });
+
   it('opens the category drawer on row activation and keeps unavailable ledger details explicit', async () => {
     state.versions.data = [active() as unknown as BudgetVersionWithItems];
     state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];

@@ -138,14 +138,14 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
   it('AC-JR-T23: switching to Timeline view shows the Gantt figure', async () => {
     renderTab();
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
   });
 
   it('AC-JR-T23: clicking a Gantt bar (role=button) opens the shared task drawer', async () => {
     renderTab('Project Manager');
     // Switch to timeline view
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
 
     // Bar has role=button (added by T22 seam when onActivateTask is provided)
     const bar = screen.getByRole('button', { name: /Survey the site/i });
@@ -164,7 +164,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
   it('AC-JR-T23: drawer opened from a Gantt bar keeps full-record and edit actions', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /Survey the site/i }));
 
@@ -176,7 +176,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
   it('AC-1402 keeps Comments reachable from a Timeline row menu', async () => {
     renderTab('Project Manager');
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
     const rowActions = screen.getAllByRole('button', { name: /Row actions/i })[0];
     await userEvent.click(rowActions);
     const menu = rowActions.closest('details')?.querySelector('[role="menu"]') as HTMLElement;
@@ -187,7 +187,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task drawer when clicked', () 
   it('AC-JR-T23: Finance can open the drawer but gets no Edit action for a task it did not create', async () => {
     renderTab('Finance');
     await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
-    await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByRole('figure')).toBeInTheDocument());
 
     // Rows remain activatable for readers; structure editing stays role/creator gated.
     fireEvent.click(screen.getByRole('button', { name: /Survey the site/i }));

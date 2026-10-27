@@ -1,10 +1,11 @@
 /**
  * C-PD-1 — Gantt undated task chips must be activatable when onActivateTask is provided.
- * AC-C-PD-1: undated chips gain role=button/keyboard/focus-ring and fire onActivateTask(task).
+ * AC-C-PD-1: undated chips contain a native button/focus ring and fire onActivateTask(task).
  * AC-C-PD-1-inert: when onActivateTask is omitted, chips remain inert (no role=button).
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import type { TaskWithRefs } from '@/src/lib/db/tasks';
 import type { MilestoneWithProgress } from '@/src/lib/db/milestones';
@@ -70,23 +71,25 @@ describe('AC-C-PD-1: Gantt undated chips are activatable when onActivateTask pro
     expect(spy).toHaveBeenCalledWith(undatedTask);
   });
 
-  it('AC-C-PD-1: keyboard Enter on undated chip fires onActivateTask', () => {
+  it('AC-C-PD-1: keyboard Enter on undated chip fires onActivateTask', async () => {
     const spy = vi.fn();
     render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
 
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
-    fireEvent.keyDown(chip, { key: 'Enter' });
+    chip.focus();
+    await userEvent.keyboard('{Enter}');
 
     expect(spy).toHaveBeenCalledOnce();
     expect(spy).toHaveBeenCalledWith(undatedTask);
   });
 
-  it('AC-C-PD-1: keyboard Space on undated chip fires onActivateTask', () => {
+  it('AC-C-PD-1: keyboard Space on undated chip fires onActivateTask', async () => {
     const spy = vi.fn();
     render(<ProjectGantt tasks={tasks} milestones={milestones} onActivateTask={spy} />);
 
     const chip = screen.getByRole('button', { name: /Open Undated Design Work/i });
-    fireEvent.keyDown(chip, { key: ' ' });
+    chip.focus();
+    await userEvent.keyboard(' ');
 
     expect(spy).toHaveBeenCalledOnce();
   });

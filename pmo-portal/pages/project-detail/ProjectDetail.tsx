@@ -42,7 +42,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
   return (
     <section aria-label={t('projectDetail.facts.ariaLabel', 'Project facts')} className="mb-6 flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3 border-b border-border/70 pb-4 text-xs text-muted-foreground">
       {manager && (
-        <span className="inline-flex min-w-0 items-center gap-2" aria-label={t('projectDetail.facts.projectManager', 'Project manager: {{name}}', { name: manager })}>
+        <span className="inline-flex min-w-0 items-center gap-2">
           <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">{initial}</span>
           <span className="truncate font-medium text-foreground">{manager}</span>
         </span>

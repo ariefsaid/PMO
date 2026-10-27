@@ -58,7 +58,7 @@
       "downPaymentSummary": "Down payment {{billed}} · recovered {{recovered}}",
       "invoiceError": "Couldn't load invoice figures.",
       "invoiceLoading": "Invoice figures are loading.",
-      "partialPaymentNote": "Invoice balances are still syncing from accounting.",
+      "partialPaymentNote": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance.",
       "colItem": "Item",
       "colContract": "Contract",
       "colOrdered": "Ordered",
@@ -742,7 +742,7 @@
         "figuresIncomplete": "Invoice figures are incomplete.",
         "retryFigures": "Retry invoice figures",
         "orderlessHeading": "Invoices without a customer order",
-        "orderlessFiguresIncomplete": "Some invoice figures are incomplete.",
+        "orderlessFiguresIncomplete": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance.",
         "orderlessScroll": "Invoices without a customer order table"
       },
       "delivery": {

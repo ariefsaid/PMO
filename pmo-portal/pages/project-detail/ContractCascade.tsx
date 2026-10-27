@@ -202,10 +202,10 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
                 ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
                 : invoices.isPending
                   ? t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')
-                  : t('projectDetail.cascade.partialPaymentNote', 'Invoice balances are still syncing from accounting.')}</span>
-              <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoices.refetch()}>
+                  : t('projectDetail.cascade.partialPaymentNote', 'Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')}</span>
+              {invoices.isError && <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoices.refetch()}>
                 {t('common.retry', 'Retry')}
-              </button>
+              </button>}
             </p>
           )}
         </section>
@@ -287,10 +287,14 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
   const { t } = useTranslation('project');
   return (
     <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
-      <Tooltip content={detail}>
-        <span className="block w-fit cursor-help text-xs text-muted-foreground">{label}</span>
-      </Tooltip>
-      <Tooltip content={detail}><div className="mt-1 w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</div></Tooltip>
+      <div className="block">
+        <Tooltip content={detail}>
+          <span className="block w-fit cursor-help text-xs text-muted-foreground">{label}</span>
+        </Tooltip>
+      </div>
+      <div className="mt-1 block">
+        <Tooltip content={detail}><span className="block w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</span></Tooltip>
+      </div>
       {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
         <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'primary'} /></span>
       </Tooltip>}
@@ -300,6 +304,6 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
 };
 
 const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
-  <div><dt className="text-xs text-muted-foreground">{label}</dt><Tooltip content={detail}><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums">{value}</dd></Tooltip></div>
+  <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
 );
 

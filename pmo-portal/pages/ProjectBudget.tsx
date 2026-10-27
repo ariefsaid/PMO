@@ -723,29 +723,29 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       secondaryCell: () => null,
     },
     {
-      key: 'budget', header: t('financeCopy.budget', 'Budget'), kind: 'money', align: 'num',
+      key: 'budget', header: t('financeCopy.budget', 'Budget'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span>{formatAmount(row.budget)}</span></Tooltip>,
     },
     {
-      key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num',
+      key: 'spent', header: t('projectDetail.budget.spent', 'Spent'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={actualSource}><span>{canSeeActuals ? formatAmount(row.spent) : '—'}</span></Tooltip>,
     },
     {
-      key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num',
+      key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
     },
     {
-      key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num',
+      key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num', size: 125, minSize: 100,
       cell: (row) => <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span className={row.left !== null && row.left < 0 ? 'text-destructive-text' : undefined}>{formatAmount(row.left)}</span></Tooltip>,
     },
     {
-      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num',
+      key: 'used', header: t('projectDetail.budget.percentUsed', '% used'), kind: 'percent', align: 'num', size: 100, minSize: 80,
       cell: (row) => row.used === null
         ? <Tooltip content={t('projectDetail.budget.utilizationUnknown', 'Utilization is unavailable when budget, spending, or commitments are unknown, or when budget is zero.')}><span>—</span></Tooltip>
         : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 150, minSize: 140,
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
       cell: (row) => { const status = getStatus(row); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; },
     },
   ];
@@ -979,9 +979,9 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
 
       <div className="grid min-w-0 grid-cols-2 gap-3 lg:grid-cols-4">
         <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} value={formatAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.')} help={actualSource} />
-        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.')} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.')} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </div>
 
       <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">

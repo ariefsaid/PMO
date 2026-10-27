@@ -74,6 +74,17 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(within(section).getByText('Paid')).toBeInTheDocument();
   });
 
+  it('keeps each contract cascade label and value on separate lines', () => {
+    renderCascade();
+    const cascade = within(screen.getByRole('list', { name: 'Contract' }));
+    const label = cascade.getByText('Contract');
+    const value = cascade.getByText('500,000');
+
+    expect(label.parentElement?.parentElement).not.toBe(value.parentElement?.parentElement);
+    expect(label.parentElement?.parentElement).toHaveClass('block');
+    expect(value.parentElement?.parentElement).toHaveClass('block');
+  });
+
   it('AC-1402 shows can-invoice and overdue callouts from delivered quantities and ERP balances', () => {
     h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
     h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };

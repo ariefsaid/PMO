@@ -148,13 +148,13 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
               <dd className="mt-1"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
             )}
             {step.value !== null && contractValue !== null && contractValue > 0 && (
-              <div className="mt-2" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })}>
+              <dd className="mt-2">
                 <Tooltip content={step.source}>
                   <span tabIndex={0} className="block">
                     <ProgressBar value={pctOf(step.value, contractValue)} widthless aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
                   </span>
                 </Tooltip>
-              </div>
+              </dd>
             )}
           </div>
         ))}
@@ -177,9 +177,9 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
                 ? explain(t('projectDetail.money.spentSourceUnknown', 'Actual spending needs complete mapped category data; budget comes from the active project budget.'), `${t('projectDetail.money.spent', 'Spent')} ${t('projectDetail.money.unavailable', 'Unavailable')} · ${t('projectDetail.money.budget', 'Budget')} ${whole(budget.budget)}`)
               : explain(t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.'), `${whole(budget.spent)} / ${whole(budget.budget)}`)}
           </dd>
-          {budgetPercent !== null && <Tooltip content={t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.')}>
+          {budgetPercent !== null && <dd><Tooltip content={t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.')}>
             <span tabIndex={0} className="mt-2 block"><ProgressBar value={budgetPercent} widthless className="w-full" aria-label={t('projectDetail.money.budgetUse', 'Budget use {{percent}}%', { percent: budgetPercent })} /></span>
-          </Tooltip>}
+          </Tooltip></dd>}
         </div>
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>

@@ -58,7 +58,7 @@
       "downPaymentSummary": "Uang muka {{billed}} · dipulihkan {{recovered}}",
       "invoiceError": "Angka faktur tidak dapat dimuat.",
       "invoiceLoading": "Angka faktur sedang dimuat.",
-      "partialPaymentNote": "Saldo faktur masih disinkronkan dari akuntansi.",
+      "partialPaymentNote": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur.",
       "colItem": "Item",
       "colContract": "Kontrak",
       "colOrdered": "Dipesan",
@@ -742,7 +742,7 @@
         "figuresIncomplete": "Angka faktur belum lengkap.",
         "retryFigures": "Coba lagi memuat angka faktur",
         "orderlessHeading": "Faktur tanpa pesanan pelanggan",
-        "orderlessFiguresIncomplete": "Beberapa angka faktur belum lengkap.",
+        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur.",
         "orderlessScroll": "Tabel faktur tanpa pesanan pelanggan"
       },
       "delivery": {

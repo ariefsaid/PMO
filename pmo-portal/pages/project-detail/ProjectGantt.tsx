@@ -14,7 +14,7 @@
  * network calls, no writes.
  *
  * Accessibility (NFR-GANTT-A11Y-001/002):
- *   - Wrapped in <figure role="img" aria-label={summary}> (the single role="img").
+ *   - Wrapped in a labelled <figure>; interactive descendants stay independently reachable.
  *   - The left task table is a real role="grid" with roving tabindex + Arrow/Enter
  *     keyboard nav across rows; Enter/Space on a row fires onActivateTask.
  *   - Bars are role=button (when activatable) with a text aria-label that also names
@@ -25,7 +25,7 @@
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, Button, Icon, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
+import { ListState, StatusPill, Button, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import {
@@ -264,7 +264,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
   const { contentWidth, contentHeight } = geometry;
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="min-w-0">
       {/* Toolbar: caption + zoom toggle (D6) */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2">
         <span className="text-[12px] text-muted-foreground">
@@ -283,7 +283,6 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
       </div>
 
       <figure
-        role="img"
         aria-label={summary}
         data-scale={scale}
         className="m-0"
@@ -466,11 +465,8 @@ const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) =
   return (
   <div
     data-testid="gantt-mobile-notice"
-    className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-card px-6 py-14 text-center"
+    className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center"
   >
-    <span className="grid size-[52px] place-items-center rounded-[14px] bg-secondary text-muted-foreground">
-      <Icon name="cal" className="size-6" strokeWidth={1.75} />
-    </span>
     <h3 className="text-[15px] font-semibold">
       {t('projectDetail.gantt.mobileTitle', 'Open on a larger screen')}
     </h3>
@@ -524,7 +520,7 @@ const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth })
       tick.showLabel ? (
         <span
           key={tick.iso}
-          className="absolute top-0 translate-y-1/4 whitespace-nowrap text-[11px] text-muted-foreground"
+          className="absolute top-0 translate-y-1/4 whitespace-nowrap text-xs text-muted-foreground"
           style={{ left: tick.left * contentWidth }}
         >
           {tick.label}
@@ -572,8 +568,9 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
         borderLeft: '1px dashed hsl(var(--violet) / 0.3)',
       }}
     />
-    {/* The diamond glyph (rotated square) — labelled, no role (keeps role="img" singular) */}
+    {/* The diamond glyph (rotated square) — a labelled image now the figure no longer carries role="img" */}
     <span
+      role="img"
       aria-label={`${name} ${t('projectDetail.gantt.milestoneWord', 'phase')} — ${t(
         'projectDetail.gantt.targetWord',
         'target',
@@ -771,7 +768,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       </span>
       <span
         role="gridcell"
-        className="hidden shrink-0 whitespace-nowrap text-[10.5px] tabular-nums text-muted-foreground sm:block"
+        className="hidden shrink-0 whitespace-nowrap text-xs tabular-nums text-muted-foreground sm:block"
       >
         {dates}
       </span>
@@ -807,29 +804,19 @@ const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }
     </div>
     <ul className="flex flex-wrap gap-2">
       {undated.map((u) => (
-        <li
-          key={u.id}
-          role={onActivateTask ? 'button' : undefined}
-          tabIndex={onActivateTask ? 0 : undefined}
-          aria-label={
-            onActivateTask
-              ? `${t('projectDetail.gantt.openTask', 'Open')} ${u.name}`
-              : undefined
-          }
-          onClick={onActivateTask ? () => onActivateTask(u.id) : undefined}
-          onKeyDown={
-            onActivateTask
-              ? (e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onActivateTask(u.id);
-                  }
-                }
-              : undefined
-          }
-          className={`rounded border border-border bg-secondary/40 px-2 py-0.5 text-[12px] text-muted-foreground${onActivateTask ? ' cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring hover:bg-secondary/60' : ''}`}
-        >
-          {u.name}
+        <li key={u.id}>
+          {onActivateTask ? (
+            <button
+              type="button"
+              aria-label={`${t('projectDetail.gantt.openTask', 'Open')} ${u.name}`}
+              onClick={() => onActivateTask(u.id)}
+              className="rounded border border-border bg-secondary/40 px-2 py-0.5 text-left text-[12px] text-muted-foreground cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring hover:bg-secondary/60"
+            >
+              {u.name}
+            </button>
+          ) : (
+            <span className="rounded border border-border bg-secondary/40 px-2 py-0.5 text-[12px] text-muted-foreground">{u.name}</span>
+          )}
         </li>
       ))}
     </ul>

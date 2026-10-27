@@ -423,18 +423,28 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(within(screen.getByTestId('customer-order-wo-1')).queryByText(/Invoiced|Paid|Unpaid/)).not.toBeInTheDocument();
   });
 
-  it('AC-1402 gives orderless invoices one reason and retry when a settlement figure is missing', () => {
+  it('AC-1402 leaves paid and unpaid unknown without offering Retry when accounting has no balance', () => {
     h.list.data = [];
-    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_000,
+    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
       erp_outstanding_amount: null, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
     renderTab();
 
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
-    expect(within(section).getByText('Some invoice figures are incomplete.')).toBeInTheDocument();
-    expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
+    expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
     const card = within(section).getByTestId('invoice-card-si-orphan');
     expect(within(card).queryByRole('term', { name: 'Paid' })).not.toBeInTheDocument();
     expect(within(card).queryByRole('term', { name: 'Unpaid' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 offers Retry for an orderless invoice query error', () => {
+    h.list.data = [];
+    h.invoices = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
+    renderTab();
+
+    const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
+    expect(within(section).getByText("Couldn't load invoice figures.")).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });
 

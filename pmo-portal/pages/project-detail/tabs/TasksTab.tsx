@@ -542,7 +542,7 @@ const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => 
         </span>;
       },
       secondaryCell: (task) => task.priority ? (
-        <span className="text-[11.5px] font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
+        <span className="text-xs font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
       ) : null,
     },
     {
@@ -952,7 +952,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                   <TaskActionsDisclosure items={rowMenu(task)} />
                 </div>
               </div>
-              <div className="mt-2 flex min-w-0 items-center gap-2 text-[11.5px] text-muted-foreground">
+              <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                 {task.assignee ? <>
                   <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[8px] font-bold text-foreground">{task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
                   <span className="truncate">{task.assignee.full_name}</span>
@@ -1486,10 +1486,10 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 bg-secondary/30 px-3 py-2.5">
           <h3 className="min-w-0 max-w-full break-words text-[13px] font-semibold text-foreground">{group.label}</h3>
           {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
-            <span tabIndex={0} className="text-[11.5px] tabular text-muted-foreground">{dateRange}</span>
+            <span tabIndex={0} className="text-xs tabular text-muted-foreground">{dateRange}</span>
           </Tooltip>}
           {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
-            <span tabIndex={0} className="text-[11.5px] tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDateOnly(group.milestone.target_date) })}</span>
+            <span tabIndex={0} className="text-xs tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDateOnly(group.milestone.target_date) })}</span>
           </Tooltip>}
           {group.milestone && <Tooltip content={t(
             'projectDetail.tasks.phaseProgressTooltip',
@@ -1500,10 +1500,10 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             </span>
           </Tooltip>}
           {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
-            <span tabIndex={0} className="text-[11.5px] font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>
+            <span tabIndex={0} className="text-xs font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>
           </Tooltip>}
           <Tooltip content={t('projectDetail.tasks.openCountTooltip', 'Count of visible tasks in this phase whose status is not Done. Source: current project task list and filters.')}>
-            <span tabIndex={0} className="text-[11.5px] text-muted-foreground">{t('projectDetail.tasks.openCount', '{{count}} open', { count: group.openTasks.length })}</span>
+            <span tabIndex={0} className="text-xs text-muted-foreground">{t('projectDetail.tasks.openCount', '{{count}} open', { count: group.openTasks.length })}</span>
           </Tooltip>
           {canCreate && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onAddTask(group.milestone?.id ?? null)}>
             <Icon name="plus" />{t('projectDetail.tasks.addTask', 'Add task')}
