@@ -192,6 +192,46 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
   });
 
+  it('keeps phone identity focused on status and customer', () => {
+    desktopBox.value = false;
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
+    expect(within(header).getByText('Ongoing Project')).toBeInTheDocument();
+    expect(within(header).getByText('Innovate Corp')).toBeInTheDocument();
+    expect(within(header).queryByText('PM Alice Manager')).not.toBeInTheDocument();
+    expect(within(header).queryByText('Jan 1, 2026 – Dec 18, 2026')).not.toBeInTheDocument();
+    expect(within(header).queryByText('PO CPO-2026-001')).not.toBeInTheDocument();
+  });
+
+  it('moves Edit into the compact More menu on phone while keeping the desktop action', async () => {
+    desktopBox.value = false;
+    const onEditProject = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <ProjectDetailHeader project={onHand} compact onEditProject={onEditProject} commitmentSource="not-tracked" ledgerBasis="erp" />
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('record-header');
+    const desktopEdit = within(header).getAllByRole('button', { name: /^Edit$/i }).find((button) => button.parentElement?.classList.contains('hidden'))!;
+    expect(desktopEdit.parentElement).toHaveClass('hidden', 'md:inline-flex');
+    const menu = within(header).getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    await userEvent.click(within(menu!).getByLabelText('More actions'));
+    const phoneEdit = within(menu!).getByRole('button', { name: /^Edit$/i });
+    expect(phoneEdit).toHaveClass('md:hidden');
+    await userEvent.click(phoneEdit);
+    expect(onEditProject).toHaveBeenCalledOnce();
+  });
+
   it('keeps the JISDOR caption on one compact line after the original amount', () => {
     renderHeader('Finance');
     const tile = screen.getAllByTestId('stat-tile')[0];

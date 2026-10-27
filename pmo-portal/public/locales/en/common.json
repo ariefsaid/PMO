@@ -2600,21 +2600,53 @@
       "transitionFailed": "Transition failed"
     },
     "procurement": {
-      "column": {
-        "request": "Request",
-        "status": "Status",
-        "value": "Value"
-      },
       "empty": {
-        "title": "No purchase requests for this project yet"
+        "title": "No procurement on this project yet."
       },
       "error": {
-        "sub": "Something went wrong fetching this project's purchase requests.",
+        "sub": "Something went wrong fetching this project's procurement.",
         "title": "Couldn't load procurement"
       },
-      "newRequest": "New request",
+      "erpDisclosure": "Accounting-system documents",
+      "group": {
+        "inProgress": "In progress",
+        "invoicedOrPaid": "Invoiced or paid",
+        "needsAction": "Needs action",
+        "rejectedOrCancelled": "Rejected or cancelled"
+      },
+      "newRequest": "New procurement",
+      "nextStep": {
+        "approved": "Get quotes or order",
+        "awaitingApproval": "Approve or reject",
+        "delivered": "Record supplier invoice",
+        "draft": "Submit for approval",
+        "gettingQuotes": "Choose a quote",
+        "ordered": "Record delivery",
+        "quoteChosen": "Raise the order",
+        "supplierInvoiced": "Pay"
+      },
       "openRow": "Open",
-      "title": "Purchase Requests"
+      "stage": {
+        "approved": "Approved",
+        "awaitingApproval": "Awaiting approval",
+        "cancelled": "Cancelled",
+        "delivered": "Delivered",
+        "draft": "Draft",
+        "gettingQuotes": "Getting quotes",
+        "ordered": "Ordered",
+        "paid": "Paid",
+        "quoteChosen": "Quote chosen",
+        "rejected": "Rejected",
+        "supplierInvoiced": "Supplier invoiced"
+      },
+      "summary": {
+        "awaitingApproval": "Awaiting approval",
+        "committed": "Committed",
+        "paid": "Paid",
+        "reserved": "Reserved"
+      },
+      "supplierMissing": "No supplier yet",
+      "title": "Procurement"
     },
     "rail": {
       "actionsAriaLabel": "Project rail actions",
@@ -4753,7 +4785,11 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "projectEmptyScope": "This list covers PMO requests. Purchases recorded in ERPNext appear below.",
+    "more": "More",
+    "pageDescriptionOrgWide": "Raise requests and track approvals, orders and payments. Open a request for its full history.",
+    "pageDescriptionOwnScoped": "Track the requests you raised from approval through payment.",
+    "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
+    "projectEmptyScope": "Purchases recorded in ERPNext appear below.",
     "dashboardEmpty": "No PMO requests to show"
   },
   "uxs29": {

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router';
 import {
-  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, ListState, useToast, type Column,
+  Button, Card, CardHead, CardPad, ConfirmDialog, DataTable, Drawer, ListState, useToast, type Column,
 } from '@/src/components/ui';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
@@ -40,6 +40,8 @@ export interface BillingTabProps {
   clientId: string | null;
   /** Decides who may record progress (#765's rule). */
   projectManagerId: string | null;
+  /** Keep contract line tools available while the contract cascade owns the reading surface. */
+  mode?: 'full' | 'contract-tools';
 }
 
 /** `YYYY-MM` in the browser's zone. ponytail: only the dialog's default — the user can change it and the
@@ -59,7 +61,7 @@ const Figure: React.FC<{ testId: string; label: string; value: string; note?: st
   </div>
 );
 
-const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId }) => {
+const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId, mode = 'full' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -81,6 +83,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   const [deleteFor, setDeleteFor] = useState<BoqItemRow | null>(null);
   const [claimFormOpen, setClaimFormOpen] = useState(false);
   const [assessOpen, setAssessOpen] = useState(false);
+  const [contractLinesOpen, setContractLinesOpen] = useState(false);
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
   // The idempotency key is minted when the confirm opens, so a retry of the same confirm reuses it (ADR-0058).
   const [raiseFor, setRaiseFor] = useState<{ claim: ProgressClaimWithInvoice; idempotencyKey: string } | null>(null);
@@ -328,7 +331,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         className="text-base"
         actions={
           <>
-            {canAssess && boqRows.length > 0 && (
+            {mode === 'full' && canAssess && boqRows.length > 0 && (
               <Button variant="outline" size="sm" onClick={() => setAssessOpen(true)}>
                 {t('projectDetail.billing.assessment.record', 'Record progress')}
               </Button>
@@ -385,6 +388,49 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       </CardPad>
     </Card>
   );
+
+  if (mode === 'contract-tools') {
+    return (
+      <>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <Button variant="ghost" size="sm" className="h-auto min-h-8 px-1 text-xs text-muted-foreground underline underline-offset-4"
+            onClick={() => setContractLinesOpen(true)}>
+            {t('projectDetail.billing.boq.manage', 'Edit contract lines')}
+          </Button>
+          {canAssess && boqRows.length > 0 && (
+            <Button variant="ghost" size="sm" className="h-auto min-h-8 px-1 text-xs text-muted-foreground underline underline-offset-4"
+              onClick={() => setAssessOpen(true)}>
+              {t('projectDetail.billing.assessment.record', 'Record progress')}
+            </Button>
+          )}
+        </div>
+        <Drawer open={contractLinesOpen} title={t('projectDetail.billing.boq.title', 'Bill of quantities')}
+          onClose={() => setContractLinesOpen(false)}>
+          <div className="p-4">{boqCard}</div>
+        </Drawer>
+        {boqFormFor !== undefined && (
+          <BoqItemFormModal item={boqFormFor} currencySymbolPrefix={currencySymbol(currency)}
+            onClose={() => setBoqFormFor(undefined)} onSave={saveBoq} onError={fail} />
+        )}
+        {assessOpen && (
+          <ProgressAssessmentModal boqItems={boqRows} assessedByBoqItem={summary?.assessedByBoqItem ?? {}} defaultMonth={thisMonth()}
+            onClose={() => setAssessOpen(false)} onSave={saveAssessment} onError={fail} />
+        )}
+        {deleteFor && (
+          <ConfirmDialog
+            open
+            tone="destructive"
+            title={t('projectDetail.billing.boq.confirmDelete.title', 'Delete this line?')}
+            description={t('projectDetail.billing.boq.confirmDelete.body', 'The line is removed from the bill of quantities. A line already assessed or claimed cannot be deleted.')}
+            confirmLabel={t('projectDetail.billing.boq.confirmDelete.confirm', 'Delete line')}
+            loading={mutations.deleteBoq.isPending}
+            onConfirm={() => void runDelete()}
+            onCancel={() => setDeleteFor(null)}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="space-y-6">

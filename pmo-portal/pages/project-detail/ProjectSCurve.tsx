@@ -181,7 +181,6 @@ const ProjectSCurve: React.FC<ProjectSCurveProps> = ({ projectId }) => {
                 style={{ background: chartTheme.series.primary }}
               />
               {t('projectDetail.scurve.seriesActual', 'Actual to date')}
-              <span className="tabular font-semibold text-foreground">{model.actualToDate}%</span>
             </span>
           </figcaption>
 

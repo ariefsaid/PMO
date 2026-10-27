@@ -25,7 +25,7 @@
  */
 import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ListState, StatusPill, Button, Icon, useIsNarrow } from '@/src/components/ui';
+import { ListState, StatusPill, Button, Icon, useIsNarrow, type RowMenuItem } from '@/src/components/ui';
 import { ViewToggle } from '@/src/components/ui/ViewToggle';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import {
@@ -56,6 +56,8 @@ export interface ProjectGanttProps {
    * firing this callback with the resolved TaskWithRefs. When omitted, bars/rows are inert.
    */
   onActivateTask?: (task: TaskWithRefs) => void;
+  /** Optional per-task actions surfaced on each row in the task pane. */
+  rowMenu?: (task: TaskWithRefs) => RowMenuItem[];
   /**
    * Mobile fallback (defect D1): on viewports below the `sm` (640px) breakpoint the
    * cramped MS-Project split is replaced by a notice that points the user at a
@@ -92,7 +94,7 @@ type FlatRow = LaneHeaderRow | TaskRow;
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, onSwitchView }) => {
+const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, rowMenu, onSwitchView }) => {
   const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
@@ -342,6 +344,7 @@ const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActiva
                   onFocus={() => setFocusedRowKey(row.key)}
                   onArrow={(delta) => moveFocus(delta, row.key)}
                   onActivate={activate ? () => activate(row.bar.id) : undefined}
+                  rowMenuItems={rowMenu ? rowMenu(taskMap.get(row.bar.id)!) : undefined}
                 />
               ),
             )}
@@ -687,6 +690,7 @@ interface TaskTableRowProps {
   onFocus: () => void;
   onArrow: (delta: number) => void;
   onActivate?: () => void;
+  rowMenuItems?: RowMenuItem[];
 }
 
 /** B1: convert ISO date (YYYY-MM-DD) to compact human format ("Jan 1"). */
@@ -705,7 +709,10 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   onFocus,
   onArrow,
   onActivate,
+  rowMenuItems,
 }) => {
+  const { t } = useTranslation();
+  const [actionsOpen, setActionsOpen] = useState(false);
   const { bar } = row;
   // B1: use compact human dates ("Jan 1 – Jan 11") to prevent date string from
   // dominating the 260px table pane and starving the name column.
@@ -717,6 +724,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       : '—';
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.target as HTMLElement).closest('button, summary, a, select, input')) return;
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       onArrow(1);
@@ -727,6 +735,14 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       e.preventDefault();
       onActivate();
     }
+  };
+
+  const closeActionsOnEscape = (event: React.KeyboardEvent<HTMLDetailsElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.currentTarget.removeAttribute('open');
+    setActionsOpen(false);
+    event.currentTarget.querySelector('summary')?.focus();
   };
 
   return (
@@ -759,6 +775,18 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
       >
         {dates}
       </span>
+      {rowMenuItems && rowMenuItems.length > 0 && <span role="gridcell" className="shrink-0" onClick={(event) => event.stopPropagation()}>
+        <details className="relative" onToggle={(event) => setActionsOpen(event.currentTarget.open)} onKeyDown={closeActionsOnEscape}>
+          <summary role="button" aria-label={t('table.rowActions', 'Row actions')} aria-haspopup="menu" aria-expanded={actionsOpen} className="touch-target grid size-8 cursor-pointer list-none place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">⋯</summary>
+          <div role="menu" className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-md border border-border bg-popover p-1 shadow-[0_10px_30px_hsl(240_10%_8%/0.16)]">
+            {rowMenuItems.map((item) => <button key={item.label} role="menuitem" type="button" disabled={item.disabled} className={`block min-h-8 w-full rounded-sm px-2.5 py-1.5 text-left text-[13px] hover:bg-accent disabled:opacity-50${item.danger ? ' text-destructive-text' : ''}`} onClick={(event) => {
+              event.stopPropagation();
+              event.currentTarget.closest('details')?.removeAttribute('open');
+              item.onClick();
+            }}>{item.label}</button>)}
+          </div>
+        </details>
+      </span>}
     </div>
   );
 };

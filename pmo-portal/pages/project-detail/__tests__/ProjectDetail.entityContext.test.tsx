@@ -72,7 +72,6 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 
 // Stub tab contents — this test only asserts the entity-context side effect.
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
@@ -94,6 +93,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => null,
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 vi.mock('../ProjectDetailHeader', () => ({
   default: () => <div data-testid="stubbed-header">Header</div>,

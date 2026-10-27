@@ -1,26 +1,31 @@
 ---
 name: restructure
-description: Restructure one screen's UX, IA and IxD with the owner — what it shows, how it's organised, how people move through it — in the current look.
+description: Restructure one screen with the owner — what it shows, how it's organised, how people move through it, and how it looks within PMO's tokens — aiming at an information-rich, enterprise-grade ERP surface.
 disable-model-invocation: true
 ---
 
 # Restructure
 
 One screen at a time, with the owner as the judge and the design skills as the craft.
-**Restructure** means the screen's structure changes and its look stays: same colours, type,
-radii and basic controls. Use the word *restructure* in every prompt to a skill or reviewer.
-impeccable reads *redesign* as "replace the visual world" and answers with new palettes and
-styles; for impeccable this is a surface **inside the established world** (`new-work.md` §3).
+**Restructure** means the screen's structure and its visual design are redone *within PMO's
+tokens*: same colours, type, radii and controls, but the composition — cards, figure rows,
+progress bars, steppers, timelines, charts, tinted status — is designed fresh with impeccable
+(craft) and taste. Use the word *restructure* in every prompt to a skill: impeccable reads
+*redesign* as "replace the visual world" and answers with new palettes; this is a surface
+**inside the established world** (`new-work.md` §3).
+
+**The aim** is `DESIGN.md`'s ERP-UX Aspiration: cohesive, enterprise-grade, information-rich,
+strong visual hierarchy. Density means *information and actionability per screen*, not
+compression. Minimal means no noise, never bare: a plain table with no features is a failure.
 
 ## Scope
 
-- **Fixed:** `DESIGN.md` tokens (colour, type, radii) and the basic controls — button, input,
-  select, tabs, table, card, dialog, drawer, the comment box control.
-- **Open — this is the work:** everything the page composes from them. Which blocks exist, what
-  each one says, their order and grouping, emphasis through existing spacing and size tokens,
-  where actions live, how you move between areas, what a role sees. The page's own blocks
-  (money summaries, attention lists, headers, activity) get recomposed from scratch; moving the
-  old blocks into a new frame is a **reshuffle**, and a reshuffle is not a restructure.
+- **Fixed:** `DESIGN.md` tokens (colour, type, radii, motion) and the basic controls.
+- **Open — this is the work:** which blocks exist, what each says, their order, grouping and
+  visual weight, the figures and their meaning, where actions live, how you move between areas,
+  what a role sees. Moving the old blocks into a new frame is a **reshuffle**, not a restructure.
+- **Floor:** everything the page can do today (The Feature-Floor Rule in `DESIGN.md`). Moving a
+  feature behind a link or into a drawer is fine; dropping one needs the owner's word in the grill.
 
 ## The map
 
@@ -31,21 +36,25 @@ A screen without a child issue gets one before step 1 (title `restructure(<scree
 
 ## Records
 
-- **The issue** holds the approved brief, the owner's pick, and a closing comment with what
-  changed and what was left. The repo is public: roles and jobs only — no client names, people,
-  or real figures.
+- **The issue** holds the **whole grill** — every question, the recommended answer and the
+  owner's answer, one comment per round — then the approved brief, the owner's pick, and a
+  closing comment. A later session reads the issue and never asks the owner the same question
+  twice. The repo is public: roles and jobs only — no client names, people, or real figures.
 - **`docs/private/restructure/<screen>/`** (local-only) holds the screenshots, the gate tables
   and the owner's own screenshots.
 - **Lessons** (below) gets one line per point the owner caught that the gate missed.
 - No other docs: no rulings, standards or specs come out of a run.
 
-## Clean slate
+## Start from what exists
 
 Run in a fresh session, in a new worktree off `origin/dev` (copy `pmo-portal/.env.local` in).
-Read only `PRODUCT.md`, `DESIGN.md`, `docs/ux/UX-STANDARD.md`, the screen's issue and its route
-code. Earlier rulings, specs, plans, mockups and `CLAUDE.md`'s process sections stay closed: the
-current screen is **evidence** of what the data and jobs are, never a template for the answer.
-Do the design thinking in this session; reviewers critique, they never decide.
+Read, in this order: the screen's issue (all comments — earlier grill answers are binding),
+`PRODUCT.md`, `DESIGN.md` (the ERP-UX Aspiration and Feature-Floor Rule first),
+`docs/ux/UX-STANDARD.md`, `docs/private/restructure/_reference/earlier-work.md` (your area),
+the earlier portal's design spec `/Users/ariefsaid/Coding/RIS-portal-2/ref/design.md` (§0, §1,
+§4.7, and your surface in §5), and the route code. Then write the **feature floor**: every
+figure, filter, action, drawer and history the current page offers, plus what the earlier work
+marks "take". Earlier PMO rulings, specs and mockups stay closed.
 
 ## Steps
 
@@ -57,30 +66,45 @@ confirms or corrects. Before recommending anything that needs data, check the co
 exists. Cover: who opens the screen and in what situation; what each role needs in the first
 five seconds; how people arrive (routine review, a link to one thing, a periodic run); how often
 each area is used, per role; the phone job; what can leave the screen; the one main action per
-state and role; what each role must not see; which seed records the screenshots use.
+state and role; what each role must not see; which seed records the screenshots use; and the
+feature floor, item by item: keep, move, or drop.
+A screen with tabs or areas: grill every one of them in this step, not after the pick.
+
+Post each round's questions and the owner's answers on the issue as you go.
 
 **Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
-areas in order · what's removed · main action by state · screenshot set), posted on the issue.
+areas in order · feature floor decisions · main action by state · screenshot set), posted on the
+issue.
 
-### 2. Three structural options
+### 2. Bake-off: three options on one clickable page
 
-Build three options **in the real app** behind `?layout=a|b|c` (`?layout=off` = today's screen),
-from the same recomposed blocks, on real-shaped seed data. They differ in structure only:
-navigation model (tabs · one page with a jump menu · hub with drill-down pages), how the work
-divides, what leads per role, where actions live. One of them is the familiar category standard.
+Show the three options as a **bake-off: one HTML page** (HTML, CSS and a little JS) with the
+`orca-native-chat:orca-chat-visuals` skill, so the owner flips between them in place — never
+words alone, never images stacked down or side by side. The page has:
 
-Run **the full gate**. Then send the picking set — the busiest record as the top role and the most
-restricted role, at 1440 and 390 (4 shots per option) — with your recommendation in two lines.
-The owner may pick, or combine; a combination goes through the full gate again. Record the pick
-on the issue.
+- a switcher for the option (segmented buttons or a dropdown), plus one for role and one for
+  desktop / phone width;
+- each option **designed with impeccable (craft) and taste** in PMO's own look: copy the token
+  variables from `pmo-portal/index.css` and use only those, inside a mock of the app frame
+  (sidebar, header) at real width, with real block names and figures shaped like the seed
+  records in the brief. Every option carries the full feature floor and the aspiration's
+  affordances (tooltips, row drawer, `⋯` menu, figures with meaning, inline metadata);
+- beside it, 3–5 lines on the option: navigation model (tabs · one page with a jump menu · hub
+  with drill-down pages), how the work divides, what leads per role, where the main action
+  lives — and your one-line recommendation.
+
+The options differ in structure; one is the familiar category standard. One design pass, no
+review rounds: send it within about 45 minutes, so a bad design shows up straight away. The owner
+picks or combines in one reply. Save the page as `docs/private/restructure/<screen>/options.html`
+and record the pick on the issue. Only the pick gets built in the app.
 
 ### 3. Build the chosen option
 
-Make it the real page; remove the other layouts, the switch and any prototype-only files. Delete
-tests that pin the old look; keep and update behaviour, role, money and a11y tests; add
-translations. Run **the full gate** once on every state: empty, loading, error, each tab or area,
-each drawer, each role, both widths, light and dark, plus the status variants the screen has
-(e.g. pipeline vs delivery).
+Build the chosen structure as the real page, matching the bake-off the owner picked. Builders
+load impeccable (craft) and taste and work from the picked `options.html`. Split the build by tab
+or area into parallel builders with disjoint files, never one after another. Delete tests that
+pin the old look; keep and update behaviour, role, money and a11y tests; add translations. Then
+run **the check** (below) once and show the owner.
 
 ### 4. Owner clicks through, then ship and clean up
 
@@ -98,55 +122,34 @@ Give the local URL. Nothing merges until the owner has clicked through and said 
 **Done when** the issue is closed, the PR merged, and no server, seed row, working image,
 worktree or branch from this run remains.
 
-## The gate
+## The check
 
-Size the gate to the change, before anything reaches the owner:
+One pass, no review-and-fix rounds before the owner sees it:
 
-- **Full gate** (all four steps below): a new set of options, a combination of options, and the
-  finished build in step 3.
-- **Light check** for a small edit — moving, removing or rewording one element, or fixing a
-  reported finding: re-render the touched state, run the detector and axe, and re-run only the
-  one reviewer whose finding it answers, or none when the owner asked for the exact change. Say
-  in one line what was checked. Escalate to the full gate when the edit changes what leads,
-  how areas divide, or where actions live.
+1. Render the brief's screenshot set (busiest record, top role and most restricted role, 1440
+   and 390) and every other state once (empty, loading, error, each tab, drawer, role, dark).
+2. Run impeccable's detector and axe; fix what they flag.
+3. Tick the feature floor and the aspiration's affordances (a)–(f) against the render; fix gaps.
+4. Send the owner the URL and the screenshot set, with one line on what was checked.
 
-Full gate:
-
-1. Read impeccable's `reference/craft-floor.md` and https://impeccable.style/slop/ before the
-   first edit of the session.
-2. Render the states in question and dispatch four **independent** reviewers in parallel, each
-   loading its skill: impeccable **critique**, impeccable **audit** (with the detector and axe),
-   **taste** (`.claude/skills/taste`), **ui-ux-pro-max**. Give each the approved brief's
-   **intent** — who opens this, the job, what must lead, what must stay quiet until needed —
-   alongside the screenshots and route. Reviewers given only rules check the letter of them.
-   Hold source edits until all four report: they read the code.
-3. Apply impeccable **distill** and **clarify** yourself to the combined findings; fix every P0
-   and P1, and each P2 that fits. Re-render; re-run the detector and axe.
-4. Send the shots with one table per skill — *finding → what changed* — and a short list of what
-   you left, each with its reason.
-
-**Done when** a full-gate message carries all four tables, or a light-check message names what
-was checked.
+The owner may ask for a review by impeccable critique, taste or ui-ux-pro-max on a specific
+point; run only that one, as an Orca worker, and fix what the owner agrees with.
 
 ## Block craft
 
-Each block answers one question for its reader:
+Each block answers one question for its reader, and carries what's needed to act on it:
 
-- The answer comes first and largest; labels small and muted, values larger.
-- Each figure appears once on the page; units, currency and tax basis once, in the block heading.
+- The answer comes first and largest; its meaning sits beside it (variance, reason, trend, owner).
 - Every figure on the page comes from one shared calculation, so the attention list, the money
-  block and the main action always agree.
-- Whole currency units. Missing data is said once, with the link that fixes it, and its figures
-  are left out. A figure claims only what the data proves (an overdue invoice with an unknown
-  balance shows days overdue, never the full invoice as owed).
-- Tight spacing inside a group, clearly larger between groups, from existing tokens.
-- One filled primary action, chosen by the record's state and the viewer's role: what the data
-  says matters most now (chase an overdue payment before raising a new invoice).
-- Secondary things look secondary and sit where their subject lives: a quiet link on the screen
-  they belong to, never a button beside the main navigation, never repeated on every tab.
+  block and the main action always agree. Units, currency and tax basis stated in the heading.
+- Whole currency units. Missing data is said once, with the link that fixes it. A figure claims
+  only what the data proves (an overdue invoice with an unknown balance shows days overdue).
+- Use the full vocabulary where it helps: cards that group a job, figure rows, threshold-coloured
+  progress bars, stage steppers, timelines, small charts, tinted status pills, avatar chips.
+- One filled primary action, chosen by the record's state and the viewer's role. Rare actions in
+  row `⋯` menus or the record's menu, not deleted.
 - A role sees only the areas it can use.
-- On phone, every tab and action stays reachable: check that nothing is clipped or covered by
-  the bottom action bar.
+- On phone, every tab and action stays reachable: nothing clipped or covered by the action bar.
 
 ## Gotchas
 
@@ -164,12 +167,21 @@ Each block answers one question for its reader:
 - Keeping "components" fixed got read as keeping the page's blocks; the options came back as a
   reshuffle. Scope above now separates basic controls from page blocks.
 - Skill passes were skipped or run once on an older render; the owner caught slop (side-stripe
-  cards, three equal hero figures). The gate now runs before every render.
+  cards, three equal hero figures).
 - Reviewers checked "activity hidden until clicked" literally and passed a bordered button beside
   the tabs that invited the click. They now get the brief's intent.
 - Project-wide activity was placed on every tab; it belongs on the overview only.
-- Running all four reviewers on every small edit wasted tokens and time; small edits get the
-  light check.
+- Running all four reviewers on every small edit wasted tokens and time.
 - One question at a time in the grill was too slow for the owner; batched rounds work.
 - The owner combined two options (tabs for one-roof navigation + the hub's quiet activity);
   offer combinations when two options each win on a different axis.
+- Building and gating three in-app options per screen took too long for the owner; options are
+  now picked from a one-page HTML bake-off in PMO's tokens, and only the chosen one is built.
+- Project detail took 2.5 hours: tabs were grilled after the pick and built one after another,
+  then four reviewers checked every state. Grill all tabs first; build them in parallel.
+- 2026-10-27: the stacked limits — "look stays", a quiet monochrome north star, ban lists in
+  briefs, simplify passes and four reviewers' fix rounds — produced a plain table with fewer
+  features than the page it replaced, after 3–4 hours. The skills now design the look within the
+  tokens, the feature floor protects what exists, and the owner sees one pass, not review rounds.
+- The grill lived only in the chat; a later session would have re-asked it. Every round now goes
+  on the issue.

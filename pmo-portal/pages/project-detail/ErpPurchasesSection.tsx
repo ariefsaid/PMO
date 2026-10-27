@@ -2,7 +2,8 @@ import React, { useMemo } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
-import { ListState } from '@/src/components/ui';
+import { Badge, ListState, Tooltip } from '@/src/components/ui';
+import { cn } from '@/src/components/ui/cn';
 import { usePermission } from '@/src/auth/usePermission';
 import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
@@ -15,7 +16,12 @@ import { ErpOrphansSection } from '../procurement/ErpOrphansSection';
  * keeps today's screen. Already counted in Actuals (GL mirror), so it shows no totals that could be read as extra spend
  * — only the AP aging of what is still unpaid, which keeps counting linked invoices too (FR-PFE-042).
  */
-export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId }) => {
+export const ErpPurchasesSection: React.FC<{
+  projectId: string;
+  title?: string;
+  subtitle?: React.ReactNode;
+  className?: string;
+}> = ({ projectId, title, subtitle, className }) => {
   const { t } = useTranslation('finance');
   const may = usePermission();
   const canView = may('view', 'procurement');
@@ -39,14 +45,21 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
   };
 
   return (
-    <section className="mt-8" aria-labelledby="erp-purchases-heading">
+    <section className={cn('mt-8', className)} aria-labelledby="erp-purchases-heading">
       <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h2 id="erp-purchases-heading" className="text-[16px] font-bold tracking-[-0.01em]">
-            {t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
+            {title ?? t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
+            {orphans.length > 0 && (
+              <Tooltip content={t('erpLinks.orphansCountTooltip', 'Count of accounting-system documents not linked to a procurement. Source: ERP purchase documents.')}>
+                <span tabIndex={0} className="ml-2 inline-flex rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Badge>{orphans.length}</Badge>
+                </span>
+              </Tooltip>
+            )}
           </h2>
           <p className="text-sm text-muted-foreground">
-            {t('erpPurchases.countedInActuals', 'Already counted in Actuals.')}
+            {subtitle ?? t('erpPurchases.countedInActuals', 'Already counted in Actuals.')}
           </p>
         </div>
         <Link to="/erp-purchases" className="text-sm font-medium text-primary hover:underline">
@@ -72,19 +85,29 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
               {AGING_BUCKETS.map((b) => (
                 <div key={b}>
                   <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
-                  <dd className="tabular-nums">{formatCurrency(a.buckets[b], a.currency)}</dd>
+              <dd className="tabular-nums">
+                <Tooltip content={t('erpPurchases.aging.amountTooltip', 'Outstanding supplier invoice balances in {{currency}} grouped by due date. Includes linked and unlinked invoices; shared-project invoices are excluded.', { currency: a.currency })}>
+                  <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{formatCurrency(a.buckets[b], a.currency)}</span>
+                </Tooltip>
+              </dd>
                 </div>
               ))}
               <div>
                 <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
-                <dd className="font-semibold tabular-nums">{formatCurrency(a.total, a.currency)}</dd>
+                <dd className="font-semibold tabular-nums">
+                  <Tooltip content={t('erpPurchases.aging.amountTooltip', 'Outstanding supplier invoice balances in {{currency}} grouped by due date. Includes linked and unlinked invoices; shared-project invoices are excluded.', { currency: a.currency })}>
+                    <span tabIndex={0} className="rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{formatCurrency(a.total, a.currency)}</span>
+                  </Tooltip>
+                </dd>
               </div>
             </dl>
           ))}
           {sharedOpen > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {t('erpPurchases.aging.sharedExcluded', '{{count}} unpaid invoices shared with other projects are not in these figures.', { count: sharedOpen })}
-            </p>
+            <Tooltip content={t('erpPurchases.aging.sharedCountTooltip', '{{count}} unpaid supplier invoices are assigned to more than one project. Their full balances are excluded from project aging.', { count: sharedOpen })}>
+              <p tabIndex={0} className="w-fit rounded-sm text-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                {t('erpPurchases.aging.sharedExcluded', '{{count}} unpaid invoices shared with other projects are not in these figures.', { count: sharedOpen })}
+              </p>
+            </Tooltip>
           )}
         </section>
       )}

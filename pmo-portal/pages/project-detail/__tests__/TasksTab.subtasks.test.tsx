@@ -197,12 +197,12 @@ describe('TasksTab — a subtask whose parent is outside the current milestone g
     ];
     renderTab();
 
-    const designSection = screen.getByRole('region', { name: /^Design$/i });
+    const designSection = screen.getByRole('rowgroup', { name: /^Design$/i });
     expect(within(designSection).getByText('Design review')).toBeInTheDocument();
     expect(within(designSection).queryByText('Order steel')).toBeNull();
 
     // The subtask is NOT lost — it renders in its own (Procurement) group.
-    const procurementSection = screen.getByRole('region', { name: /Procurement/i });
+    const procurementSection = screen.getByRole('rowgroup', { name: /Procurement/i });
     expect(within(procurementSection).getByText('Order steel')).toBeInTheDocument();
     // Its parent isn't present in this slice, so it renders as a root: unindented.
     expect(screen.getByText('Order steel').style.paddingLeft || '0').toBe('0');

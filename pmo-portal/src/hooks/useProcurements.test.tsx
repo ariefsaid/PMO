@@ -36,6 +36,18 @@ describe('useProcurements', () => {
     expect(listProcurements).toHaveBeenCalled();
     expect(client.getQueryData(procurementsKey('org-1'))).toBe(result.current.data);
   });
+
+  it('keeps the shared list shape in its own cache entry and requests its batch detail inputs', async () => {
+    vi.mocked(listProcurements).mockClear();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => useProcurements({ withRefs: true, withSharedDetails: true }), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(listProcurements).toHaveBeenCalledWith(undefined, { withRefs: true, withSharedDetails: true });
+    expect(client.getQueryData(procurementsKey('org-1', true, true))).toBe(result.current.data);
+  });
 });
 
 describe('useProjectCommittedSpend (AC-IXD-PROC-W5-2, DD-MONEY-3)', () => {
