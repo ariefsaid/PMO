@@ -136,7 +136,7 @@ Supabase's auth/RLS/storage/pgTAP). Full parallel/serialized-owner operating mod
   up only for migration/pgTAP/e2e phases; down otherwise.
 - **Close browsers after every rendered check** — `agent-browser close` / kill stray Chromium and
   `@playwright/mcp` servers immediately; they accumulate and (with the stack + the Electron app's
-  context) have crashed the Claude app at >20 GB, killing in-flight agent runs. See `docs/pi-delegation.md`
+  context) have crashed the Claude app at >20 GB, killing in-flight agent runs. See `docs/orca-dispatch.md`
   §3c for the pi process-tree detail (pi + everything it spawns lives under the app's process tree).
 - **Reclaim Docker disk periodically.** Stopped containers + dangling images pile up fast (seen: ~40 GB
   reclaimable). **`docker container prune` + `docker image prune`** are safe — they touch only *stopped*

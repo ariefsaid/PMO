@@ -99,7 +99,7 @@ never write app code yourself — you delegate and **verify**.
 - **Model choice:** opus for planning, all review, security, and hard/security build slices; sonnet
   for routine implementation, QA runs, releases; haiku for mechanical edits.
   **pi-trial alternative:** when delegating role work to the pi CLI (GLM/codex substrates), follow
-  `docs/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
+  `docs/archive/pi-delegation.md` — routing, invocation, brief structure, verification gotchas.
 - **Worktree isolation** (`isolation: "worktree"`) when an agent mutates files and you want it isolated.
 
 ## 3a. Route the executor first; chain issues, don't pace them one at a time
@@ -116,7 +116,7 @@ never write app code yourself — you delegate and **verify**.
 |---|---|
 | Bounded code slice (incl. ordinary schema/migration work) | **`uv run adws/adw_simple_sdlc.py <brief.md>`** — own worktree, tmux-detached |
 | Bounded FE/UI slice | same chain, `--builder fe_builder --reviewer fe_reviewer` |
-| Money-path · SoD · auth/token-custody · anything `review-money`-tier | **Director-dispatched** per issue (pi, `docs/pi-delegation.md`) — never the factory |
+| Money-path · SoD · auth/token-custody · anything `review-money`-tier | **Director-dispatched** per issue (pi, `docs/archive/pi-delegation.md`) — never the factory |
 | Foggy / multi-issue / decision-shaped | `/wayfinder` first |
 
 Inside a **signed milestone brief** the Director chains these **without pausing at issue boundaries**;
@@ -137,7 +137,7 @@ exploit a window of abundant Claude weekly quota). When parallel, the wave model
   PR; **CI runs each PR's isolated Postgres + pgTAP + e2e in parallel** (public repo ⇒ unlimited Actions; see
   `docs/environments.md` "CI is the isolated-DB-per-PR pool"). Verify from CI + light local; merge one PR at a time.
 - **Executor:** per the routing table above — **ADW first**. `pi` is the Director's own dispatch surface for
-  the money/auth tier (`docs/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
+  the money/auth tier (`docs/archive/pi-delegation.md`); Claude `Task` subagents are a last resort for a parallel
   burst when both substrates are saturated. Neither replaces the ADW for a bounded slice.
 - **Ceiling = Director verification bandwidth ⇒ keep ≤ 3–4 streams in flight.** Beyond that the Director
   starts trusting instead of verifying — the failure the 3-reviewer battery exists to prevent.

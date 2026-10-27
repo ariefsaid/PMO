@@ -11,7 +11,7 @@ Read the source-of-truth docs first; treat `plans/` and `design-mockups/` as a h
 | **`environments.md`** | The deploy + ops runbook (Supabase Cloud + Cloudflare Pages + 1Password `op-get.sh`; branch topology; the port-5432 rule; parallel-worktree local-stack hygiene). |
 | **`factory-workflow.md`** | **The operating model** — three actors (owner · Director · factory), executor routing, decision rights, the drive loop. Read before starting any build. |
 | **`operator-runbook.md`** | Operator (platform) procedures — org creation, lifecycle, membership, the RIS provisioning sequence. |
-| **`orca-dispatch.md`** | **How agent work is dispatched** — Orca supervised workers on any harness and model; routing table. (`pi-delegation.md` is retired history.) |
+| **`orca-dispatch.md`** | **How agent work is dispatched** — Orca supervised workers on any harness and model; routing table. |
 | **`adr/`** | Architecture Decision Records. ⚑ Do NOT enumerate counts or ranges here — this row rotted twice by trying to; the id-collision class is gated by `scripts/check-adr-collisions.sh`. `ls docs/adr/` is the index and `grep -r ADR-00NN` finds citations. The durable "why" of every architectural choice. |
 | **`pmo-portal/CHANGELOG.md`** | Per-release notes + deploy manifest (app sha · migration high-water · edge-fn state). ⚑ It is under `pmo-portal/`, NOT the repo root. Versioning convention is **ADR-0042** (SemVer, pre-1.0). Current version: read `pmo-portal/package.json` / the latest `v*` tag, never this row. |
 

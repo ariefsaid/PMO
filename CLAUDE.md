@@ -47,8 +47,7 @@ approval before any push / merge / deploy, and at **milestone** boundaries — n
 inside a signed brief. `main` stays the ceiling either way.
 > **⚑ Executor (owner, 2026-10-27):** all agent work — subagents, builders, reviewers, cross-model — runs as
 > **Orca supervised workers** on any harness (claude, codex, antigravity, zcode, pi, dsh) and model; routing
-> table and mechanics in **`docs/orca-dispatch.md`**. pi-delegation and the SSSF ADW are retired as
-> executors (history only). The roster below is the *role contract* handed to a worker. The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
+> table and mechanics in **`docs/orca-dispatch.md`**. The roster below is the *role contract* handed to a worker. The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
 > (`docs/qa-portfolio.md`, `review mode: portfolio` default — see the loop below).
 
 Per-issue loop (**QA = ADR-0030 "Discover → Graduate → Cover" portfolio; source of truth `docs/qa-portfolio.md`**,

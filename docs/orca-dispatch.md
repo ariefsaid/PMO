@@ -2,8 +2,7 @@
 
 Every subagent, builder, reviewer and cross-model job runs as an **Orca supervised worker**. Orca
 launches any harness with any model, gives each worker its own worktree, and reports back when it
-finishes. It replaces pi-delegation (`docs/pi-delegation.md`, kept as history) and the SSSF ADW as
-the default executor. The gates, checkpoints and ceilings in `CLAUDE.md` are unchanged; only *who
+finishes. It replaces pi-delegation and the SSSF ADW as the default executor. The gates, checkpoints and ceilings in `CLAUDE.md` are unchanged; only *who
 runs the work* changed.
 
 ## Mechanics
@@ -39,3 +38,46 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 Money-path, SoD and auth/token-custody work stays **Director-dispatched per issue** (one worker per
 step, adversarial review, mutation checks) — now through Orca workers instead of pi.
 Screen-by-screen UX/IA/IxD work runs with the `/restructure` skill.
+
+## Briefs
+
+A worker sees nothing of your session; the brief stands alone:
+
+1. The task in one line, with the role contract (`.claude/agents/<role>.md`) it works to.
+2. A read-first list of exact paths (spec, plan, reference slice, ADRs); the worker reads them itself.
+3. The exact output: files, branch, PR target.
+4. Scope fences: what not to touch, what is already decided.
+5. A persistence clause (finish every item; stopping early with partial work is the known failure)
+   and a final sentinel line (`DONE: <task>`) so a killed or truncated run is obvious.
+6. "Check your own work against the input list and report deviations."
+7. Fix rounds: numbered findings, "fix all, change nothing else". After a killed run: list only
+   the missing items, "don't rework what landed".
+
+Workhorse models (Luna, Flash) are strong builders but weak readers of intent: spell out the
+seams — exact files, names and the one behaviour each test must prove.
+
+## Verifying a worker
+
+Never accept a completion report on its word:
+
+- The artifact exists, ends with the sentinel, and `git diff` matches the claims.
+- Grep the load-bearing claims (finding ids, AC ids, constants); render UI work yourself.
+- Read the worker's gate evidence; re-run only a targeted check you doubt — CI runs the full suite.
+- A killed or timed-out run leaves half-applied edits: `git diff` first, then a completion round,
+  never a blind retry.
+- Cross-family review complements your own read; it doesn't replace it. On anything
+  load-bearing, run both.
+
+Known failure tendencies: e2e assertions softened to "element exists" or wrapped in `.catch`
+(reject on sight, BDD rule in `CLAUDE.md`); honest-UX shortcuts such as fake progress; stopping
+partway on long briefs; tests copied instead of importing the shipped code.
+
+## Shared local database
+
+Workers share one local Supabase stack. Every DB-driving command runs under
+`scripts/with-db-lock.sh`, and a reset counts only when reset and test run in **one** lock hold
+(`CLAUDE.md` "Chain reset+test as ONE lock hold") — separate holds let a sibling's reset produce
+false reds and false greens. pgTAP fixtures: namespaced UUIDs, `begin;`/`rollback;`, `finish()`;
+grep gate output for `Parse errors` (an aborted file reports zero tests and looks green).
+Heavy local processes (the Supabase stack, vitest, browsers) are the Mac's real RAM cost:
+`supabase stop` when not testing the DB.
