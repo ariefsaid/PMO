@@ -85,7 +85,7 @@ describe('AC-GANTT-005: a task with no dates is listed in the Undated footer', (
     expect(screen.getByText(/undated/i)).toBeInTheDocument();
     expect(screen.getByText(/no dates task/i)).toBeInTheDocument();
     // The figure (gantt) is present (not empty state)
-    expect(screen.getByRole('img')).toBeInTheDocument();
+    expect(screen.getByRole('figure')).toBeInTheDocument();
   });
 
   it('shows "Undated (1)" count label in the footer', () => {
@@ -142,15 +142,16 @@ describe('AC-GANTT-008: a task with dependencies conveys the relationship as acc
 // ── AC-GANTT-010: a11y — labelled figure + status text ───────────────────────
 
 describe('AC-GANTT-010: the timeline is a labelled figure and bars label status as text', () => {
-  it('the Gantt figure has role="img" and an aria-label', () => {
+  it('the labelled Gantt figure leaves its interactive descendants independently reachable', () => {
     const tasks = [
       makeTask({ id: 'a', name: 'Accessible task', start_date: '2026-01-01', end_date: '2026-01-11' }),
     ];
     render(<ProjectGantt tasks={tasks} milestones={[]} />);
-    const fig = screen.getByRole('img');
+    const fig = screen.getByRole('figure');
     expect(fig).toBeInTheDocument();
     expect(fig).toHaveAttribute('aria-label');
     expect(fig.getAttribute('aria-label')).not.toBe('');
+    expect(screen.getByRole('grid', { name: 'Task table' })).toBeInTheDocument();
   });
 
   it('each bar shows the task status as text (not color-only)', () => {
@@ -271,8 +272,8 @@ describe('AC-GANTT-017: the task table is a keyboard grid and Enter fires onActi
 
     const grid = screen.getByRole('grid');
     expect(grid).toBeInTheDocument();
-    // The figure remains a labelled image.
-    expect(screen.getByRole('img')).toBeInTheDocument();
+    // The figure remains labelled while grid rows stay independently interactive.
+    expect(screen.getByRole('figure')).toBeInTheDocument();
 
     // Focus the first task row, ArrowDown to the second, Enter activates it.
     const rows = within(grid).getAllByRole('row');
@@ -532,7 +533,7 @@ describe('AC-GANTT-D1: mobile (<640px) Timeline fallback notice', () => {
 
     // Full Gantt renders (table grid + figure)…
     expect(screen.getByRole('grid')).toBeInTheDocument();
-    expect(screen.getByRole('img')).toBeInTheDocument();
+    expect(screen.getByRole('figure')).toBeInTheDocument();
     // …and the mobile notice does not.
     expect(screen.queryByTestId('gantt-mobile-notice')).toBeNull();
   });

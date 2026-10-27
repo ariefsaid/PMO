@@ -74,7 +74,7 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
 export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, tableId, ...tableProps }) => (
   <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
     {children}
-    <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} tableId={`procurement-block-${tableId}`} />
+    <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} className={embedded ? 'rounded-none border-0 bg-transparent' : undefined} tableId={`procurement-block-${tableId}`} />
   </section>
 );
 
@@ -652,6 +652,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'age',
         header: <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}><span tabIndex={0}>{t('procurement.ageInStage', 'Age in stage')}</span></Tooltip>,
         kind: 'number',
+        colClassName: projectId ? 'hidden' : undefined,
         align: 'num',
         size: 72,
         minSize: 68,
@@ -672,6 +673,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'owner',
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
+        colClassName: projectId ? 'hidden' : undefined,
         size: 125,
         minSize: 105,
         sortKey: 'owner',
@@ -690,7 +692,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, role, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, setSelected]);
+  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, role, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, projectId, setSelected]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
@@ -963,6 +965,14 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
                   </span>
                   <span className="truncate">{selected.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned')}</span>
                 </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('procurement.ageInStage', 'Age in stage')}</div>
+                <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}>
+                  <span tabIndex={0} className="inline-flex rounded-sm tabular text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                    {t('procurement.ageInStageDays', '{{count}}d', { count: ageInCurrentStage(selected, erp.data) })}
+                  </span>
+                </Tooltip>
               </div>
               {canSeeMoney && project && drawerMoney?.mostReal && (
                 <ProcurementBudgetLeft project={project} row={selected} amount={drawerMoney.mostReal.amount} t={t} />

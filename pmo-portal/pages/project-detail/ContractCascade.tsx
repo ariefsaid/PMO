@@ -304,6 +304,6 @@ const MoneyStep: React.FC<{ label: string; value: string; percentage: number | n
 };
 
 const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
-  <div><dt className="text-xs text-muted-foreground">{label}</dt><Tooltip content={detail}><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums">{value}</dd></Tooltip></div>
+  <div><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums"><Tooltip content={detail}><span>{value}</span></Tooltip></dd></div>
 );
 

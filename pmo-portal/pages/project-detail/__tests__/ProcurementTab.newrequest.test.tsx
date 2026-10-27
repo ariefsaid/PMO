@@ -201,6 +201,7 @@ describe('project procurement tab', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open ultrasonic probes' }));
     const drawer = screen.getByRole('dialog');
     expect(within(drawer).getByText('Materials')).toBeInTheDocument();
+    expect(within(drawer).getByText('Age in stage')).toBeInTheDocument();
     expect(within(drawer).getByText('Budget left in category')).toBeInTheDocument();
     expect(within(drawer).getByText(formatCurrency(7_250, 'USD'))).toBeInTheDocument();
     expect(within(drawer).getByText('Step timeline')).toBeInTheDocument();
@@ -258,6 +259,27 @@ describe('project procurement tab', () => {
 });
 
 describe('shared procurement block', () => {
+  it('keeps age and raised-by details available in project procurement cards', () => {
+    procState.data = [procurement('mobile details', 'Requested')];
+    vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({
+      matches: !query.includes('min-width: 768px'),
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })));
+    renderBlock('Finance');
+    vi.unstubAllGlobals();
+
+    const cards = screen.getByTestId('dt-card-branch');
+    expect(within(cards).getByText('Age in stage')).toBeInTheDocument();
+    expect(within(cards).getByText('Raised by')).toBeInTheDocument();
+    expect(within(cards).getByText('Project Manager')).toBeInTheDocument();
+  });
+
   it('AC-1402 keeps every amount hidden from Engineers', () => {
     procState.data = [procurement('own request', 'Draft')];
     renderBlock('Engineer');

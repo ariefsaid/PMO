@@ -851,14 +851,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
                       {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
                       {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
-                      {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }>
-                        <div className="min-w-0 text-xs">
+                      {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-xs">
                           <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
-                          <dd className="cursor-help text-muted-foreground tabular-nums">{billingRow.remaining < 0
+                          <dd className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
                             ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatCurrencyCents(Math.abs(billingRow.remaining), currency) })
-                            : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatCurrencyCents(billingRow.remaining, currency) })}</dd>
-                        </div>
-                      </Tooltip>}
+                            : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatCurrencyCents(billingRow.remaining, currency) })}</span></Tooltip></dd>
+                        </div>}
                     </dl>}
 
                     {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesQuery.isError || billing.isError ? 'alert' : 'status'}>
@@ -915,6 +913,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         rowLabel={(line) => t('projectDetail.cascade.openLine', 'Open {{item}} quantity history', { item: line.item?.description ?? line.allocation.boqItemId })}
                         accessibleName={t('projectDetail.cascade.linesScroll', 'Contract quantities for {{wo}}', { wo: row.wo_number ?? row.title })}
                         onActivate={openLineDrawer}
+                        className="rounded-none border-0 bg-transparent"
                         rowMenu={(line) => [
                           { label: t('projectDetail.cascade.viewQuantityHistory', 'View quantity history'), onClick: () => openLineDrawer(line) },
                           ...(canEditLines ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
@@ -1022,20 +1021,16 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
             <div>
               <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
-              <Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }>
-                <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums">{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatCurrencyCents(summary.unbilledWork, currency)}</dd>
-              </Tooltip>
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatCurrencyCents(summary.unbilledWork, currency)}</span></Tooltip></dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
-              <Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }>
-                <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums">{summary ? formatCurrencyCents(summary.dpHeld, currency) : '—'}</dd>
-              </Tooltip>
-            </div>
-            <div className="col-span-2 text-xs text-muted-foreground sm:col-span-1">
-              {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{summary ? formatCurrencyCents(summary.dpHeld, currency) : '—'}</span></Tooltip></dd>
             </div>
           </dl>
+          <p className="mb-4 text-xs text-muted-foreground">
+            {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
+          </p>
           <details className="mb-4 border-b border-border pb-4">
             <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               {t('projectDetail.billing.summary.details', 'Billing summary details')}
@@ -1464,14 +1459,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 const MoneyFigure: React.FC<{ label: string; value: string; detail?: string; destructive?: boolean }> = ({ label, value, detail, destructive = false }) => (
   <div className="min-w-20">
     <dt className="text-xs text-muted-foreground"><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span className="cursor-help">{label}</span></Tooltip></dt>
-    <Tooltip content={detail ?? 'Source: billing records for this customer order.'}><dd className={`cursor-help text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}>{value}</dd></Tooltip>
+    <dd className={`cursor-help text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}><Tooltip content={detail ?? 'Source: billing records for this customer order.'}><span>{value}</span></Tooltip></dd>
   </div>
 );
 
 const QuantityFigure: React.FC<{ label: string; value: string; detail?: string }> = ({ label, value, detail }) => (
   <div className="flex items-baseline justify-between gap-2">
     <dt><Tooltip content={detail ?? 'Source: project billing records.'}><span className="cursor-help">{label}</span></Tooltip></dt>
-    <Tooltip content={detail ?? 'Source: project billing records.'}><dd className="cursor-help tabular-nums text-foreground">{value}</dd></Tooltip>
+    <dd className="cursor-help tabular-nums text-foreground"><Tooltip content={detail ?? 'Source: project billing records.'}><span>{value}</span></Tooltip></dd>
   </div>
 );
 
