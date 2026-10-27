@@ -187,6 +187,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   );
 
   const all = useMemo(() => (data ?? []) as ProjectDocumentRow[], [data]);
+  const hasAnyFile = all.some((doc) =>
+    Boolean(doc.file_path) || (doc.source === 'onedrive' && doc.ms_item_kind === 'file'),
+  );
 
   const documentsById = useMemo(() => {
     const map = new Map<string, ProjectDocumentRow>();
@@ -323,6 +326,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         : <StatusPill variant={workflowVariant(d.status)}>{d.status}</StatusPill>,
     },
   ];
+  const visibleColumns = hasAnyFile ? columns : columns.filter((column) => column.key !== 'file_path');
 
   /** The status actions available on a row, per the workflow + SoD + role gates. */
   const statusActions = (d: ProjectDocumentRow): RowMenuItem[] => {
@@ -578,8 +582,12 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             </Button>
           )}
           {canCreateMicrosoftReference && (
-            <Button variant="outline" size="sm" onClick={() => setMicrosoftEntry({ kind: 'create' })}>
-              <Icon name="doc" />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-auto min-h-0 px-0 py-0 text-xs text-primary underline-offset-4 hover:bg-transparent hover:underline"
+              onClick={() => setMicrosoftEntry({ kind: 'create' })}
+            >
               {t('m365Documents.link', 'Link from Microsoft 365')}
             </Button>
           )}
@@ -635,7 +643,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         </GateNotice>
       )}
 
-      {state !== 'loading' && all.length > 0 && (
+      {state !== 'loading' && all.length > 10 && (
         <Toolbar standalone>
           <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
@@ -680,7 +688,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       {state === undefined && (
         <DataTable<ProjectDocumentRow>
           rows={filtered}
-          columns={columns}
+          columns={visibleColumns}
           rowKey={(d) => d.id}
           onActivate={(d) => setDrawerDoc(d)}
           rowMenu={anyRowWrite ? rowMenu : undefined}

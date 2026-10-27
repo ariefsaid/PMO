@@ -59,6 +59,12 @@ vi.mock('@/src/hooks/useRevision', () => ({
 vi.mock('@/src/lib/repositories', () => ({
   repositories: repositoryState,
 }));
+vi.mock('@/src/components/m365/DocumentLinkPermissions', () => ({
+  useDocumentLinkPermissions: () => ({
+    projectCreate: () => realRole !== 'Engineer',
+    projectEdit: () => realRole !== 'Engineer',
+  }),
+}));
 
 // usePermission reads the REAL JWT role; the SoD also reads the current user id.
 let realRole: Role = 'Admin';
@@ -84,6 +90,17 @@ const seed = [
   { id: 'd4', project_id: 'p1', code: null, category: 'Transmittal', title: 'Cover Note', revision: null, status: 'Rejected', author_id: 'pm-1', doc_date: null, org_id: 'org-1', file_path: null, parent_document_id: null, created_at: '2026-06-04T00:00:00Z' },
   { id: 'd5', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'A', status: 'Superseded', author_id: 'pm-1', doc_date: '2026-04-20', org_id: 'org-1', file_path: 'org-1/p1/d5/structural-calc-rev-a.pdf', parent_document_id: null, created_at: '2026-04-20T00:00:00Z' },
   { id: 'd6', project_id: 'p1', code: 'RPT-003', category: 'Report', title: 'Structural calculation report', revision: 'B', status: 'Issued', author_id: 'pm-2', doc_date: '2026-05-20', org_id: 'org-1', file_path: 'org-1/p1/d6/structural-calc-rev-b.pdf', parent_document_id: 'd5', created_at: '2026-05-20T00:00:00Z' },
+];
+
+const withDocumentCount = (count: number) => [
+  ...seed,
+  ...Array.from({ length: Math.max(0, count - seed.length) }, (_, index) => ({
+    ...seed[0],
+    id: `extra-${index + 1}`,
+    code: `DOC-EXTRA-${index + 1}`,
+    title: `Additional Document ${index + 1}`,
+    parent_document_id: null,
+  })),
 ];
 
 const renderTab = (role: Role = 'Admin', uid = 'admin-1') => {
@@ -144,6 +161,7 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
   });
 
   it('AC-DOC-001: search filters rows by title/code', async () => {
+    listState.data = withDocumentCount(11);
     renderTab();
     await userEvent.type(screen.getByLabelText(/Search documents/i), 'steel');
     expect(screen.queryByText('Site Plan')).not.toBeInTheDocument();
@@ -151,11 +169,18 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
   });
 
   // SUB-E: the "N documents" count restated what the table already shows — removed.
-  it('SUB-E: the toolbar shows search but no "N documents" count', () => {
+  it('shows search above 10 documents and no "N documents" count', () => {
+    listState.data = withDocumentCount(11);
     renderTab();
     expect(screen.getByLabelText(/Search documents/i)).toBeInTheDocument();
     expect(screen.queryByTestId('documents-count')).toBeNull();
     expect(screen.queryByText(/^\d+ documents?$/)).toBeNull();
+  });
+
+  it('hides search at 10 documents', () => {
+    listState.data = withDocumentCount(10);
+    renderTab();
+    expect(screen.queryByLabelText(/Search documents/i)).not.toBeInTheDocument();
   });
 });
 
@@ -366,6 +391,20 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
 
     expect(screen.getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Download file for Survey Report/i })).toBeInTheDocument();
+  });
+
+  it('hides the File column when no document has a file', () => {
+    listState.data = seed.map((doc) => ({ ...doc, file_path: null, source: null, ms_item_kind: null }));
+    renderTab('Admin', 'admin-1');
+    expect(screen.queryByRole('columnheader', { name: 'File' })).not.toBeInTheDocument();
+  });
+
+  it('renders Microsoft 365 linking as a quiet text action beside Add document', () => {
+    renderTab('Admin', 'admin-1');
+    const linkAction = screen.getByRole('button', { name: /Link from Microsoft 365/i });
+    expect(linkAction.className).toContain('text-xs');
+    expect(linkAction.className).toContain('text-primary');
+    expect(linkAction.className).not.toContain('border-input');
   });
 
   it('AC-DOC-081 / AC-DOC-082: renders the Superseded pill, lineage links, and continue-on microcopy', () => {
