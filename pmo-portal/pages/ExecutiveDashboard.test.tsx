@@ -1,472 +1,218 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
-import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { BahasaProvider } from '@/test/bahasa';
 
-type Analytics = typeof import('@/src/lib/analytics');
-const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
-const desktop = vi.hoisted(() => ({ value: true }));
-vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
-// OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
-vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
-  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+const state = vi.hoisted(() => ({ role: 'Executive', unknownContract: false }));
+const needsState = vi.hoisted(() => ({
+  items: [{ id: 'approvals', count: 2, label: '2 approvals waiting for you', href: '/approvals', tone: 'warn' }],
+  areaItems: [
+    { id: 'at-risk', count: 2, label: '2 projects at risk', href: '/projects?filter=at-risk', tone: 'warn' },
+    { id: 'ready-to-bill', count: 1, label: '1 work order still to invoice', href: '/projects', tone: 'neutral' },
+  ],
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
 }));
-vi.mock('@/src/lib/analytics', async importOriginal => ({
-  ...await importOriginal<Analytics>(),
-  trackComingSoonClicked: analytics.trackComingSoonClicked,
-} satisfies Analytics));
+const projectsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const procurementsState = vi.hoisted(() => ({ data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() }));
+const defaultToday = [
+  { id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', subline: 'Left after spending: $500', href: '/projects', unavailableReason: 'Contract amount is not available.' },
+  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin: amount shown · Percent of billed work: —', href: '/sales-invoices' },
+  { id: 'pipeline', label: 'Pipeline (weighted)', value: '$300', subline: 'Gross: $600 · Forecast margin: 20%', href: '/sales' },
+  { id: 'client-overdue', label: 'Owed by clients · overdue', value: '2', subline: '$400 · Oldest 14 days overdue', href: '/sales-invoices?overdue=true' },
+  { id: 'supplier-payables', label: 'Owed to suppliers', value: '$100', href: '/procurement?status=Vendor+Invoiced' },
+  { id: 'still-to-invoice', label: 'Still to invoice on work orders', value: '$250', href: '/projects' },
+];
+const figureState = vi.hoisted(() => ({
+  result: null as null | Record<string, unknown>,
+}));
 
-// Oracle payload — extended dual-lens fields (no avg_gross_margin)
-const populated = {
-  active_projects: 2,
-  total_contract_value: 8000000,
-  on_hand_margin: 0.949375,
-  on_hand_value: 8000000 as number | null,
-  on_hand_contract_remaining: 7_595_000 as number | null,
-  on_hand_realized_margin: 1_200_000 as number | null,
-  on_hand_actual_known: 4_000_000,
-  on_hand_actual_project_count: 2,
-  on_hand_actual_project_total: 2,
-  on_hand_actual_coverage_count: 2,
-  on_hand_actual_coverage_total: 2,
-  on_hand_value_by_currency: [{ currency: 'USD', contract_value: 8000000, actual_known: 4000000, contract_remaining: 7595000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 1200000, unknown_projects: 0 }],
-  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1200000, unknown_projects: 0 }],
-  pipeline_weighted_value: 800000,
-  pipeline_projected_margin: 0.200 as number | null,
-  pipeline_total_value: 2000000,
-  projects_at_risk: 1,
-  projects_by_status: [
-    { status: 'Ongoing Project', count: 2 },
-    { status: 'Tender Submitted', count: 1 },
-    { status: 'PQ Submitted', count: 1 },
-  ],
-  procurements_by_status: [
-    { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
-    { status: 'Ordered', count: 1 }, { status: 'Paid', count: 1 },
-  ],
-  top_projects: [
-    { id: 'p1', name: 'Innovate Corp HQ Fit-Out', client_name: 'Innovate Corp',
-      contract_value: 5000000, currency: 'USD', budget: 4700000, spent: 2100000, status: 'Ongoing Project' },
-    { id: 'p3', name: 'Acme Internal Platform', client_name: 'Innovate Corp',
-      contract_value: 3000000, currency: 'USD', budget: 2000000, spent: 1900000, status: 'Ongoing Project' },
-  ],
-};
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }) }));
+vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({
+  useCompanyFigures: () => figureState.result,
+}));
+vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
+  useNeedsYou: () => needsState,
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({ useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }) }));
+vi.mock('@/src/hooks/useDashboard', () => ({
+  useSalesPipeline: () => ({ data: { stages: [], projects: [] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useWinRate: () => ({ data: { wins_count: 2, losses_count: 1, wins_value: 500, losses_value: 250, win_rate_count: 2 / 3, win_rate_value: 2 / 3 }, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProcurements: () => procurementsState }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => projectsState }));
+vi.mock('@/src/hooks/useErpSnapshots', () => ({
+  useActualsSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useApAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useArAgingSnapshot: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status, useProcurementStatusLabel: () => (status: string) => status }));
+vi.mock('@/src/components/dashboard/EngineerDashboard', () => ({ EngineerDashboard: () => <div data-testid="engineer-dashboard">Engineer work</div> }));
+vi.mock('@/src/components/dashboard/PMDashboard', () => ({ PMDashboard: () => <div data-testid="pm-dashboard">My projects</div> }));
 
-// Oracle win-rate — all-time §3.8
-const winRateOracle = {
-  wins_count: 2, losses_count: 1, wins_value: 8000000, losses_value: 650000,
-  win_rate_count: 0.666667, win_rate_value: 0.924855,
-};
+const periodFigures = [
+  { id: 'invoiced', label: 'Invoiced · excl. tax', value: '$2,000', href: '/sales-invoices' },
+  { id: 'collected', label: 'Collected', value: '$1,000', href: '/incoming-payments' },
+  { id: 'won', label: 'Won', value: '2 · $500', href: '/projects?status=Won' },
+  { id: 'win-rate', label: 'Win rate', value: '66.7%', href: '/sales' },
+];
 
-// Track calls to useWinRate so AC-1115 can assert range changes.
-// Held in a container object (not a bare `let`) so TS's control-flow narrowing
-// doesn't collapse the type to `never` across the closure reassignment in the
-// useWinRate mock below.
-const winRateRangeTracker: { current: { key: string } | null } = { current: null };
-// A reset assignment routed through a function (rather than inline `= null`) so
-// TS's CFA doesn't narrow `.current` to the literal `null` type at the call site —
-// direct inline `null` assignment collapses subsequent `?.` reads to `never`
-// (a known TS narrowing quirk for object properties assigned a bare null literal).
-function resetWinRateRangeTracker(): void {
-  winRateRangeTracker.current = null;
+function LocationProbe() {
+  const location = useLocation();
+  return <output data-testid="location">{location.pathname}{location.search}</output>;
 }
 
-const dashState: {
-  data: (typeof populated & Pick<ExecutiveDashboardData, 'on_hand_value_by_currency' | 'on_hand_realized_margin_by_currency'>) | null;
-  isPending: boolean;
-  isError: boolean;
-  refetch: ReturnType<typeof vi.fn>;
-} = { data: populated, isPending: false, isError: false, refetch: vi.fn() };
+function renderPage(initial = '/') {
+  return render(<MemoryRouter initialEntries={[initial]}><ToastProvider><LocationProbe /><ExecutiveDashboard /></ToastProvider></MemoryRouter>);
+}
 
-vi.mock('@/src/hooks/useDashboard', () => ({
-  useDashboard: () => dashState,
-  useWinRate: (range: { key: string }) => {
-    winRateRangeTracker.current = range;
-    return { data: winRateOracle, isPending: false, isError: false };
-  },
-  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
-}));
-vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {}, isLoading: false }) }));
-vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
-}));
-// N15 approvals tile reads procurements + the timesheet queue.
-vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: [], isPending: false }),
-}));
-const approvalState = vi.hoisted(() => ({ timesheets: [{ id: 't1' }] as Array<{ id: string }> }));
-vi.mock('@/src/hooks/useTimesheetApproval', () => ({
-  useTimesheetsAwaitingApproval: () => ({ data: approvalState.timesheets }),
-}));
-vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Executive' }),
-}));
-// FR-L10N-020: exec-dashboard KPI aggregates are org-denominated (RPC rows carry no currency).
-const orgState = vi.hoisted(() => ({ currency: 'USD' }));
-vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => orgState.currency }));
-
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <ToastProvider>
-        <ExecutiveDashboard />
-      </ToastProvider>
-    </MemoryRouter>,
-  );
+function renderBahasaPage() {
+  return render(<BahasaProvider locale="id"><MemoryRouter><ToastProvider><ExecutiveDashboard /></ToastProvider></MemoryRouter></BahasaProvider>);
+}
 
 beforeEach(() => {
-  desktop.value = true;
-  dashState.isPending = false; dashState.isError = false; dashState.data = populated;
+  state.role = 'Executive';
+  state.unknownContract = false;
+  needsState.isPending = false;
+  needsState.isError = false;
+  needsState.refetch.mockClear();
+  projectsState.data = [];
+  procurementsState.data = [];
+  figureState.result = {
+    today: defaultToday.map((figure) => figure.id === 'contract-on-hand' && state.unknownContract ? { ...figure, value: null } : figure),
+    period: periodFigures,
+    todayPending: false, todayError: false, periodPending: false, periodError: false,
+    todayRetry: vi.fn(), periodRetry: vi.fn(),
+    dashboard: { top_projects: [], projects_by_status: [{ status: 'Ongoing Project', count: 1 }], procurements_by_status: [], pipeline_projected_margin: 0.2, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 1 },
+    dashboardPending: false, dashboardError: false, dashboardRetry: vi.fn(),
+    pipeline: { projects: [], stages: [] }, pipelinePending: false, pipelineError: false, pipelineRetry: vi.fn(),
+    winRateRange: { key: 'test-period', from: new Date(2026, 0, 1), to: new Date(2026, 9, 27) },
+    orgCurrency: 'USD', currencyPending: false, organizationToday: '2026-10-27', organizationDayPending: false,
+    isEmpty: false,
+  };
 });
 
-describe('ExecutiveDashboard (real data)', () => {
-  it('AC-SL-B-001: no budgets → one risk note, no forecast-margin tile or headline, no Active projects tile', () => {
-    dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
+describe('company area hub (#1403)', () => {
+  it('AC-DASH-1403-01: Executive sees all four company work areas and six index figures', () => {
     renderPage();
-    expect(screen.getAllByText(/Risk can't be checked yet/)).toHaveLength(1);
-    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
-    const marginCard = screen.getByTestId('dashboard-pipeline-margin');
-    expect(within(marginCard).getByText('Pipeline (weighted)')).toBeInTheDocument();
-    expect(within(marginCard).queryByText('Pipeline forecast margin')).toBeNull();
-    expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
-  });
-
-  it('AC-RD-MONEY-003: in an IDR org a USD on-hand row names its currency by code, never a bare "$"', () => {
-    orgState.currency = 'IDR';
-    try {
-      dashState.data = {
-        ...populated,
-        on_hand_value: null as unknown as number,
-        on_hand_value_by_currency: [
-          { currency: 'IDR', contract_value: 373_500_000_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
-          { currency: 'USD', contract_value: 3_400_000, actual_known: 0, contract_remaining: 0, actual_coverage_count: 1, actual_coverage_total: 1, realized_margin_known: 0, unknown_projects: 0 },
-        ],
-      };
-      renderPage();
-      const tile = screen.getByTestId('kpi-on-hand-margin');
-      expect(tile).toHaveTextContent('USD 3.4M');
-      expect(tile).not.toHaveTextContent(/\$3\.4M/);
-    } finally {
-      orgState.currency = 'USD';
+    for (const area of ['Delivery', 'Sales', 'Billing and collections', 'Purchasing']) {
+      expect(screen.getByRole('heading', { name: area })).toBeInTheDocument();
     }
+    expect(screen.getByRole('region', { name: 'Company figures' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /Help:/ })).toHaveLength(6);
+    const atRisk = screen.getByRole('link', { name: /projects at risk/i });
+    expect(atRisk).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(atRisk).toHaveTextContent('2');
+    expect(screen.getByRole('link', { name: /work order still to invoice/i })).toHaveAttribute('href', '/projects');
+    expect(screen.getAllByText(/Percent of billed work: —/)).toHaveLength(2);
   });
 
-  it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
-    dashState.data = {
-      ...populated,
-      on_hand_value: null as unknown as number,
-      on_hand_contract_remaining: null as unknown as number,
-      on_hand_realized_margin: null as unknown as number,
-      on_hand_value_by_currency: [
-        { currency: 'IDR', contract_value: 2_000_000_000, actual_known: 1_200_000_000, contract_remaining: 800_000_000, actual_coverage_count: 144, actual_coverage_total: 150, realized_margin_known: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', contract_value: 1_000_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 150, realized_margin_known: null as unknown as number, unknown_projects: 1 },
-      ],
-      on_hand_realized_margin_by_currency: [
-        { currency: 'IDR', known_amount: 100_000_000, unknown_projects: 0 },
-        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
-      ],
-      on_hand_actual_coverage_count: 144,
-      on_hand_actual_coverage_total: 150,
-    };
+  it('AC-DASH-1403-02: a missing position value stays an explained dash with a working page link', () => {
+    state.unknownContract = true;
+    const current = figureState.result;
+    if (current) current.today = defaultToday.map((figure) => figure.id === 'contract-on-hand' ? { ...figure, value: null } : figure);
     renderPage();
-    const tile = screen.getByTestId('kpi-on-hand-margin');
-    // OD-MONEY-FMT: each currency shows once, in the short form (amount plus currency, never "USD $...").
-    expect(tile).toHaveTextContent('IDR 2B');
-    expect(tile).toHaveTextContent('$1M');
-    expect(tile).not.toHaveTextContent(/USD\s*\$/);
-    expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
-    expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
-      .toHaveAttribute('href', '/administration/accounting#budget-account-map');
-    expect(tile).not.toHaveTextContent('Not available yet');
+    const link = screen.getByRole('link', { name: 'Contract on hand' });
+    expect(link).toHaveAttribute('href', '/projects');
+    expect(screen.getByRole('button', { name: 'Contract amount is not available.' })).toHaveTextContent('—');
   });
 
-  it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
-    dashState.data = {
-      ...populated,
-      pipeline_projected_margin: null as unknown as number,
-      pipeline_weighted_value: null as unknown as number,
-    };
+  it('AC-DASH-1403-03: the period picker writes the selected period into the URL', () => {
     renderPage();
-    // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
-    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
-    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
-    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Period' }), { target: { value: 'month' } });
+    expect(screen.getByTestId('location')).toHaveTextContent('/?period=month');
   });
 
-  it('gives active contract value its own label distinct from contract value on hand', () => {
+  it('AC-A11Y-DASH-1403-01: keyboard focus opens metric help without navigating', async () => {
+    const user = userEvent.setup();
     renderPage();
-    const onHand = screen.getByTestId('kpi-on-hand-margin');
-    const active = screen.getByTestId('kpi-total-contract-value');
-    expect(onHand).toHaveTextContent('Contract value on hand');
-    expect(active).toHaveTextContent('Active contract value');
-    expect(active).not.toHaveTextContent('Contract value on hand');
+    const help = screen.getByRole('button', { name: 'Help: Contract on hand' });
+    expect(help.closest('a')).toBeNull();
+    for (let index = 0; index < 12 && document.activeElement !== help; index += 1) await user.tab();
+    expect(help).toHaveFocus();
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Sum of contract values for delivery work/);
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
   });
 
-  it('a null pipeline margin from zero gross value shows no margin tile and the weighted card title (SL-B)', () => {
-    dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
+  it('AC-DASH-1403-10: a delivery project row opens its owning project page', () => {
+    const current = figureState.result;
+    if (current) (current.dashboard as Record<string, unknown>).top_projects = [{
+      id: 'project-1', name: 'Project North', contract_value: 500, currency: 'USD', spent: 200,
+      actual_complete: true, actual_currency: 'USD', status: 'Ongoing Project',
+    }];
+    projectsState.data = [{ id: 'project-1', pm: { full_name: 'Project Manager' } }];
     renderPage();
-    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('dashboard-pipeline-margin')).getByText('Pipeline (weighted)')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open Project North' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/projects/project-1');
   });
 
-  it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
+  it('AC-DASH-1403-04: Finance sees billing first and the two review tables', () => {
+    state.role = 'Finance';
     renderPage();
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
-    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
+    expect(screen.getAllByRole('heading', { name: 'Billing and collections' })[0]).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ready to pay' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Budget review' })).toBeInTheDocument();
   });
 
-  it('AC-UX-016: actionable approvals precede the passive KPI band', () => {
-    const { container } = renderPage();
-    const approvals = screen.getByTestId('kpi-awaiting-approval');
-    const kpis = container.querySelector('[aria-label="Portfolio KPIs"]')!;
-    expect(approvals.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-  it('AC-SL-A-001: nothing waiting → no approvals tile and no Review button on the executive dashboard', () => {
-    approvalState.timesheets = [];
-    try {
-      renderPage();
-      expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
-      expect(screen.queryByText('Review')).not.toBeInTheDocument();
-    } finally {
-      approvalState.timesheets = [{ id: 't1' }];
-    }
-  });
-  it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
+  it('AC-DASH-1403-11: a ready-to-pay row opens its procurement record page', () => {
+    state.role = 'Finance';
+    procurementsState.data = [{
+      id: 'procurement-1', title: 'Supplier invoice 42', status: 'Vendor Invoiced', total_value: 250,
+      currency: 'USD', updated_at: '2026-10-20T00:00:00.000Z', vendor_invoiced_at: '2026-10-20T00:00:00.000Z',
+      project: { name: 'Project North' }, vendor: { name: 'Supplier One' },
+    }];
     renderPage();
-    const tile = screen.getByTestId('kpi-awaiting-approval');
-    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
-    expect(tile).toHaveTextContent(/Review/i);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Supplier invoice 42' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/procurement/procurement-1');
   });
-  it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
+
+  it('AC-DASH-1403-06: Admin sees the same company hub as Executive', () => {
+    state.role = 'Admin';
     renderPage();
-    expect(screen.getByTestId('dashboard-pipeline')).toHaveTextContent('2');
+    expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Sales' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Billing and collections' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchasing' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Ready to pay' })).not.toBeInTheDocument();
   });
-  it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
+
+  it('AC-DASH-1403-07: a failed attention query leaves the other company areas usable and offers retry', () => {
+    needsState.isError = true;
     renderPage();
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('PMO purchasing requests');
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
-    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
+    expect(screen.getByText("Couldn't load approvals and attention items")).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Delivery' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Purchasing' })).toBeInTheDocument();
   });
 
-  it('AC-S19-004: dashboard links use the shared full status labels and preserve raw status filters', () => {
-    dashState.data = {
-      ...populated,
-      procurements_by_status: [
-        ...populated.procurements_by_status,
-        { status: 'Received', count: 1 },
-        { status: 'Vendor Invoiced', count: 1 },
-      ],
-    };
+  it('AC-DASH-1403-08: dashboard headings use the Bahasa catalogue', () => {
+    renderBahasaPage();
+    expect(screen.getByRole('heading', { name: 'Dasbor' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pekerjaan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Penjualan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Penagihan dan penerimaan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pembelian' })).toBeInTheDocument();
+  });
+
+  it('AC-DASH-1403-05: Engineer is routed to the personal dashboard with no company money figures', () => {
+    state.role = 'Engineer';
     renderPage();
-    const chart = screen.getByTestId('dashboard-proc-status');
-    expect(within(chart).getByRole('link', { name: /Purchase Request/ })).toHaveAttribute(
-      'href',
-      '/procurement?status=Requested',
-    );
-    expect(within(chart).getByRole('link', { name: /Vendor Quote/ })).toHaveAttribute(
-      'href',
-      '/procurement?status=Vendor%20Quoted',
-    );
-    expect(within(chart).getByRole('link', { name: /Purchase Order/ })).toHaveAttribute(
-      'href',
-      '/procurement?status=Ordered',
-    );
-    expect(within(chart).getByRole('link', { name: /Goods Receipt/ })).toHaveAttribute(
-      'href',
-      '/procurement?status=Received',
-    );
-    expect(within(chart).getByRole('link', { name: /Vendor Invoice/ })).toHaveAttribute(
-      'href',
-      '/procurement?status=Vendor%20Invoiced',
-    );
+    expect(screen.getByTestId('engineer-dashboard')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
+    expect(screen.queryByText('$1,000')).not.toBeInTheDocument();
   });
 
-  it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
-    dashState.data = { ...populated, procurements_by_status: [] };
+  it('AC-DASH-1403-09: Project Manager remains routed to the personal projects dashboard', () => {
+    state.role = 'Project Manager';
     renderPage();
-    const chart = screen.getByTestId('dashboard-proc-status');
-    expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
-    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
-  });
-  it('spending-vs-contract list shows project names and contract denominator', () => {
-    renderPage();
-    expect(screen.getByText('Innovate Corp HQ Fit-Out')).toBeInTheDocument();
-    expect(screen.getByText('Acme Internal Platform')).toBeInTheDocument();
-  });
-});
-
-describe('ExecutiveDashboard states', () => {
-  it('loading skeleton while pending (AC-706)', () => {
-    dashState.isPending = true; dashState.isError = false;
-    renderPage();
-    expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
-  });
-  it('error state with retry (AC-707)', () => {
-    dashState.isError = true; dashState.isPending = false;
-    renderPage();
-    expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
-  });
-  it('empty state when org has no projects/procurements (AC-708)', () => {
-    dashState.data = {
-      active_projects: 0, total_contract_value: 0,
-      on_hand_margin: 0, on_hand_value: 0, on_hand_contract_remaining: 0, on_hand_realized_margin: 0,
-      on_hand_actual_known: 0, on_hand_actual_project_count: 0, on_hand_actual_project_total: 0,
-      on_hand_actual_coverage_count: 0, on_hand_actual_coverage_total: 0,
-      on_hand_value_by_currency: [], on_hand_realized_margin_by_currency: [],
-      pipeline_weighted_value: 0, pipeline_projected_margin: 0, pipeline_total_value: 0, projects_at_risk: 0,
-      projects_by_status: [], procurements_by_status: [], top_projects: [],
-    };
-    renderPage();
-    expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
-  });
-});
-
-describe('ExecutiveDashboard design polish', () => {
-  it('DA-1: actionable warning link uses the accessible warning-foreground token', () => {
-    renderPage();
-    const warningLink = screen.getByRole('link', { name: /Review 1 at-risk project/i });
-    expect(warningLink).toHaveClass('text-warning-foreground');
-    expect(warningLink).not.toHaveClass('text-warning');
-  });
-
-  it('DA-3: mobile dashboard renders the Board pack action', () => {
-    desktop.value = false;
-    renderPage();
-    expect(screen.getByRole('button', { name: /board pack/i })).toBeInTheDocument();
-    desktop.value = true;
-  });
-});
-
-describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
-  it('AC-1114: renders contracted revenue and billed-work margin without implying contract remainder is profit', () => {
-    renderPage();
-    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Margin on billed work');
-    expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
-    // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the title (goal oracle: right currency).
-    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
-    expect(weighted).toHaveTextContent('$800K');
-    expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
-    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
-    // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
-    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
-    expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
-  });
-
-  it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
-    renderPage();
-    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
-    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
-    expect(tile).toHaveTextContent('20.0%');
-    expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
-    expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
-  });
-});
-
-describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
-  it('AC-1115: win-rate tile toggles count↔value and period re-queries (FR-SPD-013)', () => {
-    resetWinRateRangeTracker();
-    renderPage();
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
-    fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
-    fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
-    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
-
-    const initialKey = winRateRangeTracker.current?.key;
-    fireEvent.click(screen.getByTestId('win-rate-period-q'));
-    expect(winRateRangeTracker.current?.key).not.toBe(initialKey);
-  });
-});
-
-describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', () => {
-  it('AC-JR-W1-10: each procurement status legend entry links to /procurement?status=<Status>', () => {
-    renderPage();
-    // The populated oracle has 5 procurement statuses; each should now be a link.
-    const draftLink = screen.getByRole('link', { name: /Draft/i });
-    expect(draftLink).toHaveAttribute('href', '/procurement?status=Draft');
-
-    const requestedLink = screen.getByRole('link', { name: /Purchase Request/i });
-    expect(requestedLink).toHaveAttribute('href', '/procurement?status=Requested');
-
-    const paidLink = screen.getByRole('link', { name: /Paid/i });
-    expect(paidLink).toHaveAttribute('href', '/procurement?status=Paid');
-  });
-
-  it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
-    renderPage();
-    // "Vendor Quote" has a space — the raw status value is still encoded unchanged.
-    const vendorLink = screen.getByRole('link', { name: /Vendor Quote/i });
-    expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
-  });
-});
-
-describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (AC-JR-W4-05)', () => {
-  it('AC-JR-W4-05: Pipeline (weighted) help tooltip says "project value" not "opportunity value"', () => {
-    renderPage();
-    const tile = screen.getByTestId('kpi-pipeline-weighted-value');
-    // The Pipeline (weighted) tile IS a link variant — help glyph is aria-hidden.
-    // Trigger hover to open the tooltip and verify text.
-    const helpSpan = tile.querySelector('[aria-hidden="true"][class*="cursor-help"]') as HTMLElement | null;
-    if (helpSpan) {
-      fireEvent.mouseEnter(helpSpan);
-      const tooltip = document.querySelector('[role="tooltip"]');
-      if (tooltip) {
-        expect(tooltip.textContent).not.toContain('opportunity value');
-        expect(tooltip.textContent).toContain('project value');
-      }
-    }
-    // Regression: old "opportunity value" text must not appear anywhere in the rendered page
-    expect(document.body.textContent).not.toContain('opportunity value');
-  });
-});
-
-describe('ExecutiveDashboard token purity / no mockData', () => {
-  it('does not render legacy gray/dark utility classes on the KPI band', () => {
-    const { container } = renderPage();
-    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
-    expect(band).toBeTruthy();
-    expect(band.querySelector('.text-gray-500')).toBeNull();
-    expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
-  });
-
-  it('reflows the KPI band 1→2→3→4 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
-    const { container } = renderPage();
-    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
-    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
-    expect(band.className).toContain('grid-cols-1');
-    expect(band.className).toContain('min-[560px]:grid-cols-2');
-    expect(band.className).toContain('min-[920px]:grid-cols-3');
-    expect(band.className).toContain('min-[1180px]:grid-cols-4');
-    // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
-    expect(band.className).not.toContain('sm:grid-cols');
-  });
-});
-
-describe('coming_soon_clicked: the "Board pack" deferred export affordance (2026-07-13 wiring plan)', () => {
-  beforeEach(() => {
-    analytics.trackComingSoonClicked.mockClear();
-  });
-
-  it('AC: clicking the disabled Board pack affordance fires trackComingSoonClicked (demand signal)', () => {
-    renderPage();
-    const boardPack = screen.getByRole('button', { name: /board pack \(coming soon\)/i });
-    expect(boardPack).toBeDisabled();
-    // The wrapping span reports the click — a disabled button cannot dispatch one.
-    fireEvent.click(boardPack.parentElement!);
-    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith('board-pack-export', 'dashboard');
-  });
-});
-
-describe('still to invoice (OD-BILL-1 / #786)', () => {
-  it('AC-UNB-005 the executive dashboard carries the still-to-invoice card', () => {
-    renderPage();
-    expect(screen.getByTestId('still-to-invoice-loading')).toBeInTheDocument();
+    expect(screen.getByTestId('pm-dashboard')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Company figures' })).not.toBeInTheDocument();
   });
 });

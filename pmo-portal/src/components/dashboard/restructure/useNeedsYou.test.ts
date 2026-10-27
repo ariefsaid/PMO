@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildNeedsItems, type NeedsYouFacts } from './useNeedsYou';
+import { buildNeedsItems, selectSupplierInvoices, type NeedsYouFacts } from './useNeedsYou';
 
 const translate = (key: string, fallback: string, options?: Record<string, unknown>) =>
   fallback.replace('{{count}}', String(options?.count ?? ''));
@@ -21,7 +21,7 @@ describe('needs-you dashboard selectors', () => {
     const items = buildNeedsItems('Finance', {
       approvals: 0,
       overdueInvoices: { count: 2, knownTotals: [], unknownBalances: 1, oldestDays: 8 },
-      supplierInvoices: { count: 4, knownTotals: [] },
+      supplierInvoices: { count: 4, knownTotals: [], unknownBalances: 1 },
       readyToBill: 0,
       budgetsOver: 1,
     }, translate);
@@ -32,6 +32,7 @@ describe('needs-you dashboard selectors', () => {
       [1, '/projects'],
     ]);
     expect(items[0].label).toContain('1 balance unknown');
+    expect(items[1].label).toContain('Unknown balances: 1');
   });
 
   it('shows the Project Manager queue and links it to the owning work areas', () => {
@@ -60,7 +61,7 @@ describe('needs-you dashboard selectors', () => {
     const clear: NeedsYouFacts = {
       approvals: 0, atRiskProjects: 0, procurementsAwaitingApproval: 0,
       overdueInvoices: { count: 0, knownTotals: [], unknownBalances: 0, oldestDays: null },
-      supplierInvoices: { count: 0, knownTotals: [] }, readyToBill: 0, budgetsOver: 0,
+      supplierInvoices: { count: 0, knownTotals: [], unknownBalances: 0 }, readyToBill: 0, budgetsOver: 0,
       projectsOverBudget: 0, overdueProjectTasks: 0, timesheetsToApprove: 0,
       timesheetStatus: 'Approved', engineerTasks: 0, returnedExpenses: 0,
     };
@@ -69,5 +70,15 @@ describe('needs-you dashboard selectors', () => {
     expect(buildNeedsItems('Finance', clear, translate)).toEqual([]);
     expect(buildNeedsItems('Project Manager', clear, translate)).toEqual([]);
     expect(buildNeedsItems('Engineer', clear, translate)).toEqual([]);
+  });
+
+  it('keeps supplier totals limited to known invoice balances and counts unknown balances', () => {
+    const result = selectSupplierInvoices([
+      { status: 'Vendor Invoiced', currency: 'USD', total_value: 125 },
+      { status: 'Vendor Invoiced', currency: 'USD', total_value: null },
+      { status: 'Paid', currency: 'USD', total_value: 500 },
+    ] as never[]);
+
+    expect(result).toEqual({ count: 2, knownTotals: [{ currency: 'USD', amount: 125 }], unknownBalances: 1 });
   });
 });

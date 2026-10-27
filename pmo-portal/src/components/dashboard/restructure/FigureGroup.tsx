@@ -2,6 +2,8 @@ import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { ListState } from '@/src/components/ui/ListState';
+import { Tooltip } from '@/src/components/ui/Tooltip';
+import { Icon } from '@/src/components/ui/icons';
 
 export interface DashboardFigure {
   id: string;
@@ -12,6 +14,7 @@ export interface DashboardFigure {
   href?: string;
   unavailableReason?: string;
   title?: string;
+  help?: string;
 }
 
 export interface FigureGroupProps {
@@ -62,7 +65,16 @@ export const FigureGroup: React.FC<FigureGroupProps> = ({
           );
           const content = (
             <>
-              <span className="block text-[12px] text-muted-foreground">{figure.label}</span>
+              <span className="flex min-h-11 items-center gap-1 text-[12px] text-muted-foreground">
+                {figure.label}
+                {figure.help && (
+                  <Tooltip content={figure.help}>
+                    <button type="button" aria-label={t('kpi.aboutMetric', 'About this metric') + ': ' + figure.label} className="touch-target grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                      <Icon name="help" className="size-3.5" />
+                    </button>
+                  </Tooltip>
+                )}
+              </span>
               <span className="mt-1 block text-[23px] font-bold leading-tight tabular">{value}</span>
               {figure.subline && <span className="mt-1 block text-[12px] text-muted-foreground">{figure.subline}</span>}
             </>
