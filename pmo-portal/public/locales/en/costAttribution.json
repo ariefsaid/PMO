@@ -1,8 +1,7 @@
 {
   "add": "Add rule",
+  "description": "Places ledger cost that has no ERP project onto projects, for example payroll. It is shown as attributed, apart from cost tagged in the ERP, and nothing is written to the ERP.",
   "empty": {
-    "clearHelp": "Clear filters to see all cost attribution rules.",
-    "noMatches": "No rules match these filters",
     "readOnly": "Finance and Admin can add rules.",
     "sub": "Add a rule to place untagged ledger cost, such as payroll, onto projects.",
     "title": "No cost attribution rules yet"
@@ -64,10 +63,7 @@
   },
   "list": {
     "account": "Account {{name}}",
-    "active": "Active",
-    "allStatuses": "All statuses",
     "actions": "Actions",
-    "clear": "Clear filters",
     "costCenter": "cost centre {{name}}",
     "dates": "Posting dates",
     "edit": "Edit {{name}}",
@@ -75,26 +71,14 @@
     "end": "End {{name}}",
     "endShort": "End",
     "ended": "ended",
-    "endedStatus": "Ended",
     "fromOpen": "From {{from}}",
     "group": "Group {{name}}",
     "match": "Match",
     "name": "Rule",
     "party": "party {{name}}",
     "range": "{{from}} to {{to}}",
-    "searchLabel": "Search cost attribution rules",
-    "searchPlaceholder": "Search rules and projects…",
-    "sortAsc": "Rule name A–Z",
-    "sortDesc": "Rule name Z–A",
-    "status": "Status",
-    "statusLabel": "Filter rules by status",
     "targets": "Goes to",
     "version": "Version"
-  },
-  "details": {
-    "close": "Close details",
-    "openRule": "View details for {{name}}",
-    "title": "Details for {{name}}"
   },
   "preview": {
     "amount": "Amount",

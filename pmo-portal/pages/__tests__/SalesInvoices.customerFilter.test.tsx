@@ -139,7 +139,7 @@ describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
     expect(within(table).queryByText('INV-C1-P1-CURRENT')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C1-P2-OVERDUE')).not.toBeInTheDocument();
     expect(within(table).queryByText('INV-C2-P1-OVERDUE')).not.toBeInTheDocument();
-    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('1,000');
+    expect(within(table).getByRole('row', { name: /INV-C1-P1-OVERDUE/ })).toHaveTextContent('$1,000.00');
     expect(screen.getByTestId('customer-filter')).toHaveTextContent('Customer: Northwind Services');
   });
 
@@ -156,7 +156,8 @@ describe('SalesInvoices customer collections deep link (AC-S36-004)', () => {
     renderAt('/sales-invoices?customer=not-authorized-customer');
 
     expect(screen.getByTestId('customer-filter')).toHaveTextContent('Selected customer is unavailable');
-    for (const row of SEED) expect(screen.queryByText(row.si_number!)).not.toBeInTheDocument();
-    expect(screen.getByText('No invoices match your filters')).toBeInTheDocument();
+    const table = screen.getByRole('table');
+    for (const row of SEED) expect(within(table).queryByText(row.si_number!)).not.toBeInTheDocument();
+    expect(within(table).getByText('No invoices match your filters')).toBeInTheDocument();
   });
 });

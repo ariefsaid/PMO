@@ -1,7 +1,6 @@
 // @e2e-isolation: read-only — confirms rendered KPI money stays inside its tile at desktop and phone widths.
 import { expect, test, type Locator } from '@playwright/test';
 import { signIn, waitForFonts } from './helpers';
-import { installIdrDashboardFixture } from './dashboard-idr.fixtures';
 
 async function pinBahasaLocale(page: import('@playwright/test').Page) {
   await page.route('**/rest/v1/profiles?*', async (route) => {
@@ -16,10 +15,12 @@ async function pinBahasaLocale(page: import('@playwright/test').Page) {
 
 async function expectMoneyFits(locator: Locator, value: string) {
   await expect(locator).toContainText(value);
+  // A7 (RD-S1): the title rides on the aria-hidden short span inside the figure, so AT reads the amount once.
+  await expect(locator.locator('[title]').first(), 'the exact amount is the figure title').toHaveAttribute('title', value);
   const metrics = await locator.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const container = element.parentElement;
-    if (!container) throw new Error('Exact money figure must remain inside its labeled row');
+    const container = element.closest('[data-testid="kpi-total-spend"]') ?? element.closest('a');
+    if (!container) throw new Error('KPI amount must be inside its rendered tile');
     const containerBox = container.getBoundingClientRect();
     const containerStyle = getComputedStyle(container);
     return {
@@ -40,21 +41,22 @@ async function expectMoneyFits(locator: Locator, value: string) {
     .toBeLessThanOrEqual(metrics.contentRight + 0.5);
 }
 
-test('AC-FAA-010: long Indonesian Actual values stay fully visible in the Executive delivery book at desktop and phone widths', async ({ page }) => {
+test('AC-FAA-010: long Indonesian money values stay fully visible in Executive KPI tiles at desktop and phone widths', async ({ page }) => {
   await pinBahasaLocale(page);
-  await installIdrDashboardFixture(page);
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page, 'exec@acme.test');
   await page.goto('/');
   await waitForFonts(page);
 
-  // The synthetic fixture keeps a full IDR value beside a separate USD row.
-  const expectedAmount = '58.412.775.000';
-  const deliveryBook = page.getByTestId('dashboard-delivery-book');
-  await expect(deliveryBook).toBeVisible();
-  await expectMoneyFits(deliveryBook.getByTestId('dashboard-known-actual').locator('span.inline-block').first(), expectedAmount);
+  // OD-MONEY-FMT: the card shows the short form; the exact Bahasa amount (zero fraction omitted) is its title + sr text.
+  const expectedAmount = 'US$8.980.000';
+  const desktopTile = page.getByTestId('kpi-total-spend');
+  await expect(desktopTile).toBeVisible();
+  await expectMoneyFits(desktopTile.locator('div.tabular'), expectedAmount);
 
   await page.setViewportSize({ width: 390, height: 844 });
+  const phoneSpendLink = page.getByRole('link', { name: /US\$8\.980\.000/ });
+  await expect(phoneSpendLink).toBeVisible();
   await waitForFonts(page);
-  await expectMoneyFits(deliveryBook.getByTestId('dashboard-known-actual').locator('span.inline-block').first(), expectedAmount);
+  await expectMoneyFits(phoneSpendLink.locator('span.tabular'), expectedAmount);
 });

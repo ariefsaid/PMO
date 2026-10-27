@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
@@ -79,6 +79,7 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 
+import ProjectDetailHeader from '../ProjectDetailHeader';
 import OverviewTab from '../tabs/OverviewTab';
 
 const project = (overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs =>
@@ -140,20 +141,23 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe('AC-FX-011 project contract equivalent', () => {
-  it('renders the contract equivalent in the Overview money group using the contract date and names the publication date', () => {
-    renderSubject(<OverviewTab project={project()} committedSpend={10} />);
-    expect(screen.getByText('≈ Rp 1,630,000 (JISDOR 2026-10-09)')).toBeInTheDocument();
+  it('renders a header equivalent using the contract date while naming the selected publication date; tax basis and editing remain', () => {
+    renderSubject(<ProjectDetailHeader project={project()} committedSpend={10} />);
+    expect(screen.getAllByTestId('stat-tile')[0]?.querySelector('.sr-only')).toHaveTextContent(
+      '≈ Rp 1,630,000 (JISDOR 2026-10-09)',
+    );
     expect(h.calls).toHaveLength(1);
     expect(h.calls[0]).toEqual(['USD', 'IDR', '2026-10-10', true]);
-    expect(screen.getByTestId('overview-contract-value')).toBeInTheDocument();
-    expect(screen.getByTestId('overview-contract-tax-basis')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-tile-tax-basis')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Edit contract value' }));
+    expect(screen.getByLabelText('Contract value')).toBeInTheDocument();
   });
 
-  it('shows the same contract equivalent for Engineer without adding it to other money figures', () => {
+  it('shows the same contract equivalent in the Engineer overview without adding one to the other finance figures', () => {
     h.role = 'Engineer';
     const p = project();
-    renderSubject(<OverviewTab project={p} committedSpend={10} />);
-    expect(screen.getByTestId('money-position-groups')).toHaveTextContent(
+    renderSubject(<OverviewTab project={p} committedSpend={10} showFinanceSummary />);
+    expect(screen.getByTestId('financial-summary')).toHaveTextContent(
       /≈ Rp 1,630,000 \(JISDOR 2026-10-09\)/,
     );
     expect(h.calls).toHaveLength(1);
@@ -162,18 +166,16 @@ describe('AC-FX-011 project contract equivalent', () => {
 
   it('shows nothing for a missing contract date (FIN-S4) and never offers an IDR-to-IDR equivalent', () => {
     renderSubject(
-      <OverviewTab project={project({ contract_date: null })} committedSpend={10} />,
+      <ProjectDetailHeader project={project({ contract_date: null })} committedSpend={10} />,
     );
     expect(screen.queryByText(/JISDOR|publication date/i)).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('overview-contract-value').parentElement!).getAllByRole('definition')).toHaveLength(1);
     expect(h.calls.at(-1)?.[3]).toBe(false);
     cleanup();
     h.calls = [];
     renderSubject(
-      <OverviewTab project={project({ currency: 'IDR' })} committedSpend={10} />,
+      <ProjectDetailHeader project={project({ currency: 'IDR' })} committedSpend={10} />,
     );
     expect(screen.queryByText(/JISDOR/)).not.toBeInTheDocument();
-    expect(within(screen.getByTestId('overview-contract-value').parentElement!).getAllByRole('definition')).toHaveLength(1);
     expect(h.calls).toHaveLength(1);
     expect(h.calls[0]?.[3]).toBe(false);
   });

@@ -45,7 +45,6 @@ describe('AdministrationCredits — balance unit (AC-CRE-UNIT-001)', () => {
     renderSection();
     await waitFor(() => {
       expect(screen.getByTestId('org-credit-balance')).toHaveTextContent(/737\.5\s*credits/i);
-      expect(screen.getByText('Available balance')).toBeInTheDocument();
     });
   });
 

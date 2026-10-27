@@ -8,7 +8,6 @@ import type { HistoryEvent, FieldChange, HistoryNameKind } from '@/src/lib/repos
 import {
   formatCurrency, formatDateOnly, formatDateTime, formatMonthYear, formatNumber, formatRelativeTime,
 } from '@/src/lib/format';
-import { getActiveLocale } from '@/src/lib/locale/activeLocale';
 import { fieldLabels, filterLabels, filteredEmptyLabels, kindLabels, projectCodeLabel } from './historyLabels';
 import {
   KIND_FILTERS, RECORD_NAME_SOURCE, REF_SOURCE, fieldKind, humanizeColumn,
@@ -138,7 +137,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
       <div className="mt-1 flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm">
         <span className="break-words text-muted-foreground">{actor}</span>
         <time dateTime={ev.createdAt} title={absolute} className="text-xs text-muted-foreground">
-          {formatRelativeTime(ev.createdAt)} · {absolute} · {getActiveLocale().timezone}
+          {formatRelativeTime(ev.createdAt)}
         </time>
         {showRecord && <RecordName ev={ev} refs={refs} kinds={kinds} />}
       </div>
@@ -149,7 +148,7 @@ const EventRow: React.FC<{ ev: HistoryEvent; refs: RefMaps; showRecord: boolean;
             aria-expanded={detailsOpen}
             aria-controls={detailsId}
             onClick={() => setDetailsOpen((open) => !open)}
-            className="mt-1 inline-flex h-8 max-sm:min-h-11 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            className="mt-1 inline-flex h-8 items-center rounded-sm px-1 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           >
             {t('uxs23.history.viewDetails', 'View details')}
           </button>
@@ -183,9 +182,9 @@ const HistoryEventGroup: React.FC<{
         aria-expanded={expanded}
         aria-controls={eventsId}
         onClick={() => setExpanded((open) => !open)}
-        className="inline-flex h-8 max-sm:min-h-11 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="inline-flex h-8 w-fit items-center rounded-sm text-sm font-semibold text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <span aria-hidden className="mr-2">{expanded ? '⌄' : '›'}</span>{t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })} · {historyEventSummary(t, events[0])} · {formatInstant(events[0].createdAt)} · {getActiveLocale().timezone}
+        {t('uxs23.history.groupSummary', '{{count}} system events', { count: events.length })}
       </button>
       <ul id={eventsId} hidden={!expanded} className="mt-1 pl-3">
         {events.map((ev) => (
@@ -266,13 +265,8 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
 
   return (
     <div className="min-w-0" data-testid="record-history">
-      {kindFilters && (
-        <p className="mb-2 text-xs text-muted-foreground">
-          {t('recordHistory:newestFirst', 'Newest first')}
-        </p>
-      )}
       {showKindChips && (
-        <div role="group" aria-label={t('history.filterLabel', 'Filter by record kind')} className="mb-3 flex flex-wrap gap-2">
+        <div role="group" aria-label={t('history.filterLabel', 'Filter by record kind')} className="mb-3 flex flex-wrap gap-1.5">
           {KIND_FILTERS.map((k) => (
             <button
               key={k.key}
@@ -280,7 +274,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
               aria-pressed={kind === k.key}
               onClick={() => setKind(k.key)}
               className={
-                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors max-sm:min-h-11 max-sm:px-4 ' +
+                'inline-flex h-7 items-center rounded-full border px-2.5 text-xs font-medium transition-colors ' +
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring ' +
                 (kind === k.key
                   ? 'border-primary/30 bg-primary/10 text-nav-active-text'
@@ -302,14 +296,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
           retryLabel={t('history.retry', 'Retry')}
         />
       ) : events.length === 0 && kind !== 'all' ? (
-        <div>
-          <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
-          <div className="flex justify-center">
-            <Button variant="outline" className="max-sm:min-h-11" onClick={() => setKind('all')}>
-              {t('recordHistory:filter.allKinds', 'All kinds')}
-            </Button>
-          </div>
-        </div>
+        <ListState variant="empty" icon="clock" title={filteredEmptyLabels(t)[kind]} />
       ) : events.length === 0 ? (
         <ListState
           variant="empty"
@@ -350,7 +337,7 @@ export const RecordHistory: React.FC<RecordHistoryProps> = ({
                 variant="outline"
                 aria-disabled={loadingOlder || undefined}
                 aria-busy={loadingOlder || undefined}
-                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60 max-sm:min-h-11"
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
                 onClick={() => {
                   if (!loadingOlder) void q.fetchNextPage();
                 }}

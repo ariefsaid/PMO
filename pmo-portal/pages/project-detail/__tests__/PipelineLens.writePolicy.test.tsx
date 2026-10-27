@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui';
@@ -88,47 +88,6 @@ beforeEach(() => {
 });
 
 describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
-  it('publishes the forward transition for the shared record primary-action slot', async () => {
-    const onPrimaryActionChange = vi.fn();
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <PipelineLens project={dealRow} onPrimaryActionChange={onPrimaryActionChange} />
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
-
-    await waitFor(() => expect(onPrimaryActionChange).toHaveBeenCalled());
-    const action = onPrimaryActionChange.mock.calls.at(-1)?.[0];
-    expect(action).toMatchObject({ label: expect.stringMatching(/Advance to/), disabled: false });
-    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
-    action.activate();
-    await waitFor(() => expect(transitionProject).toHaveBeenCalledWith('d1', 'Negotiation'));
-  });
-
-  it('publishes the available win decision for the shared title slot at Negotiation', async () => {
-    const onPrimaryActionChange = vi.fn();
-    render(
-      <ImpersonationProvider realRole="Project Manager">
-        <ToastProvider>
-          <PipelineLens
-            project={{ ...dealRow, status: 'Negotiation' } as ProjectWithRefs}
-            onPrimaryActionChange={onPrimaryActionChange}
-          />
-        </ToastProvider>
-      </ImpersonationProvider>,
-    );
-
-    await waitFor(() => expect(onPrimaryActionChange).toHaveBeenLastCalledWith({
-      label: 'Mark won',
-      disabled: false,
-      activate: expect.any(Function),
-    }));
-    expect(screen.queryByRole('button', { name: 'Mark won' })).not.toBeInTheDocument();
-    act(() => onPrimaryActionChange.mock.calls.at(-1)?.[0].activate());
-    expect(await screen.findByRole('textbox', { name: /Customer contract reference/ })).toHaveAttribute('aria-required', 'true');
-  });
-
   it('AC-IXD-WP-004: clicking "Advance to <stage>" fires the transition on a SINGLE click — no confirm dialog', async () => {
     renderLens();
     const advance = screen.getByRole('button', { name: /Advance to/i });
@@ -145,42 +104,6 @@ describe('PipelineLens — write policy (AC-IXD-WP-004, OD-UX-1)', () => {
     renderLens();
     await userEvent.click(screen.getByRole('button', { name: /Advance to/i }));
     expect(await findToastAnnouncement('status', /Moved to Negotiation/i)).toBeInTheDocument();
-  });
-
-  it('R-003: Negotiation has no backward Advance action and makes the available win decision primary', () => {
-    renderLens({ ...dealRow, status: 'Negotiation' } as ProjectWithRefs);
-    expect(screen.queryByRole('button', { name: /Advance to/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('listitem', { name: 'Negotiation: current' })).toHaveAttribute('aria-current', 'step');
-    expect(screen.getByRole('button', { name: 'Mark won' })).toBeInTheDocument();
-  });
-
-  it('R-004: keeps the current and remaining journey stages visible in the section', () => {
-    renderLens();
-    const journey = screen.getByRole('list', { name: 'Project stage journey' });
-    const current = journey.querySelector('[aria-current="step"]');
-    expect(current).toHaveTextContent(/Tender/);
-    expect(within(journey).getByText('Negotiation', { exact: true })).toBeVisible();
-    expect(within(journey).getByText('Pre-Qual', { exact: true })).toBeVisible();
-  });
-
-  it('keeps the named journey stages and open-deal figures available after the layout change', () => {
-    renderLens();
-    expect(screen.getByRole('list', { name: 'Project stage journey' })).toHaveTextContent('Pre-Qual');
-    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('1,200,000');
-    expect(screen.getByText('Win probability').nextElementSibling).toHaveTextContent('50%');
-    expect(screen.getByText('Weighted').nextElementSibling).toHaveTextContent('600,000');
-    expect(screen.getByText('Owner').nextElementSibling).toHaveTextContent('Alice Manager');
-    expect(screen.queryByText('Decision')).not.toBeInTheDocument();
-    expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
-  });
-
-  it('keeps lost-deal decision evidence and terminal context without inventing a zero win rate', () => {
-    renderLens({ ...dealRow, status: 'Loss Tender' } as ProjectWithRefs);
-    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('1,200,000');
-    expect(screen.getByText('Owner').nextElementSibling).toHaveTextContent('Alice Manager');
-    expect(screen.getByText('Decision')).toBeInTheDocument();
-    expect(screen.queryByText('0%')).not.toBeInTheDocument();
-    expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 
   it('AC-IXD-WP-004: "Mark lost" STILL opens a destructive confirm before writing', async () => {

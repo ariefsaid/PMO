@@ -1,11 +1,10 @@
 import React, { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { monthToUtcEpoch } from './agentCostMetrics.utils';
 import { ListState, StatTiles, type StatTile } from '@/src/components/ui';
-import { ChartFrame } from '@/src/components/dashboard/ChartFrame';
+import { ChartFrame, type ChartState } from '@/src/components/dashboard/ChartFrame';
 import { usePrefersReducedMotion } from '@/src/components/dashboard/usePrefersReducedMotion';
 import { tooltipContentStyle, tooltipLabelStyle, axisTickStyle } from '@/src/components/dashboard/chartChrome';
 import { chartTheme } from '@/src/components/ui/chartTheme';
@@ -51,7 +50,6 @@ export interface AgentCostMetricsProps {
   isPending: boolean;
   isError: boolean;
   onRetry: () => void;
-  scopeDescription?: string;
 }
 
 const DASH = '—';
@@ -146,13 +144,10 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
   isPending,
   isError,
   onRetry,
-  scopeDescription,
 }) => {
-  const { t } = useTranslation();
   const kpis = useMemo(() => deriveKpis(summaryRows, runStatsRows), [summaryRows, runStatsRows]);
   const monthlyCacheHit = useMemo(() => deriveMonthlyCacheHit(summaryRows), [summaryRows]);
   const prefersReducedMotion = usePrefersReducedMotion();
-  const scopeText = scopeDescription ?? t('administration:admin.usage.allScope', 'Across all actions and months.');
 
   if (isPending) {
     return (
@@ -166,58 +161,56 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
     return (
       <ListState
         variant="error"
-        title={t('administration:admin.usage.metricsLoadError', "Couldn't load agent cost metrics")}
-        sub={t('administration:admin.usage.loadErrorHelp', 'The request failed. Check your connection and try again.')}
-        retryLabel={t('admin.retry', 'Retry')}
+        title="Couldn't load agent cost metrics"
+        sub="The request failed. Check your connection and try again."
         onRetry={onRetry}
       />
     );
   }
 
+  if (summaryRows.length === 0 && runStatsRows.length === 0) {
+    return (
+      <ListState
+        variant="empty"
+        icon="admin"
+        title="No agent cost data yet"
+        sub="Agent cost telemetry appears here once your workspace starts using the assistant."
+      />
+    );
+  }
+
   const tiles: StatTile[] = [
-    { label: t('administration:admin.usage.cacheHitRate', 'Cache hit-rate'), value: kpis.cacheHitRate },
-    { label: t('administration:admin.usage.reasoningShare', 'Reasoning share'), value: kpis.reasoningShare },
-    { label: t('administration:admin.usage.weightedP50', 'Cost / run (p50, weighted by runs)'), value: kpis.costP50 },
-    { label: t('administration:admin.usage.maxP95', 'Cost / run (p95, max)'), value: kpis.costP95 },
-    { label: t('administration:admin.usage.maxLatency', 'Latency (p95, max)'), value: kpis.latencyP95 },
+    { label: 'Cache hit-rate', value: kpis.cacheHitRate },
+    { label: 'Reasoning share', value: kpis.reasoningShare },
+    { label: 'Cost / run (p50, weighted by runs)', value: kpis.costP50 },
+    { label: 'Cost / run (p95, max)', value: kpis.costP95 },
+    { label: 'Latency (p95, max)', value: kpis.latencyP95 },
   ];
 
-  // Filters can leave zero or one valid month. Keep the figure, axes, legend and 200px chart
-  // frame stable so the same job remains recognizable while its evidence narrows.
-  const chartSummary = t('administration:admin.usage.chartSummary', {
-    count: monthlyCacheHit.length,
-    defaultValue_one: 'Cache hit-rate by month, {{count}} month.',
-    defaultValue_other: 'Cache hit-rate by month, {{count}} months.',
-  });
-  const chartLegend = t('administration:admin.usage.chartLegend', 'Chart legend');
-  const cacheHitRateLabel = t('administration:admin.usage.cacheHitRate', 'Cache hit-rate');
+  const chartState: ChartState = monthlyCacheHit.length >= 2 ? 'ready' : 'empty';
+  const chartSummary = `Cache hit-rate by month, ${monthlyCacheHit.length} months.`;
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="mb-1 text-xl font-bold tracking-[-0.01em]">
-          {t('administration:admin.usage.metricsOverview', 'Agent cost overview')}
-        </h2>
+        <h2 className="mb-1 text-[14px] font-bold tracking-[-0.01em]">Agent cost overview</h2>
         {/* Honesty caption (code-quality review): the tiles blend all actions/months (and, on the
             unscoped Operator path, all orgs) — so the numbers read as a portfolio overview, not a
             single-cohort statistic. */}
-        <p className="mb-3 text-sm text-muted-foreground">{scopeText}</p>
+        <p className="mb-3 text-[12px] text-muted-foreground">Across all actions and months.</p>
         <StatTiles tiles={tiles} columns={5} />
       </div>
 
       <div>
-        <h3 className="mb-3 text-xl font-bold">
-          {t('administration:admin.usage.cacheHitByMonth', 'Cache hit-rate by month')}
+        <h3 className="mb-3 text-[13.5px] font-semibold text-muted-foreground">
+          Cache hit-rate by month
         </h3>
-        {monthlyCacheHit.length < 2 && (
-          <p role="status" className="mb-2 text-sm text-muted-foreground">
-            {summaryRows.length === 0 && runStatsRows.length === 0
-              ? `${t('administration:admin.usage.metricsEmptyTitle', 'No metrics for this selection')} — ${t('administration:admin.usage.metricsEmptyHelp', 'There are no cost or run statistics for the selected period and action.')}`
-              : `${t('administration:admin.usage.chartEmptyTitle', 'Not enough data yet')} — ${t('administration:admin.usage.chartEmptyHelp', 'Cache hit-rate trends appear once usage spans two or more months.')}`}
-          </p>
-        )}
-        <ChartFrame state="ready">
-          <figure aria-label={chartSummary} className="m-0">
+        <ChartFrame
+          state={chartState}
+          emptyTitle="Not enough data yet"
+          emptySub="Cache hit-rate trends appear once usage spans two or more months."
+        >
+          <figure role="img" aria-label={chartSummary} className="m-0">
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={monthlyCacheHit} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
@@ -225,9 +218,7 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   dataKey="ts"
                   type="number"
                   scale="time"
-                  domain={monthlyCacheHit.length === 1
-                    ? [monthlyCacheHit[0].ts - 45 * 24 * 60 * 60 * 1000, monthlyCacheHit[0].ts + 45 * 24 * 60 * 60 * 1000]
-                    : ['dataMin', 'dataMax']}
+                  domain={['dataMin', 'dataMax']}
                   tickFormatter={formatMonthTick}
                   tick={axisTickStyle}
                   tickLine={false}
@@ -246,15 +237,12 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
                   contentStyle={tooltipContentStyle}
                   labelStyle={tooltipLabelStyle}
                   labelFormatter={(label) => formatMonthTick(Number(label))}
-                  formatter={(value) => [
-                    `${Number(value).toFixed(1)}%`,
-                    cacheHitRateLabel,
-                  ]}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, 'Cache hit-rate']}
                 />
                 <Line
                   type="monotone"
                   dataKey="pct"
-                  name={cacheHitRateLabel}
+                  name="Cache hit-rate"
                   stroke={chartTheme.series.primary}
                   strokeWidth={2}
                   dot={{ r: 3 }}
@@ -263,12 +251,6 @@ export const AgentCostMetrics: React.FC<AgentCostMetricsProps> = ({
               </LineChart>
             </ResponsiveContainer>
           </figure>
-          <div role="group" aria-label={chartLegend} className="mt-1 flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
-            <span aria-hidden="true" className="relative inline-block h-0.5 w-4" style={{ backgroundColor: chartTheme.series.primary }}>
-              <span className="absolute -top-[2px] left-1.5 size-1.5 rounded-full border border-background" style={{ backgroundColor: chartTheme.series.primary }} />
-            </span>
-            <span>{cacheHitRateLabel}</span>
-          </div>
         </ChartFrame>
       </div>
     </div>

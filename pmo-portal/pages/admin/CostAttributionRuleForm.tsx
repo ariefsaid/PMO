@@ -198,7 +198,7 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
               ) : null}
             </div>
           ))}
-          {targetsError && <p role="alert" id="cost-attribution-rule-targets" className="text-sm text-destructive-text">{targetsError}</p>}
+          {targetsError && <p role="alert" id="cost-attribution-rule-targets" className="text-[13px] text-destructive-text">{targetsError}</p>}
           <Button variant="outline" size="sm" onClick={() => form.setValue('targets', [...v.targets, { projectId: '', percent: '' }])}>
             {t('costAttribution:form.addProject', 'Add project')}
           </Button>
@@ -210,23 +210,23 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
           <Button variant="outline" size="sm" disabled={!valid} loading={preview.isPending} onClick={() => preview.mutate()}>
             {t('costAttribution:preview.run', 'Preview effect')}
           </Button>
-          {!valid && <span className="text-sm text-muted-foreground">{t('costAttribution:preview.needsValid', 'Complete the rule to preview it.')}</span>}
+          {!valid && <span className="text-[13px] text-muted-foreground">{t('costAttribution:preview.needsValid', 'Complete the rule to preview it.')}</span>}
         </div>
         {previewError && (
-          <p role="alert" className="mt-2 text-sm text-destructive-text">
+          <p role="alert" className="mt-2 text-[13px] text-destructive-text">
             {previewError.headline}{' — '}{previewError.detail}
           </p>
         )}
         {preview.isSuccess && rows.length === 0 && (
-          <p role="status" className="mt-2 text-sm text-muted-foreground">
+          <p role="status" className="mt-2 text-[13px] text-muted-foreground">
             {t('costAttribution:preview.none', 'No untagged ledger lines match this rule in its window.')}
           </p>
         )}
         {preview.isSuccess && rows.length > 0 && (
           <div className={stale ? 'opacity-60' : undefined}>
-            {stale && <p role="status" className="mt-2 text-sm text-muted-foreground">{t('costAttribution:preview.stale', 'The rule changed since this preview. Preview again.')}</p>}
+            {stale && <p role="status" className="mt-2 text-[13px] text-muted-foreground">{t('costAttribution:preview.stale', 'The rule changed since this preview. Preview again.')}</p>}
             <div className="mt-2 max-h-64 overflow-auto rounded-md border border-border">
-              <table className="w-full text-sm">
+              <table className="w-full text-[13px]">
                 <caption className="sr-only">{t('costAttribution:preview.caption', 'Preview of attributed cost per project and month')}</caption>
                 <thead className="text-left text-muted-foreground">
                   <tr>
@@ -252,14 +252,14 @@ const CostAttributionRuleForm: React.FC<Props> = ({ rule, projects, currency, on
                 </tbody>
               </table>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-[13px] text-muted-foreground">
               {t('costAttribution:preview.total', 'Total {{amount}} across {{lines}} ledger lines.', {
                 amount: formatCurrencyCents(total, currency),
                 lines: rows.reduce<number>((n, r) => n + r.line_count, 0),
               })}
             </p>
             {unmapped > 0 && (
-              <p role="status" className="mt-1 text-sm text-foreground">
+              <p role="status" className="mt-1 text-[13px] text-foreground">
                 {t('costAttribution:preview.unmappedNote', 'Some of this cost is on an account that is not mapped to a budget category, so it will not show in project actuals. Map it in the Budget account map.')}
               </p>
             )}

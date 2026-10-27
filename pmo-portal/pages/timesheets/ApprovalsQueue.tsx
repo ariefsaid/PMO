@@ -139,7 +139,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <Button
           variant="primary"
           size="sm"
-          aria-label={`Approve ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
           onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
           loading={approve.isPending}
         >
@@ -151,7 +150,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
         <Button
           variant="outline"
           size="sm"
-          aria-label={`Return ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
           onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
           loading={reject.isPending}
         >
@@ -174,6 +172,7 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
               </div>
               <h2 className="text-lg font-semibold tracking-[-0.01em]">{name}</h2>
             </div>
+            {actionCluster}
           </div>
           {!isInline && showSodNotice && (
             <p className="mt-3 text-[12px] text-muted-foreground">
@@ -213,11 +212,6 @@ export const TimesheetApprovalPreview: React.FC<TimesheetApprovalPreviewProps> =
                 Return
               </Button>
             )}
-          </div>
-        )}
-        {!isInline && actionCluster && (
-          <div data-testid="approval-decision-actions" className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-border pt-4">
-            {actionCluster}
           </div>
         )}
       </div>
@@ -390,7 +384,6 @@ export const ApprovalsQueue: React.FC = () => {
                     <Button
                       variant="primary"
                       size="sm"
-                aria-label={`Approve ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
                       onClick={() => setPending({ kind: 'approve', id: sheet.id, name })}
                       loading={approve.isPending}
                     >
@@ -402,7 +395,6 @@ export const ApprovalsQueue: React.FC = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                aria-label={`Return ${name}'s timesheet for ${weekLabel(sheet.week_start_date)}`}
                       onClick={() => setPending({ kind: 'return', id: sheet.id, name })}
                       loading={reject.isPending}
                     >

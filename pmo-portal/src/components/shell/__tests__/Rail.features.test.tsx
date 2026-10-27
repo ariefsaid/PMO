@@ -90,13 +90,12 @@ describe('Rail — feature-flag gate for Incidents', () => {
     expect(screen.getByRole('link', { name: /companies/i })).toBeInTheDocument();
   });
 
-  it('flag-off: Deliver projects stays available while Procurement belongs to Manage money', () => {
+  it('flag-off: the Delivery group still renders (Procurement/Projects remain)', () => {
     originalIncidentsDefault = FEATURE_ENV_DEFAULT.incidents;
     (FEATURE_ENV_DEFAULT as Record<string, boolean>).incidents = false;
     orgFeaturesState.value = undefined;
     renderRail();
-    expect(screen.getByText('Deliver projects')).toBeInTheDocument();
-    expect(screen.getByText('Manage money')).toBeInTheDocument();
+    expect(screen.getByText('Delivery')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /procurement/i })).toBeInTheDocument();
   });
 

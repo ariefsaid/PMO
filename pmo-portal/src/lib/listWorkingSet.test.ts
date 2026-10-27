@@ -30,13 +30,10 @@ describe('list working-set URL codec', () => {
       pm: 'All', endClient: 'All',
       q: '',
       view: 'table',
-      month: undefined,
-      sort: 'attention',
     });
     expect(parseListWorkingSet('sales', '')).toEqual({
       scope: 'Open',
       status: '',
-      sort: 'activity-oldest',
       q: '',
       view: 'kanban',
     });
@@ -61,13 +58,6 @@ describe('list working-set URL codec', () => {
     ).toBe('at-risk');
   });
 
-  it('AC-806-SORT: validates the Projects sort key and defaults to attention order', () => {
-    expect(parseListWorkingSet('projects', '').sort).toBe('attention');
-    expect(parseListWorkingSet('projects', '?sort=expected-end').sort).toBe('expected-end');
-    expect(parseListWorkingSet('projects', '?sort=name').sort).toBe('name');
-    expect(parseListWorkingSet('projects', '?sort=unsupported').sort).toBe('attention');
-  });
-
   it('AC-LRC-001 (#683 carry-over): an explicit default-valued filter survives an unrelated edit', () => {
     // An Engineer's `?filter=My+Projects` equals the role default, so a search write must NOT
     // drop it (that would silently widen the list back to All). An absent default stays omitted.
@@ -82,7 +72,7 @@ describe('list working-set URL codec', () => {
           { projectsDefaultFilter: 'My Projects' },
         ),
       ),
-    ).toBe('filter=My+Projects&sort=attention');
+    ).toBe('filter=My+Projects');
     // The same default derived from no URL key is omitted (clean URL).
     expect(
       String(
@@ -93,7 +83,7 @@ describe('list working-set URL codec', () => {
           { projectsDefaultFilter: 'My Projects' },
         ),
       ),
-    ).toBe('sort=attention');
+    ).toBe('');
   });
 
   it('AC-LRC-001/002: round-trips all enum choices and dashboard drill tokens', () => {
@@ -107,11 +97,9 @@ describe('list working-set URL codec', () => {
       pm: PM_ID, endClient: 'All',
       q: 'review',
       view: 'calendar',
-      month: undefined,
-      sort: 'attention',
     });
     expect(serializeListWorkingSet('projects', projectParams, projects).toString()).toBe(
-      `filter=at-risk&client=${CLIENT_ID}&pm=${PM_ID}&q=review&view=calendar&sort=attention`,
+      `filter=at-risk&client=${CLIENT_ID}&pm=${PM_ID}&q=review&view=calendar`,
     );
 
     const procurementParams = new URLSearchParams('?status=Vendor+Invoiced&q=invoice&view=board');
@@ -193,13 +181,7 @@ describe('list working-set URL codec', () => {
       'sales',
       '?scope=bogus&status=Not+A+stage&view=crazy&q=review',
     );
-    expect(sales).toEqual({
-      scope: 'Open',
-      status: '',
-      sort: 'activity-oldest',
-      q: 'review',
-      view: 'kanban',
-    });
+    expect(sales).toEqual({ scope: 'Open', status: '', q: 'review', view: 'kanban' });
   });
 
   it('AC-LRC-001/002: round-trips Contacts and Meetings identifiers and search', () => {
@@ -273,7 +255,6 @@ describe('list working-set URL codec', () => {
     const lostQuery = serializeListWorkingSet('sales', '?campaign=fall', {
       scope: 'Lost',
       status: 'Leads',
-      sort: 'activity-oldest',
       q: '',
       view: 'table',
     });
@@ -281,13 +262,7 @@ describe('list working-set URL codec', () => {
     expect(parseListWorkingSet('sales', lostQuery)).toMatchObject({ scope: 'Open', status: 'Leads' });
     // Lost without a stage is not contradictory and is written as-is.
     expect(
-      serializeListWorkingSet('sales', '', {
-        scope: 'Lost',
-        status: '',
-        sort: 'activity-oldest',
-        q: '',
-        view: 'table',
-      })
+      serializeListWorkingSet('sales', '', { scope: 'Lost', status: '', q: '', view: 'table' })
         .toString(),
     ).toBe('scope=Lost&view=table');
 
@@ -299,56 +274,28 @@ describe('list working-set URL codec', () => {
     expect(roundTrip).toMatchObject({ scope: 'Needs attention', status: 'Leads' });
   });
 
-  it('AC-SALES-C01: Sales scopes remain selected when the presentation changes', () => {
+  it('#682 Director ruling (2026-09-29): scope is meaningful only for the Sales table view — the board carries no scope', () => {
+    // A direct/copied board URL with a stale scope parses to Open, never Lost/Needs attention.
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Lost')).toMatchObject({
-      scope: 'Lost',
+      scope: 'Open',
       view: 'kanban',
     });
     expect(parseListWorkingSet('sales', '?view=kanban&scope=Needs+attention')).toMatchObject({
-      scope: 'Needs attention',
+      scope: 'Open',
       view: 'kanban',
     });
-    // Serialize the named subset so switching back to Table restores it.
+    // Serializing a working set whose view is the board never writes an inert `scope` key, even
+    // when the in-memory value still carries a stale table scope (e.g. mid-transition).
     const boardQuery = serializeListWorkingSet('sales', '?scope=Lost', {
       scope: 'Lost',
       status: '',
-      sort: 'activity-oldest',
       q: '',
       view: 'kanban',
     });
-    expect(boardQuery.get('scope')).toBe('Lost');
-    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Lost', view: 'kanban' });
-  });
-
-  it('AC-SALES-N04: Sales sort and scope survive board/table navigation in the URL', () => {
-    const board = parseListWorkingSet(
-      'sales',
-      '?scope=Needs+attention&status=Leads&sort=activity-newest&view=kanban',
-    );
-    expect(board).toMatchObject({
-      scope: 'Needs attention',
-      status: 'Leads',
-      sort: 'activity-newest',
-      view: 'kanban',
-    });
-
-    const tableUrl = serializeListWorkingSet('sales', '', {
-      ...board,
-      view: 'table',
-    });
-    expect(tableUrl.get('scope')).toBe('Needs attention');
-    expect(tableUrl.get('sort')).toBe('activity-newest');
-    expect(parseListWorkingSet('sales', tableUrl)).toMatchObject({
-      scope: 'Needs attention',
-      sort: 'activity-newest',
-      view: 'table',
-    });
-  });
-
-  it('AC-SALES-C03: rejects unknown Sales sort values to oldest activity', () => {
-    expect(parseListWorkingSet('sales', '?sort=untrusted')).toMatchObject({
-      sort: 'activity-oldest',
-    });
+    expect(boardQuery.get('scope')).toBeNull();
+    // Switching the view back to table (same working set otherwise) reads Open, not the stale
+    // Lost — the URL no longer carries it, so there is nothing to snap back to.
+    expect(parseListWorkingSet('sales', boardQuery)).toMatchObject({ scope: 'Open', view: 'kanban' });
   });
 
   it('AC-LRC-002: falls back from invalid enums without discarding valid referenced IDs or unrelated keys', () => {
@@ -361,8 +308,6 @@ describe('list working-set URL codec', () => {
       pm: PM_ID, endClient: 'All',
       q: '✓',
       view: 'table',
-      month: undefined,
-      sort: 'attention',
     });
     expect(
       serializeListWorkingSet(
@@ -370,7 +315,7 @@ describe('list working-set URL codec', () => {
         params,
         parseListWorkingSet('projects', params),
       ).toString(),
-    ).toBe(`client=${CLIENT_ID}&pm=${PM_ID}&q=%E2%9C%93&campaign=autumn&sort=attention`);
+    ).toBe(`client=${CLIENT_ID}&pm=${PM_ID}&q=%E2%9C%93&campaign=autumn`);
   });
 
   it('AC-LRC-002: accepts only UUID references (plus the Unassigned PM sentinel), else falls back to All', () => {
@@ -380,7 +325,7 @@ describe('list working-set URL codec', () => {
     const projects = parseListWorkingSet('projects', params);
     expect(projects).toMatchObject({ client: 'All', pm: UNASSIGNED_PROJECT_MANAGER });
     expect(serializeListWorkingSet('projects', params, projects).toString()).toBe(
-      `pm=${UNASSIGNED_PROJECT_MANAGER}&campaign=autumn&sort=attention`,
+      `pm=${UNASSIGNED_PROJECT_MANAGER}&campaign=autumn`,
     );
     // The sentinel belongs to the PM filter only.
     expect(parseListWorkingSet('projects', `?client=${UNASSIGNED_PROJECT_MANAGER}`).client).toBe('All');
@@ -480,7 +425,7 @@ describe('list working-set URL codec', () => {
     }
   });
 
-  it('AC-806-SORT: serializes visible sort and replaces unsupported sort tokens', () => {
+  it('AC-LRC-001: omits default and empty values and never introduces a sort parameter', () => {
     const query = serializeListWorkingSet(
       'projects',
       '?campaign=spring&sort=legacy',
@@ -490,14 +435,13 @@ describe('list working-set URL codec', () => {
         pm: 'All', endClient: 'All',
         q: '',
         view: 'table',
-        sort: 'attention',
       } satisfies ProjectsWorkingSet,
     );
-    expect(query.toString()).toBe('campaign=spring&sort=attention');
+    expect(query.toString()).toBe('campaign=spring&sort=legacy');
   });
 
   it('AC-LRC-001: writes view explicitly whenever it differs from the effective stored view', () => {
-    const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '', sort: 'attention' } as const;
+    const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '' } as const;
     // Default view over a nondefault session view must be explicit, or the fallback snaps back.
     expect(
       serializeListWorkingSet('projects', '', { ...base, view: 'table' }, { sessionView: 'calendar' })
@@ -517,7 +461,7 @@ describe('list working-set URL codec', () => {
       serializeListWorkingSet(
         'sales',
         '',
-        { scope: 'Open', status: '', sort: 'activity-oldest', q: '', view: 'kanban' },
+        { scope: 'Open', status: '', q: '', view: 'kanban' },
         { sessionView: 'table' },
       ).get('view'),
     ).toBe('kanban');
@@ -550,7 +494,7 @@ describe('list working-set URL codec', () => {
 });
 
 describe('Projects calendar month in the working set (#716, AC-LRC-003)', () => {
-  const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '', sort: 'attention' } as const;
+  const base = { filter: 'All', client: 'All', pm: 'All', endClient: 'All', q: '' } as const;
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 8, 15)); // September 2026 (local)

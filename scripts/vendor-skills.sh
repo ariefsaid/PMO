@@ -78,9 +78,8 @@ if [ -f "$DEST/impeccable/scripts/context.mjs" ]; then
   rm -f "$DEST/impeccable/scripts/context.mjs.bak"
 fi
 
-echo "==> taste (Leonxlnx/taste-skill-classics — v1 stable) — anti-slop craft discipline"
-# v1 moved into the classics repository when taste-skill's default branch advanced to v2.
-git clone --depth 1 https://github.com/Leonxlnx/taste-skill-classics.git "$TMP/taste"
+echo "==> taste (Leonxlnx/taste-skill — v1 stable) — anti-slop craft discipline"
+git clone --depth 1 https://github.com/Leonxlnx/taste-skill.git "$TMP/taste"
 rm -rf "${DEST:?}/taste"
 cp -R "$TMP/taste/skills/taste-skill-v1" "$DEST/taste"
 

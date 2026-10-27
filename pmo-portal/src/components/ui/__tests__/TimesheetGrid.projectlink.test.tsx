@@ -146,17 +146,14 @@ describe('AC-002 #1325: TimesheetGrid rows with a short name', () => {
   const aliasRows: TimesheetGridRow[] = [
     { id: 'p9', project: 'Depot', projectLegalName: 'Contractual Depot Expansion', code: null, hours: [8, 0, 0, 0, 0, 0, 0], projectId: 'p9' },
   ];
-  it.each([true, false])('read-only (desktop=%s) shows the full project identity in the link', (desktop) => {
+  it.each([true, false])('read-only (desktop=%s) links the short name, describing it by the contractual title', (desktop) => {
     mockViewport(desktop);
     render(<MemoryRouter><TimesheetGrid days={days} rows={aliasRows} /></MemoryRouter>);
-    const link = screen.getByRole('link', { name: 'Open Contractual Depot Expansion' });
-    expect(link).toHaveTextContent('Contractual Depot Expansion');
-    expect(link).not.toHaveAttribute('title');
+    expect(screen.getByRole('link', { name: 'Open Depot' })).toHaveAccessibleDescription('Contractual Depot Expansion');
   });
-  it.each([true, false])('editable (desktop=%s) shows the full project identity as plain text', (desktop) => {
+  it.each([true, false])('editable (desktop=%s) titles the plain name with the contractual title', (desktop) => {
     mockViewport(desktop);
     render(<MemoryRouter><TimesheetGrid days={days} rows={aliasRows} editable /></MemoryRouter>);
-    expect(screen.getAllByText('Contractual Depot Expansion').length).toBeGreaterThan(0);
-    expect(screen.queryByTitle('Contractual Depot Expansion')).toBeNull();
+    expect(screen.getAllByTitle('Contractual Depot Expansion').length).toBeGreaterThan(0);
   });
 });

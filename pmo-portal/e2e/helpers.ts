@@ -25,21 +25,6 @@ export function visibleToast(page: Page, text: string | RegExp): Locator {
   return page.locator('[data-toast="visible"]').filter({ hasText: text });
 }
 
-/** Select a named project section through its desktop links or the phone section drawer. */
-export async function selectProjectSection(page: Page, label: string): Promise<void> {
-  const desktopNavigation = page.getByRole('navigation', { name: 'Project sections' });
-  if (await desktopNavigation.isVisible()) {
-    await desktopNavigation.getByRole('link', { name: label, exact: true }).click();
-    return;
-  }
-
-  await page.getByRole('button', { name: 'Project sections' }).click();
-  await page.getByRole('dialog', { name: 'Project sections' })
-    .getByRole('navigation', { name: 'Project sections' })
-    .getByRole('link', { name: label, exact: true })
-    .click();
-}
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 

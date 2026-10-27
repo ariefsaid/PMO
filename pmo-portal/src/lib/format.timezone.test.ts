@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   formatDateOnly,
-  formatBusinessDate,
   formatDateOnlyNumeric,
   formatDateTime,
   formatDecisionDateNumeric,
@@ -153,16 +152,5 @@ describe('zonedDatetimeLocalToInstant (#684 FR-PLC-006)', () => {
   it('returns null for a malformed value', () => {
     expect(zonedDatetimeLocalToInstant('not-a-date', 'UTC')).toBeNull();
     expect(zonedDatetimeLocalToInstant('', 'UTC')).toBeNull();
-  });
-});
-
-describe('money-in business date grammar', () => {
-  it('H-08: spells an English business date as day month year without changing its day', () => {
-    setActiveLocale({ locale: 'en-US', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
-    expect(formatBusinessDate('2026-10-26')).toBe('26 Oct 2026');
-  });
-  it('H-08: spells an Indonesian business date using the saved locale', () => {
-    setActiveLocale({ locale: 'id-ID', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
-    expect(formatBusinessDate('2026-10-26')).toBe('26 Okt 2026');
   });
 });

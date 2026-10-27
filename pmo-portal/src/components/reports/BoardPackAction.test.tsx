@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 
 type Analytics = typeof import('@/src/lib/analytics');
@@ -22,40 +22,31 @@ const renderAt = () =>
     <MemoryRouter initialEntries={['/']}>
       <Routes>
         <Route path="/" element={<BoardPackAction />} />
-        <Route path="/financial-statements" element={<ProjectRevenueHome />} />
+        <Route path="/reports" element={<p>pack page</p>} />
       </Routes>
     </MemoryRouter>,
   );
 
-function ProjectRevenueHome() {
-  const location = useLocation();
-  return <><p>Project revenue home</p><output data-testid="report-url">{location.pathname}{location.search}</output></>;
-}
-
-describe('dashboard Project revenue doorway', () => {
-  it('opens the canonical home in Earned view when it is available', async () => {
+describe('AC-MMP-015 dashboard Board pack', () => {
+  it('AC-MMP-015: opens the management pack when it is available', async () => {
     h.revenue = true;
     h.role = 'Executive';
     renderAt();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Project revenue' }));
-    expect(screen.getByText('Project revenue home')).toBeInTheDocument();
-    expect(screen.getByTestId('report-url')).toHaveTextContent('section=project-revenue');
-    expect(screen.getByTestId('report-url')).toHaveTextContent('view=earned');
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Board pack' }));
+    expect(screen.getByText('pack page')).toBeInTheDocument();
   });
 
-  it('opens Billing when Earned is off but invoice reporting remains available', async () => {
+  it('AC-MMP-015: stays the disabled coming-soon control when Revenue is off', () => {
     h.revenue = false;
     h.role = 'Executive';
     renderAt();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Project revenue' }));
-    expect(screen.getByText('Project revenue home')).toBeInTheDocument();
-    expect(screen.getByTestId('report-url')).toHaveTextContent('view=billing');
+    expect(screen.getByRole('button', { name: /board pack \(coming soon\)/i })).toBeDisabled();
   });
 
-  it('stays disabled for a role that cannot see earned revenue', () => {
+  it('AC-MMP-015: stays disabled for a role that cannot see the pack', () => {
     h.revenue = true;
     h.role = 'Engineer';
     renderAt();
-    expect(screen.getByRole('button', { name: /project revenue \(unavailable\)/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /board pack \(coming soon\)/i })).toBeDisabled();
   });
 });

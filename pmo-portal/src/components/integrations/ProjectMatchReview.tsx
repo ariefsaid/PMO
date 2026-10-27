@@ -326,7 +326,7 @@ export function ProjectMatchReview({
       aria-labelledby={headingId}
       className='min-w-0 space-y-3'
     >
-      <h3 id={headingId} className='text-xl font-bold tracking-[-0.01em] text-foreground'>
+      <h3 id={headingId} className='text-sm font-semibold text-foreground'>
         {projectId
           ? t('uxs09.projectLinkTitle', 'ERPNext Project')
           : t('uxs09.reviewTitle', 'Review existing ERP project matches')}
@@ -352,7 +352,7 @@ export function ProjectMatchReview({
         </p>
       )}
       {projectId && projectCanReview && canManage && !reviewOpen && (
-        <Button variant='outline' size='sm' className='min-h-11' onClick={openReview}>
+        <Button variant='outline' size='sm' onClick={openReview}>
           {t('uxs09.reviewAction', 'Review project match')}
         </Button>
       )}

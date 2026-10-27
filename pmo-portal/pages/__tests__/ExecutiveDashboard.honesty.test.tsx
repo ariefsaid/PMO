@@ -68,7 +68,7 @@ vi.mock('@/src/components/reports/BoardPackAction', () => ({ BoardPackAction: ()
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => dashboardState,
   useWinRate: () => ({ data: winRateOracle, isPending: false, isError: false }),
-  useSalesPipeline: () => ({ data: { stages: [] }, isPending: false, isError: false }),
+  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: 'Executive', realRole: 'Executive' }),
@@ -103,23 +103,25 @@ beforeEach(() => {
 });
 
 describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/002)', () => {
-  it('AC-UX-017: the Delivery book separates contract remainder from billed-work margin', () => {
+  it('AC-UX-017: the on-hand contract value tile separates margin from contract remaining', () => {
     renderPage();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(within(delivery).getAllByText(/Contract value on hand/i).length).toBeGreaterThan(0);
-    expect(delivery).toHaveTextContent(/Contract remaining after known Actual/);
-    expect(delivery).toHaveTextContent(/Margin on billed work/);
-    expect(delivery).not.toHaveTextContent(/Realized margin/);
-    expect(delivery).toHaveTextContent(/not cash received/i);
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    expect(within(tile).getByText(/Contract value on hand/i)).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/Contract remaining after known Actual/);
+    expect(tile).toHaveTextContent(/Margin on billed work/);
+    expect(tile).not.toHaveTextContent(/Realized margin/);
+    expect(tile).not.toHaveTextContent(/cash received/i);
   });
 
-  it('AC-IXD-DASH-002: the pipeline forecast has one named figure and no lens toggle', () => {
+  it('AC-IXD-DASH-002: exactly ONE forecast-margin tile, named "Pipeline forecast margin"', () => {
     renderPage();
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
-    expect(pipeline).toHaveTextContent('20.0%');
-    expect(within(pipeline).queryByRole('tab', { name: /On-hand/i })).toBeNull();
-    expect(within(pipeline).queryByRole('tab', { name: /Weighted/i })).toBeNull();
+    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
+    expect(within(tile).getByText(/Pipeline forecast margin/i)).toBeInTheDocument();
+    // It shows ONLY the weighted pipeline projected margin (20.0%) — no on-hand option.
+    expect(tile).toHaveTextContent('20.0%');
+    // No dual-lens toggle remains (one metric name = one number).
+    expect(within(tile).queryByRole('tab', { name: /On-hand/i })).toBeNull();
+    expect(within(tile).queryByRole('tab', { name: /Weighted/i })).toBeNull();
   });
 
   it('AC-IXD-DASH-002: no tile is named the ambiguous "Projected margin" anymore', () => {
@@ -128,12 +130,12 @@ describe('ExecutiveDashboard honesty — labels match values (AC-IXD-DASH-001/00
     expect(screen.queryByText(/^Projected margin$/i)).toBeNull();
   });
 
-  it('DASH-002: the forecast figure retains its clear margin noun', () => {
+  it('DASH-002: the pipeline-margin CHART panel heading matches the tile noun "Pipeline forecast margin"', () => {
     renderPage();
     // The chart panel that visualizes the same metric reads the SAME canonical noun as the tile —
     // not the divergent "Pipeline — Projected Margin".
-    const panel = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(panel).getByText('Forecast margin')).toBeInTheDocument();
+    const panel = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(panel).getByText('Pipeline forecast margin')).toBeInTheDocument();
     expect(screen.queryByText(/Pipeline\s*—\s*Projected Margin/i)).toBeNull();
   });
 });
@@ -154,8 +156,10 @@ describe('AC-FAA-006 executive comparison population', () => {
     renderPage();
 
     expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-pipeline-weighted-value')).toBeInTheDocument();
     expect(screen.getByTestId('dashboard-pipeline')).toBeInTheDocument();
-    expect(within(screen.getByTestId('dashboard-delivery-book')).getByText('No delivery projects to compare yet')).toBeInTheDocument();
+    expect(screen.getByText('No delivery projects to compare yet')).toBeInTheDocument();
+    expect(screen.getByText('Won, on-hold, delivery and closed-out projects, plus internal work.')).toBeInTheDocument();
   });
 
   it('uses the portfolio empty state only when project status and procurement evidence are both empty', () => {
@@ -169,23 +173,21 @@ describe('AC-FAA-006 executive comparison population', () => {
     renderPage();
 
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-empty')).toHaveTextContent('No data yet');
+    expect(screen.getByText('No data yet')).toBeInTheDocument();
   });
 
   it('preserves loading and error precedence for absent chart data', () => {
     dashboardState.data = null;
     dashboardState.isPending = true;
     const pending = renderPage();
-    expect(screen.getByTestId('dashboard-delivery-book')).toBeInTheDocument();
-    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
     expect(screen.queryByTestId('dashboard-empty')).not.toBeInTheDocument();
     pending.unmount();
 
     dashboardState.isPending = false;
     dashboardState.isError = true;
     renderPage();
-    const deliveryBook = screen.getByTestId('dashboard-delivery-book');
-    expect(screen.getAllByRole('alert').length).toBeGreaterThan(0);
-    expect(within(deliveryBook).getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+    expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
+    expect(screen.queryByText('No delivery projects to compare yet')).not.toBeInTheDocument();
   });
 });

@@ -18,7 +18,7 @@
       "boq": {
         "column": {
           "accepted": "Diterima (BAST)",
-          "balance": "Tersedia untuk dipesan",
+          "balance": "Belum dipesan",
           "earned": "Diperoleh",
           "ordered": "Dipesan"
         },

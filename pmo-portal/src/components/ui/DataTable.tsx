@@ -49,17 +49,11 @@ export interface Column<Row> {
   rowHeader?: boolean;
   /** Optional muted second line for a primary identity cell. */
   secondaryCell?: (row: Row) => React.ReactNode;
-  /** Let a primary cell's secondary context wrap when the row needs several identity facts. */
-  secondaryWrap?: boolean;
-  /** Keep contractual identities fully visible for collection-specific long-name requirements. */
-  primaryClamp?: boolean;
   /** One table-level explanation, referenced by a mark in this column header. */
   caveat?: { reason: React.ReactNode; remedy?: React.ReactNode };
   align?: ColAlign;
   /** When set, the header is sortable and reports this key to onSort. */
   sortKey?: string;
-  /** Extra classes for the column heading only. */
-  headerClassName?: string;
   /**
    * Extra Tailwind classes applied to both the `<th>` and each `<td>` in this column.
    * Use for responsive hiding, e.g. `"hidden xl:table-cell"`.
@@ -74,8 +68,6 @@ export interface Column<Row> {
   exportValue?: (row: Row) => string | number | boolean;
   /** Pin this column to the left edge while the table scrolls sideways (header, cells and total rows). */
   stickyLeft?: boolean;
-  /** Keep a secondary fact out of phone cards when the same fact is available in a named disclosure. */
-  phoneHidden?: boolean;
   /** Carried on the column list for the export seam only; never rendered (header, cell or card line). */
   exportOnly?: boolean;
   /** Preferred width in CSS pixels for resizable desktop tables. */
@@ -122,25 +114,11 @@ export interface DataTableProps<Row> {
   accessibleName?: string;
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
-  /** Hide secondary card facts behind one named phone disclosure; desktop columns remain unchanged. */
-  mobileDetails?: {
-    columnKeys: readonly string[];
-    summary: (row: Row, hiddenFactCount: number) => React.ReactNode;
-  };
   selectedKey?: string;
   sort?: SortState;
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
   state?: 'loading' | 'empty' | 'error';
-  /** Optional Projects-specific mobile evidence composition. The row menu remains a sibling. */
-  mobileRow?: (row: Row) => React.ReactNode;
-  /** Optional loading skeletons that preserve this collection's visible row geometry. */
-  loadingLayout?: {
-    cell: (column: Column<Row>) => React.ReactNode;
-    mobileRow: React.ReactNode;
-    announcement?: string;
-    rows?: number;
-  };
   emptyTitle?: string;
   emptySub?: string;
   emptyAction?: { label: string; onClick: () => void };
@@ -161,9 +139,6 @@ export interface DataTableProps<Row> {
    * beside the record panel), where its columns cannot fit and would otherwise scroll sideways inside a clipped box.
    */
   cardBelow?: number;
-  /** Keep a labelled, keyboard-focusable semantic table on phones for dense financial matrices. */
-  mobileTable?: boolean;
-
   /** Stable identity for saved column widths. */
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
@@ -245,8 +220,7 @@ function alignClass(align?: ColAlign) {
 }
 
 function columnMinSize<Row>(column: Column<Row>): number | undefined {
-  // Full-wrap identities can use an explicit compact track without losing their text.
-  const contractMin = column.kind === 'primary' ? (column.primaryClamp === false ? column.minSize ?? 240 : 240) : column.kind === 'status' ? 112 : undefined;
+  const contractMin = column.kind === 'primary' ? 240 : column.kind === 'status' ? 112 : undefined;
   return contractMin === undefined ? column.minSize : Math.max(contractMin, column.minSize ?? contractMin);
 }
 
@@ -325,7 +299,6 @@ export function DataTable<Row>({
   onActivate,
   rowLabel,
   rowTarget,
-  mobileDetails,
   selectedKey,
   sort,
   onSort,
@@ -337,12 +310,8 @@ export function DataTable<Row>({
   errorSub,
   onRetry,
   rowMenu,
-  mobileRow,
-  loadingLayout,
   className,
   cardBelow,
-  mobileTable = false,
-
   accessibleName,
   tableId,
   groupBy,
@@ -377,8 +346,6 @@ export function DataTable<Row>({
   const wideViewport = useIsDesktop();
   const narrowTable = useNarrowerThan(rootRef, cardBelow);
   const isDesktop = wideViewport && !narrowTable;
-  const renderTable = isDesktop || mobileTable;
-
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => columns.map((column) => {
     return {
       id: column.key,
@@ -397,7 +364,7 @@ export function DataTable<Row>({
     getCoreRowModel: getCoreRowModel(),
     manualSorting: true,
     columnResizeMode: 'onChange',
-    enableColumnResizing: wideViewport && !narrowTable,
+    enableColumnResizing: isDesktop,
     state: {
       sorting: sort ? [{ id: columns.find((column) => column.sortKey === sort.key)?.key ?? sort.key, desc: sort.dir === 'desc' }] : [],
       columnSizing,
@@ -464,14 +431,9 @@ export function DataTable<Row>({
   ) : null;
 
   return (
-    <div ref={rootRef} aria-busy={state === 'loading' ? true : undefined} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
-      {state === 'loading' && loadingLayout && (
-        <span className="sr-only" role="status" aria-live="polite" aria-label={loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}>
-          {loadingLayout.announcement ?? t('ui.listState.loading', 'Loading…')}
-        </span>
-      )}
-      {renderTable ? (
-      /* ── Table branch (desktop by default; dense data may opt into it at phone width) ── */
+    <div ref={rootRef} className={cn('overflow-hidden rounded-b-lg border border-border bg-card', className)}>
+      {isDesktop ? (
+      /* ── Desktop table branch (≥768px — only branch in the DOM; markup byte-unchanged) ── */
       // `relative` makes this scroller the containing block for the absolutely-positioned
       // `sr-only` "Actions" header (not sticky, so it is otherwise unpositioned) — without it the
       // header escapes the clip and the whole page scrolls sideways (AC-TBL-OVERFLOW-001).
@@ -479,11 +441,7 @@ export function DataTable<Row>({
         ref={tableBranchRef}
         data-testid="dt-table-branch"
         data-dt-overflowing={hasHiddenRightContent ? '' : undefined}
-        role={!isDesktop && mobileTable ? 'region' : undefined}
-        aria-label={!isDesktop && mobileTable ? accessibleName : undefined}
-        tabIndex={!isDesktop && mobileTable ? 0 : undefined}
-        className={cn('relative overflow-x-auto', mobileTable && 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring')}
-
+        className="relative overflow-x-auto"
       >
         <table
           ref={tableRef}
@@ -491,7 +449,7 @@ export function DataTable<Row>({
           style={{
             ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
-          className="w-full border-collapse type-value"
+          className="w-full border-collapse text-[13.5px]"
         >
           <thead>
             <tr>
@@ -512,10 +470,9 @@ export function DataTable<Row>({
                       ? { width: header.getSize(), ...(columnMinSize(col) !== undefined ? { minWidth: columnMinSize(col) } : {}), ...(columnMaxSize(col) !== undefined ? { maxWidth: columnMaxSize(col) } : {}) }
                       : undefined}
                     className={cn(
-                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 type-label uppercase text-muted-foreground whitespace-nowrap select-none',
+                      'group relative sticky top-0 z-[2] hover:z-[5] focus-within:z-[5] h-[38px] border-b border-border bg-card px-3 text-[11.5px] font-semibold uppercase tracking-[0.03em] text-muted-foreground whitespace-nowrap select-none',
                       col.stickyLeft && 'left-0 z-[3]',
                       alignClass(col.align),
-                      col.headerClassName,
                       col.colClassName
                     )}
                   >
@@ -523,9 +480,9 @@ export function DataTable<Row>({
                       <button
                         type="button"
                         onClick={() => onSort?.(col.sortKey!)}
-                        className="inline-flex min-w-0 flex-wrap items-center gap-1 whitespace-normal text-left uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
+                        className="inline-flex items-center gap-1 uppercase tracking-[0.03em] hover:text-foreground [&_svg]:size-3"
                       >
-                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`} className="min-w-0 whitespace-normal break-words">{col.header}</span>
+                        <span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>
                         {col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}
                         {currentSort ? <Icon name={currentSort === 'asc' ? 'up' : 'down'} /> : <span data-testid="sort-cue" aria-hidden="true" className="inline-flex flex-col opacity-40 [&_svg]:size-3"><Icon name="up" /><Icon name="down" /></span>}
                       </button>
@@ -533,7 +490,6 @@ export function DataTable<Row>({
                       <><span id={`datatable-header-label-${tableInstanceId}-${col.key}`}>{col.header}</span>{col.caveat && <span aria-hidden="true" className="ml-0.5 text-warning-foreground">*</span>}</>
                     )}
                     {(() => {
-                      if (!wideViewport) return null;
                       const min = columnMinSize(col) ?? 20;
                       const max = columnMaxSize(col) ?? 900;
                       if (min === max) return null;
@@ -621,23 +577,16 @@ export function DataTable<Row>({
           </thead>
           <tbody>
             {state ? (
-              state === 'loading' && loadingLayout ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => (
-                <tr key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70">
-                  {columns.map((column) => <td key={column.key} className="h-[54px] px-3 py-2 align-middle">{loadingLayout.cell(column)}</td>)}
-                  {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={colSpan} className="p-0">
-                    {listStateNode}
-                  </td>
-                </tr>
-              )
+              <tr>
+                <td colSpan={colSpan} className="p-0">
+                  {listStateNode}
+                </td>
+              </tr>
             ) : (
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
-                    <th scope="row" className="px-3 text-left text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -716,12 +665,12 @@ export function DataTable<Row>({
                                 e.stopPropagation();
                                 onActivate(row);
                               }}
-                              className="block min-h-11 w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
+                              className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                             >
-                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
+                              {col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)}
                             </button>
                           ) : (
-                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
+                            col.kind === 'primary' ? <PrimaryCell title={col.cell(row)} titleText={col.primaryTitle?.(row)} secondary={col.secondaryCell?.(row)} /> : col.cell(row)
                           )}
                         </CellTag>
                       );
@@ -741,7 +690,7 @@ export function DataTable<Row>({
             )}
           </tbody>
           {totals && totals.length > 0 && <tfoot>
-            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 tabular">
+            {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
               {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
@@ -760,8 +709,7 @@ export function DataTable<Row>({
        *   - Numeric columns: tabular + text-right on <dd>
        *   - rowMenu ⋯: top-right corner of the card, .touch-target
        * Sorting is a desktop-density affordance — not reproduced on cards (sort headers not shown).
-       * Columns render in the card regardless of colClassName responsive-hide, unless a secondary
-       * fact is explicitly moved behind a named phone disclosure with phoneHidden.
+       * All columns render in the card (no hidden data) regardless of colClassName responsive-hide.
        *
        * AT scoping: at <768px this card branch is the ONLY structure rendered, so it
        * is fully AT-readable. No aria-hidden is needed (or wanted — it would hide the
@@ -776,25 +724,17 @@ export function DataTable<Row>({
         className="divide-y divide-border/70"
       >
         {state ? (
-          state === 'loading' && loadingLayout
-            ? Array.from({ length: loadingLayout.rows ?? 3 }, (_, rowIndex) => <li key={`loading-${rowIndex}`} data-testid="data-table-loading-row" aria-hidden="true" className="border-b border-border/70 p-4">{loadingLayout.mobileRow}</li>)
-            : <li className="p-0">{listStateNode}</li>
+          <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-xl font-bold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
-            const [titleCol, ...secondaryColumns] = columns;
-            const restCols = secondaryColumns.filter((column) => !column.phoneHidden);
-            const mobileDetailKeys = new Set(mobileDetails?.columnKeys ?? []);
-            const visibleRestCols = mobileDetails ? restCols.filter((column) => !mobileDetailKeys.has(column.key)) : restCols;
-            const detailCols = mobileDetails ? restCols.filter((column) => mobileDetailKeys.has(column.key)) : [];
-            const detailValues = detailCols.map((column) => ({ column, content: column.cell(row) }))
-              .filter(({ content }) => content != null && content !== false);
+            const [titleCol, ...restCols] = columns;
             const hasMenu = !!rowMenu;
             const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
@@ -804,28 +744,33 @@ export function DataTable<Row>({
                 id={targetId}
                 tabIndex={targetId ? -1 : undefined}
                 className={cn(
-                  'relative flex flex-col gap-4 p-4 type-value transition-colors',
+                  'relative flex flex-col gap-2 p-4 text-[13.5px] transition-colors',
                   onActivate && 'cursor-pointer',
                   selected && 'bg-primary/[0.07]'
                 )}
               >
-                {/* Identity row: custom phone composition or the complete primary identity. */}
-                <div className="flex min-w-0 items-start justify-between gap-3">
-                  {mobileRow ? <div className="min-w-0 flex-1">{mobileRow(row)}</div> : <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                {/* Title row: first column + rowMenu ⋯ pinned top-right */}
+                <div className="flex items-start justify-between gap-3">
+                  {/* Card title — activation button if rowLabel+onActivate supplied.
+                      [&_.truncate]:block: a `truncate` cell is usually an INLINE <span>, and
+                      overflow:hidden is a no-op on inline boxes — so a long title bleeds past
+                      the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
+                      descendants to block lets them clip with an ellipsis within this min-w-0
+                      column, independent of text width (no font-metric-dependent 1–6px bleed). */}
+                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
                     {onActivate && rowLabel ? (
                       <button
                         type="button"
                         aria-label={accessibleRowLabel(row)}
                         onClick={() => onActivate(row)}
-                        className="block min-h-11 w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-
+                        className="block w-full text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-sm"
                       >
-                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
+                        {titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)}
                       </button>
                     ) : (
-                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
+                      titleCol.kind === 'primary' ? <PrimaryCell title={titleCol.cell(row)} titleText={titleCol.primaryTitle?.(row)} secondary={titleCol.secondaryCell?.(row)} /> : titleCol.cell(row)
                     )}
-                  </div>}
+                  </div>
                   {/* rowMenu ⋯ — top-right of the card, .touch-target for ≥44px on coarse pointer */}
                   {hasMenu && menuItems.length > 0 && (
                     <div className="shrink-0">
@@ -837,16 +782,16 @@ export function DataTable<Row>({
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row
                     (null/undefined/false — e.g. a fact that only one record type carries) is left out of
                     the card: a label with no value is noise, and a <dt> without its <dd> is invalid. */}
-                {!mobileRow && visibleRestCols.length > 0 && (
-                  <dl className={mobileDetails ? 'grid grid-cols-2 gap-x-6 gap-y-4' : 'flex flex-col gap-2'}>
-                    {visibleRestCols.filter((col) => !col.phoneHidden).map((col) => {
+                {restCols.length > 0 && (
+                  <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
+                    {restCols.map((col) => {
                       const content = col.cell(row);
                       if (content == null || content === false) return null;
                       return (
-                        <div key={col.key} className={mobileDetails ? 'flex min-w-0 flex-col gap-1' : 'flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1'}>
+                        <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'type-label text-muted-foreground self-start',
+                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -856,65 +801,47 @@ export function DataTable<Row>({
                             className={cn(
                               // [&_.truncate]:block — see the title note above: inline truncate
                               // cells (e.g. a contact email) don't clip and bleed at 360px.
-                              'min-w-0 break-words type-value text-foreground [&_.truncate]:block',
-                              col.align === 'num' && 'tabular',
+                              'min-w-0 break-words text-[13.5px] text-foreground [&_.truncate]:block',
+                              col.align === 'num' && 'tabular text-right',
                               col.align === 'center' && 'text-center',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
                             {content}
                           </dd>
-                        </div>
+                        </React.Fragment>
                       );
                     })}
                   </dl>
-                )}
-                {!mobileRow && mobileDetails && detailValues.length > 0 && (
-                  <details className="border-t border-border/70 pt-2">
-                    <summary className="min-h-11 cursor-pointer py-2 type-value focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                      {mobileDetails.summary(row, detailValues.length)}
-                    </summary>
-                    <dl className="grid grid-cols-2 gap-x-6 gap-y-4 pt-1">
-                      {detailValues.map(({ column: col, content }) => {
-                        return (
-                          <div key={col.key} className="flex min-w-0 flex-col gap-1">
-                            <dt className="type-label text-muted-foreground">{col.header}</dt>
-                            <dd className={cn('min-w-0 break-words type-value text-foreground [&_.truncate]:block', col.align === 'num' && 'tabular')}>
-                              {content}
-                            </dd>
-                          </div>
-                        );
-                      })}
-                    </dl>
-                  </details>
                 )}
               </li>
             );
           })
         )}
-        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 type-value tabular">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+        {!state && totals?.map((total) => <li key={`total-${total.key}`} className="border-t-[1.5px] border-border bg-secondary/40 px-4 py-3 text-[13px] font-semibold tabular">
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
             {columns.map((column, index) => {
               const value = total.values && Object.prototype.hasOwnProperty.call(total.values, column.key)
                 ? total.values[column.key]
                 : index === 0 ? total.label : null;
-              return value == null ? null : <div key={column.key} className="flex min-w-0 flex-col gap-1"><dt className="type-label text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0 type-value text-foreground', column.align === 'num' && 'tabular')}>{value}</dd></div>;
+              return value == null ? null : <React.Fragment key={column.key}><dt className="text-muted-foreground">{column.header}</dt><dd className={cn('min-w-0', column.align === 'num' && 'text-right tabular')}>{value}</dd></React.Fragment>;
             })}
           </dl>
         </li>)}
       </ul>
       )}
-      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 type-value text-muted-foreground">
+      {caveats.length > 0 && <p id={caveatId} className="border-t border-border/70 px-3 py-2 text-[12px] text-muted-foreground">
         {caveats.map((caveat, index) => <React.Fragment key={index}>{index > 0 && ' '}<span className="text-warning-foreground">*</span> {caveat.reason}{caveat.remedy && <> {caveat.remedy}</>}</React.Fragment>)}
       </p>}
     </div>
   );
 }
 
-function PrimaryCell({ title, secondary }: { title: React.ReactNode; secondary?: React.ReactNode }) {
+function PrimaryCell({ title, titleText, secondary }: { title: React.ReactNode; titleText?: string; secondary?: React.ReactNode }) {
+  const accessibleTitle = titleText ?? (typeof title === 'string' ? title : undefined);
   return <span className="block min-w-0">
-    <span className="block whitespace-normal break-words type-value text-foreground">{title}</span>
-    {secondary != null && <span className="block whitespace-normal break-words type-value text-muted-foreground">{secondary}</span>}
+    <span title={accessibleTitle} className="block line-clamp-2 break-words font-semibold text-foreground">{title}</span>
+    {secondary != null && <span className="block truncate text-[12px] font-normal text-muted-foreground">{secondary}</span>}
   </span>;
 }
 
@@ -1077,8 +1004,8 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
         // default so every row's actions are reachable without a hover event. Touch targets ≥44px
         // come from the `.touch-target` utility (coarse-pointer min hit area).
         className={label
-          ? buttonClasses('outline', 'sm', 'touch-target gap-1 max-sm:min-h-11')
-          : 'touch-target grid size-7 max-sm:min-h-11 max-sm:min-w-11 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
+          ? buttonClasses('outline', 'sm', 'touch-target gap-1')
+          : 'touch-target grid size-7 place-items-center rounded-md text-muted-foreground transition-[opacity,background-color] hover:bg-accent hover:text-foreground'}
       >
         {label ? (
           <>
@@ -1086,7 +1013,9 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
             <Icon name="chev" aria-hidden className="size-3.5 rotate-90 text-muted-foreground" />
           </>
         ) : (
-          <Icon name="menu" className="size-4" />
+          <span aria-hidden className="text-base leading-none">
+            ⋯
+          </span>
         )}
       </button>
       {open &&
@@ -1126,7 +1055,7 @@ const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: stri
                     onMouseEnter={() => setActive(i)}
                     onClick={() => activate(item)}
                     className={cn(
-                      'touch-target flex min-h-11 w-full items-center rounded-md px-2.5 text-left text-xs font-semibold hover:bg-accent',
+                      'flex h-8 w-full items-center rounded-md px-2.5 text-left text-[13.5px] hover:bg-accent',
                       item.danger && 'text-destructive',
                       item.disabled && 'cursor-not-allowed text-muted-foreground hover:bg-transparent'
                     )}
@@ -1226,7 +1155,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
   return (
     <div
       className={cn(
-        'flex h-8 max-sm:min-h-11 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
+        'flex h-8 min-w-[190px] items-center gap-[7px] rounded-lg border border-input bg-background px-2.5 [&_svg]:size-[15px] [&_svg]:text-muted-foreground',
         containerClassName
       )}
     >
@@ -1236,8 +1165,7 @@ export const SearchMini: React.FC<SearchMiniProps> = ({
         value={value}
         onKeyDown={handleKeyDown}
         className={cn(
-          '[@media(pointer:coarse)]:min-h-11 max-sm:min-h-11 w-full border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground',
-
+          'w-full border-none bg-transparent text-[13.5px] outline-none placeholder:text-muted-foreground',
           className
         )}
         {...rest}
@@ -1254,7 +1182,7 @@ export const TableFoot: React.FC<React.HTMLAttributes<HTMLDivElement>> = ({
 }) => (
   <div
     className={cn(
-      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-3.5 py-[11px] text-sm tabular',
+      'flex flex-wrap items-center gap-4 border-t-[1.5px] border-border bg-secondary/40 px-3.5 py-[11px] text-[13px] tabular',
       className
     )}
     {...rest}

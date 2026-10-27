@@ -302,7 +302,7 @@ describe('Combobox: long sub-lines never hide the option label', () => {
     expect(subEl).not.toBeNull();
     // The sub shrinks faster than the label, so the label keeps its room.
     expect(subEl!.className).toMatch(/shrink-\[3\]/);
-    expect(subEl!.className).toMatch(/break-words/);
+    expect(subEl!.className).toMatch(/truncate/);
   });
 });
 

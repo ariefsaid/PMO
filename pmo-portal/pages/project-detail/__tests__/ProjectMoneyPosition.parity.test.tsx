@@ -10,7 +10,7 @@ import { ToastProvider } from '@/src/components/ui';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { ProjectFinances } from '@/src/lib/projectFinances';
-import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
+import { formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 import OverviewTab from '../tabs/OverviewTab';
 import ProjectDetailHeader from '../ProjectDetailHeader';
@@ -53,7 +53,6 @@ vi.mock('@/src/lib/repositories', () => ({
   repositories: { revenue: { getProjectFinances: h.getProjectFinances } },
 }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
-vi.mock('../../../components/ProjectStatusControl', () => ({ default: () => null }));
 vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 vi.mock('@/src/hooks/useProjectVatEditability', () => ({
   useProjectVatEditability: () => ({
@@ -76,16 +75,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ ...h.budget, refetch: vi.fn() }),
-  useBudgetVersions: () => ({
-    data: h.budget.data && h.budget.data > 0 ? [{
-      id: 'active-budget', project_id: project.id, org_id: 'org-A', version: 1, name: 'Active', status: 'Active',
-      created_at: '2026-01-01', total: h.budget.data,
-      line_items: [{ id: 'line-1', budget_version_id: 'active-budget', org_id: 'org-A', category: 'Labor', description: null, budgeted_amount: h.budget.data, actual_amount: 0 }],
-    }] : [],
-    isPending: h.budget.isPending,
-    isError: h.budget.isError,
-    refetch: vi.fn(),
-  }),
+  useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -179,20 +169,22 @@ async function setLanguage(language: 'en' | 'id') {
 function renderSurfaces(options: {
   status?: string;
   realRole?: string;
+  showFinanceSummary?: boolean;
   ledgerBasis?: 'pmo' | 'erp' | 'unavailable';
   committedSpend?: number;
   committedOtherCurrencies?: Array<{ currency: string; amount: number }>;
   includeHeader?: boolean;
-  contractValue?: number | null;
+  includeOverview?: boolean;
 } = {}) {
   const {
     status = 'Ongoing Project',
     realRole = 'Finance',
+    showFinanceSummary = false,
     ledgerBasis = 'erp',
     committedSpend = 10,
     committedOtherCurrencies = [],
     includeHeader = true,
-    contractValue,
+    includeOverview = true,
   } = options;
   h.realRole = realRole;
   h.commitments = {
@@ -203,7 +195,7 @@ function renderSurfaces(options: {
     commitmentSource: ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked',
     ledgerBasis,
   };
-  const currentProject = { ...project, ...(contractValue !== undefined ? { contract_value: contractValue } : {}), status } as ProjectWithRefs;
+  const currentProject = { ...project, status } as ProjectWithRefs;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = render(
     <I18nextProvider i18n={localeI18n}>
@@ -213,15 +205,22 @@ function renderSurfaces(options: {
             {includeHeader && (
               <ProjectDetailHeader
                 project={currentProject}
+                committedSpend={committedSpend}
+                committedOtherCurrencies={committedOtherCurrencies}
+                commitmentSource={ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked'}
+                ledgerBasis={ledgerBasis}
               />
             )}
-            <OverviewTab
-              project={currentProject}
-              committedSpend={committedSpend}
-              committedOtherCurrencies={committedOtherCurrencies}
-              commitmentSource={ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked'}
-              ledgerBasis={ledgerBasis}
-            />
+            {includeOverview && (
+              <OverviewTab
+                project={currentProject}
+                committedSpend={committedSpend}
+                committedOtherCurrencies={committedOtherCurrencies}
+                commitmentSource={ledgerBasis === 'pmo' ? 'pmo' : 'not-tracked'}
+                ledgerBasis={ledgerBasis}
+                showFinanceSummary={showFinanceSummary}
+              />
+            )}
           </ToastProvider>
         </MemoryRouter>
       </QueryClientProvider>
@@ -236,6 +235,13 @@ async function waitForFinance(client: QueryClient) {
     h.orgId,
     project.id,
   ])?.status).toBe('success'));
+}
+
+function statTile(label: string) {
+  const tile = screen.getAllByTestId('stat-tile')
+    .find((candidate) => within(candidate).queryByText(label, { exact: true }));
+  expect(tile, `expected a statistic tile labelled ${label}`).toBeDefined();
+  return tile!;
 }
 
 beforeAll(async () => {
@@ -273,22 +279,23 @@ describe('project money position consumer parity', () => {
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(project.id));
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent(t('uxs01.recordedSpending', 'Recorded spending'));
-    expect(cost).toHaveTextContent(formatProjectDetailAmount('10.10', 'USD', language)!);
-    expect(cost).toHaveTextContent(formatProjectDetailAmount('89.90', 'USD', language)!);
-    expect(screen.getByTestId('budget-used')).toHaveTextContent('25%');
+    const actualTile = statTile(t('projectDetail.header.tile.actual', 'Actual'));
+    expect(within(actualTile).getByText(formatExactMoney('10.10', 'USD', language)!)).toBeInTheDocument();
+    expect(actualTile).toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
+    expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
+      .getByText(formatSignedExactMoney('89.90', 'USD', language)!)).toBeInTheDocument();
+    expect(statTile(t('projectDetail.header.tile.spend', 'Spend'))).toHaveTextContent('25%');
 
+    const financeSection = screen.getByTestId('project-finances');
+    expect(financeSection).toHaveTextContent(formatExactMoney('10.10', 'USD', language)!);
     const cashField = screen.getByText(t('uxs01.cashReceived', 'Cash received'), { exact: true }).parentElement!;
-    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(`USD ${formatProjectDetailAmount('0.00', 'USD', language)}`);
-    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(`IDR ${formatProjectDetailAmount('7.50', 'IDR', language)}`);
-    expect(screen.getByText(t('project:projectDetail.moneyPosition.invoiceBalanceClearedNote', 'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.'))).toBeInTheDocument();
-    expect(screen.getByText(t('project:projectDetail.moneyPosition.clearedAgainstInvoices', 'Cleared against invoices'))).toBeInTheDocument();
-    /* The semantic distinction is visible beside the ERP settlement balance. */
-    expect(screen.getByText(t(
-      'project:projectDetail.moneyPosition.invoiceBalanceClearedNote',
-      'ERP-cleared value is invoiced less ERP outstanding; it may include non-cash settlement. Receipt-backed cash is shown separately above.',
-    ))).toBeInTheDocument();
+    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('0.00', 'USD', language)!));
+    expect(normalizeSpacing(cashField.textContent ?? '')).toContain(normalizeSpacing(formatExactMoney('7.50', 'IDR', language)!));
+    // PD-C: the settlement explanation is the title of the "Settled" label, not a paragraph.
+    expect(screen.getAllByText(t('projectFinances.settled', 'Settled'))[0]).toHaveAttribute('title', t(
+      'projectFinances.settlementNote',
+      'Settled against invoices (cash, withholding and credits), not cash received.',
+    ));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
       actuals: financeReading(project.id, {
         actuals: actuals('10.10', [
@@ -304,15 +311,18 @@ describe('project money position consumer parity', () => {
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId, {
       actuals: actuals('10.10', [{ category: 'Labor', mapped: true, amount: null }]),
     }));
-    const { client } = renderSurfaces({ realRole: 'Engineer' });
+    const { client } = renderSurfaces({ realRole: 'Engineer', showFinanceSummary: true });
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent(t('uxs01.actualUnavailable', 'Unavailable'));
-    // Full mapping with an unknown amount remains unknown and never becomes a false zero.
-    expect(cost).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
-    expect(cost).not.toHaveTextContent(/Partial coverage|Cakupan sebagian/);
+    const aside = screen.getByTestId('financial-summary');
+    expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
+      .getByText(t('uxs01.actualUnavailable', 'Unavailable'))).toBeInTheDocument();
+    expect(aside).not.toHaveTextContent(t('uxs01.completeCoverage', 'Complete category coverage'));
+    const financeSection = screen.getByTestId('project-finances');
+    // PD-C: coverage is stated only when partial — full mapping is never reported as partial.
+    expect(financeSection).not.toHaveTextContent(/Partial coverage|Cakupan sebagian/);
+    expect(financeSection).toHaveTextContent(t('projectFinances.unavailable', 'Unavailable'));
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalled();
   });
 
@@ -321,16 +331,18 @@ describe('project money position consumer parity', () => {
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId, {
       actuals: actuals('10.10', [{ category: 'Labor', mapped: true, amount: '10.10' }], 'EUR'),
     }));
-    const { client } = renderSurfaces({ realRole: 'Engineer' });
+    const { client } = renderSurfaces({ realRole: 'Engineer', showFinanceSummary: true });
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent(formatProjectDetailAmount('10.10', 'EUR', 'en')!);
-    // Cross-currency ratios are withheld by omitting the derived measures.
-    expect(cost).not.toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
-    expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /Spending · EUR/ })).toBeInTheDocument();
+    const aside = screen.getByTestId('financial-summary');
+    expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
+      .getByText(formatExactMoney('10.10', 'EUR', 'en')!)).toBeInTheDocument();
+    // PD-A: cross-currency ratios are withheld by omitting the tiles, not by prose.
+    expect(screen.queryByText(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'))).not.toBeInTheDocument();
+    expect(screen.queryByText(t('projectDetail.overview.finance.spend', 'Spend'))).not.toBeInTheDocument();
+    expect(aside).toBeInTheDocument();
+    expect(screen.getByText(/Recorded spending · EUR/)).toBeInTheDocument();
     expect(projectFinancesModule.buildProjectMoneyPosition).toHaveBeenCalledWith(expect.objectContaining({
       projectCurrency: 'USD',
       actuals: financeReading(project.id, {
@@ -339,65 +351,55 @@ describe('project money position consumer parity', () => {
     }));
   });
 
-  it('AC-PMP-003 keeps an unstated contract unavailable instead of inventing zero', async () => {
-    const { client } = renderSurfaces({ includeHeader: false, contractValue: null });
-    await waitForFinance(client);
-    expect(screen.queryByTestId('overview-contract-value')).not.toBeInTheDocument();
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).not.toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
-  });
-
-  it('AC-PMP-003 preserves known zero contract and a negative contract remainder with the minus sign', async () => {
-    const zero = renderSurfaces({ includeHeader: false, contractValue: 0 });
-    await waitForFinance(zero.client);
-    expect(screen.getByTestId('overview-contract-value')).toHaveTextContent('0');
-    zero.view.unmount();
-
-    h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId, {
-      actuals: actuals('150.00', [{ category: 'Labor', mapped: true, amount: '150.00' }]),
-    }));
-    const next = renderSurfaces({ includeHeader: false, contractValue: 100 });
-    await waitForFinance(next.client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'));
-    expect(screen.getByTestId('contract-after-cost')).toHaveTextContent(formatProjectDetailAmount('-50.00', 'USD', 'en')!);
-  });
-
   it('AC-PMP-003 preserves PMO placement and zero/positive values for delivery-forward roles', async () => {
     h.realRole = 'Engineer';
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
     const { client } = renderSurfaces({
       status: 'Internal Project',
       realRole: 'Engineer',
+      showFinanceSummary: true,
       ledgerBasis: 'pmo',
       committedSpend: 0,
     });
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent(t('uxs01.pmoCoverage', 'Committed PMO purchase orders'));
-    expect(cost).toHaveTextContent(formatProjectDetailAmount('0.00', 'USD', 'en')!);
-    expect(cost).toHaveTextContent(formatProjectDetailAmount('100.00', 'USD', 'en')!);
-    expect(screen.getByTestId('budget-used')).toHaveTextContent('0%');
+    const aside = screen.getByTestId('financial-summary');
+    expect(aside).toHaveTextContent(t('uxs01.pmoCoverage', 'Committed PMO purchase orders'));
+    expect(within(statTile(t('projectDetail.overview.finance.actual', 'Actual')))
+      .getByText(formatExactMoney('0.00', 'USD', 'en')!)).toBeInTheDocument();
+    expect(within(statTile(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
+      .getByText(formatSignedExactMoney('100.00', 'USD', 'en')!)).toBeInTheDocument();
+    expect(within(statTile(t('projectDetail.overview.finance.spend', 'Spend'))).getByText('0%')).toBeInTheDocument();
   });
 
   it('0373 shows the project-currency committed figure and names other currencies beside it, never in its sum', async () => {
     h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
     const { client } = renderSurfaces({ ledgerBasis: 'pmo', committedSpend: 10, committedOtherCurrencies: [{ currency: 'EUR', amount: 40 }] });
     await waitForFinance(client);
-    const cost = screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') });
-    expect(cost).toHaveTextContent('10');
-    expect(cost).not.toHaveTextContent('50');
-    expect(within(cost).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: EUR 40');
+    const tile = statTile(t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'));
+    expect(tile).toHaveTextContent('$10');
+    expect(tile).not.toHaveTextContent('$50');
+    expect(within(tile).getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
+    // Named once per strip: the PMO purchase-order tile carries it, so the Actual tile does not repeat it.
+    expect(within(statTile(t('projectDetail.header.tile.actual', 'Actual'))).queryByTestId('committed-other-currencies')).toBeNull();
   });
 
-  it('AC-PMP-006 keeps pipeline money out of Overview and disables the delivery finance read', async () => {
+  it('0373 the delivery-role summary names other-currency commitments too', async () => {
+    h.getProjectFinances.mockImplementation(async (projectId: string) => financeReading(projectId));
+    const { client } = renderSurfaces({ status: 'Internal Project', realRole: 'Engineer', showFinanceSummary: true,
+      ledgerBasis: 'pmo', committedSpend: 10, committedOtherCurrencies: [{ currency: 'EUR', amount: 40 }] });
+    await waitForFinance(client);
+    expect(within(screen.getByTestId('financial-summary')).getAllByTestId('committed-other-currencies')[0])
+      .toHaveTextContent('Plus amounts in other currencies: €40');
+  });
+
+  it('AC-PMP-006 keeps pipeline Project finances visible and fetching beside the hidden header', async () => {
     renderSurfaces({ status: 'Leads', realRole: 'Finance' });
 
-    expect(screen.queryByRole('region', { name: t('project:projectDetail.moneyPosition.title', 'Money position') })).not.toBeInTheDocument();
-    expect(screen.queryByTestId('project-finances')).not.toBeInTheDocument();
-    expect(h.getProjectFinances).not.toHaveBeenCalled();
+    expect(screen.getByTestId('project-finances')).toBeInTheDocument();
+    expect(screen.queryByTestId('financial-summary')).not.toBeInTheDocument();
+    await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledExactlyOnceWith(project.id));
     expect(screen.queryByText(t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')))
       .not.toBeInTheDocument();
   });
@@ -407,14 +409,15 @@ describe('project money position consumer parity', () => {
     { name: 'failed', data: undefined, isPending: false, isError: true, expected: null },
     { name: 'without an Active budget', data: 0, isPending: false, isError: false, expected: null },
     { name: 'with an Active budget', data: 40, isPending: false, isError: false, expected: '25%' },
-  ])('AC-PMP-003 keeps budget position distinct when budget is $name', async ({ data, isPending, isError, expected }) => {
+  ])('AC-PMP-003 keeps header budget precedence $name', async ({ data, isPending, isError, expected }) => {
     h.budget = { data, isPending, isError };
-    const { client } = renderSurfaces({ includeHeader: false });
+    const { client } = renderSurfaces({ includeOverview: false });
 
     await waitFor(() => expect(h.getProjectFinances).toHaveBeenCalledOnce());
     await waitForFinance(client);
-    if (expected === null) expect(screen.queryByTestId('budget-used')).not.toBeInTheDocument();
-    else expect(screen.getByTestId('budget-used')).toHaveTextContent(expected);
+    // PD-A: no Active budget (or still loading) → no Spend tile at all, never "No active budget" prose.
+    if (expected === null) expect(screen.queryByText(t('projectDetail.header.tile.spend', 'Spend'))).not.toBeInTheDocument();
+    else expect(statTile(t('projectDetail.header.tile.spend', 'Spend'))).toHaveTextContent(expected);
   });
 
   it('AC-PMP-003 keeps finance-section loading and retry after a failed real repository read', async () => {
@@ -429,8 +432,8 @@ describe('project money position consumer parity', () => {
       "Couldn't load project finances.",
     ))).toBeInTheDocument());
     fireEvent.click(screen.getByRole('button', { name: t('projectFinances.retry', 'Retry') }));
-    await waitFor(() => expect(screen.getByRole('group', { name: t('project:projectDetail.moneyPosition.spending', 'Spending') })).toHaveTextContent(
-      formatProjectDetailAmount('10.10', 'USD', 'en')!,
+    await waitFor(() => expect(screen.getByTestId('project-finances')).toHaveTextContent(
+      formatExactMoney('10.10', 'USD', 'en')!,
     ));
     expect(h.getProjectFinances).toHaveBeenCalledTimes(2);
   });

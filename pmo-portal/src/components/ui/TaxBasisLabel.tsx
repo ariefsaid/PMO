@@ -62,7 +62,7 @@ export const TaxBasisLabel: React.FC<TaxBasisLabelProps> = ({ treatment, taxRate
     <span
       data-testid={testId ?? 'tax-basis'}
       data-tax-basis={treatment}
-      className={cn('text-xs font-normal text-muted-foreground', className)}
+      className={cn('text-[11px] font-normal text-muted-foreground', className)}
       onKeyDown={detailsMode === 'disclosure' ? (event) => {
         if (event.key !== 'Escape' || !detailsExpanded) return;
         event.preventDefault();

@@ -5,6 +5,11 @@
     "catalogueValue": "Returned for changes"
   },
   {
+    "key": "dashboard.winRate.title",
+    "defaultValue": "Win Rate",
+    "catalogueValue": "Win rate"
+  },
+  {
     "key": "projectDetail.milestones.prewinPlaceholder",
     "defaultValue": "Phase planning starts once this is won",
     "catalogueValue": "Delivery planning starts once this is won"
@@ -68,6 +73,11 @@
     "key": "bupot.bill",
     "defaultValue": "Linked bills",
     "catalogueValue": "Bill"
+  },
+  {
+    "key": "revenueByProject.subtitle",
+    "defaultValue": "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
+    "catalogueValue": "Project revenue, net of tax, in each invoice's own currency, with a separate Unassigned group for invoices not linked to a project."
   },
   {
     "key": "profileSettings.saving",

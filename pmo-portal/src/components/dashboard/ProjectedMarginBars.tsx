@@ -3,11 +3,9 @@ import { useTranslation } from 'react-i18next';
 import { useProjectStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import { Link } from 'react-router';
 import { formatDashboardMoney } from '@/src/lib/dashboardMoney';
-import { formatNumberExact } from '@/src/lib/format';
+import { formatCompactCurrency } from '@/src/lib/format';
 import { chartTheme } from '@/src/components/ui/chartTheme';
 import { SALES_COLUMNS } from '@/components/salesPipeline';
-import { DashFact } from './layout';
-import { revealDashboardNote } from './dashboardNote';
 import type { PipelineStage } from '@/src/lib/db/dashboard';
 
 /** Open (non-terminal) statuses, from the shared sales model. */
@@ -27,64 +25,42 @@ export interface ProjectedMarginBarsProps {
   stages: PipelineStage[];
   /** Org operating currency (pipeline stages are RPC-shaped, no per-row currency) — FR-L10N-020. */
   currency: string;
-  /** Currency-separated totals avoid combining values with incomparable units. */
-  currencyTotals?: Array<{
-    currency: string;
-    weightedValue: number | null;
-    grossValue: number | null;
-    forecastMargin: number | null;
-  }>;
-  /** Stage rows are unavailable when the sales aggregate spans multiple currencies. */
-  allowStageBars?: boolean;
 }
 
-/** Paired pipeline figures followed by the open-stage evidence; unknown remains unknown. */
-export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
-  projectedMargin,
-  stages,
-  currency,
-  currencyTotals = [],
-  allowStageBars = true,
-}) => {
+/**
+ * Pipeline forecast margin: a 30px headline % (the weighted lens) over
+ * per-open-stage weighted-value bars. Real data only — headline from the exec
+ * payload, bars from `useSalesPipeline().stages` with Won/Lost terminal stages
+ * excluded. Each bar direct-labels its weighted value and carries an aria label.
+ */
+export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({ projectedMargin, stages, currency }) => {
   const { t } = useTranslation();
+  const money = (value: number) => formatCompactCurrency(value, currency);
   const fullMoney = (value: number) => formatDashboardMoney(value, currency)
     ?? t('uxs03.notAvailableYet', 'Not available yet');
   const statusLabel = useProjectStatusLabel();
   const open = useMemo(
-    () => allowStageBars ? stages.filter((s) => OPEN_STATUSES.has(s.status as string)) : [],
-    [allowStageBars, stages],
+    () => stages.filter((s) => OPEN_STATUSES.has(s.status as string)),
+    [stages],
   );
   const max = useMemo(() => Math.max(1, ...open.map((s) => s.weighted_value)), [open]);
 
-  const totals = currencyTotals.length ? currencyTotals : [{ currency, weightedValue: null, grossValue: null, forecastMargin: projectedMargin }];
-  const amount = (value: number | null) => value !== null && Number.isFinite(value) ? formatNumberExact(value) : '—';
-
   return (
-    <div role="group" aria-label={t('dashboard:projectedMargin.group', 'Pipeline projected margin')} className="space-y-4">
-      {totals.map((row) => (
-        <div key={row.currency}>
-          {totals.length > 1 && <p className="mb-2 text-xs font-semibold text-muted-foreground">{row.currency}</p>}
-          <dl className="grid grid-cols-2 items-start gap-4 sm:grid-cols-3">
-            <DashFact label={t('dashboard:exec.weightedShort', 'Weighted')} value={amount(row.weightedValue)} primary />
-            <DashFact label={t('dashboard:exec.grossShort', 'Gross')} value={amount(row.grossValue)} />
-            <DashFact label={t('dashboard:exec.forecastMarginShort', 'Forecast margin')} value={row.forecastMargin !== null && Number.isFinite(row.forecastMargin)
-              ? `${(row.forecastMargin * 100).toFixed(1)}%`
-              : <>—<sup className="relative inline-flex h-4 w-11 align-top"><a href="#executive-data-note" onClick={revealDashboardNote} aria-label={t('dashboard:exec.forecastMarginUnavailable', 'Forecast margin unavailable; see data note')} className="absolute -top-4 inline-flex min-h-11 min-w-11 items-center justify-center text-xs font-semibold text-muted-foreground underline underline-offset-2">1</a></sup></>} />
-          </dl>
+    <div role="group" aria-label={t('dashboard.projectedMargin.group', 'Pipeline projected margin')}>
+      {projectedMargin !== null && (
+        <div className="mb-3.5 flex items-baseline gap-2.5">
+          <span className="min-w-0 break-words text-[30px] font-bold leading-none tracking-[-0.02em] tabular">
+            {`${(projectedMargin * 100).toFixed(1)}%`}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {t('dashboard.projectedMargin.summary', 'probability-adjusted across {{count}} open {{stageNoun}}', { count: open.length, stageNoun: open.length === 1 ? t('dashboard.projectedMargin.stage', 'stage') : t('dashboard.projectedMargin.stages', 'stages') })}
+          </span>
         </div>
-      ))}
+      )}
 
       {/* D-1 (AC-JR-W3B-05): each stage row is a Link to /sales?status=<encoded> so
           the exec can drill into that stage's deals directly from the margin card. */}
-      {!allowStageBars && (
-        <p className="text-sm text-muted-foreground">{t('dashboard:exec.stageValuesMixedCurrency', 'Stage values cannot be compared across currencies.')}</p>
-      )}
-      {allowStageBars && open.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t('dashboard:projectedMargin.emptyStages', 'No open pipeline stages')}</p>
-      )}
-      <section aria-label={t('dashboard:exec.pipelineStagesCurrency', 'Open stages · {{currency}}', { currency })}>
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">{t('dashboard:exec.openStageValues', 'Open stage values')}</p>
-      <div className="flex flex-col divide-y divide-border/70">
+      <div className="flex flex-col gap-1">
         {open.map((s) => {
           const pct = Math.round((s.weighted_value / max) * 100);
           return (
@@ -92,12 +68,12 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
               key={s.status as string}
               to={`/sales?status=${encodeURIComponent(s.status as string)}`}
               aria-label={statusLabel(s.status as string)}
-              className="flex min-h-11 min-w-0 items-center gap-2.5 py-2 hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+              className="flex items-center gap-2.5 py-[5px] rounded hover:bg-secondary/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
             >
-              <span className="min-w-20 max-w-[9rem] shrink-0 text-xs font-semibold text-muted-foreground">{statusLabel(s.status as string)}</span>
+              <span className="w-[88px] shrink-0 text-[12px] text-muted-foreground">{statusLabel(s.status as string)}</span>
               <span
                 role="progressbar"
-                aria-label={t('dashboard:projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
+                aria-label={t('dashboard.projectedMargin.barLabel', '{{stage}}: {{value}} weighted', { stage: statusLabel(s.status as string), value: fullMoney(s.weighted_value) })}
                 aria-valuenow={s.weighted_value}
                 aria-valuemin={0}
                 aria-valuemax={max}
@@ -108,14 +84,13 @@ export const ProjectedMarginBars: React.FC<ProjectedMarginBarsProps> = ({
                   style={{ width: `${pct}%`, background: BAR_FILL }}
                 />
               </span>
-              <span className="min-w-[6rem] shrink-0 whitespace-nowrap text-right text-sm tabular">
-                {formatNumberExact(s.weighted_value)}
+              <span title={fullMoney(s.weighted_value)} className="min-w-[68px] shrink-0 whitespace-nowrap text-right text-xs font-semibold tabular">
+                {money(s.weighted_value)}
               </span>
             </Link>
           );
         })}
       </div>
-      </section>
     </div>
   );
 };

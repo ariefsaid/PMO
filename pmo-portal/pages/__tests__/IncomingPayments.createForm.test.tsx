@@ -119,8 +119,7 @@ async function openForm(user: ReturnType<typeof userEvent.setup>) {
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string | RegExp, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
-  const listbox = await screen.findByRole('listbox');
-  await user.click(within(listbox).getByRole('option', { name: new RegExp(label) }));
+  await user.click(await screen.findByRole('option', { name: new RegExp(label) }));
 }
 
 beforeEach(async () => {
@@ -499,7 +498,6 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     await openForm(user);
 
     expect(screen.getByRole('button', { name: 'Record payment' })).toBeDisabled();
-    expect(screen.getByText('Complete all required fields (marked with an asterisk) to save.')).toBeVisible();
 
     await pick(user, 'Customer', 'Acme Energy');
     await pick(user, /Sales Invoice/, 'SI-ACME');
@@ -566,7 +564,7 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     );
   });
 
-  it('opens the canonical receipt record from its collection link', async () => {
+  it('does not expose a row activation that navigates to a missing payment detail route', async () => {
     hoisted.paymentsState.data = [
       {
         id: 'ip-1',
@@ -579,12 +577,9 @@ describe('IncomingPayments — a Finance user can actually record a receipt (BLO
     const user = userEvent.setup();
     renderPage();
 
-    const receiptLink = screen.getByRole('link', { name: 'ACC-PAY-0001' });
-    expect(receiptLink).toHaveAttribute('href', '/incoming-payments/ip-1');
-    await user.click(receiptLink);
+    expect(screen.queryByRole('button', { name: 'Open ACC-PAY-0001' })).not.toBeInTheDocument();
+    await user.click(screen.getByText('ACC-PAY-0001'));
 
-    expect(hoisted.navigateMock).toHaveBeenCalledWith('/incoming-payments/ip-1', expect.objectContaining({
-      state: { moneyInSource: { url: '/', scrollY: 0 } },
-    }));
+    expect(hoisted.navigateMock).not.toHaveBeenCalled();
   });
 });

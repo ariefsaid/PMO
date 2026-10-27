@@ -26,8 +26,6 @@ export interface ListStateProps {
   retryLabel?: string;
   /** Number of skeleton rows for the loading variant. */
   rows?: number;
-  /** Describes the operation while the loading skeleton preserves content geometry. */
-  loadingLabel?: string;
   className?: string;
   /** Override the default `liststate-loading` testid for the loading skeleton wrapper. */
   testId?: string;
@@ -58,7 +56,6 @@ export const ListState: React.FC<ListStateProps> = ({
   onRetry,
   retryLabel,
   rows = 5,
-  loadingLabel,
   className,
   testId,
   stateId,
@@ -85,7 +82,7 @@ export const ListState: React.FC<ListStateProps> = ({
         aria-live="polite"
         className={cn('p-4', className)}
       >
-        <span className="sr-only">{loadingLabel ?? t('ui.listState.loading', 'Loading…')}</span>
+        <span className="sr-only">{t('ui.listState.loading', 'Loading…')}</span>
         {Array.from({ length: rows }).map((_, i) => (
           <div key={i} className="skel skel-line" style={{ width: `${90 - (i % 3) * 12}%` }} />
         ))}

@@ -1,39 +1,36 @@
 /**
- * AC-W2-3-02: page-scope start/end dates do NOT day-shift in behind-UTC timezones.
+ * AC-W2-3-02: record-rail start/end dates do NOT day-shift in behind-UTC timezones.
  *
- * L3-RECORD moved the identifying dates into ProjectDetailHeader's scope line. Keep the oracle
- * on the shipped surface: date-only YYYY-MM-DD values must render the stored calendar day.
+ * L3-RECORD moved the identifying fields out of OverviewTab and into the persistent
+ * ProjectDetailRail. The oracle stays the same: date-only YYYY-MM-DD values must render
+ * the correct local calendar day via `formatDate`, never the UTC-shifted previous day.
  */
-import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 
-vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => false }));
-vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ realRole: 'Project Manager', effectiveRole: 'Project Manager' }),
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => () => false,
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjectMutations: () => ({
-    archive: { mutateAsync: vi.fn(), isPending: false },
-    remove: { mutateAsync: vi.fn(), isPending: false },
-    setContractValue: { mutateAsync: vi.fn(), isPending: false },
-  }),
+  useProjectMutations: () => ({ updateHeader: { mutateAsync: vi.fn(), isPending: false } }),
 }));
-vi.mock('@/src/hooks/useProjectVatEditability', () => ({
-  useProjectVatEditability: () => ({
-    data: { eligible: true, reason: null, hasInvoices: false },
-    isPending: false,
-    isFetching: false,
+vi.mock('@/src/hooks/useProjectTransitions', () => ({
+  useProjectTransition: () => ({
+    mutate: vi.fn(),
+    mutateAsync: vi.fn(),
     isError: false,
-    refetch: vi.fn(),
+    error: null,
+    isPending: false,
   }),
 }));
 
-import ProjectDetailHeader from '../../ProjectDetailHeader';
+import ProjectDetailRail from '../../ProjectDetailRail';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs {
   return {
@@ -42,7 +39,6 @@ function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs 
     name: 'TZ Test',
     status: 'Ongoing Project',
     contract_value: 500000,
-    currency: 'USD',
     budget: 0,
     spent: 0,
     code: null,
@@ -57,39 +53,27 @@ function makeProject(overrides: Partial<ProjectWithRefs> = {}): ProjectWithRefs 
   } as unknown as ProjectWithRefs;
 }
 
-const renderHeader = (project: ProjectWithRefs) =>
+const renderRail = (project: ProjectWithRefs) =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectDetailHeader project={project} />
+        <ProjectDetailRail project={project} />
       </ToastProvider>
     </MemoryRouter>,
   );
 
-beforeEach(() => {
-  vi.stubEnv('TZ', 'America/Los_Angeles');
-  setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'America/Los_Angeles' });
-});
+describe('AC-W2-3-02: ProjectDetailRail start/end dates — no UTC day-shift', () => {
+  it('renders start_date 2026-06-14 as "Jun 14, 2026" (not Jun 13 behind UTC)', () => {
+    renderRail(makeProject({ start_date: '2026-06-14', end_date: '2026-12-31' }));
 
-afterEach(() => {
-  vi.unstubAllEnvs();
-  resetActiveLocale();
-});
-
-describe('AC-W2-3-02: ProjectDetailHeader scope dates — no UTC day-shift', () => {
-  it('renders start_date 2026-06-14 as Jun 14, 2026 (not Jun 13)', () => {
-    renderHeader(makeProject({ start_date: '2026-06-14', end_date: '2026-12-31' }));
-
-    const scope = screen.getByRole('group', { name: 'Project scope' });
-    expect(scope).toHaveTextContent('Jun 14, 2026');
-    expect(scope).not.toHaveTextContent('Jun 13, 2026');
+    expect(screen.getByText('Jun 14, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Jun 13, 2026')).not.toBeInTheDocument();
   });
 
-  it('renders end_date 2026-12-31 as Dec 31, 2026 (not Dec 30)', () => {
-    renderHeader(makeProject({ start_date: '2026-01-01', end_date: '2026-12-31' }));
+  it('renders end_date 2026-12-31 as "Dec 31, 2026" (not Dec 30 behind UTC)', () => {
+    renderRail(makeProject({ start_date: '2026-01-01', end_date: '2026-12-31' }));
 
-    const scope = screen.getByRole('group', { name: 'Project scope' });
-    expect(scope).toHaveTextContent('Dec 31, 2026');
-    expect(scope).not.toHaveTextContent('Dec 30, 2026');
+    expect(screen.getByText('Dec 31, 2026')).toBeInTheDocument();
+    expect(screen.queryByText('Dec 30, 2026')).not.toBeInTheDocument();
   });
 });

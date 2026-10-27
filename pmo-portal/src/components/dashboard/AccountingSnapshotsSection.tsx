@@ -1,10 +1,11 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
+import { Card, CardHead } from '@/src/components/ui/Card';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ListState } from '@/src/components/ui/ListState';
 import { AccountingSnapshotProvenance } from '@/src/components/AccountingSnapshotProvenance';
-import { formatNumberExact } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 
@@ -24,12 +25,6 @@ import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/er
 export interface AccountingSnapshotsSectionProps {
   showActuals?: boolean;
   showApAging?: boolean;
-  showArAging?: boolean;
-  compactEmpty?: boolean;
-  /** One named path to the scoped report remedy when the visible collections block is empty. */
-  compactEmptyAction?: React.ReactNode;
-  ariaLabel?: string;
-  arTitle?: string;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
   actualsError?: boolean;
@@ -50,21 +45,10 @@ export interface AccountingSnapshotsSectionProps {
 
 const agingValue = (value: number | null, currency: string | null, unavailable: string) => {
   if (value === null || !currency || !/^[A-Z]{3}$/.test(currency)) {
-    return <span role="img" aria-label={unavailable} title={unavailable} className="text-muted-foreground">—</span>;
+    return <span className="text-muted-foreground">{unavailable}</span>;
   }
-  return <span>{formatNumberExact(value)}</span>;
+  return <span>{formatCurrency(value, currency)}</span>;
 };
-
-function groupAgingRows(rows: ErpAgingSnapshotRow[]) {
-  const groups = new Map<string, ErpAgingSnapshotRow[]>();
-  for (const row of rows) {
-    const currency = row.currency && /^[A-Z]{3}$/.test(row.currency) ? row.currency : 'Unavailable';
-    const group = groups.get(currency) ?? [];
-    group.push(row);
-    groups.set(currency, group);
-  }
-  return [...groups.entries()];
-}
 
 const agingRowKey = (row: ErpAgingSnapshotRow) => [
   row.snapshotId,
@@ -91,11 +75,11 @@ const agingColumns = (
       return (
         <div className="whitespace-normal">
           {companyId && r.party ? (
-          <Link className="inline-flex min-h-11 items-center text-primary-text underline-offset-2 hover:underline" to={`/companies/${encodeURIComponent(companyId)}#collections`}>
+            <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/companies/${encodeURIComponent(companyId)}#collections`}>
               {r.party}
             </Link>
           ) : (
-            <span>{r.party ?? labels.unavailable}</span>
+            <span className="font-medium">{r.party ?? labels.unavailable}</span>
           )}
         </div>
       );
@@ -135,7 +119,7 @@ const agingColumns = (
     key: 'total',
     header: labels.total,
     align: 'num',
-    cell: (r) => agingValue(r.totalOutstanding, r.currency, labels.unavailable),
+    cell: (r) => <span className="font-semibold">{agingValue(r.totalOutstanding, r.currency, labels.unavailable)}</span>,
   },
 ];
 
@@ -144,7 +128,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
     key: 'project',
     header: t('dashboard:finance.project', 'Project'),
     cell: (r) => r.projectId ? (
-      <Link className="inline-flex min-h-11 items-center text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
+      <Link className="font-medium text-primary-text underline-offset-2 hover:underline" to={`/projects/${encodeURIComponent(r.projectId)}`}>
         {projectNames?.get(r.projectId) ?? <span title={t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}>—<span className="sr-only"> {t('dashboard:finance.projectUnavailableReason', 'Project name is unavailable.')}</span></span>}
       </Link>
     ) : <span className="text-muted-foreground">{t('dashboard:finance.unattributed', 'Not attributed to a project')}</span>,
@@ -152,7 +136,7 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
   {
     key: 'account',
     header: t('dashboard:finance.account', 'Account'),
-    cell: (r) => <span>{r.account ?? '—'}</span>,
+    cell: (r) => <span className="font-medium">{r.account ?? '—'}</span>,
   },
   {
     key: 'costCenter',
@@ -166,13 +150,13 @@ const actualsColumns = (orgCurrency: string, t: (key: string, fallback: string) 
   },
   {
     key: 'net',
-    header: `${t('dashboard:finance.net', 'Net')} · ${orgCurrency}`,
+    header: t('dashboard:finance.net', 'Net'),
     align: 'num',
     cell: (r) => r.net === null || !Number.isFinite(r.net) ? (
       <span className="text-muted-foreground" title={t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}>
         —<span className="sr-only"> {t('dashboard:finance.netUnavailableReason', 'The source snapshot did not supply a Net value.')}</span>
       </span>
-    ) : <span>{formatNumberExact(r.net)}</span>,
+    ) : <span className="font-semibold">{formatCurrency(r.net, orgCurrency)}</span>,
   },
 ];
 
@@ -193,9 +177,6 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   tableId,
   errorLabel,
   detail,
-  compactEmpty,
-  compactEmptyAction,
-  currencyGroups,
 }: {
   title: string;
   emptyLabel: string;
@@ -212,51 +193,32 @@ function SnapshotBlock<Row extends { asOf: string; sourceReport: string | null }
   errorLabel: string;
   /** One shared snapshot fact line (e.g. aging report date + basis), shown once under the provenance. */
   detail?: string;
-  compactEmpty?: boolean;
-  compactEmptyAction?: React.ReactNode;
-  currencyGroups?: [string, Row[]][];
 }) {
   const first = rows[0];
   return (
-    <section aria-label={title} className="space-y-4">
-      <h3 className="text-xl font-bold">{title}</h3>
+    <Card seam>
+      <CardHead className="rounded-t-lg">{title}</CardHead>
+      <div className="px-4 pb-4 pt-2">
         {first && (
           <AccountingSnapshotProvenance
             asOf={first.asOf}
             sourceReport={first.sourceReport}
             reportVersion={reportVersion}
-            className={detail ? '' : 'mb-2.5'}
+            className={detail ? 'mb-1' : 'mb-2.5'}
           />
         )}
-        {first && detail && <p className="text-[0.6875rem] font-semibold text-muted-foreground">{detail}</p>}
+        {first && detail && <p className="mb-2.5 text-[11px] text-muted-foreground">{detail}</p>}
         {isError ? (
           <ListState variant="error" title={errorLabel} onRetry={onRetry} />
         ) : pending ? (
           <ListState variant="loading" rows={3} />
         ) : rows.length === 0 ? (
-          compactEmpty
-            ? <p role="status" data-testid="accounting-snapshot-empty" className="text-sm text-muted-foreground">{emptyLabel}{compactEmptyAction && <> · {compactEmptyAction}</>}</p>
-            : <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
-        ) : currencyGroups ? (
-          <div className="space-y-4">
-            {currencyGroups.map(([groupCurrency, groupRows]) => (
-              <section key={groupCurrency} aria-label={`${title} · ${groupCurrency}`}>
-                <h4 className="mb-2 text-xl font-bold">{groupCurrency}</h4>
-                <DataTable<Row>
-                  rows={groupRows}
-                  columns={columns}
-                  rowKey={rowKey}
-                  accessibleName={`${title} · ${groupCurrency}`}
-                  className="rounded-none border-0 bg-transparent"
-                  tableId={`${tableId}-${groupCurrency.toLowerCase()}`}
-                />
-              </section>
-            ))}
-          </div>
+          <ListState variant="empty" icon="doc" title={emptyLabel} sub={emptyDescription} />
         ) : (
-          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-none border-0 bg-transparent" tableId={tableId} />
+          <DataTable<Row> rows={rows} columns={columns} rowKey={rowKey} className="rounded-t-none border-t-0" tableId={tableId} />
         )}
-    </section>
+      </div>
+    </Card>
   );
 }
 
@@ -277,11 +239,6 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   actualProjectNames,
   showActuals = true,
   showApAging = true,
-  showArAging = true,
-  compactEmpty = false,
-  compactEmptyAction,
-  ariaLabel,
-  arTitle,
 }) => {
   const { t } = useTranslation('dashboard');
   // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
@@ -294,53 +251,19 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     party: t('dashboard:finance.party', 'Party'), current: t('dashboard:finance.current', 'Current'),
     total: t('dashboard:finance.totalOutstanding', 'Total outstanding'), unavailable,
   };
-  const orderedActuals = [...actuals].sort((left, right) => {
-    const fiscalYearOrder = (right.fiscalYear ?? '').localeCompare(left.fiscalYear ?? '');
-    if (fiscalYearOrder !== 0) return fiscalYearOrder;
-    const projectOrder = (actualProjectNames?.get(left.projectId ?? '') ?? left.projectId ?? '')
-      .localeCompare(actualProjectNames?.get(right.projectId ?? '') ?? right.projectId ?? '');
-    return projectOrder || (left.account ?? '').localeCompare(right.account ?? '')
-      || (left.costCenter ?? '').localeCompare(right.costCenter ?? '');
-  });
-  const orderedApAging = [...apAging].sort((left, right) => {
-    const currencyOrder = (left.currency ?? '').localeCompare(right.currency ?? '');
-    if (currencyOrder !== 0) return currencyOrder;
-    for (const key of ['bucketOver90', 'bucket61to90', 'bucket31to60', 'bucket0to30'] as const) {
-      const a = left[key];
-      const b = right[key];
-      if (a === null && b === null) continue;
-      if (a === null) return 1;
-      if (b === null) return -1;
-      if (a !== b) return b - a;
-    }
-    return (left.party ?? '').localeCompare(right.party ?? '');
-  });
-  const orderedArAging = [...arAging].sort((left, right) => {
-    const currencyOrder = (left.currency ?? '').localeCompare(right.currency ?? '');
-    if (currencyOrder !== 0) return currencyOrder;
-    for (const key of ['bucketOver90', 'bucket61to90', 'bucket31to60', 'bucket0to30'] as const) {
-      const a = left[key];
-      const b = right[key];
-      if (a === null && b === null) continue;
-      if (a === null) return 1;
-      if (b === null) return -1;
-      if (a !== b) return b - a;
-    }
-    return (left.party ?? '').localeCompare(right.party ?? '');
-  });
   // SL-F: one report date + ageing basis per aging card (the snapshot shares them), beside its provenance.
   const agingDetail = (rows: ErpAgingSnapshotRow[]) => rows[0]
     ? `${reportDateLabel}: ${rows[0].reportDate ?? unavailable} · ${ageingBasisLabel}: ${rows[0].ageingBasedOn ?? unavailable}`
     : undefined;
   return (
-  <section aria-label={ariaLabel ?? t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
+  <section aria-label={t('dashboard.accountingSnapshots', 'Accounting snapshots')} className="flex flex-col gap-4">
     {showActuals && (
     <SnapshotBlock<ErpActualsSnapshotRow>
       title={t('dashboard:finance.actualsTitle', 'Actuals (ERP ledger)')}
       errorLabel={t('dashboard:finance.actualsError', "Couldn't load actuals")}
       emptyLabel={t('dashboard.actualsSnapshotEmpty', 'No actuals snapshot yet')}
-      emptyDescription=""
-      rows={orderedActuals}
+      emptyDescription={`${t('dashboard.snapshots.unavailable', 'No accounting snapshot has been synced yet.')} ${t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}`}
+      rows={actuals}
       pending={actualsPending}
       isError={actualsError}
       onRetry={onRetryActuals}
@@ -352,7 +275,6 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       // key while rendering as indistinguishable money rows (no Project column exists). `\u0000` as the
       // separator so concatenation cannot alias two different tuples into one string.
       rowKey={(r) => [r.snapshotId, r.projectId ?? '', r.costCenter ?? '', r.account ?? '', r.fiscalYear ?? ''].join('\u0000')}
-      compactEmpty={compactEmpty}
     />
     )}
     {showApAging && (
@@ -360,38 +282,33 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
       errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
-      emptyDescription=""
-      rows={orderedApAging}
+      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
+      rows={apAging}
       pending={apAgingPending}
       isError={apAgingError}
       onRetry={onRetryApAging}
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels)}
       rowKey={agingRowKey}
-      currencyGroups={groupAgingRows(orderedApAging)}
       reportVersion={apAging[0]?.reportVersion}
       detail={agingDetail(apAging)}
-      compactEmpty={compactEmpty}
     />
     )}
-    {showArAging && <SnapshotBlock<ErpAgingSnapshotRow>
-      title={arTitle ?? t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
+    <SnapshotBlock<ErpAgingSnapshotRow>
+      title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
       errorLabel={t('dashboard:finance.arError', "Couldn't load customer receivables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
-      emptyDescription=""
-      rows={orderedArAging}
+      emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
+      rows={arAging}
       pending={arAgingPending}
       isError={arAgingError}
       onRetry={onRetryArAging}
       tableId="components-dashboard-accountingsnapshotssection-aging-table"
       columns={agingColumns(agingLabels, customerLinks)}
       rowKey={agingRowKey}
-      currencyGroups={groupAgingRows(orderedArAging)}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
-      compactEmpty={compactEmpty}
-      compactEmptyAction={compactEmptyAction}
-    />}
+    />
   </section>
   );
 };

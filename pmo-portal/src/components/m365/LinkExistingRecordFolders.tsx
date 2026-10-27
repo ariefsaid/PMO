@@ -193,7 +193,7 @@ function InterruptedReason({ error }: { error: RecordFolderCopyKey | null }) {
   const { t } = useTranslation();
   const { t: tf } = useTranslation('recordFolders');
   if (!error) return null;
-  if (error === 'error.generic') return <>{`${t('m365Documents:backfill.failed', 'Could not finish checking existing folders.')} `}</>;
+  if (error === 'error.generic') return <>{`${t('m365Documents.backfill.failed', 'Could not finish checking existing folders.')} `}</>;
   return <>{`${recordFolderText(tf, error)} `}</>;
 }
 
@@ -202,9 +202,9 @@ function SweepResult({ done, counts }: { done: boolean; counts: Counts }) {
   const { t } = useTranslation();
   return (
     <>
-      {done && <p className="font-medium text-foreground">{t('m365Documents:backfill.done', 'Done. Every record has been checked.')}</p>}
+      {done && <p className="font-medium text-foreground">{t('m365Documents.backfill.done', 'Done. Every record has been checked.')}</p>}
       <p className="tabular-nums">
-        {t('m365Documents:backfill.summary', {
+        {t('m365Documents.backfill.summary', {
           linked: counts.linked,
           needsChoice: counts.needsChoice,
           missing: counts.missing,
@@ -214,7 +214,7 @@ function SweepResult({ done, counts }: { done: boolean; counts: Counts }) {
         })}
       </p>
       {counts.needsChoice + counts.missing > 0 && (
-        <p>{t('m365Documents:backfill.resolve', 'To finish these, open the project or case, then use "Choose existing folder" or "Create folder in SharePoint".')}</p>
+        <p>{t('m365Documents.backfill.resolve', 'To finish these, open the project or case, then use "Choose existing folder" or "Create folder in SharePoint".')}</p>
       )}
     </>
   );

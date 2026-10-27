@@ -2,6 +2,7 @@
  * AC-IXD-MOBILE-W4-C3 — Shell hardening tests (PR-2)
  *
  * Covers:
+ *   C3-1  h-[100dvh] — the outer grid uses dvh, not h-screen / 100vh
  *   C3-2  Drawer a11y — role=dialog, aria-modal, accessible name
  *   C3-3  Drawer focus-trap — Tab cycles within the drawer
  *   C3-4  Drawer Esc closes
@@ -10,8 +11,10 @@
  *   C3-7  Drawer inert — the persistent rail+main are non-focusable while drawer open
  *   C3-8  Drawer has a visible close (×) button
  *   C3-9  Body scroll-lock while drawer open
- *   C3-10 Breadcrumb with no parent remains a single current location
- *   Phone target sizes and safe-area clearance are verified in browser proof.
+ *   C3-10 Breadcrumb mobile truncation — at narrow width only current crumb shown
+ *   C3-11 Touch targets — hamburger and ⌘K trigger have .touch-target
+ *   C3-12 Safe-area — drawer panel has safe-area padding class
+ *   C3-13 Content gutter — main content div has max-md:px-4
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react';
@@ -20,8 +23,28 @@ import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { AppShell } from '../AppShell';
 import { Breadcrumb } from '../Breadcrumb';
+import { BackBar } from '../BackBar';
 
 const wrap = (ui: React.ReactNode) => render(<MemoryRouter>{ui}</MemoryRouter>);
+
+// ---------------------------------------------------------------------------
+// C3-1: dvh instead of h-screen / 100vh
+// ---------------------------------------------------------------------------
+describe('AC-IXD-MOBILE-W4-C3 C3-1: viewport height uses dvh', () => {
+  it('the outer shell grid has h-[100dvh], not h-screen', () => {
+    const { container } = wrap(
+      <AppShell rail={null} header={null}>
+        <div>x</div>
+      </AppShell>
+    );
+    const grid = container.querySelector<HTMLElement>('.grid');
+    expect(grid).not.toBeNull();
+    // Must have the dvh class
+    expect(grid!.className).toMatch(/100dvh/);
+    // Must NOT have the h-screen class
+    expect(grid!.className).not.toMatch(/\bh-screen\b/);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // C3-2/C3-5: Drawer a11y — role=dialog, aria-modal, accessible name, scrim
@@ -228,12 +251,12 @@ describe('AC-IXD-MOBILE-W4-C3 C3-6: focus management', () => {
 describe('AC-IXD-MOBILE-W4-C3 C3-7: background content is inert while drawer is open', () => {
   it('the persistent rail wrapper is inert while the drawer is open', () => {
     const { container } = wrap(
-      <AppShell rail={<a href="#nav">nav</a>} header={null} railOpen onCloseRail={vi.fn()}>
+      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
         <div>x</div>
       </AppShell>
     );
-    const railLink = container.querySelector('a[href="#nav"]');
-    expect(railLink?.closest('[inert]')).not.toBeNull();
+    const persistent = container.querySelector('.rail-persistent');
+    expect(persistent).toHaveAttribute('inert');
   });
 
   it('the main content area is inert while the drawer is open', () => {
@@ -248,12 +271,12 @@ describe('AC-IXD-MOBILE-W4-C3 C3-7: background content is inert while drawer is 
 
   it('background is NOT inert when drawer is closed', () => {
     const { container } = wrap(
-      <AppShell rail={<a href="#nav">nav</a>} header={null} railOpen={false} onCloseRail={vi.fn()}>
+      <AppShell rail={<div>nav</div>} header={null} railOpen={false} onCloseRail={vi.fn()}>
         <div>x</div>
       </AppShell>
     );
-    const railLink = container.querySelector('a[href="#nav"]');
-    expect(railLink?.closest('[inert]')).toBeNull();
+    const persistent = container.querySelector('.rail-persistent');
+    expect(persistent).not.toHaveAttribute('inert');
     const main = screen.getByRole('main');
     expect(main).not.toHaveAttribute('inert');
   });
@@ -298,16 +321,109 @@ describe('AC-IXD-MOBILE-W4-C3 C3-9: body scroll-lock while drawer open', () => {
 });
 
 // ---------------------------------------------------------------------------
-// C3-10: Single-part breadcrumb semantics
+// C3-10: Breadcrumb mobile truncation
 // ---------------------------------------------------------------------------
-describe('AC-IXD-MOBILE-W4-C3 C3-10: single-part breadcrumb semantics', () => {
+describe('AC-IXD-MOBILE-W4-C3 C3-10: breadcrumb mobile truncation', () => {
+  it('the current (last) crumb has the max-md:max-w-[20ch] truncation class', () => {
+    const { container } = render(
+      <Breadcrumb
+        parts={[
+          { label: 'Projects', onClick: vi.fn() },
+          { label: 'Alpha Pipeline Project' },
+        ]}
+      />
+    );
+    // The current page span should carry the mobile truncation class
+    const current = container.querySelector('[aria-current="page"]');
+    expect(current).not.toBeNull();
+    expect(current!.className).toMatch(/max-\[921px\]:max-w-\[20ch\]/);
+  });
+
+  it('parent crumb links hide at exactly the breakpoint where the phoneOnly BackBar shows (#735: no width without a way back)', () => {
+    const { container } = render(
+      <Breadcrumb
+        parts={[
+          { label: 'Projects', href: '/projects', onClick: vi.fn() },
+          { label: 'Alpha' },
+        ]}
+      />
+    );
+    // Parent breadcrumb links have the mobile hide class
+    const parentLink = container.querySelector('a');
+    expect(parentLink).not.toBeNull();
+    const { container: bar } = render(<BackBar label="Projects" phoneOnly onBack={vi.fn()} />);
+    const showAt = (bar.firstElementChild as HTMLElement).className.match(/max-\[(\d+)px\]:flex/)?.[1];
+    expect(showAt).toBeDefined();
+    expect(parentLink!.className).toContain(`max-[${showAt}px]:hidden`);
+  });
+
   it('with only one part (no parent), nothing is hidden', () => {
     const { container } = render(
       <Breadcrumb parts={[{ label: 'Dashboard' }]} />
     );
     const current = container.querySelector('[aria-current="page"]');
     expect(current).not.toBeNull();
-    // A single part has no parent destination.
+    // Just a single part — no hidden class needed for parents
     expect(container.querySelectorAll('button')).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C3-11: Touch targets on hamburger and ⌘K trigger
+// ---------------------------------------------------------------------------
+describe('AC-IXD-MOBILE-W4-C3 C3-11: hamburger and close button have .touch-target', () => {
+  it('the drawer close button has .touch-target', () => {
+    wrap(
+      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
+        <div>x</div>
+      </AppShell>
+    );
+    const closeBtn = screen.getByRole('button', { name: /close navigation/i });
+    expect(closeBtn.className).toMatch(/touch-target/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C3-12: Safe-area — drawer panel has safe-area padding
+// ---------------------------------------------------------------------------
+describe('AC-IXD-MOBILE-W4-C3 C3-12: drawer has safe-area-inset padding', () => {
+  it('the drawer panel element carries a safe-area padding style or class', () => {
+    wrap(
+      <AppShell rail={<div>nav</div>} header={null} railOpen onCloseRail={vi.fn()}>
+        <div>x</div>
+      </AppShell>
+    );
+    const drawer = screen.getByRole('dialog');
+    // Check inline style for env(safe-area-inset-*) OR a class that applies it
+    const hasSafeAreaStyle =
+      drawer.style.paddingTop?.includes('env') ||
+      drawer.style.paddingBottom?.includes('env') ||
+      drawer.className.includes('safe-area') ||
+      drawer.getAttribute('data-safe-area') === 'true';
+    // The parent wrapper around the drawer may carry it
+    const parentWrapper = drawer.parentElement;
+    const parentHasSafeArea =
+      parentWrapper?.style.paddingTop?.includes('env') ||
+      parentWrapper?.className.includes('safe-area');
+    expect(hasSafeAreaStyle || parentHasSafeArea).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// C3-13: Content gutter uses max-md:px-4
+// ---------------------------------------------------------------------------
+describe('AC-IXD-MOBILE-W4-C3 C3-13: content gutter has max-md:px-4', () => {
+  it('the inner content wrapper in main carries max-md:px-4', () => {
+    wrap(
+      <AppShell rail={null} header={null}>
+        <div data-testid="child">content</div>
+      </AppShell>
+    );
+    const main = screen.getByRole('main');
+    // Find the direct padded div inside main
+    const contentDiv = main.querySelector('div');
+    expect(contentDiv).not.toBeNull();
+    // Should have the mobile gutter class
+    expect(contentDiv!.className).toMatch(/max-\[921px\]:px-4/);
   });
 });

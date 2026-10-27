@@ -5,19 +5,31 @@ import { deriveRailActiveOverride } from '../routeMatch';
  * Unit test for the App-level derivation helper that maps (pathname, statusGroup)
  * → railActiveOverride value.
  *
- * Project records have one canonical navigation home across every lifecycle stage and load state.
+ * Rules:
+ *  - /projects/:id + pipeline|lost  → 'salesPipeline'
+ *  - /projects/:id + onHand|internal → 'projects'
+ *  - /projects/:id + undefined (pending caches) → null
+ *  - any other route → null
  */
 describe('deriveRailActiveOverride', () => {
-  it.each(['pipeline', 'lost', 'onHand', 'internal', undefined] as const)(
-    '%s project status still resolves to Projects',
-    (statusGroup) => {
-      expect(deriveRailActiveOverride('/projects/abc', statusGroup)).toBe('projects');
-    },
-  );
+  it('pre-win pipeline status → salesPipeline', () => {
+    expect(deriveRailActiveOverride('/projects/abc', 'pipeline')).toBe('salesPipeline');
+  });
 
-  it('a project deep-link with any tab keeps Projects as its navigation home', () => {
-    expect(deriveRailActiveOverride('/projects/abc/budget', 'pipeline')).toBe('projects');
-    expect(deriveRailActiveOverride('/projects/abc/tasks', 'lost')).toBe('projects');
+  it('lost status → salesPipeline', () => {
+    expect(deriveRailActiveOverride('/projects/abc', 'lost')).toBe('salesPipeline');
+  });
+
+  it('onHand status → projects', () => {
+    expect(deriveRailActiveOverride('/projects/abc', 'onHand')).toBe('projects');
+  });
+
+  it('internal status → projects', () => {
+    expect(deriveRailActiveOverride('/projects/abc', 'internal')).toBe('projects');
+  });
+
+  it('undefined statusGroup (caches pending) → null', () => {
+    expect(deriveRailActiveOverride('/projects/abc', undefined)).toBeNull();
   });
 
   it('non-project route → null even with a status group', () => {
@@ -26,4 +38,8 @@ describe('deriveRailActiveOverride', () => {
     expect(deriveRailActiveOverride('/projects', 'onHand')).toBeNull(); // index, not detail
   });
 
+  it('/projects/:id/:tab also resolves correctly (deep-link with tab)', () => {
+    expect(deriveRailActiveOverride('/projects/abc/budget', 'pipeline')).toBe('salesPipeline');
+    expect(deriveRailActiveOverride('/projects/abc/tasks', 'onHand')).toBe('projects');
+  });
 });

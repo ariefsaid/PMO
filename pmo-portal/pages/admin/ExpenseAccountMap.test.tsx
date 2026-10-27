@@ -1,13 +1,12 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
 import { financeTestI18n, financeTestI18nReady } from '@/pages/__tests__/financeI18nTestInstance';
-import type { PostingAccountFilters } from './postingAccountFilters';
 
 const h = vi.hoisted(() => ({
   binding: null as { status: string } | null,
@@ -40,9 +39,9 @@ vi.mock('@/src/components/ui', async (original) => {
 
 import ExpenseAccountMap from './ExpenseAccountMap';
 
-function renderMap(filters?: PostingAccountFilters) {
+function renderMap() {
   return render(<FinanceI18nTestProvider><MemoryRouter><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-    <ToastProvider><ExpenseAccountMap filters={filters} /></ToastProvider>
+    <ToastProvider><ExpenseAccountMap /></ToastProvider>
   </QueryClientProvider></MemoryRouter></FinanceI18nTestProvider>);
 }
 
@@ -172,31 +171,5 @@ describe('expense account readiness (AD-2, S-12)', () => {
     await user.click(screen.getByRole('button', { name: /Save account|Simpan akun/ }));
     await vi.waitFor(() => expect(h.save).toHaveBeenCalledWith({ accountKey: 'project_direct_cost', erpAccount: 'Project Direct Cost - ABC' }));
     expect(screen.getAllByTestId('expense-account-row')).toHaveLength(8);
-  });
-});
-
-describe('expense posting account list (AC-ADMIA-017)', () => {
-  it('filters by account name and coverage, sorts names, and offers a clear action when nothing matches', async () => {
-    h.binding = { status: 'active' };
-    h.ownership = [{ externalTier: 'erpnext', domain: 'expenses' }];
-    h.list.mockResolvedValue([
-      { accountKey: 'Travel', erpAccount: 'Travel - ABC' },
-      { accountKey: 'Meals', erpAccount: 'Meals - ABC' },
-    ]);
-    const onClear = vi.fn();
-    const configured = renderMap({ purpose: 'expense', coverage: 'configured', sort: 'asc', search: 'travel', onClear });
-    expect(await screen.findByText('Travel - ABC')).toBeInTheDocument();
-    expect(screen.queryByText('Meals - ABC')).not.toBeInTheDocument();
-
-    const first = screen.getByText('Travel - ABC').closest('li')!;
-    expect(within(first).getByRole('group', { name: 'Account' })).toHaveTextContent('Travel - ABC');
-    expect(first).toHaveTextContent('Configured');
-
-    configured.unmount();
-    const empty = renderMap({ purpose: 'expense', coverage: 'needs-setup', sort: 'asc', search: 'no match', onClear });
-    expect(await screen.findByText('No posting accounts match these filters')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(onClear).toHaveBeenCalled();
-    empty.unmount();
   });
 });

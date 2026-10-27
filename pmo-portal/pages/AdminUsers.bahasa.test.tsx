@@ -53,20 +53,12 @@ const renderPage = (role: Role = 'Admin') => {
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
         <ToastProvider>
           <MemoryRouter>
-            <AdminUsers embedded />
+            <AdminUsers />
           </MemoryRouter>
         </ToastProvider>
       </QueryClientProvider>
     </BahasaProvider>,
   );
-};
-
-const getUserRow = (name: string) => {
-  const row = screen.getAllByText(name)
-    .map((element) => element.closest('tr'))
-    .find((candidate): candidate is HTMLTableRowElement => candidate !== null);
-  if (!row) throw new Error(`No directory row found for ${name}`);
-  return row;
 };
 
 beforeEach(() => {
@@ -83,8 +75,9 @@ beforeEach(() => {
 });
 
 describe('Admin Users in Bahasa (#693 F-1)', () => {
-  it('#693: the directory toolbar, columns, status and role pills are Bahasa', () => {
+  it('#693: the directory heading, toolbar, columns, status and role pills are Bahasa', () => {
     renderPage();
+    expect(screen.getByText('Semua pengguna')).toBeInTheDocument();
     expect(screen.getByLabelText('Cari pengguna')).toHaveAttribute('placeholder', 'Cari berdasarkan nama atau email…');
     expect(screen.getByRole('button', { name: 'Undang pengguna' })).toBeInTheDocument();
     for (const h of ['Pengguna', 'Role', 'Status', 'Manajer']) {
@@ -102,9 +95,8 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the empty-search message is Bahasa', async () => {
     renderPage();
     await userEvent.type(screen.getByLabelText('Cari pengguna'), 'zzzz');
-    expect(await screen.findByText('Tidak ada pengguna yang cocok')).toBeInTheDocument();
-    expect(screen.getByText('Ubah pencarian atau filter status untuk melihat pengguna lagi.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hapus filter' })).toBeInTheDocument();
+    expect(await screen.findByText('Tidak ada pengguna yang cocok dengan pencarian')).toBeInTheDocument();
+    expect(screen.getByText('Coba nama atau email lain.')).toBeInTheDocument();
   });
 
   it('#693: the error and empty states are Bahasa, and the error keeps a Retry', async () => {
@@ -136,7 +128,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the row menu, role confirm and its toast are Bahasa', async () => {
     renderPage();
     await userEvent.click(
-      within(getUserRow('Desmond Achebe')).getByRole('button', { name: /Tindakan baris/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Tindakan baris/i }),
     );
     expect(await screen.findByRole('menuitem', { name: 'Ubah manajer' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Nonaktifkan' })).toBeInTheDocument();
@@ -154,7 +146,7 @@ describe('Admin Users in Bahasa (#693 F-1)', () => {
   it('#693: the reporting line reads "Atasan langsung" in the manager modal and its toast — not the literal "garis pelaporan"', async () => {
     renderPage();
     await userEvent.click(
-      within(getUserRow('Desmond Achebe')).getByRole('button', { name: /Tindakan baris/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Tindakan baris/i }),
     );
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Ubah manajer' }));
     const dialog = await screen.findByRole('dialog');

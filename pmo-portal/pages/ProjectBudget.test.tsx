@@ -288,47 +288,13 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     actual_amount: 0, org_id: 'org-1', fiscal_year,
   });
 
-  it('read-only line items keep currency in the version head and show exact amount in the table', () => {
+  it('read-only line items are a DataTable with the FULL amount (OD-MONEY-FMT), no phone-clipped table', () => {
     budgetState.data = 1234.5;
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
-    const version = within(screen.getByTestId('version-card'));
-    const table = version.getByRole('table');
-    expect(version.getByTestId('derived-budget')).toHaveTextContent('$1,234.5');
-    expect(within(table).getByRole('cell', { name: '1,234.5' })).toBeInTheDocument();
+    const table = within(screen.getByTestId('version-card')).getByRole('table');
+    expect(within(table).getByRole('cell', { name: '$1,234.5' })).toBeInTheDocument();
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
-  });
-
-  it('AC-PD-BUD-03 selected version ledger and draft rows use description, category, year, amount order', () => {
-    budgetState.data = 2000;
-    versionsState.data = [{
-      ...activeVersion,
-      total: 2000,
-      line_items: [
-        { ...priced(1000, 'FY26'), id: 'li-m', category: 'Materials', description: 'Materials line' },
-        priced(1000, 'FY27'),
-      ],
-    }];
-    const readonly = renderPage();
-    const headers = within(within(screen.getByTestId('version-card')).getByRole('table'))
-      .getAllByRole('columnheader').map((header) => header.textContent?.trim());
-    expect(headers.slice(0, 4)).toEqual(['Description', 'Category', 'Fiscal year', 'Budgeted']);
-    expect(within(within(screen.getByTestId('version-card')).getByRole('table')).getAllByRole('row')[1]).toHaveTextContent('Labor');
-
-    readonly.unmount();
-    versionsState.data = [{
-      ...draftVersion,
-      total: 2000,
-      line_items: [
-        { ...draftVersion.line_items[0], id: 'li-m', category: 'Materials', description: 'Materials line', fiscal_year: 'FY26' },
-        { ...draftVersion.line_items[0], id: 'li-l', category: 'Labor', description: 'Labor line', fiscal_year: 'FY27' },
-      ],
-    }];
-    renderPage();
-    const draftTable = within(screen.getByTestId('version-card')).getByRole('table');
-    expect(within(draftTable).getAllByRole('columnheader').map((header) => header.textContent?.trim()).slice(0, 4))
-      .toEqual(['Description', 'Category', 'Fiscal year', 'Budgeted']);
-    expect(within(draftTable).getAllByRole('row')[1]).toHaveTextContent('Labor line');
   });
 
   it('the Draft editor total is a <tfoot> row inside the table, with the full amount', () => {

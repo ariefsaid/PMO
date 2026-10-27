@@ -86,7 +86,7 @@ components:
 
 This file is the token sheet (colour, type, geometry, motion, component tokens).
 It does not govern page composition.
-Composition authority: `docs/ux/UX-STANDARD.md` plus the owner's approval of rendered screens (OD-VISUAL-RESET).
+Composition authority: the owner's approval of rendered screens (OD-VISUAL-RESET).
 
 ## 1. Overview
 

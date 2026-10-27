@@ -1,6 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatProjectDetailMoney } from './formatProjectDetailMoney';
+import { formatCurrency } from '@/src/lib/format';
 import type { CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
 
 /**
@@ -9,9 +9,9 @@ import type { CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
  * when every commitment is in the project currency.
  */
 export function OtherCurrencyCommitments({ positions }: { positions: CommittedOtherCurrencies | undefined }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   if (!positions || positions.length === 0) return null;
-  const amounts = positions.map((position) => formatProjectDetailMoney(position.amount, position.currency, i18n.language, true)).join(', ');
+  const amounts = positions.map((position) => formatCurrency(position.amount, position.currency)).join(', ');
   return (
     <span className="block text-xs text-muted-foreground" data-testid="committed-other-currencies">
       {t('projects:committed.otherCurrencies', 'Plus amounts in other currencies: {{amounts}}', { amounts })}

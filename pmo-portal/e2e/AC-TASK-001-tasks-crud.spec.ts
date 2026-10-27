@@ -5,8 +5,8 @@ import { login } from './helpers';
 /**
  * AC-TASK-001  Project Tasks CRUD — real user journey (binding BDD authoring principle).
  *
- * Covers in one sequential journey on the project Tasks section (PM = full structure write):
- *   AC-TASK-001  the Tasks section loads → "New task" CTA is visible for a write-role
+ * Covers in one sequential journey on the project Tasks tab (PM = full structure write):
+ *   AC-TASK-001  the Tasks tab loads → "New task" CTA is visible for a write-role
  *   AC-TASK-003  create a task   → the new row appears in the list
  *   AC-TASK-004  edit a task     → the rename persists in the list
  *   AC-TASK-005  status update   → managers change a task's status via the inline control
@@ -28,13 +28,14 @@ test.setTimeout(120_000);
 
 const PROJECT_ID = '40000000-0000-0000-0000-000000000001';
 
-/** Open the project Tasks section directly; wait for its own list-view control to settle. */
+/** Open the project detail and switch to the Tasks tab; wait for the list to settle. */
 async function gotoTasks(page: Page) {
-  await page.goto(`/projects/${PROJECT_ID}/tasks`);
+  await page.goto(`/projects/${PROJECT_ID}`);
+  await page.getByRole('tab', { name: /tasks/i }).click();
   // Wait on the task surface's own positive readiness oracle. Other independent
   // project widgets may legitimately render ListState loaders at the same time,
   // so a page-global `liststate-loading` locator is ambiguous under CI timing.
-  const tasksPanel = page.locator('#project-section-content');
+  const tasksPanel = page.getByRole('tabpanel', { name: /tasks/i });
   await expect(
     tasksPanel.getByRole('tablist', { name: 'Task view', exact: true }),
   ).toBeVisible({ timeout: 20_000 });

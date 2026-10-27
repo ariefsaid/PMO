@@ -84,7 +84,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
       title="New revision"
       subtitle={
         microsoft
-          ? t('m365Documents:revisionLinkedSubtitle', 'Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')
+          ? t('m365Documents.revisionLinkedSubtitle', 'Create the next revision of this document. It links to the latest Microsoft file, so there is nothing to upload.')
           : 'Create the next revision of this document. The file can be uploaded once the revision is created.'
       }
       submitLabel="Create revision"
@@ -107,7 +107,7 @@ export const NewRevisionModal: React.FC<NewRevisionModalProps> = ({
           />
           {microsoft && (
             <span className="break-words text-[12px] text-muted-foreground">
-              {t('m365Documents:revisionLatestNote', 'The new revision will reference the latest Microsoft file: {{name}}.', { name: microsoft.name })}
+              {t('m365Documents.revisionLatestNote', 'The new revision will reference the latest Microsoft file: {{name}}.', { name: microsoft.name })}
             </span>
           )}
         </div>

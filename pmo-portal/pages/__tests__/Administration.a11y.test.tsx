@@ -159,15 +159,14 @@ describe('AC-A11Y-001 — axe-clean composed /administration surface', () => {
     await waitFor(() => {
       switch (section) {
         case 'users':
-          expect(screen.getAllByText('Engineer One').length).toBeGreaterThan(0);
+          expect(screen.getByText('Engineer One')).toBeInTheDocument();
           break;
         case 'integrations':
           expect(screen.getByTestId('integrations-owner-scope')).toBeInTheDocument();
           expect(screen.getByTestId('integrations-connect-cards')).toBeInTheDocument();
           break;
         case 'accounting':
-          expect(screen.getByRole('navigation', { name: 'Accounting tasks' })).toBeInTheDocument();
-          expect(screen.getByRole('link', { name: 'Posting accounts' })).toHaveAttribute('aria-current', 'page');
+          expect(screen.getByTestId('org-tax-default-select')).toBeInTheDocument();
           expect(container.querySelector('#budget-account-map')).not.toBeNull();
           break;
         case 'credits':

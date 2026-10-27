@@ -21,12 +21,18 @@
  *   - C5-fade: the KanbanStageIndicator nav strip carries scroll-fade-x (or mask-image) for
  *     right-edge fade parity with Tabs/Stepper/TimesheetGrid.
  */
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { Tabs, type TabItem } from '../Tabs';
 import { LifecycleStepper } from '../LifecycleStepper';
 import { TimesheetGrid } from '../TimesheetGrid';
 import { KanbanStageIndicator } from '../KanbanStageIndicator';
+import SalesKanbanBoard from '@/components/SalesKanbanBoard';
+import type { PipelineProject } from '@/src/lib/db/dashboard';
+
+// FR-L10N-020: SalesKanbanBoard reads useOrgCurrency for its column totals and deal cards
+// (get_sales_pipeline returns no per-row currency). Pinned here. ⚑ LINE-START on purpose.
+vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 // ─── Tabs ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +131,61 @@ describe('KanbanStageIndicator (AC-IXD-MOBILE-W4-PR3-C5)', () => {
 
 
 
+
+// ─── SalesKanbanBoard swipe→indicator sync (Defect 1 regression) ─────────
+//
+// Regression: scroll events do NOT bubble in the DOM. The original listener was
+// on a wrapper <div> AROUND the <Kanban> component (whose outermost element IS
+// .kanban-scroll). Scrolling the board never fired the parent's onScroll, so
+// aria-current stayed stuck on stage 0 no matter how far the board was swiped.
+// Fix: attach onScroll directly to <Kanban> (it spreads ...rest onto .kanban-scroll).
+// AC-IXD-MOBILE-W4-PR3-C5-scroll.
+
+const KANBAN_PROJECTS: PipelineProject[] = [
+  { id: 'a1', name: 'Alpha', short_name: null, client_name: 'A', status: 'Leads', contract_value: 100_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.1 },
+  { id: 'b1', name: 'Bravo', short_name: null, client_name: 'B', status: 'Tender Submitted', contract_value: 200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
+];
+
+describe('SalesKanbanBoard swipe→indicator sync (AC-IXD-MOBILE-W4-PR3-C5-scroll)', () => {
+  it('firing a scroll on .kanban-scroll advances aria-current to the matching stage', () => {
+    const { container } = render(
+      <SalesKanbanBoard projects={KANBAN_PROJECTS} onOpen={vi.fn()} />,
+    );
+
+    // The ACTUAL scrolling element is .kanban-scroll (outermost element of <Kanban>).
+    const scrollEl = container.querySelector('.kanban-scroll') as HTMLElement;
+    expect(scrollEl).toBeInTheDocument();
+
+    // Stage index 3 = "Tender" (4th open column). Fake the layout: set scrollLeft on
+    // the scroll container and mock offsetLeft on each column wrapper so the handler
+    // computes index 3 as the nearest column. JSDOM does not do real layout, so we
+    // need to override these read-only properties.
+    //
+    // Column wrappers are the direct children of .kanban (the inner grid element).
+    // We mock each column's offsetLeft to be i * 260 (column width proxy).
+    const kanbanGrid = scrollEl.querySelector('.kanban') as HTMLElement;
+    expect(kanbanGrid).toBeInTheDocument();
+    const colWrappers = Array.from(kanbanGrid.children) as HTMLElement[];
+    colWrappers.forEach((col, i) => {
+      Object.defineProperty(col, 'offsetLeft', { configurable: true, get: () => i * 260 });
+    });
+
+    // Simulate the user swiping to column 3 (Tender, offsetLeft = 3 * 260 = 780).
+    Object.defineProperty(scrollEl, 'scrollLeft', { configurable: true, get: () => 780 });
+
+    // Fire the scroll event directly on .kanban-scroll (not on any parent).
+    fireEvent.scroll(scrollEl);
+
+    // The indicator strip (md:hidden) should now show stage index 3 = "Tender"
+    // as aria-current="true". Before the fix this stayed on stage 0 ("Leads").
+    const tenderBtn = screen.getByRole('button', { name: /tender/i });
+    expect(tenderBtn).toHaveAttribute('aria-current', 'true');
+
+    // Sanity: the first stage must no longer be active.
+    const leadsBtn = screen.getByRole('button', { name: /leads/i });
+    expect(leadsBtn).not.toHaveAttribute('aria-current', 'true');
+  });
+});
 
 // ─── LifecycleStepper scroll-fade ─────────────────────────────────────────
 

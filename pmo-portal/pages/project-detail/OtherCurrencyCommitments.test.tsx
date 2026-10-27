@@ -8,7 +8,7 @@ describe('OtherCurrencyCommitments', () => {
   it('names each other-currency amount in its own currency', () => {
     render(<OtherCurrencyCommitments positions={[{ currency: 'USD', amount: 50 }, { currency: 'EUR', amount: 1200 }]} />);
     const note = screen.getByTestId('committed-other-currencies');
-    expect(note).toHaveTextContent(/^Plus amounts in other currencies: USD 50, EUR 1,200$/);
+    expect(note).toHaveTextContent(/^Plus amounts in other currencies: \$50, €1,200$/);
   });
 
   it('renders nothing when every commitment is in the project currency', () => {

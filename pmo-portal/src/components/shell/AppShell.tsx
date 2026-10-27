@@ -3,7 +3,6 @@ import { useLocation } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
-import { PageFrame, type PageFrameProps } from './PageFrame';
 import { useFocusTrap } from '@/src/hooks/useFocusTrap';
 import { isTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import {
@@ -16,13 +15,8 @@ import {
 
 export interface AppShellProps {
   rail: React.ReactNode;
-  /** Full-label copy rendered in the phone drawer when the persistent rail is collapsed. */
-  drawerRail?: React.ReactNode;
-  railCollapsed?: boolean;
   header: React.ReactNode;
   children: React.ReactNode;
-  /** Routes adopting the content-track breadcrumb and shared page frame. */
-  pageFrame?: Omit<PageFrameProps, 'children'>;
   /** Optional full-bleed strip pinned to the top of `main` (e.g. the
    *  impersonation banner). Rendered above the padded content container. */
   banner?: React.ReactNode;
@@ -64,11 +58,8 @@ export const MAIN_SCROLL_CLASS = 'main-scroll';
  */
 export const AppShell: React.FC<AppShellProps> = ({
   rail,
-  drawerRail,
-  railCollapsed = false,
   header,
   children,
-  pageFrame,
   banner,
   railOpen = false,
   onCloseRail,
@@ -110,8 +101,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   );
 
   // Move focus to main on route change (a11y: focus-on-route-change) and reset
-  // scroll. Compare pathnames instead of a mounted flag: StrictMode replays mount
-  // effects in development, and the replay must not look like a route change.
+  // scroll. Skip the very first mount so we don't yank focus on load.
   // #879 (WCAG 2.4.3): record pages encode the active tab in the URL, so an arrow-key
   // tab switch is also a pathname change — but it is NOT a route change to the user.
   // Skip focus only when the marker is present AND both locations are within the same
@@ -120,19 +110,23 @@ export const AppShell: React.FC<AppShellProps> = ({
   // Focus and scroll are route-change behavior: state-only updates (including list
   // search/filter updates that clear one-shot return state) must not steal focus.
   // The state at the pathname transition is still read to preserve #879 tab switches.
+  const mounted = useRef(false);
   const previousPathname = useRef(location.pathname);
   const { pathname, state } = location;
   const stateRef = useRef(state);
   stateRef.current = state;
   useEffect(() => {
-    const previous = previousPathname.current;
-    if (previous === pathname) return;
-    previousPathname.current = pathname;
-    const previousRecordBase = previous.match(/^\/(projects|procurement)\/([^/]+)/u);
+    if (!mounted.current) {
+      mounted.current = true;
+      previousPathname.current = pathname;
+      return;
+    }
+    const previousRecordBase = previousPathname.current.match(/^\/(projects|procurement)\/([^/]+)/u);
     const currentRecordBase = pathname.match(/^\/(projects|procurement)\/([^/]+)/u);
     const sameRecordBase =
       previousRecordBase?.[0] !== undefined &&
       previousRecordBase[0] === currentRecordBase?.[0];
+    previousPathname.current = pathname;
     const sameRecordTabSwitch = isTabSwitchNavState(stateRef.current) && sameRecordBase;
     if (sameRecordTabSwitch) return;
     mainRef.current?.focus();
@@ -220,8 +214,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       // scrim (`aria-modal` alone is advisory). The toast host lives OUTSIDE this shell
       // and stays announceable.
       data-app-shell="root"
-      data-rail-collapsed={railCollapsed || undefined}
-      className="app-shell-root grid h-[100dvh] w-full overflow-hidden"
+      className="grid h-[100dvh] w-full overflow-hidden"
       style={{
         // minmax(0, 1fr) (not bare 1fr): a `1fr` track defaults to a min-content
         // MINIMUM, which lets a wide nowrap child (data table / toolbar) blow the
@@ -281,7 +274,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         {/* C3: max-[921px]:px-4 narrows the gutter at 375px for more card
             width (16px vs 24px). max-[921px]:pt-4 matches. */}
         <div className="mx-auto max-w-[1600px] px-6 pb-16 pt-5 max-[921px]:px-4 max-[921px]:pt-4">
-          {pageFrame ? <PageFrame {...pageFrame}>{children}</PageFrame> : children}
+          {children}
         </div>
       </main>
 
@@ -363,7 +356,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             </div>
 
             {/* Rail nav content — same node as the persistent rail. */}
-            <div className="flex-1 overflow-y-auto">{drawerRail ?? rail}</div>
+            <div className="flex-1 overflow-y-auto">{rail}</div>
           </div>
         </div>
       )}

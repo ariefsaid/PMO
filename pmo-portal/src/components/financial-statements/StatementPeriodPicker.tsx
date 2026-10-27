@@ -22,7 +22,6 @@ export interface StatementPeriodPickerProps {
     noPeriods: string;
   };
   disabled?: boolean;
-  controlClassName?: string;
   onKindChange: (kind: StatementPeriodKind) => void;
   onPeriodChange: (periodStart: string) => void;
 }
@@ -35,7 +34,6 @@ export function StatementPeriodPicker({
   periods,
   labels,
   disabled = false,
-  controlClassName,
   onKindChange,
   onPeriodChange,
 }: StatementPeriodPickerProps) {
@@ -73,7 +71,6 @@ export function StatementPeriodPicker({
         options={kindOptions}
         onChange={handleKindChange}
         disabled={disabled}
-        className={controlClassName}
       />
       <SelectField
         label={labels.period}
@@ -82,7 +79,6 @@ export function StatementPeriodPicker({
         onChange={handlePeriodChange}
         placeholder={periodChoices.length === 0 ? labels.noPeriods : labels.choosePeriod}
         disabled={disabled || periodChoices.length === 0}
-        className={controlClassName}
       />
     </div>
   );

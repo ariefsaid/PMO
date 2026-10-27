@@ -1,131 +1,226 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import SalesKanbanBoard from './SalesKanbanBoard';
 import type { PipelineProject } from '@/src/lib/db/dashboard';
-import { formatCurrencyAuto, formatNumberExact } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 
+// FR-L10N-020: the board reads useOrgCurrency for its per-COLUMN totals only — a column total sums
+// across deals and has no single record currency. The deal CARDS take each project's own currency
+// (0201) and, since #578, its own tax basis (0208). Pinned rather than left to a real
+// query. ⚑ At LINE-START on purpose — inserted inside a neighbouring vi.mock call it parses as a
+// syntax error and hides every real error beneath it.
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 
 const projects: PipelineProject[] = [
-      { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4, pm_name: 'Project Manager A' },
+  { id: 'q1', name: 'Quotation Deal Alpha', short_name: null, client_name: 'Acme', status: 'Quotation Submitted', contract_value: 500_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
   { id: 't1', name: 'Tender Deal Bravo', short_name: null, client_name: null, status: 'Tender Submitted', contract_value: 1_200_000, currency: 'USD', tax_treatment: 'inclusive', win_probability: 0.5 },
+  { id: 'w1', name: 'Won Deal Charlie', short_name: null, client_name: 'Globex', status: 'Won, Pending KoM', contract_value: 2_000_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 1 },
   { id: 'l1', name: 'Lost Deal Delta', short_name: null, client_name: 'Initech', status: 'Loss Tender', contract_value: 700_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
+  // #530 / FR-L10N-020: a mixed-currency pair proves a card renders ITS OWN currency, not the
+  // USD org default — a single-currency fixture set cannot tell a record currency from a
+  // hardcoded literal (which is exactly how this issue shipped in 0044).
   { id: 'idr1', name: 'IDR Deal', short_name: null, client_name: 'Garuda', status: 'Quotation Submitted', contract_value: 1_234, currency: 'IDR', tax_treatment: 'inclusive', win_probability: 0.4 },
   { id: 'usd1', name: 'USD Deal', short_name: null, client_name: 'Acme Corp', status: 'Quotation Submitted', contract_value: 9_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0.4 },
+  // 0197 permits a NULL basis ONLY at zero value, and OD-TAX-1 says render NOTHING for it rather
+  // than invent one. Without this row the "unknown renders nothing" branch has no witness here.
   { id: 'nb1', name: 'Unpriced Deal', short_name: null, client_name: 'Umbrella', status: 'Quotation Submitted', contract_value: 0, currency: 'USD', tax_treatment: null, win_probability: 0.4 },
 ];
 
-const renderBoard = (items = projects, onOpen = vi.fn()) => ({
-  onOpen,
-  ...render(<MemoryRouter><SalesKanbanBoard projects={items} onOpen={onOpen} /></MemoryRouter>),
+describe('SalesKanbanBoard compact list presentation (AC-S24-002)', () => {
+  it('SUB-H keeps full identity, value, basis and win % visible with no details disclosure', async () => {
+    const longProject: PipelineProject = {
+      ...projects[4],
+      id: 'compact-long-id',
+      name: 'Integrated maintenance planning for regional facilities and remote teams',
+      short_name: 'Remote teams',
+      client_name: 'PT Garuda Regional Infrastructure Services',
+      pmo_project_number: 'PMO-26-0042',
+      code: 'CLIENT-77',
+    };
+    const onOpen = vi.fn();
+    // The temporary widened type lets this first red prove the new runtime presentation is missing.
+    const ListPresentation = SalesKanbanBoard as React.ComponentType<
+      React.ComponentProps<typeof SalesKanbanBoard> & { presentation: 'list' }
+    >;
+    render(<ListPresentation projects={[longProject]} onOpen={onOpen} presentation="list" selectedStatus={longProject.status} />);
+
+    expect(screen.queryByTestId('stage-Tender Submitted')).toBeNull();
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText(longProject.short_name!)).toBeVisible();
+    expect(within(card).getByTitle(longProject.name)).toHaveTextContent(longProject.short_name!);
+    expect(within(card).getByText(longProject.client_name!)).toBeVisible();
+    expect(within(card).queryByText(longProject.status)).toBeNull();
+    expect(within(card).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(card).getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false).length).toBeGreaterThan(0);
+
+    expect(card.querySelector('details')).toBeNull();
+    expect(within(card).getByText('40%')).toBeVisible();
+    expect(within(card).queryByText(/wtd/)).toBeNull();
+
+    await userEvent.click(within(card).getByRole('button', { name: new RegExp(longProject.short_name!) }));
+    expect(onOpen).toHaveBeenCalledWith(longProject);
+  });
 });
 
-describe('SalesKanbanBoard composed collection (AC-SP-204 / AC-IXD-PROJ-007)', () => {
-  it('AC-IXD-PROJ-007: groups open stages and adds one terminal Lost group when present', () => {
-    renderBoard();
-    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation'];
-    titles.forEach((title) => expect(screen.getByText(title, { exact: true })).toBeInTheDocument());
-    expect(screen.getByTestId('stage-Lost')).toBeInTheDocument();
+describe('SalesKanbanBoard (AC-SP-204 / AC-IXD-PROJ-007)', () => {
+  it('AC-002 #1325: the avatar initial stays the client\'s first letter, not the short name\'s', () => {
+    const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'Zulu Terminal', client_name: 'Acme' };
+    render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText('A')).toBeInTheDocument();
+    expect(within(card).queryByText('Z')).toBeNull();
+  });
+  it('AC-002 #1325: open pipeline DealCard shows the alias and preserves the contractual title', () => {
+    const project = { ...projects[0], name: 'Contractual pipeline deal', short_name: 'North Terminal' };
+    render(<SalesKanbanBoard projects={[project]} onOpen={vi.fn()} />);
+    const card = screen.getByTestId('project-card');
+    expect(within(card).getByText('North Terminal')).toBeVisible();
+    expect(within(card).getByTitle('Contractual pipeline deal')).toHaveTextContent('North Terminal');
+  });
+  // Model B (ADR-0020): the terminal column is split into separate "Won" and "Lost" columns.
+  it('AC-IXD-PROJ-007: renders the five open stages + separate terminal Won and Lost columns in fixed order', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const titles = ['Leads', 'Pre-Qual', 'Quotation', 'Tender', 'Negotiation', 'Won', 'Lost'];
+    for (const t of titles) {
+      const col = screen.getByTestId(
+        t === 'Won' ? 'stage-Won' : t === 'Lost' ? 'stage-Lost' : `stage-${t === 'Pre-Qual' ? 'PQ Submitted' : t === 'Quotation' ? 'Quotation Submitted' : t === 'Tender' ? 'Tender Submitted' : t}`,
+      );
+      expect(within(col).getByText(t, { exact: true })).toBeInTheDocument();
+    }
   });
 
-  it('AC-IXD-PROJ-007: terminal outcomes distinguish Lost from Declined and forecast fields are not applicable', () => {
-    const declined: PipelineProject = { id: 'dc1', name: 'Declined Deal Echo', short_name: null, client_name: 'Echo', status: 'Declined', contract_value: 300_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 };
-    renderBoard([...projects.filter((project) => project.status === 'Loss Tender'), declined]);
-    const terminal = screen.getByTestId('stage-Lost');
-    expect(within(terminal).getByRole('link', { name: 'Lost Deal Delta' })).toBeInTheDocument();
-    expect(within(terminal).getByRole('link', { name: 'Declined Deal Echo' })).toBeInTheDocument();
-    expect(within(terminal).getAllByText('Not applicable')).toHaveLength(2);
+  it('CW-3b: each deal renders the shared canonical ProjectCardShell (one project-card vocabulary)', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    // The shared shell stamps every card with the canonical `project-card` testid — the SAME
+    // molecule the Projects cards-view and Projects kanban use, so a project looks identical
+    // wherever it appears.
+    const cards = screen.getAllByTestId('project-card');
+    expect(cards).toHaveLength(projects.length);
   });
 
-  it('AC-SP-204: cards expose identity, customer, owner, activity, exact row money/basis, and win probability', () => {
-    const identity: PipelineProject = {
-      ...projects[0], short_name: 'North Terminal', name: 'Contractual infrastructure agreement',
-      pmo_project_number: 'PMO-26-0042', code: 'CLIENT-77', end_client_name: 'Asset Owner',
-    };
-    renderBoard([identity]);
-    const card = screen.getByRole('link', { name: 'North Terminal' }).closest('article')!;
-    expect(within(card).getByText('Contractual infrastructure agreement')).toBeInTheDocument();
-    expect(within(card).getByText('PMO-26-0042 · CLIENT-77')).toBeInTheDocument();
-    expect(within(card).getByText('Acme')).toBeInTheDocument();
-    expect(within(card).getByText(/Asset Owner/)).toBeInTheDocument();
-    expect(within(card).getByText('Project Manager A')).toBeInTheDocument();
-    expect(within(card).getByText('40%')).toBeInTheDocument();
-    expect(within(card.closest('section')!).getByText(/excl\. PPN/i)).toBeInTheDocument();
-    expect(within(card).queryByText(/weighted/i)).toBeNull();
+  it('AC-IXD-PROJ-007: a lost deal lands in the terminal "Lost" column, not the "Won" column', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const lostCol = screen.getByTestId('stage-Lost');
+    expect(within(lostCol).getByText('Lost Deal Delta')).toBeInTheDocument();
+    expect(within(screen.getByTestId('stage-Won')).queryByText('Lost Deal Delta')).toBeNull();
   });
 
-  it('AC-SP-204 / AC-LRC-004: opening the project link calls the page return-context action', () => {
+  // #774: Declined shares the closed Lost column but is counted separately.
+  it('AC-DEC-001: the Lost column shows Lost and Declined counts separately', () => {
+    const withDeclined: PipelineProject[] = [
+      ...projects,
+      { id: 'dc1', name: 'Declined Deal Echo', short_name: null, client_name: 'Echo', status: 'Declined', contract_value: 300_000, currency: 'USD', tax_treatment: 'exclusive', win_probability: 0 },
+    ];
+    render(<SalesKanbanBoard projects={withDeclined} onOpen={vi.fn()} />);
+    const lostCol = screen.getByTestId('stage-Lost');
+    expect(within(lostCol).getByText('Declined Deal Echo')).toBeInTheDocument();
+    expect(within(lostCol).getByTestId('lost-column-counts')).toHaveTextContent('Lost 1 · Declined 1');
+  });
+
+  it('AC-SP-204: a Quotation deal renders name, customer, value and win% (no weighted chip, SUB-H)', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const card = screen.getByText('Quotation Deal Alpha').closest('[role="button"]')!;
+    const c = within(card as HTMLElement);
+    expect(c.getByText('Acme')).toBeInTheDocument();
+    expect(c.getByText(formatCurrency(500_000, 'USD'))).toBeInTheDocument();
+    expect(c.queryByText(/wtd/)).toBeNull();
+    // win% from the RPC (40%), not a hard-coded legacy value
+    expect(c.getByText('40%')).toBeInTheDocument();
+  });
+
+  it('AC-SP-204: a deal with no customer renders an em-dash, never blank', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const card = screen.getByText('Tender Deal Bravo').closest('[role="button"]')!;
+    expect(within(card as HTMLElement).getByText('—')).toBeInTheDocument();
+  });
+
+  it('AC-SP-204: clicking a card calls onOpen with the row', () => {
     const onOpen = vi.fn();
-    renderBoard([projects[0]], onOpen);
-    const link = screen.getByRole('link', { name: 'Quotation Deal Alpha' });
-    expect(link).toHaveAttribute('href', '/projects/q1');
-    fireEvent.click(link);
-    expect(onOpen).toHaveBeenCalledWith(projects[0]);
+    render(<SalesKanbanBoard projects={projects} onOpen={onOpen} />);
+    fireEvent.click(screen.getByText('Tender Deal Bravo').closest('[role="button"]')!);
+    expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: 't1' }));
   });
 
-  it('#530 / AC-L10N-020: each card keeps its own ISO currency and amount', () => {
-    renderBoard(projects.filter((project) => ['idr1', 'usd1'].includes(project.id)));
-    const idr = screen.getByRole('link', { name: 'IDR Deal' }).closest('article')!;
-    const usd = screen.getByRole('link', { name: 'USD Deal' }).closest('article')!;
-    const normalized = (value: string) => value.replace(/\u00a0/g, ' ');
-    expect(within(idr).getByText((text) => normalized(text) === normalized(formatCurrencyAuto(1_234, 'IDR')))).toBeInTheDocument();
-    expect(within(usd).getByText((text) => normalized(text) === normalized(formatCurrencyAuto(9_000, 'USD')))).toBeInTheDocument();
-    expect(within(idr).queryByText(/\$/)).toBeNull();
+  it('AC-SP-204: an empty column shows the per-stage empty message', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(screen.getByText('No projects in Leads')).toBeInTheDocument();
   });
 
-  it('RD-046: preserves fractional contract value precision on a deal card', () => {
-    const fractional = { ...projects[1], contract_value: 1_200_000.25 };
-    renderBoard([fractional]);
-    const card = screen.getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
-    expect(within(card).getByText(formatNumberExact(1_200_000.25))).toBeInTheDocument();
-    expect(within(card.closest('section')!).getByText('USD', { exact: false })).toBeInTheDocument();
+  it('AC-SP-204: a won deal shows a won status pill and lands in the terminal Won column', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const wonCol = screen.getByTestId('stage-Won');
+    const card = within(wonCol).getByText('Won Deal Charlie').closest('[role="button"]')!;
+    expect(within(card as HTMLElement).getByText('Won, Pending KoM')).toBeInTheDocument();
   });
 
-  it('AC-S24-002: the phone projection is a vertical list with stage once and a real project link', () => {
-    render(<MemoryRouter><SalesKanbanBoard projects={[projects[1]]} onOpen={vi.fn()} presentation="list" /></MemoryRouter>);
-    const list = screen.getByTestId('sales-phone-stage-list');
-    const card = within(list).getByRole('link', { name: 'Tender Deal Bravo' }).closest('article')!;
-    expect(within(card).getByText('Tender')).toBeInTheDocument();
-    expect(within(card).getByText('Customer unavailable')).toBeInTheDocument();
-    expect(within(card).getByText(formatCurrencyAuto(1_200_000, 'USD'))).toBeInTheDocument();
-    expect(list.querySelectorAll('li')).toHaveLength(1);
-    // With no stage heading in the phone list, each deal follows the page h1 directly.
-    expect(within(card).getByRole('heading', { level: 2 })).toHaveTextContent(formatCurrencyAuto(1_200_000, 'USD'));
+  it('C2: every rendered stage-column dot is a DESIGN.md token (no raw cyan/orange literal)', () => {
+    const { container } = render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const dots = Array.from(
+      container.querySelectorAll<HTMLElement>('span.size-\\[9px\\].rounded-full'),
+    );
+    // one column-head dot per stage (6 columns)
+    expect(dots.length).toBeGreaterThanOrEqual(6);
+    const backgrounds = dots.map((d) => d.style.background);
+    for (const bg of backgrounds) {
+      expect(bg).toMatch(/^hsl\(var\(--/);
+    }
+    expect(backgrounds.some((b) => b.includes('hsl(199'))).toBe(false); // no cyan
+    expect(backgrounds.some((b) => b.includes('hsl(25 95'))).toBe(false); // no orange
   });
 
-  it('AC-S24-002: the compact phone row keeps a long contractual identity, customer and exact 13-digit IDR value', () => {
-    const longDeal: PipelineProject = {
-      id: 'long-idr',
-      name: 'Pengadaan dan pemeliharaan terpadu untuk fasilitas regional Jawa Barat dengan layanan berkelanjutan',
-      short_name: null,
-      client_name: 'Example Regional Services Cooperative with a long procurement identity',
-      status: 'Leads',
-      contract_value: 2_226_648_000_000,
-      currency: 'IDR',
-      tax_treatment: 'inclusive',
-      tax_rate: 11,
-      tax_base_numerator: 100,
-      tax_base_denominator: 111,
-      win_probability: 0.1,
-      pm_name: 'Example Project Manager',
-    };
-    render(<MemoryRouter><SalesKanbanBoard projects={[longDeal]} onOpen={vi.fn()} presentation="list" /></MemoryRouter>);
-
-    const card = screen.getByRole('link', { name: longDeal.name }).closest('article')!;
-    expect(within(card).getByText(longDeal.client_name!)).toBeInTheDocument();
-    const normalizeSpacing = (text: string) => text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
-    expect(within(card).getByText((text) => normalizeSpacing(text) === normalizeSpacing(formatCurrencyAuto(longDeal.contract_value, 'IDR')))).toBeInTheDocument();
-    expect(within(card).getByText('10%')).toBeInTheDocument();
-    expect(within(card).getByText('Example Project Manager')).toBeInTheDocument();
-    expect(within(card).getByText('Activity unavailable')).toBeInTheDocument();
-    expect(within(card).getByTestId('tax-basis')).toHaveTextContent(/incl\. PPN/i);
+  it('AC-1117 / SUB-H: an open column header keeps its count; the stage value lives once, in the funnel', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    const tender = screen.getByTestId('stage-Tender Submitted');
+    expect(within(tender).queryByText(/wtd/)).toBeNull();
+    expect(within(tender).getByText('1')).toBeInTheDocument();
   });
 
-  it('OD-TAX-1 §2: unknown basis renders no inferred label', () => {
-    renderBoard([projects.find((project) => project.id === 'nb1')!]);
-    const card = screen.getByRole('link', { name: 'Unpriced Deal' }).closest('article')!;
-    expect(within(card).queryByTestId('tax-basis')).toBeNull();
+  it('#530 / AC-L10N-020: cards render each deal in its own currency, not the USD org default', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    // IDR card: shows the code-style NBSP currency (U+00A0, Intl en-US separates a code-style
+    // currency with a non-breaking space), and NO dollar sign. We assert on the RAW node text
+    // content for the NBSP — getByText's default normalizer collapses NBSP to a space before
+    // comparing, so a plain-space assertion could be satisfied by a hardcoded "IDR 1,234".
+    const idrCard = screen.getByText('IDR Deal').closest('[role="button"]')!;
+    const idr = within(idrCard as HTMLElement);
+    // SOME element inside the card carries the raw NBSP currency (the value span and its
+    // ancestors both contain it in textContent, so this is a presence check, not unique-node).
+    expect(
+      idr.getAllByText((_, node) => node?.textContent?.includes('IDR\u00A01,234') ?? false)
+        .length,
+    ).toBeGreaterThan(0);
+    expect(idr.queryByText(/\$/)).toBeNull();
+    // USD card (same column, same board): renders its own dollar value and NO IDR.
+    const usdCard = screen.getByText('USD Deal').closest('[role="button"]')!;
+    const usd = within(usdCard as HTMLElement);
+    expect(usd.getByText('$9,000')).toBeInTheDocument();
+    expect(usd.queryByText(/IDR/)).toBeNull();
+  });
+});
+
+// ⚑ OD-TAX-1 §2 on the pipeline board (#578). The two assertions below are deliberately keyed to
+// DIFFERENT deals with DIFFERENT bases: a fixture where every card shares one treatment cannot
+// tell a rendered value from a hardcoded literal, which is exactly how the currency gap shipped in
+// 0044 and how #566's drawdown label passed 26 tests while hardcoded.
+describe('OD-TAX-1 §2: a pipeline deal card states its own tax basis (#578)', () => {
+  // ⚑ NO FALLBACK CHAIN, deliberately. An earlier version fell back to `closest('article')` and
+  // then `parentElement` — and those dead branches were not harmless: rename the card testid and
+  // the scope silently collapses to the <span> holding the deal name, where queryByTestId is null
+  // whatever the app renders. The POSITIVE oracle goes red and gets fixed; the NEGATIVE one below
+  // goes on passing for the wrong reason. A missing card must throw here instead.
+  const cardFor = (name: string) =>
+    screen.getByText(name).closest('[data-testid="project-card"]') as HTMLElement;
+
+  it('AC-TAX-309: labels an inclusive deal and an exclusive deal from each row, not from one shared default', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(within(cardFor('Tender Deal Bravo')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(cardFor('Quotation Deal Alpha')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('AC-TAX-310: renders NOTHING for a deal whose basis is unknown — a guess would be a claim the row does not make', () => {
+    render(<SalesKanbanBoard projects={projects} onOpen={vi.fn()} />);
+    expect(within(cardFor('Unpriced Deal')).queryByTestId('tax-basis')).toBeNull();
   });
 });

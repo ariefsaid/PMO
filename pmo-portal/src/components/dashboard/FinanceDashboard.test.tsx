@@ -1,7 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
-import { PageFrame } from '@/src/components/shell';
+import { formatCurrency } from '@/src/lib/format';
 import type { ErpAgingSnapshotRow } from '@/src/lib/db/erpSnapshots';
 import { FinanceDashboard } from './FinanceDashboard';
 import { BahasaProvider } from '@/test/bahasa';
@@ -11,13 +11,6 @@ const collectionsIntegration = vi.hoisted(() => ({
   arAging: [] as ErpAgingSnapshotRow[],
   customerLinks: new Map<string, string>(),
 }));
-const unbilledState = vi.hoisted(() => ({
-  data: undefined as unknown,
-  isPending: true,
-  isError: false,
-}));
-const dashboardRead = vi.hoisted(() => ({ isPending: false, isError: false }));
-const procurementRead = vi.hoisted(() => ({ isPending: false, isError: false }));
 
 const dash = {
   active_projects: 2, total_contract_value: 8_000_000, currency: 'USD',
@@ -36,7 +29,7 @@ const dash = {
 
 const iso = (daysAgo: number) => new Date(Date.now() - daysAgo * 864e5).toISOString();
 
-const procurements: Array<Record<string, unknown>> = [
+const procurements = [
   // pr1: real vendor_invoiced_at ~10 days old; updated_at today (proxy would read 0 — proves the column wins).
   { id: 'pr1', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
   // pr2: null vendor_invoiced_at (legacy/edge) → falls back to updated_at ~3 days old.
@@ -65,14 +58,14 @@ const budgetReview = [
 
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
-  useUnbilledWorkOrders: () => ({ ...unbilledState, refetch: vi.fn() }),
+  useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useDashboard', () => ({
-  useDashboard: () => ({ data: dash, ...dashboardRead, refetch: vi.fn() }),
+  useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: budgetReview, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProcurements: () => ({ data: procurements, ...procurementRead, refetch: vi.fn() }),
+  useProcurements: () => ({ data: procurements, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }), useProjectIdentity: () => ({ data: [{ id: 'project-17', name: 'Synthetic Project' }] }) }));
 vi.mock('@/src/hooks/useCompanies', () => ({
@@ -104,20 +97,11 @@ vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'fin-1', org_id: 'org-1' }, role: 'Finance' }),
 }));
 
-const renderPane = () => render(
-  <MemoryRouter>
-    <PageFrame breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}>
-      <FinanceDashboard />
-    </PageFrame>
-  </MemoryRouter>,
-);
+const renderPane = () => render(<MemoryRouter><FinanceDashboard /></MemoryRouter>);
 
 beforeEach(() => {
-  procurements.splice(0, procurements.length,
-    { id: 'pr1', title: 'Older vendor invoice', status: 'Vendor Invoiced', total_value: 250_000, currency: 'USD', vendor_invoiced_at: iso(10), updated_at: iso(0) },
-    { id: 'pr2', title: 'Recent vendor invoice', status: 'Vendor Invoiced', total_value: 150_000, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(3) },
-    { id: 'pr3', status: 'Paid', total_value: 999_999, currency: 'USD', vendor_invoiced_at: null, updated_at: iso(0) },
-  );
+  procurements[0]!.total_value = 250_000;
+  procurements[1]!.total_value = 150_000;
   dash.on_hand_actual_project_count = 2;
   dash.on_hand_actual_project_total = 2;
   dash.on_hand_actual_coverage_count = 2;
@@ -125,41 +109,41 @@ beforeEach(() => {
   collectionsIntegration.companies = [];
   collectionsIntegration.arAging = [];
   collectionsIntegration.customerLinks.clear();
-  procurements.splice(3);
-  unbilledState.data = undefined;
-  unbilledState.isPending = true;
-  unbilledState.isError = false;
-  dashboardRead.isPending = false;
-  dashboardRead.isError = false;
-  procurementRead.isPending = false;
-  procurementRead.isError = false;
+});
+
+describe('FinanceDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
+    const { container } = renderPane();
+    const band = container.querySelector('[aria-label="Finance KPIs"]') as HTMLElement;
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    // 5 tiles now (4 finance KPIs + the N15 approvals shortcut) → 5-col at the widest tier.
+    expect(band.className).toContain('min-[1180px]:grid-cols-5');
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
 });
 
 describe('FinanceDashboard N15 — PRs-only approvals shortcut', () => {
   it('AC-SL-A-001: no approvals tile when nothing awaits Finance (fixture has no Requested rows)', () => {
     renderPane();
     expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Review requests' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Review')).not.toBeInTheDocument();
   });
 });
 
 describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   it('shows contract value in progress, distinct from the on-hand contract value', () => {
     renderPane();
-    expect(screen.getByText('Contract in progress')).toBeInTheDocument();
-    expect(screen.getByText('8,000,000')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('$8,000,000');
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Contract value in progress');
   });
 
   it('labels PMO purchasing scope and explains an empty request chart', () => {
     const previous = procurements.splice(0);
-    try {
-      renderPane();
-      expect(screen.getByText('Purchasing requests')).toBeInTheDocument();
-      expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
-      expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
-    } finally {
-      procurements.push(...previous);
-    }
+    renderPane();
+    expect(screen.getByText('PMO purchasing requests')).toBeInTheDocument();
+    expect(screen.getByText('ERP-native purchases are outside this PMO request chart.')).toBeInTheDocument();
+    expect(screen.getByText('No procurement activity yet')).toBeInTheDocument();
+    procurements.push(...previous);
   });
   it('AC-RD-SPEND-001: calls an incomplete portfolio sum recorded spending and marks it partial', () => {
     dash.on_hand_actual_project_count = 2;
@@ -167,25 +151,26 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
     dash.on_hand_actual_coverage_count = 4;
     dash.on_hand_actual_coverage_total = 5;
     renderPane();
-    expect(screen.getByText('Known spending')).toBeInTheDocument();
-    expect(screen.getByText('Partial')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Recorded spending');
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Partial');
   });
   it('AC-UX-014: shows portfolio Actual from the complete dashboard read, not only top-project rows', () => {
     renderPane();
-    expect(screen.getByText('4,000,000')).toBeInTheDocument();
+    // OD-MONEY-FMT: short figure on the card, exact amount in title + sr text.
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('$4M');
+    expect(screen.getByTestId('kpi-spend').querySelector('[title="$4,000,000"]')).not.toBeNull();
   });
   it('does not treat a missing vendor invoice amount as zero', () => {
     procurements[0]!.total_value = null as unknown as number;
     renderPane();
-    expect(screen.getByTestId('ready-to-pay-total')).toHaveTextContent('—');
-    expect(screen.getByTestId('ready-to-pay-total')).not.toHaveTextContent('$150,000');
-    expect(screen.queryByTestId('kpi-outstanding')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('kpi-outstanding')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
+    expect(screen.getByTestId('kpi-outstanding')).not.toHaveTextContent('$150,000');
   });
   it('AC-RD-FIN-003: localizes finance money labels and names vendor balances as payables in Bahasa', () => {
     render(<BahasaProvider locale="id"><MemoryRouter><FinanceDashboard /></MemoryRouter></BahasaProvider>);
-    expect(screen.getByText('Kontrak berjalan')).toBeInTheDocument();
-    expect(screen.getByText('Pengeluaran yang diketahui')).toBeInTheDocument();
-    expect(screen.getAllByText(/Utang kepada vendor/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-revenue')).toHaveTextContent('Nilai kontrak berjalan');
+    expect(screen.getByTestId('kpi-spend')).toHaveTextContent('Pengeluaran tercatat');
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent('Utang kepada vendor');
     expect(screen.queryByText('Outstanding invoices')).not.toBeInTheDocument();
     expect(screen.queryByText('Total project spend')).not.toBeInTheDocument();
     expect(screen.getByText('Aktual (buku besar ERP)')).toBeInTheDocument();
@@ -197,37 +182,15 @@ describe('FinanceDashboard (real — exec RPC + procurements)', () => {
   });
   it('shows billed-work margin separately from contract remaining', () => {
     renderPane();
-    expect(screen.getByText('Margin on billed work')).toBeInTheDocument();
-    expect(screen.getAllByText('1,500,000')).toHaveLength(2);
-    expect(screen.getByText('Contract remaining after known Actual')).toBeInTheDocument();
-    expect(screen.getByText('4,500,000')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('$1.5M');
+    expect(screen.getByTestId('kpi-margin').querySelector('[title="$1,500,000"]')).not.toBeNull();
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Margin to date');
+    expect(screen.getByTestId('kpi-margin')).toHaveTextContent('Contract remaining after known Actual: $4.5M');
   });
-  it('computes vendor payables by currency once in Ready to pay and does not repeat it as a summary tile', () => {
+  it('computes outstanding invoices as Σ value of Vendor Invoiced procurements (real, not 0.4 fabrication)', () => {
     renderPane();
-    expect(screen.getByTestId('ready-to-pay-total')).toHaveTextContent('400,000');
-    expect(screen.queryByTestId('kpi-outstanding')).not.toBeInTheDocument();
-  });
-
-  it('AC-806-FIN-PAYABLES-001 states payable order and links request identity separately from its action', () => {
-    renderPane();
-    expect(screen.getByText('Oldest vendor-invoiced first; last update date is used when invoice date is missing.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Request Older vendor invoice' })).toHaveAttribute('href', '/procurement/pr1');
-    expect(screen.getByRole('link', { name: 'Review request: Older vendor invoice' })).toHaveTextContent('Review request');
-    const requestLinks = Array.from(document.querySelectorAll('a[aria-label^="Request "]'));
-    expect(requestLinks.map((link) => link.textContent)).toEqual(['Older vendor invoice', 'Recent vendor invoice']);
-  });
-
-  it('AC-806-FIN-PAYABLES-002 renders a compact ready-to-pay empty status without a table', () => {
-    const previous = procurements.splice(0);
-    try {
-      renderPane();
-      const empty = screen.getByTestId('ready-to-pay-empty');
-      expect(empty.tagName).toBe('P');
-      expect(empty).toHaveTextContent('Nothing awaiting payment');
-      expect(within(empty.closest('.rounded-lg.border') as HTMLElement).queryByRole('table')).not.toBeInTheDocument();
-    } finally {
-      procurements.push(...previous);
-    }
+    // 250k + 150k = 400k; the Paid one is excluded
+    expect(screen.getByTestId('kpi-outstanding')).toHaveTextContent(formatCurrency(400_000, 'USD'));
   });
 });
 
@@ -239,7 +202,8 @@ describe('FinanceDashboard N16 — invoice age from vendor_invoiced_at', () => {
     expect(screen.getByText('10 days')).toBeInTheDocument();
     // Header no longer reads the misleading "Last updated" proxy; it reads as invoice age.
     expect(screen.queryByText('Last updated')).not.toBeInTheDocument();
-    expect(screen.getByText('Invoiced age', { exact: true })).toBeInTheDocument();
+    // The N16 age-column header is exactly "Invoiced" (the honest invoice-age label).
+    expect(screen.getByText('Invoiced', { exact: true })).toBeInTheDocument();
   });
   // AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at without error.
   it('AC-FIN-DEBT-006: null vendor_invoiced_at falls back to updated_at', () => {
@@ -250,8 +214,8 @@ describe('FinanceDashboard N16 — invoice age from vendor_invoiced_at', () => {
 });
 
 describe('FinanceDashboard N17 — budget review from get_finance_budget_review RPC', () => {
-  // AC-FIN-DEBT-013: card renders RPC rows (NOT an FE re-sort of top_projects), top-5 slice.
-  it('AC-FIN-DEBT-013: Budget review shows five rows from the portfolio ranking', () => {
+  // AC-FIN-DEBT-013: card renders RPC rows (NOT an FE re-sort of top_projects), top-5 slice, honest label.
+  it('AC-FIN-DEBT-013: Budget review shows top-5 RPC rows, honest portfolio-wide label', () => {
     renderPane();
     // RPC supplies 6 rows; the card shows 5 (FE slice). The 6th-ranked project must NOT render.
     expect(screen.queryByText('Rank6')).not.toBeInTheDocument();
@@ -259,8 +223,9 @@ describe('FinanceDashboard N17 — budget review from get_finance_budget_review 
     expect(screen.getByText('Rank5')).toBeInTheDocument();
     // It must read the RPC, not top_projects (whose names were Alpha/Beta).
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument();
-    expect(screen.getByText('Budget review')).toBeInTheDocument();
-    expect(screen.getByText('Five projects by budget variance')).toBeInTheDocument();
+    // Honest portfolio-wide label.
+    expect(screen.getByText(/budget review/i)).toBeInTheDocument();
+    expect(screen.getByText(/portfolio-wide/i)).toBeInTheDocument();
   });
 
   it('opens the named project budget directly from the budget exception', () => {
@@ -273,12 +238,10 @@ describe('FinanceDashboard N17 — budget review from get_finance_budget_review 
 describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snapshots mounted', () => {
   it('mounts the read-only actuals/AP-AR aging snapshot section, empty by default', () => {
     renderPane();
-    screen.getByText('Financial position and accounting evidence').click();
     expect(screen.getByRole('region', { name: 'Accounting snapshots' })).toBeInTheDocument();
     expect(screen.getByText('No actuals snapshot yet')).toBeInTheDocument();
-    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(1);
-    expect(screen.getByText('Vendor payables (AP)')).toBeInTheDocument();
-    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(1);
+    expect(screen.getAllByText('No aging data to show yet.')).toHaveLength(2);
+    expect(screen.getAllByText(/Ask your administrator to sync accounting data/i)).toHaveLength(3);
   });
 
   it('AC-S36-002: links canonical Customer IDs to their exact company collections page', () => {
@@ -294,114 +257,11 @@ describe('FinanceDashboard task FIX-2 (Discover CRITICAL 2) — accounting snaps
 
     renderPane();
 
-    expect(screen.getByText('Customer collections', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Customer collections (AR)', { exact: true })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Customer:C-0001' })).toHaveAttribute(
       'href', '/companies/co-client-1#collections',
     );
     expect(screen.queryByText('Meridian Display Name')).not.toBeInTheDocument();
-  });
-});
-
-describe('Finance dashboard composition and next case', () => {
-  it('AC-806-FIN-ORDER-001 puts billing/payment work before collections, budget and accounting details', () => {
-    const { container } = renderPane();
-    const headings = Array.from(container.querySelectorAll('h1,h2,h3,summary')).map((heading) => heading.textContent?.trim());
-    const relevant = headings.filter((heading) => [
-      'Still to invoice on work orders', 'Ready to pay', 'Customer collections', 'Budget review',
-    ].includes(heading ?? ''));
-    expect(relevant).toEqual(['Still to invoice on work orders', 'Ready to pay', 'Customer collections', 'Budget review']);
-    expect(screen.getByText('Five projects by budget variance')).toBeInTheDocument();
-    expect(screen.getByText('Financial position and accounting evidence')).toBeInTheDocument();
-    expect(screen.getByText('Purchasing requests')).toBeInTheDocument();
-  });
-
-  it('AC-806-FIN-NEXT-001 promotes the first invoiceable work order when no decision is pending', () => {
-    unbilledState.data = {
-      totals: [{ currency: 'USD', remaining: 120_000, count: 1 }], incompleteCount: 0,
-      rows: [{ workOrderId: 'wo-1', woNumber: 'WO-001', title: 'Design package', projectId: 'project-1', projectName: 'Atlas', status: 'Closed', currency: 'USD', remaining: 120_000, daysSinceClosed: 4, clientPoNumber: null }],
-      incomplete: [],
-    };
-    unbilledState.isPending = false;
-    renderPane();
-    expect(screen.getByRole('link', { name: 'Review work order' })).toHaveAttribute(
-      'href', '/projects/project-1/work-orders?wo=wo-1',
-    );
-    expect(screen.queryByRole('link', { name: 'Review payable request' })).not.toBeInTheDocument();
-  });
-
-  it('AC-806-FIN-NEXT-002 gives pending decisions precedence over invoiceable work', () => {
-    unbilledState.data = {
-      totals: [], incompleteCount: 0, rows: [], incomplete: [],
-    };
-    unbilledState.isPending = false;
-    procurements.push({
-      ...procurements[0]!, id: 'pr-pending', status: 'Requested', title: 'Pending request',
-      requested_by_id: 'someone-else', approvalRoute: { procurementId: 'pr-pending', route: 'flat', reason: 'no_project', approvers: [], requestAmount: 10, lineBudget: null, lineUsed: null },
-    });
-    renderPane();
-    expect(screen.getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
-  });
-
-  it('AC-806-FIN-NEXT-003 selects the oldest mapped overdue customer after billing and payable cases', () => {
-    procurements.splice(0);
-    unbilledState.data = { totals: [], incompleteCount: 0, rows: [], incomplete: [] };
-    unbilledState.isPending = false;
-    const customerAging = (party: string, bucket0to30: number, bucket61to90: number): ErpAgingSnapshotRow => ({
-      party, partyType: 'Customer', currency: 'USD', totalOutstanding: bucket0to30 + bucket61to90,
-      current: 0, bucket0to30, bucket31to60: 0, bucket61to90, bucketOver90: 0,
-      rangeLabels: null, reportDate: '2026-10-20', ageingBasedOn: 'Due Date',
-      asOf: '2026-10-20T00:00:00Z', sourceReport: 'Accounts Receivable', reportVersion: '15', snapshotId: 'snapshot-1',
-    });
-    collectionsIntegration.arAging = [customerAging('Customer:current', 0, 0), customerAging('Customer:young', 999, 0), customerAging('Customer:oldest', 0, 50)];
-    collectionsIntegration.customerLinks.set('Customer:young', 'company-young');
-    collectionsIntegration.customerLinks.set('Customer:oldest', 'company-oldest');
-    renderPane();
-    expect(screen.getByRole('link', { name: 'Review collections' })).toHaveAttribute(
-      'href', '/companies/company-oldest#collections',
-    );
-  });
-
-  it('AC-806-FIN-STATE-001 keeps the page frame and independent work sections when purchase reads fail', () => {
-    procurementRead.isError = true;
-    renderPane();
-    expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Home');
-    expect(screen.getByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/approvals');
-    expect(screen.getByText('Ready to pay')).toBeInTheDocument();
-    expect(screen.getByText('Budget review')).toBeInTheDocument();
-  });
-
-  it('AC-806-FIN-STATE-002 keeps financial position retry inside its disclosure', () => {
-    dashboardRead.isError = true;
-    renderPane();
-    screen.getByText('Financial position and accounting evidence').click();
-    expect(screen.getByText("Couldn't load the finance dashboard")).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Finance Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Ready to pay')).toBeInTheDocument();
-  });
-
-  it('AC-806-FIN-SNAPSHOT-001 uses compact report rows and one shared snapshot remedy', () => {
-    renderPane();
-    const collections = screen.getByRole('region', { name: 'Customer collections' });
-    expect(within(collections).getByTestId('accounting-snapshot-empty')).toHaveTextContent('No aging data to show yet.');
-    expect(within(collections).queryByTestId('liststate-empty')).not.toBeInTheDocument();
-    expect(screen.getAllByText((_, element) => element?.tagName === 'P'
-      && element.textContent?.startsWith('An accounting snapshot is not available yet.') === true)).toHaveLength(1);
-  });
-
-  it('AC-806-FIN-BUDGET-001 keeps unavailable comparisons concise with one cause and evidence destination', () => {
-    const row = budgetReview[0]!;
-    row.actual_complete = false;
-    row.spent = null as unknown as number;
-    row.actual_coverage_count = 1;
-    row.actual_coverage_total = 2;
-    renderPane();
-    const note = screen.getByTestId('budget-comparison-unavailable-note');
-    const budget = screen.getByTestId('finance-budget-review');
-    expect(note).toHaveTextContent('Actual comparisons need complete source coverage in the project budget currency.');
-    expect(within(note).getByRole('link', { name: 'Review accounting evidence' })).toHaveAttribute('href', '#finance-accounting-evidence');
-    expect(note.textContent?.match(/complete source coverage/g)).toHaveLength(1);
-    expect(within(budget).getByRole('table').textContent).not.toContain('Not available yet');
   });
 });
 

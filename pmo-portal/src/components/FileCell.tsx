@@ -119,7 +119,7 @@ export const FileCell: React.FC<FileCellProps> = ({
         type="button"
         onClick={onUpload}
         aria-label={`Upload file for ${title}`}
-        className="touch-target inline-flex min-h-11 items-center gap-1 text-[12px] text-foreground hover:text-primary-text font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="touch-target inline-flex items-center gap-1 text-[12px] text-foreground hover:text-primary-text font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <Icon name="upload" className="size-3.5" />
         Upload

@@ -1,77 +1,15 @@
 {
-  "actions": {
-    "reviewBudget": "Review budget",
-    "reviewDelivery": "Review delivery plan",
-    "reviewFinances": "Review project finances"
-  },
-  "card": {
-    "expectedEnd": "Expected end {{date}}",
-    "amountsInCurrency": "Amounts · {{currency}}",
-    "amountsByCurrency": "Amounts by currency",
-    "actualAndBudgetUsed": "Actual / Budget used"
-  },
-  "columns": {
-    "actual": "Actual",
-    "budgetUsed": "Budget used",
-    "contract": "Contract",
-    "delivery": "Delivery",
-    "pm": "Project manager",
-    "pmTable": "Project manager",
-    "project": "Project",
-    "statusAndEnd": "Status / expected end",
-    "statusAndEndTable": "Status / end date"
-  },
-  "breadcrumb": "Breadcrumb",
-  "area": { "delivery": "Delivery" },
-  "identifiers": { "summary": "Project IDs ({{count}})", "detailsLabel": "Project references" },
-  "customerUnavailable": "Customer unavailable",
   "coverage": {
     "partial": "Actual is partial on {{partial}} of {{total}} projects.",
-    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}.",
-    "partialShort": "Partial",
-    "reason": "Some source categories are unmapped or missing amounts.",
-    "reviewProject": "Review {{name}}"
+    "partialUpdated": "Actual is partial on {{partial}} of {{total}} projects. Updated {{date}}."
   },
   "actual": {
     "restrictedTag": "Restricted excluded"
   },
   "create": {
     "accessDenied": "You can't create projects",
-    "accessDeniedReason": "Project creation is limited to Admin, Executive, and Project Manager roles. Return to Projects to find assigned work or review project finances.",
-    "accessDeniedGeneral": "Project creation is limited to Admin, Executive, and Project Manager roles.",
-    "engineerAccessDeniedReason": "Engineers can find assigned work from Projects.",
-    "financeAccessDeniedReason": "Finance can review project finances from Projects.",
-    "leave": "Discard changes",
-    "stay": "Keep editing",
-    "backToProjects": "Back to Projects",
-    "workspaceScope": "Workspace scope",
-    "originScope": "Projects scope: {{scope}}",
-    "startsAs": "Starts as {{stage}}",
-    "leadConsequence": "Leads are tracked in the Pipeline.",
-    "internalConsequence": "Internal projects stay in the workspace.",
-    "classificationEmpty": "Optional project context",
-    "classificationCount": "{{count}} fields set",
-    "clientCodeHelper": "Optional code used by your organization.",
-    "taxInclusiveShort": "Inclusive",
-    "taxExclusiveShort": "Exclusive",
-    "taxTreatmentHelper": "Inclusive keeps tax in the amount. Exclusive adds tax on top.",
-    "section": {
-      "ownershipSchedule": "Ownership & schedule",
-      "estimateTax": "Estimate & tax",
-      "estimateTaxCurrency": "Estimate & tax · {{currency}}"
-    },
-    "numberPrerequisite": "Select a client to propose a PMO Project Number.",
-    "disabledName": "Add a project name.",
-    "disabledClient": "Select a client company.",
-    "disabledNumber": "Enter the proposed PMO Project Number.",
-    "disabledProposal": "Wait for a PMO Project Number proposal.",
-    "disabledProposalLoading": "Wait for the PMO Project Number proposal.",
-    "disabledProposalError": "Change or reselect the client to retry the number proposal.",
-    "disabledTax": "Complete the required tax details.",
-    "disabledIntro": "To create this project, complete:",
-    "estimateUnset": "Not entered",
-    "classificationShow": "Show classification",
-    "classificationHide": "Hide classification"
+    "leave": "Leave",
+    "stay": "Stay"
   },
   "shortName": {
     "label": "Short name (optional)",
@@ -83,72 +21,5 @@
   },
   "committed": {
     "otherCurrencies": "Plus amounts in other currencies: {{amounts}}"
-  },
-  "data": {
-    "deliveryUnavailable": "Delivery progress is unavailable.",
-    "loading": "Loading…",
-    "moneyUnavailable": "Actual and Active budget are unavailable.",
-    "noteTitle": "Some project data needs attention",
-    "retryDelivery": "Retry delivery",
-    "retryMoney": "Retry financial data"
-  },
-  "dates": {
-    "noExpectedEnd": "No expected end"
-  },
-  "endCustomer": "End customer",
-  "filters": {
-    "active": "Applied filters",
-    "customerChip": "Customer: {{value}}",
-    "endCustomerChip": "End customer: {{value}}",
-    "managerChip": "Project manager: {{value}}",
-    "removeFilter": "Remove filter: {{filter}}",
-    "retryOptions": "Retry options",
-    "scopeChip": "Scope: {{scope}}",
-    "scopeLabel": "Scope",
-    "searchChip": "Search: {{value}}",
-    "unavailableSelection": "Unavailable selection"
-  },
-  "kanban": {
-    "openProject": "Open project {{name}}",
-    "stageNavigation": "Project stages"
-  },
-  "mobile": {
-    "moreDetails": "More project details",
-    "moreDetailsSummary": "More project details · {{count}}",
-    "referencesSummary": "Project references · {{count}}",
-    "detailsFor": "Details for {{name}}"
-  },
-  "scope": {
-    "loading": "Loading projects",
-    "onHandInternal": "On-hand + internal",
-    "pipeline": "Pipeline",
-    "resultCount": "{{count}} projects",
-    "unavailable": "Count unavailable",
-    "riskLoading": "Checking budget risk",
-    "riskUnavailable": "Risk count unavailable"
-  },
-  "sort": {
-    "attention": "Budget risk first, then expected end",
-    "attentionShort": "Risk → end date",
-    "expectedEnd": "Expected end (soonest first)",
-    "expectedEndShort": "Soonest end",
-    "label": "Sort projects",
-    "active": "Sorted by: {{sort}}",
-    "name": "Project name (A to Z)",
-    "nameShort": "Name A–Z"
-  },
-  "view": {
-    "label": "View"
-  },
-  "calendar": {
-    "start": "Start",
-    "end": "End",
-    "phase": "Phase: {{phase}}",
-    "eventPhase": "Phase",
-    "eventPhaseTarget": "Phase target",
-    "phaseEventLabel": "{{project}} · {{phase}}",
-    "phaseEventAriaLabel": "{{project}} — Phase target: {{phase}}",
-    "startAriaLabel": "{{project}} — Start",
-    "endAriaLabel": "{{project}} — End"
   }
 }

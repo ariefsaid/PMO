@@ -185,19 +185,13 @@ describe('ContextBar — unified account menu', () => {
     await userEvent.click(screen.getByRole('button', { name: /account menu/i }));
 
     const profile = screen.getByRole('menuitem', { name: /profile & preferences/i });
-    const english = screen.getByRole('menuitemradio', { name: 'English' });
-    const bahasa = screen.getByRole('menuitemradio', { name: 'Bahasa Indonesia' });
     const light = screen.getByRole('menuitemradio', { name: /^light$/i });
     const signOutItem = screen.getByRole('menuitem', { name: /sign out/i });
     expect(profile).toHaveFocus();
     await userEvent.keyboard('{ArrowDown}');
-    expect(english).toHaveFocus();
-    await userEvent.keyboard('{ArrowDown}');
-    expect(bahasa).toHaveFocus();
-    await userEvent.keyboard('{ArrowDown}');
     expect(light).toHaveFocus();
     await userEvent.keyboard('{ArrowUp}');
-    expect(bahasa).toHaveFocus();
+    expect(profile).toHaveFocus();
     await userEvent.keyboard('{End}');
     expect(signOutItem).toHaveFocus();
     await userEvent.keyboard('{Home}');
@@ -237,12 +231,12 @@ describe('ContextBar — unified account menu', () => {
     expect(screen.getByRole('menu')).toBeInTheDocument();
   });
 
-  it('AC-ACCT-001: a long signed-in name remains available in the account trigger', () => {
+  it('AC-ACCT-001: a long signed-in name is constrained within the header trigger', () => {
     displayName = 'A very long enterprise display name that must not force the header wider than the viewport';
     renderBar();
     const trigger = screen.getByRole('button', { name: /account menu/i });
-    expect(trigger).toHaveAccessibleName('Account menu');
-    expect(screen.getByText(displayName)).toBeInTheDocument();
+    expect(trigger).toHaveClass('max-w-[220px]');
+    expect(screen.getByText(displayName)).toHaveClass('truncate');
   });
 
   it('AC-ACCT-003: Escape closes the menu and restores focus to the trigger', async () => {

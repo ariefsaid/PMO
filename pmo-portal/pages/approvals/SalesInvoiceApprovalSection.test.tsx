@@ -99,7 +99,7 @@ async function expand(user: ReturnType<typeof userEvent.setup>, customer = 'Acme
 }
 
 describe('SalesInvoiceApprovalSection (#784)', () => {
-  it('H-09 keeps the full contractual project name visible without hover recovery', () => {
+  it('AC-003 #1325: invoice approval evidence uses the contractual project name, not the picker alias', () => {
     const projectName = 'North Coast Materials Recovery and Logistics Programme';
     h.projectOptions[0].label = 'North Coast Logistics';
     h.projectOptions[0].contractualName = projectName;
@@ -112,8 +112,7 @@ describe('SalesInvoiceApprovalSection (#784)', () => {
     );
     const projectLink = screen.getByRole('link', { name: `Open ${projectName}` });
     expect(projectLink).toHaveTextContent(projectName);
-    expect(projectLink).not.toHaveAttribute('title');
-    expect(projectLink).not.toHaveAttribute('aria-describedby');
+    expect(projectLink.parentElement).toHaveAttribute('title', projectName);
   });
 
   it('RF-026 omits PMO-only author and customer-order facts for an ERP-origin invoice', () => {

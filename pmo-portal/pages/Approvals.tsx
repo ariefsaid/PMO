@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, PageHeading, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
+import { AccessDenied, Badge, Card, Checkbox, ConfirmDialog, ListState, StatusPill, TextArea, ViewToggle, useToast } from '@/src/components/ui';
 import { describePushMutationError } from '@/src/lib/adapterSeam/pushErrorCopy';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
@@ -799,14 +799,15 @@ const ApprovalsPage: React.FC = () => {
   return (
     <div>
       <div className="mb-4">
-        <PageHeading
-          kind="review"
-          title={t('approvals.title', 'Approvals')}
-          scope={t(
+        <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+          {t('approvals.title', 'Approvals')}
+        </h1>
+        <p className="mt-0.5 max-w-[72ch] text-sm text-muted-foreground">
+          {t(
             'approvals.subtitle',
             'Needs my approval — everything waiting on your decision: purchase requests, timesheets, expense claims and customer invoices.',
           )}
-        />
+        </p>
       </div>
 
       {hasTabs && !allCaughtUp && (

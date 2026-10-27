@@ -1,8 +1,15 @@
 /**
  * AC-IXD-PROJ-W5-C3 — Wave-5 Cluster-3 PR-2:
- *   project identity and finance-authority behavior
+ *   D15 role-adaptive header (finance-forward vs delivery-forward)
+ *   N10 post-transition wayfinding (Back to Sales Pipeline + focus)
+ *   D9-pipeline PQ → Pre-Qualification label
  *
- * Owning layer: Vitest/RTL render-by-role for record actions.
+ * Owning layer: Vitest/RTL render-by-role (the delivery-forward/finance-forward split is pure FE).
+ *
+ * D15 render-position tests (AC-IXD-PROJ-W5-C3-D15-POS-*) assert RENDERED DOM ORDER in the
+ * full ProjectDetail page — not just existence in the isolated header. This is the exact blind
+ * spot the original tests had: they asserted the aside *existed* in a header render, but missed
+ * that the header renders ABOVE the tablist in the full page (the defect).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
@@ -47,11 +54,9 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     },
   }),
 }));
-
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
-
 vi.mock('@tanstack/react-query', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, useQueryClient: () => ({ invalidateQueries: vi.fn() }) };
@@ -200,17 +205,97 @@ beforeEach(() => {
 // D15 — Role-adaptive header
 // ═════════════════════════════════════════════════════════════════════════════
 
-describe('Project identity and pipeline behavior', () => {
-  it('AC-IXD-PROJ-W5-C3-06: Engineer sees the project identity and current status', () => {
+describe('AC-IXD-PROJ-W5-C3 D15: role-adaptive header', () => {
+  // ── Finance-forward roles keep the header unchanged ────────────────────────
+  it('AC-IXD-PROJ-W5-C3-01: PM (finance-forward) sees the finance StatTiles in the header', () => {
+    renderHeader('Project Manager');
+    // The 5-tile strip remains in the header for finance-forward roles.
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
+    // The contract-value SoD row is also in the header (not demoted).
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-02: Finance (finance-forward) sees the finance StatTiles in the header', () => {
+    renderHeader('Finance');
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-03: Executive (finance-forward) sees the finance StatTiles in the header', () => {
+    renderHeader('Executive');
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-04: Admin (finance-forward) sees the finance StatTiles in the header', () => {
+    renderHeader('Admin');
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
+    expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+  });
+
+  // ── Delivery-forward (Engineer) — tiles leave the header entirely ──────────
+  // D15 fix: the header renders NO finance block at all for Engineer. The aside
+  // was removed from ProjectDetailHeader; it now lives in OverviewTab (below the
+  // tab bar). The rendered-position assertions are in wave5-c3-pr2-position.test.tsx.
+  it('AC-IXD-PROJ-W5-C3-05: Engineer (delivery-forward) header does NOT contain the financial-summary aside or any finance StatTile labels', () => {
+    const { container } = renderHeader('Engineer');
+    // The header must NOT contain the financial-summary aside (it moved to OverviewTab).
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+    // Finance StatTile labels must not appear in the isolated header render.
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
+    // The contract-value SoD row is also absent from the header.
+    expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-06: Engineer still sees the project name and status (delivery meta stays)', () => {
     renderHeader('Engineer');
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
   });
 
-  it('AC-IXD-PROJ-W5-C3-10: pre-win records do not offer the won-project contract-value editor', () => {
-    const preWinRow = { ...onHandRow, status: 'Leads', customer_contract_ref: null } as unknown as ProjectWithRefs;
-    renderHeader('Engineer', preWinRow);
+  // ── Financial summary lives in OverviewTab (not the isolated header) ────────
+  // D15 fix: the aside moved OUT of ProjectDetailHeader and INTO OverviewTab.
+  // The isolated header render (renderHeader) no longer contains it. The full-page
+  // assertions (with a11y + content + DOM position) live in wave5-c3-pr2-position.test.tsx.
+  it('AC-IXD-PROJ-W5-C3-07: Engineer header does NOT contain the "Financial summary" aside (it is in OverviewTab, not the header)', () => {
+    const { container } = renderHeader('Engineer');
+    // The header isolation render must not contain the financial-summary aside.
+    // It has moved into OverviewTab (see wave5-c3-pr2-position.test.tsx for full-page assertions).
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+    // Finance tile labels are absent from the header.
+    expect(screen.queryByText('Contract')).not.toBeInTheDocument();
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-08: the "Financial summary" aside (in OverviewTab) has aria-label and is an aside element — verified in position tests', () => {
+    // The a11y properties of the aside (aria-label, element tag) are asserted in
+    // wave5-c3-pr2-position.test.tsx (AC-IXD-PROJ-W5-C3-D15-POS-10) against the full-page
+    // render where the aside actually appears. In the isolated header render the aside is absent.
+    const { container } = renderHeader('Engineer');
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
+  });
+
+  it('AC-IXD-PROJ-W5-C3-09: Engineer header has no contract-value SoD row; the Read-only lock is in the OverviewTab aside', () => {
+    const { container } = renderHeader('Engineer');
+    // The SoD row is absent from the header isolation render (it's in OverviewTab now).
+    expect(container.querySelector('[data-testid="contract-value-sod"]')).toBeNull();
+    // The Read-only lock pill is also not in the header.
+    expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
+    // The Edit contract value button has never been offered to Engineer.
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+  });
+
+  // ── Pre-win (pipeline) is unaffected (D15 only applies to delivery lens) ──
+  it('AC-IXD-PROJ-W5-C3-10: pre-win record does not render the financial summary aside (pre-win is unaffected by D15)', () => {
+    const preWinRow = { ...onHandRow, status: 'Leads', customer_contract_ref: null } as unknown as ProjectWithRefs;
+    const { container } = renderHeader('Engineer', preWinRow);
+    // Pre-win: the delivery lens (StatTiles + SoD row + financial summary) is not mounted at all
+    expect(container.querySelector('[data-testid="financial-summary"]')).toBeNull();
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
   });
 });
@@ -290,7 +375,14 @@ describe('AC-IXD-PROJ-W5-C3 N10: post-transition wayfinding', () => {
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });
 
-
+  it('AC-IXD-PROJ-W5-C3-18: "Back to Sales Pipeline" link uses text-primary-text + hover:underline (One Blue, no solid fill)', () => {
+    renderLens();
+    const link = screen.getByRole('link', { name: /back to sales pipeline/i });
+    // Token-compliant: AA-safe link text token, never a solid primary button.
+    expect(link.className).toMatch(/text-primary-text/);
+    // Must not be a solid primary button
+    expect(link.className).not.toMatch(/bg-primary\b/);
+  });
 
   // list-working-set-return (#682): FR-LRC-006 — when the project was opened FROM a narrowed
   // Sales Pipeline (captured in router state), the quiet Sales link targets that SAME filtered
@@ -338,15 +430,15 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
     expect(labels[1]).not.toBe('Pre-Qual');
   });
 
-  it('AC-IXD-PROJ-W5-C3-20: the deal journey stepper uses the shared Sales stage vocabulary in the DOM', () => {
+  it('AC-IXD-PROJ-W5-C3-20: the deal journey stepper renders "Pre-Qualification" in the DOM', () => {
     renderLens();
     // The LifecycleStepper renders step labels — "Pre-Qualification" must be visible
-    expect(screen.getByText('Pre-Qual')).toBeInTheDocument();
-    // The visible journey shares the selector and board vocabulary
+    expect(screen.getByText('Pre-Qualification')).toBeInTheDocument();
+    // "Pre-Qual" should not appear as a rendered node label
     // (Note: it may still appear in the SALES_COLUMNS title for the kanban board — that is
     //  a separate surface; here we assert only the deal journey stepper inside PipelineLens)
     const journey = screen.getByRole('list', { name: /Project stage journey/i });
-    expect(within(journey).getByText('Pre-Qual')).toBeInTheDocument();
+    expect(within(journey).getByText('Pre-Qualification')).toBeInTheDocument();
   });
 });
 
@@ -355,23 +447,18 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('SUB-I: opportunity lens figures and notices', () => {
-
+  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
 
   it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
     renderLens();
-    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('Opportunity value');
-    ['Win probability', 'Weighted', 'Owner'].forEach((label) => expect(screen.getByText(label, { exact: true })).toBeInTheDocument());
-    expect(screen.queryByText('Decision', { exact: true })).not.toBeInTheDocument();
+    expect(tileLabels()).toEqual(['Value', 'Win probability', 'Weighted', 'Owner']);
     expect(screen.queryByText('Ready to advance.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
   });
 
   it('SUB-I: a lost deal shows Value, Owner, Decision — never a 0% win probability or a zero weighted value', () => {
     renderLens({ ...pipelineRow, status: 'Loss Tender' } as unknown as ProjectWithRefs);
-    expect(screen.getByTestId('pipeline-contract-value')).toHaveTextContent('Opportunity value');
-    ['Owner', 'Decision'].forEach((label) => expect(screen.getByText(label, { exact: true })).toBeInTheDocument());
-    expect(screen.queryByText('Win probability', { exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByText('Weighted', { exact: true })).not.toBeInTheDocument();
+    expect(tileLabels()).toEqual(['Value', 'Owner', 'Decision']);
     expect(screen.queryByText('0%')).not.toBeInTheDocument();
     expect(screen.getByText(/marked lost/i)).toBeInTheDocument();
   });

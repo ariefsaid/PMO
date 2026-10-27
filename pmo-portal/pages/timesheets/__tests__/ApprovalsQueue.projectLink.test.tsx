@@ -95,12 +95,12 @@ describe('AC-JR-W1-09: ApprovalsQueue expanded row shows /projects/:id link in T
 });
 
 describe('AC-002 #1325: ApprovalsQueue breakdown shows the short name', () => {
-  it('links the full contractual title visibly', () => {
+  it('links the short name with the contractual title as description', () => {
     (queue.data[0].entries as Array<Record<string, unknown>>)[0].project = { name: 'Apollo Station', short_name: 'Apollo', code: 'PRJ-014' };
     renderPM();
     fireEvent.click(screen.getByRole('button', { name: /Show hours for Anita Rao/i }));
-    const link = screen.getByRole('link', { name: 'Open Apollo Station' });
-    expect(link).toHaveTextContent('Apollo Station');
-    expect(link).toHaveAttribute('href', '/projects/proj-apollo');
+    const link = screen.getByRole('link', { name: 'Open Apollo' });
+    expect(link).toHaveAccessibleDescription('Apollo Station');
+    expect(link).toHaveAttribute('title', 'Apollo Station');
   });
 });

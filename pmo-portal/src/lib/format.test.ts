@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
 import {
   PLATFORM_CURRENCY, currencySymbol, formatCompactCurrency, formatCurrency, parseMoneyInput, pct, formatDate, formatRelativeTime,
-  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberFine, formatNumberMax2,
+  formatCurrencyAuto, formatCurrencyCents, formatCurrencyFine, formatNumber, formatNumberMax2,
   formatDateNumeric, formatDateUtc, formatDateTime, formatDayMonth, formatExactMoney, formatFullDate, formatMonthDay,
   formatMonthYear, formatUtcDayMonthYear, formatUtcMonthYear, formatWeekday, formatWeekdayMonthDay,
 } from './format';
@@ -10,25 +10,6 @@ import {
 afterEach(() => resetActiveLocale());
 
 describe('formatExactMoney', () => {
-  it('preserves ISO currency display together with meaningful fractional precision across cached formats', () => {
-    expect(formatExactMoney('100.50', 'USD', 'en-US')).toBe('$100.50');
-    expect(formatExactMoney('100.50', 'USD', 'en-US', { currencyDisplay: 'code', trimTrailingFractionZeros: true })).toMatch(/USD\s100\.5$/);
-    expect(formatExactMoney('100.50', 'USD', 'en-US')).toBe('$100.50');
-  });
-
-  it('keeps exact currency-free values and fractional trimming together without poisoning currency formats', () => {
-    expect(formatExactMoney('9007199254740993.50', 'USD', 'en-US', {
-      includeCurrency: false, trimTrailingFractionZeros: true,
-    })).toBe('9,007,199,254,740,993.5');
-    expect(formatExactMoney('-100.50', 'IDR', 'id-ID', {
-      includeCurrency: false, trimTrailingFractionZeros: true,
-    })).toBe('−100,5');
-    expect(formatExactMoney('100.00', 'USD', 'en-US', {
-      includeCurrency: false, trimZeroFraction: true,
-    })).toBe('100');
-    expect(formatExactMoney('100.50', 'USD', 'en-US')).toBe('$100.50');
-  });
-
   it('formats exact decimal strings without converting large values through Number', () => {
     expect(formatExactMoney('9007199254740993.99', 'USD', 'en-US')).toBe('$9,007,199,254,740,993.99');
   });
@@ -206,15 +187,6 @@ describe('formatCurrencyFine — sub-$1 agent/provider costs (#477)', () => {
     expect(formatCurrencyFine(0.5, 'USD')).toBe('$0.50');
     expect(formatCurrencyFine(0.0123, 'USD')).toBe('$0.0123');
     expect(formatCurrencyFine(12.3456, 'USD')).toBe('$12.3456');
-  });
-});
-
-describe('formatNumberFine — grouped currency values with a shared unit heading', () => {
-  it('keeps sub-dollar precision and omits unnecessary whole-unit decimals', () => {
-    expect(formatNumberFine(0.1)).toBe('0.10');
-    expect(formatNumberFine(0.0123)).toBe('0.0123');
-    expect(formatNumberFine(1)).toBe('1');
-    expect(formatNumberFine(1234567890)).toBe('1,234,567,890');
   });
 });
 

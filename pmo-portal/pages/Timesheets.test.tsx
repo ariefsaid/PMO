@@ -457,15 +457,6 @@ describe('timesheet-entry: editable gating (Task 14)', () => {
     expect(saveWeekMutate).not.toHaveBeenCalled();
   });
 
-  it('AC-806-TSE-EMPTY-001: an empty week with no eligible project names the assignment prerequisite', () => {
-    tsState.data = []; tsState.isPending = false; tsState.isError = false;
-    projectsState.data = [];
-    renderPage();
-    expect(screen.getByText('You need an assigned delivery project before you can log hours. Ask your project manager to assign you to one.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View assigned projects' })).toHaveAttribute('href', '/projects?filter=My+Projects');
-    expect(screen.queryByText('Use “Add a project” above to start logging hours.')).not.toBeInTheDocument();
-  });
-
   it('AC-TSE-003: a Submitted sheet renders read-only (no inputs, no Add, no Save)', () => {
     tsState.data = currentDraftSheet('Submitted') as unknown as TimesheetWithEntries[];
     tsState.isPending = false; tsState.isError = false;
@@ -1207,7 +1198,7 @@ describe('S-28: long project names in the add-project picker (RF-061)', () => {
     expect(screen.getByLabelText(`${longName}, Mon hours`)).toBeInTheDocument();
   });
 
-  it('AC-002 #1325: with a short name the option is code + short name only and the row leads with it, with the full legal title visible', async () => {
+  it('AC-002 #1325: with a short name the option is code + short name only and the row leads with it, hovering to the legal title', async () => {
     projectsState.data = [{ id: 'pL', name: longName, short_name: 'Regional DC', code: 'P-777', status: 'Ongoing Project' }];
     tsState.data = []; tsState.isPending = false; tsState.isError = false;
     renderPage();
@@ -1216,6 +1207,6 @@ describe('S-28: long project names in the add-project picker (RF-061)', () => {
     expect(option.textContent).toBe('P-777 · Regional DC');
     await userEvent.selectOptions(picker, 'pL');
     expect(screen.getByLabelText('Regional DC, Mon hours')).toBeInTheDocument();
-    expect(screen.getAllByText(longName, { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle(longName).length).toBeGreaterThan(0);
   });
 });

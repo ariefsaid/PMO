@@ -144,6 +144,6 @@ describe('IncomingPayments — currency (#530)', () => {
     renderPage();
     const table = screen.getByRole('table').textContent ?? '';
     expect(table).toContain('IDR');
-    expect(table).toContain('USD');
+    expect(table).toContain('$');
   });
 });

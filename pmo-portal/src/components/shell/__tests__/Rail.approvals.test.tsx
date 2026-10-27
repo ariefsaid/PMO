@@ -65,14 +65,17 @@ function renderRail(onNavigate = vi.fn(), role = 'Admin') {
 }
 
 describe('Rail — persistent approvals access (UX-001)', () => {
-  it('keeps counted Approvals reachable and retains Sales', () => {
+  it('keeps counted Approvals outside the scrollable destination list and retains Sales', () => {
     renderRail();
 
     const rail = screen.getByRole('complementary');
     const nav = within(rail).getByRole('navigation', { name: 'Primary navigation' });
     const approvals = within(nav).getByRole('link', { name: /Approvals,.*5 pending/i });
+    const scrollableDestinations = nav.querySelector('[data-rail-scroll-region]');
+
     expect(approvals).toHaveAttribute('href', '/approvals');
-    expect(within(nav).getByRole('link', { name: 'Sales Pipeline' })).toBeInTheDocument();
+    expect(approvals.parentElement).not.toBe(scrollableDestinations);
+    expect(scrollableDestinations).toContainElement(within(nav).getByRole('link', { name: 'Sales Pipeline' }));
     expect(screen.getByRole('link', { name: /Approvals,.*5 pending/i })).toBeInTheDocument();
   });
 
@@ -86,10 +89,11 @@ describe('Rail — persistent approvals access (UX-001)', () => {
     expect(approvalLink).toHaveAttribute('href', '/approvals');
   });
 
-  it('keeps Approvals unavailable to Engineer', () => {
+  it('does not render an empty pinned strip for Engineer', () => {
     renderRail(vi.fn(), 'Engineer');
 
     const rail = screen.getByRole('complementary');
+    expect(rail.querySelector('[data-rail-pinned-approvals]')).not.toBeInTheDocument();
     expect(within(rail).queryByRole('link', { name: /Approvals/i })).not.toBeInTheDocument();
   });
 

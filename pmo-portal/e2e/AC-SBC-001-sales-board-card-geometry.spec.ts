@@ -2,12 +2,15 @@
 // Bahasa pass only rewrites the READ response of the caller's own profile row in the browser
 // (page.route), so no seed profile is ever written.
 /**
- * AC-SBC-001 (#696) — every Sales project card's money row stays inside the card, and its
- * collection does not scroll sideways, in English AND Bahasa Indonesia, at 390px AND 1440px.
+ * AC-SBC-001 (#696) — every Sales board card's money row stays inside the card, and no column's
+ * card list scrolls sideways, in English AND Bahasa Indonesia, at 390px AND 1440px.
  *
- * ORACLE: geometry, measured in the browser. At desktop, each grouped board card and column list
- * stays contained inside its own local board scroller. At phone width, the same project records
- * render as a vertical list with no page or nested horizontal pan.
+ * ORACLE: geometry, measured in the browser. For each deal card (`[data-testid="project-card"]`
+ * inside the board) every descendant element's right edge must end within the card's inner
+ * (content-box) right edge, and the card's parent — the column's card list — must have
+ * `scrollWidth === clientWidth` (a scrolling card list nested inside the horizontally scrolling
+ * board fights touch swipes). Bahasa Indonesia is the worst case (longer number formatting, the
+ * "incl./excl. PPN" label), so it is the language the issue's failing check names.
  *
  * Bahasa without a persisted profile write: `I18nProvider` resolves the language ONLY from the
  * signed-in profile (FR-L10N-003), so the pass rewrites the profile row the AuthProvider reads
@@ -42,9 +45,11 @@ interface CardOverflow {
   overflowing: { el: string; right: number; innerRight: number }[];
 }
 
-async function measureCollection(page: Page) {
+async function measureBoard(page: Page) {
   return page.evaluate(() => {
-    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="stage-"] article, [data-testid="sales-phone-stage-list"] article'));
+    const cards = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-testid="project-card"]'),
+    );
     const cardOverflows: { card: string; overflowing: { el: string; right: number; innerRight: number }[] }[] = [];
     const lists = new Set<HTMLElement>();
     for (const card of cards) {
@@ -64,14 +69,13 @@ async function measureCollection(page: Page) {
         }
       });
       cardOverflows.push({ card: card.getAttribute('aria-label') ?? '?', overflowing });
-      const list = card.closest('ul');
-      if (list) lists.add(list);
+      if (card.parentElement) lists.add(card.parentElement);
     }
     const listScroll = Array.from(lists).map((l) => ({
       scrollWidth: l.scrollWidth,
       clientWidth: l.clientWidth,
     }));
-    return { cardCount: cards.length, cardOverflows, listScroll, pageWidth: document.documentElement.scrollWidth, viewportWidth: document.documentElement.clientWidth };
+    return { cardCount: cards.length, cardOverflows, listScroll };
   });
 }
 
@@ -92,21 +96,17 @@ test.describe('AC-SBC-001 sales board card money-row geometry (#696)', () => {
         await signIn(page, 'admin@acme.test');
         await page.goto('/sales?view=kanban');
         if (bahasa) await expect(page.locator('html')).toHaveAttribute('lang', 'id', { timeout: 60_000 });
-        const collection = width === 390
-          ? page.getByTestId('sales-phone-stage-list')
-          : page.getByRole('region', { name: /Sales pipeline board|Papan pipeline penjualan/ });
-        await expect(collection.locator('article').first()).toBeVisible({ timeout: 60_000 });
+        await expect(page.getByTestId('project-card').first()).toBeVisible({ timeout: 60_000 });
         await waitForFonts(page);
 
-        const { cardCount, cardOverflows, listScroll, pageWidth, viewportWidth } = await measureCollection(page);
-        expect(cardCount, 'expected seeded deal cards in the responsive collection').toBeGreaterThanOrEqual(5);
+        const { cardCount, cardOverflows, listScroll } = await measureBoard(page);
+        expect(cardCount, 'expected seeded deal cards on the board').toBeGreaterThanOrEqual(5);
 
         const bad: CardOverflow[] = cardOverflows.filter((c) => c.overflowing.length > 0);
         expect(
           bad,
           `card descendants end past the card's inner right edge (+${INNER_EPSILON}px): ${JSON.stringify(bad.slice(0, 3))}`,
         ).toEqual([]);
-        expect(pageWidth, 'the document must not pan sideways').toBeLessThanOrEqual(viewportWidth);
 
         const scrolling = listScroll.filter((l) => l.scrollWidth > l.clientWidth);
         expect(

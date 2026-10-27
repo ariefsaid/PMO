@@ -2,10 +2,13 @@ import React, { useId } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KanbanCard, CompanyNameLink } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
+import { projectIconColor } from './projects';
 
 export type ProjectCardVariant = 'grid' | 'kanban';
 
 export interface ProjectCardShellProps {
+  /** Avatar/icon-tile initial (the project name's first letter). */
+  initial: string;
   /** Project name — the activation target. */
   name: string;
   /** Contractual title disclosed on hover when `name` is short-first. */
@@ -23,8 +26,8 @@ export interface ProjectCardShellProps {
   pmoProjectNumber?: string | null;
   /** Optional organisation-owned Client Project Code. */
   code?: string | null;
-  /** Optional status when the card is not already grouped by that status. */
-  status?: React.ReactNode;
+  /** Status slot — a <StatusPill> for the project's lifecycle status. */
+  status: React.ReactNode;
   /** Metric body slot — money rows / progress bars / weighted value. */
   body?: React.ReactNode;
   /** Foot slot — PM avatar + optional inline control. */
@@ -49,10 +52,10 @@ export interface ProjectCardShellProps {
  * A project renders the SAME wherever it appears: the Projects cards view, the
  * Projects kanban board, and the Sales/Pipeline kanban board all compose this
  * shell. The shell owns the chrome — 1px border at rest, hover-lift on interaction
- * (Flat-By-Default Rule), the name + client·code subtitle head, then a
+ * (Flat-By-Default Rule), the icon tile + name + client·code subtitle head, then a
  * body slot (lens-specific metrics) and a foot slot (PM + optional control).
- * Grid keeps an optional status beside the head; Kanban shows one when its parent
- * group does not already provide that context. Lens content (delivery committed/actual vs pipeline weighted
+ * Grid keeps status beside the head; Kanban places it below the full title and
+ * before client/code. Lens content (delivery committed/actual vs pipeline weighted
  * value) is passed in — the SHELL never forks.
  *
  * Two density variants:
@@ -62,6 +65,7 @@ export interface ProjectCardShellProps {
  *              (KanbanCard, role=button) so it stays a single focusable control.
  */
 const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
+  initial,
   name,
   contractualName,
   client,
@@ -86,8 +90,17 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
     code && `${t('projects.identifiers.client', 'Client Project Code')}: ${code}`,
   ].filter(Boolean).join('. ');
   const ids = [pmoProjectNumber, code].filter(Boolean).join(' · ');
+  const iconSize = isKanban ? 'size-[26px] text-[12px]' : 'size-7 text-[11px]';
+
   const head = (
-    <div className="flex items-start">
+    <div className={cn('flex items-start gap-2.5', isKanban && 'gap-2')}>
+      <span
+        aria-hidden
+        className={cn('grid shrink-0 place-items-center rounded-md font-bold text-white', iconSize)}
+        style={{ background: projectIconColor() }}
+      >
+        {initial}
+      </span>
       <div className="min-w-0 flex-1">
         {isKanban ? (
           // Kanban: the KanbanCard wrapper is the single role=button activation
@@ -110,7 +123,7 @@ const ProjectCardShell: React.FC<ProjectCardShellProps> = ({
           </button>
         )}
         {legal && <span id={legalId} className="sr-only">{legal}</span>}
-        {isKanban && status && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
+        {isKanban && <div className="mt-1 flex min-w-0 items-center">{status}</div>}
         {isKanban ? (
           // Board: values only, one line — the labelled identities stay in the card's accessible name.
           <div className="mt-1 flex min-w-0 items-baseline gap-1 text-[12px] text-muted-foreground">

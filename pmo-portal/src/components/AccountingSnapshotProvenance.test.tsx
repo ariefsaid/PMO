@@ -89,12 +89,13 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
       />,
     );
     const strip = screen.getByTestId('snapshot-provenance');
-    const timestamp = strip.firstElementChild?.textContent?.replace(/^Updated /, '');
+    const timestamp = strip.querySelector('.font-medium')?.textContent;
     expect(strip.firstElementChild?.textContent).toMatch(/^Updated /);
     expect(timestamp).toMatch(/2026/);
     expect(strip).toHaveTextContent('Profit and loss');
     expect(strip).toHaveTextContent('source-version');
     expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
+    expect(strip.children).toHaveLength(5);
 
     rerender(
       <AccountingSnapshotProvenance
@@ -106,9 +107,10 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     );
     const updatedStrip = screen.getByTestId('snapshot-provenance');
     expect(updatedStrip.firstElementChild?.textContent).toMatch(/^Diperbarui /);
-    expect(updatedStrip.firstElementChild).toHaveTextContent(timestamp ?? '');
+    expect(updatedStrip.querySelector('.font-medium')).toHaveTextContent(timestamp ?? '');
     expect(updatedStrip).toHaveTextContent('Profit and loss');
     expect(updatedStrip).toHaveTextContent('source-version');
+    expect(updatedStrip.children).toHaveLength(5);
   });
 
   it('retains the original As of text and DOM when updatedLabel is omitted or undefined', () => {
@@ -124,6 +126,7 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     const originalMarkup = strip.innerHTML;
     expect(strip.firstElementChild?.textContent).toMatch(/^As of /);
     expect(strip).toHaveClass('custom-strip');
+    expect(strip.children).toHaveLength(5);
     expect(strip.querySelectorAll('[aria-hidden="true"]')).toHaveLength(2);
     expect(strip).toHaveTextContent('Accounts Payable');
     expect(strip).toHaveTextContent('source-version');
@@ -166,10 +169,3 @@ describe('AccountingSnapshotProvenance optional updatedLabel', () => {
     expect(screen.queryByText('must-not-appear')).not.toBeInTheDocument();
   });
 });
-
- it('R-005: timestamps name the saved timezone and keep an unambiguous date', () => {
-   setActiveLocale({ locale: 'en-US', numberLocale: 'en-US', timezone: 'Asia/Jakarta' });
-   render(<AccountingSnapshotProvenance asOf="2026-10-26T07:30:00Z" updatedLabel="Updated" showTime />);
-   expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('26 Oct 2026');
-   expect(screen.getByTestId('snapshot-provenance')).toHaveTextContent('14:30 Asia/Jakarta');
- });

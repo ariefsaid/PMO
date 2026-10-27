@@ -95,7 +95,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
       await create.mutateAsync(target ? { reference: picked, target: { recordKind: target.recordKind, recordId: target.recordId } } : { reference: picked });
       setPicked(null);
     } catch {
-      setAttachError(t('m365Documents:procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
+      setAttachError(t('m365Documents.procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
     }
   }
 
@@ -117,7 +117,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
       else await clearLegacy.mutateAsync(confirm.row.id);
       setConfirm(null);
     } catch {
-      setConfirmError(t('m365Documents:procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
+      setConfirmError(t('m365Documents.procurement.changeFailed', 'The reference was not changed. Check your permissions and try again.'));
     }
   }
 
@@ -129,7 +129,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           <LinkedDocumentCell reference={reference} owner={{ kind: 'procurement', id: row.id }} />
           {row.ms_linked_at && (
             <span className="text-[12px] text-muted-foreground">
-              {t('m365Documents:procurement.linkedOn', 'Linked {{date}}', { date: formatInstantDate(row.ms_linked_at) })}
+              {t('m365Documents.procurement.linkedOn', 'Linked {{date}}', { date: formatInstantDate(row.ms_linked_at) })}
             </span>
           )}
         </>
@@ -139,14 +139,14 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     return (
       <div className="flex min-w-0 flex-col gap-1">
         <span className="break-words text-[13px] font-medium text-foreground">{row.type}</span>
-        <span className="text-[12px] text-muted-foreground">{t('m365Documents:procurement.legacyNote', 'Plain link, not from Microsoft 365')}</span>
+        <span className="text-[12px] text-muted-foreground">{t('m365Documents.procurement.legacyNote', 'Plain link, not from Microsoft 365')}</span>
         {href ? (
           <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex min-w-0 items-center gap-1.5 break-all text-[13px] text-primary hover:underline">
             <Icon name="eye" className="shrink-0" />
-            {t('m365Documents:procurement.openLegacy', 'Open linked document')}
+            {t('m365Documents.procurement.openLegacy', 'Open linked document')}
           </a>
         ) : (
-          <span className="text-[12px] text-muted-foreground">{t('m365Documents:procurement.legacyUnsafe', 'This link cannot be opened.')}</span>
+          <span className="text-[12px] text-muted-foreground">{t('m365Documents.procurement.legacyUnsafe', 'This link cannot be opened.')}</span>
         )}
       </div>
     );
@@ -161,11 +161,11 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           <Button
             variant="ghost" size="sm" className="touch-target shrink-0"
             aria-label={reference
-              ? t('m365Documents:procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
-              : t('m365Documents:procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
+              ? t('m365Documents.procurement.unlinkAria', 'Unlink {{name}}', { name: reference.name })
+              : t('m365Documents.procurement.clearAria', 'Clear link on {{type}}', { type: row.type })}
             onClick={() => { setConfirmError(null); setConfirm({ kind: reference ? 'unlink' : 'clear', row }); }}
           >
-            {reference ? t('m365Documents:procurement.unlink', 'Unlink') : t('m365Documents:procurement.clearLegacy', 'Clear link')}
+            {reference ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
           </Button>
         )}
       </li>
@@ -179,7 +179,7 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
     .filter((g) => g.rows.length > 0);
   const plain = rows.filter((row) => !groups.some((g) => g.value === targetKey(row)));
   const thisPurchase = t('procurement:documents.thisPurchase', 'This purchase');
-  const listName = t('m365Documents:procurement.heading', 'SharePoint links for this case');
+  const listName = t('m365Documents.procurement.heading', 'SharePoint links for this case');
   const pickerContext = { kind: 'procurement', request_number: requestNumber, created_at: createdAt } as const;
 
   return (
@@ -197,13 +197,13 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
           {canCreate && (
             <Button variant="outline" size="sm" className="touch-target" onClick={(e) => openPicker(e.currentTarget)}>
               <Icon name="doc" />
-              {t('m365Documents:procurement.link', 'Link from Microsoft 365')}
+              {t('m365Documents.procurement.link', 'Link from Microsoft 365')}
             </Button>
           )}
         </div>
       </div>
       <p className="mt-1 px-1 text-[12px] text-muted-foreground">
-        {t('m365Documents:procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
+        {t('m365Documents.procurement.intro', 'SharePoint and OneDrive files and folders linked to this case. PMO stores the link, not the file.')}
       </p>
       <div className="mt-2">
         {query.isPending ? (
@@ -211,15 +211,15 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
         ) : query.isError ? (
           <ListState
             variant="error"
-            title={t('m365Documents:procurement.errorTitle', 'SharePoint links could not be loaded')}
-            sub={t('m365Documents:procurement.errorSub', 'Check your connection and try again.')}
+            title={t('m365Documents.procurement.errorTitle', 'SharePoint links could not be loaded')}
+            sub={t('m365Documents.procurement.errorSub', 'Check your connection and try again.')}
             onRetry={() => void query.refetch()}
           />
         ) : rows.length === 0 ? (
           <ListState
             variant="empty"
-            title={t('m365Documents:procurement.emptyTitle', 'No links yet')}
-            sub={canCreate ? t('m365Documents:procurement.emptySub', 'Link a SharePoint or OneDrive file or folder to this case.') : t('m365Documents:procurement.emptySubReadOnly', 'Nothing has been linked to this case.')}
+            title={t('m365Documents.procurement.emptyTitle', 'No links yet')}
+            sub={canCreate ? t('m365Documents.procurement.emptySub', 'Link a SharePoint or OneDrive file or folder to this case.') : t('m365Documents.procurement.emptySubReadOnly', 'Nothing has been linked to this case.')}
             className="py-6"
           />
         ) : (
@@ -279,16 +279,16 @@ export function ProcurementMicrosoftReferences({ procurementId, requestNumber, c
 
       <ConfirmDialog
         open={confirm !== null}
-        title={confirm?.kind === 'unlink' ? t('m365Documents:procurement.unlinkTitle', 'Unlink this reference') : t('m365Documents:procurement.clearTitle', 'Clear this link')}
+        title={confirm?.kind === 'unlink' ? t('m365Documents.procurement.unlinkTitle', 'Unlink this reference') : t('m365Documents.procurement.clearTitle', 'Clear this link')}
         description={(
           <>
             {confirm?.kind === 'unlink'
-              ? t('m365Documents:procurement.unlinkBody', 'This removes only the PMO reference. The item stored in Microsoft 365 is not changed or deleted.')
-              : t('m365Documents:procurement.clearBody', 'This removes the saved web address from this record. The record itself is not changed.')}
+              ? t('m365Documents.procurement.unlinkBody', 'This removes only the PMO reference. The item stored in Microsoft 365 is not changed or deleted.')
+              : t('m365Documents.procurement.clearBody', 'This removes the saved web address from this record. The record itself is not changed.')}
             {confirmError && <span role="alert" className="mt-2 block text-destructive-text">{confirmError}</span>}
           </>
         )}
-        confirmLabel={confirm?.kind === 'unlink' ? t('m365Documents:procurement.unlink', 'Unlink') : t('m365Documents:procurement.clearLegacy', 'Clear link')}
+        confirmLabel={confirm?.kind === 'unlink' ? t('m365Documents.procurement.unlink', 'Unlink') : t('m365Documents.procurement.clearLegacy', 'Clear link')}
         tone="destructive"
         loading={unlink.isPending || clearLegacy.isPending}
         onConfirm={() => void runConfirm()}

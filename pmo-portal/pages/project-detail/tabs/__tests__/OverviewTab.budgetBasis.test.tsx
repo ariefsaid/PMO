@@ -10,7 +10,6 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 import React from 'react';
 
 // ---------------------------------------------------------------------------
@@ -38,7 +37,6 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => pro
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => projectBudgetState,
@@ -51,10 +49,9 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, commitmentSource: 'not-tracked', ledgerBasis: 'erp' }),
 }));
 
-vi.mock('react-router', async (orig) => {
-  const actual = await (orig() as Promise<Record<string, unknown>>);
-  return { ...actual, useNavigate: () => vi.fn() };
-});
+vi.mock('react-router', () => ({
+  useNavigate: () => vi.fn(),
+}));
 
 import OverviewTab from '../OverviewTab';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -98,7 +95,14 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
   });
 
   it('shows budget use against the derived budget (100,000), not the stored column (0)', () => {
-    render(<MemoryRouter><OverviewTab project={makeProject()} committedSpend={95000} commitmentSource="not-tracked" ledgerBasis="erp" /></MemoryRouter>);
+    render(
+      <OverviewTab
+        project={makeProject()}
+        committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
+      />,
+    );
 
     // Budget use compares Actual with the DERIVED budget (95k / 100k), not stored 0.
     expect(screen.getByTestId('budget-used')).toHaveTextContent('95% of budget');
@@ -106,7 +110,14 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
   });
 
   it('shows At risk pill when derived util% >= 90% (95k/100k = 95%)', () => {
-    render(<MemoryRouter><OverviewTab project={makeProject()} committedSpend={95000} commitmentSource="not-tracked" ledgerBasis="erp" /></MemoryRouter>);
+    render(
+      <OverviewTab
+        project={makeProject()}
+        committedSpend={95000}
+        commitmentSource="not-tracked"
+        ledgerBasis="erp"
+      />,
+    );
 
     // At-risk pill must appear when complete Actual / derived-budget >= 0.9.
     expect(screen.getByText('At risk')).toBeInTheDocument();
@@ -115,7 +126,12 @@ describe('AC-W2-1-FE-01: OverviewTab budget basis', () => {
   it('does NOT show At risk pill when stored budget=0 but derived budget=0 (no line-items)', () => {
     projectBudgetState.data = 0;
 
-    render(<MemoryRouter><OverviewTab project={makeProject()} committedSpend={95000} /></MemoryRouter>);
+    render(
+      <OverviewTab
+        project={makeProject()}
+        committedSpend={95000}
+      />,
+    );
 
     // When derived budget is also 0 (no active version), at-risk should not fire.
     expect(screen.queryByText('At risk')).not.toBeInTheDocument();

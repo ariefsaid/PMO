@@ -101,7 +101,7 @@ afterEach(() => {
 });
 
 const switchToBoard = async () => {
-  await userEvent.click(await screen.findByRole('button', { name: /^board$/i }));
+  await userEvent.click(await screen.findByRole('tab', { name: /^board$/i }));
 };
 
 describe('TasksTab — pending-push badge (AC-CUA-060)', () => {

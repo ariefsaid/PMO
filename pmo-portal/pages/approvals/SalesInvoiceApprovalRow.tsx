@@ -1,47 +1,31 @@
 import React, { useId, useMemo, useState } from 'react';
-import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { ApprovalRow, Button, Icon, TaxBasisLabel } from '@/src/components/ui';
+import { ApprovalRow, Button, Icon, ProjectNameLink, TaxBasisLabel } from '@/src/components/ui';
 import { useInvoiceProjectOptions } from '@/src/hooks/useFkOptions';
 import { useAssignableProfiles } from '@/src/hooks/useTasks';
-import { formatCurrencyCents, formatNumber } from '@/src/lib/format';
+import { formatCurrencyCents } from '@/src/lib/format';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import { invoiceGross, invoiceNet, nativeInvoiceSummary } from '@/src/lib/revenue/nativeInvoice';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 
-const EYEBROW = 'type-metadata uppercase text-muted-foreground';
+const EYEBROW = 'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground';
 
 /**
  * I-1 (#784, FR-NAR-006): what the approver reads before approving a PMO draft — project, customer, customer PO, who
  * raised it, every line, and net / tax / total due. Display only; migration 0275 fixed every figure at creation.
  */
-export const SalesInvoiceApprovalPreview: React.FC<{
-  inv: SalesInvoiceRow;
-  showFx?: boolean;
-  showIdentity?: boolean;
-  showLineItems?: boolean;
-  showTotals?: boolean;
-  readableWholeUnits?: boolean;
-}> = ({ inv, showFx = false, showIdentity = true, showLineItems = true, showTotals = true, readableWholeUnits = false }) => {
+export const SalesInvoiceApprovalPreview: React.FC<{ inv: SalesInvoiceRow; showFx?: boolean }> = ({ inv, showFx = false }) => {
   const { t } = useTranslation();
   const { data: projects } = useInvoiceProjectOptions();
   const { data: profiles } = useAssignableProfiles();
   const projectName = useMemo(() => projects?.find((p) => p.value === inv.project_id)?.contractualName ?? null, [projects, inv.project_id]);
   const authorName = useMemo(() => profiles?.find((p) => p.id === inv.author_user_id)?.full_name ?? null, [profiles, inv.author_user_id]);
-  const projectValue = inv.project_id && projectName
-    ? <Link to={`/projects/${encodeURIComponent(inv.project_id)}`} aria-label={`Open ${projectName}`}
-        className="block min-h-11 max-w-full whitespace-normal break-words text-foreground underline-offset-2 [overflow-wrap:anywhere] hover:text-primary-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring">
-        {projectName}
-      </Link>
-    : projectName ?? '—';
-  const money = (n: number | null) => (n != null
-    ? readableWholeUnits ? formatNumber(n) : formatCurrencyCents(n, inv.currency)
-    : '—');
+  const money = (n: number | null) => (n != null ? formatCurrencyCents(n, inv.currency) : '—');
   const net = invoiceNet(inv);
   const lines = inv.native_lines ?? [];
 
   const facts: Array<{ label: string; value: React.ReactNode }> = [
-    { label: t('financeCopy.project', 'Project'), value: projectValue },
+    { label: t('financeCopy.project', 'Project'), value: <ProjectNameLink projectId={inv.project_id} name={projectName} className="text-[13px]" /> },
     // The record page (showFx) already headlines the customer; the approval card still names it.
     ...(showFx ? [] : [{ label: t('financeCopy.customer', 'Customer'), value: inv.customer_name ?? '—' }]),
     ...(inv.pmo_native || inv.reference_number ? [{ label: t('financeCopy.customerPO', 'Customer PO'), value: inv.reference_number ?? '—' }] : []),
@@ -49,36 +33,30 @@ export const SalesInvoiceApprovalPreview: React.FC<{
   ];
 
   return (
-    <div className="space-y-8 md:space-y-12">
-      {showIdentity && (
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-          {facts.map((f) => (
-            <div key={f.label} className="min-w-0 border-b border-border/70 pb-2">
-              <dt className="type-label text-muted-foreground">{f.label}</dt>
-              <dd className="type-value mt-1 break-words text-foreground">{f.value}</dd>
-            </div>
-          ))}
-        </dl>
-      )}
+    <div className="space-y-3">
+      <dl className="grid gap-2 sm:grid-cols-2">
+        {facts.map((f) => (
+          <div key={f.label} className="min-w-0 rounded-lg border border-border/70 px-3 py-2">
+            <dt className={EYEBROW}>{f.label}</dt>
+            <dd title={f.label === t('financeCopy.project', 'Project') ? projectName ?? undefined : undefined} className="mt-1 break-words text-[13px] font-medium">{f.value}</dd>
+          </div>
+        ))}
+      </dl>
 
-      {showLineItems && inv.pmo_native && (
+      {inv.pmo_native ? (
         <section>
-          <h3 className={readableWholeUnits ? 'mb-2 type-section-head text-heading' : `mb-2 ${EYEBROW}`}>
-            {readableWholeUnits
-              ? t('moneyIn:financeCopy.invoiceLinesCurrency', 'Line items · {{currency}}', { currency: inv.currency })
-              : t('financeCopy.lineItemsSection', 'Line items')}
-          </h3>
+          <h3 className={`mb-2 ${EYEBROW}`}>{t('financeCopy.lineItemsSection', 'Line items')}</h3>
           <ul className="space-y-1.5" aria-label={t('financeCopy.lineItemsSection', 'Line items')}>
             {lines.map((line, i) => (
-              <li key={i} className="grid min-w-0 grid-cols-1 gap-2 rounded-lg border border-border/70 px-3 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline">
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 rounded-lg border border-border/70 px-3 py-2 text-[13px]">
                 {/* The line text wraps rather than truncates: the approver must read every word of what is billed. */}
-                <span className="min-w-0 break-words">
+                <span className="min-w-[12rem] flex-1 break-words">
                   <span className="block">{line.description ?? line.item_code ?? '—'}</span>
                   {line.description && line.item_code && (
-                    <span className="block font-mono type-metadata text-muted-foreground">{line.item_code}</span>
+                    <span className="block font-mono text-[12px] text-muted-foreground">{line.item_code}</span>
                   )}
                 </span>
-                <span className="tabular text-muted-foreground sm:text-right">
+                <span className="ml-auto shrink-0 tabular text-muted-foreground">
                   {line.qty} × {money(line.rate)} ={' '}
                   <span className="font-medium text-foreground">{money(line.amount)}</span>
                 </span>
@@ -86,39 +64,35 @@ export const SalesInvoiceApprovalPreview: React.FC<{
             ))}
           </ul>
         </section>
-      )}
-      {showLineItems && !inv.pmo_native && !showFx && (
-        <p className="type-value text-muted-foreground">
+      ) : showFx ? null : (
+        <p className="text-sm text-muted-foreground">
           {t('financeCopy.erpLineItemsStoredInErpNext', 'Line items are kept in ERPNext for this invoice.')}
         </p>
       )}
 
-      {showTotals && <section aria-label={t('moneyIn:financeCopy.invoiceTotals', 'Invoice totals')} className="max-w-xl">
-        {readableWholeUnits && <h3 className="mb-2 type-section-head text-heading">{t('moneyIn:financeCopy.invoiceTotalsCurrency', 'Invoice totals · {{currency}}', { currency: inv.currency })} · <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /></h3>}
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <dt className="type-label text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
-          <dd className="type-value tabular text-foreground">
+      <dl className="space-y-1 text-[13px]">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted-foreground">{t('approvals.salesInvoices.net', 'Net (before tax)')}</dt>
+          <dd className="tabular">
             {money(net)}
             {showFx && <FxEquivalent amount={net} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <dt className="type-label text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
-          <dd className="flex flex-wrap items-baseline gap-x-1.5 type-value tabular text-foreground">
-            {!readableWholeUnits && <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />}
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted-foreground">{t('approvals.salesInvoices.tax', 'Tax')}</dt>
+          <dd className="flex flex-wrap items-baseline justify-end gap-x-1.5 tabular">
+            <TaxBasisLabel treatment={inv.tax_treatment} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} showDetails={false} />
             <span>{money(inv.tax_amount)}</span>
           </dd>
         </div>
-        <div className="col-span-2 flex min-w-0 flex-col gap-1 border-t border-border pt-4">
-          <dt className="type-label text-muted-foreground">{t('approvals.salesInvoices.gross', 'Total due')}</dt>
-          <dd className="type-section-head tabular text-foreground">
+        <div className="flex items-baseline justify-between gap-3 border-t border-border pt-1 font-semibold">
+          <dt>{t('approvals.salesInvoices.gross', 'Total due')}</dt>
+          <dd className="tabular">
             {money(invoiceGross(inv))}
             {showFx && <FxEquivalent amount={invoiceGross(inv)} currency={inv.currency} date={inv.invoice_date} />}
           </dd>
         </div>
-        </dl>
-      </section>}
+      </dl>
     </div>
   );
 };
@@ -135,7 +109,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
 
   const subtitle = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-      <span className="min-w-0 break-words">{nativeInvoiceSummary(inv) ?? '—'}</span>
+      <span className="min-w-0 truncate">{nativeInvoiceSummary(inv) ?? '—'}</span>
       <span className="inline-flex items-baseline gap-1.5">
         <span className="tabular font-medium text-foreground">{inv.amount != null ? formatCurrencyCents(inv.amount, inv.currency) : '—'}</span>
         <TaxBasisLabel
@@ -175,7 +149,7 @@ export const SalesInvoiceApprovalRow: React.FC<{ inv: SalesInvoiceRow; onApprove
         <div id={panelId} className="mx-3.5 mb-3 rounded-lg border border-border bg-secondary/20 p-3">
           <SalesInvoiceApprovalPreview inv={inv} />
           <div className="mt-3 flex justify-end">
-            <Button variant="primary" size="sm" className="min-h-11" onClick={() => onApprove(inv)}>
+            <Button variant="primary" size="sm" onClick={() => onApprove(inv)}>
               <Icon name="check" />
               {t('financeCopy.approve', 'Approve')}
             </Button>

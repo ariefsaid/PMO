@@ -208,7 +208,7 @@ stops new merges until fixed; the same caps apply.
   *reviewable content* (a spec/ADR you want the owner to sign off) may still take a PR — that's a review
   request, not a gate. **ADRs:** only for architectural / irreversible / cross-cutting decisions.
 - **Data/schema:** reversible migrations; RLS on every business table; `org_id` seam enforced.
-- **Design/UI:** `DESIGN.md` = tokens only; composition = `docs/ux/UX-STANDARD.md` + rendered owner approval;
+- **Design/UI:** `DESIGN.md` = tokens only; composition = rendered owner approval;
   tests assert user actions, never looks. Delete look-pinning tests when recomposing; keep behaviour, a11y,
   money and role tests. Done = `scripts/ux-proof.sh` clean on touched routes.
 

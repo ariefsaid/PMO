@@ -9,16 +9,8 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { CLASSIFICATION_MAX_LENGTH, parseClassificationOptions } from '@/src/lib/projectClassification';
 import { useProjectClassificationOptions, PROJECT_CLASSIFICATION_OPTIONS_KEY } from '@/src/hooks/useProjectClassificationOptions';
 
-interface OrgProjectClassificationOptionsProps {
-  editing?: boolean;
-  onEdit?: () => void;
-  onClose?: () => void;
-}
-
-export default function OrgProjectClassificationOptions({ editing: controlledEditing, onEdit, onClose }: OrgProjectClassificationOptionsProps) {
+export default function OrgProjectClassificationOptions() {
   const { t } = useTranslation();
-  const [localEditing, setLocalEditing] = useState(controlledEditing ?? true);
-  const editing = onEdit ? controlledEditing ?? localEditing : localEditing;
   const may = usePermission();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -43,28 +35,14 @@ export default function OrgProjectClassificationOptions({ editing: controlledEdi
       await mutation.mutateAsync({ serviceLines: parseClassificationOptions(values.serviceLines), sectors: parseClassificationOptions(values.sectors) });
       setDraft(undefined);
       toast(t('projectClassification.saved', 'Classification options saved'), t('projectClassification.retained', 'Existing project classifications stay recorded.'), 'success');
-      closeEditor();
     } catch (error) {
       const { headline, detail } = classifyMutationError(error);
       toast(headline, detail, 'warning');
     }
   };
-  const openEditor = () => onEdit ? onEdit() : setLocalEditing(true);
-  const closeEditor = () => {
-    setDraft(undefined);
-    if (onClose) onClose();
-    else setLocalEditing(false);
-  };
   return <section aria-label={t('projectClassification.title', 'Classification')} className="max-w-2xl space-y-4">
-    <h2 className="text-xl font-bold tracking-[-0.01em]">{t('projectClassification.title', 'Classification options')}</h2>
     <p className="text-sm text-muted-foreground">{t('projectClassification.setupHelp', 'Define the service lines and sectors available on project forms. Removing an option keeps it on existing projects.')}</p>
-    {may('manage', 'orgProjectClassification') && !editing ? <>
-      <dl className="space-y-4 text-sm">
-        <div><dt className="text-muted-foreground">{t('projectClassification.serviceLines', 'Service lines')}</dt><dd className="break-words">{query.data.serviceLines.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>
-        <div><dt className="text-muted-foreground">{t('projectClassification.sectors', 'Sectors')}</dt><dd className="break-words">{query.data.sectors.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>
-      </dl>
-      <Button variant="outline" className="min-h-11" onClick={openEditor}>{t('administration:projectClassification.edit', 'Edit classifications')}</Button>
-    </> : may('manage', 'orgProjectClassification') ? <>
+    {may('manage', 'orgProjectClassification') ? <>
       <FormGrid>
         <TextArea id="org-service-lines" label={t('projectClassification.serviceLines', 'Service lines')} value={values.serviceLines}
           onChange={(serviceLines) => setDraft({ ...values, serviceLines })} disabled={mutation.isPending} rows={6}
@@ -73,10 +51,7 @@ export default function OrgProjectClassificationOptions({ editing: controlledEdi
           onChange={(sectors) => setDraft({ ...values, sectors })} disabled={mutation.isPending} rows={6}
           error={sectorsError} helper={t('projectClassification.onePerLine', 'One option per line. Leave empty to offer no options.')} />
       </FormGrid>
-      <div className="flex flex-wrap gap-2">
-        <Button type="button" variant="outline" className="min-h-11" onClick={closeEditor}>{t('admin.cancel', 'Cancel')}</Button>
-        <Button onClick={() => void save()} disabled={mutation.isPending || unchanged || Boolean(serviceLinesError || sectorsError)}>{t('projectClassification.save', 'Save options')}</Button>
-      </div>
+      <Button onClick={() => void save()} disabled={mutation.isPending || unchanged || Boolean(serviceLinesError || sectorsError)}>{t('projectClassification.save', 'Save options')}</Button>
     </> : <>
       <dl className="space-y-4 text-sm">
         <div><dt className="text-muted-foreground">{t('projectClassification.serviceLines', 'Service lines')}</dt><dd className="break-words">{query.data.serviceLines.join(', ') || t('projectClassification.notSet', 'Not set')}</dd></div>

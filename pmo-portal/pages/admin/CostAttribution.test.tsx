@@ -2,7 +2,7 @@ import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastProvider } from '@/src/components/ui';
 import { FinanceI18nTestProvider } from '@/pages/__tests__/financeI18nTestProvider';
@@ -46,24 +46,11 @@ const payroll: CostAttributionRule = {
   created_by: 'u1', created_at: '2025-01-01T00:00:00Z',
 };
 
-const travel: CostAttributionRule = {
-  ...payroll,
-  id: 'r2v1', rule_key: 'rk2', version: 1, name: 'Travel allocation',
-  match_account: 'Travel - RIS', match_cost_center: null,
-  effective_from: '2025-01-01', effective_to: '2025-12-31',
-  targets: [{ project_id: 'p2', project_name: 'Beta Yard', percent: 100 }],
-};
-
-const LocationProbe = () => {
-  const location = useLocation();
-  return <output data-testid="location">{location.search}{location.hash}</output>;
-};
-
-function renderScreen(initial = '/administration/cost-attribution') {
+function renderScreen() {
   return render(
-    <FinanceI18nTestProvider><MemoryRouter initialEntries={[initial]}>
+    <FinanceI18nTestProvider><MemoryRouter>
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })}>
-        <ToastProvider><CostAttribution /><LocationProbe /></ToastProvider>
+        <ToastProvider><CostAttribution /></ToastProvider>
       </QueryClientProvider>
     </MemoryRouter></FinanceI18nTestProvider>,
   );
@@ -95,54 +82,15 @@ beforeEach(async () => {
 });
 
 describe('AC-CAT-014 Cost attribution screen', () => {
-  it('lists each rule with projects, dates and match; opening its name shows version details', async () => {
+  it('lists each rule with its match, targets with percentages, dates and version', async () => {
     renderScreen();
     const row = (await screen.findByText('Engineer payroll')).closest('tr') as HTMLElement;
-    expect(within(row).getAllByText(/Salary - RIS/).length).toBeGreaterThan(0);
-    expect(within(row).getAllByText(/Ops - RIS/).length).toBeGreaterThan(0);
+    expect(within(row).getByText(/Salary - RIS/)).toBeInTheDocument();
+    expect(within(row).getByText(/Ops - RIS/)).toBeInTheDocument();
     expect(within(row).getByText(/Alpha Plant 60%/)).toBeInTheDocument();
     expect(within(row).getByText(/Beta Yard 40%/)).toBeInTheDocument();
     expect(within(row).getByText(/2025/)).toBeInTheDocument();
-    expect(within(row).getByText('v2')).not.toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: 'View details for Engineer payroll' }));
-    expect(screen.getByRole('region', { name: 'Details for Engineer payroll' })).toHaveTextContent('v2');
-  });
-
-  it('restores search/status/sort from the URL and writes changes without dropping unrelated state', async () => {
-    h.list.mockResolvedValueOnce([payroll, travel]);
-    renderScreen('/administration/cost-attribution?keep=1&cost_search=travel&cost_status=ended&cost_sort=desc#cost-attribution');
-    expect(await screen.findByRole('searchbox', { name: 'Search cost attribution rules' })).toHaveValue('travel');
-    expect(await screen.findByText('Travel allocation')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'View details for Travel allocation' })).toBeInTheDocument();
-    expect(screen.queryByRole('row', { name: /Engineer payroll/ })).not.toBeInTheDocument();
-
-    await userEvent.clear(screen.getByRole('searchbox', { name: 'Search cost attribution rules' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('keep=1');
-    expect(screen.getByTestId('location')).toHaveTextContent('cost_status=ended');
-    expect(screen.getByTestId('location')).toHaveTextContent('#cost-attribution');
-  });
-
-  it('sorts rule names A–Z and Z–A while keeping the selected status scope', async () => {
-    h.list.mockResolvedValueOnce([travel, payroll]);
-    renderScreen('/administration/cost-attribution?cost_status=all');
-    const table = await screen.findByRole('table');
-    await screen.findByText('Travel allocation');
-    const dataRows = () => within(table).getAllByRole('row').slice(1);
-    expect(dataRows()[0]).toHaveTextContent('Engineer payroll');
-    expect(dataRows()[1]).toHaveTextContent('Travel allocation');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Rule name A–Z' }));
-    expect(dataRows()[0]).toHaveTextContent('Travel allocation');
-    expect(dataRows()[1]).toHaveTextContent('Engineer payroll');
-    expect(screen.getByTestId('location')).toHaveTextContent('cost_status=all');
-  });
-
-  it('distinguishes a filtered no-match from an empty rule collection and Clear filters restores the rules', async () => {
-    renderScreen('/administration/cost-attribution?cost_search=missing');
-    expect(await screen.findByText('No rules match these filters')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(await screen.findByText('Engineer payroll')).toBeInTheDocument();
-    expect(screen.getByTestId('location')).toHaveTextContent('');
+    expect(within(row).getByText('v2')).toBeInTheDocument();
   });
 
   it('shows an empty state with an add action, and a retry on a failed load', async () => {

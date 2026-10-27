@@ -29,18 +29,9 @@ beforeEach(() => {
 });
 
 const loadCatalogue = (lng: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
-const loadM365Catalogue = (lng: string) => JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/m365Documents.json`), 'utf8')) as Record<string, unknown>;
 async function inLocale(lng: 'en' | 'id', ui: React.ReactElement) {
   const i18n = i18next.createInstance();
-  await i18n.init({
-    lng,
-    fallbackLng: 'en',
-    defaultNS: 'common',
-    resources: {
-      en: { common: loadCatalogue('en'), m365Documents: loadM365Catalogue('en') },
-      id: { common: loadCatalogue('id'), m365Documents: loadM365Catalogue('id') },
-    },
-  });
+  await i18n.init({ lng, fallbackLng: 'en', defaultNS: 'common', resources: { en: { common: loadCatalogue('en') }, id: { common: loadCatalogue('id') } } });
   return render(<I18nextProvider i18n={i18n}><MemoryRouter>{ui}</MemoryRouter></I18nextProvider>);
 }
 

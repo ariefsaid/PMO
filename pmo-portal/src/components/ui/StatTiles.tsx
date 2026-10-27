@@ -118,7 +118,7 @@ export const StatTiles: React.FC<StatTilesProps> = ({
             >
               <FigureContent value={t.value} exactValue={t.exactValue} unavailableReason={t.unavailableReason} />
             </div>
-            {t.sub && <div className="mt-0.5 text-xs text-muted-foreground">{t.sub}</div>}
+            {t.sub && <div className="mt-0.5 text-[11px] text-muted-foreground">{t.sub}</div>}
           </div>
         );
       })}

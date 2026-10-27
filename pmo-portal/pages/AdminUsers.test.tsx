@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter } from 'react-router';
 import React from 'react';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
@@ -65,27 +65,18 @@ const seed = [
   { id: 'u4', full_name: 'Tobias Lindqvist', email: 'tobias@meridian.example', role: 'Finance', manager_id: 'u1', org_id: 'org-1', status: 'active' },
 ];
 
-const LocationProbe = () => {
-  const location = useLocation();
-  return <output data-testid="location">{location.pathname}{location.search}{location.hash}</output>;
-};
-
-const renderPage = (role: Role = 'Admin', path = '/administration/users', embedded = false) => {
+const renderPage = (role: Role = 'Admin') => {
   realRole = role;
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <ToastProvider>
-        <MemoryRouter initialEntries={[path]}>
-          <AdminUsers embedded={embedded} />
-          <LocationProbe />
+        <MemoryRouter>
+          <AdminUsers />
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
   );
 };
-
-const rowWithEmail = (email: string) =>
-  screen.getAllByRole('row').find((row) => within(row).queryAllByText(email).length > 0)!;
 
 beforeEach(() => {
   listState.data = seed;
@@ -106,8 +97,8 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     renderPage();
     // Renata is both a user row and (as u1) the manager of three others, so her name
     // appears multiple times by design — assert on the email (unique to the user row).
-    expect(screen.getAllByText('renata@meridian.example').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('desmond@meridian.example').length).toBeGreaterThan(0);
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
+    expect(screen.getByText('desmond@meridian.example')).toBeInTheDocument();
     // role pills rendered
     expect(screen.getAllByText('Admin').length).toBeGreaterThan(0);
     expect(screen.getByText('Project Manager')).toBeInTheDocument();
@@ -116,7 +107,7 @@ describe('Admin Users — directory (AC-AU-001)', () => {
   it('AC-AU-001: resolves manager_id to the manager full name', () => {
     renderPage();
     // Desmond's manager (u1) resolves to Renata's name
-    const row = rowWithEmail('desmond@meridian.example');
+    const row = screen.getByText('Desmond Achebe').closest('tr')!;
     expect(within(row).getByText('Renata Halloway')).toBeInTheDocument();
   });
 
@@ -124,77 +115,11 @@ describe('Admin Users — directory (AC-AU-001)', () => {
     renderPage();
     await userEvent.type(screen.getByLabelText(/Search users/i), 'tobias');
     // Renata's USER row is gone (her email no longer renders); only Tobias remains.
-    expect(screen.queryAllByText('renata@meridian.example')).toHaveLength(0);
-    expect(screen.queryAllByText('desmond@meridian.example')).toHaveLength(0);
-    expect(screen.getAllByText('tobias@meridian.example').length).toBeGreaterThan(0);
+    expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
+    expect(screen.queryByText('desmond@meridian.example')).not.toBeInTheDocument();
+    expect(screen.getByText('tobias@meridian.example')).toBeInTheDocument();
     // exactly one data row after filtering
-    expect(screen.getAllByRole('row').filter((r) => within(r).queryAllByText(/@meridian/).length > 0)).toHaveLength(1);
-  });
-
-  it('AC-ADMIA-009: sorts names by default, filters status, and clears a no-match search', async () => {
-    listState.data = [
-      ...seed,
-      { id: 'u5', full_name: 'Anika Sato', email: 'anika@meridian.example', role: 'Engineer', manager_id: null, org_id: 'org-1', status: 'disabled' },
-    ];
-    const user = userEvent.setup();
-    renderPage();
-
-    const userRows = () => screen.getAllByRole('row').filter((row) => within(row).queryAllByText(/@meridian\.example/).length > 0);
-    expect(within(userRows()[0]).getAllByText('Anika Sato').length).toBeGreaterThan(0);
-
-    await user.selectOptions(screen.getByLabelText('Filter users by status'), 'disabled');
-    expect(screen.getAllByText('anika@meridian.example').length).toBeGreaterThan(0);
-    expect(screen.queryAllByText('renata@meridian.example')).toHaveLength(0);
-
-    await user.type(screen.getByLabelText(/Search users/i), 'nobody');
-    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(screen.getByLabelText('Filter users by status')).toHaveValue('all');
-    expect(screen.getAllByText('anika@meridian.example').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('renata@meridian.example').length).toBeGreaterThan(0);
-
-    await user.click(screen.getByRole('button', { name: 'Name A–Z' }));
-    expect(within(userRows()[0]).getAllByText('Tobias Lindqvist').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Name Z–A' })).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('AC-ADMIA-009: restores search, status, and sort from the URL and writes filter changes back', async () => {
-    renderPage('Admin', '/administration/users?search=nobody&status=disabled&sort=desc');
-
-    expect(screen.getByLabelText('Search users')).toHaveValue('nobody');
-    expect(screen.getByLabelText('Filter users by status')).toHaveValue('disabled');
-    expect(screen.getByRole('button', { name: 'Name Z–A' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('location')).toHaveTextContent('/administration/users?search=nobody&status=disabled&sort=desc');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
-    expect(screen.getByTestId('location')).toHaveTextContent('/administration/users?sort=desc');
-  });
-
-  it('AC-ADMIA-009: no-match recovery is the only filled action while Invite user stays available', async () => {
-    renderPage('Admin', '/administration/users', true);
-    await userEvent.type(screen.getByLabelText('Search users'), 'nobody');
-
-    const clear = screen.getByRole('button', { name: 'Clear filters' });
-    const invite = screen.getByRole('button', { name: 'Invite user' });
-    expect(clear.className).toContain('bg-primary');
-    expect(invite.className).not.toContain('bg-primary');
-    expect(screen.queryByTestId('admin-users-visible-count')).not.toBeInTheDocument();
-  });
-
-  it('AC-ADMIA-010: orders identity and manager before role and status with phone details available', async () => {
-    renderPage();
-    const header = screen.getAllByRole('row')[0];
-    expect(within(header).getAllByRole('columnheader').slice(0, 4).map((cell) => cell.textContent)).toEqual([
-      'User',
-      'Manager',
-      'Role',
-      'Status',
-    ]);
-    const summary = screen.getAllByText('Member details')[0]!;
-    const details = summary.closest('details');
-    expect(details).not.toHaveAttribute('open');
-    await userEvent.click(summary);
-    expect(details).toHaveAttribute('open');
-    expect(within(details!).getByText(/Manager: Renata Halloway/i)).toBeInTheDocument();
+    expect(screen.getAllByRole('row').filter((r) => within(r).queryByText(/@meridian/))).toHaveLength(1);
   });
 
   it('AC-AU-001: loading skeleton while pending', () => {
@@ -224,7 +149,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   it('AC-AU-002: Admin sees row Edit role + Change manager + Disable (FR-INV-006)', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(rowWithEmail('desmond@meridian.example')).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     expect(screen.getByRole('menuitem', { name: /Edit role/i })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /Change manager/i })).toBeInTheDocument();
@@ -251,7 +176,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     expect(screen.queryByRole('button', { name: /invite user/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Row actions/i })).not.toBeInTheDocument();
     // Exec can still SEE the directory
-    expect(screen.getAllByText('renata@meridian.example').length).toBeGreaterThan(0);
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
     // a read-only explanation, not a wall of disabled controls
     expect(screen.getByText(/only an Admin can/i)).toBeInTheDocument();
   });
@@ -259,7 +184,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
   it('AC-AU-002: a non-admin, non-exec role (Engineer) reaching the route sees an Admin-only gate, not the directory', () => {
     renderPage('Engineer');
     // the directory rows are NOT rendered (no user emails)
-    expect(screen.queryAllByText('renata@meridian.example')).toHaveLength(0);
+    expect(screen.queryByText('renata@meridian.example')).not.toBeInTheDocument();
     // an Admin-only gate is shown
     expect(screen.getByText(/Admin-only area/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /New user/i })).not.toBeInTheDocument();
@@ -269,7 +194,7 @@ describe('Admin Users — RBAC affordance gating (AC-AU-002)', () => {
     isOperatorState.value = true;
     renderPage('Engineer');
 
-    expect(screen.getAllByText('renata@meridian.example').length).toBeGreaterThan(0);
+    expect(screen.getByText('renata@meridian.example')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /invite user/i })).toBeEnabled();
     expect(screen.queryByText(/Admin-only area/i)).not.toBeInTheDocument();
   });
@@ -279,7 +204,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
   it('AC-AU-003: Edit role opens a focused modal; a high-impact role change routes through a confirm before the mutation', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(rowWithEmail('desmond@meridian.example')).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
     const dialog = screen.getByRole('dialog');
@@ -300,7 +225,7 @@ describe('Admin Users — edit role (AC-AU-003)', () => {
     mutations.updateRole.mutateAsync.mockRejectedValue(new AppError('row violates RLS', '42501'));
     renderPage('Admin');
     await userEvent.click(
-      within(rowWithEmail('desmond@meridian.example')).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Edit role/i }));
     const dialog = screen.getByRole('dialog');
@@ -316,7 +241,7 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   it('AC-AU-004: Change manager opens a modal whose manager picker excludes the user themselves', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(rowWithEmail('desmond@meridian.example')).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Desmond Achebe').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Change manager/i }));
     const dialog = screen.getByRole('dialog');
@@ -332,7 +257,7 @@ describe('Admin Users — assign manager (AC-AU-004)', () => {
   it('AC-AU-004: selecting a manager and saving submits the assignment', async () => {
     renderPage('Admin');
     await userEvent.click(
-      within(rowWithEmail('tobias@meridian.example')).getByRole('button', { name: /Row actions/i }),
+      within(screen.getByText('Tobias Lindqvist').closest('tr')!).getByRole('button', { name: /Row actions/i }),
     );
     await userEvent.click(screen.getByRole('menuitem', { name: /Change manager/i }));
     const dialog = screen.getByRole('dialog');

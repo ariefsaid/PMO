@@ -6,9 +6,9 @@ import { login, waitForFonts } from './helpers';
 test.setTimeout(120_000);
 
 const projectPath = '/projects/41000000-0000-0000-0000-000000000001';
-const projectSections = ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks'] as const;
-type ProjectSection = (typeof projectSections)[number];
-const projectSectionLabels: Record<ProjectSection, string> = {
+const projectTabs = ['budget', 'procurement', 'work-orders', 'billing', 'documents', 'history', 'tasks'] as const;
+type ProjectTab = (typeof projectTabs)[number];
+const projectTabLabels: Record<ProjectTab, string> = {
   budget: 'Budget',
   procurement: 'Procurement',
   'work-orders': 'Work orders',
@@ -17,21 +17,6 @@ const projectSectionLabels: Record<ProjectSection, string> = {
   history: 'History',
   tasks: 'Tasks',
 };
-
-async function openSectionLinks(page: Page) {
-  const desktopNavigation = page.getByRole('navigation', { name: 'Project sections' });
-  if (await desktopNavigation.isVisible()) return desktopNavigation;
-
-  await page.getByRole('button', { name: 'Project sections' }).click();
-  return page.getByRole('dialog', { name: 'Project sections' })
-    .getByRole('navigation', { name: 'Project sections' });
-}
-
-function sectionControl(page: Page, width: number) {
-  return width < 921
-    ? page.getByRole('button', { name: 'Project sections' })
-    : page.getByRole('navigation', { name: 'Project sections' });
-}
 
 // toBeVisible alone permits content below the viewport. Prove the whole target is
 // inside the actual shell scrollport, without scrolling it into view to pass.
@@ -67,40 +52,44 @@ test.describe('UX-006: effective phone action targets', () => {
   });
 });
 
-async function checkSectionWork(
+async function checkTabWork(
   page: Page,
   panel: Locator,
-  viewport: { width: number; height: number },
+  sections: Locator,
   theme: 'light' | 'dark',
-  onlySection?: ProjectSection,
+  onlyTab?: ProjectTab,
 ) {
   await page.evaluate(value => { localStorage.setItem('theme', value); document.documentElement.classList.toggle('dark', value === 'dark'); }, theme);
-  for (const section of onlySection ? [onlySection] : projectSections) {
-    await page.goto(`${projectPath}/${section}`);
-    const work = section === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
-      : section === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
-      : section === 'work-orders' ? panel.getByRole('heading', { name: 'Work orders', exact: true })
-      : section === 'billing' ? panel.getByRole('heading', { name: /^Billing summary/ })
-      : section === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
-      : section === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
+  for (const tab of onlyTab ? [onlyTab] : projectTabs) {
+    await page.goto(`${projectPath}/${tab}`);
+    const work = tab === 'budget' ? panel.getByTestId('forecast-summary').getByText('$4,500,000').first()
+      : tab === 'procurement' ? panel.getByRole('heading', { name: 'Purchase Requests', exact: true })
+      : tab === 'work-orders' ? panel.getByRole('heading', { name: 'Work orders', exact: true })
+      : tab === 'billing' ? panel.getByRole('heading', { name: /^Billing summary/ })
+      : tab === 'documents' ? panel.getByRole('heading', { name: 'Document register', exact: true })
+      : tab === 'history' ? panel.getByTestId('history-event').first().or(panel.getByText('No changes recorded yet', { exact: true }))
       : panel.getByText('ENG — Detail Design Package', { exact: true });
     await expect(work).toBeVisible();
-    const navigation = await openSectionLinks(page);
-    const currentSection = navigation.getByRole('link', { name: projectSectionLabels[section], exact: true });
-    await expect(currentSection).toHaveAttribute('aria-current', 'page');
-    if (viewport.width < 921) await page.keyboard.press('Escape');
-
-    if (section === 'budget') {
+    const selectedTab = sections.getByRole('tab', { selected: true });
+    await expect(selectedTab).toBeVisible();
+    await expect.poll(async () => selectedTab.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const label = range.getBoundingClientRect();
+      const strip = el.closest('[role="tablist"]')!.getBoundingClientRect();
+      return label.left >= strip.left && label.right <= strip.right;
+    })).toBe(true);
+    if (tab === 'budget') {
       const remainingLabel = panel.getByTestId('forecast-summary').getByText(/Forecast remaining|Forecast overrun/);
       const remaining = remainingLabel.locator('..').locator('dd');
       await expect(remainingLabel).toBeVisible();
       await expect(remaining).toBeVisible();
     }
     await page.locator('main').evaluate(el => { el.scrollTop = 0; });
-    await aboveFold(page, sectionControl(page, viewport.width));
+    await aboveFold(page, sections);
     await aboveFold(page, work);
   }
-  if (!onlySection || onlySection === 'tasks') {
+  if (!onlyTab || onlyTab === 'tasks') {
     const a11y = await new AxeBuilder({ page }).include('main').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
     expect(a11y.violations).toEqual([]);
   }
@@ -111,43 +100,46 @@ async function runTabWorkCase(
   role: 'pm' | 'finance',
   viewport: { width: number; height: number },
   theme: 'light' | 'dark',
-  onlySection?: ProjectSection,
+  onlyTab?: ProjectTab,
 ) {
   await page.setViewportSize(viewport);
   await login(page, `${role}@acme.test`);
 
-  const ownsTasksJourney = !onlySection || onlySection === 'tasks';
-  const panel = page.locator('#project-section-content');
+  const ownsTasksJourney = !onlyTab || onlyTab === 'tasks';
   if (ownsTasksJourney) {
     await page.goto(`${projectPath}/tasks`);
-    await expect(panel.getByRole('region', { name: 'Engineering Design', exact: true })).toBeVisible();
+    const initialSections = page.getByRole('tablist', { name: 'Project sections' });
+    const initialPanel = page.getByRole('tabpanel');
+    await expect(initialPanel.getByRole('region', { name: 'Engineering Design', exact: true })).toBeVisible();
+    // Arrival starts at the top, not at a tab that scrollIntoView pulled upwards.
     await page.locator('main').evaluate(el => { el.scrollTop = 0; });
-    await aboveFold(page, sectionControl(page, viewport.width));
-    await aboveFold(page, panel.getByRole('heading', { name: 'Tasks', exact: true }));
-    await aboveFold(page, panel.getByText('ENG — Detail Design Package', { exact: true }));
+    await aboveFold(page, initialSections);
+    await aboveFold(page, initialPanel.getByRole('heading', { name: 'Tasks', exact: true }));
+    await aboveFold(page, initialPanel.getByText('ENG — Detail Design Package', { exact: true }));
     await expect(page.getByRole('heading', { name: 'Delivery phases', exact: true })).toHaveCount(0);
-    // The compact phase line states progress only; Overview remains available through named section navigation.
+    // PD-A: the compact phase line states progress only; Overview is one tab click away, not a second link.
     await expect(page.getByTestId('milestone-summary')).toBeVisible();
     await expect(page.getByTestId('milestone-summary').getByRole('link', { name: 'Overview' })).toHaveCount(0);
     if (viewport.width === 390) {
-      const navigation = await openSectionLinks(page);
-      for (const label of ['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents', 'History']) {
-        await expect(navigation.getByRole('link', { name: label, exact: true })).toBeVisible();
-      }
-      await page.keyboard.press('Escape');
+      const financialSummary = page.locator('summary').filter({ hasText: 'Financial summary' });
+      await financialSummary.focus();
+      await page.keyboard.press('Enter');
+      await expect(financialSummary.locator('..')).toHaveAttribute('open', '');
+      await page.keyboard.press('Enter');
+      await expect(financialSummary.locator('..')).not.toHaveAttribute('open');
     }
   }
 
-  await checkSectionWork(page, panel, viewport, theme, onlySection);
+  const sections = page.getByRole('tablist', { name: 'Project sections' });
+  const panel = page.getByRole('tabpanel');
+  await checkTabWork(page, panel, sections, theme, onlyTab);
 
   if (theme === 'light' && ownsTasksJourney) {
-    const navigation = await openSectionLinks(page);
-    await navigation.getByRole('link', { name: 'Overview', exact: true }).click();
-    await expect(page).toHaveURL(`${projectPath}/overview`);
-    await expect(panel.getByRole('heading', { name: 'Money position', exact: true })).toBeVisible();
+    await sections.getByRole('tab', { name: 'Overview', exact: true }).click();
+    await expect(panel.getByRole('heading', { name: 'Delivery phases', exact: true })).toBeVisible();
     await page.locator('main').evaluate(el => { el.scrollTop = 0; });
-    await aboveFold(page, sectionControl(page, viewport.width));
-    await aboveFold(page, panel.getByRole('heading', { name: 'Money position', exact: true }));
+    await aboveFold(page, sections);
+    await aboveFold(page, panel.getByRole('heading', { name: 'Delivery phases', exact: true }));
     if (role === 'pm') {
       await panel.getByRole('button', { name: 'Edit progress for Engineering Design', exact: true }).click();
       if (viewport.width === 1440) {
@@ -163,32 +155,59 @@ async function runTabWorkCase(
     if (viewport.width === 1440) {
       await panel.getByRole('link', { name: 'View blocking tasks' }).first().click();
     } else {
-      const navigation = await openSectionLinks(page);
-      await navigation.getByRole('link', { name: 'Budget', exact: true }).click();
+      await sections.getByRole('tab', { name: 'Budget', exact: true }).click();
       await page.getByTestId('milestone-summary').getByRole('link', { name: 'View blocking tasks' }).click();
     }
     await expect(page).toHaveURL(`${projectPath}/tasks`);
-    const tasksNavigation = await openSectionLinks(page);
-    await expect(tasksNavigation.getByRole('link', { name: 'Tasks', exact: true })).toHaveAttribute('aria-current', 'page');
-    if (viewport.width < 921) await page.keyboard.press('Escape');
+    await expect(sections.getByRole('tab', { name: 'Tasks', exact: true })).toHaveAttribute('aria-selected', 'true');
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (viewport.width === 390) {
-      const details = page.locator('summary').filter({ hasText: 'Project details' });
+      const details = page.locator('summary').filter({ hasText: 'Project details and actions' });
       await expect(details).toBeVisible();
       await expect(details.locator('..')).not.toHaveAttribute('open', '');
+    }
+    if (viewport.width === 1440) {
+      const panelBox = await panel.boundingBox();
+      const mainBox = await page.locator('main').boundingBox();
+      expect(panelBox).not.toBeNull();
+      expect(mainBox).not.toBeNull();
+      expect(panelBox!.width).toBeGreaterThan(mainBox!.width * 0.9);
     }
   }
 }
 
 for (const role of ['pm', 'finance'] as const) {
+  test(`UIP-006: ${role} contract and committed KPI value tops align at 1440px`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page, `${role}@acme.test`);
+    await page.goto(`${projectPath}/overview`);
+    const tiles = page.getByTestId('stat-tile');
+    const contractAmount = tiles.nth(0).getByTestId('contract-value-amount');
+    const committedValue = tiles.nth(1).locator(':scope > div').nth(1);
+    await expect(contractAmount).toBeVisible();
+    await expect(committedValue).toHaveText(/\$[\d,]+/);
+    await waitForFonts(page);
+    const contractTop = await contractAmount.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().top;
+    });
+    const committedTop = await committedValue.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().top;
+    });
+    expect(Math.abs(contractTop - committedTop)).toBeLessThanOrEqual(2);
+  });
+
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     for (const theme of ['light', 'dark'] as const) {
-      const title = `UIP-005: ${role} sees section work immediately at ${viewport.width} (${theme})`;
+      const title = `UIP-005: ${role} sees tab work immediately at ${viewport.width} (${theme})`;
       const options = { annotation: { type: 'time-budget-ms', description: '90000' } };
       if (role === 'pm' && theme === 'light') {
-        for (const section of projectSections) {
-          test(`${title} — ${projectSectionLabels[section]} [AC-TH-007]`, options, async ({ page }) => {
-            await runTabWorkCase(page, role, viewport, theme, section);
+        for (const tab of projectTabs) {
+          test(`${title} — ${projectTabLabels[tab]} [AC-TH-007]`, options, async ({ page }) => {
+            await runTabWorkCase(page, role, viewport, theme, tab);
           });
         }
       } else {

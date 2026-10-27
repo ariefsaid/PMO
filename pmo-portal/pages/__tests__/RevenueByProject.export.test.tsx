@@ -3,7 +3,7 @@
  * currency and numeric money cells, or a USD row and an IDR row sum together in a spreadsheet.
  * The page's real columns are captured off DataTable and pushed through the real workbook writer.
  */
-import { beforeEach, describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
@@ -13,13 +13,6 @@ import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { buildExportRows, toWorkbookBuffer } from '@/src/lib/export';
 
 const table = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
-const download = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
-vi.mock('@/src/components/export', () => ({
-  ExportButton: (props: { rows: unknown[]; columns: unknown[] }) => {
-    download.props = props;
-    return null;
-  },
-}));
 vi.mock('@/src/components/ui', async (orig) => {
   const actual = (await orig()) as Record<string, unknown>;
   return {
@@ -51,16 +44,11 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 import RevenueByProject from '../RevenueByProject';
 
-beforeEach(() => {
-  table.props = null;
-  download.props = null;
-});
-
 describe('RevenueByProject export (#831)', () => {
   it('AC-831-2: each exported row names its currency and money cells are numeric', async () => {
     render(
       <ImpersonationProvider realRole="Executive">
-        <MemoryRouter initialEntries={['/financial-statements?section=project-revenue&view=billing&from=2026-01&to=2026-06']}>
+        <MemoryRouter>
           <ToastProvider>
             <RevenueByProject />
           </ToastProvider>
@@ -76,30 +64,12 @@ describe('RevenueByProject export (#831)', () => {
     const col = (name: string) => header.indexOf(name) + 1;
 
     expect(col('Currency')).toBeGreaterThan(0);
-    expect(col('Net billed')).toBeGreaterThan(0);
-    expect(col('Open receivables')).toBeGreaterThan(0);
-    expect(ws.getRow(2).getCell(col('Currency')).value).toBe('IDR');
-    expect(ws.getRow(3).getCell(col('Currency')).value).toBe('USD');
-    expect(ws.getRow(2).getCell(col('Net billed')).value).toBe(2000000);
-    expect(ws.getRow(3).getCell(col('Net billed')).value).toBe(1000);
-    expect(ws.getRow(3).getCell(col('Open receivables')).value).toBe(250.5);
-  });
-
-  it('exports only the selected project/currency population with numeric values', () => {
-    render(
-      <ImpersonationProvider realRole="Executive">
-        <MemoryRouter initialEntries={['/financial-statements?section=project-revenue&view=billing&project=p1&currency=IDR&from=2026-01&to=2026-06']}>
-          <ToastProvider><RevenueByProject /></ToastProvider>
-        </MemoryRouter>
-      </ImpersonationProvider>,
-    );
-    expect(table.props).not.toBeNull();
-    expect(download.props).not.toBeNull();
-    expect(download.props!.rows).toHaveLength(1);
-    const { header, body } = buildExportRows(download.props!.rows, download.props!.columns as Column<unknown>[]);
-    expect(header).toContain('Currency');
-    expect(body).toHaveLength(1);
-    expect(body[0]).toContain('IDR');
-    expect(body[0]).toContain(2000000);
+    expect(col('Total Revenue (net of tax)')).toBeGreaterThan(0);
+    expect(col('Open AR (gross, tax included)')).toBeGreaterThan(0);
+    expect(ws.getRow(2).getCell(col('Currency')).value).toBe('USD');
+    expect(ws.getRow(3).getCell(col('Currency')).value).toBe('IDR');
+    expect(ws.getRow(2).getCell(col('Total Revenue (net of tax)')).value).toBe(1000);
+    expect(ws.getRow(2).getCell(col('Open AR (gross, tax included)')).value).toBe(250.5);
+    expect(ws.getRow(3).getCell(col('Total Revenue (net of tax)')).value).toBe(2000000);
   });
 });

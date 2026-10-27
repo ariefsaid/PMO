@@ -46,7 +46,7 @@ import { IntegrationsView } from './IntegrationsView';
 installIntegrationDefaults();
 
 describe('AC-EAS-015 the read-only Integrations view renders both states with no write affordances', () => {
-  it('AC-EAS-015 (a) empty disconnected service keeps a compact status row without an empty details container', () => {
+  it('AC-EAS-015 (a) empty ownership ⇒ connect cards render with Not connected status, Employed domains section empty', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true, isLoading: false, isFetching: false, refetch: vi.fn(), status: 'success' as const, dataUpdatedAt: 0, error: null, isPlaceholderData: false, fetchStatus: 'idle', isLoadingError: false, isRefetchError: false, errorUpdatedAt: 0, failureCount: 0, failureReason: null, isPaused: false } as any);
     vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
     wrapWithRole('Admin', <IntegrationsView />);
@@ -56,7 +56,19 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
     expect(screen.getAllByText('Not connected')).toHaveLength(2);
-    expect(screen.queryByTestId('service-details-clickup')).not.toBeInTheDocument();
+    // AC-IRUX-007: empty ownership renders an explicit read-only empty state (not a blank section)
+    // and offers no write affordances.
+    expect(screen.getByTestId('integrations-tier-list')).toBeInTheDocument();
+    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('heading')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('integrations-tier-list')).queryByRole('button')).toBeNull();
+  });
+
+  it('M1 the loading skeleton renders inside the framed container (sibling-section idiom)', () => {
+    vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: undefined, isPending: true, isError: false } as never);
+    vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: true, isError: false, isSuccess: false, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
+    wrapWithRole('Admin', <IntegrationsView />);
+    const skeleton = screen.getByTestId('liststate-loading');
+    expect(skeleton.parentElement).toHaveClass('rounded-lg', 'border', 'border-border', 'bg-card');
   });
 
   it('AC-EAS-015 (b) an employed tier owning {clickup: tasks, erpnext: procurement} lists the tier + domains, no write affordance', () => {
@@ -67,19 +79,12 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
     vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    const clickupDetails = screen.getByTestId('service-details-clickup');
-    const erpDetails = screen.getByTestId('service-details-erpnext');
-    fireEvent.click(within(clickupDetails).getByText(/connection details/i));
-    fireEvent.click(within(erpDetails).getByText(/connection details/i));
-    expect(within(screen.getByTestId('integrations-connect-cards')).getByRole('heading', { name: 'ClickUp' })).toBeInTheDocument();
-    expect(within(screen.getByTestId('integrations-connect-cards')).getByRole('heading', { name: 'ERPNext' })).toBeInTheDocument();
-    const chipTexts = [
-      ...within(screen.getByTestId('service-information-clickup')).getAllByRole('listitem'),
-      ...within(screen.getByTestId('service-information-erpnext')).getAllByRole('listitem'),
-    ].map((li) => li.textContent?.trim());
+    const list = screen.getByTestId('integrations-tier-list');
+    expect(within(list).getByRole('heading', { name: 'ClickUp' })).toBeInTheDocument();
+    expect(within(list).getByRole('heading', { name: 'ERPNext' })).toBeInTheDocument();
+    const chipTexts = within(list).getAllByRole('listitem').map((li) => li.textContent?.trim());
     expect(chipTexts).toEqual(expect.arrayContaining(['Tasks', 'Procurement']));
-    expect(screen.getByTestId('service-information-clickup').querySelector('button')).toBeNull();
-    expect(screen.getByTestId('service-information-erpnext').querySelector('button')).toBeNull();
+    expect(within(list).queryByRole('button')).toBeNull();
   });
 
   describe('NFR-CUA-LOCALITY-001 ClickUp tier renders with human label and data-locality note', () => {
@@ -90,7 +95,8 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
-      const heading = within(screen.getByTestId('integrations-connect-cards')).getByRole('heading', { name: 'ClickUp' });
+      const list = screen.getByTestId('integrations-tier-list');
+      const heading = within(list).getByRole('heading', { name: 'ClickUp' });
       expect(heading).toBeInTheDocument();
       const rawSlugFound = Array.from(document.querySelectorAll('*')).some(
         (el) => el.textContent === 'clickup' && el.tagName !== 'STYLE' && el.tagName !== 'SCRIPT',
@@ -105,9 +111,8 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
-      const details = screen.getByTestId('service-details-clickup');
-      fireEvent.click(within(details).getByText(/connection details/i));
-      expect(within(details).getByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toBeInTheDocument();
+      const list = screen.getByTestId('integrations-tier-list');
+      expect(within(list).getByText(/ClickUp is US-hosted SaaS — task-domain data resides with ClickUp/)).toBeInTheDocument();
     });
 
     it('Non-ClickUp tiers do NOT render the data-locality note', () => {
@@ -117,9 +122,8 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
-      const details = screen.getByTestId('service-details-erpnext');
-      fireEvent.click(within(details).getByText(/connection details/i));
-      expect(within(details).queryByText(/US-hosted SaaS/)).toBeNull();
+      const list = screen.getByTestId('integrations-tier-list');
+      expect(within(list).queryByText(/US-hosted SaaS/)).toBeNull();
     });
   });
 
@@ -131,7 +135,7 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
-      const list = screen.getByTestId('integrations-connect-cards');
+      const list = screen.getByTestId('integrations-tier-list');
       expect(within(list).getByRole('heading', { name: 'ERPNext' })).toBeInTheDocument();
     });
 
@@ -142,8 +146,7 @@ describe('AC-EAS-015 the read-only Integrations view renders both states with no
       vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: rows, isPending: false, isError: false } as never);
       vi.mocked(useIntegrations).mockReturnValue({ bindings: [], isPending: false, isError: false, isSuccess: true, error: null, refetch: vi.fn(), connect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, disconnect: { mutateAsync: vi.fn(), isPending: false, isError: false, isSuccess: true, isIdle: false, data: undefined, variables: undefined, failureCount: 0, failureReason: null, isPaused: false, mutate: vi.fn(), reset: vi.fn(), status: 'success', submittedAt: 0 }, getBinding: vi.fn(() => undefined), getHealth: vi.fn().mockResolvedValue(null) } as any);
       wrapWithRole('Admin', <IntegrationsView />);
-      const list = screen.getByTestId('service-details-erpnext');
-      fireEvent.click(within(list).getByText(/connection details/i));
+      const list = screen.getByTestId('integrations-tier-list');
       expect(
         within(list).getByText(/Self-hosted ERP — data resides on your ERPNext instance/),
       ).toBeInTheDocument();
@@ -163,9 +166,9 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: undefined, isPending: true, isError: false } as never);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    const details = screen.getByTestId('service-details-clickup');
-    fireEvent.click(within(details).getByText(/connection details/i));
-    expect(within(details).getByText(/Checking which information is updated automatically/i)).toBeInTheDocument();
+    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
+    const tierList = screen.getByTestId('integrations-tier-list');
+    expect(within(tierList).queryByRole('button')).toBeNull();
   });
 
   it('AC-IRUX-007 unavailable ownership shows an explicit error + Retry and no write controls', () => {
@@ -173,24 +176,22 @@ describe('AC-IRUX-007 employed-domain ownership states', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: true, refetch } as any);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    const details = screen.getByTestId('service-details-clickup');
-    fireEvent.click(within(details).getByText(/connection details/i));
-    expect(screen.getByTestId('ownership-error-clickup')).toBeInTheDocument();
-    expect(within(details).getByText(/Automatic updates unavailable/i)).toBeInTheDocument();
-    const retry = within(screen.getByTestId('service-information-clickup')).getByRole('button', { name: /^Retry$/i });
+    expect(screen.getByTestId('ownership-error')).toBeInTheDocument();
+    expect(screen.getByText(/Automatic updates unavailable/i)).toBeInTheDocument();
+    const retry = screen.getByRole('button', { name: /^Retry$/i });
     fireEvent.click(retry);
     expect(refetch).toHaveBeenCalled();
+    const tierList = screen.getByTestId('integrations-tier-list');
     // Read-only section: the only button is the read Retry, never a mutation control.
-    expect(within(screen.getByTestId('service-information-clickup')).queryByRole('button', { name: /connect|disconnect|select/i })).toBeNull();
+    expect(within(tierList).queryByRole('button', { name: /connect|disconnect|select/i })).toBeNull();
   });
 
   it('AC-IRUX-007 empty ownership shows an explicit empty state and no write controls', () => {
     vi.mocked(useExternalDomainOwnership).mockReturnValue({ data: [], isPending: false, isError: false, isSuccess: true } as any);
     vi.mocked(useIntegrations).mockReturnValue(bindingMapIntegrations() as any);
     wrapWithRole('Admin', <IntegrationsView />);
-    const details = screen.getByTestId('service-details-clickup');
-    fireEvent.click(within(details).getByText(/connection details/i));
-    expect(within(details).getByText('No information areas are selected for updates from this service.')).toBeInTheDocument();
-    expect(within(screen.getByTestId('service-information-clickup')).queryByRole('button')).toBeNull();
+    expect(screen.getByText(/No information is set to update automatically/i)).toBeInTheDocument();
+    const tierList = screen.getByTestId('integrations-tier-list');
+    expect(within(tierList).queryByRole('button')).toBeNull();
   });
 })

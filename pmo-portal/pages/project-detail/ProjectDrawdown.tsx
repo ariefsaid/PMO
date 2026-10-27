@@ -1,10 +1,8 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card, CardHead, CardPad, ListState, ProgressBar, StatusPill } from '@/src/components/ui';
+import { formatCurrency } from '@/src/lib/format';
 import { useProjectDrawdown } from '@/src/hooks/useWorkOrders';
-import { UnknownFigure } from './UnknownFigure';
-import { formatProjectDetailAmount, formatProjectDetailMoney } from './formatProjectDetailMoney';
-import { projectSectionHeading, projectSubsectionHeading } from './typography';
 
 /**
  * The drawdown card (#566 / OD-CR-13) — the number the PM manages by, day one.
@@ -30,14 +28,6 @@ import { projectSectionHeading, projectSubsectionHeading } from './typography';
 export interface ProjectDrawdownProps {
   projectId: string;
   className?: string;
-  /** Related money figures that share the contract basis and heading. */
-  afterFigures?: React.ReactNode;
-  /** Keep the card present when the issued and draft drawdown are both zero. */
-  alwaysShow?: boolean;
-  /** Page-specific title for a combined contract and billing figure set. */
-  title?: React.ReactNode;
-  /** Heading level when the drawdown is nested inside another named section. */
-  headingLevel?: 2 | 3 | 4 | 5 | 6;
 }
 
 /**
@@ -54,25 +44,19 @@ const Figure: React.FC<{
   value: number;
   currency: string;
   tone?: string;
-}> = ({ testId, label, value, currency, tone }) => {
-  const { t, i18n } = useTranslation();
-  const amount = formatProjectDetailAmount(value, currency, i18n.language);
-  return (
-    <div data-testid={testId} className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
-      <dt className="text-xs font-semibold text-muted-foreground">
-        {label}
-      </dt>
-      <dd className={`whitespace-nowrap text-sm font-normal tabular${tone ? ` ${tone}` : ''}`}>
-        {amount ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
-      </dd>
-    </div>
-  );
-};
+}> = ({ testId, label, value, currency, tone }) => (
+  <div data-testid={testId}>
+    <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+      {label}
+    </dt>
+    <dd className={`mt-0.5 text-[15px] font-bold tabular${tone ? ` ${tone}` : ''}`}>
+      {formatCurrency(value, currency)}
+    </dd>
+  </div>
+);
 
-const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
-  projectId, className, afterFigures, alwaysShow = false, title, headingLevel = 2,
-}) => {
-  const { t, i18n } = useTranslation();
+const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({ projectId, className }) => {
+  const { t } = useTranslation();
   const { data, isPending, isError, refetch } = useProjectDrawdown(projectId);
 
   /**
@@ -90,34 +74,30 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
 
   // SUB-C: the card exists to manage work orders against the ceiling — with none issued or
   // drafted there is nothing to manage and the card is noise. (An error still shows.)
-  if (!alwaysShow && data && !isError && data.committed <= 0 && data.draft <= 0) return null;
+  if (data && !isError && data.committed <= 0 && data.draft <= 0) return null;
 
   return (
     <Card variant="bare" className={className} data-testid="project-drawdown">
-      <CardHead
-        level={headingLevel}
-        className={`border-0 px-0 py-0 ${headingLevel === 2 ? projectSectionHeading : projectSubsectionHeading}`}
-      >
-        {title ?? t('projectDetail.drawdown.title', 'Contract drawdown')}
+      <CardHead level={2} className="text-base">
+        {t('projectDetail.drawdown.title', 'Contract drawdown')}
         {data && !isError && (
-          <span className="ml-2 text-xs font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
+          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{basisLabel(data.basis)}</span>
         )}
       </CardHead>
-      <CardPad className="flex flex-col gap-3">
-        {isPending ? (
-          <ListState variant="loading" rows={3} testId="drawdown-loading" />
-        ) : isError || !data ? (
-          <ListState
-            variant="error"
-            title={t('projectDetail.drawdown.error.title', "Couldn't load the drawdown")}
-            sub={t(
-              'projectDetail.drawdown.error.sub',
-              'The committed total against this contract could not be read. Retry, or reopen the project.',
-            )}
-            onRetry={() => refetch()}
-          />
-        ) : (
-          (() => {
+      {isPending ? (
+        <ListState variant="loading" rows={3} testId="drawdown-loading" />
+      ) : isError || !data ? (
+        <ListState
+          variant="error"
+          title={t('projectDetail.drawdown.error.title', "Couldn't load the drawdown")}
+          sub={t(
+            'projectDetail.drawdown.error.sub',
+            'The committed total against this contract could not be read. Retry, or reopen the project.',
+          )}
+          onRetry={() => refetch()}
+        />
+      ) : (
+        (() => {
           const { committed, draft, ceiling, currency } = data;
           // ⚑ EPSILON, not bare float comparison (security review L4). `ceiling - committed` on JS
           // floats lands at ~-1e-13 at exact parity, which painted "Remaining headroom" in
@@ -134,7 +114,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
           const overBy = alreadyOver ? committed - ceiling : committed + draft - ceiling;
 
           return (
-            <>
+            <CardPad className="flex flex-col gap-3">
               <div
                 role="group"
                 aria-label={t('projectDetail.drawdown.groupLabel', 'Contract drawdown')}
@@ -148,7 +128,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                     aria-label={`${t('projectDetail.drawdown.barLabel', 'Contract drawn down')}: ${pct}%`}
                   />
                 ) : (
-                  <p data-testid="drawdown-no-ceiling" className="text-xs text-muted-foreground">
+                  <p data-testid="drawdown-no-ceiling" className="text-[12px] text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.noCeiling',
                       'This project has no contract value yet, so there is no ceiling to draw against. Set the contract value to measure work orders against it.',
@@ -156,11 +136,7 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                   </p>
                 )}
 
-                <h3 data-primary-figure="true" aria-label={`${t('projectDetail.drawdown.headroom', 'Remaining headroom')} · ${currency} ${formatProjectDetailAmount(headroom, currency, i18n.language)}`}>
-                  <span className="project-primary-label">{t('projectDetail.drawdown.headroom', 'Remaining headroom')}</span>
-                  <span className="project-primary-value">{currency} {formatProjectDetailAmount(headroom, currency, i18n.language)}</span>
-                </h3>
-                <dl className="project-facts space-y-2">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                   <Figure
                     testId="drawdown-ceiling"
                     label={t('projectDetail.drawdown.ceiling', 'Contract ceiling')}
@@ -204,12 +180,12 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                     </StatusPill>
                     <span
                       data-testid="drawdown-over-amount"
-                      className="text-sm font-bold tabular text-warning-foreground"
+                      className="text-[13px] font-bold tabular text-warning-foreground"
                     >
-                      {formatProjectDetailMoney(overBy, currency, i18n.language) ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
+                      {formatCurrency(overBy, currency)}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[12px] text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.overCommittedNote',
                       'Issued work orders exceed this project’s contract ceiling by the amount above. Each one was acknowledged by name when it was issued.',
@@ -226,12 +202,12 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                     </StatusPill>
                     <span
                       data-testid="drawdown-would-over-amount"
-                      className="text-sm font-bold tabular text-warning-foreground"
+                      className="text-[13px] font-bold tabular text-warning-foreground"
                     >
-                      {formatProjectDetailMoney(overBy, currency, i18n.language) ?? <UnknownFigure reason={t('projectFinances.unavailable', 'Unavailable')} />}
+                      {formatCurrency(overBy, currency)}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[12px] text-muted-foreground">
                     {t(
                       'projectDetail.drawdown.wouldOverCommitNote',
                       'Issuing every draft would take this project past its contract ceiling by the amount above. Issuing one of them will ask you to acknowledge that in writing.',
@@ -239,12 +215,10 @@ const ProjectDrawdown: React.FC<ProjectDrawdownProps> = ({
                   </p>
                 </div>
               )}
-            </>
+            </CardPad>
           );
         })()
-        )}
-        {afterFigures && <div className="border-t border-border pt-3">{afterFigures}</div>}
-      </CardPad>
+      )}
     </Card>
   );
 };

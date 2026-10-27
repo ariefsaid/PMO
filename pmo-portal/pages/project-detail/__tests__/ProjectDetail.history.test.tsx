@@ -131,18 +131,18 @@ const renderAt = async (path: string) => {
   return view;
 };
 
-describe('ProjectDetail — History section (AC-CHG-018)', () => {
-  it('AC-CHG-018: /projects/:id/history deep-links with child roll-up and kind filters', async () => {
+describe('ProjectDetail — History tab (AC-CHG-018)', () => {
+  it('AC-CHG-018: /projects/:id/history deep-links to the History tab with child roll-up and kind filters', async () => {
     await renderAt('/projects/p1/history');
     expect(screen.getByTestId('tab-history')).toHaveTextContent('project:p1:true:true');
   });
 
-  it('AC-CHG-018: the History section link is keyboard-operable', async () => {
+  it('AC-CHG-018: the History tab is keyboard-operable and selects via the tab bar', async () => {
     await renderAt('/projects/p1');
-    const link = screen.getByRole('link', { name: 'History' });
-    link.focus();
+    const tab = screen.getByRole('tab', { name: 'History' });
+    tab.focus();
     await userEvent.keyboard('{Enter}');
     expect(await screen.findByTestId('tab-history')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
   });
 });

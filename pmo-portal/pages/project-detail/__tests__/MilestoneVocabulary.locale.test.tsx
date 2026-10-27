@@ -58,7 +58,7 @@ const phase: MilestoneWithProgress = {
 const copy = {
   en: {
     emptyPrompt: 'No delivery phases yet',
-    addFirst: 'Add phase',
+    addFirst: 'Plan delivery phases',
     createTitle: 'New phase',
     createAction: 'Create phase',
     createdToast: 'Phase created',
@@ -75,7 +75,7 @@ const copy = {
   },
   id: {
     emptyPrompt: 'Belum ada fase pelaksanaan',
-    addFirst: 'Tambah fase',
+    addFirst: 'Rencanakan fase pelaksanaan',
     createTitle: 'Fase baru',
     createAction: 'Buat fase',
     createdToast: 'Fase dibuat',

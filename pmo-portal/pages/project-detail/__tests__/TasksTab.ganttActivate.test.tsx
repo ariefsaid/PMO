@@ -136,14 +136,14 @@ beforeEach(() => {
 describe('AC-JR-T23: TasksTab Gantt bars open the task edit modal when clicked', () => {
   it('AC-JR-T23: switching to Timeline view shows the Gantt figure', async () => {
     renderTab();
-    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
   });
 
   it('AC-JR-T23: clicking a Gantt bar (role=button) opens the task edit modal', async () => {
     renderTab('Project Manager');
     // Switch to timeline view
-    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
 
     // Bar has role=button (added by T22 seam when onActivateTask is provided)
@@ -163,7 +163,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task edit modal when clicked',
 
   it('AC-JR-T23: modal opened from Gantt bar shows Edit task title', async () => {
     renderTab('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
 
     fireEvent.click(screen.getByRole('button', { name: /Survey the site/i }));
@@ -178,7 +178,7 @@ describe('AC-JR-T23: TasksTab Gantt bars open the task edit modal when clicked',
   it('AC-JR-T23: Gantt bars are inert (no button role) when user cannot edit tasks', async () => {
     // Finance role cannot edit tasks
     renderTab('Finance');
-    await userEvent.click(screen.getByRole('button', { name: /timeline/i }));
+    await userEvent.click(screen.getByRole('tab', { name: /timeline/i }));
     await waitFor(() => expect(screen.getByRole('img')).toBeInTheDocument());
 
     // Bars should NOT have role=button for read-only users

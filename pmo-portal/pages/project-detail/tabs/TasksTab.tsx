@@ -1,8 +1,6 @@
-import { ProjectFilters } from '../ProjectFilters';
 import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import {
   Toolbar,
-  SearchMini,
   ViewToggle,
   ListState,
   DataTable,
@@ -58,14 +56,13 @@ const SUBTASK_INDENT_PX = 16;
 // `progress` (NOT the action-blue, per the Freed-Blue Status Rule), Done = green
 // `won`, Blocked = red `lost`. The distinct LABEL always rides alongside (never
 // colour-only — DESIGN.md Tinted-Status / color-not-only).
+// ⛔ NOT TRANSLATED, deliberately: these ARE the task_status enum values, and they are used
+// as both the option value and its label. They also render raw next to this control via
+// <StatusPill>{task.status}</StatusPill>, so translating one side alone would show the same
+// status in two languages side by side. Status vocabulary is one cross-cutting decision
+// (it also covers doc status, procurement stages and pipeline stages) -- not this file's.
 const STATUSES: TaskStatus[] = ['To Do', 'In Progress', 'Done', 'Blocked'];
-const taskStatusLabel = (status: string, t: TFunction): string => ({
-  'To Do': t('project:projectDetail.tasks.status.toDo', 'To Do'),
-  'In Progress': t('project:projectDetail.tasks.status.inProgress', 'In Progress'),
-  Done: t('project:projectDetail.tasks.status.done', 'Done'),
-  Blocked: t('project:projectDetail.tasks.status.blocked', 'Blocked'),
-})[status] ?? status;
-const statusOptions = (t: TFunction) => STATUSES.map((value) => ({ value, label: taskStatusLabel(value, t) }));
+const STATUS_OPTIONS = STATUSES.map((s) => ({ value: s, label: s }));
 
 // OD-INT-9 — the four task_priority enum values, for the Priority select. The first option is the
 // explicit unset (value="" → null): the column is nullable, so "no priority" must stay expressible
@@ -79,7 +76,6 @@ const priorityOptions = (t: TFunction) => [
 ];
 
 type ViewMode = 'list' | 'board' | 'timeline';
-type DueSort = 'soonest' | 'latest';
 
 interface FormValues {
   name: string;
@@ -131,10 +127,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   // #790: comments open from a read view any reader of the task can reach (no edit right needed).
   const [commentsTarget, setCommentsTarget] = useState<TaskWithRefs | null>(null);
   const [showArchived, setShowArchived] = useState(false);
-  const [search, setSearch] = useState('');
-  const [phaseFilter, setPhaseFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
-  const [dueSort, setDueSort] = useState<DueSort>('soonest');
 
   // T25 — hash-anchor scroll & transient highlight.
   // When the URL contains #task-<id>, scroll that row into view and apply a
@@ -204,40 +196,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   // name cell renderer (buildColumns below). The milestone-grouped view computes its own
   // per-group order (see MilestoneGroupedList) since a subtask can land in a different
   // milestone group than its parent (AC-SUB-UI-004).
-  const visibleTasks = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
-    const phaseNames = new Map(milestoneList.map((milestone) => [milestone.id, milestone.name]));
-    const filtered = all.filter((task) => {
-      if (!showArchived && task.archived_at != null) return false;
-      if (statusFilter !== 'all' && task.status !== statusFilter) return false;
-      if (phaseFilter === 'ungrouped' && task.milestone_id != null) return false;
-      if (phaseFilter !== 'all' && phaseFilter !== 'ungrouped' && task.milestone_id !== phaseFilter) return false;
-      if (!query) return true;
-      return [task.name, task.description, task.assignee?.full_name, phaseNames.get(task.milestone_id ?? '')]
-        .some((value) => value?.toLocaleLowerCase().includes(query));
-    });
-
-    const direction = dueSort === 'soonest' ? 1 : -1;
-    return filtered.sort((left, right) => {
-      const completedOrder = Number(left.status === 'Done') - Number(right.status === 'Done');
-      if (completedOrder !== 0) return completedOrder;
-      if (left.end_date == null && right.end_date != null) return 1;
-      if (left.end_date != null && right.end_date == null) return -1;
-      if (left.end_date && right.end_date) {
-        const byDueDate = left.end_date.localeCompare(right.end_date);
-        if (byDueDate !== 0) return direction * byDueDate;
-      }
-      return direction * (left.name.localeCompare(right.name) || left.id.localeCompare(right.id));
-    });
-  }, [all, dueSort, milestoneList, phaseFilter, search, showArchived, statusFilter]);
-
-  const hasActiveFilters = search.trim().length > 0 || phaseFilter !== 'all' || statusFilter !== 'all';
-  const clearFilters = () => {
-    setSearch('');
-    setPhaseFilter('all');
-    setStatusFilter('all');
-  };
-
+  const visibleTasks = useMemo(
+    () => (showArchived ? all : all.filter((t) => t.archived_at == null)),
+    [all, showArchived],
+  );
   const flatOrder = useMemo(() => buildTaskRenderOrder(visibleTasks), [visibleTasks]);
   const flatRows = useMemo(() => flatOrder.map((n) => n.task), [flatOrder]);
   const flatDepths = useMemo(
@@ -258,7 +220,6 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
       : all.length === 0 && milestoneList.length === 0
         ? 'empty'
         : undefined;
-  const noMatches = state === undefined && hasActiveFilters && visibleTasks.length === 0;
 
   // ── Mutations ───────────────────────────────────────────────────────────
   const onStatusChange = async (task: TaskWithRefs, status: TaskStatus) => {
@@ -319,11 +280,11 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           value={task.status}
           disabled={updateStatus.isPending}
           onChange={(v) => onStatusChange(task, v as TaskStatus)}
-          options={statusOptions(t)}
-          className="w-auto min-w-[120px] max-sm:min-h-11"
+          options={STATUS_OPTIONS}
+          className="w-auto min-w-[120px]"
         />
       ) : (
-        <StatusPill variant={workflowVariant(task.status)}>{taskStatusLabel(task.status, t)}</StatusPill>
+        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
       )}
       {/* FR-CUA-070 breadth (review fix #4): the List status cell ORIGINATES a status write, so the
           per-task pending-push badge surfaces here too (not just the Board). Idle renders nothing, so
@@ -341,15 +302,17 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const buildColumns = (depths: Map<string, number>): Column<TaskWithRefs>[] => [
     {
       key: 'name',
-      size: 320, minSize: 240,
       header: t('projectDetail.tasks.column.task', 'Task'),
       cell: (task) => {
         const depth = depths.get(task.id) ?? 0;
         return (
           <span
             id={`task-${task.id}`}
-            // Full identity wraps; the separate menu keeps its own hit area.
-            className={`block break-words whitespace-normal font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            /* `block`: `truncate` (overflow-hidden) is a no-op on an INLINE span, so a long
+               task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
+               the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
+               the card title wrapper's min-w-0 lets it clip with an ellipsis. */
+            className={`block truncate font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
             title={task.name}
           >
@@ -365,11 +328,10 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     },
     {
       key: 'assignee',
-      size: 150,
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
       cell: (task) =>
         task.assignee ? (
-          <span className="break-words text-muted-foreground" title={task.assignee.full_name}>
+          <span className="truncate text-muted-foreground" title={task.assignee.full_name}>
             {task.assignee.full_name}
           </span>
         ) : (
@@ -381,19 +343,17 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     },
     {
       key: 'due',
-      kind: 'date', size: 140, minSize: 140,
       header: t('projectDetail.tasks.column.due', 'Due'),
-      cell: (task) =>
-        task.end_date ? (
-          <span className="tabular text-muted-foreground">{formatDateOnly(task.end_date)}</span>
+      cell: (t) =>
+        t.end_date ? (
+          <span className="tabular text-muted-foreground">{formatDateOnly(t.end_date)}</span>
         ) : (
-          <span className="text-muted-foreground">{t('project:projectDetail.tasks.noDueDate', 'No due date')}</span>
+          <span className="text-muted-foreground">—</span>
         ),
       colClassName: 'hidden md:table-cell',
     },
     {
       key: 'status',
-      kind: 'status', size: 160, minSize: 160,
       header: t('projectDetail.tasks.column.status', 'Status'),
       cell: (task) => <StatusCell task={task} />,
     },
@@ -431,68 +391,16 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
 
   return (
     <div>
-      <div className="mb-3.5 max-sm:sr-only">
-        <h2 className="text-xl font-bold tracking-[-0.01em]">
-          {t('projectDetail.tasks.heading', 'Tasks')}
-        </h2>
-      </div>
-
-      <Toolbar standalone role="group" aria-label={t('project:projectDetail.tasks.toolbar.label', 'Task tools')}>
-        <SearchMini
-          placeholder={t('project:projectDetail.tasks.toolbar.searchPlaceholder', 'Search tasks, assignees, or phases…')}
-          aria-label={t('project:projectDetail.tasks.toolbar.searchLabel', 'Search tasks')}
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
-        />
-        <ProjectFilters summary={<span>{t('project:projectDetail.filters', 'Filters')} · {phaseFilter === 'all' ? t('project:projectDetail.tasks.toolbar.allPhases', 'All phases') : milestoneList.find((phase) => phase.id === phaseFilter)?.name} · {statusFilter === 'all' ? t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses') : taskStatusLabel(statusFilter, t)} · {dueSort === 'soonest' ? t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest') : t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</span>}>
-        <select
-          aria-label={t('project:projectDetail.tasks.toolbar.phaseFilter', 'Phase filter')}
-          value={phaseFilter}
-          onChange={(event) => setPhaseFilter(event.target.value)}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="all">{t('project:projectDetail.tasks.toolbar.allPhases', 'All phases')}</option>
-          {[...milestoneList]
-            .sort((left, right) => left.sort_order - right.sort_order || left.name.localeCompare(right.name))
-            .map((milestone) => <option key={milestone.id} value={milestone.id}>{milestone.name}</option>)}
-          <option value="ungrouped">{t('projectDetail.tasks.ungrouped', 'Ungrouped')}</option>
-        </select>
-        <select
-          aria-label={t('project:projectDetail.tasks.toolbar.statusFilter', 'Status filter')}
-          value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value as TaskStatus | 'all')}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="all">{t('project:projectDetail.tasks.toolbar.allStatuses', 'All statuses')}</option>
-          {STATUSES.map((status) => <option key={status} value={status}>{taskStatusLabel(status, t)}</option>)}
-        </select>
-        <select
-          aria-label={t('project:projectDetail.tasks.toolbar.sortTasks', 'Sort tasks')}
-          value={dueSort}
-          onChange={(event) => setDueSort(event.target.value as DueSort)}
-          className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <option value="soonest">{t('project:projectDetail.tasks.toolbar.dueSoonest', 'Due soonest')}</option>
-          <option value="latest">{t('project:projectDetail.tasks.toolbar.dueLatest', 'Due latest')}</option>
-        </select>
-        </ProjectFilters>
-        <ViewToggle<ViewMode>
-          options={[
-            { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
-            { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
-            { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
-          ]}
-          value={view}
-          onChange={setView}
-          ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
-          semantics="toggle"
-        />
-        {all.some((task) => task.archived_at != null) && (
+      <div className="mb-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[16px] font-bold tracking-[-0.01em]">
+            {t('projectDetail.tasks.heading', 'Tasks')}
+          </h2>
+        </div>
+        {all.some((t) => t.archived_at != null) && (
           <Button
             variant="outline"
             size="sm"
-            className="max-sm:min-h-11"
             aria-pressed={showArchived}
             onClick={() => setShowArchived((value) => !value)}
           >
@@ -502,17 +410,27 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
           </Button>
         )}
         {canCreate && (
-          <Button
-            variant="primary"
-            size="sm"
-            className="max-sm:min-h-11 max-sm:w-full"
-            onClick={() => setFormTarget({ task: null })}
-          >
+          <Button variant="outline" size="sm" onClick={() => setFormTarget({ task: null })}>
             <Icon name="plus" />
             {t('projectDetail.tasks.newTask', 'New task')}
           </Button>
         )}
-      </Toolbar>
+      </div>
+
+      {state !== 'loading' && state !== 'empty' && (
+        <Toolbar standalone>
+          <ViewToggle<ViewMode>
+            options={[
+              { value: 'list', label: t('projectDetail.tasks.view.list', 'List') },
+              { value: 'board', label: t('projectDetail.tasks.view.board', 'Board') },
+              { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
+            ]}
+            value={view}
+            onChange={setView}
+            ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
+          />
+        </Toolbar>
+      )}
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
@@ -541,19 +459,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         />
       )}
 
-      {noMatches && (
-        <ListState
-          variant="empty"
-          icon="search"
-          title={t('project:projectDetail.tasks.toolbar.noMatches', 'No tasks match these filters')}
-          action={{
-            label: t('project:projectDetail.tasks.toolbar.clearFilters', 'Clear search and filters'),
-            onClick: clearFilters,
-          }}
-        />
-      )}
-
-      {state === undefined && !noMatches && view === 'list' && (
+      {state === undefined && view === 'list' && (
         milestoneList.length === 0 ? (
           // No milestones: flat list, in depth-ordered (parent-then-descendants) order.
           <DataTable<TaskWithRefs>
@@ -567,9 +473,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
                 : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
-            cardBelow={700}
-            tableId="project-detail-tabs-taskstab-1-table"
-          />
+          tableId="project-detail-tabs-taskstab-1-table" />
         ) : (
           // Milestones exist: group tasks by milestone
           <MilestoneGroupedList
@@ -588,7 +492,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         )
       )}
 
-      {state === undefined && !noMatches && view === 'board' && (
+      {state === undefined && view === 'board' && (
         <TaskBoard
           tasks={visibleTasks}
           canSetStatus={canSetStatus}
@@ -599,7 +503,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         />
       )}
 
-      {state === undefined && !noMatches && view === 'timeline' && (
+      {state === undefined && view === 'timeline' && (
         <ProjectGantt
           tasks={visibleTasks}
           milestones={milestoneList}
@@ -716,8 +620,8 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             className="flex min-w-0 flex-col rounded-lg border border-border bg-secondary/50"
           >
             <div className="flex items-center gap-2 border-b border-border px-3 pb-2.5 pt-[11px]">
-              <span className="text-sm font-bold tracking-[-0.01em]">{s}</span>
-              <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11px] font-bold text-muted-foreground tabular">
+              <span className="text-[13px] font-bold tracking-[-0.01em]">{s}</span>
+              <span className="ml-auto grid h-5 min-w-[22px] place-items-center rounded-full border border-border bg-background px-[7px] text-[11.5px] font-bold text-muted-foreground tabular">
                 {col.length}
               </span>
             </div>
@@ -733,14 +637,14 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="break-words whitespace-normal text-sm font-semibold" title={task.name}>
+                      <span className="truncate text-[13px] font-semibold" title={task.name}>
                         {task.name}
                       </span>
                       {externallyOwned && (
                         <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
                       )}
                     </div>
-                    <div className="mt-1 break-words text-[11px] text-muted-foreground">
+                    <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
                       {task.assignee
                         ? task.assignee.full_name
                         : t('projectDetail.tasks.unassigned', 'Unassigned')}
@@ -753,11 +657,11 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                           value={task.status}
                           disabled={statusBusy}
                           onChange={(v) => onStatusChange(task, v as TaskStatus)}
-                          options={statusOptions(t)}
+                          options={STATUS_OPTIONS}
                           fullWidth
                         />
                       ) : (
-                        <StatusPill variant={workflowVariant(task.status)}>{taskStatusLabel(task.status, t)}</StatusPill>
+                        <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
                       )}
                     </div>
                   </div>
@@ -1011,7 +915,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
             value={statusField.value}
             onChange={(v) => statusField.onChange(v as TaskStatus)}
             onBlur={statusField.onBlur}
-            options={statusOptions(t)}
+            options={STATUS_OPTIONS}
           />
           {/* OD-INT-9 — Priority. Nullable column: the leading "No priority" option (value="")
               maps to null and stays selectable so an existing priority can be cleared. */}
@@ -1084,7 +988,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
           />
         </FormGrid>
         {profilesError && (
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="mt-1 text-[12px] text-muted-foreground">
             {t(
               'projectDetail.tasks.form.peopleLoadFailed',
               'People could not be loaded; you can still save and assign later.',
@@ -1097,7 +1001,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
       {isEdit && (
         <FormSection legend={t('projectDetail.tasks.form.dependsOnLegend', 'Depends on')}>
           {deps.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[12.5px] text-muted-foreground">
               {t(
                 'projectDetail.tasks.form.noDependencies',
                 'No dependencies. Add a task that must finish first.',
@@ -1108,9 +1012,9 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               {deps.map((d) => (
                 <li
                   key={d}
-                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-sm"
+                  className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2.5 py-1.5 text-[13px]"
                 >
-                  <span className="min-w-0 flex-1 break-words whitespace-normal">{taskName(d)}</span>
+                  <span className="min-w-0 flex-1 truncate">{taskName(d)}</span>
                   <Button
                     type="button"
                     variant="ghost"
@@ -1220,7 +1124,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
       >
         <div className="mb-2 flex flex-wrap items-center gap-2 rounded-md border border-border bg-secondary/30 px-3 py-2">
           {isUngrouped ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-[12px] text-muted-foreground">
               {t('projectDetail.tasks.noMilestone', 'No phase')}
             </span>
           ) : (
@@ -1235,7 +1139,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             <Button
               variant="ghost"
               size="sm"
-              className="ml-auto max-sm:min-h-11"
+              className="ml-auto"
               onClick={() => onAddTask(ms?.id ?? null)}
             >
               <Icon name="plus" />
@@ -1251,11 +1155,9 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             rowMenu={canRowWrite ? rowMenu : undefined}
             onActivate={onActivate}
             rowLabel={rowLabel}
-            cardBelow={700}
-            tableId="project-detail-tabs-taskstab-2-table"
-          />
+          tableId="project-detail-tabs-taskstab-2-table" />
         ) : (
-          <p className="py-2 text-center text-xs text-muted-foreground">
+          <p className="py-2 text-center text-[12px] text-muted-foreground">
             {t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}
           </p>
         )}

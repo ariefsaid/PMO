@@ -9,18 +9,9 @@ vi.mock('@/src/hooks/useProjectClassificationOptions', () => ({ PROJECT_CLASSIFI
 vi.mock('@/src/lib/repositories', () => ({ repositories: { orgSettings: { setProjectClassificationOptions: h.save } } }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.may }));
 import OrgProjectClassificationOptions from './OrgProjectClassificationOptions';
-const setup = (editing?: boolean) => render(<QueryClientProvider client={new QueryClient()}><ToastProvider><OrgProjectClassificationOptions editing={editing} /></ToastProvider></QueryClientProvider>);
+const setup = () => render(<QueryClientProvider client={new QueryClient()}><ToastProvider><OrgProjectClassificationOptions /></ToastProvider></QueryClientProvider>);
 beforeEach(() => { h.may = true; h.failed = false; h.save.mockReset().mockResolvedValue(undefined); });
 describe('AC-TAG-001 organization classification options', () => {
- it('shows saved project classifications first and opens the editor only on request', async () => {
-  setup(false);
-  expect(screen.getByText('Engineering')).toBeVisible();
-  expect(screen.getByText('Energy')).toBeVisible();
-  expect(screen.queryByLabelText('Service lines')).not.toBeInTheDocument();
-  await userEvent.click(screen.getByRole('button', { name: 'Edit classifications' }));
-  expect(screen.getByLabelText('Service lines')).toBeVisible();
- });
-
  it('edits both lists through the repository with trimmed unique labels', async () => {
   const user = userEvent.setup(); setup();
   await user.clear(screen.getByLabelText('Service lines')); await user.type(screen.getByLabelText('Service lines'), ' Engineering \nAdvisory\nEngineering');

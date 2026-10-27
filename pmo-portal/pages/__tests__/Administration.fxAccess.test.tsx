@@ -1,6 +1,6 @@
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Role } from '@/src/auth/AuthContext';
@@ -87,9 +87,8 @@ describe('AC-FX-010 Administration access', () => {
   it('Finance lands on FX with only Cost attribution beside it, and settled operator status does not gate it', async () => {
     renderPage('/administration/exchange-rates', 'Finance', false, true);
     expect(await screen.findByTestId('administration-panel-exchange-rates')).toBeInTheDocument();
-    const navigation = screen.getByRole('navigation', { name: 'Administration sections' });
-    expect(within(navigation).getAllByRole('link').map((l) => l.textContent)).toEqual(['Exchange rates', 'Cost attribution']);
-    expect(within(navigation).getByRole('link', { name: 'Exchange rates' })).toHaveAttribute(
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toEqual(['Exchange rates', 'Cost attribution']);
+    expect(screen.getByRole('link', { name: 'Exchange rates' })).toHaveAttribute(
       'aria-current',
       'page',
     );

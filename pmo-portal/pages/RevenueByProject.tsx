@@ -1,88 +1,45 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import {
+  ListPage,
   ListState,
   DataTable,
   StatusPill,
+  Card,
+  KPITile,
   Button,
   Icon,
-  SearchMini,
   type Column,
 } from '@/src/components/ui';
-import { useNavigate, useSearchParams } from 'react-router';
+import { useNavigate } from 'react-router';
 import { usePermission } from '@/src/auth/usePermission';
 import { useRevenuePerProject } from '@/src/hooks/useRevenue';
-import { formatNumber } from '@/src/lib/format';
+import { formatCurrencyAuto } from '@/src/lib/format';
+import { moneyTotalsFigure } from '@/src/lib/dashboardMoney';
 import { sumPerCurrency } from '@/src/lib/sumPerCurrency';
 import type { RevenueByProjectRow } from '@/src/lib/db/revenue';
-import { ExportButton } from '@/src/components/export';
-
-type ProjectSort = 'project-name-asc' | 'project-name-desc';
 
 const RevenueByProject: React.FC = () => {
   // #831: revenue is net of tax and grouped per (project, currency) — each figure is labelled with its
   // OWN currency and never converted or added across currencies. The org default only denominates the
   // empty-org zero.
-  const { isResolved: currencyResolved, isError: currencyError, refetch: refetchCurrency } = useOrgCurrencyState();
+  const { currency: orgCurrency, isResolved: currencyResolved, isError: currencyError } = useOrgCurrencyState();
   const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
-  const [params, setParams] = useSearchParams();
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
-  const { data, isPending, isError, refetch } = useRevenuePerProject();
+  const { data, isPending, isError } = useRevenuePerProject();
   const all = useMemo(() => data ?? [], [data]);
 
-  const requestedSort = params.get('sort');
-  const projectSort: ProjectSort = requestedSort === 'project-name-desc' ? 'project-name-desc' : 'project-name-asc';
-  const search = params.get('q') ?? '';
-  const selectedProject = params.get('project') ?? '';
-  const selectedCurrency = params.get('currency') ?? '';
-  const updateParam = (key: string, value: string) => {
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      if (value) next.set(key, value);
-      else next.delete(key);
-      return next;
-    }, { replace: true });
-  };
-  useEffect(() => {
-    if (requestedSort === null || requestedSort === 'project-name-asc' || requestedSort === 'project-name-desc') return;
-    setParams((current) => {
-      const next = new URLSearchParams(current);
-      next.set('sort', 'project-name-asc');
-      return next;
-    }, { replace: true });
-  }, [requestedSort, setParams]);
-  const visibleRows = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase();
-    return all
-      .filter((row) => !selectedProject || (selectedProject === 'unassigned' ? !row.project_id : row.project_id === selectedProject))
-      .filter((row) => !selectedCurrency || row.currency === selectedCurrency)
-      .filter((row) => !query || `${row.project_name ?? ''} ${row.project_short_name ?? ''} ${row.currency}`.toLocaleLowerCase().includes(query))
-      .slice()
-      .sort((left, right) => {
-        const leftName = left.project_name || 'Unassigned';
-        const rightName = right.project_name || 'Unassigned';
-        const leftUnassigned = !left.project_id;
-        const rightUnassigned = !right.project_id;
-        if (leftUnassigned !== rightUnassigned) return leftUnassigned ? 1 : -1;
-        const byName = leftName.localeCompare(rightName) * (projectSort === 'project-name-asc' ? 1 : -1);
-        return byName || left.currency.localeCompare(right.currency);
-      });
-  }, [all, projectSort, search, selectedCurrency, selectedProject]);
-  const visibleCurrencies = [...new Set(visibleRows.map((row) => row.currency))];
-  const mixedCurrencies = visibleCurrencies.length > 1;
-  const revenueTotals = useMemo(() => sumPerCurrency(visibleRows, (row) => row.total_amount), [visibleRows]);
-  const openARTotals = useMemo(() => sumPerCurrency(visibleRows, (row) => row.open_ar), [visibleRows]);
+  // Calculate totals (must be before any early return for hooks rules)
+  const revenueTotals = useMemo(() => sumPerCurrency(all, (row) => row.total_amount), [all]);
+  const openARTotals = useMemo(() => sumPerCurrency(all, (row) => row.open_ar), [all]);
+  // OD-MONEY-FMT: KPI cards show the short form per currency; the exact amounts ride in title + sr text.
+  const money = (totals: Array<{ currency: string; amount: number }>) =>
+    moneyTotalsFigure(totals, orgCurrency, t('uxs03.notAvailableYet', 'Not available yet'));
 
   const canView = may('view', 'salesInvoice');
   const canCreateInvoice = may('create', 'salesInvoice');
-  const projectOptions = [...new Map(all.filter((row) => row.project_id).map((row) => [row.project_id!, {
-    value: row.project_id!, label: row.project_name || row.project_id!,
-  }])).values()].sort((a, b) => a.label.localeCompare(b.label));
-  const currencyOptions = [...new Set(all.map((row) => row.currency))].sort();
 
   const currencyPending = !currencyResolved && !currencyError;
   const state: 'loading' | 'empty' | 'error' | undefined = isError || currencyError
@@ -97,10 +54,10 @@ const RevenueByProject: React.FC = () => {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
-          <h2 className="type-section-head text-heading">{t('financeCopy.youDonTHaveAccessToRevenueByProject', "You don't have access to Revenue by Project")}</h2>
+          <h2 className="text-heading font-semibold">{t('financeCopy.youDonTHaveAccessToRevenueByProject', "You don't have access to Revenue by Project")}</h2>
           <p className="mt-2 text-muted-foreground">
             {t('financeCopy.theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives', "The revenue per project view is available to Finance, Project Managers, and Executives.")}</p>
-          <Button variant="outline" onClick={() => navigate('/')} className="mt-4 min-h-11">
+          <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
             {t('financeCopy.backToDashboard', "Back to dashboard")}</Button>
         </div>
@@ -108,8 +65,8 @@ const RevenueByProject: React.FC = () => {
     );
   }
 
-  // The visible identity matches the contractual name in exports; short names never replace it.
-  const shown = (row: RevenueByProjectRow) => row.project_name || null;
+  // Screen shows the short name; exports and the contractual title stay `project_name` (AC-003 #1325).
+  const shown = (row: RevenueByProjectRow) => row.project_name ? row.project_short_name?.trim() || row.project_name : null;
 
   const columns: Column<RevenueByProjectRow>[] = [
     {
@@ -122,26 +79,27 @@ const RevenueByProject: React.FC = () => {
       cell: (row) => shown(row) ? (
         <button
           type="button"
-          aria-label={t('moneyIn:uxs42.openProject', 'Open {{project}} ({{currency}})', { project: shown(row), currency: row.currency })}
-          className="min-h-11 w-fit max-w-full whitespace-normal break-words text-left type-section-head text-heading focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Open ${shown(row)} (${row.currency})`}
+          title={row.project_name !== shown(row) ? row.project_name ?? undefined : undefined}
+          className="w-fit text-left font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
             navigate(`/projects/${row.project_id}`);
           }}
         >
-          <span className="break-words">{shown(row)}</span><span className="md:hidden"> · {row.currency} · {t('moneyIn:uxs42.openShort', 'Open')}</span>
+          {shown(row)}
         </button>
       ) : (
         <button
           type="button"
-          aria-label={t('moneyIn:uxs42.openUnassigned', 'Open Unassigned ({{currency}})', { currency: row.currency })}
-          className="min-h-11 w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          aria-label={`Open Unassigned (${row.currency})`}
+          className="w-fit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
           onClick={(event) => {
             event.stopPropagation();
             navigate('/sales-invoices?attribution=unassigned');
           }}
         >
-          <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")} · {t('moneyIn:uxs42.openShort', 'Open')}</StatusPill>
+          <StatusPill variant="neutral">{t('financeCopy.unassigned', "Unassigned")}</StatusPill>
         </button>
       ),
       exportValue: (row) => row.project_name ?? 'Unassigned',
@@ -151,25 +109,26 @@ const RevenueByProject: React.FC = () => {
       // The on-screen amounts already carry their own currency, so this column is export-only (FIN-S6).
       key: 'currency',
       header: t('financeCopy.currency', 'Currency'),
+      exportOnly: true,
       cell: (row) => row.currency,
       exportValue: (row) => row.currency,
     },
     {
       key: 'total_amount',
-      header: t('moneyIn:uxs42.netBilled', 'Net billed'),
+      header: `${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`,
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="type-value tabular text-foreground">{formatNumber(row.total_amount)}</span>,
+      cell: (row) => formatCurrencyAuto(row.total_amount, row.currency),
       exportValue: (row) => row.total_amount,
     },
     {
       key: 'open_ar',
-      header: t('moneyIn:uxs42.openReceivablesGross', 'Open receivables'),
+      header: `${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`,
       kind: 'money',
       align: 'num',
       size: 200,
-      cell: (row) => <span className="type-value tabular text-foreground">{formatNumber(row.open_ar)}</span>,
+      cell: (row) => formatCurrencyAuto(row.open_ar, row.currency),
       exportValue: (row) => row.open_ar,
     },
     {
@@ -188,84 +147,48 @@ const RevenueByProject: React.FC = () => {
     key: currency,
     label: `${t('financeCopy.total', 'Total')} · ${currency}`,
     values: {
-      total_amount: formatNumber(amount),
-      open_ar: formatNumber(openARTotals.find((x) => x.currency === currency)?.amount ?? 0),
-      invoice_count: visibleRows.filter((r) => r.currency === currency).reduce((sum, r) => sum + r.invoice_count, 0),
+      total_amount: formatCurrencyAuto(amount, currency),
+      open_ar: formatCurrencyAuto(openARTotals.find((x) => x.currency === currency)?.amount ?? 0, currency),
+      invoice_count: all.filter((r) => r.currency === currency).reduce((sum, r) => sum + r.invoice_count, 0),
     } as Record<string, React.ReactNode>,
   }));
 
-  const toolbar = (
-    <div data-testid="money-in-toolbar" role="group" aria-label={t('moneyIn:uxs42.billingFilters', 'Billing filters')} className="mb-4 flex min-w-0 flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
-      <SearchMini
-        placeholder={t('moneyIn:uxs42.searchProjects', 'Search projects')}
-        aria-label={t('moneyIn:uxs42.searchProjects', 'Search projects')}
-        value={search}
-        onChange={(event) => updateParam('q', event.target.value)}
-        searchSurface="project-revenue-billing"
-        module="revenueByProject"
-        resultCount={visibleRows.length}
-        className="min-h-11"
-        containerClassName="w-full min-w-0 min-h-11 md:w-64"
-      />
-      <Button
-        type="button"
-        variant="outline"
-        aria-expanded={filtersOpen}
-        aria-controls="billing-collection-filters"
-        className="min-h-11 md:hidden"
-        onClick={() => setFiltersOpen((open) => !open)}
-      >
-        {t('uxs14.filters', 'Filters')}{selectedProject || selectedCurrency ? ` · ${Number(Boolean(selectedProject)) + Number(Boolean(selectedCurrency))}` : ''}
-      </Button>
-      <div id="billing-collection-filters" className={`${filtersOpen ? 'flex' : 'hidden'} min-w-0 flex-wrap items-center gap-2 md:flex md:flex-1`}>
-        <label className="sr-only" htmlFor="billing-project-filter">{t('moneyIn:uxs42.filterByProject', 'Filter by project')}</label>
-        <select id="billing-project-filter" aria-label={t('moneyIn:uxs42.filterByProject', 'Filter by project')} value={selectedProject}
-          onChange={(event) => updateParam('project', event.target.value)}
-          className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('moneyIn:uxs42.allProjects', 'All projects')}</option>
-          <option value="unassigned">{t('financeCopy.unassigned', 'Unassigned')}</option>
-          {selectedProject && selectedProject !== 'unassigned' && !projectOptions.some((option) => option.value === selectedProject) &&
-            <option value={selectedProject}>{t('moneyIn:uxs42.projectUnavailable', 'Project unavailable')}</option>}
-          {projectOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <label className="sr-only" htmlFor="billing-currency-filter">{t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')}</label>
-        <select id="billing-currency-filter" aria-label={t('moneyIn:uxs42.filterByCurrency', 'Filter by currency')} value={selectedCurrency}
-          onChange={(event) => updateParam('currency', event.target.value)}
-          className="min-h-11 min-w-0 max-w-full rounded-md border border-border bg-card px-3 text-sm text-foreground">
-          <option value="">{t('moneyIn:uxs42.allCurrencies', 'All currencies')}</option>
-          {selectedCurrency && !currencyOptions.includes(selectedCurrency) && <option value={selectedCurrency}>{selectedCurrency}</option>}
-          {currencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
-        </select>
+  return (
+    <ListPage
+      title={t('financeCopy.revenueByProject', "Revenue by Project")}
+      description={t(
+        'revenueByProject.subtitle',
+        "Project revenue, with a separate Unassigned group for invoices not linked to a project.",
+      )}
+      primaryAction={canCreateInvoice ? (
+        <Button variant="primary" onClick={() => navigate('/sales-invoices?create=1')}>
+          <Icon name="plus" />
+          {t('financeCopy.newInvoice', 'New Invoice')}</Button>
+      ) : undefined}
+    >
+      {/* KPI Summary — honest states only (BLOCK 2 / the AccountingSnapshotsSection rule): while the
+          rollup is loading the tiles are skeletons, and on a failed query they show "—", NEVER a
+          fabricated $0 that reads as a real figure for an org that may bill millions. */}
+      <div className="grid gap-4 sm:grid-cols-2 mb-6">
+        <KPITile
+          label={`${t('financeCopy.totalRevenue', 'Total Revenue')} (${t('uxs37.billedWorkTaxBasis', 'net of tax')})`}
+          {...money(revenueTotals)}
+          icon="dollar"
+          tone="blue"
+          loading={isPending || currencyPending}
+          error={isError || currencyError}
+        />
+        <KPITile
+          label={`${t('financeCopy.openAR', 'Open AR')} (${t('uxs37.openReceivablesTaxBasis', 'gross, tax included')})`}
+          {...money(openARTotals)}
+          icon="dollar"
+          tone="amber"
+          loading={isPending || currencyPending}
+          error={isError || currencyError}
+        />
       </div>
-      <label className="min-w-0 md:w-auto">
-        <span className="sr-only">{t('moneyIn:uxs42.sortProjects', 'Sort projects')}</span>
-        <select id="billing-sort" aria-label={t('moneyIn:uxs42.sortProjects', 'Sort projects')} value={projectSort}
-          onChange={(event) => updateParam('sort', event.target.value)}
-          className="min-h-11 w-full min-w-0 rounded-md border border-border bg-card px-3 text-sm text-foreground md:w-auto">
-          <option value="project-name-asc">{t('moneyIn:uxs42.projectNameAscending', 'Project name A–Z')}</option>
-          <option value="project-name-desc">{t('moneyIn:uxs42.projectNameDescending', 'Project name Z–A')}</option>
-        </select>
-      </label>
-      <div className="flex min-w-0 items-center gap-2 md:ml-auto">
-        <Button
-          type="button"
-          variant="outline"
-          aria-expanded={moreActionsOpen}
-          aria-controls="billing-collection-more-actions"
-          className="min-h-11 flex-1 md:hidden"
-          onClick={() => setMoreActionsOpen((open) => !open)}
-        >{t('uxs14.moreActions', 'More actions')}</Button>
-        <div id="billing-collection-more-actions" className={`${moreActionsOpen ? 'flex' : 'hidden'} min-w-0 md:flex`}>
-          <ExportButton rows={visibleRows} columns={columns} entity={t('moneyIn:uxs42.billingTotals', 'Billing totals')}
-            label={t('moneyIn:uxs42.exportBillingTotals', 'Export billing totals')} className="min-h-11" />
-        </div>
-        {visibleRows.length === 0 && <span className="text-xs text-muted-foreground">{t('moneyIn:uxs42.noRowsToExport', 'No rows to export')}</span>}
-      </div>
-    </div>
-  );
 
-  const content = (
-    <>
+      {/* Body */}
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card">
           <ListState variant="loading" rows={6} />
@@ -277,12 +200,10 @@ const RevenueByProject: React.FC = () => {
           variant="error"
           title={currencyError
             ? t('revenueByProject.currencyErrorTitle', "Couldn't load organization currency")
-            : t('moneyIn:uxs42.billingErrorTitle', "Couldn't load billing totals")}
+            : "Couldn't load revenue data"}
           sub={currencyError
             ? t('revenueByProject.currencyErrorSub', 'Try again to view revenue.')
-            : t('moneyIn:uxs42.billingErrorSub', 'The request failed. Check your connection and try again.')}
-          onRetry={() => { void (currencyError ? refetchCurrency() : refetch()); }}
-          retryLabel={t('ui.listState.retry', 'Retry')}
+            : 'The request failed. Check your connection and try again.'}
         />
       )}
 
@@ -292,57 +213,31 @@ const RevenueByProject: React.FC = () => {
           icon="table"
           title={t('financeCopy.noRevenueDataYet', "No revenue data yet")}
           sub={canCreateInvoice
-            ? t('moneyIn:uxs42.billingEmptyFinance', 'Project billing will appear here after invoices are recorded.')
-            : t('moneyIn:uxs42.billingEmptyReader', 'Project billing has not been recorded yet. Open your projects to see project work.')}
-          action={{
-            label: canCreateInvoice ? t('moneyIn:uxs42.openInvoices', 'Open invoices') : t('moneyIn:uxs42.openProjects', 'Open projects'),
-            onClick: () => navigate(canCreateInvoice ? '/sales-invoices' : '/projects'),
-          }}
+            ? t('financeCopy.createSalesInvoicesToSeeRevenuePerProject', 'No invoice revenue has been recorded yet. New Invoice starts billing; revenue appears here after invoices are recorded.')
+            : t('uxs26.revenueEmptyProjectManager', 'No invoice revenue has been recorded yet. Finance manages invoice creation.')}
         />
       )}
 
       {state === undefined && (
-        <DataTable
-            rows={visibleRows}
-            columns={mixedCurrencies ? columns : columns.filter((column) => column.key !== 'currency')}
-            mobileDetails={{
-              columnKeys: ['invoice_count', ...(mixedCurrencies ? ['currency'] : [])],
-              summary: (_row, count) => t('moneyIn:uxs42.billingOtherDetails', 'Other billing details · {{count}}', { count }),
-            }}
+        <Card className="overflow-hidden">
+          <DataTable
+            rows={all}
+            columns={columns}
             rowKey={(row) => `${row.project_id ?? 'unassigned'}|${row.currency}`}
             onActivate={(row) => {
               if (row.project_id) navigate(`/projects/${row.project_id}`);
               else navigate('/sales-invoices?attribution=unassigned');
             }}
-            state={visibleRows.length === 0 ? 'empty' : undefined}
-            emptyTitle={t('moneyIn:uxs42.noProjectMatches', 'No projects match these filters')}
-            emptySub={t('moneyIn:uxs42.clearBillingFilters', 'Clear search and filters to see all billing totals.')}
-            emptyAction={{
-              label: t('moneyIn:financeCopy.clearFilters', 'Clear filters'),
-              onClick: () => setParams((current) => {
-                const next = new URLSearchParams(current);
-                for (const key of ['q', 'project', 'currency', 'sort']) next.delete(key);
-                return next;
-              }, { replace: true }),
-            }}
+            state={all.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('financeCopy.noRevenueData', "No revenue data")}
+            emptySub={t('financeCopy.invoicesWithAmountsWillAppearHere', "Invoices with amounts will appear here.")}
             tableId="revenuebyproject-table"
             accessibleName={t('financeCopy.revenueByProject', "Revenue by Project")}
             totals={totalRows}
           />
+        </Card>
       )}
-    </>
-  );
-
-  return (
-    <section className="min-w-0">
-      {state === undefined && visibleCurrencies.length === 1 && (
-        <h2 className="mb-3 type-section-head text-heading">{t('moneyIn:uxs42.billingCurrencyScope', 'Billing · {{currency}}', { currency: visibleCurrencies[0] })}</h2>
-      )}
-      {state === undefined && mixedCurrencies && (
-        <h2 className="mb-3 type-section-head text-heading">{t('moneyIn:uxs42.billingMixedCurrencyScope', 'Billing · mixed currencies')}</h2>
-      )}
-      {toolbar}{content}
-    </section>
+    </ListPage>
   );
 };
 

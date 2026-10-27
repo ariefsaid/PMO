@@ -135,7 +135,7 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({ entityType, en
         {post.isError && <p role="alert" className="text-sm text-destructive-text">{t('comments.postError', "Couldn't post the comment. Try again.")}</p>}
         {remove.isError && <p role="alert" className="text-sm text-destructive-text">{t('comments.deleteError', "Couldn't delete the comment.")}</p>}
         <div className="flex justify-end">
-          <Button className="min-h-11" onClick={submit} disabled={!canPost} loading={post.isPending}>
+          <Button onClick={submit} disabled={!canPost} loading={post.isPending}>
             {post.isPending ? t('comments.posting', 'Posting…') : t('comments.post', 'Post comment')}
           </Button>
         </div>

@@ -8,14 +8,14 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 it('AC-TAG-002 detail states all recorded classifications without defaults for absent ones', () => {
  const project = { id: 'p1', name: 'Synthetic project', status: 'Leads', service_line: 'Engineering', sector: 'Energy', location: 'West Java', award_type: 'direct', bidding_entity: 'consortium' } as ProjectWithRefs;
- render(<ProjectDetailRail project={project} />);
- fireEvent.click(screen.getByText('Project details'));
+ render(<ProjectDetailRail project={project} showActionSection={false} />);
+ fireEvent.click(screen.getByText('Project details and actions'));
  for (const value of ['Engineering', 'Energy', 'West Java', 'Direct award', 'Consortium']) expect(screen.getByText(value)).toBeVisible();
 });
 it('AC-TAG-002 rail shows the stored award type and bidding entity as stored, never collapsed to Direct award or Consortium', () => {
  const project = { id: 'p1', name: 'Synthetic project', status: 'Leads', award_type: 'negotiated', bidding_entity: 'joint venture' } as ProjectWithRefs;
- render(<ProjectDetailRail project={project} />);
- fireEvent.click(screen.getByText('Project details'));
+ render(<ProjectDetailRail project={project} showActionSection={false} />);
+ fireEvent.click(screen.getByText('Project details and actions'));
  expect(screen.getByText('negotiated')).toBeVisible();
  expect(screen.getByText('joint venture')).toBeVisible();
  expect(screen.queryByText('Direct award')).not.toBeInTheDocument();

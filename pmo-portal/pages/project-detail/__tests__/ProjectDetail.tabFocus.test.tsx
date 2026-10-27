@@ -1,9 +1,10 @@
 /**
  * #879 — Project tabs keep focus on arrow keys (AC owner).
  *
- * AC: Given focus on the vertical project section index, ArrowDown/ArrowUp moves
- * to the adjacent section and stays in the index (Home/End move to its boundaries).
- * The journey runs through real ProjectDetail wiring (index → setTab → navigate).
+ * AC: Given focus on a project tab, when the user presses ArrowRight, then focus
+ * moves to the next tab and stays in the tab bar (also ArrowLeft, Home, End per the
+ * WAI-ARIA tabs pattern). The journey runs through the real ProjectDetail wiring
+ * (Tabs → setTab → navigate), with tab contents stubbed — we test focus, not panels.
  *
  * AppShell's focus-on-route-change exemption is ALSO asserted at its owning layer
  * (AppShell.tabFocus.test.tsx); this journey renders the page inside the real AppShell —
@@ -13,8 +14,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -144,22 +144,60 @@ const renderAs = async (realRole: Role, path: string) => {
   return view;
 };
 
+const tablist = () => screen.getByRole('tablist', { name: /project sections/i });
 const main = () => screen.getByRole('main');
-describe('Project section links keep focus on route changes (WCAG 2.4.3)', () => {
-  it('AC-PD-NAV-03: activating a named section by keyboard changes the section and keeps focus on its link', async () => {
-    const user = userEvent.setup();
+// toHaveFocus/toContainElement matchers are typed for HTMLElement — narrow activeElement.
+const activeEl = () => document.activeElement as HTMLElement | null;
+
+describe('#879: project tabs keep focus on arrow keys (WCAG 2.4.3)', () => {
+  it('AC #879: given focus on a project tab, ArrowRight moves focus to the next tab and it stays in the tab bar', async () => {
     await renderAs('Admin', '/projects/p1');
-    const taskLink = screen.getByRole('link', { name: 'Tasks' });
-    taskLink.focus();
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    overviewTab.focus();
+    expect(overviewTab).toHaveFocus();
 
-    await user.keyboard('{Enter}');
+    fireEvent.keyDown(overviewTab, { key: 'ArrowRight' });
 
-    expect(await screen.findByTestId('tab-tasks')).toBeInTheDocument();
-    expect(taskLink).toHaveAttribute('aria-current', 'page');
-    expect(taskLink).toHaveFocus();
-    expect(screen.getByRole('navigation', { name: 'Project sections' })).toContainElement(
-      document.activeElement as HTMLElement,
-    );
+    // Focus moved to the NEXT tab — not to the main content, not stuck on the old tab.
+    expect(await screen.findByTestId('tab-budget')).toBeInTheDocument();
+    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
+    expect(budgetTab).toHaveFocus();
+    expect(budgetTab).toHaveAttribute('aria-selected', 'true');
+    expect(tablist()).toContainElement(activeEl());
+    expect(main()).not.toHaveFocus();
+    // The URL followed the tab switch (tab lives in the route param).
+  });
+
+  it('AC #879: ArrowLeft walks back up the tab bar (Overview ← after one step left from Budget)', async () => {
+    await renderAs('Admin', '/projects/p1/budget');
+    const budgetTab = screen.getByRole('tab', { name: 'Budget' });
+    budgetTab.focus();
+
+    fireEvent.keyDown(budgetTab, { key: 'ArrowLeft' });
+
+    expect(await screen.findByTestId('tab-overview')).toBeInTheDocument();
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    expect(overviewTab).toHaveFocus();
+    expect(overviewTab).toHaveAttribute('aria-selected', 'true');
+    expect(tablist()).toContainElement(activeEl());
+    expect(main()).not.toHaveFocus();
+  });
+
+  it('AC #879: Home jumps to the first tab and End to the last, focus staying in the tab bar', async () => {
+    await renderAs('Admin', '/projects/p1/tasks');
+    const tasksTab = screen.getByRole('tab', { name: 'Tasks' });
+    tasksTab.focus();
+
+    fireEvent.keyDown(tasksTab, { key: 'Home' });
+    const overviewTab = screen.getByRole('tab', { name: 'Overview' });
+    expect(overviewTab).toHaveFocus();
+    expect(tablist()).toContainElement(activeEl());
+    expect(main()).not.toHaveFocus();
+
+    fireEvent.keyDown(overviewTab, { key: 'End' });
+    const historyTab = screen.getByRole('tab', { name: 'History' });
+    expect(historyTab).toHaveFocus();
+    expect(tablist()).toContainElement(activeEl());
     expect(main()).not.toHaveFocus();
   });
 });
