@@ -6,7 +6,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatNumberWhole } from '@/src/lib/format';
+import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import type { CategoryPosition } from '../useProjectPosition';
 import { buildBudgetSummaryRows, type BudgetSummaryRow } from './budgetModel';
 
@@ -72,7 +72,7 @@ export default function BudgetSummary({
       kind: 'money',
       align: 'num',
       size: 160,
-      cell: (row) => formatNumberWhole(row.budget),
+      cell: (row) => formatNumberMax2(row.budget),
     },
     {
       key: 'spent',
@@ -131,9 +131,11 @@ export default function BudgetSummary({
               const expandedRow = expandedCategory === row.category;
               return (
                 <li key={row.category}>
-                  <button type="button" className="flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
+                  <button type="button" className="touch-target flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
                     <span className="font-medium">{label(row.category)}</span>
-                    {row.spent !== null && <span className="tabular-nums">· {formatNumberWhole(row.spent)} of {formatNumberWhole(row.budget)}</span>}
+                    {row.spent !== null
+                      ? <span className="tabular-nums">· {formatNumberWhole(row.spent)} of {formatNumberMax2(row.budget)}</span>
+                      : <span className="tabular-nums">· {t('financeCopy.budget', 'Budget')} {formatNumberMax2(row.budget)}</span>}
                     {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {remaining < 0 ? positionCell(row.spent, row.budget, t) : `${formatNumberWhole(remaining)} ${t('projectDetail.budget.left', 'left')}`}</span>}
                     {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-xs text-muted-foreground">+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')}</span>}
                   </button>
@@ -151,6 +153,7 @@ export default function BudgetSummary({
               selectedKey={expandedCategory ?? undefined}
               tableId="project-budget-summary"
               accessibleName={t('projectDetail.budget.tableName', 'Budget by category')}
+              className="rounded-none border-0 bg-transparent"
             />
           </div>
           {expanded && (

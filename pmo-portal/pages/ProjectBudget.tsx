@@ -460,6 +460,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
         rowKey={(row) => (row.kind === 'new' ? '__new__' : row.li.id)}
         tableId="budget-line-items-editor"
         accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
+        className="rounded-none border-0 bg-transparent"
         totals={[{
           key: 'total',
           label: t('financeCopy.total', "Total"),
@@ -750,6 +751,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             tableId="project-budget-proposed-update"
             accessibleName={t('projectDetail.budget.proposedUpdateTable', 'Proposed budget changes')}
             cardBelow={600}
+            className="rounded-none border-0 bg-transparent"
           />
           {draftEditor}
           {canActivate
@@ -765,11 +767,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         </section>
       )}
 
-      <BudgetErpNotice
-        projectId={projectId}
-        activeVersion={activeVersion}
-      />
-
       <BudgetSummary
         project={project}
         activeVersion={activeVersion}
@@ -777,6 +774,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         procurements={procurementsQuery.data}
         canReadProcurements={canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError}
         canManageAccounting={canManageAccounting}
+      />
+
+      <BudgetErpNotice
+        projectId={projectId}
+        activeVersion={activeVersion}
       />
 
       <BudgetVersionsDrawer

@@ -152,7 +152,6 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
       { id: 'done-2', project_id: 'p1', milestone_id: 'done', name: 'Done task two', status: 'Done', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
       { id: 'late', project_id: 'p1', milestone_id: 'active', name: 'Sooner due', status: 'To Do', assignee_id: null, start_date: null, end_date: '2026-06-20', created_at: '', assignee: null, dependencies: [] },
       { id: 'later', project_id: 'p1', milestone_id: 'active', name: 'Later due', status: 'In Progress', assignee_id: null, start_date: null, end_date: '2026-06-21', created_at: '', assignee: null, dependencies: [] },
-      { id: 'active-done', project_id: 'p1', milestone_id: 'active', name: 'Done in active phase', status: 'Done', assignee_id: null, start_date: null, end_date: '2026-06-19', created_at: '', assignee: null, dependencies: [] },
     ];
     render$();
 
@@ -161,12 +160,34 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     expect(screen.queryByText('Done task one')).not.toBeInTheDocument();
     expect(screen.queryByText('Done task two')).not.toBeInTheDocument();
     expect(screen.getByText('Sooner due').compareDocumentPosition(screen.getByText('Later due')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText('Later due').compareDocumentPosition(screen.getByText('Done in active phase')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Sooner due').compareDocumentPosition(screen.getByText('Completed phase · Done · 2 tasks')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     await userEvent.click(screen.getByRole('button', { name: 'Completed phase · Done · 2 tasks' }));
     expect(screen.getByText('Done task one')).toBeInTheDocument();
     expect(screen.getByText('Done task two')).toBeInTheDocument();
+  });
+
+  it('AC-1402: keeps Done tasks in an active phase behind a closed disclosure', async () => {
+    milestoneState.data = [{
+      id: 'active', project_id: 'p1', name: 'Active phase', sort_order: 0,
+      target_date: null, weight: 1, input_pct: null, task_count: 2,
+      calculated_pct: 50, effective_pct: 50,
+    }];
+    tasksState.data = [
+      { id: 'open', project_id: 'p1', milestone_id: 'active', name: 'Open task', status: 'To Do', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+      { id: 'done', project_id: 'p1', milestone_id: 'active', name: 'Completed task', status: 'Done', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+    ];
+    render$();
+
+    expect(screen.getByText('Open task')).toBeInTheDocument();
+    expect(screen.queryByText('Completed task')).not.toBeInTheDocument();
+    const disclosure = screen.getByRole('button', { name: '1 done' });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Open task')).toBeInTheDocument();
+    expect(screen.getByText('Completed task')).toBeInTheDocument();
   });
 
   it('keeps task activation available from rows inside a phase', async () => {

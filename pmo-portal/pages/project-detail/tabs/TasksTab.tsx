@@ -1358,6 +1358,8 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
         milestone,
         sectionLabel: milestone.name,
         tasks: orderedTasks(groupTasks),
+        openTasks: orderedTasks(groupTasks.filter((task) => task.status !== 'Done')),
+        doneTasks: orderedTasks(groupTasks.filter((task) => task.status === 'Done')),
         completed: groupTasks.length > 0 && groupTasks.every((task) => task.status === 'Done'),
       };
     });
@@ -1367,6 +1369,8 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
       milestone: null,
       sectionLabel: t('projectDetail.tasks.ungrouped', 'Ungrouped'),
       tasks: orderedTasks(ungroupedTasks),
+      openTasks: orderedTasks(ungroupedTasks.filter((task) => task.status !== 'Done')),
+      doneTasks: orderedTasks(ungroupedTasks.filter((task) => task.status === 'Done')),
       completed: ungroupedTasks.every((task) => task.status === 'Done'),
     }] : [];
     const open = [...phaseGroups.filter((group) => !group.completed), ...ungrouped.filter((group) => !group.completed)];
@@ -1378,13 +1382,13 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     ? 'grid-cols-[minmax(0,1fr)_minmax(104px,auto)_36px] md:grid-cols-[minmax(0,1.7fr)_minmax(120px,1fr)_minmax(112px,.8fr)_minmax(130px,auto)_36px]'
     : 'grid-cols-[minmax(0,1fr)_minmax(104px,auto)] md:grid-cols-[minmax(0,1.7fr)_minmax(120px,1fr)_minmax(112px,.8fr)_minmax(130px,auto)]';
 
-  const renderRows = (group: (typeof groups)[number]) => {
-    const columns = buildColumns(new Map(buildTaskRenderOrder(tasksByMilestone.get(group.milestone?.id ?? null) ?? []).map((entry) => [entry.task.id, entry.depth])));
+  const renderRows = (group: (typeof groups)[number], rows: TaskWithRefs[]) => {
+    const columns = buildColumns(new Map(buildTaskRenderOrder(rows).map((entry) => [entry.task.id, entry.depth])));
     const nameColumn = columns.find((column) => column.key === 'name')!;
     const assigneeColumn = columns.find((column) => column.key === 'assignee')!;
     const dueColumn = columns.find((column) => column.key === 'due')!;
     const statusColumn = columns.find((column) => column.key === 'status')!;
-    return group.tasks.map((task) => {
+    return rows.map((task) => {
       const items = rowMenu(task);
       const rowActivationLabel = rowLabel?.(task)
         ?? `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`;
@@ -1435,7 +1439,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
 
   return (
     <div role="table" aria-label={t('projectDetail.tasks.listAriaLabel', 'Project tasks')} className="min-w-0 border-y border-border">
-      <div role="rowgroup">
+      <div role="rowgroup" className="hidden md:block">
         <div role="row" className={`grid ${gridColumns} items-center border-b border-border bg-secondary/30 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground`}>
           <div role="columnheader" className="col-span-2 row-start-1 px-2 py-2.5 md:col-span-1 md:row-auto md:px-3">{t('projectDetail.tasks.column.task', 'Task')}</div>
           <div role="columnheader" className="hidden px-3 py-2.5 md:block">{t('projectDetail.tasks.column.assignee', 'Assignee')}</div>
@@ -1489,11 +1493,34 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
               </div>
             </div>
             {(!group.completed || isExpanded) && (
-              group.tasks.length > 0 ? renderRows(group) : (
+              (group.completed ? group.tasks : group.openTasks).length > 0 ? renderRows(group, group.completed ? group.tasks : group.openTasks) : (
                 <div role="row" className="grid grid-cols-1 px-3 py-2.5 text-center text-[12px] text-muted-foreground">
                   <div role="cell">{t('projectDetail.tasks.noTasksInGroup', 'No tasks in this group.')}</div>
                 </div>
               )
+            )}
+            {!group.completed && group.doneTasks.length > 0 && (
+              <>
+                <div role="row" className={`grid ${gridColumns} items-center px-1`}>
+                  <div role="cell" className="col-span-full flex min-w-0 items-center px-2 md:px-3">
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedDoneGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.id)) next.delete(group.id);
+                        else next.add(group.id);
+                        return next;
+                      })}
+                      className="touch-target inline-flex min-w-0 items-center gap-1.5 rounded-sm py-1 text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    >
+                      <Icon name="chev" className={['size-3.5 transition-transform', isExpanded ? 'rotate-90' : ''].join(' ')} aria-hidden="true" />
+                      {t('projectDetail.tasks.doneCount', '{{count}} done', { count: group.doneTasks.length })}
+                    </button>
+                  </div>
+                </div>
+                {isExpanded && renderRows(group, group.doneTasks)}
+              </>
             )}
           </div>
         );

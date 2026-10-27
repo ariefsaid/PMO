@@ -28,6 +28,7 @@ const versionsState = {
 const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
 const positionState = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 };
 const procurementsState = { data: [] as unknown[], isPending: false, isError: false };
+const budgetPushState = vi.hoisted(() => ({ rows: [] as Array<Record<string, unknown>> }));
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
@@ -56,6 +57,11 @@ vi.mock('@/src/hooks/useBudget', () => ({
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => procurementsState }));
 vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () => positionState }));
+vi.mock('@/src/lib/repositories/budgetProjection', () => ({
+  fetchBudgetPushStatus: () => Promise.resolve(budgetPushState.rows),
+  retryActiveBudgetPush: vi.fn(),
+  releaseActiveBudgetPushHold: vi.fn(),
+}));
 vi.mock('@/src/components/m365/BudgetDocumentLinks', () => ({
   BudgetDocumentLinks: ({ versionId }: { versionId: string }) => <div data-testid={`evidence-${versionId}`}>Evidence documents</div>,
 }));
@@ -171,9 +177,11 @@ function resetState() {
   positionState.hasBudget = true;
   positionState.canSeeActual = true;
   positionState.rows = [];
+  positionState.unknown = 0;
   procurementsState.data = [];
   procurementsState.isPending = false;
   procurementsState.isError = false;
+  budgetPushState.rows = [];
   roleState.realRole = 'Project Manager';
 }
 
@@ -286,15 +294,60 @@ describe('ProjectBudget (AC-726, NFR-BV-UI-001)', () => {
     resetState();
   });
 
-  it('renders the active version line sum in the lead table (AC-720 view side)', () => {
+  it('renders the active version sum as the answer before its category table (AC-720 view side)', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
+    const answer = screen.getByTestId('budget-answer');
     const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(within(table).getByText('4,700,000')).toBeInTheDocument();
+    expect(answer).toHaveTextContent('Budget 4,700,000');
+    expect(answer.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(table).getByText('2,000,000')).toBeInTheDocument();
     expect(screen.getByText('USD')).toBeInTheDocument();
     expect(screen.getByTestId('tax-basis')).toBeInTheDocument();
     resetState();
+  });
+
+  it('keeps the budget answer first, shows budget when category spending is unknown, and says the remedy once', () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    positionState.unknown = 3;
+    renderPage();
+
+    const mobileCategories = screen.getByRole('list', { name: 'Budget categories' });
+    const answer = screen.getByTestId('budget-answer');
+    const labor = within(mobileCategories).getByRole('button', { name: /Labor/ });
+    expect(answer.compareDocumentPosition(mobileCategories) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(labor).toHaveTextContent('Budget 2,000,000');
+    expect(labor).toHaveClass('touch-target');
+    expect(screen.getAllByText(/Spending isn't linked yet\./)).toHaveLength(1);
+  });
+
+  it('places the accounting-system notice after the budget table for Admin and Finance only', async () => {
+    budgetState.data = activeVersion.total;
+    versionsState.data = [activeVersion];
+    budgetPushState.rows = [
+      { pushState: 'pushed', pushError: null, unmappedCategories: null, erpBudgetName: 'BUDGET-1', fiscalYear: '2026', pushedAt: null, holdReleasable: false, staleAttribution: false },
+      { pushState: 'pending', pushError: null, unmappedCategories: null, erpBudgetName: null, fiscalYear: '2027', pushedAt: null, holdReleasable: false, staleAttribution: false },
+    ];
+    roleState.realRole = 'Admin';
+    const adminView = renderPage();
+    const notice = await screen.findByTestId('budget-erp-notice');
+    const answer = screen.getByTestId('budget-answer');
+    const table = screen.getByRole('table', { name: 'Budget by category' });
+    expect(answer.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(table.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notice.querySelectorAll('p')).toHaveLength(0);
+    adminView.unmount();
+
+    roleState.realRole = 'Finance';
+    const financeView = renderPage();
+    expect(await screen.findByTestId('budget-erp-notice')).toBeInTheDocument();
+    financeView.unmount();
+
+    roleState.realRole = 'Project Manager';
+    renderPage();
+    expect(screen.queryByTestId('budget-erp-notice')).not.toBeInTheDocument();
   });
 });
 
@@ -312,7 +365,7 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget by category' });
-    expect(within(table).getAllByText('1,234.5')).toHaveLength(2);
+    expect(within(table).getByText('1,234.5')).toBeInTheDocument();
     expect(screen.getByTestId('dt-table-branch')).toBeInTheDocument();
   });
 

@@ -110,30 +110,27 @@ export default function BudgetErpNotice({
   const rows = (pushQuery.data ?? []).filter((row) => row.pushState !== null);
   if (rows.length === 0) return null;
   return (
-    <div role="status" aria-label={t('projectDetail.budget.erpStatus', 'ERP budget enforcement')} className="space-y-1" data-testid="budget-erp-notice">
+    <div role="status" aria-label={t('projectDetail.budget.erpStatus', 'ERP budget enforcement')} className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground" data-testid="budget-erp-notice">
       {rows.map((row, index) => {
         const state = row.pushState;
         const unstamped = state === 'unstamped-activation';
         const copy = describePushError(row.pushError);
         const noBudgetEnforced = state === 'never-pushed' || unstamped;
-        const message = state === 'pushed'
-          ? t('financeCopy.erpNextEnforcingBudget', 'ERPNext is enforcing this budget.')
-          : state === 'pending'
-            ? t('financeCopy.budgetQueuedForERPNext', 'This budget is queued for ERPNext and has not been sent yet.')
-            : state === 'pushing'
-              ? t('financeCopy.budgetBeingSentToERPNext', 'This budget is being sent to ERPNext now.')
-              : unstamped
-                ? t('projectDetail.budget.unstamped', 'This active version has no activation date, so ERPNext cannot enforce it yet.')
-                : noBudgetEnforced
-                  ? t('projectDetail.budget.neverPushed', 'ERPNext is not enforcing any budget for this project.')
-                  : t('projectDetail.budget.previousBudgetStillEnforced', 'ERPNext is still enforcing the previous budget for this project. {{message}}', { message: copy.message });
+        const message = state === 'pushed' || state === 'pending' || state === 'pushing'
+          ? ''
+          : unstamped
+            ? t('projectDetail.budget.activationDateNeeded', 'Add an activation date.')
+            : noBudgetEnforced
+              ? t('projectDetail.budget.neverPushed', 'No ERP budget yet.')
+              : t('projectDetail.budget.previousBudgetStillEnforced', 'Previous budget still enforced. {{message}}', { message: copy.message });
         const offerRetry = !unstamped && (state === 'failed' || state === 'held' || state === 'never-pushed') && copy.retryable;
         const offerRelease = state === 'held' && row.holdReleasable && canRelease;
         const needsMap = copy.code === 'budget-category-unmapped' && row.unmappedCategories?.length;
         return (
-          <p key={`${row.fiscalYear ?? 'project'}-${state}-${index}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          <span key={`${row.fiscalYear ?? 'project'}-${state}-${index}`} className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+            {index > 0 && <span aria-hidden="true">·</span>}
             <StatusPill variant={pushStatusVariant(state)}>{pushStateLabel(state)}</StatusPill>
-            <span>{message}</span>
+            {message && <span>{message}</span>}
             {row.fiscalYear && <span>({row.fiscalYear})</span>}
             {row.erpBudgetName && <span>{row.erpBudgetName}</span>}
             {needsMap && (
@@ -144,7 +141,6 @@ export default function BudgetErpNotice({
                 </Link>
               </>
             )}
-            {unstamped && <span>{t('projectDetail.budget.unstampedFix', 'Update the budget and activate the new version to fix it.')}</span>}
             {!needsMap && !unstamped && copy.remedy && <span>{copy.remedy}</span>}
             {offerRetry && (
               <Button variant="ghost" size="sm" loading={retry.isPending} onClick={() => void retryPush(row)}>
@@ -156,7 +152,7 @@ export default function BudgetErpNotice({
                 {t('financeCopy.releaseTheHold', 'Release the hold')}
               </Button>
             )}
-          </p>
+          </span>
         );
       })}
     </div>

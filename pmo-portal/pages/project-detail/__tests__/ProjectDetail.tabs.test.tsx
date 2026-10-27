@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -168,6 +168,21 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
   it('AC-W2-IA-004: an unknown tab falls back to Overview without a crash', async () => {
     await renderAt('/projects/p1/unknown-tab');
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+  });
+
+  it('scrolls the selected project tab into view on mount and after a tab change', async () => {
+    const scrollSpy = vi.spyOn(HTMLElement.prototype, 'scrollIntoView').mockImplementation(() => {});
+    try {
+      await renderAt('/projects/p1/tasks');
+      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ inline: 'nearest', block: 'nearest' }));
+
+      scrollSpy.mockClear();
+      fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Documents' })).toHaveAttribute('aria-selected', 'true'));
+      expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ inline: 'nearest', block: 'nearest' }));
+    } finally {
+      scrollSpy.mockRestore();
+    }
   });
 
   it.each(['/projects/p1/budget', '/projects/p1/contract'])(

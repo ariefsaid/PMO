@@ -240,6 +240,35 @@ describe('project procurement stages and actions', () => {
     expect(screen.queryByText('Awaiting approval')).not.toBeInTheDocument();
     expect(screen.getByText('own request')).toBeInTheDocument();
   });
+
+  it('hides Engineer amounts and keeps mixed-currency totals separate for Finance', () => {
+    procState.data = [
+      procurement('own request', 'Draft', { total_value: 1250, currency: 'USD' }),
+      procurement('euro request', 'Draft', { total_value: 250, currency: 'EUR' }),
+    ];
+    const { unmount } = renderTab('Engineer');
+    expect(screen.getByRole('heading', { name: 'Procurement' })).toBeInTheDocument();
+    expect(screen.queryByText('Procurement · USD')).not.toBeInTheDocument();
+    expect(screen.queryByText('Value')).not.toBeInTheDocument();
+    expect(screen.queryByText('1,250')).not.toBeInTheDocument();
+    expect(screen.queryByText('250')).not.toBeInTheDocument();
+
+    unmount();
+    procState.data = [
+      procurement('usd-request', 'Requested', { total_value: 1250, currency: 'USD' }),
+      procurement('usd-order', 'Ordered', { total_value: 500, currency: 'USD' }),
+      procurement('eur-request', 'Requested', { total_value: 250, currency: 'EUR' }),
+    ];
+    renderTab('Finance');
+    expect(screen.getByRole('heading', { name: 'Procurement · USD' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'USD totals' })).toHaveTextContent('1,250');
+    expect(screen.getByRole('group', { name: 'USD totals' })).toHaveTextContent('500');
+    expect(screen.getByRole('group', { name: 'EUR totals' })).toHaveTextContent('250');
+    expect(screen.getByText('Procurement', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('Supplier', { exact: true })).toBeInTheDocument();
+    expect(screen.getAllByText('Value', { exact: true })).toHaveLength(1);
+    expect(screen.getAllByText('Stage', { exact: true })).toHaveLength(1);
+  });
 });
 
 // ── AC-JR-T13: one-page create route and project context ──────────────────────

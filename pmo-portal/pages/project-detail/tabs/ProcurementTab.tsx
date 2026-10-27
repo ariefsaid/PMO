@@ -82,19 +82,25 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     }
   };
 
-  const totals = useMemo(() => {
-    const totalFor = (statuses: readonly ProcurementStatus[]) =>
-      rows
-        .filter((row) => statuses.includes(row.status))
-        .reduce((sum, row) => sum + Number(row.approved_total_value ?? row.total_value ?? 0), 0);
-
-    return {
-      awaitingApproval: totalFor(['Requested']),
-      reserved: totalFor(RESERVED_STATUSES),
-      committed: totalFor(COMMITTED_STATUSES),
-      paid: totalFor(['Paid']),
-    };
-  }, [rows]);
+  const totalsByCurrency = useMemo(() => {
+    const totals = new Map<string, { awaitingApproval: number; reserved: number; committed: number; paid: number }>();
+    for (const row of rows) {
+      const currency = row.currency ?? projectCurrency ?? '—';
+      const group = totals.get(currency) ?? { awaitingApproval: 0, reserved: 0, committed: 0, paid: 0 };
+      const value = Number(row.approved_total_value ?? row.total_value ?? 0);
+      if (row.status === 'Requested') group.awaitingApproval += value;
+      if (RESERVED_STATUSES.includes(row.status)) group.reserved += value;
+      if (COMMITTED_STATUSES.includes(row.status)) group.committed += value;
+      if (row.status === 'Paid') group.paid += value;
+      totals.set(currency, group);
+    }
+    if (totals.size === 0 && projectCurrency) {
+      totals.set(projectCurrency, { awaitingApproval: 0, reserved: 0, committed: 0, paid: 0 });
+    }
+    return [...totals.entries()].sort(([a], [b]) => (
+      a === projectCurrency ? -1 : b === projectCurrency ? 1 : a.localeCompare(b)
+    ));
+  }, [rows, projectCurrency]);
 
   const erpListedBelow = (erp.data ?? []).some((row) => row.procurementId === null);
   const showErpDisclosure = canSeeProjectTotals && (
@@ -131,6 +137,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
     rows: rows.filter((row) => group.statuses.includes(row.status)),
   })).filter(({ rows: groupRows }) => groupRows.length > 0);
 
+  const valueColumnClass = canSeeProjectTotals ? 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_minmax(10rem,1fr)]' : 'sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(10rem,1fr)]';
   const renderRows = (groupRows: ProcurementWithRefs[]) => (
     <ul className="divide-y divide-border border-y border-border">
       {groupRows.map((row) => {
@@ -142,7 +149,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
             <Link
               to={`/procurement/${row.id}`}
               aria-label={`${t('projectDetail.procurement.openRow', 'Open')} ${row.title}`}
-              className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-2 py-3 text-sm text-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_minmax(10rem,1fr)] sm:items-center sm:gap-4 sm:px-3"
+              className={`grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-2 py-3 text-sm text-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${valueColumnClass} sm:items-center sm:gap-4 sm:px-3`}
             >
               <span className="col-span-full row-start-1 min-w-0 sm:col-auto sm:row-auto">
                 <span className="block whitespace-normal break-words font-semibold" title={row.title}>{row.title}</span>
@@ -153,12 +160,14 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
               <span className="col-start-1 row-start-2 truncate text-xs text-muted-foreground sm:col-auto sm:row-auto sm:text-sm">
                 {row.vendor?.name ?? <span className="text-muted-foreground">—</span>}
               </span>
-              <span className="col-start-2 row-start-2 whitespace-nowrap text-right font-medium tabular-nums sm:col-auto sm:row-auto">
-                {/* Currency is in the heading once; a row in another currency keeps its code. */}
-                {row.currency && row.currency !== projectCurrency
-                  ? formatCurrency(Number(row.approved_total_value ?? row.total_value ?? 0), row.currency)
-                  : formatNumberWhole(Number(row.approved_total_value ?? row.total_value ?? 0))}
-              </span>
+              {canSeeProjectTotals && (
+                <span className="col-start-2 row-start-2 whitespace-nowrap text-right font-medium tabular-nums sm:col-auto sm:row-auto">
+                  {/* Currency is in the heading once; a row in another currency keeps its code. */}
+                  {row.currency && row.currency !== projectCurrency
+                    ? formatCurrency(Number(row.approved_total_value ?? row.total_value ?? 0), row.currency)
+                    : formatNumberWhole(Number(row.approved_total_value ?? row.total_value ?? 0))}
+                </span>
+              )}
               <span className="col-span-full row-start-3 min-w-0 sm:col-auto sm:row-auto sm:text-left">
                 <span className="block font-medium">{stageLabel(status)}</span>
                 {nextStep && <span className="block text-xs text-muted-foreground">{nextStep}</span>}
@@ -177,22 +186,31 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[16px] font-bold tracking-[-0.01em]">
-            {projectCurrency ? `${heading} · ${projectCurrency}` : heading}
+            {canSeeProjectTotals && projectCurrency ? `${heading} · ${projectCurrency}` : heading}
           </h2>
-          {canSeeProjectTotals && projectCurrency && (
-            <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-              {[
-                [t('projectDetail.procurement.summary.awaitingApproval', 'Awaiting approval'), totals.awaitingApproval],
-                [t('projectDetail.procurement.summary.reserved', 'Reserved'), totals.reserved],
-                [t('projectDetail.procurement.summary.committed', 'Committed'), totals.committed],
-                [t('projectDetail.procurement.summary.paid', 'Paid'), totals.paid],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-                  <dt className="text-muted-foreground">{label}</dt>
-                  <dd className="font-medium tabular-nums">{formatNumberWhole(Number(value))}</dd>
+          {canSeeProjectTotals && (
+            <div className="mt-2 space-y-1">
+              {totalsByCurrency.map(([currency, totals]) => (
+                <div key={currency} role="group" aria-label={`${currency} totals`} className="flex flex-wrap items-baseline gap-x-5 gap-y-1 text-sm">
+                  {(totalsByCurrency.length > 1 || currency !== projectCurrency) && (
+                    <span className="font-medium text-muted-foreground">{currency}</span>
+                  )}
+                  <dl className="flex flex-wrap gap-x-5 gap-y-1">
+                    {[
+                      [t('projectDetail.procurement.summary.awaitingApproval', 'Awaiting approval'), totals.awaitingApproval],
+                      [t('projectDetail.procurement.summary.reserved', 'Reserved'), totals.reserved],
+                      [t('projectDetail.procurement.summary.committed', 'Committed'), totals.committed],
+                      [t('projectDetail.procurement.summary.paid', 'Paid'), totals.paid],
+                    ].map(([label, value]) => (
+                      <div key={String(label)} className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
+                        <dt className="text-muted-foreground">{label}</dt>
+                        <dd className="font-medium tabular-nums">{formatNumberWhole(Number(value))}</dd>
+                      </div>
+                    ))}
+                  </dl>
                 </div>
               ))}
-            </dl>
+            </div>
           )}
         </div>
         {canCreate && (
@@ -218,6 +236,12 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
         />
       ) : (
         <div className="space-y-5">
+          <div className={`hidden sm:grid ${valueColumnClass} gap-4 px-3 text-xs font-semibold text-muted-foreground`}>
+            <span>{t('projectDetail.procurement.table.procurement', 'Procurement')}</span>
+            <span>{t('projectDetail.procurement.table.supplier', 'Supplier')}</span>
+            {canSeeProjectTotals && <span className="text-right">{t('projectDetail.procurement.table.value', 'Value')}</span>}
+            <span>{t('projectDetail.procurement.table.stage', 'Stage')}</span>
+          </div>
           {stageGroups.map(({ group, rows: groupRows }) => {
             const label = groupLabel(group.key, group.label);
             const content = renderRows(groupRows);

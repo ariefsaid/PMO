@@ -135,7 +135,15 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
   return (
     <>
       {header}
-      <Tabs<Area> items={items} value={panel} onChange={setArea} ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')} idBase="project-detail" className="mb-0! max-md:[mask-image:linear-gradient(to_right,black_80%,transparent)]" />
+      <Tabs<Area>
+        items={items}
+        value={panel}
+        onChange={setArea}
+        ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
+        idBase="project-detail"
+        // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
+        className="mb-0! max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
+      />
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-8">
         <Suspended>
           {panel === 'overview'

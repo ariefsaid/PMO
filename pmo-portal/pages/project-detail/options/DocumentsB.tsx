@@ -41,6 +41,7 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { CATEGORY_OPTIONS } from '@/src/lib/documentCategories';
 import { validateFile } from '@/src/lib/validateFile';
 import { FILE_INPUT_ACCEPT } from '@/src/lib/fileConstants';
+import { formatDateOnly } from '@/src/lib/format';
 import { repositories } from '@/src/lib/repositories';
 import type {
   ProjectDocumentRow,
@@ -245,11 +246,14 @@ const DocumentsB: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null
       .sort((a, b) => a.category.localeCompare(b.category));
   }, [filtered, categoryName]);
   const missingMetadata = all.some((doc) => !isMicrosoftFolder(doc) && (!doc.category?.trim() || !doc.doc_date));
-  const categoryIsOpen = (category: string) => categoryOpen[category] ?? all.length <= 10;
+  const defaultCategory = categorySections[0]?.category;
+  const categoryDefaultIsOpen = (category: string) =>
+    categorySections.length === 1 || all.length <= 10 || category === defaultCategory;
+  const categoryIsOpen = (category: string) => categoryOpen[category] ?? categoryDefaultIsOpen(category);
   const toggleCategory = (category: string) => {
     setCategoryOpen((current) => ({
       ...current,
-      [category]: !(current[category] ?? all.length <= 10),
+      [category]: !(current[category] ?? categoryDefaultIsOpen(category)),
     }));
   };
 
@@ -620,7 +624,7 @@ const DocumentsB: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null
             const listId = 'documents-category-' + index + '-items';
             return (
               <section key={section.category}>
-                <h3>
+                {categorySections.length > 1 && <h3 className="text-left">
                   <Button
                     type="button"
                     variant="ghost"
@@ -628,15 +632,15 @@ const DocumentsB: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null
                     aria-expanded={expanded}
                     aria-controls={listId}
                     onClick={() => toggleCategory(section.category)}
-                    className="touch-target h-11 min-h-11 w-full justify-between gap-3 px-0 py-0 text-left"
+                    className="touch-target h-11 min-h-11 w-full justify-start gap-3 px-0 py-0 text-left"
                   >
                     <span className="font-semibold text-[14px] text-foreground">{section.category}</span>
-                    <span className="flex shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
+                    <span className="ml-auto flex shrink-0 items-center gap-2 text-[13px] text-muted-foreground">
                       <span className="tabular">{section.documents.length}</span>
                       <Icon name="chev" className={['size-4 transition-transform', expanded ? 'rotate-90' : ''].join(' ')} aria-hidden="true" />
                     </span>
                   </Button>
-                </h3>
+                </h3>}
                 <ul id={listId} hidden={!expanded} className="divide-y divide-border">
                     {section.documents.map((doc) => (
                       <li key={doc.id} className="py-3">
@@ -673,7 +677,7 @@ const DocumentsB: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null
                               ? <span className="text-[13px] text-muted-foreground">{'—'}</span>
                               : <StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill>}
                             <span className="tabular whitespace-nowrap text-[13px] text-muted-foreground">
-                              {doc.doc_date || '—'}
+                              {formatDateOnly(doc.doc_date)}
                             </span>
                           </div>
                         </div>
@@ -905,9 +909,11 @@ const DocumentTitleCell: React.FC<{
         <span className="block whitespace-normal break-words font-semibold" title={doc.title}>
           {doc.title}
         </span>
-        {doc.revision && (
-          <span className="text-[12px] text-muted-foreground">
-            {`${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+        {(doc.revision || doc.code?.trim()) && (
+          <span className="block text-[12px] text-muted-foreground">
+            {doc.revision && `${t('projectDetail.documents.revLabel', 'Rev')} ${doc.revision}`}
+            {doc.revision && doc.code?.trim() && ' · '}
+            {doc.code?.trim() && <span className="font-mono">{doc.code.trim()}</span>}
           </span>
         )}
       </button>
@@ -1046,7 +1052,7 @@ const DocumentDrawer: React.FC<DocumentDrawerProps> = ({
             <DocField label={t('projectDetail.documents.field.category', 'Category')}>{doc.category}</DocField>
             <DocField label={t('projectDetail.documents.field.docDate', 'Document date')}>
               {doc.doc_date ? (
-                <span className="tabular">{doc.doc_date}</span>
+                <span className="tabular">{formatDateOnly(doc.doc_date)}</span>
               ) : (
                 <span className="text-muted-foreground">{'—'}</span>
               )}
