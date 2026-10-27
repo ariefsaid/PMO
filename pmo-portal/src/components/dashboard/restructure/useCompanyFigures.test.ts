@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { selectCollectedTotals, selectInvoicedTotals } from './useCompanyFigures';
+import { selectCollectedTotals, selectInvoicedTotals, selectUnbilledTotals } from './useCompanyFigures';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
+import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 
 describe('company period totals', () => {
   it('sums invoiced net amounts in the selected months by currency', () => {
@@ -25,5 +26,18 @@ describe('company period totals', () => {
       { status: 'Paid', date: null, currency: 'USD', amount: 900, id: 'd' },
     ] as unknown as IncomingPaymentRow[];
     expect(selectCollectedTotals(payments, '2026-01', '2026-01')).toEqual([{ currency: 'USD', amount: 100 }]);
+  });
+
+  it('formats unbilled totals from their remaining amount by currency', () => {
+    const totals: UnbilledWorkOrderTotal[] = [
+      { currency: 'USD', remaining: 1_250, count: 2 },
+      { currency: 'IDR', remaining: 2_000_000, count: 1 },
+    ];
+
+    expect(selectUnbilledTotals(totals)).toEqual([
+      { currency: 'USD', amount: 1_250 },
+      { currency: 'IDR', amount: 2_000_000 },
+    ]);
+    expect(selectUnbilledTotals(undefined)).toBeUndefined();
   });
 });

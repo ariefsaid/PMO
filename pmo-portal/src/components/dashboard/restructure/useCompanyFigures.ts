@@ -13,6 +13,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { moneyFigure } from '@/src/lib/dashboardMoney';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
+import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
 
 export interface CompanyFiguresResult {
@@ -64,6 +65,11 @@ export function selectCollectedTotals(payments: IncomingPaymentRow[] | undefined
   return [...totals].map(([currency, amount]) => ({ currency, amount }));
 }
 
+export function selectUnbilledTotals(totals: UnbilledWorkOrderTotal[] | undefined) {
+  if (!totals) return undefined;
+  return totals.map(({ currency, remaining }) => ({ currency, amount: remaining }));
+}
+
 const currencyText = (
   rows: Array<{ currency: string; amount: number }>,
   orgCurrency: string,
@@ -101,12 +107,13 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const suppliers = useMemo(() => selectSupplierInvoices(procurements.data), [procurements.data]);
   const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
+  const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);
   const moneyReason = t('figures.moneyUnknownReason', 'The accounting source did not provide a comparable amount.');
   const overdueKnown = overdue?.knownTotals.length ? currencyText(overdue.knownTotals, orgCurrency, moneyReason) : null;
   const supplierKnown = suppliers?.knownTotals.length ? currencyText(suppliers.knownTotals, orgCurrency, moneyReason) : null;
-  const unbilledKnown = workOrders.data?.totals.length ? currencyText(workOrders.data.totals, orgCurrency, moneyReason) : null;
-  const invoiceCurrencyTotals = invoiced ?? [];
-  const collectedCurrencyTotals = collected ?? [];
+  const unbilledKnown = unbilledTotals?.length ? currencyText(unbilledTotals, orgCurrency, moneyReason) : null;
+  const invoiceCurrencyTotals = useMemo(() => invoiced ?? [], [invoiced]);
+  const collectedCurrencyTotals = useMemo(() => collected ?? [], [collected]);
   const winCurrencyTotals = (winRate.data?.value_by_currency ?? [])
     .filter((row) => row.wins_value !== null && row.wins_value > 0)
     .map((row) => ({ currency: row.currency, amount: row.wins_value }));
