@@ -9,7 +9,7 @@ export const VendorInvoiceIdentity: FC<VendorInvoiceIdentityFacts & { className?
   context,
   className = '',
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('procurement');
   const lines = vendorInvoiceIdentityLines({ referenceNumber, viNumber, invoiceDate, context }, t);
   return (
     <div className={`min-w-0 space-y-0.5 break-words text-[13px] leading-5 ${className}`.trim()}>
