@@ -45,6 +45,8 @@ import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { buildTaskRenderOrder, collectDescendants } from '@/src/lib/tasks/taskTree';
 import ProjectGantt from '../ProjectGantt';
 import { TaskCommentsDrawer } from '@/src/components/comments/TaskCommentsDrawer';
+import TasksB from '../options/TasksB';
+import TasksC from '../options/TasksC';
 
 /**
  * OD-INT-9 subtask nesting — the horizontal indent applied per depth level in the Task-name
@@ -315,6 +317,12 @@ export interface TasksTabProps {
   projectName?: string;
 }
 
+const TasksTab: React.FC<TasksTabProps> = (props) => {
+  const [searchParams] = useSearchParams();
+  const layout = searchParams.get('layout');
+  return layout === 'b' ? <TasksB {...props} /> : layout === 'c' ? <TasksC {...props} /> : <TasksTabA {...props} />;
+};
+
 /**
  * Project Tasks tab — the per-project task register (crud-components §9.7,
  * rbac-visibility §F). Create / edit / assign / status / delete + dependency
@@ -324,7 +332,7 @@ export interface TasksTabProps {
  * static), enforced by the column-pinned RLS (migration 0016) — the FE is the
  * clarity projection, RLS is the authority.
  */
-const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
+const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();

@@ -1,5 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
+import DocumentsB from '../options/DocumentsB';
+import DocumentsC from '../options/DocumentsC';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
@@ -129,6 +131,8 @@ interface PendingTransition {
 }
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
+  const [searchParams] = useSearchParams();
+  const layout = searchParams.get('layout');
   const { t } = useTranslation();
   const may = usePermission();
   const documentLinkPermissions = useDocumentLinkPermissions();
@@ -562,6 +566,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       },
     );
   };
+
+  if (layout === 'b') return <DocumentsB projectId={projectId} projectCode={projectCode} />;
+  if (layout === 'c') return <DocumentsC projectId={projectId} projectCode={projectCode} />;
 
   return (
     <div>

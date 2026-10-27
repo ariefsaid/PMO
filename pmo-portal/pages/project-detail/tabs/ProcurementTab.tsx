@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
@@ -15,12 +15,15 @@ import {
   PROJECT_PROCUREMENT_STAGE_COPY,
 } from '@/src/lib/projectProcurementStages';
 import { ErpPurchasesSection } from '../ErpPurchasesSection';
+import ProcurementB from '../options/ProcurementB';
+import ProcurementC from '../options/ProcurementC';
 
 export interface ProcurementTabProps {
   projectId: string;
 }
 
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const may = usePermission();
@@ -97,6 +100,9 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
   const showErpDisclosure = canSeeProjectTotals && (
     erp.isError || (erp.data ?? []).some((row) => row.procurementId === null || Number(row.outstanding ?? 0) > 0)
   );
+
+  if (searchParams.get('layout') === 'b') return <ProcurementB projectId={projectId} />;
+  if (searchParams.get('layout') === 'c') return <ProcurementC projectId={projectId} />;
 
   if (isPending) {
     return (
