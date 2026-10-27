@@ -22,11 +22,28 @@ styles; for impeccable this is a surface **inside the established world** (`new-
   (money summaries, attention lists, headers, activity) get recomposed from scratch; moving the
   old blocks into a new frame is a **reshuffle**, and a reshuffle is not a restructure.
 
+## The map
+
+The whole-app order lives on the parent issue (#806) as a `wayfinder` map: one child issue per
+screen, in the order the owner sets. A run takes the next open child, or the one the owner names.
+A screen without a child issue gets one before step 1 (title `restructure(<screen>)`, label
+`ux-owner`, linked under #806).
+
+## Records
+
+- **The issue** holds the approved brief, the owner's pick, and a closing comment with what
+  changed and what was left. The repo is public: roles and jobs only — no client names, people,
+  or real figures.
+- **`docs/private/restructure/<screen>/`** (local-only) holds the screenshots, the gate tables
+  and the owner's own screenshots.
+- **Lessons** (below) gets one line per point the owner caught that the gate missed.
+- No other docs: no rulings, standards or specs come out of a run.
+
 ## Clean slate
 
 Run in a fresh session, in a new worktree off `origin/dev` (copy `pmo-portal/.env.local` in).
-Read only `PRODUCT.md`, `DESIGN.md`, `docs/ux/UX-STANDARD.md` and the screen's route code.
-Earlier rulings, specs, plans, mockups and `CLAUDE.md`'s process sections stay closed: the
+Read only `PRODUCT.md`, `DESIGN.md`, `docs/ux/UX-STANDARD.md`, the screen's issue and its route
+code. Earlier rulings, specs, plans, mockups and `CLAUDE.md`'s process sections stay closed: the
 current screen is **evidence** of what the data and jobs are, never a template for the answer.
 Do the design thinking in this session; reviewers critique, they never decide.
 
@@ -42,8 +59,8 @@ five seconds; how people arrive (routine review, a link to one thing, a periodic
 each area is used, per role; the phone job; what can leave the screen; the one main action per
 state and role; what each role must not see; which seed records the screenshots use.
 
-**Done when** the owner approves a brief of ≤ 25 lines: who and why · what leads per role ·
-areas in order · what's removed · main action by state · screenshot set.
+**Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
+areas in order · what's removed · main action by state · screenshot set), posted on the issue.
 
 ### 2. Three structural options
 
@@ -51,24 +68,33 @@ Build three options **in the real app** behind `?layout=a|b|c` (`?layout=off` = 
 from the same recomposed blocks, on real-shaped seed data. They differ in structure only:
 navigation model (tabs · one page with a jump menu · hub with drill-down pages), how the work
 divides, what leads per role, where actions live. One of them is the familiar category standard.
-Put shared figures behind one calculation so no two blocks can disagree.
 
 Run **the full gate**. Then send the picking set — the busiest record as the top role and the most
 restricted role, at 1440 and 390 (4 shots per option) — with your recommendation in two lines.
-The owner may pick, or combine; a combination goes through the gate again.
+The owner may pick, or combine; a combination goes through the full gate again. Record the pick
+on the issue.
 
 ### 3. Build the chosen option
 
-Make it the real page; remove the other layouts and the switch. Delete tests that pin the old
-look; keep and update behaviour, role, money and a11y tests; add translations. Run **the full
-gate** once on every state: empty, loading, error, each tab or area, each drawer, each role, both widths,
-light and dark, plus the pipeline/other status variants the screen has.
+Make it the real page; remove the other layouts, the switch and any prototype-only files. Delete
+tests that pin the old look; keep and update behaviour, role, money and a11y tests; add
+translations. Run **the full gate** once on every state: empty, loading, error, each tab or area,
+each drawer, each role, both widths, light and dark, plus the status variants the screen has
+(e.g. pipeline vs delivery).
 
-### 4. Owner clicks through
+### 4. Owner clicks through, then ship and clean up
 
-Give the local URL. Nothing merges until the owner has clicked through and said yes. Then the
-normal PR to `dev` with the local gate. Last, append to **Lessons** below every point the owner
-caught that the gate missed — one line each.
+Give the local URL. Nothing merges until the owner has clicked through and said yes. Then:
+
+1. Local gate, PR to `dev` that closes the issue, CI green, merge.
+2. Closing comment on the issue; append to **Lessons**.
+3. Cleanup, each step verified: stop the dev server you started (its exact PID); delete any
+   rows you added to the local database for screenshots; copy evidence from the worktree into
+   `docs/private/restructure/<screen>/`; then the post-merge cleanup in `CLAUDE.md` (worktree,
+   local and remote branch).
+
+**Done when** the issue is closed, the PR merged, and no server, seed row, worktree or branch
+from this run remains.
 
 ## The gate
 
@@ -82,6 +108,8 @@ Size the gate to the change, before anything reaches the owner:
   in one line what was checked. Escalate to the full gate when the edit changes what leads,
   how areas divide, or where actions live.
 
+Full gate:
+
 1. Read impeccable's `reference/craft-floor.md` and https://impeccable.style/slop/ before the
    first edit of the session.
 2. Render the states in question and dispatch four **independent** reviewers in parallel, each
@@ -89,6 +117,7 @@ Size the gate to the change, before anything reaches the owner:
    **taste** (`.claude/skills/taste`), **ui-ux-pro-max**. Give each the approved brief's
    **intent** — who opens this, the job, what must lead, what must stay quiet until needed —
    alongside the screenshots and route. Reviewers given only rules check the letter of them.
+   Hold source edits until all four report: they read the code.
 3. Apply impeccable **distill** and **clarify** yourself to the combined findings; fix every P0
    and P1, and each P2 that fits. Re-render; re-run the detector and axe.
 4. Send the shots with one table per skill — *finding → what changed* — and a short list of what
@@ -103,13 +132,30 @@ Each block answers one question for its reader:
 
 - The answer comes first and largest; labels small and muted, values larger.
 - Each figure appears once on the page; units, currency and tax basis once, in the block heading.
+- Every figure on the page comes from one shared calculation, so the attention list, the money
+  block and the main action always agree.
 - Whole currency units. Missing data is said once, with the link that fixes it, and its figures
-  are left out.
+  are left out. A figure claims only what the data proves (an overdue invoice with an unknown
+  balance shows days overdue, never the full invoice as owed).
 - Tight spacing inside a group, clearly larger between groups, from existing tokens.
-- One filled primary action, chosen by the record's state and the viewer's role.
-- Secondary things look secondary and sit where they're relevant: a quiet link on the screen
-  they belong to, never a button beside the main navigation.
+- One filled primary action, chosen by the record's state and the viewer's role: what the data
+  says matters most now (chase an overdue payment before raising a new invoice).
+- Secondary things look secondary and sit where their subject lives: a quiet link on the screen
+  they belong to, never a button beside the main navigation, never repeated on every tab.
 - A role sees only the areas it can use.
+- On phone, every tab and action stays reachable: check that nothing is clipped or covered by
+  the bottom action bar.
+
+## Gotchas
+
+- The app scrolls inside an inner pane, so a full-page screenshot stops at the fold: size the
+  viewport to the content height before capturing.
+- A dev server started in the background dies at the tool's time limit: start it with the
+  maximum timeout, and check it's alive before each round of shots.
+- Render every role before sending: a missing translation hook crashed only the restricted
+  role's view.
+- Seed rows added for screenshots (comments, records) live in the shared local database: note
+  each one as you add it, and delete them all in cleanup.
 
 ## Lessons
 
@@ -119,7 +165,9 @@ Each block answers one question for its reader:
   cards, three equal hero figures). The gate now runs before every render.
 - Reviewers checked "activity hidden until clicked" literally and passed a bordered button beside
   the tabs that invited the click. They now get the brief's intent.
-- Project-wide activity was placed on every tab; it belongs on the overview only. Place a thing
-  where its subject lives.
-- Running all four reviewers on every small edit wasted tokens and time; small edits get the light
-  check.
+- Project-wide activity was placed on every tab; it belongs on the overview only.
+- Running all four reviewers on every small edit wasted tokens and time; small edits get the
+  light check.
+- One question at a time in the grill was too slow for the owner; batched rounds work.
+- The owner combined two options (tabs for one-roof navigation + the hub's quiet activity);
+  offer combinations when two options each win on a different axis.
