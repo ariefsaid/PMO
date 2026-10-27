@@ -29,6 +29,9 @@ vi.mock('@/src/hooks/useProjects', () => ({
   ] }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useRevenuePerProject: () => ({ data: h.revenueRows, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
+}));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportTable: h.exportTable, exportXlsx: vi.fn(), busy: false }),
 }));
@@ -166,7 +169,7 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     expect(screen.getByRole('img', { name: 'Test Manager' })).toHaveTextContent('TM');
     expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
-    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('No entry for latest month')).toBeInTheDocument();
+    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('No entry for Apr')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     expect(within(screen.getByText('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
   });
@@ -203,6 +206,69 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     expect(cell.textContent).not.toMatch(/[.,]00(?!\d)/);
     expect(cell).toHaveClass('tabular');
     expect(cell.className).not.toContain('font-mono');
+  });
+
+  it('AC-1405-REPORT-006: projects with no progress use invoiced basis without a false missing-month warning', () => {
+    renderPage();
+    const row = within(screen.getByText('Alpha').closest('tr')!);
+
+    expect(row.getByText('Invoiced basis')).toBeInTheDocument();
+    expect(row.queryByText(/No entry for/)).not.toBeInTheDocument();
+    expect(row.queryByRole('progressbar')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [90, 'bg-primary'],
+    [91, 'bg-warning'],
+    [100, 'bg-warning'],
+    [101, 'bg-destructive'],
+  ])('AC-1405-REPORT-007: %s%% progress uses the expected threshold tone', (percent, tone) => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      progress: [{ project_id: 'p1', month: '2026-04-01', pct_complete: percent, entered_at: '2026-04-20T10:00:00Z', entered_by_name: 'Finance' }],
+    });
+    renderPage();
+    const row = within(screen.getByText('Alpha').closest('tr')!);
+    const progress = row.getByRole('progressbar');
+
+    expect(progress).toHaveAttribute('aria-valuenow', String(percent));
+    expect(within(progress).getByTestId('progress-fill')).toHaveClass(tone);
+    expect(row.getByText(`${percent}% · Apr`)).toBeInTheDocument();
+  });
+
+  it('AC-1405-REPORT-008: the toolbar and table share one card, and money figures use whole units by currency', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p2', currency: 'USD', month: '2026-04-01', net: 12_345, invoice_count: 1 }],
+    });
+    renderPage();
+
+    const tableCard = screen.getByTestId('management-pack-table-card');
+    expect(tableCard).toContainElement(screen.getByLabelText('From'));
+    expect(tableCard).toContainElement(screen.getByLabelText('As at'));
+    expect(tableCard).toContainElement(screen.getByRole('searchbox', { name: 'Search projects' }));
+    expect(tableCard).toContainElement(screen.getByRole('button', { name: 'Export' }));
+    expect(tableCard).toContainElement(screen.getByRole('table', { name: 'Project' }));
+
+    const figures = screen.getByRole('region', { name: 'Report figures' });
+    expect(figures).toHaveTextContent(/\+ USD/);
+    expect(figures).not.toHaveTextContent(/[.,]00\b/);
+    expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Actions' })).toBeInTheDocument();
+  });
+
+  it('AC-1405-REPORT-009: an unavailable lead currency has a reason tooltip without a currency suffix', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    renderPage();
+    const backlog = screen.getByText('Backlog of contract total').closest('article')!;
+
+    expect(within(backlog).getByText('Unavailable')).toBeInTheDocument();
+    expect(backlog).not.toHaveTextContent('Unavailable IDR');
+    expect(backlog).toHaveTextContent(/\+ USD/);
+    expect(within(backlog).getByRole('button', { name: 'How this figure is calculated' })).toBeInTheDocument();
   });
 
   it('T10: the project table closes with a per-currency total row inside its <tfoot>, never summing currencies', () => {

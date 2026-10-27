@@ -68,7 +68,94 @@
     "noPayables": "No supplier invoices waiting to be paid.",
     "payablesLoadError": "Couldn't load supplier invoices",
     "payablesTable": "Supplier invoices waiting to be paid",
-    "positionError": "Couldn't load balance ageings"
+    "positionError": "Couldn't load balance ageings",
+    "fix": {
+      "ageingBarLabel": "{{currency}} balance distribution by age",
+      "area": {
+        "open": "Open {{area}}",
+        "noBalance": "No balance",
+        "receivablesMeaning_one": "owed to you · {{count}} invoice · tax included",
+        "receivablesMeaning_other": "owed to you · {{count}} invoices · tax included",
+        "payablesMeaning": "to pay {{count}} suppliers · oldest {{days}} days",
+        "reportsMeaning": "earned, not yet invoiced · through {{month}}",
+        "noProgressProjects_one": "No progress recorded on {{count}} project",
+        "noProgressProjects_other": "No progress recorded on {{count}} projects",
+        "noSuppliers": "No supplier invoices waiting"
+      },
+      "currency": {
+        "other": "+ {{amount}} in other currencies",
+        "otherList": "{{amounts}}"
+      },
+      "statements": {
+        "notAvailable": "Not available yet",
+        "noStatement": "Net profit is not available for a period yet",
+        "netProfit": "net profit {{month}}"
+      },
+      "finding": {
+        "overdue_one": "{{amount}} overdue from {{count}} invoice, oldest {{days}} days",
+        "overdue_other": "{{amount}} overdue from {{count}} invoices, oldest {{days}} days",
+        "noOverdue": "No overdue invoices",
+        "payables": "{{amount}} to pay suppliers",
+        "noPayables": "No supplier invoices to pay",
+        "unknownBalance": "Balance unknown",
+        "otherOverdue": "{{amount}} overdue",
+        "otherPayables": "{{amount}} to pay suppliers"
+      },
+      "overdue": {
+        "heading_one": "Overdue · {{amount}} from {{count}} invoice",
+        "heading_other": "Overdue · {{amount}} from {{count}} invoices",
+        "unknownCount_one": " · {{count}} balance unknown",
+        "unknownCount_other": " · {{count}} balances unknown",
+        "openInvoice": "Open {{client}} invoice {{number}}",
+        "unknownProject": "Project unavailable",
+        "due": "Due {{date}}",
+        "partlyPaid": "Partly paid · {{days}} days late",
+        "overdue": "Overdue · {{days}} days",
+        "balanceUnknown": "Balance unknown",
+        "ofGross": "of {{amount}}"
+      },
+      "waiting": {
+        "draftsApprove_one": "{{count}} draft to approve",
+        "draftsApprove_other": "{{count}} drafts to approve",
+        "draftsApproveDetail": "Invoices waiting for your approval",
+        "draftsApproveHint": "Draft invoices that you can approve.",
+        "draftsSecond_one": "{{count}} draft waiting for a second approver",
+        "draftsSecond_other": "{{count}} drafts waiting for a second approver",
+        "draftsSecondDetail": "Your invoices need another approver",
+        "draftsSecondHint": "Your draft invoices that need another approver.",
+        "toSend_one": "{{count}} approved invoice to mark received",
+        "toSend_other": "{{count}} approved invoices to mark received",
+        "toSendDetail": "Approved invoices without a received date",
+        "toSendHint": "Active invoices with no received date recorded.",
+        "unapplied_one": "{{count}} payment not yet applied",
+        "unapplied_other": "{{count}} payments not yet applied",
+        "unappliedHint": "Known unapplied amounts for active receipts.",
+        "payables_one": "{{count}} supplier invoice waiting to be paid",
+        "payables_other": "{{count}} supplier invoices waiting to be paid",
+        "payablesDetail": "{{amount}} · oldest {{days}} days",
+        "payablesHint": "Recorded supplier invoices still waiting to be paid.",
+        "review": "Review",
+        "markReceived": "Mark received",
+        "apply": "Apply",
+        "openPayables": "Open payables"
+      },
+      "payables": {
+        "procurement": "Procurement",
+        "vendorInvoiceDateHint": "Supplier invoice date used to measure waiting time.",
+        "updatedDateHint": "Invoice date is missing; waiting time is measured from the last updated date.",
+        "supplierCount_one": "{{count}} supplier",
+        "supplierCount_other": "{{count}} suppliers",
+        "oldestMeaning": "Calendar days since the supplier invoice was recorded"
+      },
+      "attention": {
+        "finance": "Needs attention",
+        "executive": "Waiting on Finance"
+      },
+      "reports": {
+        "invoicedBasis": "Invoiced basis",
+        "noProgressForMonth": "No entry for {{month}}"
+      }
+    }
   },
   "nav": {
     "finance": "Finance",

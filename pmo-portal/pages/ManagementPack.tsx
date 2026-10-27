@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Tooltip, type Column,
+  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Toolbar, Tooltip, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -17,7 +17,9 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrency, formatUtcMonthYear } from '@/src/lib/format';
+import { useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
+import { formatCurrencyWithCode } from '@/src/lib/finance/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -26,9 +28,10 @@ type TotalsRow = PackTotalsMonth & { currency: string };
 
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
-// OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
 const money = (cents: number | null, currency: string) =>
-  cents === null ? '—' : formatCurrencyAuto(fromCents(cents), currency);
+  cents === null ? '—' : formatCurrency(fromCents(cents), currency);
+
+const shortMonth = (iso: string) => monthLabel(iso).split(/\s+/)[0] ?? monthLabel(iso);
 
 const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
@@ -47,6 +50,8 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   };
   const range = { from: monthInputToIso(params.get('from') ?? ''), to: monthInputToIso(params.get('to') ?? '') };
   const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
+  const currencyState = useOrgCurrencyState();
+  const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
   const { exportTable, busy } = useExport();
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
   const [monthlyTotalsExpanded, setMonthlyTotalsExpanded] = useState(false);
@@ -142,7 +147,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     return (
       <span data-testid={`pack-cell-${key}`} className="tabular text-right text-[13px]">
         {key === 'backlog' && row.kind === 'contract' && value === null ? (
-          <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+          <Tooltip content={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}><span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')} tabIndex={0} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('uxs34.backlogUnavailable', 'Unavailable')}</span></Tooltip>
         ) : money(value, row.currency)}
         {key === 'unbilled' && value !== null && value < 0 && (
           <span className="ml-1 text-xs text-muted-foreground">{t('managementPack.billedAhead', 'billed ahead')}</span>
@@ -152,7 +157,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   };
 
   const backlogUnavailable = (
-    <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+    <Tooltip content={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}><span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')} tabIndex={0} className="focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('uxs34.backlogUnavailable', 'Unavailable')}</span></Tooltip>
   );
 
   const filteredRows = (pack?.rows ?? []).filter((row) => {
@@ -169,7 +174,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       key: 'project',
       header: t('managementPack.col.project', 'Project'),
       kind: 'primary',
-      size: 300,
+      size: 200,
       primaryTitle: (row) => row.kind === 'unassigned' ? t('managementPack.unassigned', 'Unassigned') : row.projectName ?? '',
       cell: (row) =>
         row.kind === 'unassigned' ? (
@@ -194,16 +199,16 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       key: 'progress',
       header: t('financeHub:managementPack.col.progress', 'Progress'),
       kind: 'percent',
-      size: 170,
+      size: 120,
       cell: (row) => {
         if (row.kind !== 'contract') return <span className="text-muted-foreground">—</span>;
         const latest = row.latestProgress;
         const missingLatest = latest?.month !== pack?.to;
         return (
-          <span className="flex flex-col gap-1">
-            {latest ? <ProgressBar value={Math.round(latest.pctComplete)} compact showValue aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: latest.pctComplete })} /> : <span className="text-xs text-muted-foreground">{t('managementPack.basis.invoiced', 'Invoiced')}</span>}
-            {latest && <span className="text-xs text-muted-foreground">{t('managementPack.basis.progressShort', 'Progress')} · {monthLabel(latest.month)}</span>}
-            {missingLatest && <StatusPill variant="warn">{t('financeHub:managementPack.noLatestMonthEntry', 'No entry for latest month')}</StatusPill>}
+          <span className="flex min-w-0 flex-col gap-1">
+            {latest ? <ProgressBar value={latest.pctComplete} tone={latest.pctComplete <= 90 ? 'primary' : latest.pctComplete <= 100 ? 'warning' : 'destructive'} compact aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: latest.pctComplete })} /> : <span className="text-xs text-muted-foreground">{t('financeHub:hub.fix.reports.invoicedBasis', 'Invoiced basis')}</span>}
+            {latest && <span className="whitespace-nowrap text-xs text-muted-foreground">{Math.round(latest.pctComplete)}% · {shortMonth(latest.month)}</span>}
+            {latest && missingLatest && pack?.to && <StatusPill variant="warn">{t('financeHub:hub.fix.reports.noProgressForMonth', { defaultValue: 'No entry for {{month}}', month: shortMonth(pack.to) })}</StatusPill>}
           </span>
         );
       },
@@ -213,7 +218,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       header: t('managementPack.col.contract', 'Contract'),
       kind: 'money',
       align: 'num',
-      size: 140,
+      size: 105,
       cell: (row) => (
         <span data-testid="pack-cell-contract" className="tabular text-right text-[13px]">
           {money(row.contractNet, row.currency)}
@@ -223,14 +228,14 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'] as Measure[]).map((k): Column<PackRow> => ({
       key: k,
       header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
-      kind: 'money', align: 'num', size: 140, cell: measureCell(k),
+      kind: 'money', align: 'num', size: 110, cell: measureCell(k),
     })),
     {
       key: 'invoiceCount',
       header: t('financeHub:managementPack.col.invoices', 'Invoices'),
       kind: 'number',
       align: 'num',
-      size: 90,
+      size: 70,
       cell: (row) => <span data-testid="pack-cell-invoices" className="tabular">{invoiceCountsPending ? '—' : invoiceCountFor(row)}</span>,
       exportValue: (row) => invoiceCountFor(row),
     },
@@ -238,7 +243,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       key: 'actions',
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       kind: 'actions',
-      size: 64,
+      size: 52,
       cell: (row) => <MenuButton ariaLabel={t('financeHub:managementPack.actionsForProject', 'Actions for {{project}}', { project: row.projectName ?? t('managementPack.unassigned', 'Unassigned') })} items={[
         ...(row.projectId ? [{ label: t('financeHub:managementPack.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.projectId}`) }] : []),
         { label: t('financeHub:managementPack.viewInvoices', 'View invoices'), onClick: () => navigate(row.projectId ? `/finance/receivables?project=${encodeURIComponent(row.projectId)}` : '/finance/receivables?attribution=unassigned') },
@@ -292,7 +297,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       cell: (r) => (
         <span className="tabular text-right text-[13px]">
           {k === 'backlog' && r.backlog === null
-            ? <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
+            ? <Tooltip content={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}><span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')} tabIndex={0}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span></Tooltip>
             : money(r[k], r.currency)}
         </span>
       ),
@@ -342,31 +347,6 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       title={t('finance:area.reportTitle', 'Revenue by project and month')}
       headingLevel={embedded ? 2 : 1}
       description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
-      filters={
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
-          <TextField
-            id="pack-from"
-            type="month"
-            label={t('managementPack.from', 'From')}
-            value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''}
-            onChange={(v) => setMonth('from', v)}
-          />
-          <TextField
-            id="pack-as-at"
-            type="month"
-            label={t('managementPack.asAt', 'As at')}
-            value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''}
-            onChange={(v) => setMonth('to', v)}
-          />
-        </div>
-      }
-      search={state === undefined ? <TextField id="pack-search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} /> : undefined}
-      exportAction={
-        <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
-          <Icon name="export" className="size-4 mr-2" />
-          {t('finance:area.export', 'Export')}
-        </Button>
-      }
     >
       <section aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {figureSpecs.map((figure) => (
@@ -380,14 +360,19 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             {isPending && !pack ? <div className="mt-3 h-7 w-3/4 animate-pulse rounded bg-secondary" aria-label={t('financeHub:managementPack.loadingFigure', 'Loading figure')} /> :
               isError || !pack || pack.totals.length === 0 ? <p className="mt-3 text-lg font-semibold text-muted-foreground">{t('uxs03.notAvailableYet', 'Not available yet')}</p> :
                 <div className="mt-3 space-y-1">
-                  {pack.totals.map((tot) => {
+                  {[...pack.totals].sort((left, right) => left.currency === orgCurrency ? -1 : right.currency === orgCurrency ? 1 : left.currency.localeCompare(right.currency)).map((tot, index) => {
                     const month = tot.months[tot.months.length - 1];
                     if (!month) return null;
+                    const value = figureValue(figure.key, month, tot.currency);
+                    const unavailable = figure.key === 'backlog' && month.backlog === null;
+                    const amount = figure.key === 'earnedNotInvoiced' ? month.unbilled
+                      : figure.key === 'earnedToDate' ? month.recognisedToDate
+                        : figure.key === 'invoicedToDate' ? month.invoicedToDate : month.backlog;
                     return (
-                      <p key={tot.currency} className="tabular text-lg font-semibold">
-                        <span>{figureValue(figure.key, month, tot.currency)}</span><span className="ml-1 text-sm font-normal text-muted-foreground">{tot.currency}</span>
-                        {figure.subline && <span className="block text-xs font-normal text-muted-foreground">{figure.subline(month, tot.currency)}</span>}
-                      </p>
+                      <div key={tot.currency} className={index === 0 ? 'tabular text-[20px] font-bold' : 'text-xs text-muted-foreground'}>
+                        {unavailable ? <Tooltip content={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}><span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')} tabIndex={0}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span></Tooltip> : <span>{index === 0 ? value : t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: formatCurrencyWithCode((amount ?? 0) / 100, tot.currency) })}</span>}
+                        {index === 0 && figure.subline && <span className="mt-1 block text-xs font-normal text-muted-foreground">{figure.subline(month, tot.currency)}</span>}
+                      </div>
                     );
                   })}
                 </div>}
@@ -395,8 +380,15 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         ))}
       </section>
 
+      <div data-testid="management-pack-table-card" className="min-w-0">
+      <Toolbar data-testid="management-pack-table-toolbar" className="items-end gap-3">
+        <TextField id="pack-from" type="month" label={t('managementPack.from', 'From')} value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''} onChange={(v) => setMonth('from', v)} />
+        <TextField id="pack-as-at" type="month" label={t('managementPack.asAt', 'As at')} value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''} onChange={(v) => setMonth('to', v)} />
+        <TextField id="pack-search" type="search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} />
+        <Button variant="outline" disabled={!pack || busy} onClick={onExport} className="ml-auto"><Icon name="export" className="size-4 mr-2" />{t('finance:area.export', 'Export')}</Button>
+      </Toolbar>
       {state === 'loading' && (
-        <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>
+        <ListState variant="loading" rows={6} />
       )}
       {state === 'error' && (
         <ListState
@@ -430,38 +422,24 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
             totals={projectTotals}
+            className="rounded-t-none border-t-0"
             state={filteredRows.length === 0 ? 'empty' : undefined}
             emptyTitle={t('financeHub:managementPack.noSearchMatches', 'No projects match your search')}
             emptySub={t('financeHub:managementPack.noSearchMatchesSub', 'Try another project, client or project manager name.')}
           />
-          {pack.rows.some((row) => row.kind === 'unassigned') && (
-            <p className="mt-3 text-sm text-muted-foreground">
-              {t('financeHub:managementPack.unassignedNote', 'Some invoices are not assigned to a project yet.')}{' '}
-              <Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">
-                {t('financeHub:managementPack.assignProjects', 'Assign projects')}
-              </Link>
-            </p>
-          )}
-          <button
-            type="button"
-            aria-expanded={monthlyTotalsExpanded}
-            aria-controls="managementpack-monthly-totals"
-            onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)}
-            className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-          >
+        </>
+      )}
+      </div>
+
+      {pack && state === undefined && (
+        <>
+          {pack.rows.some((row) => row.kind === 'unassigned') && <p className="mt-3 text-sm text-muted-foreground">{t('financeHub:managementPack.unassignedNote', 'Some invoices are not assigned to a project yet.')}{' '}<Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">{t('financeHub:managementPack.assignProjects', 'Assign projects')}</Link></p>}
+          <button type="button" aria-expanded={monthlyTotalsExpanded} aria-controls="managementpack-monthly-totals" onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)} className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
             {monthlyTotalsExpanded ? t('finance:area.hideMonthlyTotals', 'Hide monthly totals') : t('finance:area.showMonthlyTotals', 'Show monthly totals')}
             <span className="text-muted-foreground">{t('finance:area.monthlyTotalsCount', '{{count}} months', { count: pack.months.length })}</span>
           </button>
-          {monthlyTotalsExpanded && (
-            <div id="managementpack-monthly-totals" className="mt-2">
-              <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('managementPack.monthlyTotals', 'Monthly totals')} />
-            </div>
-          )}
-          {pack.undatedInvoiceCount > 0 && (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t('managementPack.undated', '{{count}} invoices have no date and are not counted', { count: pack.undatedInvoiceCount })}
-            </p>
-          )}
+          {monthlyTotalsExpanded && <div id="managementpack-monthly-totals" className="mt-2"><DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('managementPack.monthlyTotals', 'Monthly totals')} /></div>}
+          {pack.undatedInvoiceCount > 0 && <p className="mt-3 text-xs text-muted-foreground">{t('managementPack.undated', '{{count}} invoices have no date and are not counted', { count: pack.undatedInvoiceCount })}</p>}
         </>
       )}
 

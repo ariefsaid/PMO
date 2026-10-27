@@ -30,6 +30,8 @@ export interface FinancePositionInput {
 }
 
 export interface FinancePosition {
+  /** Open client invoices, including rows whose ERP outstanding balance is unknown. */
+  receivablesCount: number;
   overdue: Array<{ invoice: SalesInvoiceRow; daysOverdue: number; outstanding: number | null }>;
   overdueTotals: CurrencyTotals;
   overdueUnknownCount: number;
@@ -89,6 +91,7 @@ function payableBucket(days: number): keyof PayablesAgeingBuckets {
 /** Pure display calculation shared by the finance area and its attention/ageing blocks. */
 export function buildFinancePosition(input: FinancePositionInput): FinancePosition {
   const { invoices, payments, procurements, today, canApproveDraft } = input;
+  const receivablesCount = invoices.filter((invoice) => OPEN_INVOICE_STATUSES.has(invoice.status)).length;
   const overdue: FinancePosition['overdue'] = [];
   const overdueTotals: CurrencyTotals = {};
   const receivablesAgeing: Record<string, AgeingBuckets> = {};
@@ -165,6 +168,7 @@ export function buildFinancePosition(input: FinancePositionInput): FinancePositi
   payables.sort((a, b) => b.ageDays - a.ageDays);
 
   return {
+    receivablesCount,
     overdue,
     overdueTotals,
     overdueUnknownCount,

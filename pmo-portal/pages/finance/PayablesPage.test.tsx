@@ -32,11 +32,15 @@ vi.mock('@/src/hooks/useProjects', () => ({
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportXlsx: state.exportXlsx, busy: false }),
 }));
+vi.mock('@/src/hooks/useOrgCurrency', () => ({
+  useOrgCurrencyState: () => ({ currency: 'IDR', isResolved: true, isError: false }),
+}));
 
 import PayablesPage from './PayablesPage';
 
 function payablesFixture(): FinancePosition {
   return {
+    receivablesCount: 0,
     overdue: [],
     overdueTotals: {},
     overdueUnknownCount: 0,
@@ -54,7 +58,7 @@ function payablesFixture(): FinancePosition {
         vendor: { name: 'Sinar Supplier' },
         total_value: 62_400_000,
         currency: 'IDR',
-        vendor_invoiced_at: '2026-07-19T00:00:00Z',
+        vendor_invoiced_at: null,
         updated_at: '2026-07-19T00:00:00Z',
         project_id: 'project-1',
         project: { name: 'North project', short_name: 'North', code: 'PRJ-10', pmo_project_number: null },
@@ -108,6 +112,23 @@ describe('Payables page', () => {
     expect(screen.getByText('DW')).toBeInTheDocument();
     expect(screen.getAllByText(/100 days/)).toHaveLength(2);
     expect(screen.queryByText(/Paid this month/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/\.00\b/)).not.toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Procurement' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: /Procurement title \+ code/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Jul 19, 2026|19 Jul 2026/)).toBeInTheDocument();
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+    expect(screen.queryByText('How it is calculated')).not.toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'How this figure is calculated' })).toHaveLength(2);
+  });
+
+  it('AC-1405-PAY-004: keeps search and export in the table card beside the table', () => {
+    renderPage();
+
+    const tableCard = screen.getByTestId('finance-payables-table-card');
+    expect(tableCard).toContainElement(screen.getByRole('searchbox', { name: 'Search payables' }));
+    expect(tableCard).toContainElement(screen.getByRole('button', { name: 'Export' }));
+    expect(tableCard).toContainElement(screen.getByRole('table', { name: 'Supplier invoices waiting to be paid' }));
+    expect(tableCard).not.toContainElement(screen.getByRole('region', { name: 'Payables figures' }));
   });
 
   it('AC-1405-PAY-002: row activation opens procurement and selection exports only the selected rows', async () => {

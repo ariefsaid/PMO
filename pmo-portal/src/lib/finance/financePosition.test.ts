@@ -118,6 +118,19 @@ describe('buildFinancePosition', () => {
     expect(position.overdue.find((row) => row.invoice.id === 'unknown')?.outstanding).toBeNull();
   });
 
+  it('counts every open receivable, including invoices with an unknown balance, and excludes closed states', () => {
+    const position = calculate([
+      invoice('unpaid', '2026-10-01'),
+      invoice('submitted', '2026-10-02', { status: 'Submitted' }),
+      invoice('unknown', '2026-10-03', { erp_outstanding_amount: null }),
+      invoice('draft', '2026-10-04', { status: 'Draft' }),
+      invoice('paid', '2026-10-05', { status: 'Paid' }),
+      invoice('cancelled', '2026-10-06', { status: 'Cancelled' }),
+    ]);
+
+    expect(position.receivablesCount).toBe(3);
+  });
+
   it('uses the stated receivables ageing boundaries and keeps invoices due today out of overdue', () => {
     const position = calculate([
       invoice('due-today', today),
