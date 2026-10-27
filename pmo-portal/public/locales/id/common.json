@@ -3388,6 +3388,7 @@
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
       "invoiceRecord": "Detail faktur",
+      "paymentRecord": "Detail pembayaran",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "myTasksHint": "Tugas Anda di seluruh proyek",
@@ -3400,6 +3401,7 @@
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
+      "finance": "Keuangan",
       "financialStatements": "Laporan keuangan",
       "managementPack": "Laporan manajemen"
     },

@@ -36,22 +36,22 @@ afterEach(() => {
   roles.effectiveRole = 'Finance';
 });
 
-describe('Rail financial statements navigation', () => {
-  it.each(['Admin', 'Executive', 'Finance'])('AC-009 support: %s discovers statements even when Revenue is disabled', (role) => {
+describe('Rail Finance navigation', () => {
+  it.each(['Admin', 'Executive', 'Finance'])('%s discovers the Finance area even when Revenue is disabled', (role) => {
     renderRail(role);
-    expect(screen.getByRole('link', { name: 'Financial statements' })).toHaveAttribute('href', '/financial-statements');
+    expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
     expect(screen.queryByRole('link', { name: 'Sales Invoices' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Revenue by Project' })).not.toBeInTheDocument();
-  });
-
-  it.each(['Project Manager', 'Engineer'])('AC-009 support: %s has no company statements rail item', (role) => {
-    renderRail(role);
     expect(screen.queryByRole('link', { name: 'Financial statements' })).not.toBeInTheDocument();
   });
 
-  it('AC-009 support: Admin view-as Engineer keeps statement access while other preview navigation stays effective-role shaped', () => {
+  it.each(['Project Manager', 'Engineer'])('%s has no Finance rail item', (role) => {
+    renderRail(role);
+    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
+  });
+
+  it('Finance visibility follows the selected navigation role', () => {
     renderRail('Admin', 'Engineer');
-    expect(screen.getByRole('link', { name: 'Financial statements' })).toHaveAttribute('href', '/financial-statements');
+    expect(screen.queryByRole('link', { name: 'Finance' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Sales Pipeline' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Timesheets' })).toBeInTheDocument();
   });

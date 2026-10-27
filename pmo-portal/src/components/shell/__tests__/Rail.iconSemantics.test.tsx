@@ -23,8 +23,7 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
     const expected = [
       ['Dashboard', 'dashboard'], ['Projects', 'projects'],
       ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'cal'],
-      ['Incidents', 'alert'], ['Sales Invoices', 'invoices'], ['Incoming Payments', 'payments'],
-      ['Revenue by Project', 'table'], ['Management pack', 'reports'], ['Timesheets', 'clock'],
+      ['Incidents', 'alert'], ['Finance', 'dollar'], ['Timesheets', 'clock'],
       ['Expenses', 'expenses'], ['Approvals', 'approvals'], ['Companies', 'companies'],
       ['Contacts', 'contacts'], ['Saved view', 'views'], ['Administration', 'admin'],
     ] as const;

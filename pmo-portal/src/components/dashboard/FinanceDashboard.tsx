@@ -27,9 +27,7 @@ import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import type { BudgetReviewRow } from '@/src/lib/db/dashboard';
 import type { Tables } from '@/src/lib/supabase/database.types';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-
-/** The procurement status meaning "billed, awaiting payment" (plan Open Q6). */
-const INVOICED_STATUS: Tables<'procurements'>['status'] = 'Vendor Invoiced';
+import { isProcurementReadyToPay } from '@/src/lib/finance/financePosition';
 
 /**
  * Compute days since a given ISO date string (the row's `vendor_invoiced_at` — the real time the
@@ -71,7 +69,7 @@ export const ReadyToPayTable: React.FC<ReadyToPayTableProps> = ({
   const { t } = useTranslation('dashboard');
 
   const viRows = useMemo(
-    () => procurements.filter((p) => p.status === INVOICED_STATUS),
+    () => procurements.filter(isProcurementReadyToPay),
     [procurements],
   );
 

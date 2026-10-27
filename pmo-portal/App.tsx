@@ -94,6 +94,7 @@ const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject')
 const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
 const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
+const FinanceAreaPage = React.lazy(() => import('./pages/finance/FinanceArea'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -190,6 +191,8 @@ export const appRouteConfig: RouteObject[] = [
   // they can be replaced with Users instead of falling through to the global 404 route.
   { path: '/administration/:section', element: <AdministrationPage /> },
   // Finance section.
+  { path: '/finance', element: <FinanceAreaPage /> },
+  { path: '/finance/:area', element: <FinanceAreaPage /> },
   { path: '/sales-invoices', element: <SalesInvoicesPage /> },
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
@@ -310,8 +313,9 @@ export const ShellChrome: React.FC = () => {
     if (pathname === '/settings/profile') {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
+    const recordListPath = (location.state as { recordContext?: { listPath?: string } } | null)?.recordContext?.listPath;
     if (/^\/sales-invoices\/[^/]+$/.test(pathname)) {
-      const listPath = `/sales-invoices${location.search}`;
+      const listPath = recordListPath?.startsWith('/') ? recordListPath : `/sales-invoices${location.search}`;
       return [
         {
           label: t('shell.nav.salesInvoices', 'Sales Invoices'),
@@ -319,6 +323,17 @@ export const ShellChrome: React.FC = () => {
           onClick: () => breadcrumbNavigate(listPath),
         },
         { label: t('shell.nav.invoiceRecord', 'Invoice record') },
+      ];
+    }
+    if (/^\/incoming-payments\/[^/]+$/.test(pathname)) {
+      const listPath = recordListPath?.startsWith('/') ? recordListPath : `/incoming-payments${location.search}`;
+      return [
+        {
+          label: t('shell.nav.incomingPayments', 'Incoming Payments'),
+          href: listPath,
+          onClick: () => breadcrumbNavigate(listPath),
+        },
+        { label: t('shell.nav.paymentRecord', 'Payment record') },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost

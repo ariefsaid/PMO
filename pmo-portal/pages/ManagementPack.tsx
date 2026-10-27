@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, Card, DataTable, Icon, KPITile, ListPage, ListState, StatusPill, TextField, type Column,
+  Button, DataTable, Icon, ListPage, ListState, StatusPill, TextField, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
@@ -15,8 +15,7 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatCurrencyAuto, formatMonthYear, formatUtcMonthYear } from '@/src/lib/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
@@ -30,7 +29,7 @@ const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00
 const money = (cents: number | null, currency: string) =>
   cents === null ? '—' : formatCurrencyAuto(fromCents(cents), currency);
 
-const ManagementPack: React.FC = () => {
+const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const navigate = useNavigate();
@@ -49,13 +48,14 @@ const ManagementPack: React.FC = () => {
   const { data: pack, isPending, isError, error, refetch } = useManagementPack(range);
   const { exportTable, busy } = useExport();
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
+  const [monthlyTotalsExpanded, setMonthlyTotalsExpanded] = useState(false);
   const projectIds = useMemo(
     () => (pack?.rows ?? []).filter((r) => r.kind === 'contract' && r.projectId).map((r) => r.projectId as string),
     [pack],
   );
   const { data: delivery } = useProjectsDelivery(projectIds);
 
-  if (!may('view', 'managementPack')) {
+  if (!may('view', 'managementPack') && !embedded) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -119,6 +119,7 @@ const ManagementPack: React.FC = () => {
   };
 
   const canRecord = (row: PackRow) =>
+    may('act', 'finance') &&
     row.kind === 'contract' &&
     PROGRESS_RECORDABLE_PROJECT_STATUSES.has(row.projectStatus ?? '') &&
     !!row.projectId &&
@@ -251,59 +252,50 @@ const ManagementPack: React.FC = () => {
 
   return (
     <ListPage
-      title={t('managementPack.title', 'Monthly management pack')}
-      description={t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
-      primaryAction={
+      title={t('finance:area.reportTitle', 'Revenue by project and month')}
+      headingLevel={embedded ? 2 : 1}
+      description={embedded ? undefined : t('managementPack.description', 'Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')}
+      filters={
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          <TextField
+            id="pack-from"
+            type="month"
+            label={t('managementPack.from', 'From')}
+            value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''}
+            onChange={(v) => setMonth('from', v)}
+          />
+          <TextField
+            id="pack-as-at"
+            type="month"
+            label={t('managementPack.asAt', 'As at')}
+            value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''}
+            onChange={(v) => setMonth('to', v)}
+          />
+        </div>
+      }
+      exportAction={
         <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
           <Icon name="export" className="size-4 mr-2" />
-          {t('projects.export', 'Export')}
+          {t('finance:area.export', 'Export')}
         </Button>
       }
     >
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <TextField
-          id="pack-from"
-          type="month"
-          label={t('managementPack.from', 'From')}
-          value={params.get('from') ?? pack?.from.slice(0, 7) ?? ''}
-          onChange={(v) => setMonth('from', v)}
-        />
-        <TextField
-          id="pack-as-at"
-          type="month"
-          label={t('managementPack.asAt', 'As at')}
-          value={params.get('to') ?? pack?.to.slice(0, 7) ?? ''}
-          onChange={(v) => setMonth('to', v)}
-        />
-      </div>
-
-      {/* Honest KPI states (NFR-MMP-006): skeletons while loading, "—" on error — never a fabricated 0. */}
-      {(state === 'loading' || state === 'error') && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-          {KPI_MEASURES.map((k) => (
-            <KPITile key={k} label={label[k]} value="—" icon="dollar" tone="blue"
-              loading={state === 'loading'} error={state === 'error'} />
-          ))}
-        </div>
-      )}
-      {pack && state === undefined && (
-        <p className="mb-3 text-sm text-muted-foreground">
-          {t('uxs34.cumulativeScope', 'Cumulative amounts · since project start through {{month}}', { month: monthLabel(pack.to) })}
-        </p>
-      )}
       {pack && state === undefined && pack.totals.map((tot) => {
         const m = tot.months[tot.months.length - 1];
+        const month = formatMonthYear(new Date(`${pack.to}T12:00:00Z`));
         return (
-          <div key={tot.currency} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-6">
-            {KPI_MEASURES.map((k) => (
-              <KPITile key={k} label={`${label[k]} · ${tot.currency}`}
-                {...moneyFigure(m[k] === null ? null : fromCents(m[k]), tot.currency, k === 'backlog'
-                    ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')
-                    : t('uxs03.notAvailableYet', 'Not available yet'))}
-                icon="dollar" tone="blue"
-                help={k === 'backlog' && m[k] === null ? t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.') : undefined}
-                helpLabel={k === 'backlog' && m[k] === null ? t('uxs34.backlogUnavailable', 'Unavailable') : undefined} />
-            ))}
+          <div key={tot.currency} className="mb-4 border-b border-border pb-3">
+            <p className="tabular text-[20px] font-bold">
+              {t('finance:area.earnedNotInvoiced', '{{amount}} earned, not yet invoiced', { amount: money(m.unbilled, tot.currency) })}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t('finance:area.revenueSummary', 'Earned {{earned}} · Invoiced {{invoiced}} · Backlog {{backlog}} · through {{month}} · before tax', {
+                earned: money(m.recognisedToDate, tot.currency),
+                invoiced: money(m.invoicedToDate, tot.currency),
+                backlog: m.backlog === null ? t('uxs34.backlogUnavailable', 'Unavailable') : money(m.backlog, tot.currency),
+                month,
+              })}
+            </p>
           </div>
         );
       })}
@@ -336,20 +328,29 @@ const ManagementPack: React.FC = () => {
           <h2 className="mb-2 text-[15px] font-semibold">
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
-          <Card className="overflow-hidden mb-6">
-            <DataTable
-              rows={pack.rows}
-              columns={columns}
-              rowKey={(row) => row.key}
-              tableId="managementpack-1-table"
-              accessibleName={t('managementPack.col.project', 'Project')}
-              totals={projectTotals}
-            />
-          </Card>
-          <h2 className="mb-2 text-[15px] font-semibold">{t('managementPack.monthlyTotals', 'Monthly totals')}</h2>
-          <Card className="overflow-hidden">
-            <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('managementPack.monthlyTotals', 'Monthly totals')} />
-          </Card>
+          <DataTable
+            rows={pack.rows}
+            columns={columns}
+            rowKey={(row) => row.key}
+            tableId="managementpack-1-table"
+            accessibleName={t('managementPack.col.project', 'Project')}
+            totals={projectTotals}
+          />
+          <button
+            type="button"
+            aria-expanded={monthlyTotalsExpanded}
+            aria-controls="managementpack-monthly-totals"
+            onClick={() => setMonthlyTotalsExpanded((expanded) => !expanded)}
+            className="mt-5 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            {monthlyTotalsExpanded ? t('finance:area.hideMonthlyTotals', 'Hide monthly totals') : t('finance:area.showMonthlyTotals', 'Show monthly totals')}
+            <span className="text-muted-foreground">{t('finance:area.monthlyTotalsCount', '{{count}} months', { count: pack.months.length })}</span>
+          </button>
+          {monthlyTotalsExpanded && (
+            <div id="managementpack-monthly-totals" className="mt-2">
+              <DataTable rows={totalsRows} columns={totalsColumns} rowKey={(r) => `${r.currency}|${r.month}`} tableId="managementpack-2-table" accessibleName={t('managementPack.monthlyTotals', 'Monthly totals')} />
+            </div>
+          )}
           {pack.undatedInvoiceCount > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
               {t('managementPack.undated', '{{count}} invoices have no date and are not counted', { count: pack.undatedInvoiceCount })}

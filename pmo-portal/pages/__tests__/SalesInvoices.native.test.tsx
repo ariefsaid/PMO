@@ -102,15 +102,16 @@ const LocationProbe = () => {
   return <div data-testid="location">{`${location.pathname}${location.search}`}</div>;
 };
 
-const page = (initialEntry = '/sales-invoices') => (
+const page = (initialEntry = '/sales-invoices', embedded = false) => (
   <QueryClientProvider client={queryClient}>
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole={h.role}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <Routes>
-            <Route path="/sales-invoices" element={<SalesInvoices />} />
-            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices />} />
+            <Route path="/sales-invoices" element={<SalesInvoices embedded={embedded} />} />
+            <Route path="/sales-invoices/:invoiceId" element={<SalesInvoices embedded={embedded} />} />
+            <Route path="/finance/receivables" element={<SalesInvoices embedded={embedded} />} />
           </Routes>
           <LocationProbe />
         </ToastProvider>
@@ -119,7 +120,7 @@ const page = (initialEntry = '/sales-invoices') => (
   </FinanceI18nTestProvider>
   </QueryClientProvider>
 );
-const renderPage = (initialEntry?: string) => render(page(initialEntry));
+const renderPage = (initialEntry?: string, embedded = false) => render(page(initialEntry, embedded));
 
 async function pick(user: ReturnType<typeof userEvent.setup>, picker: string, label: string) {
   await user.click(screen.getByRole('combobox', { name: picker }));
@@ -166,6 +167,14 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
   it('AC-NAR-001 FIN-S1 the page describes itself in one short line', () => {
     renderPage();
     expect(screen.getByText('Client invoices.')).toBeInTheDocument();
+  });
+
+  it('embedded receivables uses a compact Invoices heading and lets the Finance shell start creation', () => {
+    renderPage('/finance/receivables?layout=a&create=1', true);
+    expect(screen.getByRole('heading', { level: 2, name: 'Invoices' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'New Invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Client invoices.')).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {

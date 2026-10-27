@@ -24,13 +24,13 @@ export { nativeDraftInvoicesKey } from './approvalsQueryKeys';
  * queryKey includes org_id so the cache is tenant-scoped (FR-QRY).
  * Optional `projectId` narrows to one project.
  */
-export function useSalesInvoices(projectId?: string) {
+export function useSalesInvoices(projectId?: string, enabled = true) {
   const { currentUser } = useAuth();
   const orgId = currentUser?.org_id;
   return useQuery<SalesInvoiceRow[]>({
     queryKey: ['salesInvoices', orgId, projectId ?? 'all'],
     queryFn: () => repositories.revenue.listInvoices(projectId ? { projectId } : undefined),
-    enabled: Boolean(orgId),
+    enabled: Boolean(orgId) && enabled,
   });
 }
 

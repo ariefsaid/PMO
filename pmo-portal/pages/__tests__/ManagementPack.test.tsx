@@ -44,8 +44,8 @@ const facts: ManagementPackFacts = {
   invoiced_before: [], progress: [],
 };
 
-const renderPage = () =>
-  render(<MemoryRouter><ToastProvider><ManagementPack /></ToastProvider></MemoryRouter>);
+const renderPage = (embedded = false) =>
+  render(<MemoryRouter><ToastProvider><ManagementPack embedded={embedded} /></ToastProvider></MemoryRouter>);
 
 beforeEach(() => {
   h.role = 'Finance';
@@ -84,7 +84,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(within(screen.getByText('Beta').closest('tr')!).queryByRole('button', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 
-  it('AC-MMP-012: a PM may record progress only on the open project they manage', () => {
+  it('AC-MMP-012: a PM cannot record progress because Finance action permission is required', () => {
     h.role = 'Project Manager';
     h.userId = 'u-pm';
     h.query.data = buildManagementPack({
@@ -92,9 +92,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
       progress: [{ project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    const buttons = screen.getAllByRole('button', { name: 'Record progress' });
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0].closest('tr')).toHaveTextContent('Alpha');
+    expect(screen.queryByRole('button', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 });
 
@@ -128,11 +126,25 @@ describe('AC-MMP-013 honest states', () => {
 });
 
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
-  it('RF-035: states the cumulative scope once; the monthly-scope lines are gone (FIN-S8)', () => {
+  it('RF-035: states the earned, invoiced, backlog and tax basis summary once (FIN-S8)', () => {
     renderPage();
-    expect(screen.getByText('Cumulative amounts · since project start through Apr 26')).toBeInTheDocument();
+    expect(screen.getByText(/Earned .* · Invoiced .* · Backlog .* · through April 2026 · before tax/)).toBeInTheDocument();
+    expect(screen.getByText(/earned, not yet invoiced/)).toBeInTheDocument();
+    expect(screen.queryByText('Cumulative amounts · since project start through Apr 26')).not.toBeInTheDocument();
     expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
+  });
+
+  it('embedded report uses a compact heading and reveals monthly totals only on request', async () => {
+    renderPage(true);
+    expect(screen.getByRole('heading', { level: 2, name: 'Revenue by project and month' })).toBeInTheDocument();
+    expect(screen.queryByText(/Planned, recognised and invoiced revenue per project/)).not.toBeInTheDocument();
+    const disclosure = screen.getByRole('button', { name: /Show monthly totals.*2 months/ });
+    expect(disclosure).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('table', { name: 'Monthly totals' })).not.toBeInTheDocument();
+    await userEvent.setup().click(disclosure);
+    expect(disclosure).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('table', { name: 'Monthly totals' })).toBeInTheDocument();
   });
 
   it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {
@@ -215,7 +227,7 @@ describe('AC-V24P-017 real Bahasa balance-availability explanations', () => {
     });
     renderBahasa();
     const unavailable = screen.getAllByText(ID_UNAVAILABLE);
-    // KPI tile + project row (contract currency) + currency subtotal.
+    // Project row and per-currency subtotal retain their unavailable reason.
     expect(unavailable.length).toBeGreaterThanOrEqual(2);
     const projectRow = alphaContractRow();
     expect(within(projectRow).getByText(ID_UNAVAILABLE)).toHaveAttribute('title', ID_REASON);

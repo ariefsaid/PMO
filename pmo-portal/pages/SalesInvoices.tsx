@@ -269,7 +269,7 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   );
 };
 
-const SalesInvoices: React.FC = () => {
+const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -470,6 +470,13 @@ const SalesInvoices: React.FC = () => {
       .filter((inv) => matchesStatus(inv, statusFilter))
       .filter((inv) => !searchParams.get('project') || inv.project_id === searchParams.get('project'))
       .filter((inv) => !searchParams.get('customer') || inv.customer_id === searchParams.get('customer'))
+      .filter((inv) => {
+        const todo = searchParams.get('todo');
+        if (todo === 'approve') return canApproveDraft(inv);
+        if (todo === 'second') return inv.status === 'Draft' && (inv.author_user_id === currentUser?.id || inv.author_user_ids.includes(currentUser?.id ?? ''));
+        if (todo === 'send') return inv.status !== 'Draft' && inv.status !== 'Cancelled' && inv.status !== 'Paid' && !inv.received_date;
+        return true;
+      })
       .filter((inv) => searchParams.get('overdue') !== 'true' || (
         (inv.status === 'Submitted' || inv.status === 'Unpaid')
         && overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), organizationToday) !== null
@@ -483,7 +490,7 @@ const SalesInvoices: React.FC = () => {
         // FIN-S1: the project filter control is gone; the project is reachable through search.
         // AC-002 #1325: either the short label or the contractual title finds the invoice.
         || [projectOptions?.find((option) => option.value === inv.project_id)].some((o) => o && (o.label.toLowerCase().includes(q) || o.contractualName?.toLowerCase().includes(q))));
-  }, [all, organizationToday, projectOptions, search, searchParams, statusFilter]);
+  }, [all, canApproveDraft, currentUser?.id, organizationToday, projectOptions, search, searchParams, statusFilter]);
 
   // FIN-S1: "Overdue only" is also the oldest-overdue-first view, so it needs no separate sort control.
   const sortedInvoices = useMemo(() => {
@@ -509,7 +516,7 @@ const SalesInvoices: React.FC = () => {
         ? 'empty'
         : undefined;
 
-  if (!canView) {
+  if (!canView && !embedded) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -963,9 +970,10 @@ const SalesInvoices: React.FC = () => {
 
   return (
     <ListPage
-      title={t('financeCopy.salesInvoices', "Sales Invoices")}
-      description={t('finance:invoices.description', 'Client invoices.')}
-      primaryAction={mode !== undefined && !createRequested && canCreate ? (
+      title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
+      headingLevel={embedded ? 2 : 1}
+      description={embedded ? undefined : t('finance:invoices.description', 'Client invoices.')}
+      primaryAction={!embedded && mode !== undefined && !createRequested && canCreate ? (
         <Button variant="primary" onClick={openNewInvoice}>
           <Icon name="plus" />
           {t('financeCopy.newInvoice', "New Invoice")}</Button>

@@ -70,12 +70,12 @@ const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => 
   erp_cancelled_at: null, created_at: '2026-10-07T00:00:00Z', ...over,
 }) as IncomingPaymentRow;
 
-const renderPage = () => render(
+const renderPage = (embedded = false) => render(
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole="Finance">
       <MemoryRouter>
         <ToastProvider>
-          <IncomingPayments />
+          <IncomingPayments embedded={embedded} />
         </ToastProvider>
       </MemoryRouter>
     </ImpersonationProvider>
@@ -117,6 +117,13 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     renderPage();
     expect(screen.getAllByRole('button', { name: 'Receive Payment' })).toHaveLength(1);
     expect(screen.getByText(/Use Receive Payment when a client payment arrives/)).toBeInTheDocument();
+  });
+
+  it('embedded receivables shows a compact Payments received heading without a page action or description', () => {
+    renderPage(true);
+    expect(screen.getByRole('heading', { level: 2, name: 'Payments received' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Receive Payment' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Customer receipts recorded in PMO/)).not.toBeInTheDocument();
   });
 
   it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {

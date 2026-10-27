@@ -149,15 +149,15 @@ export const MODULES: ModuleDef[] = [
     path: '/approvals',
     roles: [UserRole.Executive, UserRole.ProjectManager, UserRole.Finance, UserRole.Admin],
   },
-  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
-    module: 'financial-statements',
-    icon: 'table',
-    label: 'Financial statements', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
-    labelKey: 'shell.nav.financialStatements',
-    path: '/financial-statements',
-    roles: [UserRole.Admin, UserRole.Executive, UserRole.Finance],
+    module: 'finance',
+    icon: 'dollar',
+    label: 'Finance', // i18n-exempt: translated at render from labelKey by Breadcrumb and navigation
+    labelKey: 'shell.nav.finance',
+    path: '/finance',
+    roles: [UserRole.Executive, UserRole.Finance, UserRole.Admin],
   },
+  // Administration: Exec·Admin (shown in Rail's foot section for those roles only).
   {
     module: 'administration',
     icon: 'admin',
@@ -362,6 +362,28 @@ export function breadcrumbForPath(
 ): BreadcrumbPart[] {
   const administrationBreadcrumb = administrationBreadcrumbForPath(pathname, navigate);
   if (administrationBreadcrumb) return administrationBreadcrumb;
+
+  if (pathname === '/finance') {
+    return [{ label: 'Finance', i18nKey: 'shell.nav.finance' }];
+  }
+  const financeArea = pathname.match(/^\/finance\/(receivables|payables|reports|statements)$/)?.[1];
+  if (financeArea) {
+    const labels: Record<string, string> = {
+      receivables: 'Receivables',
+      payables: 'Payables',
+      reports: 'Reports',
+      statements: 'Statements',
+    };
+    return [
+      {
+        label: 'Finance',
+        i18nKey: 'shell.nav.finance',
+        href: '/finance',
+        onClick: () => navigate?.('/finance'),
+      },
+      { label: labels[financeArea], i18nKey: `finance:area.${financeArea}` },
+    ];
+  }
 
   const childCrumb = CHILD_PAGE_CRUMB[pathname];
   const childParent = MODULES.find((m) => m.path === RAIL_PARENT_FOR_PATH[pathname]);

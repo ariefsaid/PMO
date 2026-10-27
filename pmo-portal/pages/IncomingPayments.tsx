@@ -22,7 +22,7 @@ import {
   type ComboboxOption,
   type RowMenuItem,
 } from '@/src/components/ui';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { ExportButton, withCurrencyColumn } from '@/src/components/export';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import { usePermission } from '@/src/auth/usePermission';
@@ -43,6 +43,7 @@ import type { IncomingPaymentRow, IncomingPaymentStatus, SalesInvoiceRow } from 
 import { incomingPaymentStatusVariant, salesInvoiceStatusVariant } from '@/src/lib/status/statusVariants';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { invoiceNumber, receiptNumber } from '@/src/lib/revenue/nativeInvoice';
+import { useRecordContext } from '@/src/hooks/useRecordContext';
 import { nativeRevenueHeadlines } from '@/src/lib/revenue/nativeRevenueErrors';
 import { type PendingPushState } from '@/src/lib/adapterSeam/pendingPush';
 import { useEntityForm } from '@/src/components/ui/useEntityForm';
@@ -179,12 +180,15 @@ function openInvoiceOptions(
     }));
 }
 
-const IncomingPayments: React.FC = () => {
+const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const navigate = useNavigate();
   const { receiptId } = useParams<{ receiptId: string }>();
+  const location = useLocation();
+  const recordContext = useRecordContext('/incoming-payments', receiptId);
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
@@ -221,11 +225,12 @@ const IncomingPayments: React.FC = () => {
     const q = search.trim().toLowerCase();
     return all
       .filter((p) => matchesStatus(p, statusFilter))
+      .filter((p) => searchParams.get('todo') !== 'unapplied' || (knownUnappliedCash(p) ?? 0) > 0)
       .filter((p) => !q
         || receiptNumber(p)?.toLowerCase().includes(q)
         // #781 (AC-FIN-001): the list search also indexes the resolved customer company name.
         || p.customer_name?.toLowerCase().includes(q));
-  }, [all, search, statusFilter]);
+  }, [all, search, searchParams, statusFilter]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
     ? 'loading'
@@ -235,7 +240,7 @@ const IncomingPayments: React.FC = () => {
         ? 'empty'
         : undefined;
 
-  if (!canView) {
+  if (!canView && !embedded) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -258,7 +263,7 @@ const IncomingPayments: React.FC = () => {
     if (state === 'error') {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
+          <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
           </Button>
@@ -274,7 +279,7 @@ const IncomingPayments: React.FC = () => {
     if (!record) {
       return (
         <main className="mx-auto w-full max-w-[1200px] px-4 py-5 sm:px-6">
-          <Button variant="ghost" onClick={() => navigate('/incoming-payments')} className="mb-4 -ml-3">
+          <Button variant="ghost" onClick={recordContext.closeRecord} className="mb-4 -ml-3">
             <Icon name="back" className="size-4" />
             {t('uxs06.backToReceipts', 'Back to Incoming Payments')}
           </Button>
@@ -287,7 +292,7 @@ const IncomingPayments: React.FC = () => {
         </main>
       );
     }
-    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={() => navigate('/incoming-payments')} />;
+    return <ReceiptRecord receipt={record} allocations={displayAllocations(record, invoiceNumberOf)} onBack={recordContext.closeRecord} />;
   }
 
   const notReported = t('uxs06.notReported', 'Not reported');
@@ -297,7 +302,8 @@ const IncomingPayments: React.FC = () => {
       header: t('financeCopy.payment', "Payment #"),
       cell: (p) => (
         <Link
-          to={`/incoming-payments/${encodeURIComponent(p.id)}`}
+          to={`/incoming-payments/${encodeURIComponent(p.id)}${location.search}`}
+          state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
           className="truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline"
           title={receiptNumber(p) ?? ''}
         >
@@ -434,13 +440,14 @@ const IncomingPayments: React.FC = () => {
 
   return (
     <ListPage
-      title={t('financeCopy.incomingPayments', "Incoming Payments")}
-      description={mode === undefined
+      title={embedded ? t('finance:area.paymentsList', 'Payments received') : t('financeCopy.incomingPayments', "Incoming Payments")}
+      headingLevel={embedded ? 2 : 1}
+      description={embedded ? undefined : mode === undefined
         ? undefined
         : native
           ? t('financeCopy.nativeIncomingPaymentsDescription', 'Customer receipts recorded in PMO against approved invoices.')
           : t('financeCopy.paymentsReceivedFromClientsMirroredFromERPNextLinkedToSalesInvoicesWhenApplicable', "Payments received from clients, mirrored from ERPNext. Linked to sales invoices when applicable.")}
-      primaryAction={mode !== undefined && canCreate ? (
+      primaryAction={!embedded && mode !== undefined && canCreate ? (
         <Button variant="primary" onClick={() => setFormTarget({ payment: null })}>
           <Icon name="plus" />
           {t('financeCopy.receivePayment', "Receive Payment")}</Button>
