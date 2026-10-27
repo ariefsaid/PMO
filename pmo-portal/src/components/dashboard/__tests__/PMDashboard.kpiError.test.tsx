@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
@@ -30,6 +31,9 @@ vi.mock('@/src/hooks/useTimesheetApproval', () => ({
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false }),
 }));
+vi.mock('../restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
+}));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ realRole: 'Project Manager' }),
 }));
@@ -39,9 +43,9 @@ vi.mock('@/src/auth/useAuth', () => ({
 
 const renderPMDashboard = () =>
   render(
-    <MemoryRouter>
-      <PMDashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><PMDashboard /></MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => {
@@ -60,5 +64,6 @@ describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => 
     // Must NOT show fabricated zeros
     expect(within(myProjects).queryByText('0')).toBeNull();
     expect(within(contractValue).queryByText('$0')).toBeNull();
+    expect(within(contractValue).getByRole('button', { name: /project data could not be loaded/i })).toBeInTheDocument();
   });
 });

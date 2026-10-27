@@ -10,6 +10,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 
@@ -209,18 +210,29 @@ const mine = [
 ];
 
 
-vi.mock('@/src/hooks/useProjects', () => ({ useProjectIdentity: () => ({ data: [] }), useProjects: () => ({ data: [] }) }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjectIdentity: () => ({ data: [] }),
+  useProjects: () => ({ data: [] }),
+  useProject: () => ({ data: { pmo_project_number: 'PRJ-26-0001' }, isPending: false, isError: false }),
+}));
+vi.mock('@/src/hooks/useProjectStatusLabel', () => ({
+  useProjectStatusLabel: () => (status: string) => status,
+  useProcurementStatusLabel: () => (status: string) => status,
+}));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({
   useProjectsDelivery: () => ({ data: {} }),
+}));
+vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
+  useNeedsYou: () => ({ items: [], pmOverdueTasksByProject: {}, isPending: false, isError: false }),
 }));
 
 import { PMDashboard } from '@/src/components/dashboard/PMDashboard';
 
 const renderPM = () =>
   render(
-    <MemoryRouter>
-      <PMDashboard />
-    </MemoryRouter>,
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      <MemoryRouter><PMDashboard /></MemoryRouter>
+    </QueryClientProvider>,
   );
 
 describe('AC-IXD-DASH-W5-C2A — PM dashboard KPI drills', () => {
