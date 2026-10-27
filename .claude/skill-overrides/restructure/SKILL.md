@@ -63,25 +63,25 @@ A screen with tabs or areas: grill every one of them in this step, not after the
 **Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
 areas in order · what's removed · main action by state · screenshot set), posted on the issue.
 
-### 2. Three structural options, one clickable page
+### 2. Bake-off: three options on one clickable page
 
-Show the three options as **one HTML page** (HTML, CSS and a little JS) with the
-`orca-native-chat:orca-chat-visuals` skill, so the owner switches between them in place — never
-images stacked down or side by side. The page has:
+Show the three options as a **bake-off: one HTML page** (HTML, CSS and a little JS) with the
+`orca-native-chat:orca-chat-visuals` skill, so the owner flips between them in place — never
+words alone, never images stacked down or side by side. The page has:
 
 - a switcher for the option (segmented buttons or a dropdown), plus one for role and one for
   desktop / phone width;
-- each option as a **grey wireframe**: boxes and plain system text, real block names and
-  real-shaped sample figures, no colours, fonts or styling (structure only, so the look can't
-  drift);
+- each option drawn in **PMO's own look**: copy the token variables from `pmo-portal/index.css`
+  and use only those (no new colours, fonts, radii or shadows), with real block names and
+  real-shaped sample figures from the seed records in the brief;
 - beside it, 3–5 lines on the option: navigation model (tabs · one page with a jump menu · hub
   with drill-down pages), how the work divides, what leads per role, where the main action
   lives — and your one-line recommendation.
 
-They differ in structure only; one is the familiar category standard. The owner picks or combines
-in one reply. Save the page as `docs/private/restructure/<screen>/options.html` and record the
-pick on the issue. Build an option in the app only if the owner can't choose from the page, and
-then only the two in question.
+The options differ in structure only; one is the familiar category standard. Run the craft rules
+(Block craft below) and impeccable's detector on the page before sending. The owner picks or
+combines in one reply. Save the page as `docs/private/restructure/<screen>/options.html` and
+record the pick on the issue. Only the pick gets built in the app.
 
 ### 3. Build the chosen option
 
@@ -185,6 +185,6 @@ Each block answers one question for its reader:
 - The owner combined two options (tabs for one-roof navigation + the hub's quiet activity);
   offer combinations when two options each win on a different axis.
 - Building and gating three in-app options per screen took too long for the owner; options are
-  now picked from one clickable wireframe page, and only the chosen one is built.
+  now picked from a one-page HTML bake-off in PMO's tokens, and only the chosen one is built.
 - Project detail took 2.5 hours: tabs were grilled after the pick and built one after another,
   then four reviewers checked every state. Grill all tabs first; build them in parallel.
