@@ -117,5 +117,175 @@
   },
   "detail": {
     "paidNeedsValue": "Add a line item or a document with an amount before marking this paid."
+  },
+  "projectDetail": {
+    "procurement": {
+      "stageBand": {
+        "request": "Request",
+        "ordered": "Ordered",
+        "received": "Received",
+        "pay": "Pay",
+        "invoiced": "Invoiced",
+        "invoicedNotPaid": "Invoiced, not paid",
+        "paid": "Paid",
+        "approved": "Approved",
+        "label": "Procurement stages"
+      },
+      "nextStep": {
+        "approveOrReturn": "Approve or return",
+        "waitingOnApprover": "Waiting on approver",
+        "approved": "Get quotes or order",
+        "delivered": "Record supplier invoice",
+        "draft": "Submit for approval",
+        "gettingQuotes": "Choose a quote",
+        "ordered": "Record delivery",
+        "quoteChosen": "Raise the order",
+        "supplierInvoiced": "Pay"
+      },
+      "noNextStep": "—",
+      "document": {
+        "purchaseRequest": "Purchase request",
+        "quotation": "Quotation",
+        "purchaseOrder": "Purchase order",
+        "receipt": "Receipt",
+        "supplierInvoice": "Supplier invoice",
+        "payment": "Payment"
+      },
+      "detail": {
+        "budgetLeftTooltip": "Active category budget minus mapped actual spending and this procurement value. Source: the active budget and project spending.",
+        "budgetLoading": "Loading budget…",
+        "budgetUnavailable": "Not available",
+        "budgetLeft": "Budget left in category",
+        "title": "Procurement details",
+        "openFullRecord": "Open full page",
+        "category": "Category",
+        "value": "Value",
+        "owner": "Owner",
+        "timeline": "Step timeline",
+        "timelineHint": "Steps can happen in any order; skipped steps are not recorded.",
+        "notRecorded": "Not recorded",
+        "documents": "Documents",
+        "loadingDocuments": "Loading linked documents…",
+        "documentsError": "Linked documents could not be loaded.",
+        "noDocuments": "No linked documents yet."
+      },
+      "uncategorized": "Uncategorized",
+      "unassigned": "Unassigned",
+      "toast": {
+        "approved": "Procurement approved",
+        "returned": "Procurement returned",
+        "cancelled": "Procurement cancelled",
+        "completedMany": "{{count}} records updated.",
+        "partial": "Some records were updated",
+        "partialDetail": "{{updated}} updated; {{failed}} need review.",
+        "linkCopied": "Link copied",
+        "linkCopyFailed": "Could not copy link"
+      },
+      "rowMenu": {
+        "open": "Open procurement",
+        "approve": "Approve",
+        "return": "Return",
+        "copyLink": "Copy link",
+        "cancel": "Cancel procurement"
+      },
+      "exportEntity": "Procurement",
+      "table": {
+        "value": "Value",
+        "procurement": "Procurement",
+        "category": "Category",
+        "stage": "Stage",
+        "nextStep": "Next step",
+        "accessibleName": "Project procurement"
+      },
+      "noSupplier": "No supplier",
+      "ownerTooltip": "Requested by {{name}}. Source: procurement record.",
+      "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: project procurement records.",
+      "forYou": "{{count}} for you",
+      "selection": {
+        "selectRow": "Select {{name}}",
+        "count": "{{count}} selected",
+        "clearVisible": "Clear visible",
+        "selectVisible": "Select visible",
+        "clear": "Clear selection"
+      },
+      "emptyFiltered": {
+        "title": "No procurement matches these filters.",
+        "sub": "Adjust the search or filters and try again."
+      },
+      "bulk": {
+        "approve": "Approve",
+        "return": "Return",
+        "export": "Export"
+      },
+      "searchLabel": "Search procurement",
+      "search": "Search procurement…",
+      "filter": {
+        "category": "Filter by category",
+        "allCategories": "Category",
+        "owner": "Filter by owner",
+        "allOwners": "Owner",
+        "clearStage": "Clear stage filter"
+      },
+      "confirm": {
+        "cancelManyTitle": "Cancel these procurements?",
+        "cancelTitle": "Cancel this procurement?",
+        "returnManyTitle": "Return these requests?",
+        "returnTitle": "Return this request?",
+        "cancelDescription": "This procurement will be marked as cancelled.",
+        "returnDescription": "The request will be returned to its requester."
+      },
+      "stage": {
+        "cancelled": "Cancelled",
+        "rejected": "Rejected"
+      }
+    }
+  },
+  "procurement": {
+    "moneyBasis": {
+      "paid": "Paid",
+      "invoiced": "Invoiced",
+      "ordered": "Ordered",
+      "requested": "Requested"
+    },
+    "needsYou": {
+      "none": "—",
+      "approve": "Approve request",
+      "receive": "Record delivery",
+      "pay": "Pay invoice",
+      "column": "Why it needs you"
+    },
+    "rowMenu": {
+      "nextAction": "Next action",
+      "recordDocument": "Record another document",
+      "linkFile": "Link a file",
+      "export": "Export"
+    },
+    "moneyTooltip": "Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.",
+    "moneyUnknown": "Not recorded",
+    "unpaidTooltip": "Invoice amount less recorded payments, or the ERP outstanding balance.",
+    "unpaidLine": "Unpaid {{amount}}",
+    "settlementTooltip": "Recorded paid amount compared with recorded invoices.",
+    "settlement": "Paid / invoiced",
+    "nextStepLabel": "Next step",
+    "lineItems": "Line items",
+    "lineItemsUnavailable": "Line items could not be loaded.",
+    "noLineItems": "No line items recorded.",
+    "openDrawer": "Open procurement",
+    "needsYouTooltip": "Suggested action based on the current role and record state. Server rules remain authoritative.",
+    "ageInStageTooltip": "Days since the current procurement stage was most recently entered.",
+    "ageInStage": "Age in stage",
+    "ageInStageDays": "{{count}}d",
+    "raisedBy": "Raised by",
+    "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",
+    "table": {
+      "accessibleName": "Procurement"
+    },
+    "empty": {
+      "title": "No procurement yet."
+    }
+  },
+  "common": {
+    "loading": "Loading…",
+    "retry": "Retry"
   }
 }

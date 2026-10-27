@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stageForStatus, stageDates } from '../stage';
+import { stageForStatus, stageDates, payStepLabel, stageLabelForStatus } from '../stage';
 
 describe('procurement stages', () => {
   it.each([
@@ -25,5 +25,18 @@ describe('procurement stages', () => {
       },
       [{ doctype: 'Purchase Order', docDate: '2026-09-01' }, { doctype: 'Purchase Invoice', docDate: '2026-09-05' }],
     )).toEqual({ request: '2026-09-01', order: '2026-09-01', receive: '2026-09-04', pay: '2026-09-05' });
+  });
+
+  it('AC-1402: an invoiced procurement with no payment stays in Pay and labels the timeline step Invoiced', () => {
+    const fixture = {
+      status: 'Vendor Invoiced',
+      invoices: [{ invoice_date: '2026-10-20' }],
+      payments: [],
+    };
+    expect(stageForStatus(fixture.status)).toBe('Pay');
+    expect(stageLabelForStatus(fixture.status)).toBe('Invoiced, not paid');
+    expect(stageDates(fixture)).toEqual({ request: null, order: null, receive: null, pay: '2026-10-20' });
+    expect(payStepLabel(fixture.payments.length > 0)).toBe('Invoiced');
+    expect(payStepLabel(true)).toBe('Paid');
   });
 });

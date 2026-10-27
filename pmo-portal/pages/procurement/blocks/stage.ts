@@ -1,11 +1,22 @@
 export type ProcurementStage = 'Request' | 'Order' | 'Receive' | 'Pay';
 export type StageKey = 'request' | 'order' | 'receive' | 'pay';
+export const PROCUREMENT_STAGES: ProcurementStage[] = ['Request', 'Order', 'Receive', 'Pay'];
+
+export function payStepLabel(hasPayment: boolean): 'Invoiced' | 'Paid' {
+  return hasPayment ? 'Paid' : 'Invoiced';
+}
 
 export function stageForStatus(status: string): ProcurementStage {
   if (status === 'Ordered') return 'Order';
   if (status === 'Received') return 'Receive';
   if (status === 'Vendor Invoiced' || status === 'Paid') return 'Pay';
   return 'Request';
+}
+
+export function stageLabelForStatus(status: string): ProcurementStage | 'Invoiced, not paid' | 'Paid' {
+  if (status === 'Vendor Invoiced') return 'Invoiced, not paid';
+  if (status === 'Paid') return 'Paid';
+  return stageForStatus(status);
 }
 
 type DateRow = { date?: string | null; created_at?: string | null; receipt_date?: string | null; invoice_date?: string | null };

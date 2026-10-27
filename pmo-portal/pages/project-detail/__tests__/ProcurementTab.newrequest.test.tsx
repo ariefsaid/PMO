@@ -212,11 +212,12 @@ describe('project procurement tab', () => {
   it('switches the displayed records from the stage band and can clear the stage filter', async () => {
     procState.data = [
       procurement('awaiting review', 'Requested'),
-      procurement('approved order', 'Approved'),
+      procurement('supplier invoice', 'Vendor Invoiced'),
     ];
     renderTab('Project Manager');
-    await userEvent.click(screen.getByRole('button', { name: /Approved/ }));
-    expect(screen.getByText('approved order')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Pay/ }));
+    expect(screen.getByText('supplier invoice')).toBeInTheDocument();
+    expect(screen.getByText('Invoiced, not paid')).toBeInTheDocument();
     expect(screen.queryByText('awaiting review')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Clear stage filter' }));
     expect(screen.getByText('awaiting review')).toBeInTheDocument();
@@ -245,7 +246,7 @@ describe('project procurement tab', () => {
     expect(screen.getByText('Choose a quote')).toBeInTheDocument();
     expect(screen.getByText('Record delivery')).toBeInTheDocument();
     expect(screen.getByText('Record supplier invoice')).toBeInTheDocument();
-    expect(screen.getByText('Pay')).toBeInTheDocument();
+    expect(screen.getAllByText('Pay').length).toBeGreaterThan(0);
     expect(screen.getAllByText('—').length).toBeGreaterThan(0);
   });
 

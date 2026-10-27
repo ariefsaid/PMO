@@ -36,13 +36,15 @@ import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { pendingProcurementApprovals } from '@/src/lib/selectors/approvals';
 import {
-  projectProcurementStage,
-  PROJECT_PROCUREMENT_STAGES,
-  type ProcurementProjectStage,
-} from '@/src/lib/projectProcurementStages';
+  type ProcurementStage,
+  PROCUREMENT_STAGES,
+  stageForStatus,
+  stageDates,
+  payStepLabel,
+  stageLabelForStatus,
+} from '@/pages/procurement/blocks/stage';
 import { procurementMoney } from '@/pages/procurement/blocks/procurementMoney';
 import { needsYou } from '@/pages/procurement/blocks/needsYou';
-import { stageDates, stageForStatus } from '@/pages/procurement/blocks/stage';
 import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
 
 /**
@@ -93,25 +95,22 @@ function initials(name: string | null | undefined): string {
 }
 
 function statusText(status: ProcurementStatus, t: (key: string, fallback: string) => string): string {
-  if (status === 'Approved' || status === 'Vendor Quoted' || status === 'Quote Selected') return stageText('Approved', t);
+  const label = stageLabelForStatus(status);
+  if (label === 'Invoiced, not paid') return t('projectDetail.procurement.stageBand.invoicedNotPaid', label);
+  if (label === 'Paid') return t('projectDetail.procurement.stageBand.paid', label);
+  if (status === 'Approved' || status === 'Vendor Quoted' || status === 'Quote Selected') return stageText('Request', t);
   if (status === 'Rejected') return t('projectDetail.procurement.stage.rejected', 'Rejected');
   if (status === 'Cancelled') return t('projectDetail.procurement.stage.cancelled', 'Cancelled');
-  const stage = stageForStatus(status);
-  if (stage === 'Request') return t('projectDetail.procurement.stageBand.request', 'Request');
-  if (stage === 'Order') return t('projectDetail.procurement.stageBand.ordered', 'Ordered');
-  if (stage === 'Receive') return t('projectDetail.procurement.stageBand.received', 'Received');
-  if (stage === 'Pay') return status === 'Vendor Invoiced'
-    ? t('projectDetail.procurement.stageBand.received', 'Received')
-    : t('projectDetail.procurement.stageBand.paid', 'Paid');
-  return t('projectDetail.procurement.stage.cancelled', 'Cancelled');
+  return stageText(stageForStatus(status), t);
 }
 
-function stageText(stage: ProcurementProjectStage, t: (key: string, fallback: string) => string): string {
+function stageText(stage: ProcurementStage | 'Invoiced' | 'Paid', t: (key: string, fallback: string) => string): string {
   switch (stage) {
     case 'Request': return t('projectDetail.procurement.stageBand.request', 'Request');
-    case 'Approved': return t('projectDetail.procurement.stageBand.approved', 'Approved');
-    case 'Ordered': return t('projectDetail.procurement.stageBand.ordered', 'Ordered');
-    case 'Received': return t('projectDetail.procurement.stageBand.received', 'Received');
+    case 'Order': return t('projectDetail.procurement.stageBand.ordered', 'Ordered');
+    case 'Receive': return t('projectDetail.procurement.stageBand.received', 'Received');
+    case 'Pay': return t('projectDetail.procurement.stageBand.pay', 'Pay');
+    case 'Invoiced': return t('projectDetail.procurement.stageBand.invoiced', 'Invoiced');
     case 'Paid': return t('projectDetail.procurement.stageBand.paid', 'Paid');
   }
 }
@@ -214,12 +213,11 @@ function stageTotals(
   canSeeMoney: boolean,
   erpDocuments: ReturnType<typeof useErpPurchases>['data'],
   defaultCurrency?: string | null,
-): Map<ProcurementProjectStage, CurrencyTotal[]> {
-  const values = new Map<ProcurementProjectStage, Map<string, number>>();
-  for (const stage of PROJECT_PROCUREMENT_STAGES) values.set(stage.key, new Map());
+): Map<ProcurementStage, CurrencyTotal[]> {
+  const values = new Map<ProcurementStage, Map<string, number>>();
+  for (const stage of PROCUREMENT_STAGES) values.set(stage, new Map());
   for (const row of rows) {
-    const stage = projectProcurementStage(row.status);
-    if (!stage) continue;
+    const stage = stageForStatus(row.status);
     if (!canSeeMoney) continue;
     const amount = moneyFor(row, erpDocuments).mostReal?.amount;
     if (amount === undefined) continue;
@@ -315,7 +313,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
   [canApprove, currentUser?.id, role]);
   const erp = useErpPurchases(projectId, { enabled: canSeeMoney });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
-  const [selectedStage, setSelectedStage] = useState<ProcurementProjectStage | null>(null);
+  const [selectedStage, setSelectedStage] = useState<ProcurementStage | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
@@ -358,7 +356,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
   const filteredRows = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
     const filtered = rows.filter((row) => {
-      if (selectedStage && projectProcurementStage(row.status) !== selectedStage) return false;
+      if (selectedStage && stageForStatus(row.status) !== selectedStage) return false;
       if (categoryFilter === UNCATEGORIZED_FILTER && row.budget_category) return false;
       if (categoryFilter && categoryFilter !== UNCATEGORIZED_FILTER && row.budget_category !== categoryFilter) return false;
       if (ownerFilter === UNASSIGNED_FILTER && row.requested_by_id) return false;
@@ -489,9 +487,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
     const dates = datesFor(row, erp.data);
     const steps = [
       { key: 'Request' as const, date: dates.request ?? row.created_at },
-      { key: 'Ordered' as const, date: dates.order },
-      { key: 'Received' as const, date: dates.receive },
-      { key: 'Paid' as const, date: dates.pay },
+      { key: 'Order' as const, date: dates.order },
+      { key: 'Receive' as const, date: dates.receive },
+      { key: payStepLabel(Boolean(row.payments?.length) || (erp.data ?? []).some((document) => document.procurementId === row.id && document.doctype === 'Payment Entry')), date: dates.pay },
     ];
     const done = steps.filter((step) => step.date);
     return (
@@ -544,7 +542,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
       key: 'settlement',
       header: <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}><span tabIndex={0}>{t('procurement.settlement', 'Paid / invoiced')}</span></Tooltip>,
       kind: 'text',
-      size: 150,
+      size: 200,
       cell: (row) => {
         const money = moneyFor(row, erp.data);
         if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return <span className="text-muted-foreground">—</span>;
@@ -610,7 +608,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
                       <span className="text-muted-foreground">{t('procurement.noLineItems', 'No line items recorded.')}</span>
                     ) : null}
                   </div>
-                  <button type="button" onClick={() => setSelected(row)} className="font-medium text-primary underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('procurement.openDrawer', 'Open procurement')}</button>
+                  <button type="button" onClick={() => setSelected(row)} className="font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('procurement.openDrawer', 'Open procurement')}</button>
                 </div>
               )}
             </div>
@@ -650,7 +648,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         kind: 'text',
         size: 185,
         cell: (row) => (
-          <span className={row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary' : 'text-muted-foreground'}>
+          <span className={row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
             {nextStepText(row.status, canDecideRow(row), t)}
           </span>
         ),
@@ -665,7 +663,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
           const needs = needsYou(row, { role, userId: currentUser?.id });
           return needs ? (
             <Tooltip content={t('procurement.needsYouTooltip', 'Suggested action based on the current role and record state. Server rules remain authoritative.')}>
-              <span tabIndex={0} className="rounded-sm text-xs font-medium text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span tabIndex={0} className="rounded-sm text-xs font-medium text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                 {needsYouText(row, role, currentUser?.id, t)}
               </span>
             </Tooltip>
@@ -754,14 +752,28 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
     invoices: drawerDetails?.invoices ?? selected.procurement_invoices,
     payments: drawerDetails?.payments ?? selected.payments,
   }, drawerErpDocuments.map((document) => ({ doctype: document.doctype, docDate: document.docDate }))) : null;
+  const hasPayment = Boolean((drawerDetails?.payments ?? selected?.payments ?? []).length)
+    || drawerErpDocuments.some((document) => document.doctype === 'Payment Entry');
+  const paymentDate = (drawerDetails?.payments ?? selected?.payments ?? [])
+    .map((payment) => payment.date ?? payment.created_at)
+    .filter((date): date is string => Boolean(date))
+    .sort()[0]
+    ?? drawerErpDocuments.filter((document) => document.doctype === 'Payment Entry').map((document) => document.docDate).filter((date): date is string => Boolean(date)).sort()[0]
+    ?? null;
+  const invoiceDate = (drawerDetails?.invoices ?? selected?.procurement_invoices ?? [])
+    .map((invoice) => invoice.invoice_date ?? invoice.created_at)
+    .filter((date): date is string => Boolean(date))
+    .sort()[0]
+    ?? drawerErpDocuments.filter((document) => document.doctype === 'Purchase Invoice').map((document) => document.docDate).filter((date): date is string => Boolean(date)).sort()[0]
+    ?? null;
   const timeline = selected ? [
     { key: 'Request' as const, date: dates?.request ?? selected.created_at },
-    { key: 'Ordered' as const, date: dates?.order ?? null },
-    { key: 'Received' as const, date: dates?.receive ?? null },
-    { key: 'Paid' as const, date: dates?.pay ?? null },
+    { key: 'Order' as const, date: dates?.order ?? null },
+    { key: 'Receive' as const, date: dates?.receive ?? null },
+    { key: payStepLabel(hasPayment), date: hasPayment ? paymentDate : invoiceDate },
   ] : [];
-  const stageStats = PROJECT_PROCUREMENT_STAGES.map(({ key }) => {
-    const stageRows = rows.filter((row) => projectProcurementStage(row.status) === key);
+  const stageStats = PROCUREMENT_STAGES.map((key) => {
+    const stageRows = rows.filter((row) => stageForStatus(row.status) === key);
     return { key, rows: stageRows, currencyTotals: totalsByStage.get(key) ?? [] };
   });
   const moneyTooltip = t(
@@ -978,7 +990,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
               )}
               <div className="col-span-full space-y-1">
                 <div className="text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">{t('projectDetail.procurement.table.nextStep', 'Next step')}</div>
-                <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary' : 'text-muted-foreground'}>
+                <div className={selected.status === 'Requested' && canApprove ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
                   {nextStepText(selected.status, canApprove, t)}
                 </div>
               </div>
@@ -1006,7 +1018,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h3 id="procurement-drawer-documents" className="text-sm font-semibold">{t('projectDetail.procurement.detail.documents', 'Documents')}</h3>
                 {canAttachDocument && (
-                  <Link to={`/procurement/${selected.id}/documents`} className="text-xs font-medium text-primary underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                  <Link to={`/procurement/${selected.id}/files`} className="text-xs font-medium text-primary-text underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                     {t('procurement.rowMenu.linkFile', 'Link a file')}
                   </Link>
                 )}
