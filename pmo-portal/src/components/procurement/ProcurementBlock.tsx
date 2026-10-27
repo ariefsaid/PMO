@@ -52,6 +52,8 @@ import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
  */
 export interface ProcurementBlockProps {
   projectId?: string;
+  /** Narrows the rows after the role scope (the route's "Needs you" tab). */
+  rowFilter?: (row: ProcurementWithRefs) => boolean;
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -285,7 +287,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter }) => {
   const { t } = useTranslation();
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -301,8 +303,9 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
   const ownScoped = !projectId && role === 'Engineer';
   const rows = useMemo(() => [...(data ?? [])]
     .filter((row) => !ownScoped || row.requested_by_id === currentUser?.id)
+    .filter((row) => !rowFilter || rowFilter(row))
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-  [data, ownScoped, currentUser?.id]);
+  [data, ownScoped, currentUser?.id, rowFilter]);
   const canSeeMoney = may('view', 'procurement');
   const canApprove = may('transition', 'procurement');
   const canCreate = may('create', 'procurement');

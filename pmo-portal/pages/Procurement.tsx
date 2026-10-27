@@ -29,7 +29,8 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
-import { ProcurementListColumns, ProcurementListRow } from './procurement/ProcurementListRow';
+import { ProcurementBlock } from '@/src/components/procurement';
+import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatCurrency, formatWeekdayMonthDay } from '@/src/lib/format';
 import { externalRefsOf, type ProcurementWithRefs } from '@/src/lib/db/procurements';
 import type { ProcurementStatus } from '@/src/lib/db/procurementLifecycle';
@@ -44,9 +45,7 @@ import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
 import type { StageKey } from './procurement/blocks/stage';
 import { matchesStage, type ProcurementListRole } from './procurement/list/model';
-import { ProcurementSummaryBand, type ProcurementTab } from './procurement/list/ProcurementSummaryBand';
 import { ProcurementGroupedView } from './procurement/list/ProcurementGroupedView';
-import { NeedsYouReason } from './procurement/list/NeedsYouReason';
 
 type StatusFilter = 'All' | 'Needs approval' | 'Open' | 'Ordered' | 'Vendor Invoiced' | 'Paid';
 type ProcurementRouteView = ProcurementView | 'grouped';
@@ -173,6 +172,7 @@ const ProcurementPage: React.FC = () => {
     { result: result.reason, text: reasonCopy(result, t) },
   ])), [needsYouRows, t]);
 
+  const needsYouFilter = useCallback((row: ProcurementWithRefs) => needsById.has(row.id), [needsById]);
   const tab = tabFromSearch(location.search, needsYouRows.length, canSeeOrphans);
   const selectedStage = stageFromSearch(location.search);
   const currentView = routeViewFromSearch(location.search, workingSet.view);
@@ -192,7 +192,6 @@ const ProcurementPage: React.FC = () => {
   }, [location.pathname, location.search, location.state, navigate]);
 
   const setTab = (next: ProcurementTab) => updateQuery({ tab: next });
-  const setStage = (next: StageKey) => updateQuery({ stage: selectedStage === next ? null : next });
   const onViewChange = (next: ProcurementRouteView) => {
     if (next === 'grouped') {
       updateQuery({ view: next });
@@ -337,7 +336,7 @@ const ProcurementPage: React.FC = () => {
     </div>
   );
 
-  const orphanQuery = useErpOrphans(undefined, { enabled: canViewOrphans && tab === 'orphans' });
+  const orphanQuery = useErpOrphans(undefined, { enabled: canViewOrphans });
   const projectQueryForOrphans = useProjects({ enabled: canViewOrphans && tab === 'orphans' });
   const projectNames = useMemo(() => new Map((projectQueryForOrphans.data ?? []).map((project) => [project.id, project.name])), [projectQueryForOrphans.data]);
   const orphanRows = orphanQuery.data ?? [];
@@ -399,19 +398,24 @@ const ProcurementPage: React.FC = () => {
           ))}
         </div>
 
-        {tab !== 'orphans' && ready && (
-          <ProcurementSummaryBand
+        {ready && (
+          <ProcurementKpiRow
             rows={all}
             needsYouRows={needsYouRows}
+            orphans={canViewOrphans ? orphanRows : undefined}
             tab={tab}
-            stage={selectedStage}
             role={realRole as ProcurementListRole}
-            onSelectNeedsYou={() => setTab('needs-you')}
-            onSelectStage={setStage}
+            onSelectTab={setTab}
           />
         )}
 
-        {tab !== 'orphans' && ready && (
+        {tab !== 'orphans' && ready && currentView === 'table' && (
+          <div className="flex justify-end">
+            <ViewToggle<ProcurementRouteView> options={routeViewOptions} value={currentView} onChange={onViewChange} ariaLabel={t('view.label', 'Procurement view')} />
+          </div>
+        )}
+
+        {tab !== 'orphans' && ready && currentView !== 'table' && (
           <div className="space-y-3" data-testid="list-page-toolbar">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
               <SearchMini
@@ -475,7 +479,7 @@ const ProcurementPage: React.FC = () => {
             <ListState variant="empty" icon="check" title={t('needsYou.empty.title', 'Nothing needs your attention')} sub={t('needsYou.empty.sub', 'You are up to date on the procurements in your scope.')} action={{ label: t('tab.all', 'All procurements'), onClick: () => setTab('all') }} />
           )}
 
-          {ready && tab !== 'orphans' && all.length > 0 && tabRows.length > 0 && filtered.length === 0 && (
+          {ready && tab !== 'orphans' && currentView !== 'table' && all.length > 0 && tabRows.length > 0 && filtered.length === 0 && (
             <ListState variant="empty" title={t('noMatch.title', 'No procurements match these filters')} sub={t('noMatch.sub', 'Clear a filter or change the search to see more procurements.')} action={{ label: t('noMatch.clear', 'Clear filters'), onClick: clearFilters }} />
           )}
 
@@ -487,16 +491,8 @@ const ProcurementPage: React.FC = () => {
             <ProcurementGroupedView rows={filtered} role={realRole as ProcurementListRole} reasonText={reasonText} />
           )}
 
-          {ready && tab !== 'orphans' && filtered.length > 0 && currentView === 'table' && (
-            <div className="overflow-hidden rounded-lg border border-border bg-card" aria-label={t('list.label', 'Procurement list')}>
-              <ProcurementListColumns />
-              {filtered.map((row) => (
-                <React.Fragment key={row.id}>
-                  {reasonText.has(row.id) && <NeedsYouReason id={row.id} text={reasonText.get(row.id) as string} />}
-                  <ProcurementListRow row={row} />
-                </React.Fragment>
-              ))}
-            </div>
+          {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
+            <ProcurementBlock rowFilter={tab === 'needs-you' ? needsYouFilter : undefined} />
           )}
         </div>
 
