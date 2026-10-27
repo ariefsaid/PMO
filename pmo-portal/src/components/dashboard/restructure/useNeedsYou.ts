@@ -23,7 +23,6 @@ import { moneyFigure } from '@/src/lib/dashboardMoney';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 import { isActualComplete } from '@/src/lib/projectFinances';
 import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransitions';
-import { entriesByProject } from '@/src/lib/timesheet-derive';
 import { repositories } from '@/src/lib/repositories';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
@@ -54,6 +53,7 @@ export interface OverdueInvoiceNeeds {
 export interface SupplierInvoiceNeeds {
   count: number;
   knownTotals: CurrencyTotal[];
+  unknownBalances: number;
 }
 
 export interface NeedsYouFacts {
@@ -116,7 +116,7 @@ export function buildNeedsItems(role: Role | null, facts: NeedsYouFacts, t: Tran
     }
     if (facts.supplierInvoices) add({
       id: 'supplier-invoices', count: facts.supplierInvoices.count,
-      label: counted(t, 'needs.supplierInvoice', '{{count}} supplier invoice to pay', '{{count}} supplier invoices to pay', facts.supplierInvoices.count),
+      label: [counted(t, 'needs.supplierInvoice', '{{count}} supplier invoice to pay', '{{count}} supplier invoices to pay', facts.supplierInvoices.count), facts.supplierInvoices.unknownBalances > 0 ? t('needs.unknownBalanceCount', 'Unknown balances: {{count}}', { count: facts.supplierInvoices.unknownBalances }) : null].filter(Boolean).join(' · '),
       amount: amountsText(facts.supplierInvoices.knownTotals, t), href: '/procurement?status=Vendor+Invoiced', tone: 'warn',
     });
     if (facts.readyToBill !== undefined) add({
@@ -213,10 +213,12 @@ export function selectSupplierInvoices(rows: ProcurementWithRefs[] | undefined):
   if (!rows) return undefined;
   const invoiced = rows.filter((row) => row.status === 'Vendor Invoiced');
   const totals = new Map<string, number>();
+  let unknownBalances = 0;
   for (const row of invoiced) {
     if (Number.isFinite(row.total_value)) totals.set(row.currency, (totals.get(row.currency) ?? 0) + row.total_value);
+    else unknownBalances += 1;
   }
-  return { count: invoiced.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })) };
+  return { count: invoiced.length, knownTotals: [...totals].map(([currency, amount]) => ({ currency, amount })), unknownBalances };
 }
 
 const isCompanyRole = (role: Role | null): boolean => role === 'Executive' || role === 'Admin' || role === 'Finance';
@@ -268,7 +270,7 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   const budgetReviewQuery = useQuery({
     queryKey: ['finance-budget-review', orgId],
     queryFn: getFinanceBudgetReview,
-    enabled: Boolean(orgId && role === 'Finance'),
+    enabled: Boolean(orgId && companyRole),
   });
   const pmProjectsQuery = useQuery({
     queryKey: ['pm-dashboard-projects', orgId, userId],
@@ -370,8 +372,8 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     procurementsAwaitingApproval: procurementApprovalRole ? procApprovals.length : undefined,
     overdueInvoices: companyRole ? invoiceNeeds : undefined,
     supplierInvoices: companyRole ? supplierNeeds : undefined,
-    readyToBill: role === 'Finance' ? workOrdersQuery.data && workOrdersQuery.data.totals.reduce((sum, row) => sum + row.count, 0) + workOrdersQuery.data.incompleteCount : undefined,
-    budgetsOver: role === 'Finance' ? budgetReviewQuery.data?.filter((row) => row.variance !== null && row.variance > 0).length : undefined,
+    readyToBill: companyRole ? workOrdersQuery.data && workOrdersQuery.data.totals.reduce((sum, row) => sum + row.count, 0) + workOrdersQuery.data.incompleteCount : undefined,
+    budgetsOver: companyRole ? budgetReviewQuery.data?.filter((row) => row.variance !== null && row.variance > 0).length : undefined,
     projectsOverBudget: role === 'Project Manager' && pmProjectsQuery.data ? pmAtRiskCount : undefined,
     overdueProjectTasks: role === 'Project Manager' && !projectTasks.some((query) => query.isPending || query.isError) ? pmOverdueTaskCount : undefined,
     timesheetsToApprove: role === 'Project Manager' && !timesheetsAwaitingQuery.isPending && !timesheetsAwaitingQuery.isError ? timesheetsAwaitingQuery.data?.length ?? 0 : undefined,
@@ -381,28 +383,26 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
   };
 
   const needsPending = companyRole
-    ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || (role === 'Finance' && budgetReviewQuery.isPending) || approvalSourcesPending || (role === 'Finance' && !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError)
+    ? dashboardQuery.isPending || salesInvoiceQuery.isPending || (procurementApprovalRole && procurementsQuery.isPending) || workOrdersQuery.isPending || organizationDay.isPending || budgetReviewQuery.isPending || approvalSourcesPending || !invoiceNeeds && !salesInvoiceQuery.isError && !organizationDay.isError
     : role === 'Project Manager'
       ? pmProjectsQuery.isPending || projectTasks.some((query) => query.isPending) || organizationDay.isPending || approvalSourcesPending
       : role === 'Engineer'
         ? timesheetsQuery.isPending || myTasksQuery.isPending || expenseClaimsQuery.isPending || organizationDay.isPending
         : false;
   const needsError = companyRole
-    ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || (role === 'Finance' && budgetReviewQuery.isError) || approvalSourcesError
+    ? dashboardQuery.isError || salesInvoiceQuery.isError || (procurementApprovalRole && procurementsQuery.isError) || workOrdersQuery.isError || organizationDay.isError || budgetReviewQuery.isError || approvalSourcesError
     : role === 'Project Manager'
       ? pmProjectsQuery.isError || projectTasks.some((query) => query.isError) || organizationDay.isError || approvalSourcesError
       : role === 'Engineer'
         ? timesheetsQuery.isError || myTasksQuery.isError || expenseClaimsQuery.isError || organizationDay.isError
         : false;
-  const pmSourcesPending = pmProjectsQuery.isPending || projectTasks.some((query) => query.isPending);
-  const pmSourcesError = pmProjectsQuery.isError || projectTasks.some((query) => query.isError);
   const engineerSourcesPending = timesheetsQuery.isPending;
   const engineerSourcesError = timesheetsQuery.isError;
   const translate = (key: string, fallback: string, options?: Record<string, unknown>) => t(key, { defaultValue: fallback, ...(options ?? {}) });
   const items = buildNeedsItems(role, facts, translate);
   const companyAreaItems = companyRole
     ? [...buildNeedsItems('Executive', facts, translate), ...buildNeedsItems('Finance', facts, translate)]
-      .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over'].includes(item.id))
+      .filter((item) => ['at-risk', 'procurement-approvals', 'overdue-invoices', 'supplier-invoices', 'budgets-over', 'ready-to-bill'].includes(item.id))
     : [];
   const areaItems = [...items, ...companyAreaItems.filter((item) => !items.some((existing) => existing.id === item.id))];
   const pmOverdueTasksByProject = Object.fromEntries((pmProjectsQuery.data ?? []).map((project, index) => [

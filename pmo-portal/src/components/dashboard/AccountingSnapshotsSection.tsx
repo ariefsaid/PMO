@@ -25,6 +25,7 @@ import type { ErpActualsSnapshotRow, ErpAgingSnapshotRow } from '@/src/lib/db/er
 export interface AccountingSnapshotsSectionProps {
   showActuals?: boolean;
   showApAging?: boolean;
+  showArAging?: boolean;
   actuals: ErpActualsSnapshotRow[];
   actualsPending?: boolean;
   actualsError?: boolean;
@@ -239,6 +240,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
   actualProjectNames,
   showActuals = true,
   showApAging = true,
+  showArAging = true,
 }) => {
   const { t } = useTranslation('dashboard');
   // Actuals rows carry no currency field and are org-denominated. Aging rows must keep the source
@@ -279,8 +281,8 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
     )}
     {showApAging && (
     <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard:finance.apTitle', 'Vendor payables (AP)')}
-      errorLabel={t('dashboard:finance.apError', "Couldn't load vendor payables")}
+      title={t('dashboard:hub.company.supplierAgingTitle', 'Supplier payables (AP)')}
+      errorLabel={t('dashboard:hub.company.supplierAgingError', "Couldn't load supplier payables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={apAging}
@@ -294,9 +296,9 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       detail={agingDetail(apAging)}
     />
     )}
-    <SnapshotBlock<ErpAgingSnapshotRow>
-      title={t('dashboard.uxs36CustomerCollectionsTitle', 'Customer collections (AR)')}
-      errorLabel={t('dashboard:finance.arError', "Couldn't load customer receivables")}
+    {showArAging && <SnapshotBlock<ErpAgingSnapshotRow>
+      title={t('dashboard:hub.company.clientAgingTitle', 'Client receivables (AR)')}
+      errorLabel={t('dashboard:hub.company.clientAgingError', "Couldn't load client receivables")}
       emptyLabel={t('dashboard.agingSnapshotEmpty', 'No aging data to show yet.')}
       emptyDescription={t('dashboard.snapshots.guidance', 'Ask your administrator to sync accounting data.')}
       rows={arAging}
@@ -308,7 +310,7 @@ export const AccountingSnapshotsSection: React.FC<AccountingSnapshotsSectionProp
       rowKey={agingRowKey}
       reportVersion={arAging[0]?.reportVersion}
       detail={agingDetail(arAging)}
-    />
+    />}
   </section>
   );
 };
