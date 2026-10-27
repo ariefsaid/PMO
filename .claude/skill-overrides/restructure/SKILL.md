@@ -62,21 +62,20 @@ state and role; what each role must not see; which seed records the screenshots 
 **Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
 areas in order · what's removed · main action by state · screenshot set), posted on the issue.
 
-### 2. Three structural options
+### 2. Three structural options, in words
 
-Build three options **in the real app** behind `?layout=a|b|c` (`?layout=off` = today's screen),
-from the same recomposed blocks, on real-shaped seed data. They differ in structure only:
-navigation model (tabs · one page with a jump menu · hub with drill-down pages), how the work
-divides, what leads per role, where actions live. One of them is the familiar category standard.
+Describe three options in chat, 3–5 lines each, no code and no images: navigation model (tabs ·
+one page with a jump menu · hub with drill-down pages), how the work divides, what leads per
+role, where the main action lives. They differ in structure only; one is the familiar category
+standard. Add your recommendation in one line. The owner picks or combines in the same reply.
+Record the pick on the issue.
 
-Run **the full gate**. Then send the picking set — the busiest record as the top role and the most
-restricted role, at 1440 and 390 (4 shots per option) — with your recommendation in two lines.
-The owner may pick, or combine; a combination goes through the full gate again. Record the pick
-on the issue.
+Words carry structure without drifting the look, and take minutes instead of a build. Build an
+option in the app only if the owner can't choose from words, and then only the two in question.
 
 ### 3. Build the chosen option
 
-Make it the real page; remove the other layouts, the switch and any prototype-only files. Delete
+Build the chosen structure as the real page (remove any option prototypes and switch). Delete
 tests that pin the old look; keep and update behaviour, role, money and a11y tests; add
 translations. Run **the full gate** once on every state: empty, loading, error, each tab or area,
 each drawer, each role, both widths, light and dark, plus the status variants the screen has
@@ -102,8 +101,8 @@ worktree or branch from this run remains.
 
 Size the gate to the change, before anything reaches the owner:
 
-- **Full gate** (all four steps below): a new set of options, a combination of options, and the
-  finished build in step 3.
+- **Full gate** (all four steps below): the finished build in step 3, and any option the owner
+  asked to see built.
 - **Light check** for a small edit — moving, removing or rewording one element, or fixing a
   reported finding: re-render the touched state, run the detector and axe, and re-run only the
   one reviewer whose finding it answers, or none when the owner asked for the exact change. Say
@@ -173,3 +172,5 @@ Each block answers one question for its reader:
 - One question at a time in the grill was too slow for the owner; batched rounds work.
 - The owner combined two options (tabs for one-roof navigation + the hub's quiet activity);
   offer combinations when two options each win on a different axis.
+- Building and gating three in-app options per screen took too long for the owner; options are
+  now picked from words, and only the chosen one is built.
