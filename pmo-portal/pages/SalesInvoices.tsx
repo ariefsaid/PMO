@@ -847,7 +847,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
     // ponytail: embedded, the client column carries the row's identity; 'primary' would force a 240px floor and push Outstanding off-screen at 1440.
     kind: embedded ? 'text' : 'primary',
-    size: embedded ? 132 : 280,
+    size: embedded ? 156 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
       const number = invoiceNumber(inv);
@@ -915,7 +915,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill className={embedded ? 'max-w-full whitespace-normal' : undefined} variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
+      return <StatusPill className={embedded ? 'max-w-full whitespace-normal!' : undefined} variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
     },
     exportValue: (inv) => inv.status,
   };
@@ -930,7 +930,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     // pre-selects a form and is never read here.
     cell: (inv) => {
       // The ISO code is shown only when it tells the reader something: the invoice is not in the org currency.
-      const showCode = inv.amount != null && Boolean(inv.currency) && inv.currency !== orgCurrency;
+      // Embedded lists use formatCurrency, which already prefixes a foreign code — a second one is noise.
+      const showCode = !embedded && inv.amount != null && Boolean(inv.currency) && inv.currency !== orgCurrency;
       return (
         <span className="flex w-full flex-col items-end gap-0.5 text-right md:inline-flex md:w-auto md:flex-row md:flex-wrap md:items-baseline md:justify-end md:gap-x-1.5">
           <span className="inline-flex items-baseline justify-end gap-1">
@@ -1013,7 +1014,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'client',
     header: t('finance:receivables.client', 'Client'),
     kind: 'text',
-    size: 200,
+    size: 192,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
@@ -1033,7 +1034,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'delivery',
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
-    size: embedded ? 140 : 165,
+    size: embedded ? 124 : 165,
     cell: (inv) => <span className="block truncate">{inv.received_date
       ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
       : inv.status === 'Draft'
