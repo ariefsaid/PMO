@@ -3210,11 +3210,6 @@
       "client": "Kode Proyek Klien"
     }
   },
-  "revenueByProject": {
-    "currencyErrorSub": "Coba lagi untuk melihat pendapatan.",
-    "currencyErrorTitle": "Mata uang organisasi tidak dapat dimuat",
-    "subtitle": "Pendapatan per proyek, tidak termasuk pajak, dalam mata uang masing-masing invoice, dengan kelompok Tanpa Proyek untuk invoice yang belum ditautkan ke proyek."
-  },
   "financialStatements": {
     "amounts": "Jumlah",
     "asAt": "Per tanggal",
@@ -3388,7 +3383,6 @@
       "incomingPayments": "Pembayaran Masuk",
       "integrations": "Integrasi saya",
       "invoiceRecord": "Detail faktur",
-      "paymentRecord": "Detail pembayaran",
       "meetings": "Rapat",
       "myTasks": "Tugas Saya",
       "myTasksHint": "Tugas Anda di seluruh proyek",
@@ -3401,7 +3395,6 @@
       "timesheets": "Timesheet",
       "profileSettings": "Profil & preferensi",
       "expenses": "Biaya",
-      "finance": "Keuangan",
       "financialStatements": "Laporan keuangan",
       "managementPack": "Laporan manajemen"
     },
@@ -3851,10 +3844,6 @@
     "overdueDays": "Terlambat {{count}} hari",
     "overdueOnly": "Hanya yang terlambat"
   },
-  "uxs37": {
-    "billedWorkTaxBasis": "di luar pajak",
-    "openReceivablesTaxBasis": "bruto, termasuk pajak"
-  },
   "financeCopy": {
     "viewInvoice": "Lihat faktur",
     "invoiceRecordTitle": "Faktur {{number}}",
@@ -3870,7 +3859,6 @@
     "projectNotRecorded": "Proyek belum dicatat",
     "customerNotRecorded": "Pelanggan belum dicatat",
     "unnamedInvoice": "faktur",
-    "continueToApprove": "Lanjutkan untuk menyetujui",
     "nativeNewInvoiceSubtitle": "Membuat draf. Pengguna Finance atau Admin lain yang menyetujuinya.",
     "nativeProjectRequired": "Proyek wajib diisi: proyek menentukan PPN faktur.",
     "nativeSelectProject": "Pilih proyek…",
@@ -4031,17 +4019,6 @@
     "cancelPayment": "Batalkan pembayaran",
     "salesInvoiceOptional": "Faktur Penjualan (opsional)",
     "linkToSalesInvoice": "Tautkan ke faktur penjualan…",
-    "youDonTHaveAccessToRevenueByProject": "Anda tidak memiliki akses ke Pendapatan per Proyek",
-    "theRevenuePerProjectViewIsAvailableToFinanceProjectManagersAndExecutives": "Tampilan pendapatan per proyek tersedia untuk Finance, Manajer Proyek, dan Eksekutif.",
-    "unassigned": "Belum ditetapkan",
-    "totalRevenue": "Total Pendapatan",
-    "openAR": "Piutang Terbuka",
-    "invoices": "Faktur",
-    "revenueByProject": "Pendapatan per Proyek",
-    "noRevenueDataYet": "Belum ada data pendapatan",
-    "createSalesInvoicesToSeeRevenuePerProject": "Belum ada pendapatan dari faktur yang dicatat. Faktur Baru memulai penagihan; pendapatan akan tampil di sini setelah faktur dicatat.",
-    "noRevenueData": "Tidak ada data pendapatan",
-    "invoicesWithAmountsWillAppearHere": "Faktur dengan jumlah akan muncul di sini.",
     "name": "Nama",
     "updated": "Diperbarui",
     "myViews": "Tampilan Saya",
@@ -4145,7 +4122,6 @@
     "selectOrSearchItem": "Pilih atau cari item…",
     "searchItemCodeOrName": "Cari kode atau nama item…",
     "describeWorkOrGoods": "Jelaskan pekerjaan atau barang…",
-    "currency": "Mata uang",
     "draftInvoiceLabel": "Draf · {{customer}}",
     "preErpBadge": "Pra-ERP",
     "totalDueAmount": "Total tagihan {{amount}}",
@@ -4301,63 +4277,60 @@
     "clear": "Hapus klasifikasi"
   },
   "managementPack": {
-    "actions": "Tindakan",
-    "retry": "Coba lagi",
-    "title": "Laporan manajemen bulanan",
-    "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
-    "from": "Dari",
-    "asAt": "Per",
-    "noAccessTitle": "Anda tidak memiliki akses ke laporan manajemen",
-    "noAccessSub": "Laporan manajemen tersedia untuk Finance, Project Manager, Executive, dan Admin.",
-    "errorTitle": "Laporan manajemen gagal dimuat",
-    "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
-    "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
-    "emptyTitle": "Tidak ada proyek untuk dilaporkan",
-    "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
-    "projectsAsAt": "Proyek per {{month}}",
-    "monthlyTotals": "Total bulanan",
-    "unassigned": "Tanpa proyek",
-    "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
-    "recordProgress": "Catat progres",
-    "billedAhead": "ditagih di muka",
-    "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
-    "total": "Total",
-    "basis": {
-      "invoiced": "Ditagih",
-      "progress": "{{pct}}% selesai",
-      "progressShort": "Progres"
-    },
-    "col": {
-      "month": "Bulan",
-      "projectNumber": "Nomor proyek",
-      "project": "Proyek",
-      "client": "Klien",
-      "currency": "Mata uang",
-      "taxBasis": "Dasar pajak",
-      "contract": "Kontrak",
-      "planned": "Rencana",
-      "recognised": "Diakui",
-      "invoiced": "Ditagih",
-      "recognisedToDate": "Diakui s.d. saat ini",
-      "invoicedToDate": "Ditagih s.d. saat ini",
-      "unbilled": "Belum ditagih",
-      "backlog": "Backlog",
-      "basis": "Dasar"
-    },
-    "progressModal": {
-      "title": "Catat progres",
-      "month": "Bulan",
-      "monthInvalid": "Pilih bulan.",
-      "pct": "Persen selesai s.d. saat ini",
-      "pctHelper": "Progres fase: {{pct}}%",
-      "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
-      "note": "Catatan",
-      "save": "Simpan progres",
-      "saved": "Progres disimpan"
-    }
+  "actions": "Tindakan",
+  "retry": "Coba lagi",
+  "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
+  "from": "Dari",
+  "asAt": "Per",
+  "noAccessTitle": "Anda tidak memiliki akses ke laporan manajemen",
+  "noAccessSub": "Laporan keuangan tersedia untuk peran Finance, Executive, dan Admin.",
+  "errorTitle": "Laporan manajemen gagal dimuat",
+  "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+  "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
+  "emptyTitle": "Tidak ada proyek untuk dilaporkan",
+  "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
+  "projectsAsAt": "Proyek per {{month}}",
+  "monthlyTotals": "Total bulanan",
+  "unassigned": "Tanpa proyek",
+  "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
+  "recordProgress": "Catat progres",
+  "billedAhead": "ditagih di muka",
+  "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
+  "total": "Total",
+  "basis": {
+    "invoiced": "Ditagih",
+    "progressShort": "Progres"
   },
+  "col": {
+    "month": "Bulan",
+    "projectNumber": "Nomor proyek",
+    "project": "Proyek",
+    "client": "Klien",
+    "currency": "Mata uang",
+    "taxBasis": "Dasar pajak",
+    "contract": "Kontrak",
+    "planned": "Rencana",
+    "recognised": "Diakui",
+    "invoiced": "Ditagih",
+    "recognisedToDate": "Diakui s.d. saat ini",
+    "invoicedToDate": "Ditagih s.d. saat ini",
+    "unbilled": "Belum ditagih",
+    "backlog": "Backlog",
+    "basis": "Dasar"
+  },
+  "progressModal": {
+    "title": "Catat progres",
+    "month": "Bulan",
+    "monthInvalid": "Pilih bulan.",
+    "pct": "Persen selesai s.d. saat ini",
+    "pctHelper": "Progres fase: {{pct}}%",
+    "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
+    "note": "Catatan",
+    "save": "Simpan progres",
+    "saved": "Progres disimpan"
+  }
+},
   "uxs34": {
-    "cumulativeScope": "Jumlah kumulatif · sejak awal proyek hingga {{month}}",
     "backlogUnavailable": "Belum tersedia",
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
@@ -4898,8 +4871,7 @@
   },
   "uxs26": {
     "invoiceEmptyProjectManager": "Belum ada faktur klien yang dicatat. Finance mengelola pembuatan faktur.",
-    "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien.",
-    "revenueEmptyProjectManager": "Belum ada pendapatan dari faktur yang dicatat. Finance mengelola pembuatan faktur."
+    "receiptsEmptyProjectManager": "Belum ada penerimaan dari klien yang dicatat. Finance mencatat pembayaran klien."
   },
   "m365Documents": {
     "link": "Tautkan dari Microsoft 365",

@@ -18,15 +18,12 @@ describe('modulesForRole (AC-W3-N3 + AC-W3-N4)', () => {
   // ── AC-W3-N3 ─────────────────────────────────────────────────────────────
 
   it('Finance area is navigable only to Executive, Finance and Admin roles', () => {
+    const destinations = ['/finance', '/finance/receivables', '/finance/payables', '/finance/reports', '/finance/statements'];
     for (const role of [UserRole.Admin, UserRole.Executive, UserRole.Finance]) {
-      expect(modulesForRole(role).find((module) => module.module === 'finance')).toMatchObject({
-        path: '/finance',
-        icon: 'dollar',
-        labelKey: 'shell.nav.finance',
-      });
+      expect(modulesForRole(role).filter((module) => module.module.startsWith('finance')).map((module) => module.path)).toEqual(destinations);
     }
-    expect(modulesForRole(UserRole.ProjectManager).some((module) => module.module === 'finance')).toBe(false);
-    expect(modulesForRole(UserRole.Engineer).some((module) => module.module === 'finance')).toBe(false);
+    expect(modulesForRole(UserRole.ProjectManager).some((module) => module.module.startsWith('finance'))).toBe(false);
+    expect(modulesForRole(UserRole.Engineer).some((module) => module.module.startsWith('finance'))).toBe(false);
   });
 
   it('AC-W3-N3: Engineer does NOT see Sales Pipeline in Navigate', () => {

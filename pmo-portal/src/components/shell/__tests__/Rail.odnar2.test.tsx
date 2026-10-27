@@ -65,14 +65,14 @@ const makeWrapper = (initial: string) => {
 const renderRail = () =>
   render(<Rail />, { wrapper: makeWrapper('/') });
 
-/** The one revenue-gated route: /reports (Management pack) with a dashboard fallback. */
+/** The revenue-gated Reports area with a dashboard fallback. */
 const renderReportsRoute = () =>
   render(
     <Routes>
-      <Route path="/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
+      <Route path="/finance/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
       <Route path="*" element={<div>DASHBOARD</div>} />
     </Routes>,
-    { wrapper: makeWrapper('/reports') },
+    { wrapper: makeWrapper('/finance/reports') },
   );
 
 /** Settle the tree on an always-on item before asserting a gated item is absent. */
@@ -86,7 +86,7 @@ beforeEach(() => {
 });
 
 describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', () => {
-  it('no org_features row + no ERP owns revenue → Finance destination visible and /reports allowed', async () => {
+  it('no org_features row + no ERP owns revenue → Finance destination visible and Reports area allowed', async () => {
     h.rows = {};
     h.ownership = { data: [ownershipRow('procurement')], isError: false };
     renderRail();
@@ -98,7 +98,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     expect(screen.queryByText('DASHBOARD')).toBeNull();
   });
 
-  it('no org_features row + an ERP owns revenue → Finance destination remains visible, /reports redirects', async () => {
+  it('no org_features row + an ERP owns revenue → Finance destination remains visible, Reports area redirects', async () => {
     h.rows = {};
     h.ownership = { data: [ownershipRow('revenue')], isError: false };
     renderRail();
@@ -129,7 +129,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     }
   });
 
-  it('ownership still loading → Finance destination stays visible and /reports holds (no redirect)', async () => {
+  it('ownership still loading → Finance destination stays visible and the Reports area holds (no redirect)', async () => {
     h.rows = {};
     h.ownership = { data: undefined, isError: false };
     const rail = renderRail();
@@ -145,7 +145,7 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     h.ownership = { data: [ownershipRow('procurement')], isError: false };
     route.rerender(
       <Routes>
-        <Route path="/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
+        <Route path="/finance/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />
         <Route path="*" element={<div>DASHBOARD</div>} />
       </Routes>,
     );

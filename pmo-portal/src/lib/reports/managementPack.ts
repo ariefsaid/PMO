@@ -15,8 +15,12 @@ export interface PackMonth {
   planned: Cents | null;
   recognised: Cents;
   invoiced: Cents;
+  /** Number of dated invoices issued in this month. */
+  invoiceCount: number;
   recognisedToDate: Cents;
   invoicedToDate: Cents;
+  /** Dated invoice count accumulated through this month. */
+  invoiceCountToDate: number;
   /** recognisedToDate − invoicedToDate; negative = billed ahead (DD-MMP-3). */
   unbilled: Cents;
   /** contractNet − recognisedToDate; null for rows without a contract. Never clamped. */
@@ -52,8 +56,10 @@ export interface PackTotalsMonth {
   planned: Cents;
   recognised: Cents;
   invoiced: Cents;
+  invoiceCount: number;
   recognisedToDate: Cents;
   invoicedToDate: Cents;
+  invoiceCountToDate: number;
   unbilled: Cents;
   backlog: Cents | null;
 }
@@ -114,7 +120,9 @@ interface RowInput {
   project: PackFactsProject | null;
   currency: string;
   invoicedByMonth: Map<string, Cents>;
+  invoiceCountByMonth: Map<string, number>;
   invoicedBefore: Cents;
+  invoiceCountBefore: number;
   progress: PackFactsProgress[];
   months: string[];
   from: string;
@@ -132,10 +140,13 @@ function buildRow(r: RowInput): PackRow {
   };
 
   let invoicedToDate = r.invoicedBefore;
+  let invoiceCountToDate = r.invoiceCountBefore;
   let previous = recognisedToDateAt(addMonths(r.from, -1), invoicedToDate).value;
   const months = r.months.map((month): PackMonth => {
     const invoiced = r.invoicedByMonth.get(month) ?? 0;
+    const invoiceCount = r.invoiceCountByMonth.get(month) ?? 0;
     invoicedToDate += invoiced;
+    invoiceCountToDate += invoiceCount;
     const { value: recognisedToDate, basis } = recognisedToDateAt(month, invoicedToDate);
     const out: PackMonth = {
       month,
@@ -144,8 +155,10 @@ function buildRow(r: RowInput): PackRow {
         : null,
       recognised: recognisedToDate - previous,
       invoiced,
+      invoiceCount,
       recognisedToDate,
       invoicedToDate,
+      invoiceCountToDate,
       unbilled: recognisedToDate - invoicedToDate,
       backlog: contractNet === null || !r.backlogReconciled ? null : contractNet - recognisedToDate,
       basis,
@@ -175,21 +188,23 @@ function buildRow(r: RowInput): PackRow {
 
 function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: Set<string>): PackCurrencyTotals[] {
   const includedRows = rows.filter((row) => row.contractNet !== null || row.months.some((m) =>
-    m.planned !== null && m.planned !== 0 || m.recognised !== 0 || m.invoiced !== 0 ||
-    m.recognisedToDate !== 0 || m.invoicedToDate !== 0 || m.unbilled !== 0 || m.backlog !== null && m.backlog !== 0,
+    m.planned !== null && m.planned !== 0 || m.recognised !== 0 || m.invoiced !== 0 || m.invoiceCount > 0 ||
+    m.recognisedToDate !== 0 || m.invoicedToDate !== 0 || m.invoiceCountToDate > 0 || m.unbilled !== 0 || m.backlog !== null && m.backlog !== 0,
   ));
   const byCurrency = new Map<string, PackTotalsMonth[]>();
   for (const row of includedRows) {
     const series = byCurrency.get(row.currency) ?? months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, recognisedToDate: 0, invoicedToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
+      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0 as Cents | null,
     }));
     row.months.forEach((m, i) => {
       const t = series[i];
       t.planned += m.planned ?? 0;
       t.recognised += m.recognised;
       t.invoiced += m.invoiced;
+      t.invoiceCount += m.invoiceCount;
       t.recognisedToDate += m.recognisedToDate;
       t.invoicedToDate += m.invoicedToDate;
+      t.invoiceCountToDate += m.invoiceCountToDate;
       t.unbilled += m.unbilled;
       if (row.kind === 'contract' && m.backlog === null) t.backlog = null;
       else if (t.backlog !== null) t.backlog += m.backlog ?? 0;
@@ -198,7 +213,7 @@ function totalsByCurrency(rows: PackRow[], months: string[], invoiceCurrencies: 
   }
   for (const currency of invoiceCurrencies) {
     if (!byCurrency.has(currency)) byCurrency.set(currency, months.map((month) => ({
-      month, planned: 0, recognised: 0, invoiced: 0, recognisedToDate: 0, invoicedToDate: 0, unbilled: 0, backlog: 0,
+      month, planned: 0, recognised: 0, invoiced: 0, invoiceCount: 0, recognisedToDate: 0, invoicedToDate: 0, invoiceCountToDate: 0, unbilled: 0, backlog: 0,
     })));
   }
   return [...byCurrency.entries()]
@@ -210,16 +225,22 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
   const months = monthsBetween(facts.from, facts.to);
 
   const invoiced = new Map<string, Map<string, Cents>>();
+  const invoiceCounts = new Map<string, Map<string, number>>();
   for (const f of facts.invoiced) {
     const k = factKey(f.project_id, f.currency);
     const byMonth = invoiced.get(k) ?? new Map<string, Cents>();
     byMonth.set(f.month, (byMonth.get(f.month) ?? 0) + toCents(f.net));
     invoiced.set(k, byMonth);
+    const countsByMonth = invoiceCounts.get(k) ?? new Map<string, number>();
+    countsByMonth.set(f.month, (countsByMonth.get(f.month) ?? 0) + f.invoice_count);
+    invoiceCounts.set(k, countsByMonth);
   }
   const before = new Map<string, Cents>();
+  const invoiceCountBefore = new Map<string, number>();
   for (const f of facts.invoiced_before) {
     const k = factKey(f.project_id, f.currency);
     before.set(k, (before.get(k) ?? 0) + toCents(f.net));
+    invoiceCountBefore.set(k, (invoiceCountBefore.get(k) ?? 0) + f.invoice_count);
   }
   const progressByProject = new Map<string, PackFactsProgress[]>();
   const projectsById = new Map(facts.projects.map((p) => [p.id, p] as const));
@@ -232,7 +253,7 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
   for (const f of facts.invoiced_before) {
     const project = f.project_id ? projectsById.get(f.project_id) : null;
     if (project && f.currency !== project.currency && f.invoice_count > 0) foreignInvoiceProjects.add(project.id);
-    if (f.net !== 0) invoiceCurrencies.add(f.currency);
+    if (f.invoice_count > 0) invoiceCurrencies.add(f.currency);
   }
   for (const p of facts.progress) {
     const list = progressByProject.get(p.project_id) ?? [];
@@ -249,7 +270,8 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
     covered.add(k);
     rows.push(buildRow({
       ...common, kind: 'contract', project, currency: project.currency,
-      invoicedByMonth: invoiced.get(k) ?? new Map(), invoicedBefore: before.get(k) ?? 0,
+      invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
+      invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
       progress: progressByProject.get(project.id) ?? [], backlogReconciled: !foreignInvoiceProjects.has(project.id),
     }));
   }
@@ -266,7 +288,8 @@ export function buildManagementPack(facts: ManagementPackFacts): ManagementPack 
       kind: projectId ? 'otherCurrency' : 'unassigned',
       project: projectId ? projectsById.get(projectId) ?? null : null,
       currency: k.slice(sep + 1),
-      invoicedByMonth: invoiced.get(k) ?? new Map(), invoicedBefore: before.get(k) ?? 0,
+      invoicedByMonth: invoiced.get(k) ?? new Map(), invoiceCountByMonth: invoiceCounts.get(k) ?? new Map(),
+      invoicedBefore: before.get(k) ?? 0, invoiceCountBefore: invoiceCountBefore.get(k) ?? 0,
       progress: [], backlogReconciled: false,
     }));
   }

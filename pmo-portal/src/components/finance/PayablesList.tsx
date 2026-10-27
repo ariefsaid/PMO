@@ -50,7 +50,7 @@ export const PayablesList: React.FC<PayablesListProps> = ({ position, isPending,
       key: 'amount',
       header: t('finance:area.amount', 'Amount'),
       align: 'num',
-      cell: (row) => <span>{formatCurrencyCents(row.amount, row.procurement.currency)}</span>,
+      cell: (row) => <span>{formatCurrencyCents(row.amount / 100, row.procurement.currency)}</span>,
     },
   ];
   const state = isPending ? 'loading' : isError ? 'error' : position.payables.length === 0 ? 'empty' : undefined;

@@ -1,0 +1,110 @@
+import React from 'react';
+import { cleanup, render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { axe } from 'jest-axe';
+import type { FinancePosition } from '@/src/lib/finance/financePosition';
+
+const state = vi.hoisted(() => ({
+  role: 'Finance',
+  position: null as FinancePosition | null,
+}));
+
+vi.mock('@/src/auth/impersonation', () => ({
+  useEffectiveRole: () => ({ realRole: state.role, effectiveRole: state.role }),
+}));
+vi.mock('@/src/auth/usePermission', () => ({
+  usePermission: () => (action: string, entity: string) => {
+    if (entity === 'finance') return ['Finance', 'Executive', 'Admin'].includes(state.role) && (action === 'view' || (action === 'act' && state.role !== 'Executive'));
+    return action === 'view' && state.role !== 'Project Manager' && state.role !== 'Engineer';
+  },
+}));
+vi.mock('@/src/auth/useFeature', () => ({ useFeature: () => true }));
+vi.mock('@/src/hooks/useFinancePosition', () => ({
+  useFinancePosition: () => ({
+    position: state.position,
+    today: '2026-10-27',
+    isPending: false,
+    isError: false,
+    retry: vi.fn(),
+  }),
+}));
+vi.mock('@/src/hooks/useManagementPack', () => ({
+  useManagementPack: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFinancialStatements', () => ({
+  useFinancialStatementCatalogue: () => ({ data: undefined, isPending: false, isError: false }),
+  useFinancialStatement: () => ({ data: undefined, isPending: false, isError: false }),
+}));
+
+import FinanceHub from './FinanceHub';
+
+function positionFixture(): FinancePosition {
+  return {
+    overdue: [],
+    overdueTotals: { IDR: 4_500_000_000 },
+    overdueUnknownCount: 0,
+    drafts: { canApprove: [], awaitingOther: [], all: [] },
+    toSend: [],
+    unappliedPayments: [],
+    unappliedTotals: {},
+    payables: [],
+    payablesTotals: { IDR: 6_240_000_000 },
+    receivablesAgeing: { IDR: { notDue: 3_820_000_000, d1_30: 1_220_000_000, d31_60: 1_430_000_000, d61_90: 0, over90: 1_850_000_000 } },
+    payablesAgeing: { IDR: { d0_30: 2_100_000_000, d31_60: 940_000_000, d61_90: 1_200_000_000, over90: 2_000_000_000 } },
+  };
+}
+
+function renderHub(role = 'Finance') {
+  state.role = role;
+  state.position = positionFixture();
+  return render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+}
+
+beforeEach(() => {
+  state.position = positionFixture();
+});
+
+afterEach(() => {
+  cleanup();
+  state.role = 'Finance';
+});
+
+describe('Finance hub', () => {
+  it('AC-1405-HUB-001: shows shared position totals and links to the four Finance areas', () => {
+    renderHub();
+
+    expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
+    expect(screen.getByText(/62[,.]?400[,.]?000/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Receivables/ })).toHaveAttribute('href', '/finance/receivables');
+    expect(screen.getByRole('link', { name: /Payables/ })).toHaveAttribute('href', '/finance/payables');
+    expect(screen.getByRole('link', { name: /Reports/ })).toHaveAttribute('href', '/finance/reports');
+    expect(screen.getByRole('link', { name: /Statements/ })).toHaveAttribute('href', '/finance/statements');
+  });
+
+  it('AC-1405-HUB-002: Finance can create an invoice, while Executive stays read-only', () => {
+    const finance = renderHub('Finance');
+    expect(screen.getByRole('button', { name: /New invoice/ })).toBeInTheDocument();
+    finance.unmount();
+
+    renderHub('Executive');
+    expect(screen.queryByRole('button', { name: /New invoice/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Finance', level: 1 })).toBeInTheDocument();
+  });
+
+  it('AC-1405-HUB-003: keeps area cards, ageing figures and attention content accessible', async () => {
+    const { container } = renderHub('Executive');
+
+    expect(screen.getByRole('region', { name: /Client balances by age/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /Waiting on Finance/ })).toBeInTheDocument();
+    expect(await axe(container)).toHaveNoViolations();
+    expect(within(screen.getByRole('region', { name: /Client balances by age/ })).getByText(/38[,.]?200[,.]?000/)).toBeInTheDocument();
+  });
+
+  it.each(['Project Manager', 'Engineer'])('AC-1405-HUB-004: %s deep links receive AccessDenied', (role) => {
+    renderHub(role);
+    expect(screen.getByRole('region')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Receivables' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /New invoice/ })).not.toBeInTheDocument();
+  });
+});

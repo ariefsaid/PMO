@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   userId: 'u-fin',
   query: { data: undefined as unknown, isPending: false, isError: false, error: null as unknown, refetch: vi.fn() },
   exportTable: vi.fn(),
+  revenueRows: [{ project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 0, invoice_count: 2 }],
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
@@ -21,6 +22,13 @@ vi.mock('@/src/hooks/useManagementPack', () => ({
   useRecordProjectProgress: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 vi.mock('@/src/hooks/useProjectsDelivery', () => ({ useProjectsDelivery: () => ({ data: {} }) }));
+vi.mock('@/src/hooks/useProjects', () => ({
+  useProjects: () => ({ data: [
+    { id: 'p1', name: 'Alpha', pm: { full_name: 'Test Manager' } },
+    { id: 'p2', name: 'Beta', pm: { full_name: 'Other Manager' } },
+  ] }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({ useRevenuePerProject: () => ({ data: h.revenueRows, isPending: false, isError: false }) }));
 vi.mock('@/src/components/export/useExport', () => ({
   useExport: () => ({ exportTable: h.exportTable, exportXlsx: vi.fn(), busy: false }),
 }));
@@ -61,7 +69,7 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
   });
 
-  it('AC-MMP-012: an open project with no progress entry can record its first entry; closed projects cannot', () => {
+  it('AC-MMP-012: an open project with no progress entry can record its first entry; closed projects cannot', async () => {
     const progressFacts = {
       ...facts,
       projects: [
@@ -79,12 +87,17 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     unmount();
     h.role = 'Finance';
     renderPage();
-    expect(screen.getAllByRole('button', { name: 'Record progress' })).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Record progress' }).closest('tr')).toHaveTextContent('Alpha');
-    expect(within(screen.getByText('Beta').closest('tr')!).queryByRole('button', { name: 'Record progress' })).not.toBeInTheDocument();
+    const user = userEvent.setup();
+    const alpha = screen.getByText('Alpha').closest('tr')!;
+    await user.click(within(alpha).getByRole('button', { name: 'Actions for Alpha' }));
+    expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    const beta = screen.getByText('Beta').closest('tr')!;
+    await user.click(within(beta).getByRole('button', { name: 'Actions for Beta' }));
+    expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 
-  it('AC-MMP-012: a PM cannot record progress because Finance action permission is required', () => {
+  it('AC-1405-REPORT-005: a PM receives no access to Finance reports', () => {
     h.role = 'Project Manager';
     h.userId = 'u-pm';
     h.query.data = buildManagementPack({
@@ -92,7 +105,18 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
       progress: [{ project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' }],
     });
     renderPage();
-    expect(screen.queryByRole('button', { name: 'Record progress' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405-REPORT-002: Executive can read the figures and project actions without progress entry', async () => {
+    h.role = 'Executive';
+    renderPage();
+    expect(screen.getByRole('region', { name: 'Report figures' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Actions for Alpha' }));
+    expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 });
 
@@ -126,13 +150,25 @@ describe('AC-MMP-013 honest states', () => {
 });
 
 describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
-  it('RF-035: states the earned, invoiced, backlog and tax basis summary once (FIN-S8)', () => {
+  it('AC-1405-REPORT-003: shows the four shared revenue figures with their calculation help', () => {
     renderPage();
-    expect(screen.getByText(/Earned .* · Invoiced .* · Backlog .* · through April 2026 · before tax/)).toBeInTheDocument();
-    expect(screen.getByText(/earned, not yet invoiced/)).toBeInTheDocument();
-    expect(screen.queryByText('Cumulative amounts · since project start through Apr 26')).not.toBeInTheDocument();
-    expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
+    for (const label of ['Earned, not yet invoiced', 'Earned to date', 'Invoiced to date', 'Backlog of contract total']) {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('button', { name: 'How this figure is calculated' }).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('AC-1405-REPORT-004: shows PM identity, invoice count and a missing latest-month progress flag', () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      progress: [{ project_id: 'p1', month: '2026-03-01', pct_complete: 35, entered_at: '2026-03-20T10:00:00Z', entered_by_name: 'Finance' }],
+    });
+    renderPage();
+    expect(screen.getByRole('img', { name: 'Test Manager' })).toHaveTextContent('TM');
+    expect(screen.getByRole('columnheader', { name: 'Progress' })).toBeInTheDocument();
+    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('No entry for latest month')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
+    expect(within(screen.getByText('Alpha').closest('tr')!).getByText('2')).toBeInTheDocument();
   });
 
   it('embedded report uses a compact heading and reveals monthly totals only on request', async () => {
@@ -191,8 +227,8 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     renderPage();
     const unavailable = screen.getAllByText('Unavailable');
     expect(unavailable.length).toBeGreaterThanOrEqual(2);
-    expect(unavailable[0]).toHaveAttribute('title',
-      'A foreign-currency invoice needs reconciliation before this balance can be known.');
+    expect(unavailable.some((element) => element.getAttribute('title') ===
+      'A foreign-currency invoice needs reconciliation before this balance can be known.')).toBe(true);
   });
 
   it('AC-MIP-006: earlier zero-net foreign invoices show unavailable contract backlog and subtotal', () => {

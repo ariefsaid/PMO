@@ -38,12 +38,15 @@ import { useCachedRecordLists } from '@/src/hooks/useCachedRecordLists';
 import { useRecordSearch } from '@/src/hooks/useRecordSearch';
 import { useOptionalRealRole } from '@/src/auth/impersonation';
 import { useDemoEligibility } from '@/src/hooks/useDemoEligibility';
+import { usePermission } from '@/src/auth/usePermission';
 import { UserRole } from './types';
-import { ToastProvider } from '@/src/components/ui';
+import { AccessDenied, ToastProvider } from '@/src/components/ui';
 import { EnvBadge } from '@/src/components/EnvBadge';
 import { ErrorBoundary } from '@/src/components/ErrorBoundary';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 import { isFeatureEnabled } from '@/src/lib/features';
+import { FEATURE_ENV_DEFAULT } from '@/src/lib/features';
+import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
@@ -90,11 +93,12 @@ const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
-const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
 const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
 const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
 const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
-const FinanceAreaPage = React.lazy(() => import('./pages/finance/FinanceArea'));
+const FinanceHubPage = React.lazy(() => import('./pages/finance/FinanceHub'));
+const ReceivablesPage = React.lazy(() => import('./pages/finance/ReceivablesPage'));
+const PayablesPage = React.lazy(() => import('./pages/finance/PayablesPage'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -120,6 +124,24 @@ const AdministrationEntryRedirect: React.FC = () => {
         ? '/administration/exchange-rates'
         : '/administration/users';
   return <Navigate to={target} replace />;
+};
+
+export const FinanceAccessRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const may = usePermission();
+  if (!may('view', 'finance')) {
+    return <AccessDenied title={t('financeHub:hub.noAccessTitle', 'Finance')} sub={t('financeHub:hub.noAccessDescription', 'Finance is available to Finance, Executive and Admin roles.')} onBack={() => navigate('/')} />;
+  }
+  return <>{children}</>;
+};
+
+export const FinanceLegacyRedirect: React.FC<{ to: string; paymentsView?: boolean }> = ({ to, paymentsView = false }) => {
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  if (paymentsView) params.set('view', 'payments');
+  const search = params.toString();
+  return <Navigate to={{ pathname: to, search: search ? `?${search}` : '', hash: location.hash }} replace />;
 };
 
 /**
@@ -176,7 +198,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
+  { path: '/reports', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
@@ -190,16 +212,19 @@ export const appRouteConfig: RouteObject[] = [
   // Keep malformed/deprecated Administration section links inside the Administration shell so
   // they can be replaced with Users instead of falling through to the global 404 route.
   { path: '/administration/:section', element: <AdministrationPage /> },
-  // Finance section.
-  { path: '/finance', element: <FinanceAreaPage /> },
-  { path: '/finance/:area', element: <FinanceAreaPage /> },
-  { path: '/sales-invoices', element: <SalesInvoicesPage /> },
+  // Finance section. Each area has one canonical URL; Statements keeps its existing page.
+  { path: '/finance', element: <FinanceAccessRoute><FinanceHubPage /></FinanceAccessRoute> },
+  { path: '/finance/receivables', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ReceivablesPage />} /></FinanceAccessRoute> },
+  { path: '/finance/payables', element: <FinanceAccessRoute><FeatureRoute feature="procurement" element={<PayablesPage />} /></FinanceAccessRoute> },
+  { path: '/finance/reports', element: <FinanceAccessRoute><FeatureRoute feature="revenue" element={<ManagementPackPage />} /></FinanceAccessRoute> },
+  { path: '/finance/statements', element: <FinanceAccessRoute><FinancialStatementsPage /></FinanceAccessRoute> },
+  { path: '/sales-invoices', element: <FinanceLegacyRedirect to="/finance/receivables" /> },
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
-  { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
+  { path: '/incoming-payments', element: <FinanceLegacyRedirect to="/finance/receivables" paymentsView /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
-  { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
+  { path: '/revenue-by-project', element: <FinanceLegacyRedirect to="/finance/reports" /> },
   { path: '/erp-purchases', element: <ErpPurchasesPage /> },
-  { path: '/financial-statements', element: <FinancialStatementsPage /> },
+  { path: '/financial-statements', element: <FinanceLegacyRedirect to="/finance/statements" /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.
@@ -314,11 +339,27 @@ export const ShellChrome: React.FC = () => {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
     const recordListPath = (location.state as { recordContext?: { listPath?: string } } | null)?.recordContext?.listPath;
+    const canonicalReceivablesList = (fallbackPayments = false) => {
+      const legacyPath = /^\/(sales-invoices|incoming-payments)(?:$|\?)/.test(recordListPath ?? '')
+        ? recordListPath!
+        : '';
+      const source = legacyPath || recordListPath || `/finance/receivables${location.search}`;
+      const parsed = new URL(source, window.location.origin);
+      if (parsed.pathname === '/sales-invoices' || parsed.pathname === '/incoming-payments') parsed.pathname = '/finance/receivables';
+      parsed.searchParams.delete('layout');
+      if (fallbackPayments) parsed.searchParams.set('view', 'payments');
+      return `${parsed.pathname}${parsed.search}`;
+    };
     if (/^\/sales-invoices\/[^/]+$/.test(pathname)) {
-      const listPath = recordListPath?.startsWith('/') ? recordListPath : `/sales-invoices${location.search}`;
+      const listPath = canonicalReceivablesList();
       return [
         {
-          label: t('shell.nav.salesInvoices', 'Sales Invoices'),
+          label: t('financeHub:nav.finance', 'Finance'),
+          href: '/finance',
+          onClick: () => breadcrumbNavigate('/finance'),
+        },
+        {
+          label: t('financeHub:hub.receivables', 'Receivables'),
           href: listPath,
           onClick: () => breadcrumbNavigate(listPath),
         },
@@ -326,14 +367,19 @@ export const ShellChrome: React.FC = () => {
       ];
     }
     if (/^\/incoming-payments\/[^/]+$/.test(pathname)) {
-      const listPath = recordListPath?.startsWith('/') ? recordListPath : `/incoming-payments${location.search}`;
+      const listPath = canonicalReceivablesList(true);
       return [
         {
-          label: t('shell.nav.incomingPayments', 'Incoming Payments'),
+          label: t('financeHub:nav.finance', 'Finance'),
+          href: '/finance',
+          onClick: () => breadcrumbNavigate('/finance'),
+        },
+        {
+          label: t('financeHub:hub.receivables', 'Receivables'),
           href: listPath,
           onClick: () => breadcrumbNavigate(listPath),
         },
-        { label: t('shell.nav.paymentRecord', 'Payment record') },
+        { label: t('financeHub:nav.paymentRecord', 'Payment record') },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
@@ -367,6 +413,7 @@ export const ShellChrome: React.FC = () => {
   }, [
     pathname,
     location.search,
+    location.state,
     contextualParent,
     t,
     breadcrumbNavigate,
@@ -394,6 +441,7 @@ export const ShellChrome: React.FC = () => {
   // role — so a plain Engineer stays hidden. Fail-closed (false) while loading.
   const operatorMembership = useOperatorMembership();
   const isOperator = operatorMembership.isOperator;
+  const { data: orgFeatures } = useOrgFeatures();
   const needsOperatorRecovery = Boolean(realRole) && operatorMembership.isError &&
     realRole !== UserRole.Admin && realRole !== UserRole.Executive;
 
@@ -404,7 +452,9 @@ export const ShellChrome: React.FC = () => {
   const paletteItems = useMemo<PaletteItem[]>(
     () => [
       ...recordSearch.records,
-      ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : []).map((m) => ({
+      ...(realRole ? modulesForRoleWithOperator(realRole as UserRole, isOperator) : [])
+        .filter((module) => !module.feature || Boolean(orgFeatures?.[module.feature] ?? FEATURE_ENV_DEFAULT[module.feature]))
+        .map((m) => ({
         id: `nav-${m.module}`,
         group: 'Navigate',
         title: m.module === 'administration'
@@ -428,7 +478,7 @@ export const ShellChrome: React.FC = () => {
         ? buildViewsPaletteItems(userViewsList, navigate)
         : []),
     ],
-    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, t, userViewsList]
+    [navigate, recordSearch.records, realRole, isOperator, needsOperatorRecovery, orgFeatures, t, userViewsList]
   );
 
   return (

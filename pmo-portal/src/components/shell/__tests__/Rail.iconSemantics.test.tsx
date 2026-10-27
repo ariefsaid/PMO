@@ -4,7 +4,7 @@ import { MemoryRouter } from 'react-router';
 import { Rail } from '../Rail';
 
 vi.mock('@/src/auth/useIsOperator', () => ({ useIsOperator: () => false }));
-vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin' }) }));
+vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: 'Admin', realRole: 'Admin' }) }));
 vi.mock('@/src/hooks/useUserViews', () => ({ useUserViews: () => ({ data: [{ id: 'view-1', name: 'Saved view' }] }) }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
   useOrgFeatures: () => ({ data: { crm: true, procurement: true, timesheets: true, revenue: true, incidents: true, m365_integration: true } }),
@@ -23,12 +23,14 @@ describe('UIP-001/UIP-013: rail icon semantics and retained sizing', () => {
     const expected = [
       ['Dashboard', 'dashboard'], ['Projects', 'projects'],
       ['Sales Pipeline', 'pipeline'], ['Procurement', 'procurement'], ['Meetings', 'cal'],
-      ['Incidents', 'alert'], ['Finance', 'dollar'], ['Timesheets', 'clock'],
+      ['Incidents', 'alert'], ['Finance', 'dollar'], ['Receivables', 'invoices'],
+      ['Payables', 'procurement'], ['Reports', 'reports'], ['Statements', 'reports'], ['Timesheets', 'clock'],
       ['Expenses', 'expenses'], ['Approvals', 'approvals'], ['Companies', 'companies'],
       ['Contacts', 'contacts'], ['Saved view', 'views'], ['Administration', 'admin'],
     ] as const;
     for (const [label, key] of expected) {
-      const link = within(rail).getByRole('link', { name: label });
+      const accessibleName = label === 'Finance' ? /^Finance(?:\s|$)/ : label;
+      const link = within(rail).getByRole('link', { name: accessibleName });
       expect(link.querySelector('svg')).toHaveAttribute('data-icon', key);
       expect(link.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
     }

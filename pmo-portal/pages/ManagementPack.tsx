@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, useSearchParams } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import {
-  Button, DataTable, Icon, ListPage, ListState, StatusPill, TextField, type Column,
+  Button, DataTable, Icon, ListPage, ListState, MenuButton, ProgressBar, StatusPill, TextField, Tooltip, type Column,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
 import { useManagementPack } from '@/src/hooks/useManagementPack';
 import { useProjectsDelivery } from '@/src/hooks/useProjectsDelivery';
+import { useProjects } from '@/src/hooks/useProjects';
+import { useRevenuePerProject } from '@/src/hooks/useRevenue';
 import { useExport } from '@/src/components/export/useExport';
 import { RecordProgressModal } from '@/src/components/reports/RecordProgressModal';
 import { fromCents, type PackMonth, type PackRow, type PackTotalsMonth } from '@/src/lib/reports/managementPack';
@@ -15,14 +17,13 @@ import {
   buildManagementPackExport, managementPackFileStem, type ManagementPackExportLabels,
 } from '@/src/lib/reports/managementPackExport';
 import { monthInputToIso } from '@/src/lib/reports/months';
-import { formatCurrencyAuto, formatMonthYear, formatUtcMonthYear } from '@/src/lib/format';
+import { formatCurrencyAuto, formatUtcMonthYear } from '@/src/lib/format';
 import { PROGRESS_RECORDABLE_PROJECT_STATUSES } from '@/src/lib/dashboardConstants';
 
 type Measure = 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'backlog';
 type TotalsMeasure = 'planned' | 'recognised' | 'invoiced' | 'unbilled' | 'backlog';
 type TotalsRow = PackTotalsMonth & { currency: string };
 
-const KPI_MEASURES: Measure[] = ['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'];
 const TOTALS_MEASURES: TotalsMeasure[] = ['planned', 'recognised', 'invoiced', 'unbilled', 'backlog'];
 const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 // OD-MONEY-FMT: the exact amount in its currency, zero fraction suppressed, non-zero fraction kept.
@@ -49,13 +50,18 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const { exportTable, busy } = useExport();
   const [progressFor, setProgressFor] = useState<PackRow | null>(null);
   const [monthlyTotalsExpanded, setMonthlyTotalsExpanded] = useState(false);
+  const [search, setSearch] = useState('');
   const projectIds = useMemo(
     () => (pack?.rows ?? []).filter((r) => r.kind === 'contract' && r.projectId).map((r) => r.projectId as string),
     [pack],
   );
   const { data: delivery } = useProjectsDelivery(projectIds);
+  const { data: projects } = useProjects({ enabled: !!pack });
+  const { data: revenueRows, isPending: invoiceCountsPending } = useRevenuePerProject();
+  const projectById = useMemo(() => new Map((projects ?? []).map((project) => [project.id, project])), [projects]);
+  const invoiceCounts = useMemo(() => new Map((revenueRows ?? []).map((row) => [`${row.project_id ?? ''}|${row.currency}`, row.invoice_count])), [revenueRows]);
 
-  if (!may('view', 'managementPack') && !embedded) {
+  if (!may('view', 'finance')) {
     return (
       <div className="flex h-[calc(100vh-var(--header-h))] items-center justify-center px-4">
         <div className="text-center">
@@ -63,7 +69,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             {t('managementPack.noAccessTitle', "You don't have access to the management pack")}
           </h2>
           <p className="mt-2 text-muted-foreground">
-            {t('managementPack.noAccessSub', 'The management pack is available to Finance, Project Managers, Executives and Admins.')}
+            {t('managementPack.noAccessSub', 'Finance reports are available to Finance, Executive and Admin roles.')}
           </p>
           <Button variant="outline" onClick={() => navigate('/')} className="mt-4">
             <Icon name="back" className="size-4 mr-2" />
@@ -117,6 +123,11 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
   const onExport = () => {
     if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), 'csv');
   };
+  const onExportRow = (row: PackRow) => {
+    if (!pack) return;
+    void exportTable(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels),
+      `${managementPackFileStem(pack)}_${row.projectNumber ?? row.projectName ?? 'row'}`, 'csv');
+  };
 
   const canRecord = (row: PackRow) =>
     may('act', 'finance') &&
@@ -144,27 +155,58 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     <span title={t('uxs34.backlogReason', 'A foreign-currency invoice needs reconciliation before this balance can be known.')}>{t('uxs34.backlogUnavailable', 'Unavailable')}</span>
   );
 
+  const filteredRows = (pack?.rows ?? []).filter((row) => {
+    const project = row.projectId ? projectById.get(row.projectId) : undefined;
+    const pmName = project?.pm?.full_name ?? '';
+    const haystack = [row.projectName, row.projectNumber, row.clientName, pmName, row.currency].filter(Boolean).join(' ').toLocaleLowerCase();
+    return haystack.includes(search.trim().toLocaleLowerCase());
+  });
+  const latestMonth = (row: PackRow) => row.months[row.months.length - 1] ?? null;
+  const invoiceCountFor = (row: PackRow) => invoiceCounts.get(`${row.projectId ?? ''}|${row.currency}`) ?? 0;
+  const initials = (name: string) => name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
   const columns: Column<PackRow>[] = [
     {
       key: 'project',
       header: t('managementPack.col.project', 'Project'),
       kind: 'primary',
-      size: 260,
+      size: 300,
       primaryTitle: (row) => row.kind === 'unassigned' ? t('managementPack.unassigned', 'Unassigned') : row.projectName ?? '',
       cell: (row) =>
         row.kind === 'unassigned' ? (
           <StatusPill variant="neutral">{t('managementPack.unassigned', 'Unassigned')}</StatusPill>
         ) : (
-          row.projectName
+          <span className="flex items-center gap-2">
+            {row.projectManagerId && <span role="img" aria-label={projectById.get(row.projectId ?? '')?.pm?.full_name ?? t('financeHub:managementPack.projectManager', 'Project manager')} title={projectById.get(row.projectId ?? '')?.pm?.full_name ?? undefined} className="grid size-[20px] shrink-0 place-items-center rounded-full bg-[hsl(var(--avatar-2))] text-[9px] font-bold text-white">{initials(projectById.get(row.projectId ?? '')?.pm?.full_name ?? t('financeHub:managementPack.projectManager', 'Project manager'))}</span>}
+            <span>{row.projectName}</span>
+          </span>
         ),
       secondaryCell: (row) =>
         row.kind === 'unassigned'
           ? undefined
           : row.kind === 'otherCurrency'
             ? t('managementPack.otherCurrency', 'Invoiced in {{currency}}, not the contract currency', { currency: row.currency })
-            : row.projectNumber
-              ? <span className="font-mono">{row.projectNumber}</span>
-              : undefined,
+            : <span className="flex flex-col text-xs text-muted-foreground">
+                {row.projectNumber && <span>{row.projectNumber}</span>}
+                {row.clientName && <span>{row.clientName}</span>}
+              </span>,
+    },
+    {
+      key: 'progress',
+      header: t('financeHub:managementPack.col.progress', 'Progress'),
+      kind: 'percent',
+      size: 170,
+      cell: (row) => {
+        if (row.kind !== 'contract') return <span className="text-muted-foreground">—</span>;
+        const latest = row.latestProgress;
+        const missingLatest = latest?.month !== pack?.to;
+        return (
+          <span className="flex flex-col gap-1">
+            {latest ? <ProgressBar value={Math.round(latest.pctComplete)} compact showValue aria-label={t('financeHub:managementPack.progressValue', 'Progress {{percent}}%', { percent: latest.pctComplete })} /> : <span className="text-xs text-muted-foreground">{t('managementPack.basis.invoiced', 'Invoiced')}</span>}
+            {latest && <span className="text-xs text-muted-foreground">{t('managementPack.basis.progressShort', 'Progress')} · {monthLabel(latest.month)}</span>}
+            {missingLatest && <StatusPill variant="warn">{t('financeHub:managementPack.noLatestMonthEntry', 'No entry for latest month')}</StatusPill>}
+          </span>
+        );
+      },
     },
     {
       key: 'contract',
@@ -178,46 +220,53 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         </span>
       ),
     },
-    ...KPI_MEASURES.map((k): Column<PackRow> => ({ key: k, header: label[k], kind: 'money', align: 'num', size: 140, cell: measureCell(k) })),
+    ...(['recognisedToDate', 'invoicedToDate', 'unbilled', 'backlog'] as Measure[]).map((k): Column<PackRow> => ({
+      key: k,
+      header: k === 'recognisedToDate' ? t('financeHub:managementPack.col.earned', 'Earned') : k === 'invoicedToDate' ? t('managementPack.col.invoiced', 'Invoiced') : label[k],
+      kind: 'money', align: 'num', size: 140, cell: measureCell(k),
+    })),
     {
-      key: 'basis',
-      header: t('managementPack.col.basis', 'Basis'),
-      kind: 'meta',
-      size: 110,
-      cell: (row) =>
-        row.latestProgress
-          ? t('managementPack.basis.progress', '{{pct}}% complete', { pct: row.latestProgress.pctComplete })
-          : t('managementPack.basis.invoiced', 'Invoiced'),
+      key: 'invoiceCount',
+      header: t('financeHub:managementPack.col.invoices', 'Invoices'),
+      kind: 'number',
+      align: 'num',
+      size: 90,
+      cell: (row) => <span data-testid="pack-cell-invoices" className="tabular">{invoiceCountsPending ? '—' : invoiceCountFor(row)}</span>,
+      exportValue: (row) => invoiceCountFor(row),
     },
     {
       key: 'actions',
       header: <span className="sr-only">{t('managementPack.actions', 'Actions')}</span>,
       kind: 'actions',
-      size: 150,
-      cell: (row) =>
-        canRecord(row) ? (
-          <Button variant="outline" onClick={() => setProgressFor(row)}>
-            {t('managementPack.recordProgress', 'Record progress')}
-          </Button>
-        ) : null,
+      size: 64,
+      cell: (row) => <MenuButton ariaLabel={t('financeHub:managementPack.actionsForProject', 'Actions for {{project}}', { project: row.projectName ?? t('managementPack.unassigned', 'Unassigned') })} items={[
+        ...(row.projectId ? [{ label: t('financeHub:managementPack.openProject', 'Open project'), onClick: () => navigate(`/projects/${row.projectId}`) }] : []),
+        { label: t('financeHub:managementPack.viewInvoices', 'View invoices'), onClick: () => navigate(row.projectId ? `/finance/receivables?project=${encodeURIComponent(row.projectId)}` : '/finance/receivables?attribution=unassigned') },
+        ...(canRecord(row) ? [{ label: t('managementPack.recordProgress', 'Record progress'), onClick: () => setProgressFor(row) }] : []),
+        { label: t('financeHub:managementPack.exportRow', 'Export row'), onClick: () => onExportRow(row) },
+      ]} />,
     },
   ];
 
   // T10: one total row per currency (never summed across currencies) — cumulative figures at the as-at
   // month from the pack's own per-currency totals; the contract total adds only rows that carry a contract.
-  const projectTotals = (pack?.totals ?? []).map((tot) => {
-    const m = tot.months[tot.months.length - 1];
-    const contracts = (pack?.rows ?? []).filter((r) => r.currency === tot.currency && r.contractNet !== null);
+  const projectTotals = [...new Set(filteredRows.map((row) => row.currency))].map((currency) => {
+    const rows = filteredRows.filter((r) => r.currency === currency);
+    const contracts = rows.filter((r) => r.contractNet !== null);
+    const ms = rows.map(latestMonth).filter((m): m is PackMonth => !!m);
     const contractTotal = contracts.reduce((sum, r) => sum + (r.contractNet ?? 0), 0);
+    const sum = (key: 'recognisedToDate' | 'invoicedToDate' | 'unbilled' | 'invoiceCountToDate') => ms.reduce((total, month) => total + month[key], 0);
+    const backlogUnknown = contracts.some((row) => latestMonth(row)?.backlog === null);
     return {
-      key: tot.currency,
-      label: `${t('managementPack.total', 'Total')} · ${tot.currency}`,
+      key: currency,
+      label: `${t('managementPack.total', 'Total')} · ${currency}`,
       values: {
-        contract: contracts.length > 0 ? money(contractTotal, tot.currency) : null,
-        recognisedToDate: money(m.recognisedToDate, tot.currency),
-        invoicedToDate: money(m.invoicedToDate, tot.currency),
-        unbilled: money(m.unbilled, tot.currency),
-        backlog: m.backlog === null ? backlogUnavailable : money(m.backlog, tot.currency),
+        contract: contracts.length > 0 ? money(contractTotal, currency) : null,
+        recognisedToDate: money(sum('recognisedToDate'), currency),
+        invoicedToDate: money(sum('invoicedToDate'), currency),
+        unbilled: money(sum('unbilled'), currency),
+        backlog: backlogUnknown ? backlogUnavailable : money(contracts.reduce((total, row) => total + (latestMonth(row)?.backlog ?? 0), 0), currency),
+        invoiceCount: invoiceCountsPending ? '—' : filteredRows.reduce((total, row) => total + invoiceCountFor(row), 0),
       } as Record<string, React.ReactNode>,
     };
   });
@@ -249,6 +298,44 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
       ),
     })),
   ];
+  const figureSpecs: Array<{
+    key: string;
+    label: string;
+    help: string;
+    value: (month: PackTotalsMonth, currency: string) => React.ReactNode;
+    subline?: (month: PackTotalsMonth, currency: string) => React.ReactNode;
+  }> = [
+    {
+      key: 'earnedNotInvoiced',
+      label: t('financeHub:managementPack.figures.earnedNotInvoiced', 'Earned, not yet invoiced'),
+      help: t('financeHub:managementPack.figures.earnedNotInvoicedHelp', 'Earned to date minus invoiced to date, using the report’s revenue recognition basis.'),
+      value: (month: PackTotalsMonth, currency: string) => money(month.unbilled, currency),
+    },
+    {
+      key: 'earnedToDate',
+      label: t('financeHub:managementPack.figures.earnedToDate', 'Earned to date'),
+      help: t('financeHub:managementPack.figures.earnedToDateHelp', 'Cumulative recognized revenue through the as-at month; the subline shows this month’s change.'),
+      value: (month: PackTotalsMonth, currency: string) => money(month.recognisedToDate, currency),
+      subline: (month: PackTotalsMonth, currency: string) => t('financeHub:managementPack.figures.thisMonthDelta', 'This month {{amount}}', { amount: money(month.recognised, currency) }),
+    },
+    {
+      key: 'invoicedToDate',
+      label: t('financeHub:managementPack.figures.invoicedToDate', 'Invoiced to date'),
+      help: t('financeHub:managementPack.figures.invoicedToDateHelp', 'Cumulative dated invoice value and invoice count through the as-at month.'),
+      value: (month: PackTotalsMonth, currency: string) => money(month.invoicedToDate, currency),
+      subline: (month: PackTotalsMonth) => t('financeHub:managementPack.figures.invoiceCount', '{{count}} invoices', { count: month.invoiceCountToDate }),
+    },
+    {
+      key: 'backlog',
+      label: t('financeHub:managementPack.figures.backlog', 'Backlog of contract total'),
+      help: t('financeHub:managementPack.figures.backlogHelp', 'Contract total minus revenue earned to date; unavailable if a foreign-currency invoice needs reconciliation.'),
+      value: (month: PackTotalsMonth, currency: string) => month.backlog === null ? t('uxs34.backlogUnavailable', 'Unavailable') : money(month.backlog, currency),
+    },
+  ];
+  const figureValue = (key: string, month: PackTotalsMonth, currency: string) => {
+    const figure = figureSpecs.find((candidate) => candidate.key === key);
+    return figure?.value(month, currency) ?? '—';
+  };
 
   return (
     <ListPage
@@ -273,6 +360,7 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
           />
         </div>
       }
+      search={state === undefined ? <TextField id="pack-search" label={t('financeHub:managementPack.search', 'Search projects')} value={search} onChange={setSearch} /> : undefined}
       exportAction={
         <Button variant="outline" disabled={!pack || busy} onClick={onExport}>
           <Icon name="export" className="size-4 mr-2" />
@@ -280,25 +368,32 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
         </Button>
       }
     >
-      {pack && state === undefined && pack.totals.map((tot) => {
-        const m = tot.months[tot.months.length - 1];
-        const month = formatMonthYear(new Date(`${pack.to}T12:00:00Z`));
-        return (
-          <div key={tot.currency} className="mb-4 border-b border-border pb-3">
-            <p className="tabular text-[20px] font-bold">
-              {t('finance:area.earnedNotInvoiced', '{{amount}} earned, not yet invoiced', { amount: money(m.unbilled, tot.currency) })}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {t('finance:area.revenueSummary', 'Earned {{earned}} · Invoiced {{invoiced}} · Backlog {{backlog}} · through {{month}} · before tax', {
-                earned: money(m.recognisedToDate, tot.currency),
-                invoiced: money(m.invoicedToDate, tot.currency),
-                backlog: m.backlog === null ? t('uxs34.backlogUnavailable', 'Unavailable') : money(m.backlog, tot.currency),
-                month,
-              })}
-            </p>
-          </div>
-        );
-      })}
+      <section aria-label={t('financeHub:managementPack.figures.title', 'Report figures')} className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {figureSpecs.map((figure) => (
+          <article key={figure.key} className="rounded-lg border border-border bg-card p-4">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-medium text-muted-foreground">{figure.label}</h2>
+              <Tooltip content={figure.help}>
+                <button type="button" aria-label={t('financeHub:managementPack.figures.calculationHelp', 'How this figure is calculated')} className="grid size-8 place-items-center rounded-full text-muted-foreground hover:bg-secondary focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button>
+              </Tooltip>
+            </div>
+            {isPending && !pack ? <div className="mt-3 h-7 w-3/4 animate-pulse rounded bg-secondary" aria-label={t('financeHub:managementPack.loadingFigure', 'Loading figure')} /> :
+              isError || !pack || pack.totals.length === 0 ? <p className="mt-3 text-lg font-semibold text-muted-foreground">{t('uxs03.notAvailableYet', 'Not available yet')}</p> :
+                <div className="mt-3 space-y-1">
+                  {pack.totals.map((tot) => {
+                    const month = tot.months[tot.months.length - 1];
+                    if (!month) return null;
+                    return (
+                      <p key={tot.currency} className="tabular text-lg font-semibold">
+                        <span>{figureValue(figure.key, month, tot.currency)}</span><span className="ml-1 text-sm font-normal text-muted-foreground">{tot.currency}</span>
+                        {figure.subline && <span className="block text-xs font-normal text-muted-foreground">{figure.subline(month, tot.currency)}</span>}
+                      </p>
+                    );
+                  })}
+                </div>}
+          </article>
+        ))}
+      </section>
 
       {state === 'loading' && (
         <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={6} /></div>
@@ -329,13 +424,24 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
             {t('managementPack.projectsAsAt', 'Projects as at {{month}}', { month: monthLabel(pack.to) })}
           </h2>
           <DataTable
-            rows={pack.rows}
+            rows={filteredRows}
             columns={columns}
             rowKey={(row) => row.key}
             tableId="managementpack-1-table"
             accessibleName={t('managementPack.col.project', 'Project')}
             totals={projectTotals}
+            state={filteredRows.length === 0 ? 'empty' : undefined}
+            emptyTitle={t('financeHub:managementPack.noSearchMatches', 'No projects match your search')}
+            emptySub={t('financeHub:managementPack.noSearchMatchesSub', 'Try another project, client or project manager name.')}
           />
+          {pack.rows.some((row) => row.kind === 'unassigned') && (
+            <p className="mt-3 text-sm text-muted-foreground">
+              {t('financeHub:managementPack.unassignedNote', 'Some invoices are not assigned to a project yet.')}{' '}
+              <Link to="/finance/receivables?attribution=unassigned" className="font-medium text-primary-text underline underline-offset-2">
+                {t('financeHub:managementPack.assignProjects', 'Assign projects')}
+              </Link>
+            </p>
+          )}
           <button
             type="button"
             aria-expanded={monthlyTotalsExpanded}

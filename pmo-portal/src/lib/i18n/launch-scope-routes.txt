@@ -104,7 +104,7 @@
 # ── Finance lists (#789): invoices, receipts, and their project revenue roll-up.
 /sales-invoices                pages/SalesInvoices.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx src/components/shell/Rail.tsx src/components/shell/routeMatch.ts src/components/EfakturModal.tsx
 /incoming-payments             pages/IncomingPayments.tsx src/lib/revenue/nativeRevenueErrors.ts src/components/ui/EntityFormModal.tsx src/components/ui/ConfirmDialog.tsx
-/revenue-by-project            pages/RevenueByProject.tsx
+/revenue-by-project            pages/ManagementPack.tsx
 /financial-statements          pages/FinancialStatements.tsx pages/project-detail/ProjectProfitLossSection.tsx src/components/financial-statements/FinancialStatementsSection.tsx src/components/financial-statements/StatementPeriodPicker.tsx src/components/financial-statements/NativeStatementPair.tsx src/components/financial-statements/ProjectStatementTotals.tsx src/components/ui/ListPage.tsx src/components/ui/ListState.tsx
 /reports                       pages/ManagementPack.tsx src/components/reports/RecordProgressModal.tsx
 
