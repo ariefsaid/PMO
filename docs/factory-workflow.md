@@ -133,6 +133,8 @@ a signed brief; unsigned/ad-hoc issues keep the classic per-issue checkpoints.
 
 ## Executor routing (which machine runs the middle)
 
+> **Superseded 2026-10-27:** executors are now Orca workers — `docs/orca-dispatch.md`. The ADW rows below are history; the money/auth and `adws/` carve-outs still apply, dispatched through Orca.
+
 | Issue shape | Executor |
 |---|---|
 | Bounded code slice — incl. ordinary schema/migration work | **SSSF ADW — default chain `adws/adw_simple_sdlc.py`** (plan → build → gate-fix ×3 → cross-family review-revise ×2 → retest → commit → document). The gate = typecheck + lint + vitest, **+ pgTAP under one db-lock hold when the run touches `supabase/`** (`adw_modules/quality.py`). Run per `/sssf` + `docs/pi-delegation.md` substrate rules. |

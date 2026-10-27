@@ -1,6 +1,6 @@
 # Delegating role work to pi — Director guide
 
-**Status: ACTIVE TRIAL** (started 2026-06-12, KANNA gap series). This document tells any agent
+**Status: RETIRED 2026-10-27** — all dispatch now runs through Orca workers (`docs/orca-dispatch.md`). Kept as history. (Trial started 2026-06-12, KANNA gap series.) This document tells any agent
 acting as **Director** (`docs/director-playbook.md` §1 posture) how to dispatch role work to the
 **pi CLI** instead of (or alongside) Claude subagents. It changes **who executes a phase — nothing
 else**. The per-issue loop, gates, and checkpoints in `docs/director-playbook.md` §2 (including

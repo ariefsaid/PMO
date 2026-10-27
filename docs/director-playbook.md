@@ -108,6 +108,8 @@ never write app code yourself — you delegate and **verify**.
 > Claude subagents in a parallel burst). Both were pre-factory. An agent that follows the old default
 > spends an owner checkpoint per issue that the routing removed — the failure recorded on 2026-08-19.
 
+> **Superseded 2026-10-27:** every executor below is now an Orca worker — `docs/orca-dispatch.md`. Routing *classes* (bounded slice · money/auth tier · foggy) still hold.
+
 **Default = the ADW builds it, and issues chain.** Before starting any build, route it:
 
 | Issue shape | Executor |

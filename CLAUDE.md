@@ -40,16 +40,15 @@ B2B multi-tenancy without a rewrite.
 The **owner** talks to the **Director** (Opus 4.8, the main session). The Director runs an
 **issue-driven loop** and takes each issue end-to-end — but **does not run the build itself by
 default.** ⛔ **Pick the executor before starting any build** (`docs/factory-workflow.md` § Executor
-routing): a bounded code or FE slice → an **SSSF ADW** (`adws/adw_simple_sdlc.py`), chained with **no
+routing): a bounded code or FE slice → an **Orca worker** (`docs/orca-dispatch.md`), chained with **no
 owner pause between issues**; **money-path / SoD / auth / token-custody** → Director-dispatched per
-issue. Reaching for `implementer` on a slice the factory should run is the standing mistake — it
-spends an owner checkpoint that the routing removed. Keep tool approvals **ON**; pause for owner
+issue, also through Orca workers. Building it yourself in the main session is the standing mistake. Keep tool approvals **ON**; pause for owner
 approval before any push / merge / deploy, and at **milestone** boundaries — not at issue boundaries
 inside a signed brief. `main` stays the ceiling either way.
-> **⚑ Current executor (trial, 2026-06-12):** role-agent work is dispatched to the **pi CLI**
-> (GLM/codex substrates), not Claude subagents — to spare the Claude quota. The roster + models below are
-> the *contract* (and the Claude fallback); **`docs/pi-delegation.md` is how work is actually dispatched
-> right now.** The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
+> **⚑ Executor (owner, 2026-10-27):** all agent work — subagents, builders, reviewers, cross-model — runs as
+> **Orca supervised workers** on any harness (claude, codex, antigravity, zcode, pi, dsh) and model; routing
+> table and mechanics in **`docs/orca-dispatch.md`**. pi-delegation and the SSSF ADW are retired as
+> executors (history only). The roster below is the *role contract* handed to a worker. The gates are unchanged; the **per-issue QA loop now follows ADR-0030's portfolio model**
 > (`docs/qa-portfolio.md`, `review mode: portfolio` default — see the loop below).
 
 Per-issue loop (**QA = ADR-0030 "Discover → Graduate → Cover" portfolio; source of truth `docs/qa-portfolio.md`**,
@@ -62,9 +61,8 @@ stays intact in-repo, flip the mode to revert):
    mode this step is instead the owner-approved static HTML mockup round, `docs/design-workflow.md` §1a.)*
 2. **Spec (SDD)** — `spec-miner` (existing code) / `feature-forge` (new behavior) → `docs/specs/*.spec.md`.
 3. **Design+Plan** — `eng-planner` → `docs/plans/YYYY-MM-DD-<feature>.md` (+ ADRs).
-4. **Build (TDD)** — **executor per the routing above, decided before you start**: ADW by default
-   (`--builder fe_builder --reviewer fe_reviewer` for UI); Director-dispatched only for the
-   money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
+4. **Build (TDD)** — **executor per the routing above, decided before you start**: an Orca worker
+   (`docs/orca-dispatch.md`); per-issue Director dispatch for the money/SoD/auth tier. `implementer` / `ui-implementer` name the **role contract handed to the
    executor** — they are not a decision to build it yourself (red-green-refactor; no prod code
    without a failing test). **Deterministic correctness becomes Layer-1 CI gate-tests** — chart-position, money, dates/TZ,
    derived values, `axe-core` a11y, Playwright visual-regression — not human review (ADR-0030 §C).
@@ -218,7 +216,7 @@ matching one ONLY when your task touches that surface — that is the whole poin
 
 | Touching… | Read first |
 |---|---|
-| About to start ANY build — or to decide who runs it | [`docs/factory-workflow.md`](docs/factory-workflow.md) § Executor routing — **the ADW is the default and issues chain without owner pauses**; per-issue Director dispatch is the money/auth exception, not the reverse |
+| About to start ANY build — or to decide who runs it | [`docs/orca-dispatch.md`](docs/orca-dispatch.md) — Orca workers on any harness/model; routing table there |
 | Any money flow (budget activate · invoice/payment submit · procurement transition · timesheet push) | [`docs/money-path-primer.md`](docs/money-path-primer.md) — a map of the outbox/sweep/SoD architecture so you don't re-derive it from source |
 | The agent / LLM surface (prompts, tools, evals, the assistant panel) | [`docs/adr/0050-layered-agent-prompt-charter-and-skills.md`](docs/adr/0050-layered-agent-prompt-charter-and-skills.md) + [`docs/adr/0052-agent-eval-harness.md`](docs/adr/0052-agent-eval-harness.md) — ⚑ the deployed model (`deepseek-v4-flash`) is a **weak tool-selector**; prompt steering is unit-tested for text presence but NOT verified against the live model. The eval harness is the real gate. |
 | Authoring or editing any e2e spec | [`docs/e2e-parallel-conventions.md`](docs/e2e-parallel-conventions.md) — isolation classes, the `@e2e-isolation` tag, and the guard-polarity rule |
