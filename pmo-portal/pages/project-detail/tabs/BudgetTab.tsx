@@ -9,7 +9,7 @@ export interface BudgetTabProps {
 }
 
 const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const projectQuery = useProject(projectId);
 
   if (projectQuery.isPending) {

@@ -8,6 +8,7 @@ import {
   GateNotice,
   Icon,
   ConfirmDialog,
+  RecordActionZone,
   useToast,
   type StatTile,
 } from '@/src/components/ui';
@@ -67,7 +68,7 @@ export interface PipelineLensProps {
  * journey stepper, and the Advance / Mark won / Mark lost actions with the inline SoD capture).
  */
 const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { toast } = useToast();
   const { currentUser } = useAuth();
   const queryClient = useQueryClient();
@@ -321,31 +322,33 @@ const PipelineLens: React.FC<PipelineLensProps> = ({ project, locationState }) =
                 ) : null}
 
                 {!isTerminal && (
-                  <div className="flex flex-wrap gap-2">
-                    {isDesktop && nextStage && (
-                      <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
-                        {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
-                      </Button>
-                    )}
-                    {canWin && (
-                      <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
-                        <span aria-hidden className="size-1.5 rounded-full bg-success" />
-                        {t('projectDetail.pipeline.markWon', 'Mark won')}
-                      </Button>
-                    )}
-                    {canLose && (
-                      <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
-                        <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
-                        {t('projectDetail.pipeline.markLost', 'Mark lost')}
-                      </Button>
-                    )}
-                    {canDecline && (
-                      <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('declined')}>
-                        <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />
-                        {t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
-                      </Button>
-                    )}
-                  </div>
+                  <RecordActionZone>
+                    <div className="flex flex-wrap gap-2">
+                      {isDesktop && nextStage && (
+                        <Button variant="primary" disabled={pending} onClick={() => void runTransition(nextStage)}>
+                          {`${t('projectDetail.pipeline.advanceTo', 'Advance to')} ${NEXT_PIPELINE_LABEL[liveStatus] ?? nextStage}`}
+                        </Button>
+                      )}
+                      {canWin && (
+                        <Button variant="outline" disabled={pending} onClick={() => setShowWonPanel((v) => !v)}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-success" />
+                          {t('projectDetail.pipeline.markWon', 'Mark won')}
+                        </Button>
+                      )}
+                      {canLose && (
+                        <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('lost')}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-destructive" />
+                          {t('projectDetail.pipeline.markLost', 'Mark lost')}
+                        </Button>
+                      )}
+                      {canDecline && (
+                        <Button variant="outline" disabled={pending} onClick={() => setConfirmAction('declined')}>
+                          <span aria-hidden className="size-1.5 rounded-full bg-muted-foreground" />
+                          {t('projectDetail.pipeline.markDeclined', 'Decline to bid')}
+                        </Button>
+                      )}
+                    </div>
+                  </RecordActionZone>
                 )}
 
                 {showWonPanel && canWin && (

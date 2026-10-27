@@ -845,6 +845,16 @@ describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
   const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
   const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
 
+  it('AC-1402-M2: a PM can open the contract-value read-only explanation from the compact header menu', async () => {
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} compact /></ToastProvider></MemoryRouter>);
+    const menu = screen.getByLabelText('More actions').closest('details');
+    expect(menu).not.toBeNull();
+    await userEvent.click(within(menu!).getByLabelText('More actions'));
+    const explanation = within(menu!).getByTestId('contract-value-read-explanation');
+    await userEvent.click(within(explanation).getByText('Contract value · read-only'));
+    expect(within(explanation).getByText(/locked for project managers after the project is won/i)).toBeInTheDocument();
+  });
+
   it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {
     for (const source of ['not-tracked', 'unavailable'] as const) {
       const { unmount } = renderHeader('Finance', onHand, 0, source);

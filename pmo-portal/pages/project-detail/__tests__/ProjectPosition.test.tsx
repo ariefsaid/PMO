@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, renderHook, screen } from '@testing-library/react';
+import { render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
+import { ToastProvider } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const state = vi.hoisted(() => ({
@@ -36,6 +37,8 @@ vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => {
     if (entity === 'salesInvoice' && action === 'view') return state.forceInvoiceView || state.role !== 'Engineer';
     if (entity === 'salesInvoice' && action === 'create') return ['Admin', 'Executive', 'Finance'].includes(state.role);
+    if (entity === 'milestone' && action !== 'view') return ['Admin', 'Project Manager'].includes(state.role);
+    if (entity === 'project' && action === 'edit') return ['Admin', 'Project Manager'].includes(state.role);
     if (entity === 'procurement' && action === 'transition') return state.role !== 'Engineer';
     if (entity === 'procurement' && action === 'view') return true;
     return true;
@@ -70,10 +73,11 @@ vi.mock('@/src/hooks/useFxRates', () => ({
 }));
 vi.mock('@/src/hooks/useMilestones', () => ({
   useMilestones: () => ({ data: state.milestones, isPending: state.milestonesPending, isError: state.milestonesError, refetch: state.milestonesRefetch }),
+  useMilestoneMutations: () => ({ create: { mutateAsync: vi.fn() }, update: { mutateAsync: vi.fn() }, remove: { mutateAsync: vi.fn() } }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => ({ data: state.procurements, isPending: state.procurementsPending, isError: state.procurementsError, refetch: state.procurementsRefetch }),
-  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: 0, otherCurrencies: [], commitmentSource: 'pmo', ledgerBasis: 'erp', ownershipPending: false, ownershipError: false, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProgressBilling', () => ({ useBoqItems: () => ({ data: state.boqItems, isPending: false, isError: false, refetch: vi.fn() }), useProjectBilling: () => ({ data: state.billing, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, isPending: false, isError: false, refetch: vi.fn() }) }));
@@ -378,19 +382,20 @@ describe('project primary invoice action', () => {
 });
 
 describe('pipeline overview blocks and engineer task links', () => {
-  it('shows only the pre-win estimated budget and planned-phases line', () => {
+  it('keeps the pre-win budget estimate while making the phase planner reachable', () => {
     state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
     state.finances = actuals([{ category: 'Labor', mapped: true, amount: '150' }]);
     state.milestones = [{ id: 'm1', name: 'Should not leak', weight: 1, effective_pct: 50, target_date: null, task_count: 1 }];
     renderWithQueryClient(
-      <MemoryRouter>
+      <ToastProvider><MemoryRouter>
         <CostBlock project={project({ budget: 1200 })} isPipeline />
         <DeliveryBlock projectId="p1" isPipeline />
-      </MemoryRouter>,
+      </MemoryRouter></ToastProvider>,
     );
     expect(screen.getByText('Estimated budget 1,200')).toBeInTheDocument();
-    expect(screen.getByText('Phases are planned once the deal is won.')).toBeInTheDocument();
-    expect(screen.queryByText(/over budget|within budget|% delivered|Should not leak/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Should not leak')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add phase' })).toBeInTheDocument();
+    expect(screen.queryByText(/over budget|within budget/i)).not.toBeInTheDocument();
   });
 
   it('keeps an unknown budget total without a false within-budget claim and names one setup fix', () => {
@@ -437,6 +442,34 @@ describe('pipeline overview blocks and engineer task links', () => {
 });
 
 describe('contract billing block', () => {
+  it('AC-1402-M1/M5/M6 keeps full finance provenance in a quiet Money position Details disclosure', async () => {
+    state.role = 'Finance';
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [{ currency: 'USD', invoice_count: 2, invoiced: '250', settled: '100', outstanding: '150', missing_outstanding: 0, work_revenue: '230', tax_basis: 'mixed' }],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '100' }] },
+      actuals: { currency: 'USD', total: '100.00', as_of: '2026-10-25T00:00:00Z', excludes_restricted_rows: true, tagged_total: '80.00', attributed_total: '20.00', categories: [{ category: 'Labor', mapped: true, amount: '100.00', attributed_amount: '20.00' }, { category: 'Travel', mapped: false, amount: null }] },
+    };
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '200' }])];
+
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+
+    await userEvent.click(screen.getByText('Details', { exact: true }));
+    expect(screen.getByText('Project finances')).toBeInTheDocument();
+    expect(screen.getByText('2 invoices')).toBeInTheDocument();
+    expect(screen.getByText(/Updated/)).toBeInTheDocument();
+    expect(screen.getByText('Spending setup details')).toBeInTheDocument();
+    expect(screen.getByText('Show category details')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    const currencySection = within(screen.getByTestId('project-finances-USD'));
+    expect(currencySection.getByText('Invoiced')).toBeInTheDocument();
+    expect(currencySection.getByText('Settled')).toBeInTheDocument();
+    expect(currencySection.getByText('Outstanding')).toBeInTheDocument();
+    expect(currencySection.getByText('Billed-work revenue')).toBeInTheDocument();
+    expect(currencySection.getByText('Mixed tax bases')).toBeInTheDocument();
+    expect(screen.getByText('Remaining to invoice')).toBeInTheDocument();
+  });
+
   it('shows the contract-to-paid cascade from BoQ, work-order allocation, and invoice facts', () => {
     state.boqItems = [{ id: 'boq-1', quantity: 10, rate: 100 }];
     state.billing = { contractLines: [{ allocations: [
@@ -508,5 +541,46 @@ describe('contract billing block', () => {
     expect(screen.queryByText('Received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
+  });
+});
+
+describe('project phase and budget feature floor', () => {
+  it('AC-1402-M3 lets permitted owners plan phases for a pre-win project', async () => {
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" isPipeline /></MemoryRouter></ToastProvider>);
+    expect(await screen.findByRole('button', { name: 'Plan delivery phases' })).toBeInTheDocument();
+  });
+
+  it('AC-1402-M3 keeps pre-win phase planning unavailable to engineers', async () => {
+    state.role = 'Engineer';
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" isPipeline /></MemoryRouter></ToastProvider>);
+    expect(await screen.findByText(/planning starts once this is won/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Plan delivery phases' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1402-R4 exposes full phase details to read-only project readers', async () => {
+    state.milestones = [{ id: 'phase-1', project_id: 'p1', name: 'Design', sort_order: 1, target_date: null, weight: 2, input_pct: null, task_count: 2, calculated_pct: 50, effective_pct: 50 }];
+    state.tasks = [
+      { id: 'blocked-1', name: 'Approve drawings', status: 'Blocked', milestone_id: 'phase-1' },
+      { id: 'done-1', name: 'Survey site', status: 'Done', milestone_id: 'phase-1' },
+    ];
+    state.role = 'Engineer';
+
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter></ToastProvider>);
+
+    expect(await screen.findByTestId('phase-read-details')).toHaveTextContent('Current phase: Design');
+    expect(screen.getByText('1 of 2 tasks')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Approve drawings' })).toHaveAttribute('href', '/projects/p1/tasks?open=blocked-1');
+    expect(screen.queryByRole('button', { name: 'Update phases' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1402-M7 shows remaining budget, total use and eligible At risk status', async () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = { actuals: { currency: 'USD', total: '95', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '95' }] } };
+
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+
+    expect(await screen.findByText(/5 remaining/)).toBeInTheDocument();
+    expect(screen.getByText(/95% used/)).toBeInTheDocument();
+    expect(screen.getByText('At risk')).toBeInTheDocument();
   });
 });

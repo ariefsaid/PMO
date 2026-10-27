@@ -133,7 +133,7 @@ const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
   onToggleLockReason,
   onBeginValueEdit,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('project');
   const isDesktop = useIsDesktop();
   const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
@@ -272,7 +272,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   secondaryAction,
   menuContent,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
 
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -464,7 +464,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
     }
   };
   const actions = compact ? (
-    <>
+    <div className="flex items-center gap-2 whitespace-nowrap">
       {primaryAction}
       {secondaryAction}
       {canEdit && (
@@ -482,6 +482,18 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
             <span aria-hidden="true" className="text-xl leading-none">⋯</span>
           </summary>
           <div className="absolute right-0 z-20 mt-1 flex max-h-[min(80vh,36rem)] w-[min(22rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-lg border border-border bg-popover p-1">
+            {compact && realRole === 'Project Manager' && isOnHand && (
+              <div className="border-b border-border px-3 py-3" data-testid="contract-value-read-explanation">
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-foreground">
+                    {t('projectDetail.header.contractValueReadOnly', 'Contract value · read-only')}
+                  </summary>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    {t('projectDetail.header.contractValueReadOnlyExplanation', 'The approved contract value is locked for project managers after the project is won. Finance or an administrator can update it, with the change recorded.')}
+                  </p>
+                </details>
+              </div>
+            )}
             {menuContent && (
               <>
                 <Button variant="ghost" size="sm" className="justify-start" aria-expanded={projectDetailsOpen}
@@ -520,7 +532,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
           </div>
         </details>
       )}
-    </>
+    </div>
   ) : (
     <>
       {primaryAction}
@@ -677,7 +689,7 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         meta={meta}
         actions={primaryAction || menuContent || canEdit || canArchive || canDelete ? actions : undefined}
         variant="drawer"
-        className="mb-1 [&>div]:gap-2 [&_h1]:basis-full sm:[&_h1]:basis-auto"
+        className="mb-1 [&>div]:gap-2 [&_h1]:basis-auto [&>div>div:last-child]:w-auto"
       />
 
       {/* UIP-006: one compact read strip, with the explicit edit/lock next to Contract.

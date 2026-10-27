@@ -46,7 +46,7 @@ const ProgressClaimModal: React.FC<ProgressClaimModalProps> = ({
   boqItems, workOrders, allocations, contractLines, contractNet, currencySymbolPrefix, hasDownPayment, claimedByBoqItem, assessedByBoqItem,
   assessmentMonth, initialWorkOrderId, onClose, onSave, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [kind, setKind] = useState<Kind>('progress');
   const initialScope = initialWorkOrderId && workOrders.some((wo) => wo.id === initialWorkOrderId && (wo.status === 'Issued' || wo.status === 'Closed'))
     ? initialWorkOrderId

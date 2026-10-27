@@ -78,7 +78,7 @@ describe('TasksTab add task in group (AC-DEL-011)', () => {
     render$();
 
     // The Engineering design group should have an "Add task" button
-    const m1Section = screen.getByRole('rowgroup', { name: /Engineering design/i });
+    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
     const addBtn = within(m1Section).getByRole('button', { name: /add task/i });
     fireEvent.click(addBtn);
 

@@ -35,7 +35,7 @@ export interface BoqItemFormModalProps {
 }
 
 const BoqItemFormModal: React.FC<BoqItemFormModalProps> = ({ item, currencySymbolPrefix, onClose, onSave, onError }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const erpItems = useErpItemOptions('sales');
   const [saveError, setSaveError] = useState<SubmitError | null>(null);
 

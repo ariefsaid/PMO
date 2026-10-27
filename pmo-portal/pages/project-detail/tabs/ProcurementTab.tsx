@@ -12,7 +12,7 @@ export interface ProcurementTabProps {
 
 /** Project-detail composition: shared PMO list/drawer plus its existing unlinked ERP section. */
 const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const canSeeMoney = may('view', 'procurement');
   const erp = useErpPurchases(projectId, { enabled: canSeeMoney });

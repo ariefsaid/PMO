@@ -35,7 +35,7 @@ const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
 );
 
 const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <>
       {project.service_line && <DetailRow label={t('projectClassification.serviceLine', 'Service line')} value={project.service_line} />}
@@ -48,7 +48,7 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
 };
 
 const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true, summaryLabel, quiet = false, detailsOnly = false }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const notSet = t('projectDetail.rail.notSet', 'Not set');
   const detailSection = (
     <section aria-labelledby="project-details-heading">

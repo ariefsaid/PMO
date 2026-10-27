@@ -69,7 +69,7 @@ const MilestoneFormModal: React.FC<MilestoneFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!milestone;
 
   // Memoised on `t` so the validator keeps a stable identity between renders

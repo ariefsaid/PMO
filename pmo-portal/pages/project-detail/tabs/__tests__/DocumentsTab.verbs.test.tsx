@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
 
@@ -80,11 +81,11 @@ const testQueryClient = new QueryClient({ defaultOptions: { queries: { retry: fa
 
 const renderAsReviewer = () =>
   render(
-    <ImpersonationProvider realRole="Project Manager">
+    <MemoryRouter><ImpersonationProvider realRole="Project Manager">
       <QueryClientProvider client={testQueryClient}><ToastProvider>
         <DocumentsTab projectId="p1" />
       </ToastProvider></QueryClientProvider>
-    </ImpersonationProvider>,
+    </ImpersonationProvider></MemoryRouter>,
   );
 
 describe('DocumentsTab — visible workflow verbs (B-4, AC-W2-IXD-007)', () => {

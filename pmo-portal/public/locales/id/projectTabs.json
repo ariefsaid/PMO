@@ -120,7 +120,10 @@
           "withdrawn": "BAST ditarik"
         },
         "withdraw": "Tarik",
-        "withdrawLabel": "Tarik draft BAST tanggal {{date}}"
+        "withdrawLabel": "Tarik draft BAST tanggal {{date}}",
+        "confirmDelivery": "Konfirmasi draf BAST",
+        "finalConfirmed": "Final terkonfirmasi",
+        "confirmed": "Terkonfirmasi"
       },
       "closing": {
         "closedAt": "Ditutup pada {{amount}} (belum termasuk PPN)",
@@ -145,7 +148,6 @@
         "legend": "Baris bill of quantities",
         "loadError": "Baris kontrak tidak dapat dimuat",
         "noBoq": "Proyek ini belum memiliki baris bill of quantities.",
-        "none": "Belum ada baris kontrak yang dialokasikan",
         "overOrdered": "Pesanan melebihi sisa kontrak sebesar {{qty}} {{unit}}.",
         "readOnly": "Anda dapat melihat alokasi ini tetapi tidak dapat mengubahnya.",
         "remove": "Hapus",
@@ -157,8 +159,7 @@
       },
       "quantities": {
         "counts": "{{lines}} baris · {{basts}} BAST",
-        "summary": "Baris kontrak dan BAST — {{wo}}",
-        "title": "Kuantitas kontrak"
+        "summary": "Baris kontrak dan BAST — {{wo}}"
       }
     }
   }

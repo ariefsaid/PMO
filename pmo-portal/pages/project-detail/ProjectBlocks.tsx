@@ -20,6 +20,8 @@ import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from './useProjectPosition';
 import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
+import { ProjectFinancesSection } from './ProjectFinancesSection';
+import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
 
 const ProjectGantt = React.lazy(() => import('./ProjectGantt'));
 
@@ -62,7 +64,8 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
 export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('project');
+  const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
   const q = useProjectFinances(project.id);
   const may = usePermission();
   const canViewMoney = may('view', 'salesInvoice');
@@ -190,6 +193,14 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
           )}</dd>
         </div>
       </dl>
+      <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
+        <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
+          className="touch-target inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+          <span aria-hidden="true" className="inline-block w-3.5 text-center">{financeDetailsOpen ? '⌄' : '›'}</span>
+          {t('projectDetail.money.details', 'Details')}
+        </button>
+        {financeDetailsOpen && <div className="space-y-4 pt-4"><ProjectFinancesSection project={project} /></div>}
+      </div>
       <div className="mt-6 border-t border-border/70 pt-4"><ProjectProfitLossSection projectId={project.id} /></div>
     </Block>
   );
@@ -204,7 +215,7 @@ const CostUnit: React.FC<{ project: ProjectWithRefs }> = ({ project }) => (
 );
 
 const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const amount = project.budget;
   return (
     <Block id="pd-cost" title={t('projectDetail.cost.estimateTitle', 'Budget')} unit={<CostUnit project={project} />}>
@@ -220,7 +231,7 @@ export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =
 );
 
 const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void }> = ({ project, onOpenBudget }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const canFixSetup = may('manage', 'orgAccounting');
   const pos = useBudgetPosition(project);
@@ -276,9 +287,28 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     </>
   ) : null;
 
+  const usedPercent = pos.budget > 0 && pos.spent !== null ? pctOf(pos.spent, pos.budget) : null;
+  const remaining = pos.spent === null ? null : pos.budget - pos.spent;
+  const atRisk = isMoneyAtRisk({
+    status: project.status as string,
+    budget: pos.budget,
+    budgetCurrency: project.currency,
+    projectCurrency: project.currency,
+    spent: pos.spent,
+    actualCurrency: pos.spent === null ? null : project.currency,
+    actualComplete: pos.spent !== null,
+  });
+
   return (
     <Block id="pd-cost" title={title} unit={<CostUnit project={project} />} action={action}>
       {answer}
+      {usedPercent !== null && <Sub>
+        {t('projectDetail.cost.snapshotUse', '{{percent}}% used', { percent: usedPercent })}
+        {remaining !== null && <> · {remaining < 0
+          ? t('projectDetail.cost.snapshotOver', '{{amount}} over budget', { amount: whole(Math.abs(remaining)) })
+          : t('projectDetail.cost.snapshotRemaining', '{{amount}} remaining', { amount: whole(remaining) })}</>}
+        {atRisk && <span className="ml-2 font-semibold text-warning-foreground">{t('projectDetail.cost.atRisk', 'At risk')}</span>}
+      </Sub>}
       {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
       {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
       {pos.canSeeActual && pos.spent === null && !pos.actualsPending && !pos.actualsError && (
@@ -327,16 +357,16 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
 /* ── Delivery: phase progress, dated task work, and phase planning ────────────────────────── */
 
 export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; children?: React.ReactNode }> = ({ projectId, isPipeline = false, children }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const title = t('projectDetail.delivery.timelineTitle', 'Phase timeline');
   if (isPipeline) {
-    return <Block id="pd-delivery" title={title}><p className="text-sm text-muted-foreground">{t('projectDetail.delivery.emptyPipeline', 'Phases are planned once the deal is won.')}</p></Block>;
+    return <Block id="pd-delivery" title={title}><MilestoneStrip projectId={projectId} compactWhenEmpty /></Block>;
   }
   return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
 };
 
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const navigate = useNavigate();
   const [managing, setManaging] = useState(false);
@@ -365,6 +395,23 @@ const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children
       <Tooltip content={t('projectDetail.delivery.progressTooltip', 'Weighted average of phase completion using each phase weight; source: the project phase plan and linked task progress.')}>
         <span tabIndex={0}><Headline>{t('projectDetail.delivery.pct', '{{pct}}% delivered', { pct })}</Headline></span>
       </Tooltip>
+      <div className="mt-3 space-y-1" data-testid="phase-read-details">
+        <p className="text-xs text-muted-foreground">{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')}: <span className="font-medium text-foreground">{all.find((milestone) => milestone.effective_pct < 100)?.name ?? t('projectDetail.milestones.noCurrentPhase', 'No active phase')}</span></p>
+        <ul className="divide-y divide-border/70">
+          {all.map((milestone) => {
+            const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
+            const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
+            const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
+            const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;
+            return <li key={milestone.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-xs">
+              <span className="font-medium text-foreground">{milestone.name}</span>
+              <span className="text-muted-foreground">{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
+              <span className="text-muted-foreground">{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
+              {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}
+            </li>;
+          })}
+        </ul>
+      </div>
       <div className="mt-4">
         <React.Suspense fallback={<ListState variant="loading" rows={3} />}>
           <ProjectGantt

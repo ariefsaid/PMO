@@ -25,7 +25,7 @@ import { areaFromParam, type Area } from './projectDetailAreas';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const phases = useMilestones(project.id);
   const milestones = phases.data ?? [];
@@ -85,7 +85,7 @@ const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const {
     data: project,
     isPending,

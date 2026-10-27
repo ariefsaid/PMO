@@ -210,8 +210,8 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     const engineer = await renderAt('/projects/p1');
     const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
     expect(myTasks).toHaveTextContent('1');
-    expect(screen.getByRole('heading', { name: /Needs attention/ })).toBeInTheDocument();
-    expect(screen.getByText('Review drawings is blocked')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
+    expect(screen.queryAllByText('Review drawings is blocked')).toHaveLength(0);
     for (const taskLink of screen.getAllByRole('link', { name: /Review drawings/ })) {
       expect(taskLink).toHaveAttribute('href', '/projects/p1/tasks?open=task-17');
     }
@@ -239,7 +239,7 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
 
     const myTasks = screen.getByRole('heading', { name: /My open tasks/ });
     expect(myTasks).toHaveTextContent('1');
-    expect(screen.getByRole('heading', { name: /Needs attention/ })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /Needs attention/ })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Phase timeline' })).toBeInTheDocument();
     for (const taskLink of screen.getAllByRole('link', { name: /Review scope/ })) {
       expect(taskLink).toHaveAttribute('href', '/projects/d1/tasks?open=task-pipeline');

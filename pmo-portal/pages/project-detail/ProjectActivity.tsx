@@ -13,7 +13,7 @@ type ActivityView = 'all' | 'comments' | 'changes';
 
 /** Activity = the project's conversation and its change history, two views of one job (UX NV3). */
 export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }> = ({ projectId, compact = false }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [view, setView] = useState<ActivityView>('all');
   return (
     <section aria-label={t('projectDetail.activity.title', 'Activity')} className="flex min-w-0 flex-col gap-4">
@@ -37,7 +37,7 @@ export const ProjectActivity: React.FC<{ projectId: string; compact?: boolean }>
 
 /** The signed-in person's open tasks on this project — the engineer's overview lead. */
 export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { currentUser } = useAuth();
   const tasks = useTasks(projectId);
   if (tasks.isPending) return <ListState variant="loading" rows={3} />;
@@ -93,7 +93,7 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
  * there when you need it, never competing with the work. It opens the conversation in a drawer.
  */
 export const ActivityFooter: React.FC<{ projectId: string; initialOpen?: boolean }> = ({ projectId, initialOpen = false }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [open, setOpen] = useState(initialOpen);
   const comments = useComments('project', projectId);
   const list = comments.data ?? [];

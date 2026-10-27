@@ -20,7 +20,7 @@ export interface ClaimEvidenceModalProps {
 const EVIDENCE_STATUSES = new Set(['Issued', 'Approved']);
 
 const ClaimEvidenceModal: React.FC<ClaimEvidenceModalProps> = ({ documents, attachedDocumentIds, onClose, onAttach, onError }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [choice, setChoice] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<SubmitError | null>(null);

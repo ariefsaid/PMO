@@ -133,6 +133,22 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByText('Drawdown headroom')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Raise invoice/ })).not.toBeInTheDocument();
     expect(screen.queryByText('INV-1')).not.toBeInTheDocument();
+    expect(screen.queryByText('Partly invoiced')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Still to invoice/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
+  });
+
+  it('AC-BWO-004 Finance sees each order billing state and remaining-to-invoice figure', async () => {
+    renderTab('Finance');
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(within(order).getByText('Partly invoiced')).toBeInTheDocument();
+    const stillToInvoice = within(order).getByText('Still to invoice $80,000.00');
+    expect(stillToInvoice).toBeInTheDocument();
+    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000.00');
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$90,000.00');
+    await userEvent.hover(stillToInvoice);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
 
   it('AC-1402 clicking an allocated line opens its quantity history drawer', async () => {
@@ -199,11 +215,11 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByText('Invoice figures are incomplete.')).toBeNull();
   });
 
-  it('AC-S15-003 a truly empty work-order register leads with its first-use action, without zero billing totals', () => {
+  it('M17 empty register explains client PO drawdown without showing zero billing totals', () => {
     h.list.data = [];
     renderTab('Admin');
 
-    expect(screen.getByText('No contract lines or customer orders yet.')).toBeInTheDocument();
+    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add customer order' })).toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-summary')).not.toBeInTheDocument();
     expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
@@ -214,7 +230,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
 
     expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
-    expect(screen.queryByText('No contract lines or customer orders yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No customer orders yet\. Client purchase orders/)).not.toBeInTheDocument();
   });
 
   it('AC-S15-003 failed work-order reads keep a retry state, never the empty first-use state', () => {
@@ -223,7 +239,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     expect(screen.getByText('Couldn’t load the work orders')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    expect(screen.queryByText('No contract lines or customer orders yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No customer orders yet\. Client purchase orders/)).not.toBeInTheDocument();
   });
 
   it('AC-1402 keeps each order money summary tied to invoice balances', async () => {
@@ -487,5 +503,33 @@ describe('WorkOrdersTab — arriving from a dashboard link to one work order (#7
   it('AC-UNB-005 an unknown or absent work order id leaves focus alone', () => {
     renderTab('Finance', 'c-1', 'wo-missing');
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it('M15 gives dashboard links an anchor for Draft work orders too', async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    h.list.data = [wo({ status: 'Draft' })];
+    renderTab('Finance', 'c-1', 'wo-1');
+    const target = screen.getByRole('button', { name: 'View details for WO-1' }).closest('[data-wo-anchor]') as HTMLElement;
+    await vi.waitFor(() => expect(target).toHaveFocus());
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+});
+
+describe('WorkOrdersTab — billing summary disclosure (M19)', () => {
+  it('M19 shows the full billing summary and explicit no-assessment state on demand', async () => {
+    h.projectBilling.data = {
+      currency: 'USD', contractNet: 1_000_000, workBilled: 250_000, dpBilled: 100_000, dpRecovered: 25_000, notSubmitted: 40_000,
+      assessment: null, claimedByBoqItem: {}, assessedByBoqItem: {}, earnedValue: 0, contractLines: [],
+    };
+    const user = userEvent.setup();
+    renderTab();
+    await user.click(screen.getByText('Billing summary details'));
+    const disclosure = screen.getByTestId('work-orders-billing-detail');
+    expect(disclosure).toHaveTextContent('Billed to date');
+    expect(disclosure).toHaveTextContent('Contract value');
+    expect(disclosure).toHaveTextContent('Contract not yet billed');
+    expect(disclosure).toHaveTextContent('Claims raised, not yet submitted');
+    expect(within(disclosure).getByText('No assessment yet')).toBeInTheDocument();
   });
 });

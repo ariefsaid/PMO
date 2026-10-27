@@ -75,12 +75,12 @@ const RouteProbe: React.FC = () => {
   return <output data-testid="route">{`${location.pathname}${location.search}`}</output>;
 };
 
-describe('AC-S15-001 project billing start', () => {
-  it('lets Finance choose a billing method from the known project', async () => {
+describe('M18 project billing start', () => {
+  it('lets Finance choose a billing method from Raise invoice on the tab', async () => {
     const user = userEvent.setup();
     renderTab();
 
-    await user.click(screen.getByRole('button', { name: 'Start invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
 
     expect(screen.getByRole('dialog', { name: 'Start invoice' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Contract invoice/ })).toHaveAttribute(
@@ -91,11 +91,21 @@ describe('AC-S15-001 project billing start', () => {
     expect(screen.getByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
   });
 
+  it('offers the same invoice method choices to Admin', async () => {
+    const user = userEvent.setup();
+    renderTab('Admin');
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByRole('dialog', { name: 'Start invoice' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Contract invoice/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Customer work order/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Quantity or progress claim/ })).toBeInTheDocument();
+  });
+
   it('opens the existing contract draft route with the same project and closes the method selector', async () => {
     const user = userEvent.setup();
     renderTab();
 
-    await user.click(screen.getByRole('button', { name: 'Start invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('link', { name: /Contract invoice/ }));
 
     expect(screen.getByTestId('route')).toHaveTextContent('/sales-invoices?create=1&project=project-synthetic');
@@ -106,12 +116,12 @@ describe('AC-S15-001 project billing start', () => {
     const user = userEvent.setup();
     renderTab();
 
-    await user.click(screen.getByRole('button', { name: 'Start invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('button', { name: /Customer work order/ }));
     expect(screen.getByTestId('route')).toHaveTextContent('/projects/project-synthetic/work-orders');
     expect(screen.queryByRole('dialog', { name: 'Start invoice' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'Start invoice' }));
+    await user.click(screen.getByRole('button', { name: 'Raise invoice' }));
     await user.click(screen.getByRole('button', { name: /Quantity or progress claim/ }));
     expect(await screen.findByRole('dialog', { name: 'New billing claim' })).toBeInTheDocument();
   });
@@ -119,18 +129,18 @@ describe('AC-S15-001 project billing start', () => {
   it('does not offer invoice creation to an Engineer', () => {
     renderTab('Engineer');
 
-    expect(screen.queryByRole('button', { name: 'Start invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 
   it('does not start billing without a resolved revenue route or an authorized project customer', () => {
     h.routeReady = false;
     const first = renderTab();
-    expect(screen.queryByRole('button', { name: 'Start invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
     first.unmount();
 
     h.routeReady = true;
     renderTab('Finance', null);
-    expect(screen.queryByRole('button', { name: 'Start invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 
   it('AC-L10N-B01 renders the project billing methods in Bahasa', async () => {
@@ -147,7 +157,7 @@ describe('AC-S15-001 project billing start', () => {
         </FinanceI18nTestProvider>,
       );
 
-      await user.click(screen.getByRole('button', { name: 'Mulai membuat faktur' }));
+      await user.click(screen.getByRole('button', { name: 'Ajukan faktur' }));
       expect(screen.getByRole('dialog', { name: 'Mulai membuat faktur' })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Faktur kontrak/ })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Work Order pelanggan/ })).toBeInTheDocument();

@@ -112,10 +112,11 @@ const lateDays = (target: string) => Math.max(1, Math.floor((Date.parse(attnToda
  */
 export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'pm' | 'delivery'): {
   items: AttentionItem[];
+  myVisibleTaskKeys: ReadonlySet<string>;
   isPending: boolean;
   error?: { what: string; retry: () => unknown };
 } {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -153,6 +154,11 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     ]),
   } : undefined;
 
+  const myVisibleTaskKeys = useMemo(() => new Set((tasks.data ?? [])
+    .filter((task) => task.assignee_id === currentUser?.id && task.status !== 'Done')
+    .sort((a, b) => (a.end_date ?? '9999').localeCompare(b.end_date ?? '9999'))
+    .slice(0, 6)
+    .map((task) => `task-${task.id}`)), [tasks.data, currentUser?.id]);
   const items = useMemo(() => {
     const out: AttentionItem[] = [];
     if (lens === 'delivery') {
@@ -232,6 +238,6 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
     return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === 'danger' ? -1 : 1));
   }, [lens, tasks.data, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
 
-  return { items, isPending, error };
+  return { items, myVisibleTaskKeys, isPending, error };
 }
 

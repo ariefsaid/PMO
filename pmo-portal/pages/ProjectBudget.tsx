@@ -45,6 +45,7 @@ import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
 import { buildBudgetSummaryRows, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 import BudgetProjection from './BudgetProjection';
+import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
 import { fetchBudgetPushStatus, type BudgetPushStatusRow } from '@/src/lib/repositories/budgetProjection';
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   updateIsPending = false,
   onSaveError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   const [adding, setAdding] = useState(false);
   const [newCategory, setNewCategory] = useState<Enums<'budget_category'>>('Labor');
   const [newDesc, setNewDesc] = useState('');
@@ -518,7 +519,7 @@ type PendingBudgetConfirm =
   | { kind: 'deleteLineItem'; id: string; label: string };
 
 const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
   const canReadMoney = can('view', 'salesInvoice');
@@ -533,7 +534,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = searchParams.get('budgetView') === 'forecast' ? 'forecast' : 'actual';
+  const requestedForecast = searchParams.get('budgetView') === 'forecast';
   const setBudgetView = (nextView: 'actual' | 'forecast') => {
     const next = new URLSearchParams(searchParams);
     next.delete('open');
@@ -577,6 +578,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   );
   const activeVersion = versions.find((version) => version.status === 'Active');
   const draftVersion = versions.find((version) => version.status === 'Draft');
+  const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
+  const view = requestedForecast && hasActiveErpBinding && activeVersion ? 'forecast' : 'actual';
   const orderedVersions = [...versions].sort((a, b) => a.version - b.version);
   const selectedVersion = view === 'forecast'
     ? activeVersion
@@ -605,6 +608,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     currentUserId,
     record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
   }));
+  const activateBlockedReason = !draftVersion || canActivate ? null
+    : draftVersion.created_by == null
+      ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
+      : draftVersion.editor_ids?.includes(currentUserId ?? '') || draftVersion.created_by === currentUserId
+        ? t('financeCopy.activateEditorBlocked', 'You drafted or edited this version, so someone else must activate it.')
+        : t('projectDetail.budget.activationSeparationNextStep', 'The drafter and activator must be different people. Ask an eligible Admin or Finance user who did not edit this draft to activate it.');
   const versionLabel = (id: string): string => {
     const version = versions.find((item) => item.id === id);
     return version ? version.name + ' (v' + version.version + ')' : id;
@@ -617,7 +626,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const requestDeleteLineItem = (id: string) => setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
 
   const canSeeActuals = canReadMoney && position.canSeeActual;
-  const hasActiveErpBinding = erpBindingQuery.data?.status === 'active';
   const canSeeCommitments = canReadMoney && canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError;
   const summaryRows = selectedVersion && canReadMoney ? buildBudgetSummaryRows({
     lines: selectedVersion.line_items,
@@ -646,8 +654,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const totalCommitted = enrichedRows.length > 0 && enrichedRows.every((row) => row.committed !== null && canSeeCommitments)
     ? enrichedRows.reduce((sum, row) => sum + (row.committed ?? 0), 0)
     : null;
-  const totalLeft = totalBudget !== null && totalSpent !== null && totalCommitted !== null
-    ? totalBudget - totalSpent - totalCommitted
+  const totalLeft = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
+    ? tableBudgetTotal - totalSpent - totalCommitted
     : null;
   const tableLeftTotal = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
     ? tableBudgetTotal - totalSpent - totalCommitted
@@ -707,23 +715,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       header: t('financeCopy.category', 'Category'),
       kind: 'primary',
       rowHeader: true,
-      size: 220,
+      size: 250,
       cell: (row) => {
         const name = budgetCategoryLabel(row.category, t);
-        const author = selectedVersion ? authorName(selectedVersion) : t('projectDetail.budget.projectTeam', 'Project team');
-        const hasAuthor = Boolean(selectedVersion?.created_by && (selectedVersion.created_by === currentUserId || usersQuery.data?.some((user) => user.id === selectedVersion.created_by)));
-        const initials = hasAuthor ? author.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() : '';
-        return <div className="flex min-w-0 items-center gap-2">
-          <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>
-          <Tooltip content={t('projectDetail.budget.versionAuthorSource', 'Version author and creation date. Category-level ownership and line update time are not recorded.')}>
-            <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-xs text-muted-foreground" aria-label={t('projectDetail.budget.versionAuthor', 'Version author: {{author}}', { author })}>
-              {hasAuthor && <span aria-hidden="true" className="grid size-6 place-items-center rounded-full border border-border bg-secondary text-[10px] font-semibold text-foreground">{initials}</span>}
-              <span className="hidden max-w-24 truncate xl:inline">{author}</span>
-            </span>
-          </Tooltip>
-        </div>;
+        return <button type="button" className="min-w-0 truncate text-left font-medium text-foreground underline-offset-2 hover:underline" aria-label={t('projectDetail.budget.openCategory', 'Open {{category}} budget details', { category: name })} onClick={(event) => { event.stopPropagation(); openCategory(row); }}>{name}</button>;
       },
-      secondaryCell: () => selectedVersion && <span className="text-xs text-muted-foreground">{t('projectDetail.budget.versionCreated', 'Version created {{date}}', { date: dateLabel(selectedVersion) })}</span>,
+      secondaryCell: () => null,
     },
     {
       key: 'budget', header: t('financeCopy.budget', 'Budget'), kind: 'money', align: 'num',
@@ -748,7 +745,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         : <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}><ProgressBar compact value={Math.round(row.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(row.category, t) })} /></span></Tooltip>,
     },
     {
-      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status',
+      key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 150, minSize: 140,
       cell: (row) => { const status = getStatus(row); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; },
     },
   ];
@@ -780,7 +777,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
       const previous = index > 0 ? orderedVersions[index - 1] : null;
-      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? '+' : ''}{formatCurrencyAuto(version.total - previous.total, version.currency)}</span></Tooltip> : '—';
+      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatCurrencyAuto(version.total - previous.total, version.currency)}</span></Tooltip> : '—';
     } },
     { key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version) => {
       if (version.status !== 'Active') return '—';
@@ -848,8 +845,11 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           break;
         }
         case 'clone': {
-          await mutations.cloneVersion.mutateAsync(confirm.id);
+          const newDraftId = await mutations.cloneVersion.mutateAsync(confirm.id);
           setPendingConfirm(null);
+          setSelectedVersionId(newDraftId);
+          setDraftEditorOpen(false);
+          setBudgetView('actual');
           toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: confirm.label }), 'success');
           break;
         }
@@ -962,7 +962,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               <h3 className="font-semibold">{t('projectDetail.budget.draftWaiting', 'Draft waiting for approval')}</h3>
               <span className="text-sm text-muted-foreground">{draftVersion.name} · v{draftVersion.version}</span>
             </div>
-            {!canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+            {!canActivate && <p role="status" className="mt-1 text-sm text-muted-foreground">{activateBlockedReason ?? t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
             {canActivate && <p className="mt-1 text-sm text-muted-foreground">{t('projectDetail.budget.draftReady', 'This draft is ready for an eligible approver to activate.')}</p>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1042,12 +1042,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
             {position.actualsError && <p role="status" className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">{t('projectDetail.budget.actualsError', "Couldn't check spending.")}<Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button></p>}
             {canSeeActuals && position.unknown > 0 && !position.actualsPending && !position.actualsError && <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")} {canManageAccounting ? <a href="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</a> : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}</p>}
           </> : <ListState variant="empty" title={t('projectDetail.budget.noActiveBudget', 'No active budget')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} />
-        ) : activeVersion ? <BudgetProjection projectId={projectId} currency={project.currency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
+        ) : activeVersion ? <><AttributedSpendingNote projectId={projectId} /><BudgetProjection projectId={projectId} currency={project.currency} canEdit={canWrite} committedByCategory={Object.fromEntries(summaryRows.map((row) => [row.category, canSeeCommitments ? row.committed : null]))} canReadCommitments={canSeeCommitments} onAdjustInDraft={adjustInDraft} onExport={(rows) => {
           const headers = ['Category', 'Budget', 'Spent', 'Cost to finish', 'Forecast final', 'Forecast remaining'];
           const csv = [headers, ...rows.map((row) => [budgetCategoryLabel(row.category, t), row.pmoBudgetAmount ?? '', row.actualsToDate ?? '', row.pmoEtc, row.projectedFinalCost ?? '', row.projectedVariance ?? ''])].map((line) => line.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\r\n');
           const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
           const link = document.createElement('a'); link.href = url; link.download = 'ProjectBudgetForecast.csv'; link.click(); URL.revokeObjectURL(url);
-        }} /> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
+        }} /></> : <ListState variant="empty" title={t('projectDetail.budget.forecastNeedsActive', 'Activate a budget to view its forecast')} />}
       </section>
 
       <section aria-label={t('projectDetail.budget.versionsTitle', 'Budget versions')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
@@ -1075,7 +1075,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         <summary className="touch-target cursor-pointer text-sm font-semibold">{t('projectDetail.budget.sourcesEnforcement', 'Sources and budget enforcement')}</summary>
         <div className="mt-3 space-y-3">
           <p className="text-sm text-muted-foreground">{t('projectDetail.budget.sourceDescription', 'Budget totals come from version line items. Spent comes from project finance. Commitments come from qualifying procurement records. Forecasts use the ERP ledger and estimates for the selected client fiscal year.')}</p>
-          <BudgetErpNotice projectId={projectId} activeVersion={activeVersion} />
+          <BudgetErpNotice
+            projectId={projectId}
+            activeVersion={activeVersion}
+            hasDraft={Boolean(draftVersion)}
+            onRecover={() => {
+              setBudgetView('actual');
+              if (draftVersion) {
+                setSelectedVersionId(draftVersion.id);
+                setDraftEditorOpen(true);
+              } else if (activeVersion) {
+                requestClone(activeVersion.id);
+              }
+            }}
+          />
         </div>
       </details>}
 
@@ -1102,8 +1115,8 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
               [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')],
               [t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
-              [t('projectDetail.budget.costToFinish', 'Cost to finish'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
-              [t('projectDetail.budget.forecastFinal', 'Forecast final'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+              [t('projectDetail.budget.costToFinish', 'Cost to finish'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
+              [t('projectDetail.budget.forecastFinal', 'Forecast final'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><Tooltip content={source}><dd tabIndex={0} className="mt-1 font-semibold tabular-nums">{value}</dd></Tooltip></div>)}
           </dl>
           {selectedCategory.used !== null && <div><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
@@ -1114,7 +1127,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
           <section aria-labelledby="budget-category-lines-heading" className="space-y-2">
             <h3 id="budget-category-lines-heading" className="text-sm font-semibold">{t('projectDetail.budget.budgetLineItems', 'Budget line items')}</h3>
             <ul className="divide-y divide-border" aria-label={t('projectDetail.budget.budgetLineItems', 'Budget line items')}>
-              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}</span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatAmount(Number(line.budgeted_amount))}</span></Tooltip></li>)}
+              {selectedCategory.lines.map((line) => <li key={line.id ?? `${line.category}-${line.description}`} className="flex min-w-0 items-start justify-between gap-3 py-2 text-sm"><span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}<span className="ml-2 text-xs">{t('financeCopy.fiscalYear', 'Fiscal year')}: {line.fiscal_year ?? t('financeCopy.unPhased', 'Un-phased')}</span></span><Tooltip content={t('projectDetail.budget.budgetLineSource', 'Source: selected budget version line item.')}><span tabIndex={0} className="shrink-0 tabular-nums">{formatAmount(Number(line.budgeted_amount))}</span></Tooltip></li>)}
               {selectedCategory.lines.length === 0 && <li className="py-2 text-sm text-muted-foreground">{t('projectDetail.budget.noLineItems', 'No budget line items are recorded for this category.')}</li>}
             </ul>
           </section>
@@ -1151,7 +1164,7 @@ const NewVersionForm: React.FC<{
   value: string;
   onChange: (v: string) => void;
 }> = ({ onSubmit, onCancel, value, onChange }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   return (
     <Toolbar standalone className="items-center">
     <input

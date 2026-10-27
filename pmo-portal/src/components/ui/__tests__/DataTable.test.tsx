@@ -127,9 +127,11 @@ describe('DataTable', () => {
     await i18n.init({
       lng: 'id',
       fallbackLng: 'en',
+      defaultNS: 'projects',
+      ns: ['projects'],
       resources: {
-        en: { translation: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
-        id: { translation: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
+        en: { projects: { table: { actions: 'Actions', openRow: 'Open {{name}}', rowActions: 'Row actions' } } },
+        id: { projects: { table: { actions: 'Tindakan', openRow: 'Buka {{name}}', rowActions: 'Tindakan baris' } } },
       },
       interpolation: { escapeValue: false },
     });

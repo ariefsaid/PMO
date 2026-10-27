@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from 'react-router';
 import { DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
@@ -11,6 +11,7 @@ import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import ProjectDrawdown from './ProjectDrawdown';
 
 type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
@@ -56,7 +57,7 @@ const qty = (n: number) => formatNumberMax2(n);
 
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
 export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode }> = ({ project, children }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [searchParams, setSearchParams] = useSearchParams();
   const openRecordId = searchParams.get('open');
   const openRecordType = searchParams.get('openType');
@@ -67,6 +68,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const canViewMoney = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
   const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
+  const [drawdownOpen, setDrawdownOpen] = useState(false);
 
   if (boq.isPending || billing.isPending || orders.isPending) return <ListState variant="loading" rows={6} />;
   if (boq.isError || billing.isError || orders.isError || !billing.data) {
@@ -91,7 +93,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
     ? contract
     : billing.data.contractNet;
   const invoiceFiguresMissing = canViewMoney && (
-    invoices.isPending || invoices.isError || settlement.invoiced === null || !settlement.balancesKnown
+    invoices.isPending || invoices.isError || settlement.invoiced === null || (!settlement.balancesKnown && invoiceRows.some((invoice) => invoice.status === 'Paid'))
   );
   const orderBillingRows = orderBilling.data ?? [];
   const lineCanInvoice = allocations.reduce((sum, allocation) => {
@@ -158,6 +160,14 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </>}
           </ol>
           <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            {canViewMoney && <button type="button" aria-expanded={drawdownOpen} aria-controls="contract-cascade-drawdown"
+              className="inline-flex min-h-10 items-center gap-2 rounded-sm border-l-2 border-primary pl-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+              onClick={() => setDrawdownOpen((open) => !open)}>
+              <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
+              <strong className="font-semibold text-foreground">{orderBilling.isPending || orderBilling.isError
+                ? '—'
+                : `${project.currency} ${formatNumberWhole(billing.data.contractNet - orderBillingRows.filter((order) => order.status === 'Issued' || order.status === 'Closed').reduce((sum, order) => sum + order.orderNet, 0))}`}</strong>
+            </button>}
             {(orderBilling.isError || orderBilling.isPending) ? (
               <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
                 {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
@@ -175,6 +185,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               </span>
             </Tooltip>}
           </div>
+          {canViewMoney && drawdownOpen && <div id="contract-cascade-drawdown" className="mt-3">
+            <ProjectDrawdown key={project.id} projectId={project.id} />
+          </div>}
           <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
             {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
             {billing.data.dpBilled > 0 && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
@@ -186,9 +199,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
           {invoiceFiguresMissing && !children && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
               <span>{invoices.isError
-                ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice totals.")
+                ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
                 : invoices.isPending
-                  ? t('projectDetail.cascade.invoiceLoading', 'Invoice totals are loading.')
+                  ? t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')
                   : t('projectDetail.cascade.partialPaymentNote', 'Invoice balances are still syncing from accounting.')}</span>
               <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoices.refetch()}>
                 {t('common.retry', 'Retry')}
@@ -209,13 +222,13 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             cell: (line) => <Tooltip content={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity))} {line.item.unit}</span></Tooltip>,
             exportValue: (line) => Number(line.item.quantity) },
           { key: 'ordered', header: t('projectDetail.cascade.colOrdered', 'Ordered'), align: 'num', kind: 'number',
-            cell: (line) => <Tooltip content={t('projectDetail.cascade.source.ordered', 'Source: quantities allocated to customer orders.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity) - line.balance)} {line.item.unit}</span></Tooltip>,
+            cell: (line) => <Tooltip content={t('projectDetail.cascade.source.customerOrderQuantities', 'Source: quantities allocated to customer orders.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity) - line.balance)} {line.item.unit}</span></Tooltip>,
             exportValue: (line) => Number(line.item.quantity) - line.balance },
           { key: 'left', header: t('projectDetail.cascade.colLeft', 'Remaining'), align: 'num', kind: 'number',
             cell: (line) => <Tooltip content={t('projectDetail.cascade.source.leftToOrder', 'Contract quantity less quantities already allocated to customer orders.') }><span className="cursor-help tabular-nums font-semibold">{qty(line.balance)} {line.item.unit}</span></Tooltip>,
             exportValue: (line) => line.balance },
           ...(canViewMoney ? [{ key: 'value', header: t('projectDetail.cascade.colValue', 'Value'), align: 'num' as const, kind: 'money' as const,
-            cell: (line: UnorderedLine) => <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Unordered contract quantity multiplied by its contract rate.') }><span className="cursor-help tabular-nums">{formatNumberWhole(line.balance * Number(line.item.rate))}</span></Tooltip>,
+            cell: (line: UnorderedLine) => <Tooltip content={t('projectDetail.cascade.unorderedValueFormula', 'Unordered contract quantity multiplied by its contract rate.') }><span className="cursor-help tabular-nums">{formatNumberWhole(line.balance * Number(line.item.rate))}</span></Tooltip>,
             exportValue: (line: UnorderedLine) => line.balance * Number(line.item.rate) }] : []),
         ];
         const menu = (line: UnorderedLine): RowMenuItem[] => [
@@ -247,9 +260,9 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
         <div className="flex flex-col gap-5 p-4">
           <dl className="grid grid-cols-2 gap-3 text-sm">
             <UnorderedFigure label={t('projectDetail.cascade.colContract', 'Contract')} value={`${qty(Number(selectedUnorderedLine.item.quantity))} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.')} />
-            <UnorderedFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={`${qty(Number(selectedUnorderedLine.item.quantity) - selectedUnorderedLine.balance)} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.ordered', 'Source: quantities allocated to customer orders.')} />
+            <UnorderedFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={`${qty(Number(selectedUnorderedLine.item.quantity) - selectedUnorderedLine.balance)} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.customerOrderQuantities', 'Source: quantities allocated to customer orders.')} />
             <UnorderedFigure label={t('projectDetail.cascade.colLeft', 'Remaining')} value={`${qty(selectedUnorderedLine.balance)} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.leftToOrder', 'Contract quantity less quantities already allocated to customer orders.')} />
-            {canViewMoney && <UnorderedFigure label={t('projectDetail.cascade.colValue', 'Value')} value={`${project.currency} ${formatNumberWhole(selectedUnorderedLine.balance * Number(selectedUnorderedLine.item.rate))}`} detail={t('projectDetail.cascade.source.notOrderedValue', 'Unordered contract quantity multiplied by its contract rate.')} />}
+            {canViewMoney && <UnorderedFigure label={t('projectDetail.cascade.colValue', 'Value')} value={`${project.currency} ${formatNumberWhole(selectedUnorderedLine.balance * Number(selectedUnorderedLine.item.rate))}`} detail={t('projectDetail.cascade.unorderedValueFormula', 'Unordered contract quantity multiplied by its contract rate.')} />}
           </dl>
           <section aria-labelledby="unordered-line-history">
             <h3 id="unordered-line-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
@@ -271,15 +284,15 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
 };
 
 const MoneyStep: React.FC<{ label: string; value: string; percentage: number | null; detail: string }> = ({ label, value, percentage, detail }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
       <Tooltip content={detail}>
-        <span className="w-fit cursor-help text-xs text-muted-foreground">{label}</span>
+        <span className="block w-fit cursor-help text-xs text-muted-foreground">{label}</span>
       </Tooltip>
       <Tooltip content={detail}><div className="mt-1 w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</div></Tooltip>
       {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
-        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} /></span>
+        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} tone={percentage > 100 ? 'destructive' : 'primary'} /></span>
       </Tooltip>}
       {percentage === null && <span className="mt-2 block text-xs text-muted-foreground">—</span>}
     </li>

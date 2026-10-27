@@ -69,7 +69,7 @@ const SourcedFigure: React.FC<{ label: string; value: string; detail: string }> 
 );
 
 const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, projectManagerId, mode = 'full' }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
@@ -141,7 +141,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
   const claimScopeReady = !allocations.isPending && !allocations.isError;
   const canBill = may('create', 'progressClaim') && erp.connected && clientId !== null && claimScopeReady;
-  const canStartInvoice = may('create', 'salesInvoice') && revenueRouteReady && clientId !== null;
+  const canStartInvoice = may('create', 'salesInvoice') && erp.connected && revenueRouteReady && clientId !== null;
   const canAssess = may('edit', 'projectProgress', { currentUserId: currentUser?.id, record: { project_manager_id: projectManagerId } });
   const liveDownPayment = claimRows.some((c) => c.kind === 'down_payment' && !c.withdrawn_at && c.invoice?.status !== 'Cancelled');
 
@@ -318,9 +318,9 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment')
         : t('projectDetail.billing.claims.kind.progress', 'Progress')}</span>
     ) },
-    { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Claimed'), align: 'num',
+    { key: 'gross', header: t('projectDetail.billing.claims.column.claimedLabel', 'Claimed'), align: 'num',
       cell: (c) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular">{cents(c.gross_amount)}</span></Tooltip> },
-    { key: 'recovery', header: t('projectDetail.billing.claims.column.recovery', 'Down payment recovered'), align: 'num',
+    { key: 'recovery', header: t('projectDetail.billing.claims.column.recoveryLong', 'Down payment recovered'), align: 'num',
       cell: (c) => <Tooltip content={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') }><span className="cursor-help tabular">{cents(c.dp_recovery_amount)}</span></Tooltip> },
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num',
       cell: (c) => <Tooltip content={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') }><span className="cursor-help tabular">{cents(claimNet(Number(c.gross_amount), Number(c.dp_recovery_amount)))}</span></Tooltip> },
@@ -424,7 +424,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
         {canViewMoney && <SourcedFigure label={t('projectDetail.billing.boq.column.rate', 'Rate')} value={cents(item.rate)} detail={t('projectDetail.billing.boq.rateSource', 'Source: the priced contract line rate.')} />}
         {fact && <>
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.ordered', 'Ordered')} value={quantityText(item, fact.orderedQuantity)} detail={t('projectDetail.billing.boq.source.ordered', 'Source: quantities allocated to customer orders.')} />
-          <SourcedFigure label={t('projectDetail.cascade.colLeft', 'Left to order')} value={quantityText(item, fact.contractBalance)} detail={t('projectDetail.billing.boq.source.balance', 'Computed as contract quantity less ordered quantity.')} />
+          <SourcedFigure label={t('projectDetail.cascade.colLeftToOrder', 'Left to order')} value={quantityText(item, fact.contractBalance)} detail={t('projectDetail.billing.boq.source.balance', 'Computed as contract quantity less ordered quantity.')} />
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.accepted', 'Accepted (BAST)')} value={quantityText(item, fact.acceptedQuantity)} detail={t('projectDetail.billing.boq.source.accepted', 'Source: quantities on confirmed BASTs.')} />
           <SourcedFigure label={t('projectTabs:contractQuantities.billing.boq.column.earned', 'Earned')} value={quantityText(item, fact.earnedQuantity)} detail={t('projectDetail.billing.boq.source.earned', 'Source: earned quantity from project billing facts.')} />
         </>}
@@ -459,7 +459,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           )
         }
       >
-        {t('projectDetail.billing.claims.title', 'Billing claims')}
+        {t('projectDetail.billing.claims.billingTitle', 'Billing claims')}
       </CardHead>
       <CardPad>
         <DataTable<ProgressClaimWithInvoice>
@@ -468,7 +468,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           rowKey={(row) => row.id}
           state={claims.isPending ? 'loading' : claims.isError ? 'error' : claimRows.length === 0 ? 'empty' : undefined}
           emptyTitle={t('projectDetail.billing.claims.empty', 'No billing claims yet')}
-          emptySub={t('projectDetail.billing.claims.emptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
+          emptySub={t('projectDetail.billing.claims.billingEmptySub', 'A claim bills a down payment or quantities done, as one ERP invoice.')}
           errorTitle={t('projectDetail.billing.claims.error', 'Couldn’t load the billing claims')}
           errorSub={t('projectDetail.billing.claims.errorSub', 'Retry, or reopen the project.')}
           onRetry={() => claims.refetch()}
@@ -506,8 +506,8 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
       <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeRecord(claimDetailFor.id, 'billingClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
     </div>}>
     <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-      <SourcedFigure label={t('projectDetail.billing.claims.column.gross', 'Claimed')} value={cents(claimDetailFor.gross_amount)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.')} />
-      <SourcedFigure label={t('projectDetail.billing.claims.column.recovery', 'Down payment recovered')} value={cents(claimDetailFor.dp_recovery_amount)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.')} />
+      <SourcedFigure label={t('projectDetail.billing.claims.column.claimedLabel', 'Claimed')} value={cents(claimDetailFor.gross_amount)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.')} />
+      <SourcedFigure label={t('projectDetail.billing.claims.column.recoveryLong', 'Down payment recovered')} value={cents(claimDetailFor.dp_recovery_amount)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.')} />
       <SourcedFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={cents(claimNet(Number(claimDetailFor.gross_amount), Number(claimDetailFor.dp_recovery_amount)))} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.')} />
       <SourcedFigure label={t('projectDetail.billing.claims.column.evidence', 'Evidence')} value={formatNumberExact(claimDetailFor.evidence.length)} detail={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.')} />
     </dl>
@@ -570,6 +570,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
               <ProjectBillingStart
                 projectId={projectId}
                 clientId={clientId}
+                buttonLabel={t('projectDetail.billing.summary.raiseInvoice', 'Raise invoice')}
                 onWorkOrder={() => {
                   navigate(`/projects/${encodeURIComponent(projectId)}/work-orders`);
                 }}

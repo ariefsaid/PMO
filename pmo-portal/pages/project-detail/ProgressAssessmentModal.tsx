@@ -30,7 +30,7 @@ const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const ProgressAssessmentModal: React.FC<ProgressAssessmentModalProps> = ({
   boqItems, assessedByBoqItem, defaultMonth, onClose, onSave, onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [month, setMonth] = useState(defaultMonth);
   const [quantities, setQuantities] = useState<Record<string, string>>(() => Object.fromEntries(
     boqItems.map((line) => [line.id, assessedByBoqItem[line.id] === undefined ? ''

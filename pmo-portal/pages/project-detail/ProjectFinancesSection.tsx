@@ -13,9 +13,10 @@ import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 import { formatInstantDate } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
 export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }) {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation('project');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const canInspectAccounting = realRole === 'Finance' || realRole === 'Admin';
@@ -108,6 +109,32 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       aria-label={t('projectFinances.title', 'Project finances')}
     >
       {title}
+      <dl className="grid min-w-0 gap-4 border-b border-border/70 pb-4 sm:grid-cols-3" data-testid="project-finance-position-details">
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</dt>
+          <dd className="break-words text-sm font-semibold tabular-nums">
+            {moneyPosition.contractAfterCost === null
+              ? unknown
+              : money(moneyPosition.contractAfterCost, project.currency)}
+          </dd>
+          <dd className="text-xs text-muted-foreground">{t('projectFinances.contractAfterCostSource', 'Contract value minus comparable recorded Actual.')}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('uxs01.actual', 'Actual')}</dt>
+          <dd className="break-words text-sm font-semibold tabular-nums">{money(actualPosition.amount, actualPosition.currency)}</dd>
+          <dd className="text-xs text-muted-foreground">{actualPosition.basis === 'erp'
+            ? t('projectFinances.actualSourceErp', 'Recorded from the accounting system')
+            : actualPosition.basis === 'pmo'
+              ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+              : t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</dd>
+        </div>
+        <div className="min-w-0">
+          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.contract', 'Contract')}</dt>
+          <dd><FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} compact /></dd>
+          {isTaxTreatment(project.tax_treatment) && <dd><TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
+            taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails testId="contract-detail-tax-basis" /></dd>}
+        </div>
+      </dl>
       {/* PD-C: with no invoices, one line replaces Cash received, Invoiced 0, Remaining = contract
           and the scope note. */}
       {!hasInvoices && <p className="text-sm text-muted-foreground" data-testid="project-no-invoices">
@@ -167,11 +194,15 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {actualPosition.basis === 'pmo'
           ? <p className="text-xs text-muted-foreground">
             {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
-            <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
           </p>
-          : hasCoverage && !completeCoverage && <p className="text-xs text-muted-foreground">
-            {t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })}
+          : !completeCoverage && <p className="text-xs text-muted-foreground">
+            {hasCoverage
+              ? completeCoverage
+                ? t('uxs01.completeCoverage', 'Complete category coverage')
+                : t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: mappedCategories, total: actuals.categories.length })
+              : t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}
           </p>}
+        <OtherCurrencyCommitments positions={commitments.otherCurrencies} />
         {split && (
           <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
@@ -181,7 +212,6 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
                 attributed: money(split.attributed, actualPosition.currency) })}
           </p>
         )}
-        {actualPosition.basis === 'erp' && !hasCoverage && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
           <p className="text-xs text-muted-foreground">{t('project:noSpendingReading', "Spending hasn't been updated yet.")}</p>}
         {needsCategorySetup && canInspectAccounting && (

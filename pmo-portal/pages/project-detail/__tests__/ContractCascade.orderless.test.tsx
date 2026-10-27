@@ -12,18 +12,19 @@ const h = vi.hoisted(() => ({
   orderBilling: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[] | undefined, isPending: false, isError: false, refetch: vi.fn() },
   canViewMoney: true,
+  drawdown: { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() },
 }));
 
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => h.boq,
   useProjectBilling: () => h.billing,
 }));
-vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders }));
+vi.mock('@/src/hooks/useWorkOrders', () => ({ useProjectWorkOrders: () => h.orders, useProjectDrawdown: () => h.drawdown }));
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({ useWorkOrderBilling: () => h.orderBilling }));
 vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => h.invoices }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => () => h.canViewMoney }));
 
-import { ContractCascade } from '../ContractCascade';
+import { ContractCascade, summarizeInvoiceSettlement } from '../ContractCascade';
 import { FinanceI18nTestProvider } from '../../__tests__/financeI18nTestProvider';
 
 const project = {
@@ -47,6 +48,17 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
       erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
     h.canViewMoney = true;
+    h.drawdown = { data: { committed: 200_000, draft: 50_000, ceiling: 500_000, currency: 'IDR', basis: 'net' }, isPending: false, isError: false, refetch: vi.fn() };
+  });
+
+  // Payments can land outside the ERP balance (project receipts), so a missing balance is unknown, never "all unpaid".
+  it('AC-1402 leaves paid/unpaid unknown when a submitted invoice has no accounting balance', () => {
+    expect(summarizeInvoiceSettlement([{ status: 'Submitted', amount: 7_700_000, erp_outstanding_amount: null }])).toEqual({
+      invoiced: 7_700_000,
+      paid: 0,
+      unpaid: null,
+      balancesKnown: false,
+    });
   });
 
   it('shows the contract → invoiced → paid line when invoices exist without contract lines', () => {
@@ -96,5 +108,14 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(screen.queryByRole('heading', { name: 'Contract' })).not.toBeInTheDocument();
     expect(screen.queryByText('1,000')).not.toBeInTheDocument();
     expect(screen.queryByText('Can invoice')).not.toBeInTheDocument();
+  });
+
+  it('M4 opens the detailed drawdown disclosure from the cascade headroom line', async () => {
+    const user = userEvent.setup();
+    renderCascade();
+    await user.click(screen.getByRole('button', { name: /Drawdown headroom/ }));
+    expect(screen.getByTestId('drawdown-ceiling')).toHaveTextContent('500,000');
+    expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('200,000');
+    expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('50,000');
   });
 });
