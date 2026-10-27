@@ -144,6 +144,12 @@ describe('project procurement tab', () => {
     expect(screen.getAllByRole('button', { name: /new procurement/i })).toHaveLength(1);
   });
 
+  it('AC-1402 keeps the project procurement list embedded in its page section', () => {
+    renderTab('Project Manager');
+    const list = screen.getByRole('region', { name: 'Procurement' });
+    expect(list).not.toHaveClass('bg-card', 'rounded-lg', 'border');
+  });
+
   it.each(['Admin', 'Finance', 'Project Manager'] as const)('shows money for %s', (role) => {
     procState.data = [procurement('requested probes', 'Requested')];
     renderTab(role);
