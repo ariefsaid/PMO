@@ -77,9 +77,10 @@ option in the app only if the owner can't choose from words, and then only the t
 
 Build the chosen structure as the real page (remove any option prototypes and switch). Delete
 tests that pin the old look; keep and update behaviour, role, money and a11y tests; add
-translations. Run **the full gate** once on every state: empty, loading, error, each tab or area,
-each drawer, each role, both widths, light and dark, plus the status variants the screen has
-(e.g. pipeline vs delivery).
+translations. Run **the full gate** once, the four reviewers on the screenshot set from the brief
+(busiest record, top role and most restricted role, 1440 and 390). Every other state (empty,
+loading, error, each tab, drawer and role, dark, status variants) gets a render plus the detector
+and axe only; look at each yourself.
 
 ### 4. Owner clicks through, then ship and clean up
 
