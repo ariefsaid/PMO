@@ -1,71 +1,64 @@
 # PMO UX standard
-Machine-checked preamble (required evidence for UI work, not a claim that existing pages pass): Impeccable detector findings empty; axe serious/critical violations = 0; at 390px, document scrollWidth ≤ clientWidth and every phone target ≥44×44px; exactly one h1; colours use existing semantic tokens only.
-Apply [OD-VISUAL-RESET and OD-REDESIGN-SCOPE](../decisions.md) to contract- and project-based work. ADR-0068 colours, fonts and radii stay; records and data stay reachable, but routes and blocks are kept only when a persona can name their job (PA-00). DESIGN.md supplies tokens only; §7 and docs/design-workflow.md supply no composition authority.
-Review evidence: screenshots at 390/1440, EN/ID, light/dark, every toggle/period and loading/empty/error state; include URL and before/after pairs for navigation and actions. Checks below refer to these captures; rendered screens require owner approval.
+
+Machine-checked, must pass, not restated below: Impeccable detector (signed in, 1440 + 390; owner ignores in `.impeccable/config.json`), axe-core serious/critical, no horizontal page scroll, phone targets ≥ 44px, one h1, token-only colours. Judgment: one fresh, independent Impeccable + Taste critique per job. A rule may be broken only with a written reason. Each line: **rule** — *check*.
 
 ## Page anatomy
-**PA-00** Before composing a route, answer for each persona who can reach it (Admin, Executive, Finance, PM, Engineer): "arriving here, what do I expect to see, and what job do I finish on this page?" in one clause each; a route or block no persona can answer for is **retired or merged in the same PR** (data stays reachable via a redirect to its new home), listed in the PR body with the reason; the owner reverts if they disagree. Minimise ruthlessly: the old composition is not evidence of need — *spec carries the per-persona lines; the first screen settles that job.*
-**PA-01** Give each page one type: collection (find projects), record (understand a contract), capture (enter time), review queue (decide requests), dashboard (prioritize portfolio), settings (configure tools), sign-in (enter workspace); compose the six operational types with [page templates and molecules](patterns.md) — *title and main content identify one job/type.*
-**PA-02** Use title → scope → toolbar → content → action bar, where applicable, on one left edge so PM/Finance can scan consistently — *section starts align; project/customer/period precede their results.*
-**PA-03** Put decision evidence together: PM sees phase/task context; Finance sees amount and invoice; approver sees request and evidence — *no intervening unrelated tiles or repeated summary boxes.*
-**PA-04** Each fact appears once per page and content fills the content track: no block repeats a figure or caveat, no card or band only holds whitespace or a single caption, and no empty band wider than 25% sits beside content at 1440px; the Executive dashboard and project Overview must avoid scattered facts and whitespace without deliberate intent — *reviewer counts each figure once and finds no near-empty container.*
-**PA-05** Show the PA-00 primary answer without scrolling at 390×844 and 1440×900, including its scope or unavailable reason; collapse secondary controls before displacing it — *Finance sees the first invoice's outstanding balance, PM the project's decision fact, before scrolling.*
-**PA-06** Group by proximity before containment: one content-container level, no nested cards; use `spacing.base` multiples tight/normal/generous (8/16/32px), more above section heads than below — *PM's blurred capture still separates primary, secondary and major groups in order.*
-
-## Hierarchy and data shape
-**H-01** Each page names one primary figure or fact per persona (the PA-00 answer) and sets it apart by size and position; everything else is secondary or tertiary — *a PM opening a project reads remaining-to-invoice and cash received before any other amount.*
-**H-02** Use at most three text levels per block (section head · label · value) with distinct size or weight; a group head never looks like a label, a label never like a value — *Finance can tell "8 invoices" (head) from "Outstanding" (label) without reading.*
-**H-03** Group related facts under one named head with shared unit, currency and caveat stated once in the head, not per line; order groups by the persona's decision (money in → billed → spending → margin) — *no "IDR", "excl. PPN" or "Updated …" repeated down a column.*
-**H-04** Format large amounts for reading: whole units by default (IDR 2,226,648,000, never .00), compact forms (IDR 2.23 bn) in heads and tiles with the exact value visible on the row or in the title; align numbers right in columns — *a thirteen-digit amount fits a 390px line without wrapping.*
-**H-05** One navigation layer per record: title → identity → primary action → sections; never stack an action row, collapsed summaries and tabs that all describe the same content — *a record's finances live in one place, not in a collapsed "summary" and an open "finances".*
-**H-06** Every capture renders real-shaped data: IDR-scale amounts (10–13 digits), mixed IDR/USD, long project and customer names, high counts (80+ notifications, 20+ rows); the dataset in `docs/ux/2026-10-19-real-data-design-pass.md` is the minimum — *a layout that only passes on the seed org has not passed.*
-**H-07** Use exactly the five named product type roles in [patterns](patterns.md#shared-type-rhythm-and-acceptance), one family and fixed rem sizes; keep repeated roles identical, head/label/value distinct in size and weight, figures tabular and money right-aligned — *Finance distinguishes heads, labels and values at a glance on every route.*
-**H-08** Format counts, percentages, quantities and dates with the saved locale/number/timezone preferences; omit meaningless zero fractions, retain meaningful precision, label signs/units, use unambiguous dates (26 Oct 2026 / 26 Okt 2026), name timestamp timezone and keep date-only business dates unchanged — *Finance distinguishes -12.5% from an amount and reads the same due day in EN/ID.*
-**H-09** Identity never truncates: wrap full project/customer/record names and references at both widths; never require hover to distinguish records — *PM can identify the complete 48-character project on a phone.*
-
-**H-10** Group by proximity, not by lines: the gap inside a group is at most half the gap between groups (8/16 px inside, 48 px between at 1440; 32 px at 390); a label sits directly on its value or rows (≤ 8 px), and a section label never stands alone between two dividers — *an Executive sees four groups on the dashboard before reading a word.*
-**H-11** A label and its value share one eye-span: stacked, or side by side within about 160 px; never a label at the left edge and its value at the right edge of a wide track, and never two label/value columns interleaved across one row — *Finance pairs "Known Actual" with 8,980,000 without tracing a line.*
-**H-12** Within a figure block the value outranks its label: the value is foreground, tabular and at least one role above its label (primary figures use the heading role); labels are muted and small; a measured answer such as "7 requests need a decision" is set as a figure, not as a body sentence — *the number is the first thing the eye lands on in every block.*
+- **PA1** Every page stacks title → scope (project, customer, date, period) → toolbar → content → action bar, all on one left edge; empty slots are omitted, never reordered. — *Slots appear in this order and align at 1440 and 390.*
+- **PA2** Each page is one type (collection, record, capture, review queue, dashboard, settings, sign-in) and uses that type's anatomy. — *Same type, same skeleton across areas.*
+- **PA3** Content fills the content track (max 1280px); no narrow centred column outside sign-in. — *No empty band wider than 25% beside content at 1440.*
+- **PA4** On capture pages at 390 the first entry row starts in the top half of the screen; explanations go below the work or behind a disclosure. — *First input top ≤ 422px at 390×844.*
 
 ## Navigation
-**N-01** Show where the user is with a named current area and record/project identity — *active navigation, heading and breadcrumb agree in the PM's project capture.*
-**N-02** Provide a named way back that preserves the working list's filters and sort — *Finance's invoice → back pair restores the same collection, scope and ordering.*
-**N-03** Use tabs only for 2–3 views of one job; use named section navigation for distinct jobs — *PM's budget, delivery and billing remain discoverable without a long tab strip.*
-**N-04** Keep selected section, filters, sort and period in the URL; give each object one canonical home — *reopened URL reproduces scope; pipeline and Projects open the same project URL.*
-**N-05** Long records use one named section index and sticky record identity/current section; at 390 one Sections control replaces the desktop index, with anchor clearance and no extra tab strip — *PM reaches Billing from deep in a project and still knows which project is open.*
-**N-06** Default landing scope follows the role: Admin/Executive portfolio exceptions, Finance billing/payables/collections, PM own delivery projects, Engineer own dated hours/status; use the area brief's collection defaults and preserve explicit URL scope — *each persona lands on their work; Engineer's Projects starts task-assigned, the other roles' Projects starts All.*
-
-**N-07** Primary navigation reads as a few labelled groups: every item sits in a labelled group or no group is labelled; one separator form only (label or rule, never both, never a rule inside a group); at most six groups and seven items each, the role's home first and setup last; group labels are the overline role and sit on their first item — *a PM sees "My work" then "Projects" without counting lines.*
+- **NV1** Where you are is always visible: active menu item and a page title matching it; records add a breadcrumb. — *Active item highlighted; title = menu label.*
+- **NV2** Every child or record page has a visible way back to its parent. — *Back link or breadcrumb present.*
+- **NV3** Tabs only switch 2–3 views of one job, never separate jobs. — *No tab set mixing jobs.*
+- **NV4** Filters, sort, tab and selected record live in the URL; reload and Back keep them. — *Reload restores the same view.*
+- **NV5** Each object has one home page; elsewhere it is linked, not re-listed as a second copy. — *No duplicate list of the same object.*
 
 ## Actions
-**A-01** Show one filled primary when a next action exists; keep alternatives quieter — *PM's create, Finance's submit or Admin's connect has no competing filled button in the active view.*
-**A-02** Place collection creation in its toolbar and capture/review submission after its evidence; phone action bars must not cover content — *last field/amount and submit remain readable together.*
-**A-03** Name the result with verb + object, including consequential transitions — *Finance reads “Send invoice” or “Record payment”, never “OK” or “Proceed”.*
-**A-04** Explain disabled actions beside the control; confirm consequential writes with object, amount and consequence — *Finance can see what prevents submission and what confirmation will do.*
-**A-05** Every phone hit target is at least 44×44px, including row menus, chips that act, disclosure toggles and dismiss controls; preserve the existing visual-control tokens and separate adjacent hit areas — *Engineer opens the intended row/action by touch without overlap.*
+- **AC1** One filled primary action per view. — *At most one filled button visible.*
+- **AC2** Primary sits top-right of the title row on desktop collections and records; on capture pages and on phone it sits in the bottom action bar. — *Primary in its slot.*
+- **AC3** Buttons name their result in sentence case ("Submit 3 entries", "Save item"). — *No bare "OK", "Submit", "Click here".*
+- **AC4** Icon-only buttons only for universal icons (close, search, menu, back); a primary action always shows text. — *No unlabelled primary icon.*
+- **AC5** Irreversible actions confirm with the real consequence; reversible routine actions offer undo instead of a confirm. — *Confirm text names what is lost.*
+- **AC6** A disabled action shows why, next to it. — *Every disabled primary has a visible reason.*
 
-## Entry/forms
-**E-01** Keep project/customer/period visible and reuse the originating scope — *PM's time entry and Finance's invoice form show the selected project without asking again.*
-**E-02** Label fields above inputs; show required/optional, currency/unit and date meaning before entry — *Finance can distinguish invoice date, due date and payment amount with populated fields.*
-**E-03** Group fields by the business decision; disclose secondary detail with a named control — *Admin's connection setup shows the next required inputs and a visible route to advanced options.*
-**E-04** Keep entered values on error, explain the fix beside the field, and show pending/saved outcomes plus Cancel/Back — *PM's invalid → corrected → saved captures preserve task context.*
-**E-05** Disclose secondary evidence/options once per topic under a named toggle carrying count/key-figure summary; list default collapse per template, retain values, auto-open errors, never hide prerequisites — *Finance knows “View invoices · 8” holds supporting detail while amount and required evidence stay visible.*
+## Entry and forms
+- **EN1** Labels sit above fields and stay visible; placeholders only show an example. — *Every field has a visible label.*
+- **EN2** Quantities show their fixed unit beside the field. — *No quantity without a unit.*
+- **EN3** Field width fits the expected value. — *No full-width field for a short number or date.*
+- **EN4** Number fields open the numeric keyboard and use ≥ 16px text on phone. — *inputmode set; font-size ≥ 16px at 390.*
+- **EN5** One save model per screen, stated: autosave shows Saving / Saved / Error per field; batch screens have one submit naming what posts. — *Never both unlabelled on one screen.*
+- **EN6** Errors appear next to the field, name the problem and the fix, and keep what was typed. — *Error adjacent; value retained.*
+- **EN7** Leaving with unsaved input asks first; Escape cancels an edit and restores the saved value; Enter/Tab move to the next entry. — *Keyboard and leave-guard pass.*
 
-## Collections/tables
-**C-01** Order toolbar controls search → scope/filters → sort → view → secondary actions → creation; omit irrelevant groups — *PM finds project narrowing before display/export controls at both widths.*
-**C-02** Separate no matches from no data: offer clear filters/search for the former and the permitted first step for the latter — *Finance sees “No matching invoices” versus “No invoices yet”.*
-**C-03** Show the active default sort: urgency/due date for work, latest business date for transactions, name for directories — *PM/Finance/Admin can read the sort label and verify visible row order.*
-**C-04** Order columns identity → project/customer context → decision status/date → amounts → actions; put selection first when present — *Finance can identify an invoice before judging its balance.*
-**C-05** Make the record name an obvious open link; keep row controls separate and show selected count with bulk actions — *PM can distinguish opening a project from selecting or changing it.*
-**C-06** Preserve headers and geometry while loading; spell out unavailable/not applicable values; phone rows retain identity, status, key amount and open action — *Finance never mistakes a blank or clipped cell for zero.*
+## Collections and tables
+- **CT1** The toolbar sits above the data, left-aligned: search, then filters, result count at the right; active filters show as removable chips. — *Toolbar order and chips.*
+- **CT2** "No matches" (filters) looks and reads different from "no data yet". — *Both states distinct.*
+- **CT3** A default sort is chosen for the job and shown; sortable headers show direction. — *Sort indicator visible.*
+- **CT4** Columns: identity first, then status, owner, dates; numbers last, right-aligned, tabular figures. — *Order and alignment.*
+- **CT5** Headers carry field names; rows never repeat labels (phone rows use one muted meta line). — *No per-row labels on desktop.*
+- **CT6** Clicking a row opens it; other row actions sit at the row's end, the same on every collection. — *Consistent row actions.*
+- **CT7** Group headers show a count; collapsing is a real button. — *Count and button present.*
+- **CT8** Empty values are blank or "—", never a wall of "Not set". — *At most one placeholder value per row.*
 
-## Status and figures
-**S-01** Label status in words with its date/period and applicable basis; colour only reinforces meaning — *PM can distinguish late work; Finance can distinguish committed spend from payments.*
-**S-02** A figure keeps its form across its own controls: toggle/period changes numbers, never chart type or layout — *Executive's before/after captures keep plot, axes, legend and footprint recognizable.*
-**S-03** Unknown is never zero: name missing information and a useful next step; reserve zero for known zero — *Finance can distinguish “Not available” from an actual zero balance.*
-**S-04** Show a caveat once per page, only for an abnormal condition, naming affected scope and remedy — *Finance sees one missing-data explanation, not repeated disclaimers on every figure.*
-**S-05** Keep exact amounts visibly readable with currency; compact heads/tiles follow H-04 with the exact value visibly adjacent or on the corresponding row, never hover-only on phone — *Finance reads full balances in tables/charts and Executive reads a tile's exact amount by touch.*
+## Status and data
+- **SD1** One status vocabulary everywhere: red = error, overdue, failed; amber = needs attention, waiting; green = done, posted; blue = in progress, selected; grey = inactive; always word + colour (+ icon), never colour alone. — *Same status, same look on every page.*
+- **SD2** Exceptions show without opening anything, with their size ("Overdue · 5 days", "3 missing"). — *Exception visible in the list.*
+- **SD3** Money is "Rp 1.234.567"; short forms ("Rp 1,3 M", "35,1 jt") only in summaries. — *One format per context.*
+- **SD4** Dates and times in WIB: "Mon 12 Oct" in lists, full date and time on records; relative time only beside an absolute one. — *One format per context.*
+- **SD5** Unknown or missing shows "—" with the reason; imported figures show their freshness ("Sales through Mon 5 Oct · synced 02:05"); never a made-up 0. — *No missing value shown as 0.*
+- **SD6** A chart answers one question and labels units and comparison basis, or is left out. — *Axes, units, basis labelled.*
 
-## Language
-**L-01** Use plain domain nouns from [the glossary](../glossary.md), consistently across navigation, titles and actions — *PM sees “Phase”/“Fase”; Finance sees invoices/payments rather than implementation jargon.*
-**L-02** Give EN and ID the same job, scope, action and status meaning, with locale-aware dates/numbers and complete labels — *paired Admin/Finance captures have no mixed-language fallback, clipped translation or ambiguous amount.*
+## States
+- **ST1** Every data view designs loading (skeleton, no jump), empty (says what will appear and what to do), error (what failed + retry), partial, and no access (why + who to ask). — *Each state rendered.*
+- **ST2** Offline is honest: drafts are called drafts, never "saved"; network-only actions are disabled with the reason. — *Offline copy.*
+- **ST3** Every action responds within a second: busy state on the control, then a result message near it. — *No silent submit.*
+
+## Language and copy
+- **LC1** Words follow CONTEXT.md, the same word for the same thing on every page, in EN and ID; Indonesian fits without clipping. — *Glossary terms; ID screenshots unclipped.*
+- **LC2** Sentence case everywhere; no uppercase tracked labels, eyebrows or kickers. — *No uppercase text-transform on labels or headings.*
+- **LC3** At most one short line of description under a title; no prose that repeats the title or the obvious. — *≤ 1 description line.*
+
+## Access
+- **AX1** Show only what the role can see; what it can see but not do now is disabled with the reason. — *Per-role screenshots differ correctly.*
