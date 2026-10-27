@@ -316,62 +316,7 @@
       "procurementApprovalHelp": "Open this procurement to review its approval request.",
       "supplier": "Supplier: {{name}}",
       "supplierUnavailable": "Supplier unavailable"
-    }
-  },
-  "restructure": {
-    "title": {
-      "executive": "Executive dashboard",
-      "finance": "Finance dashboard",
-      "pm": "My dashboard",
-      "engineer": "My dashboard"
     },
-    "subtitle": {
-      "executive": "How the company is doing",
-      "finance": "What needs Finance and how the company is doing",
-      "pm": "Your projects and what needs you",
-      "engineer": "Your hours and what needs you"
-    },
-    "tabs": {
-      "label": "Dashboard areas",
-      "overview": "Overview",
-      "sales": "Sales",
-      "delivery": "Delivery",
-      "money": "Money",
-      "needs": "Needs you",
-      "myProjects": "My projects",
-      "thisWeek": "This week"
-    },
-    "today": "Today",
-    "period": "Period",
-    "overview": "Company overview",
-    "billing": "Billing and collections",
-    "purchasing": "Purchasing",
-    "approvalStrip": "Approvals waiting for you",
-    "noApprovals": "Nothing waiting for your approval",
-    "spendingContract": "Spending vs contract",
-    "noProjectsToCompare": "No delivery projects to compare yet",
-    "empty": {
-      "title": "No company activity yet",
-      "sub": "Company figures will appear when projects, invoices, or procurements are recorded."
-    },
-    "noProjects": "No projects assigned to you yet",
-    "noProjectsSub": "Projects assigned to you will appear here.",
-    "pmProjectsError": "Couldn't load your projects",
-    "thisWeek": "This week by project",
-    "noHours": "No hours recorded this week",
-    "timesheetsError": "Couldn't load your timesheets",
-    "marginToDate": "Margin to date",
-    "projectAtRisk": "Budget over 90%",
-    "projectOverdueTasks": "{{count}} overdue tasks",
-    "time": "Time",
-    "tasks": "Tasks",
-    "expenses": "Expenses",
-    "tasksDue": "Tasks overdue or due this week",
-    "returnedExpenses": "Returned expense claims",
-    "projectOverdueTasks_one": "{{count}} overdue task",
-    "projectOverdueTasks_other": "{{count}} overdue tasks"
-  },
-  "hub": {
     "company": {
       "title": "Dashboard",
       "subtitle": "Company position across delivery, sales, billing, and purchasing.",
@@ -505,5 +450,58 @@
       "snapshotsMissing": "No accounting snapshots yet",
       "snapshotsMissingSub": "Snapshot data appears after the next accounting sync."
     }
+  },
+  "restructure": {
+    "title": {
+      "executive": "Executive dashboard",
+      "finance": "Finance dashboard",
+      "pm": "My dashboard",
+      "engineer": "My dashboard"
+    },
+    "subtitle": {
+      "executive": "How the company is doing",
+      "finance": "What needs Finance and how the company is doing",
+      "pm": "Your projects and what needs you",
+      "engineer": "Your hours and what needs you"
+    },
+    "tabs": {
+      "label": "Dashboard areas",
+      "overview": "Overview",
+      "sales": "Sales",
+      "delivery": "Delivery",
+      "money": "Money",
+      "needs": "Needs you",
+      "myProjects": "My projects",
+      "thisWeek": "This week"
+    },
+    "today": "Today",
+    "period": "Period",
+    "overview": "Company overview",
+    "billing": "Billing and collections",
+    "purchasing": "Purchasing",
+    "approvalStrip": "Approvals waiting for you",
+    "noApprovals": "Nothing waiting for your approval",
+    "spendingContract": "Spending vs contract",
+    "noProjectsToCompare": "No delivery projects to compare yet",
+    "empty": {
+      "title": "No company activity yet",
+      "sub": "Company figures will appear when projects, invoices, or procurements are recorded."
+    },
+    "noProjects": "No projects assigned to you yet",
+    "noProjectsSub": "Projects assigned to you will appear here.",
+    "pmProjectsError": "Couldn't load your projects",
+    "thisWeek": "This week by project",
+    "noHours": "No hours recorded this week",
+    "timesheetsError": "Couldn't load your timesheets",
+    "marginToDate": "Margin to date",
+    "projectAtRisk": "Budget over 90%",
+    "projectOverdueTasks": "{{count}} overdue tasks",
+    "time": "Time",
+    "tasks": "Tasks",
+    "expenses": "Expenses",
+    "tasksDue": "Tasks overdue or due this week",
+    "returnedExpenses": "Returned expense claims",
+    "projectOverdueTasks_one": "{{count}} overdue task",
+    "projectOverdueTasks_other": "{{count}} overdue tasks"
   }
 }

@@ -316,62 +316,7 @@
       "procurementApprovalHelp": "Buka pengadaan ini untuk meninjau permintaan persetujuannya.",
       "supplier": "Pemasok: {{name}}",
       "supplierUnavailable": "Pemasok tidak tersedia"
-    }
-  },
-  "restructure": {
-    "title": {
-      "executive": "Dasbor eksekutif",
-      "finance": "Dasbor keuangan",
-      "pm": "Dasbor saya",
-      "engineer": "Dasbor saya"
     },
-    "subtitle": {
-      "executive": "Kinerja perusahaan",
-      "finance": "Hal yang perlu ditangani Finance dan kinerja perusahaan",
-      "pm": "Proyek Anda dan hal yang perlu ditangani",
-      "engineer": "Jam kerja Anda dan hal yang perlu ditangani"
-    },
-    "tabs": {
-      "label": "Area dasbor",
-      "overview": "Ringkasan",
-      "sales": "Penjualan",
-      "delivery": "Pelaksanaan",
-      "money": "Keuangan",
-      "needs": "Perlu ditangani",
-      "myProjects": "Proyek saya",
-      "thisWeek": "Minggu ini"
-    },
-    "today": "Hari ini",
-    "period": "Periode",
-    "overview": "Ringkasan perusahaan",
-    "billing": "Penagihan dan penerimaan",
-    "purchasing": "Pengadaan",
-    "approvalStrip": "Persetujuan menunggu Anda",
-    "noApprovals": "Tidak ada persetujuan yang menunggu Anda",
-    "spendingContract": "Pengeluaran dibandingkan kontrak",
-    "noProjectsToCompare": "Belum ada proyek pelaksanaan untuk dibandingkan",
-    "empty": {
-      "title": "Belum ada aktivitas perusahaan",
-      "sub": "Angka perusahaan akan muncul setelah proyek, faktur, atau pengadaan dicatat."
-    },
-    "noProjects": "Belum ada proyek yang ditetapkan kepada Anda",
-    "noProjectsSub": "Proyek yang ditetapkan kepada Anda akan muncul di sini.",
-    "pmProjectsError": "Tidak dapat memuat proyek Anda",
-    "thisWeek": "Minggu ini berdasarkan proyek",
-    "noHours": "Belum ada jam kerja minggu ini",
-    "timesheetsError": "Tidak dapat memuat lembar waktu Anda",
-    "marginToDate": "Margin hingga saat ini",
-    "projectAtRisk": "Anggaran terpakai lebih dari 90%",
-    "projectOverdueTasks": "{{count}} tugas terlambat",
-    "time": "Waktu",
-    "tasks": "Tugas",
-    "expenses": "Biaya",
-    "tasksDue": "Tugas terlambat atau jatuh tempo minggu ini",
-    "returnedExpenses": "Klaim biaya yang dikembalikan",
-    "projectOverdueTasks_one": "{{count}} tugas terlambat",
-    "projectOverdueTasks_other": "{{count}} tugas terlambat"
-  },
-  "hub": {
     "company": {
       "title": "Dasbor",
       "subtitle": "Kondisi perusahaan dalam pekerjaan, penjualan, penagihan, dan pembelian.",
@@ -505,5 +450,58 @@
       "snapshotsMissing": "Belum ada snapshot akuntansi",
       "snapshotsMissingSub": "Data snapshot akan muncul setelah sinkronisasi akuntansi berikutnya."
     }
+  },
+  "restructure": {
+    "title": {
+      "executive": "Dasbor eksekutif",
+      "finance": "Dasbor keuangan",
+      "pm": "Dasbor saya",
+      "engineer": "Dasbor saya"
+    },
+    "subtitle": {
+      "executive": "Kinerja perusahaan",
+      "finance": "Hal yang perlu ditangani Finance dan kinerja perusahaan",
+      "pm": "Proyek Anda dan hal yang perlu ditangani",
+      "engineer": "Jam kerja Anda dan hal yang perlu ditangani"
+    },
+    "tabs": {
+      "label": "Area dasbor",
+      "overview": "Ringkasan",
+      "sales": "Penjualan",
+      "delivery": "Pelaksanaan",
+      "money": "Keuangan",
+      "needs": "Perlu ditangani",
+      "myProjects": "Proyek saya",
+      "thisWeek": "Minggu ini"
+    },
+    "today": "Hari ini",
+    "period": "Periode",
+    "overview": "Ringkasan perusahaan",
+    "billing": "Penagihan dan penerimaan",
+    "purchasing": "Pengadaan",
+    "approvalStrip": "Persetujuan menunggu Anda",
+    "noApprovals": "Tidak ada persetujuan yang menunggu Anda",
+    "spendingContract": "Pengeluaran dibandingkan kontrak",
+    "noProjectsToCompare": "Belum ada proyek pelaksanaan untuk dibandingkan",
+    "empty": {
+      "title": "Belum ada aktivitas perusahaan",
+      "sub": "Angka perusahaan akan muncul setelah proyek, faktur, atau pengadaan dicatat."
+    },
+    "noProjects": "Belum ada proyek yang ditetapkan kepada Anda",
+    "noProjectsSub": "Proyek yang ditetapkan kepada Anda akan muncul di sini.",
+    "pmProjectsError": "Tidak dapat memuat proyek Anda",
+    "thisWeek": "Minggu ini berdasarkan proyek",
+    "noHours": "Belum ada jam kerja minggu ini",
+    "timesheetsError": "Tidak dapat memuat lembar waktu Anda",
+    "marginToDate": "Margin hingga saat ini",
+    "projectAtRisk": "Anggaran terpakai lebih dari 90%",
+    "projectOverdueTasks": "{{count}} tugas terlambat",
+    "time": "Waktu",
+    "tasks": "Tugas",
+    "expenses": "Biaya",
+    "tasksDue": "Tugas terlambat atau jatuh tempo minggu ini",
+    "returnedExpenses": "Klaim biaya yang dikembalikan",
+    "projectOverdueTasks_one": "{{count}} tugas terlambat",
+    "projectOverdueTasks_other": "{{count}} tugas terlambat"
   }
 }

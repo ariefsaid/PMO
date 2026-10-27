@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
+import { formatMonthShort } from '@/src/lib/format';
 
 export type PeriodKey = 'month' | 'quarter' | 'ytd' | '12m' | 'custom';
 
@@ -30,17 +31,17 @@ function monthFromIndex(index: number): string {
   return `${year}-${String(month).padStart(2, '0')}`;
 }
 
-function monthText(month: string, locale: string): string {
+function monthText(month: string): string {
   const [year, number] = month.split('-').map(Number);
-  return new Intl.DateTimeFormat(locale, { month: 'short' }).format(new Date(year, number - 1, 1));
+  return formatMonthShort(new Date(year, number - 1, 1));
 }
 
-function rangeText(from: string, to: string, locale: string): string {
+function rangeText(from: string, to: string): string {
   const [fromYear] = from.split('-').map(Number);
   const [toYear] = to.split('-').map(Number);
   return fromYear === toYear
-    ? `${monthText(from, locale)}–${monthText(to, locale)} ${toYear}`
-    : `${monthText(from, locale)} ${fromYear}–${monthText(to, locale)} ${toYear}`;
+    ? `${monthText(from)}–${monthText(to)} ${toYear}`
+    : `${monthText(from)} ${fromYear}–${monthText(to)} ${toYear}`;
 }
 
 function presetRange(key: Exclude<PeriodKey, 'custom'>, today: string): [string, string] {
@@ -57,7 +58,6 @@ export function resolvePeriod(
   params: URLSearchParams,
   organizationToday: string | null,
   t: Translate,
-  locale = 'en-US',
 ): DashboardPeriod {
   const rawKey = params.get('period');
   const key: PeriodKey = rawKey === 'month' || rawKey === 'quarter' || rawKey === 'ytd' || rawKey === '12m' || rawKey === 'custom'
@@ -76,7 +76,7 @@ export function resolvePeriod(
       key,
       from,
       to,
-      label: `${t('period.custom', 'Pick months')} · ${rangeText(from, to, locale)}`,
+      label: `${t('period.custom', 'Pick months')} · ${rangeText(from, to)}`,
     };
   }
 
@@ -91,7 +91,7 @@ export function resolvePeriod(
     ytd: t('period.ytd', 'Year to date'),
     '12m': t('period.12m', 'Last 12 months'),
   };
-  return { key, from, to, label: `${names[key]} · ${rangeText(from, to, locale)}` };
+  return { key, from, to, label: `${names[key]} · ${rangeText(from, to)}` };
 }
 
 /** Preserve dashboard layout/tab state while writing the period selection to the URL. */
@@ -123,11 +123,11 @@ export function periodDateRange(period: DashboardPeriod): { from?: Date; to?: Da
 
 export function usePeriod() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { t, i18n } = useTranslation('dashboard');
+  const { t } = useTranslation('dashboard');
   const orgDay = useFxOrgDay(true);
   const period = useMemo(
-    () => resolvePeriod(searchParams, orgDay.day, t, i18n.resolvedLanguage ?? 'en-US'),
-    [i18n.resolvedLanguage, orgDay.day, searchParams, t],
+    () => resolvePeriod(searchParams, orgDay.day, t),
+    [orgDay.day, searchParams, t],
   );
 
   const selectPeriod = (key: PeriodKey) => {
