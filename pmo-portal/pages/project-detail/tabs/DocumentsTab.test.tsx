@@ -184,6 +184,20 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
   });
 });
 
+describe('DocumentsTab phone identity and link contrast (AC-1402)', () => {
+  it('wraps long document titles and keeps the Microsoft action on the dark-safe text token', () => {
+    listState.data = [{ ...seed[0], title: 'A very long document title that must wrap instead of truncating on a phone' }];
+    renderTab('Admin', 'admin-1');
+
+    const title = screen.getByText('A very long document title that must wrap instead of truncating on a phone');
+    expect(title).toHaveClass('whitespace-normal');
+    expect(title).toHaveClass('break-words');
+    const microsoftAction = screen.getByRole('button', { name: 'Link from Microsoft 365' });
+    expect(microsoftAction).toHaveClass('text-primary-text');
+    expect(microsoftAction).not.toHaveClass('text-primary');
+  });
+});
+
 describe('DocumentsTab — states', () => {
   it('AC-DOC-001: loading skeleton while pending', () => {
     listState.isPending = true;

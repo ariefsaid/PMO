@@ -12,7 +12,7 @@ import {
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatNumberExact, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, formatNumberWhole, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -78,6 +78,15 @@ export interface WorkOrdersTabProps {
 
 type InvoiceWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
+function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
+  if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
+  if (invoice.amount === null) return { paid: null, unpaid: null };
+  if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
+  if (invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
+  const balance = summarizeInvoiceSettlement([invoice]);
+  return { paid: balance.paid, unpaid: balance.unpaid };
+}
+
 /** `YYYY-MM-DD` in the browser's zone — only the BAST date dialog's default. */
 function todayIso(): string {
   const now = new Date();
@@ -98,7 +107,7 @@ interface PendingTransition {
   to: WorkOrderStatus;
 }
 
-const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null, showSettlementNote = true }) => {
+const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -399,8 +408,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     .sort((a, b) => (a.wo_number ?? '').localeCompare(b.wo_number ?? ''));
   const draftOrders = rows.filter((row) => row.status === 'Draft')
     .sort((a, b) => (a.wo_number ?? a.title).localeCompare(b.wo_number ?? b.title));
-  const submittedInvoices = invoiceRows.filter((invoice) => invoice.status !== 'Draft' && invoice.status !== 'Cancelled');
-  const partialBalanceUnknown = submittedInvoices.some((invoice) => invoice.amount === null || invoice.erp_outstanding_amount === null);
+  const orderlessInvoices = invoiceRows.filter((invoice) => !invoice.work_order_id);
   const invoiceById = new Map(invoiceRows.map((invoice) => [invoice.id, invoice]));
   const lineReadsPending = boq.isPending || projectBilling.isPending || lines.isPending;
   const lineReadsFailed = boq.isError || projectBilling.isError || lines.isError;
@@ -408,10 +416,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   return (
     <div className="space-y-8">
-      {canViewBilling && invoicesQuery.isError && !claimRows.some((claim) => Boolean(claim.work_order_id)) && (
-        <ListState variant="error" title={t('projectDetail.cascade.invoiceError', "Couldn't load invoices")} onRetry={() => void invoicesQuery.refetch()} />
-      )}
-      {dpNotice !== null && (
+      {canViewBilling && dpNotice !== null && (
         <div role="status" data-testid="wo-dp-held-notice" className="border-b border-border pb-3 text-[13px] text-muted-foreground">
           {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
             '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
@@ -519,8 +524,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const bastList = acceptancesByWo.get(row.id) ?? [];
               const pendingBast = [...bastList].filter((acceptance) => acceptance.status === 'Draft')
                 .sort((a, b) => b.prepared_at.localeCompare(a.prepared_at))[0];
-              const finalBast = bastList.some((acceptance) => acceptance.status === 'Confirmed' && acceptance.is_final);
-              const delivered = row.status === 'Closed' && finalBast;
               const billingRow = billingById.get(row.id);
               const orderInvoices = invoicesByWo.get(row.id) ?? [];
               const settlement = invoiceReadReady ? summarizeInvoiceSettlement(orderInvoices) : null;
@@ -537,19 +540,17 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               const canTransition = may('transition', 'workOrder');
               const invoiceForOrder = billingRow && canInvoiceWorkOrder(row.status, billingRow);
               const invoiceTable = canViewBilling && (orderClaims.length > 0 || directInvoices.length > 0);
-              const paidText = settlement === null
-                ? invoicesQuery.isError
-                  ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable')
-                  : t('projectDetail.workOrders.billing.loading', 'Loading')
-                : formatCurrencyCents(settlement.paid, currency);
-              const invoiceAmountText = settlement === null || settlement.invoiced === null
-                ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable')
-                : formatCurrencyCents(settlement.invoiced, currency);
+              const orderFiguresComplete = Boolean(settlement)
+                && settlement?.invoiced !== null
+                && settlement?.balancesKnown
+                && billingRow?.figuresComplete !== false;
+              const orderFiguresMissing = canViewBilling && !orderFiguresComplete;
+              const hasInvoiceActions = orderClaims.some((claim) => !claim.withdrawn_at
+                && !invoiceById.has(claim.id)
+                && !claim.invoice
+                && canBill);
               const claimDownPayment = orderClaims.find((claim) => claim.kind === 'down_payment' && !claim.withdrawn_at && claim.invoice?.status !== 'Cancelled');
-              const orderStatus = delivered
-                ? t('projectDetail.cascade.delivered', 'Delivered')
-                : t('projectDetail.cascade.inProgress', 'In progress');
-              const workOrderStatusTone: StatusVariant = delivered ? 'won' : 'progress';
+              const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : 'progress';
 
               return (
                 <article key={row.id} data-testid={`customer-order-${row.id}`} className="min-w-0 border-b border-border/70 py-5 first:pt-1">
@@ -559,57 +560,57 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         className="rounded-sm text-sm font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
                         {row.wo_number ?? t('projectDetail.workOrders.notYetIssued', 'Not issued yet')}
                       </h3>
-                      <span className="text-sm text-foreground">{row.title}</span>
-                      <StatusPill variant={workOrderStatusTone}>{orderStatus}</StatusPill>
+                      <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
+                      <StatusPill variant={workOrderStatusTone}>{row.status}</StatusPill>
                       {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}</span>}
-                      <span className="text-xs tabular text-muted-foreground" data-testid={`wo-value-${row.id}`}>
-                        {formatCurrency(row.order_value, row.currency)} {basisNote(row)}
-                      </span>
-                      {row.closing_value != null && <span className="text-xs tabular text-muted-foreground" data-testid={`wo-closing-${row.id}`}>
-                        {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', { amount: formatCurrency(Number(row.closing_value), row.currency), interpolation: { escapeValue: false } })}
-                      </span>}
-                      {canViewBilling && (
-                        <span className="ml-auto flex flex-wrap items-baseline gap-x-2 text-xs tabular">
-                          <span>{t('projectDetail.cascade.invoiced', 'Invoiced')} <b className="text-foreground">{settlement === null ? (invoicesQuery.isError ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable') : t('projectDetail.workOrders.billing.loading', 'Loading')) : billingRow && !billingRow.figuresComplete ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable') : invoiceAmountText}</b></span>
-                          <span>{t('projectDetail.cascade.paid', 'Paid')} <b className="text-foreground">{paidText}</b></span>
-                          {settlement?.unpaid !== null && settlement?.unpaid !== undefined && settlement.unpaid > 0
-                            ? <span className="font-semibold text-destructive-text">{t('projectDetail.cascade.unpaidAmt', '{{amount}} unpaid', { amount: formatCurrencyCents(settlement.unpaid, currency) })}</span>
-                            : settlement?.unpaid === null && orderInvoices.length > 0
-                              ? <span className="text-muted-foreground">{t('projectDetail.cascade.unpaidUnknown', 'Unpaid balance pending')}</span>
-                              : null}
-                          {claimDownPayment && <span className="text-muted-foreground">{t('projectDetail.cascade.includingDownPayment', 'incl. down payment {{amount}}', { amount: formatCurrencyCents(Number(claimDownPayment.down_payment_amount ?? claimDownPayment.gross_amount), currency) })}</span>}
-                        </span>
-                      )}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                      {canPrepare && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`}>
+                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} />}
+                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} />}
+                      {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} destructive={settlement.unpaid > 0} />}
+                    </dl>}
+
+                    {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesQuery.isError || billing.isError ? 'alert' : 'status'}>
+                      <span>{invoicesQuery.isError || billing.isError
+                        ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
+                        : invoicesQuery.isPending || billing.isPending
+                          ? t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')
+                          : t('projectDetail.workOrders.billing.figuresIncomplete', 'Invoice figures are incomplete.')}</span>
+                      <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" aria-label={t('projectDetail.workOrders.billing.retryFigures', 'Retry invoice figures')} onClick={() => { void invoicesQuery.refetch(); void billing.refetch(); }}>
+                        {t('common.retry', 'Retry')}
+                      </button>
+                    </p>}
+
+                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-xs">
+                      {canPrepare && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setBastFor({ row, draft: null })}>{t('projectDetail.procurement.nextStep.ordered', 'Record delivery')}</button>}
-                      {canConfirm && pendingBast && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {canConfirm && pendingBast && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setConfirmFor({ acceptance: pendingBast, error: null })}>{t('projectTabs:contractQuantities.workOrders.acceptances.confirmDelivery', 'Confirm delivery')}</button>}
-                      {hasOrderLines && summary && canBill && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {hasOrderLines && summary && canBill && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setClaimFor(row)}>{t('projectDetail.workOrders.billing.raiseProgressClaim', 'Raise invoice')}</button>}
-                      {!hasOrderLines && canInvoice && invoiceForOrder && billingRow && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {!hasOrderLines && canInvoice && invoiceForOrder && billingRow && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => { setCreatedInvoice(null); setInvoiceFor({ row, remaining: billingRow.remaining }); }}>{t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')}</button>}
-                      {canEdit && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {canEdit && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setFormFor(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</button>}
-                      {row.status === 'Issued' && canTransition && !closeByBast(row.id) && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {row.status === 'Issued' && canTransition && !closeByBast(row.id) && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setPending({ row, to: 'Closed' })}>{t('projectDetail.workOrders.action.close', 'Close')}</button>}
-                      {(row.status === 'Issued' || row.status === 'Draft') && canTransition && <button type="button" className="min-h-8 text-muted-foreground underline underline-offset-4 hover:text-destructive-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                      {(row.status === 'Issued' || row.status === 'Draft') && canTransition && <button type="button" className="touch-target min-h-8 text-muted-foreground underline underline-offset-4 hover:text-destructive-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                         onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancel', 'Cancel')}</button>}
-                      {hasOrderLines && canInvoice && invoiceForOrder && billingRow && (
-                        <details className="relative">
-                          <summary className="min-h-8 cursor-pointer py-2 text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      <details className="min-w-0">
+                        <summary className="touch-target min-h-8 cursor-pointer py-2 text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                             {t('projectDetail.workOrders.action.more', 'More')}
-                          </summary>
-                          <div className="absolute right-0 z-10 min-w-44 rounded-md border border-border bg-popover p-1 shadow-md">
-                            <button type="button" className="w-full px-2 py-1.5 text-left text-xs hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                        </summary>
+                        <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 border-t border-border pt-2 text-xs text-muted-foreground">
+                          {canViewBilling && row.order_value != null && <span data-testid={`wo-value-${row.id}`}>{t('projectDetail.workOrders.orderValue', 'Order value')} <b className="font-medium text-foreground">{formatNumberWhole(Number(row.order_value))}</b> · {basisNote(row)}</span>}
+                          {canViewBilling && row.closing_value != null && <span data-testid={`wo-closing-${row.id}`}>{t('projectTabs:contractQuantities.workOrders.closing.closedAtLabel', 'Closed value')} <b className="font-medium text-foreground">{formatNumberWhole(Number(row.closing_value))}</b></span>}
+                          {canViewBilling && claimDownPayment && <span>{t('projectDetail.cascade.includingDownPayment', 'Down payment {{amount}}', { amount: formatNumberWhole(Number(claimDownPayment.down_payment_amount ?? claimDownPayment.gross_amount)) })}</span>}
+                          {hasOrderLines && canInvoice && invoiceForOrder && billingRow && <button type="button" className="touch-target min-h-8 text-primary-text underline underline-offset-2"
                               onClick={() => { setCreatedInvoice(null); setInvoiceFor({ row, remaining: billingRow.remaining }); }}>
                               {t('projectDetail.workOrders.billing.invoiceByAmount', 'Invoice by amount')}
-                            </button>
-                          </div>
-                        </details>
-                      )}
+                          </button>}
+                        </div>
+                      </details>
                     </div>
                   </header>
 
@@ -624,7 +625,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       ? <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void projectBilling.refetch(); void lines.refetch(); }} />
                       : <ListState variant="loading" rows={3} />
                   ) : hasOrderLines ? (
-                    <div className="mt-4 overflow-x-auto rounded-md border border-border" data-testid={`wo-lines-table-scroll-${row.id}`}>
+                    <>
+                    <div className="mt-4 hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.cascade.linesScroll', 'Contract quantities for {{wo}}', { wo: row.wo_number ?? row.title })} data-testid={`wo-lines-table-scroll-${row.id}`}>
                       <table className="w-full min-w-[46rem] text-sm">
                         <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
                           {[t('projectDetail.cascade.colItem', 'Item'), t('projectDetail.cascade.colUnit', 'Unit'), t('projectDetail.cascade.colOrdered', 'Ordered'), t('projectDetail.cascade.colDelivered', 'Delivered'), t('projectDetail.cascade.colInvoiced', 'Invoiced'), t('projectDetail.cascade.colCanInvoice', 'Can invoice')].map((heading) => (
@@ -654,70 +656,55 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         </tbody>
                       </table>
                     </div>
+                    <ul className="mt-4 divide-y divide-border border-y border-border text-sm md:hidden" data-testid={`wo-lines-mobile-${row.id}`}>
+                      {orderAllocations.map(({ line, allocation }) => {
+                        const item = boqRows.find((boqItem) => boqItem.id === allocation.boqItemId);
+                        const deliveredQuantity = allocation.acceptedQuantity;
+                        const canInvoiceQuantity = deliveredQuantity === null ? null : Math.max(0, deliveredQuantity - allocation.claimedQuantity);
+                        const name = item?.description ?? allocation.boqItemId;
+                        return <li key={`${line.boqItemId}-${row.id}`} className="py-3">
+                          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+                            <span className="min-w-0 break-words font-medium">{item?.item_code && <span className="mr-1 text-xs text-muted-foreground">{item.item_code}</span>}{name}</span>
+                            {item?.unit && <span className="text-xs text-muted-foreground">{item.unit}</span>}
+                          </div>
+                          <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                            <QuantityFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={formatNumberExact(allocation.quantity)} />
+                            <QuantityFigure label={t('projectDetail.cascade.colDelivered', 'Delivered')} value={deliveredQuantity === null ? '—' : formatNumberExact(deliveredQuantity)} />
+                            <QuantityFigure label={t('projectDetail.cascade.colInvoiced', 'Invoiced')} value={formatNumberExact(allocation.claimedQuantity)} />
+                            <QuantityFigure label={t('projectDetail.cascade.colCanInvoice', 'Can invoice')} value={canInvoiceQuantity === null ? '—' : formatNumberExact(canInvoiceQuantity)} />
+                          </dl>
+                        </li>;
+                      })}
+                    </ul>
+                    </>
                   ) : (
                     <p className="mt-3 text-xs text-muted-foreground">{t('projectDetail.cascade.moneyOnly', 'Money-only order')}</p>
                   )}
 
                   {invoiceTable && (
                     <section className="mt-4" aria-label={t('projectDetail.cascade.claimsHeading', 'Invoices and claims')}>
-                      <h4 className="mb-2 text-xs font-medium text-muted-foreground">{t('projectDetail.cascade.claimsHeading', 'Invoices and claims')}</h4>
-                      {invoicesQuery.isPending ? <ListState variant="loading" rows={2} /> : invoicesQuery.isError ? (
-                        <ListState variant="error" title={t('projectDetail.cascade.invoiceError', "Couldn't load invoices")} onRetry={() => void invoicesQuery.refetch()} />
-                      ) : (
-                        <div className="overflow-x-auto" data-testid={`wo-invoices-scroll-${row.id}`}>
-                          <table className="w-full min-w-[42rem] text-xs">
-                            <thead><tr className="border-b border-border text-left text-muted-foreground">
-                              {[t('projectDetail.cascade.invoiceNumber', 'Claim / invoice'), t('projectDetail.cascade.invoiceAmount', 'Amount'), t('projectDetail.cascade.invoiceStatus', 'Status'), t('projectDetail.cascade.paid', 'Paid'), t('projectDetail.cascade.invoiceActions', 'Actions')].map((heading) => <th key={heading} scope="col" className="px-2 py-2 font-medium">{heading}</th>)}
-                            </tr></thead>
-                            <tbody>
-                              {orderClaims.map((claim) => {
-                                const invoice = invoiceById.get(claim.id);
-                                const status = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : invoice?.status ?? claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
-                                const amount = invoice?.amount ?? Number(claim.gross_amount);
-                                const paid = invoice ? summarizeInvoiceSettlement([invoice]) : null;
-                                const hasInvoice = Boolean(invoice || claim.invoice);
-                                const isOpen = !claim.withdrawn_at && !hasInvoice;
-                                return (
-                                  <tr key={claim.id} className="border-t border-border/70">
-                                    <td className="px-2 py-2 font-medium">{invoice?.si_number ?? claim.invoice?.si_number ?? `Claim ${claim.id.slice(0, 8)}`}</td>
-                                    <td className="px-2 py-2 tabular-nums">{Number.isFinite(amount) ? formatCurrencyCents(amount, currency) : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}</td>
-                                    <td className="px-2 py-2">{status}</td>
-                                    <td className="px-2 py-2 tabular-nums">{!invoice || invoice.status === 'Draft' || invoice.status === 'Cancelled'
-                                      ? '—'
-                                      : !paid?.balancesKnown && invoice.status !== 'Paid'
-                                        ? t('projectDetail.cascade.awaitingBalance', 'Awaiting balance')
-                                        : formatCurrencyCents(paid?.paid ?? 0, currency)}</td>
-                                    <td className="px-2 py-1.5">
-                                      <div className="flex flex-wrap items-center gap-1">
-                                        {isOpen && canBill && <Button variant="ghost" size="sm" onClick={() => setEvidenceFor(claim.id)}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>}
-                                        {isOpen && canBill && claim.evidence.length > 0 && <Button variant="ghost" size="sm" onClick={() => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>}
-                                        {isOpen && canBill && claim.evidence.length === 0 && <span className="text-[11px] text-muted-foreground">{t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}</span>}
-                                        {isOpen && canBill && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setWithdrawClaimFor(claim)}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                              {directInvoices.map((invoice) => {
-                                const paid = summarizeInvoiceSettlement([invoice]);
-                                return (
-                                  <tr key={invoice.id} className="border-t border-border/70">
-                                    <td className="px-2 py-2 font-medium">{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</td>
-                                    <td className="px-2 py-2 tabular-nums">{invoice.amount === null ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable') : formatCurrencyCents(invoice.amount, currency)}</td>
-                                    <td className="px-2 py-2">{invoice.status}</td>
-                                    <td className="px-2 py-2 tabular-nums">{invoice.status === 'Draft' || invoice.status === 'Cancelled'
-                                      ? '—'
-                                      : !paid.balancesKnown && invoice.status !== 'Paid'
-                                        ? t('projectDetail.cascade.awaitingBalance', 'Awaiting balance')
-                                        : formatCurrencyCents(paid.paid, currency)}</td>
-                                    <td className="px-2 py-2">—</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                      <details>
+                        <summary className="touch-target min-h-8 cursor-pointer py-2 text-xs font-medium text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                          {t('projectDetail.workOrders.billing.invoicesCount', 'Invoices ({{count}})', { count: orderClaims.length + directInvoices.length })}
+                        </summary>
+                        {invoiceReadReady && <>
+                          <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.workOrders.billing.invoicesScroll', 'Invoices for {{wo}}', { wo: row.wo_number ?? row.title })} data-testid={`wo-invoices-scroll-${row.id}`}>
+                            <table className="w-full min-w-[50rem] text-xs">
+                              <thead><tr className="border-b border-border text-left text-muted-foreground">
+                                {[t('projectDetail.cascade.invoiceNumber', 'Claim / invoice'), t('projectDetail.cascade.invoiceDate', 'Date'), t('projectDetail.cascade.invoiceAmount', 'Amount'), t('projectDetail.cascade.invoiceStatus', 'Status'), t('projectDetail.cascade.paid', 'Paid'), t('projectDetail.cascade.unpaid', 'Unpaid'), ...(hasInvoiceActions ? [t('projectDetail.cascade.invoiceActions', 'Actions')] : [])].map((heading) => <th key={heading} scope="col" className="px-2 py-2 font-medium">{heading}</th>)}
+                              </tr></thead>
+                              <tbody>
+                                {orderClaims.map((claim) => <InvoiceClaimRow key={claim.id} claim={claim} invoice={invoiceById.get(claim.id)} showActions={hasInvoiceActions} canBill={canBill} onAttach={() => setEvidenceFor(claim.id)} onRaise={() => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })} onWithdraw={() => setWithdrawClaimFor(claim)} />)}
+                                {directInvoices.map((invoice) => <InvoiceTableRow key={invoice.id} invoice={invoice} />)}
+                              </tbody>
+                            </table>
+                          </div>
+                          <ul className="divide-y divide-border border-y border-border text-sm md:hidden" data-testid={`wo-invoices-mobile-${row.id}`}>
+                            {orderClaims.map((claim) => <InvoiceClaimCard key={claim.id} claim={claim} invoice={invoiceById.get(claim.id)} canBill={canBill} onAttach={() => setEvidenceFor(claim.id)} onRaise={() => setRaiseFor({ claim, idempotencyKey: crypto.randomUUID() })} onWithdraw={() => setWithdrawClaimFor(claim)} />)}
+                            {directInvoices.map((invoice) => <InvoiceCard key={invoice.id} invoice={invoice} />)}
+                          </ul>
+                        </>}
+                      </details>
                     </section>
                   )}
 
@@ -770,9 +757,41 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         )}
       </section>
 
-      {canViewBilling && showSettlementNote && !invoicesQuery.isPending && !invoicesQuery.isError && partialBalanceUnknown && (
-        <p className="text-xs text-muted-foreground" role="note">{t('projectDetail.cascade.partialPaymentNote', 'Part payments appear once invoice balances arrive from accounting.')}</p>
-      )}
+      {canViewBilling && (orderlessInvoices.length > 0 || ((!liveOrders.length && !draftOrders.length) && !invoiceReadReady)) && <section className="min-w-0" role="region" aria-label={t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')} data-testid="orderless-invoices">
+        <div className="mb-3 border-b border-border pb-2">
+          <h2 className="text-sm font-semibold text-foreground">{t('projectDetail.workOrders.billing.orderlessHeading', 'Invoices without a customer order')}</h2>
+        </div>
+        {invoicesQuery.isPending ? (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
+            <span>{t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')}</span>
+            <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
+          </p>
+        ) : invoicesQuery.isError ? (
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="alert">
+            <span>{t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")}</span>
+            <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
+          </p>
+        ) : <>
+          {orderlessInvoices.some((invoice) => {
+            const figures = invoiceBalanceFigures(invoice);
+            return invoice.amount === null || (invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && (figures.paid === null || figures.unpaid === null));
+          }) && <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
+            <span>{t('projectDetail.workOrders.billing.orderlessFiguresIncomplete', 'Some invoice figures are incomplete.')}</span>
+            <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
+          </p>}
+          <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.workOrders.billing.orderlessScroll', 'Invoices without a customer order table')}>
+            <table className="w-full min-w-[42rem] text-sm">
+              <thead><tr className="border-b border-border text-left text-xs text-muted-foreground">
+                {[t('projectDetail.cascade.invoiceNumber', 'Invoice'), t('projectDetail.cascade.invoiceDate', 'Date'), t('projectDetail.cascade.invoiceAmount', 'Amount'), t('projectDetail.cascade.invoiceStatus', 'Status'), t('projectDetail.cascade.paid', 'Paid'), t('projectDetail.cascade.unpaid', 'Unpaid')].map((heading) => <th key={heading} scope="col" className="px-3 py-2 font-medium">{heading}</th>)}
+              </tr></thead>
+              <tbody>{orderlessInvoices.map((invoice) => <InvoiceTableRow key={invoice.id} invoice={invoice} />)}</tbody>
+            </table>
+          </div>
+          <ul className="divide-y divide-border border-y border-border text-sm md:hidden">
+            {orderlessInvoices.map((invoice) => <InvoiceCard key={invoice.id} invoice={invoice} />)}
+          </ul>
+        </>}
+      </section>}
 
       {formFor !== undefined && (
         <WorkOrderFormModal
@@ -993,6 +1012,117 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       )}
     </div>
   );
+};
+
+const MoneyFigure: React.FC<{ label: string; value: string; destructive?: boolean }> = ({ label, value, destructive = false }) => (
+  <div className="min-w-20">
+    <dt className="text-xs text-muted-foreground">{label}</dt>
+    <dd className={`text-lg font-semibold tabular-nums ${destructive ? 'text-destructive-text' : 'text-foreground'}`}>{value}</dd>
+  </div>
+);
+
+const QuantityFigure: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="flex items-baseline justify-between gap-2">
+    <dt>{label}</dt><dd className="tabular-nums text-foreground"> {value}</dd>
+  </div>
+);
+
+const InvoiceTableRow: React.FC<{ invoice: InvoiceWithWorkOrder }> = ({ invoice }) => {
+  const figures = invoiceBalanceFigures(invoice);
+  const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
+  return <tr className="border-t border-border/70">
+    <td className="px-3 py-2 font-medium"><Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`}>{invoice.si_number ?? 'Invoice draft'}</Link></td>
+    <td className="px-3 py-2 tabular-nums">{invoice.invoice_date ? formatDateOnly(invoice.invoice_date) : ''}</td>
+    <td className="px-3 py-2 tabular-nums">{invoice.amount === null ? '' : formatNumberWhole(invoice.amount)}</td>
+    <td className="px-3 py-2">{invoice.status}</td>
+    <td className="px-3 py-2 tabular-nums">{notApplicable ? '—' : figures.paid === null ? '' : formatNumberWhole(figures.paid)}</td>
+    <td className="px-3 py-2 tabular-nums">{notApplicable ? '—' : figures.unpaid === null ? '' : formatNumberWhole(figures.unpaid)}</td>
+  </tr>;
+};
+
+const InvoiceCard: React.FC<{ invoice: InvoiceWithWorkOrder }> = ({ invoice }) => {
+  const { t } = useTranslation();
+  const figures = invoiceBalanceFigures(invoice);
+  const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
+  return <li className="min-w-0 py-3" data-testid={`invoice-card-${invoice.id}`}>
+    <div className="min-w-0 break-words font-medium"><Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(invoice.id)}`}>{invoice.si_number ?? t('projectDetail.cascade.invoiceDraft', 'Invoice draft')}</Link></div>
+    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {invoice.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDateOnly(invoice.invoice_date)} />}
+      {invoice.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatNumberWhole(invoice.amount)} />}
+      <QuantityFigure label={t('projectDetail.cascade.invoiceStatus', 'Status')} value={invoice.status} />
+      {(notApplicable || figures.paid !== null) && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={notApplicable ? '—' : formatNumberWhole(figures.paid!)} />}
+      {(notApplicable || figures.unpaid !== null) && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={notApplicable ? '—' : formatNumberWhole(figures.unpaid!)} />}
+    </dl>
+  </li>;
+};
+
+const InvoiceClaimRow: React.FC<{
+  claim: ProgressClaimWithInvoice;
+  invoice: InvoiceWithWorkOrder | undefined;
+  showActions: boolean;
+  canBill: boolean;
+  onAttach: () => void;
+  onRaise: () => void;
+  onWithdraw: () => void;
+}> = ({ claim, invoice, showActions, canBill, onAttach, onRaise, onWithdraw }) => {
+  const { t } = useTranslation();
+  const status = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : invoice?.status ?? claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
+  const linkedInvoiceId = invoice?.id ?? (claim.invoice ? claim.id : null);
+  const amount = invoice?.amount ?? claim.invoice?.amount ?? Number(claim.gross_amount);
+  const figures = invoice ? invoiceBalanceFigures(invoice) : null;
+  const notApplicable = invoice?.status === 'Draft' || invoice?.status === 'Cancelled';
+  const isOpen = !claim.withdrawn_at && !invoice && !claim.invoice;
+  return <tr className="border-t border-border/70">
+    <td className="px-2 py-2 font-medium">{linkedInvoiceId
+      ? <Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(linkedInvoiceId)}`}>{invoice?.si_number ?? claim.invoice?.si_number ?? `Claim ${claim.id.slice(0, 8)}`}</Link>
+      : `Claim ${claim.id.slice(0, 8)}`}</td>
+    <td className="px-2 py-2 tabular-nums">{invoice?.invoice_date ? formatDateOnly(invoice.invoice_date) : formatDateOnly(claim.created_at)}</td>
+    <td className="px-2 py-2 tabular-nums">{Number.isFinite(amount) ? formatNumberWhole(amount) : ''}</td>
+    <td className="px-2 py-2">{status}</td>
+    <td className="px-2 py-2 tabular-nums">{notApplicable ? '—' : figures?.paid == null ? '' : formatNumberWhole(figures.paid)}</td>
+    <td className="px-2 py-2 tabular-nums">{notApplicable ? '—' : figures?.unpaid == null ? '' : formatNumberWhole(figures.unpaid)}</td>
+    {showActions && <td className="px-2 py-1.5"><div className="flex flex-wrap items-center gap-1">
+      {isOpen && canBill && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onAttach}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>}
+      {isOpen && canBill && claim.evidence.length > 0 && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onRaise}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>}
+      {isOpen && canBill && claim.evidence.length === 0 && <span className="px-2 text-xs text-muted-foreground">{t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}</span>}
+      {isOpen && canBill && <Button variant="ghost" size="sm" className="touch-target min-h-8 text-destructive-text" onClick={onWithdraw}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>}
+    </div></td>}
+  </tr>;
+};
+
+const InvoiceClaimCard: React.FC<{
+  claim: ProgressClaimWithInvoice;
+  invoice: InvoiceWithWorkOrder | undefined;
+  canBill: boolean;
+  onAttach: () => void;
+  onRaise: () => void;
+  onWithdraw: () => void;
+}> = ({ claim, invoice, canBill, onAttach, onRaise, onWithdraw }) => {
+  const { t } = useTranslation();
+  const status = claim.withdrawn_at ? t('projectDetail.billing.claims.withdrawn', 'Withdrawn') : invoice?.status ?? claim.invoice?.status ?? t('projectDetail.billing.claims.notRaised', 'Not raised');
+  const linkedInvoiceId = invoice?.id ?? (claim.invoice ? claim.id : null);
+  const amount = invoice?.amount ?? claim.invoice?.amount ?? Number(claim.gross_amount);
+  const figures = invoice ? invoiceBalanceFigures(invoice) : null;
+  const notApplicable = invoice?.status === 'Draft' || invoice?.status === 'Cancelled';
+  const isOpen = !claim.withdrawn_at && !invoice && !claim.invoice;
+  return <li className="min-w-0 py-3">
+    <div className="min-w-0 break-words font-medium">{linkedInvoiceId
+      ? <Link className="text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(linkedInvoiceId)}`}>{invoice?.si_number ?? claim.invoice?.si_number ?? `Claim ${claim.id.slice(0, 8)}`}</Link>
+      : `Claim ${claim.id.slice(0, 8)}`}</div>
+    <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={invoice?.invoice_date ? formatDateOnly(invoice.invoice_date) : formatDateOnly(claim.created_at)} />
+      {Number.isFinite(amount) && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatNumberWhole(amount)} />}
+      <QuantityFigure label={t('projectDetail.cascade.invoiceStatus', 'Status')} value={status} />
+      {(notApplicable || figures?.paid != null) && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={notApplicable ? '—' : formatNumberWhole(figures!.paid!)} />}
+      {(notApplicable || figures?.unpaid != null) && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={notApplicable ? '—' : formatNumberWhole(figures!.unpaid!)} />}
+    </dl>
+    {isOpen && canBill && <div className="mt-2 flex flex-wrap gap-2">
+      <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onAttach}>{t('projectDetail.billing.claims.attachEvidence', 'Attach evidence')}</Button>
+      {claim.evidence.length > 0 && <Button variant="ghost" size="sm" className="touch-target min-h-8" onClick={onRaise}>{t('projectDetail.billing.claims.raise', 'Raise invoice')}</Button>}
+      {claim.evidence.length === 0 && <span className="self-center text-xs text-muted-foreground">{t('projectDetail.billing.claims.evidenceNeeded', 'Attach evidence before raising')}</span>}
+      <Button variant="ghost" size="sm" className="touch-target min-h-8 text-destructive-text" onClick={onWithdraw}>{t('projectDetail.billing.claims.withdraw', 'Withdraw')}</Button>
+    </div>}
+  </li>;
 };
 
 export default WorkOrdersTab;

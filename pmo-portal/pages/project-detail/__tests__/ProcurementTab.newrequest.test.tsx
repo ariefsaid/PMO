@@ -192,14 +192,27 @@ describe('project procurement stages and actions', () => {
       procurement('rejected', 'Rejected'),
     ];
     renderTab('Project Manager');
-    expect(screen.getByRole('heading', { name: 'Needs action' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'In progress' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Needs action 3' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'In progress 1' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Invoiced or paid' })).not.toBeInTheDocument();
-    const details = screen.getByText('Rejected or cancelled').closest('details');
+    const details = screen.getByText(/Rejected or cancelled/).closest('details');
     expect(details).not.toHaveAttribute('open');
     const draftLinks = screen.getAllByRole('link').filter((link) => /draft/i.test(link.textContent ?? ''));
     expect(draftLinks[0]).toHaveTextContent('new draft');
     expect(draftLinks[1]).toHaveTextContent('old draft');
+  });
+
+  it('AC-1402 wraps procurement identity and shows a quiet dash when supplier is missing', () => {
+    const title = 'A long procurement title that must wrap on a phone without losing its full identity';
+    procState.data = [procurement('proc-long', 'Requested', { title, vendor: null })];
+    renderTab('Project Manager');
+
+    const titleNode = screen.getByText(title);
+    expect(titleNode).toHaveClass('whitespace-normal');
+    expect(titleNode).toHaveClass('break-words');
+    const row = screen.getByRole('link', { name: new RegExp(title) });
+    expect(within(row).getByText('—')).toHaveClass('text-muted-foreground');
+    expect(within(row).queryByText('No supplier yet')).not.toBeInTheDocument();
   });
 
   it('shows project-currency totals to money roles, using approved values when present', () => {

@@ -2,15 +2,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import React from 'react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation, useNavigationType } from 'react-router';
 import type { Role } from '@/src/auth/AuthContext';
 import { ToastProvider } from '@/src/components/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // ── Repository-seam-backed hooks are mocked; the tab is the unit under test. ──
-const { listState, profilesState, mutations } = vi.hoisted(() => ({
+const { listState, profilesState, milestonesState, mutations } = vi.hoisted(() => ({
   listState: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   profilesState: { data: [] as unknown[], isPending: false, isError: false },
+  milestonesState: { data: [] as unknown[] },
   mutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -45,7 +46,7 @@ vi.mock('@/src/hooks/useTasks', () => ({
 }));
 // Milestones stub — empty so the flat list view is used (no grouping) in these tests.
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => ({ data: milestonesState.data, isPending: false, isError: false, refetch: vi.fn() }),
   useMilestoneMutations: () => ({
     create: { mutateAsync: vi.fn(), isPending: false },
     update: { mutateAsync: vi.fn(), isPending: false },
@@ -115,13 +116,20 @@ const seed = [
   },
 ];
 
-const renderTab = (role: Role = 'Project Manager', userId = 'pm-1') => {
+const LocationProbe = () => {
+  const location = useLocation();
+  const navigationType = useNavigationType();
+  return <output data-testid="location-probe">{`${location.search}|${navigationType}`}</output>;
+};
+
+const renderTab = (role: Role = 'Project Manager', userId = 'pm-1', initialEntry = '/projects/p1/tasks', showLocation = false) => {
   realRole = role;
   currentUserId = userId;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/projects/p1/tasks']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        {showLocation && <LocationProbe />}
         <ToastProvider>
           <TasksTab projectId="p1" />
         </ToastProvider>
@@ -137,6 +145,7 @@ beforeEach(() => {
   listState.refetch.mockClear();
   profilesState.data = profiles;
   profilesState.isPending = false;
+  milestonesState.data = [];
   profilesState.isError = false;
   Object.values(mutations).forEach((m) => {
     m.mutateAsync.mockReset();
@@ -429,6 +438,39 @@ describe('TasksTab — Mine / All list scope', () => {
     status.focus();
     await userEvent.keyboard('{Enter}');
     expect(screen.getByRole('combobox', { name: /status for survey the site/i })).toBeInTheDocument();
+  });
+
+  it('AC-1402 replaces the URL query when scope and view change, and restores both from a deep link', async () => {
+    const user = userEvent.setup();
+    const firstRender = renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?keep=here', true);
+    await user.click(screen.getByRole('button', { name: 'Mine' }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here&scope=mine&view=list|REPLACE');
+    await user.click(screen.getByRole('tab', { name: /^Board$/i }));
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('?keep=here&scope=mine&view=board|REPLACE');
+    firstRender.unmount();
+
+    renderTab('Project Manager', 'pm-1', '/projects/p1/tasks?scope=mine&view=board');
+    expect(screen.getByRole('tab', { name: /^Board$/i })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Survey the site')).toBeInTheDocument();
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /^List$/i }));
+    expect(screen.getByText('Mobilise crew')).toBeInTheDocument();
+    expect(screen.queryByText('Survey the site')).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 omits the current assignee from Mine metadata and gives task status a touch target', () => {
+    renderTab('Engineer', 'eng-1');
+    expect(screen.queryByText('Dana Engineer')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /status for survey the site/i })).toHaveClass('touch-target');
+    expect(screen.getByText('Survey the site')).toHaveClass('whitespace-normal');
+  });
+
+  it('AC-1402 makes phase fold and add controls touch targets', () => {
+    milestonesState.data = [{ id: 'm1', name: 'Mobilisation', sort_order: 1, target_date: null, effective_pct: null }];
+    listState.data = [{ ...seed[0], milestone_id: 'm1', status: 'Done' }];
+    renderTab();
+    expect(screen.getByRole('button', { name: /Mobilisation · Done · 1 tasks/i })).toHaveClass('touch-target');
+    expect(screen.getByRole('button', { name: 'Add task' })).toHaveClass('touch-target');
   });
 });
 

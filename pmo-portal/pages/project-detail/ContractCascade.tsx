@@ -6,7 +6,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
-import { formatCurrency, formatNumberMax2 } from '@/src/lib/format';
+import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
@@ -72,10 +72,19 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
   const settlement = summarizeInvoiceSettlement(invoiceRows);
+  const showSummary = hasReadingLayer || (canViewMoney && (
+    invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
+  ));
+  const contractValue = hasReadingLayer
+    ? contract
+    : billing.data.contractNet;
+  const invoiceFiguresMissing = canViewMoney && (
+    invoices.isPending || invoices.isError || settlement.invoiced === null || !settlement.balancesKnown
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
-      {hasReadingLayer && (
+      {showSummary && (
         <section aria-labelledby="pd-cascade" className="min-w-0">
           <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
             <h2 id="pd-cascade" className="text-sm font-semibold text-foreground">{t('projectDetail.cascade.title', 'Contract')}</h2>
@@ -84,38 +93,42 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             </span>
           </div>
           <dl className="flex flex-wrap items-start gap-x-5 gap-y-3">
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatCurrency(contract, project.currency)} />
-            <Arrow />
-            <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatCurrency(ordered, project.currency)} />
-            <Arrow />
-            <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatCurrency(delivered, project.currency)} />
-            {canViewMoney && <>
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatNumberWhole(contractValue)} />
+            {hasReadingLayer && <>
               <Arrow />
-              {invoices.isPending ? <ListState variant="loading" rows={1} className="w-24 p-0" /> : invoices.isError
-                ? <span className="text-xs text-muted-foreground">{t('projectDetail.cascade.invoiceUnavailable', 'Invoice totals unavailable')}</span>
-                : <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={settlement.invoiced === null ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable') : formatCurrency(settlement.invoiced, project.currency)} />}
+              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatNumberWhole(ordered)} />
               <Arrow />
-              {invoices.isPending ? <ListState variant="loading" rows={1} className="w-24 p-0" /> : invoices.isError
-                ? <span className="text-xs text-muted-foreground">{t('projectDetail.cascade.paidUnavailable', 'Paid total unavailable')}</span>
-                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(settlement.paid, project.currency)} />}
+              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatNumberWhole(delivered)} />
+            </>}
+            {canViewMoney && settlement.invoiced !== null && !invoices.isPending && !invoices.isError && <>
+              <Arrow />
+              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} />
+            </>}
+            {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
+              <Arrow />
+              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} />
             </>}
           </dl>
           <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            <span>{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatCurrency(notYetOrdered, project.currency)}</strong></span>
-            {canViewMoney && !invoices.isPending && !invoices.isError && <>
-              <span>· {t('projectDetail.cascade.deliveredNotInvoiced', 'Delivered, not invoiced')} <strong className="font-semibold text-foreground">{settlement.invoiced === null ? '—' : formatCurrency(Math.max(0, delivered - settlement.invoiced), project.currency)}</strong></span>
-              <span>· {t('projectDetail.cascade.unpaid', 'Unpaid')} <strong className="font-semibold text-foreground">{settlement.unpaid === null ? t('projectDetail.cascade.balancePending', 'balances pending') : formatCurrency(settlement.unpaid, project.currency)}</strong></span>
-            </>}
+            {hasReadingLayer && <span>{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span>}
             {billing.data.dpBilled > 0 && <span>· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
-              billed: formatCurrency(billing.data.dpBilled, project.currency),
-              recovered: formatCurrency(billing.data.dpRecovered, project.currency),
+              billed: formatNumberWhole(billing.data.dpBilled),
+              recovered: formatNumberWhole(billing.data.dpRecovered),
               interpolation: { escapeValue: false },
             })}</span>}
           </p>
-          {canViewMoney && !invoices.isPending && !invoices.isError && !settlement.balancesKnown && (
-            <p className="mt-2 text-xs text-muted-foreground" role="note">{t('projectDetail.cascade.partialPaymentNote', 'Part payments appear once invoice balances arrive from accounting.')}</p>
+          {invoiceFiguresMissing && !children && (
+            <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
+              <span>{invoices.isError
+                ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice totals.")
+                : invoices.isPending
+                  ? t('projectDetail.cascade.invoiceLoading', 'Invoice totals are loading.')
+                  : t('projectDetail.cascade.partialPaymentNote', 'Invoice balances are still syncing from accounting.')}</span>
+              <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoices.refetch()}>
+                {t('common.retry', 'Retry')}
+              </button>
+            </p>
           )}
-          {canViewMoney && invoices.isError && <ListState variant="error" title={t('projectDetail.cascade.invoiceError', "Couldn't load invoices")} onRetry={() => void invoices.refetch()} />}
         </section>
       )}
 
@@ -155,7 +168,8 @@ interface Row { key: string; code: string; name: string; unit: string; cells: Re
 const LineTable: React.FC<{ head: string[]; rows: Row[] }> = ({ head, rows }) => {
   const { t } = useTranslation();
   return (
-    <div className="overflow-x-auto rounded-md border border-border">
+    <>
+    <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={`${t('projectDetail.cascade.colItem', 'Item')} · ${head.join(' · ')}`}>
       <table className="w-full min-w-[40rem] text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -178,5 +192,22 @@ const LineTable: React.FC<{ head: string[]; rows: Row[] }> = ({ head, rows }) =>
         </tbody>
       </table>
     </div>
+    <ul className="divide-y divide-border md:hidden">
+      {rows.map((row) => (
+        <li key={row.key} className="py-3">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+            {row.code && <span className="font-mono text-xs text-muted-foreground">{row.code}</span>}
+            <span className="break-words font-medium text-foreground">{row.name}</span>
+            <span className="text-xs text-muted-foreground">{row.unit}</span>
+          </div>
+          <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+            {head.map((heading, index) => <div key={heading} className="inline-flex items-baseline gap-1">
+              <dt>{heading}</dt><dd className="font-medium text-foreground">{row.cells[index]}</dd>
+            </div>)}
+          </dl>
+        </li>
+      ))}
+    </ul>
+    </>
   );
 };

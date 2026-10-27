@@ -585,7 +585,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             <Button
               variant="ghost"
               size="sm"
-              className="h-auto min-h-0 px-0 py-0 text-xs text-primary underline-offset-4 hover:bg-transparent hover:underline"
+              className="h-auto min-h-0 px-0 py-0 text-xs text-primary-text underline-offset-4 hover:bg-transparent hover:underline"
               onClick={() => setMicrosoftEntry({ kind: 'create' })}
             >
               {t('m365Documents.link', 'Link from Microsoft 365')}
@@ -699,6 +699,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
             'projectDetail.documents.noSearchMatchSub',
             'Try a different title, code, or category.',
           )}
+          className="!overflow-visible !rounded-none !border-0 !bg-transparent"
         tableId="project-detail-tabs-documentstab-table" />
       )}
 
@@ -907,7 +908,7 @@ const DocumentTitleCell: React.FC<{
         onClick={() => onViewDocument(doc)}
         className="block w-full rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
-        <span className="block truncate font-semibold" title={doc.title}>
+        <span className="block whitespace-normal break-words font-semibold" title={doc.title}>
           {doc.title}
         </span>
         {doc.revision && (

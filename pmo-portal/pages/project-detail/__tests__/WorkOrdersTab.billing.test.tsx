@@ -96,7 +96,7 @@ beforeEach(() => {
 });
 
 describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
-  it('AC-1402 uses invoice balances for partial payments and never counts an unknown balance as paid or owed', () => {
+  it('AC-1402 omits aggregate payment figures until every invoice balance is known', async () => {
     h.invoices = {
       data: [
         { id: 'si-part', work_order_id: 'wo-1', status: 'Unpaid', amount: 330_000, erp_outstanding_amount: 250_000, si_number: 'INV-1' },
@@ -110,9 +110,13 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
 
     const order = screen.getByTestId('customer-order-wo-1');
-    expect(order).toHaveTextContent('Paid $50,000.00');
-    expect(order).not.toHaveTextContent('$200,000.00 unpaid');
-    expect(screen.getAllByText('Part payments appear once invoice balances arrive from accounting.')).toHaveLength(1);
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(figures.getByText('Invoiced')).toBeInTheDocument();
+    expect(figures.getByText('500,000')).toBeInTheDocument();
+    expect(figures.queryByText('Paid')).not.toBeInTheDocument();
+    expect(order).not.toHaveTextContent('Unpaid 200,000');
+    expect(within(order).getByText('Invoice figures are incomplete.')).toBeInTheDocument();
+    await userEvent.click(within(order).getByText('Invoices (3)'));
     expect(order).toHaveTextContent('INV-1');
     expect(order).toHaveTextContent('INV-2');
   });
@@ -126,9 +130,12 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     };
     renderTab();
 
-    expect(screen.getByTestId('customer-order-wo-1')).toHaveTextContent('Paid $80,000.00');
-    expect(screen.getByTestId('customer-order-wo-1')).toHaveTextContent('$250,000.00 unpaid');
-    expect(screen.queryByText('Part payments appear once invoice balances arrive from accounting.')).toBeNull();
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(figures.getByText('Paid')).toBeInTheDocument();
+    expect(figures.getByText('80,000')).toBeInTheDocument();
+    expect(figures.getByText('Unpaid')).toBeInTheDocument();
+    expect(figures.getByText('250,000')).toBeInTheDocument();
+    expect(screen.queryByText('Invoice figures are incomplete.')).toBeNull();
   });
 
   it('AC-S15-003 a truly empty work-order register leads with its first-use action, without zero billing totals', () => {
@@ -158,7 +165,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(screen.queryByText('No contract lines or customer orders yet.')).not.toBeInTheDocument();
   });
 
-  it('AC-1402 keeps each order money summary tied to invoice balances', () => {
+  it('AC-1402 keeps each order money summary tied to invoice balances', async () => {
     h.invoices = { data: [
       { id: 'si-paid', work_order_id: 'wo-1', status: 'Paid', amount: 330_000, erp_outstanding_amount: 0, si_number: 'INV-PAID' },
     ], isPending: false, isError: false, refetch: vi.fn() };
@@ -166,9 +173,12 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
       down_payment_amount: 330_000, gross_amount: 330_000, invoice: { status: 'Paid', si_number: 'INV-PAID', amount: 330_000 } }];
     renderTab();
     const order = screen.getByTestId('customer-order-wo-1');
-    expect(order).toHaveTextContent('Invoiced $330,000.00');
-    expect(order).toHaveTextContent('Paid $330,000.00');
-    expect(order).toHaveTextContent('incl. down payment');
+    const figures = within(screen.getByTestId('wo-money-wo-1'));
+    expect(figures.getByText('Invoiced')).toBeInTheDocument();
+    expect(figures.getByText('Paid')).toBeInTheDocument();
+    expect(figures.getAllByText('330,000')).toHaveLength(2);
+    await userEvent.click(within(order).getByText('More'));
+    expect(order).toHaveTextContent('Down payment 330,000');
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -261,6 +271,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const order = screen.getByTestId('customer-order-wo-1');
     expect(order).not.toHaveTextContent('Invoiced');
     expect(order).not.toHaveTextContent('Paid');
+    expect(within(order).queryByTestId('wo-value-wo-1')).not.toBeInTheDocument();
+    expect(within(order).queryByTestId('wo-closing-wo-1')).not.toBeInTheDocument();
     expect(within(order).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
   });
 
@@ -270,8 +282,77 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const order = screen.getByTestId('customer-order-wo-1');
     expect(order).not.toHaveTextContent('Invoiced $0.00');
     expect(order).not.toHaveTextContent('Paid $0.00');
-    expect(screen.getByText("Couldn't load invoices")).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    expect(within(order).getByText("Couldn't load invoice figures.")).toBeInTheDocument();
+    expect(within(order).getByRole('button', { name: 'Retry invoice figures' })).toBeInTheDocument();
+  });
+
+  it('AC-1402 keeps invoices without a customer order visible and links to the invoice record', () => {
+    h.list.data = [];
+    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_345.6,
+      erp_outstanding_amount: 2_345.6, si_number: 'INV-ORPHAN', invoice_date: '2026-10-04', currency: 'USD' }],
+    isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
+    expect(within(section).getAllByRole('link', { name: 'INV-ORPHAN' }).every((link) => link.getAttribute('href') === '/sales-invoices/si-orphan')).toBe(true);
+    expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('12,346').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('10,000').length).toBeGreaterThan(0);
+    expect(within(section).getAllByText('2,346').length).toBeGreaterThan(0);
+    expect(section).toHaveTextContent('Unpaid');
+    expect(section.textContent).not.toMatch(/\$|\.00/);
+  });
+
+  it('AC-1402 collapses invoice rows and omits an empty Actions column', async () => {
+    h.invoices = { data: [{ id: 'si-direct', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+      erp_outstanding_amount: 8_000, si_number: 'INV-DIRECT', invoice_date: '2026-10-05', currency: 'USD' }],
+    isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const disclosure = screen.getByText('Invoices (1)').closest('details')!;
+    expect(disclosure).not.toHaveAttribute('open');
+    await userEvent.click(within(disclosure).getByText('Invoices (1)'));
+    expect(within(disclosure).getAllByRole('link', { name: 'INV-DIRECT' }).every((link) => link.getAttribute('href') === '/sales-invoices/si-direct')).toBe(true);
+    expect(within(disclosure).queryByRole('columnheader', { name: 'Actions' })).not.toBeInTheDocument();
+    expect(within(disclosure).queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 omits unknown invoice figures and offers one retry for the order block', async () => {
+    h.invoices = { data: [{ id: 'si-unknown', work_order_id: 'wo-1', status: 'Unpaid', amount: 12_000,
+      erp_outstanding_amount: null, si_number: 'INV-UNKNOWN', currency: 'USD' }],
+    isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const order = screen.getByTestId('customer-order-wo-1');
+    expect(order).not.toHaveTextContent('Unpaid balance pending');
+    expect(within(order).getByText('Invoice figures are incomplete.')).toBeInTheDocument();
+    expect(within(order).getAllByRole('button', { name: 'Retry invoice figures' })).toHaveLength(1);
+    await userEvent.click(within(order).getByRole('button', { name: 'Retry invoice figures' }));
+    expect(h.invoices.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('AC-1402 hides invoice rows and every money figure from an Engineer', () => {
+    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Paid', amount: 12_000,
+      erp_outstanding_amount: 0, si_number: 'INV-PRIVATE', currency: 'USD' }],
+    isPending: false, isError: false, refetch: vi.fn() };
+    renderTab('Engineer');
+
+    expect(screen.queryByText('INV-PRIVATE')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('customer-order-wo-1')).queryByText(/Invoiced|Paid|Unpaid/)).not.toBeInTheDocument();
+  });
+
+  it('AC-1402 gives orderless invoices one reason and retry when a settlement figure is missing', () => {
+    h.list.data = [];
+    h.invoices = { data: [{ id: 'si-orphan', work_order_id: null, status: 'Unpaid', amount: 12_000,
+      erp_outstanding_amount: null, si_number: 'INV-ORPHAN' }], isPending: false, isError: false, refetch: vi.fn() };
+    renderTab();
+
+    const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
+    expect(within(section).getByText('Some invoice figures are incomplete.')).toBeInTheDocument();
+    expect(within(section).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+    const card = within(section).getByTestId('invoice-card-si-orphan');
+    expect(within(card).queryByRole('term', { name: 'Paid' })).not.toBeInTheDocument();
+    expect(within(card).queryByRole('term', { name: 'Unpaid' })).not.toBeInTheDocument();
   });
 });
 
@@ -312,6 +393,9 @@ describe('WorkOrdersTab — billing actions', () => {
       renderTab();
       const scroll = screen.getByTestId('wo-lines-table-scroll-wo-1');
       expect(scroll).toHaveClass('overflow-x-auto');
+      expect(scroll).toHaveAttribute('tabindex', '0');
+      expect(scroll).toHaveAttribute('role', 'region');
+      expect(scroll).toHaveAccessibleName('Contract quantities for WO-1');
       expect(within(scroll).getByRole('table')).toBeInTheDocument();
       const line = within(scroll).getAllByRole('row')[1];
       expect(line).toHaveTextContent('Survey route');
@@ -319,6 +403,13 @@ describe('WorkOrdersTab — billing actions', () => {
       expect(line).toHaveTextContent('98');
       expect(line).toHaveTextContent('20');
       expect(line).toHaveTextContent('78');
+      const phoneLine = screen.getByTestId('wo-lines-mobile-wo-1');
+      expect(phoneLine).toHaveTextContent('Survey route');
+      expect(phoneLine).toHaveTextContent('Ordered 100');
+      expect(phoneLine).toHaveTextContent('Delivered 98');
+      expect(phoneLine).toHaveTextContent('Invoiced 20');
+      expect(phoneLine).toHaveTextContent('Can invoice 78');
+      expect(screen.getByRole('button', { name: 'Record delivery' })).toHaveClass('touch-target');
       await userEvent.click(within(screen.getByTestId('customer-order-wo-1')).getByRole('button', { name: 'Raise invoice' }));
       expect(screen.getByLabelText('Bills')).toHaveValue('wo-1');
       expect(screen.getByLabelText(/SURVEY/)).toHaveValue('78');

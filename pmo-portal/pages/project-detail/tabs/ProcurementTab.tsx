@@ -138,22 +138,22 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
               aria-label={`${t('projectDetail.procurement.openRow', 'Open')} ${row.title}`}
               className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1.5 px-2 py-3 text-sm text-foreground hover:bg-muted/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto_minmax(10rem,1fr)] sm:items-center sm:gap-4 sm:px-3"
             >
-              <span className="min-w-0">
-                <span className="block truncate font-semibold" title={row.title}>{row.title}</span>
+              <span className="col-span-full row-start-1 min-w-0 sm:col-auto sm:row-auto">
+                <span className="block whitespace-normal break-words font-semibold" title={row.title}>{row.title}</span>
                 <span className="block truncate font-mono text-xs text-muted-foreground">
                   {row.code ?? row.id.slice(0, 8)}
                 </span>
               </span>
               <span className="col-start-1 row-start-2 truncate text-xs text-muted-foreground sm:col-auto sm:row-auto sm:text-sm">
-                {row.vendor?.name ?? t('projectDetail.procurement.supplierMissing', 'No supplier yet')}
+                {row.vendor?.name ?? <span className="text-muted-foreground">—</span>}
               </span>
-              <span className="col-start-2 row-start-1 whitespace-nowrap text-right font-medium tabular-nums sm:col-auto sm:row-auto">
+              <span className="col-start-2 row-start-2 whitespace-nowrap text-right font-medium tabular-nums sm:col-auto sm:row-auto">
                 {/* Currency is in the heading once; a row in another currency keeps its code. */}
                 {row.currency && row.currency !== projectCurrency
                   ? formatCurrency(Number(row.approved_total_value ?? row.total_value ?? 0), row.currency)
                   : formatNumberWhole(Number(row.approved_total_value ?? row.total_value ?? 0))}
               </span>
-              <span className="col-start-2 row-start-2 min-w-0 text-right sm:col-auto sm:row-auto sm:text-left">
+              <span className="col-span-full row-start-3 min-w-0 sm:col-auto sm:row-auto sm:text-left">
                 <span className="block font-medium">{stageLabel(status)}</span>
                 {nextStep && <span className="block text-xs text-muted-foreground">{nextStep}</span>}
               </span>
@@ -219,8 +219,8 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
             if (group.folded) {
               return (
                 <details key={group.key} className="rounded-lg border border-border px-3 py-2">
-                  <summary className="cursor-pointer py-1 text-sm font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                    {label}
+                  <summary className="touch-target cursor-pointer py-1 text-sm font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                    {label} {groupRows.length}
                   </summary>
                   <div className="mt-2">{content}</div>
                 </details>
@@ -230,7 +230,7 @@ const ProcurementTab: React.FC<ProcurementTabProps> = ({ projectId }) => {
             return (
               <section key={group.key} aria-labelledby={`procurement-group-${group.key}`}>
                 <h3 id={`procurement-group-${group.key}`} className="mb-2 text-sm font-semibold text-foreground">
-                  {label}
+                  {label} {groupRows.length}
                 </h3>
                 {content}
               </section>

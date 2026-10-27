@@ -23,7 +23,7 @@ import {
   type ComboboxOption,
 } from '@/src/components/ui';
 import { ProjectIntegrationsCard } from '@/src/components/projects/ProjectIntegrationsCard';
-import { useLocation } from 'react-router';
+import { useLocation, useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { usePermission } from '@/src/auth/usePermission';
@@ -177,7 +177,7 @@ const EditableTaskStatus: React.FC<EditableTaskStatusProps> = ({ task, editable,
         aria-label={label}
         disabled={disabled}
         onClick={() => setEditing(true)}
-        className="rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="touch-target inline-flex min-h-8 items-center rounded-sm text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       >
         <StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>
       </button>
@@ -339,8 +339,25 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
   const { data: milestones } = useMilestones(projectId);
   const location = useLocation();
 
-  const [view, setView] = useState<ViewMode>('list');
-  const [scope, setScope] = useState<TaskScope>(() => realRole === 'Engineer' ? 'mine' : 'all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedView = searchParams.get('view');
+  const view: ViewMode = requestedView === 'board' || requestedView === 'timeline' ? requestedView : 'list';
+  const requestedScope = searchParams.get('scope');
+  const scope: TaskScope = requestedScope === 'mine' || requestedScope === 'all'
+    ? requestedScope
+    : realRole === 'Engineer' ? 'mine' : 'all';
+  const setTaskView = (nextView: ViewMode) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('scope', scope);
+    next.set('view', nextView);
+    setSearchParams(next, { replace: true });
+  };
+  const setTaskScope = (nextScope: TaskScope) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('scope', nextScope);
+    next.set('view', view);
+    setSearchParams(next, { replace: true });
+  };
   // defaultMilestoneId — pre-populated when clicking "Add task" within a group.
   const [formTarget, setFormTarget] = useState<{ task: TaskWithRefs | null; defaultMilestoneId?: string | null } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TaskWithRefs | null>(null);
@@ -512,7 +529,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                task name ("CONST — Structural Load Calc & Racking Design") bled past 390px on
                the mobile card (AC-MOBILE-OVERFLOW-001, caught by CI on fresh seed). block +
                the card title wrapper's min-w-0 lets it clip with an ellipsis. */
-            className={`block truncate font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
+            className={`block whitespace-normal break-words font-semibold${highlightedTaskId === task.id ? ' ring-2 ring-primary ring-offset-1 rounded task-highlight' : ''}`}
             style={depth > 0 ? { paddingLeft: depth * SUBTASK_INDENT_PX } : undefined}
             title={task.name}
           >
@@ -529,8 +546,8 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
     {
       key: 'assignee',
       header: t('projectDetail.tasks.column.assignee', 'Assignee'),
-      cell: (task) =>
-        task.assignee ? (
+      cell: (task) => scope === 'mine' && task.assignee_id === currentUserId ? null : task.assignee
+        ? (
           <span className="truncate text-muted-foreground" title={task.assignee.full_name}>
             {task.assignee.full_name}
           </span>
@@ -638,7 +655,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
               { value: 'all', label: t('projectDetail.tasks.scope.all', 'All') },
             ]}
             value={scope}
-            onChange={setScope}
+            onChange={setTaskScope}
             ariaLabel={t('projectDetail.tasks.scopeAriaLabel', 'Task scope')}
             semantics="toggle"
           />
@@ -651,7 +668,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
               { value: 'timeline', label: t('projectDetail.tasks.view.timeline', 'Timeline') },
             ]}
             value={view}
-            onChange={setView}
+            onChange={setTaskView}
             ariaLabel={t('projectDetail.tasks.viewAriaLabel', 'Task view')}
           />
         )}
@@ -698,6 +715,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
                 ? (task) => `${t('projectDetail.tasks.action.edit', 'Edit')} ${task.name}`
                 : (task) => `${t('comments.open', 'Comments')} ${task.name}`
             }
+            className="!overflow-visible !rounded-none !border-0 !bg-transparent"
           tableId="project-detail-tabs-taskstab-1-table" />
         ) : (
           // Milestones exist: group tasks by milestone
@@ -732,7 +750,7 @@ const TasksTab: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
         <ProjectGantt
           tasks={visibleTasks}
           milestones={milestoneList}
-          onSwitchView={setView}
+          onSwitchView={setTaskView}
           onActivateTask={
             canEdit
               ? (task) => setFormTarget({ task })
@@ -862,14 +880,14 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
                     className="rounded-md border border-border bg-card px-3 py-2.5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[13px] font-semibold" title={task.name}>
+                      <span className="whitespace-normal break-words text-[13px] font-semibold" title={task.name}>
                         {task.name}
                       </span>
                       {externallyOwned && (
                         <TaskPushBadge state={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH} />
                       )}
                     </div>
-                    <div className="mt-1 truncate text-[11.5px] text-muted-foreground">
+                    <div className="mt-1 whitespace-normal break-words text-[11.5px] text-muted-foreground">
                       {task.assignee
                         ? task.assignee.full_name
                         : t('projectDetail.tasks.unassigned', 'Unassigned')}
@@ -1373,7 +1391,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
           }}
           className={`group grid ${gridColumns} items-center gap-0 border-b border-border/70 px-1 transition-colors last:border-b-0 ${onActivate ? 'cursor-pointer hover:bg-accent/60' : ''}`}
         >
-          <div role="cell" className="min-w-0 px-2 py-2.5 md:px-3">
+          <div role="cell" className="col-span-2 row-start-1 min-w-0 px-2 py-2.5 md:col-span-1 md:row-auto md:px-3">
             {onActivate ? (
               <button
                 type="button"
@@ -1388,15 +1406,17 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
               </button>
             ) : nameColumn.cell(task)}
             <div className="mt-1 min-w-0 break-words text-[12px] text-muted-foreground md:hidden">
-              {t('projectDetail.tasks.column.assignee', 'Assignee')}: {assigneeColumn.cell(task)}
-              {' · '}{t('projectDetail.tasks.column.due', 'Due')}: {dueColumn.cell(task)}
+              {assigneeColumn.cell(task) && <>
+                {t('projectDetail.tasks.column.assignee', 'Assignee')}: {assigneeColumn.cell(task)}{' · '}
+              </>}
+              {t('projectDetail.tasks.column.due', 'Due')}: {dueColumn.cell(task)}
             </div>
           </div>
           <div role="cell" className="hidden min-w-0 px-3 py-2.5 md:block">{assigneeColumn.cell(task)}</div>
           <div role="cell" className="hidden min-w-0 px-3 py-2.5 md:block">{dueColumn.cell(task)}</div>
-          <div role="cell" className="min-w-0 px-2 py-2.5 md:px-3">{statusColumn.cell(task)}</div>
+          <div role="cell" className="col-start-1 row-start-2 min-w-0 px-2 py-2.5 md:col-auto md:row-auto md:px-3">{statusColumn.cell(task)}</div>
           {canRowWrite && (
-            <div role="cell" className="px-1 py-2.5">
+            <div role="cell" className="col-start-3 row-start-1 px-1 py-2.5 md:col-auto md:row-auto">
               {items.length > 0 && <TaskRowActions items={items} />}
             </div>
           )}
@@ -1406,14 +1426,14 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   };
 
   return (
-    <div role="table" aria-label={t('projectDetail.tasks.listAriaLabel', 'Project tasks')} className="overflow-hidden rounded-lg border border-border bg-card">
+    <div role="table" aria-label={t('projectDetail.tasks.listAriaLabel', 'Project tasks')} className="min-w-0 border-y border-border">
       <div role="rowgroup">
         <div role="row" className={`grid ${gridColumns} items-center border-b border-border bg-secondary/30 px-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground`}>
-          <div role="columnheader" className="px-2 py-2.5 md:px-3">{t('projectDetail.tasks.column.task', 'Task')}</div>
+          <div role="columnheader" className="col-span-2 row-start-1 px-2 py-2.5 md:col-span-1 md:row-auto md:px-3">{t('projectDetail.tasks.column.task', 'Task')}</div>
           <div role="columnheader" className="hidden px-3 py-2.5 md:block">{t('projectDetail.tasks.column.assignee', 'Assignee')}</div>
           <div role="columnheader" className="hidden px-3 py-2.5 md:block">{t('projectDetail.tasks.column.due', 'Due')}</div>
-          <div role="columnheader" className="px-2 py-2.5 md:px-3">{t('projectDetail.tasks.column.status', 'Status')}</div>
-          {canRowWrite && <div role="columnheader" className="sr-only">{t('table.actions', 'Actions')}</div>}
+          <div role="columnheader" className="col-start-1 row-start-2 px-2 py-2.5 md:col-auto md:row-auto md:px-3">{t('projectDetail.tasks.column.status', 'Status')}</div>
+          {canRowWrite && <div role="columnheader" className="sr-only col-start-3 row-start-1 md:col-auto md:row-auto">{t('table.actions', 'Actions')}</div>}
         </div>
       </div>
       {groups.map((group) => {
@@ -1433,7 +1453,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
                       else next.add(group.id);
                       return next;
                     })}
-                    className="min-w-0 rounded-sm py-1 text-left text-[13px] font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="touch-target min-w-0 rounded-sm py-1 text-left text-[13px] font-semibold text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                   >
                     {group.sectionLabel} · {t('task.status.done', 'Done')} · {group.tasks.length} {t('projectDetail.tasks.count.tasks', 'tasks')}
                   </button>
@@ -1452,7 +1472,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
                 {canCreate && (
                   <button
                     type="button"
-                    className="ml-auto shrink-0 rounded-sm py-1 text-xs text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                    className="touch-target ml-auto shrink-0 rounded-sm py-1 text-xs text-primary-text underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
                     onClick={() => onAddTask(group.milestone?.id ?? null)}
                   >
                     {t('projectDetail.tasks.addTask', 'Add task')}
