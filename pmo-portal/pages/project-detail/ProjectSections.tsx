@@ -6,6 +6,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useEffectiveRole } from '@/src/auth/impersonation';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
+import { useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
@@ -54,7 +55,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     : null;
   return (
     <div className="flex min-w-0 flex-col gap-12">
-      {lens !== 'delivery' && <ProjectAttention items={attention.items} isPending={attention.isPending} />}
+      {lens !== 'delivery' && !isPipeline && <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />}
       {lens === 'delivery' ? (
         <div className="grid min-w-0 gap-12 xl:grid-cols-2">
           <MyOpenTasks projectId={project.id} />
@@ -65,7 +66,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <div className="grid min-w-0 gap-12 xl:grid-cols-2">
           <div className="flex min-w-0 flex-col gap-12">
             {lens === 'money' && may('view', 'salesInvoice') && !isPipeline && <MoneyBlock project={project} />}
-            <CostBlock project={project} onOpenBudget={() => onOpen('budget')} />
+            <CostBlock project={project} isPipeline={isPipeline} onOpenBudget={() => onOpen('budget')} />
           </div>
           <DeliveryBlock projectId={project.id} isPipeline={isPipeline}>{curve}</DeliveryBlock>
         </div>
@@ -153,23 +154,41 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
  * an overdue customer invoice makes it "Chase payment"; otherwise "Raise invoice" while a meaningful
  * share (≥5%) of the contract is still to invoice; otherwise none.
  */
-export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; mobileBar?: boolean }> = ({ project, isPipeline, mobileBar = false }) => {
+export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; mobileBar?: boolean; chaseOnly?: boolean }> = ({ project, isPipeline, mobileBar = false, chaseOnly = false }) => {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const may = usePermission();
   const canInvoice = may('create', 'salesInvoice') && !isPipeline;
-  const finances = useProjectFinances(project.id, { enabled: canInvoice });
   const receivables = useOverdueReceivables(project);
-  const remaining = Number(finances.data?.remaining_to_invoice ?? 0);
+  if (!canInvoice) return null;
+  if (receivables.data) {
+    return <ProjectActionButton mobileBar={mobileBar} to={receivables.data.to}>{t('projectDetail.action.chasePayment', 'Chase payment')}</ProjectActionButton>;
+  }
+  if (chaseOnly || receivables.isPending || receivables.isError) return null;
+  return <RaiseInvoiceAction project={project} mobileBar={mobileBar} />;
+};
+
+const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolean }> = ({ project, mobileBar }) => {
+  const { t } = useTranslation();
+  const finances = useProjectFinances(project.id);
+  const billing = useProjectBilling(project.id);
+  if (finances.isPending || finances.isError || billing.isPending || billing.isError) return null;
+  const lines = billing.data?.contractLines ?? [];
+  const billableQuantity = lines.reduce((sum, line) => sum + line.allocations.reduce(
+    (allocationSum, allocation) => allocationSum + (allocation.acceptedQuantity ?? 0) - allocation.claimedQuantity,
+    0,
+  ), 0);
   const contract = project.contract_value ?? 0;
-  const action = !canInvoice ? null
-    : receivables ? { label: t('projectDetail.action.chasePayment', 'Chase payment'), to: receivables.to }
-    : contract > 0 && remaining / contract >= 0.05 ? { label: t('projectDetail.action.raiseInvoice', 'Raise invoice'), to: `/projects/${project.id}/contract` }
-    : null;
-  if (!action) return null;
+  const remaining = Number(finances.data?.remaining_to_invoice ?? 0);
+  const canRaise = lines.length > 0 ? billableQuantity > 0 : contract > 0 && remaining / contract >= 0.05;
+  if (!canRaise) return null;
+  return <ProjectActionButton mobileBar={mobileBar} to={`/projects/${project.id}/contract`}>{t('projectDetail.action.raiseInvoice', 'Raise invoice')}</ProjectActionButton>;
+};
+
+const ProjectActionButton: React.FC<{ mobileBar: boolean; to: string; children: React.ReactNode }> = ({ mobileBar, to, children }) => {
+  const navigate = useNavigate();
   const button = (
-    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(action.to)}>
-      {action.label}
+    <Button variant="primary" size={mobileBar ? 'default' : 'sm'} className={mobileBar ? 'touch-target w-full' : undefined} onClick={() => navigate(to)}>
+      {children}
     </Button>
   );
   // UX AC2: on phone the primary lives in the bottom action bar; the spacer keeps page content clear of it.

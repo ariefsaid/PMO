@@ -46,12 +46,15 @@ export function useBudgetPosition(project: ProjectWithRefs) {
       .sort((a, b) => (b.actual! - b.budget) - (a.actual! - a.budget));
     return {
       isPending: versions.isPending, isError: versions.isError, refetch: versions.refetch,
+      actualsPending: canSeeActual && finances.isPending,
+      actualsError: canSeeActual && finances.isError,
+      refetchActuals: finances.refetch,
       hasBudget: Boolean(active), canSeeActual, rows, budget, spent,
       projectOver: spent !== null && spent > budget ? spent - budget : null,
       overRows,
       unknown: rows.filter((r) => r.actual === null).length,
     };
-  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, project.currency, canSeeActual]);
+  }, [versions.data, versions.isPending, versions.isError, versions.refetch, actuals, finances.isPending, finances.isError, finances.refetch, project.currency, canSeeActual]);
 }
 
 /** Overdue customer invoices: count, oldest age, and the unpaid balance only when every balance is known. */
@@ -59,9 +62,12 @@ export function useOverdueReceivables(project: ProjectWithRefs) {
   const may = usePermission();
   const enabled = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled });
-  const { day: orgToday } = useFxOrgDay(enabled);
-  return useMemo(() => {
-    if (!enabled) return null;
+  const orgTodayQuery = useFxOrgDay(enabled);
+  const orgToday = orgTodayQuery.day;
+  const isPending = enabled && (invoices.isPending || orgTodayQuery.isPending);
+  const isError = enabled && (invoices.isError || orgTodayQuery.isError);
+  const data = useMemo(() => {
+    if (!enabled || isPending || isError) return null;
     const overdue = (invoices.data ?? []).filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
       .map((inv) => ({ inv, age: overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), orgToday) }))
       .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null && x.age > 0);
@@ -74,7 +80,12 @@ export function useOverdueReceivables(project: ProjectWithRefs) {
       // The org-wide invoice list already filters by project + overdue (oldest first): the chase surface.
       to: `/sales-invoices?project=${project.id}&overdue=true`,
     };
-  }, [enabled, invoices.data, orgToday, project.id]);
+  }, [enabled, isPending, isError, invoices.data, orgToday, project.id]);
+  const refetch = () => Promise.all([
+    ...(invoices.isError ? [invoices.refetch()] : []),
+    ...(orgTodayQuery.isError ? [orgTodayQuery.retry()] : []),
+  ]);
+  return { data, isPending, isError, refetch };
 }
 
 export interface AttentionItem {
@@ -95,7 +106,11 @@ const attnToday = () => new Date().toISOString().slice(0, 10);
  * Exceptions that need a person, from signals the page already shows. Not used for `delivery`
  * (engineer): their overdue count heads My open tasks instead.
  */
-export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'pm' | 'delivery'): { items: AttentionItem[]; isPending: boolean } {
+export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'pm' | 'delivery'): {
+  items: AttentionItem[];
+  isPending: boolean;
+  error?: { what: string; retry: () => unknown };
+} {
   const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -106,6 +121,29 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
   const receivables = useOverdueReceivables(project);
   const canApprove = lens !== 'delivery' && may('transition', 'procurement');
   const procurements = useProjectProcurements(canApprove ? project.id : null);
+  const isPending = milestones.isPending || (lens !== 'delivery' && (
+    budget.isPending || budget.actualsPending || receivables.isPending || (canApprove && procurements.isPending)
+  ));
+  const failedRead = milestones.isError ? 'phases'
+    : lens !== 'delivery' && budget.isError ? 'budget'
+      : lens !== 'delivery' && budget.actualsError ? 'spending'
+        : lens !== 'delivery' && receivables.isError ? 'receivables'
+          : canApprove && procurements.isError ? 'procurements'
+            : null;
+  const error = failedRead ? {
+    what: failedRead === 'phases' ? t('projectDetail.attention.check.phases', 'phases')
+      : failedRead === 'budget' ? t('projectDetail.attention.check.budget', 'budget')
+        : failedRead === 'spending' ? t('projectDetail.attention.check.spending', 'spending')
+          : failedRead === 'receivables' ? t('projectDetail.attention.check.receivables', 'receivables')
+            : t('projectDetail.attention.check.procurements', 'procurements'),
+    retry: () => Promise.all([
+      ...(milestones.isError ? [milestones.refetch()] : []),
+      ...(budget.isError ? [budget.refetch()] : []),
+      ...(budget.actualsError ? [budget.refetchActuals()] : []),
+      ...(receivables.isError ? [receivables.refetch()] : []),
+      ...(canApprove && procurements.isError ? [procurements.refetch()] : []),
+    ]),
+  } : undefined;
 
   const items = useMemo(() => {
     const out: AttentionItem[] = [];
@@ -119,14 +157,14 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         size: budget.projectOver !== null ? t('projectDetail.attention.mostly', 'mostly {{category}}', { category: budgetCategoryLabel(worst.category, t) }) : undefined,
         action: t('projectDetail.attention.budgetAction', 'Review budget') });
     }
-    if (receivables && lens !== 'delivery') {
-      out.push({ key: 'ar', tone: 'danger', to: receivables.to,
-        what: receivables.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.count }),
+    if (receivables.data && lens !== 'delivery') {
+      out.push({ key: 'ar', tone: 'danger', to: receivables.data.to,
+        what: receivables.data.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.data.count }),
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.
-        size: receivables.balance !== null
-          ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.balance), currency: project.currency, days: receivables.oldest })
-          : t('projectDetail.attention.arSizeNoBalance', '{{days}} days past due', { days: receivables.oldest }),
-        action: receivables.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
+        size: receivables.data.balance !== null
+          ? t('projectDetail.attention.arSize', '{{amount}} {{currency}} unpaid · {{days}} days', { amount: formatNumberWhole(receivables.data.balance), currency: project.currency, days: receivables.data.oldest })
+          : t('projectDetail.attention.arSizeNoBalance', '{{days}} days past due', { days: receivables.data.oldest }),
+        action: receivables.data.count === 1 ? t('projectDetail.attention.arActionOne', 'See invoice') : t('projectDetail.attention.arActionMany', 'See invoices') });
     }
     if (lens !== 'delivery') {
       const late = (milestones.data ?? []).filter((m) => m.target_date && m.target_date < attnToday() && m.effective_pct < 100 && (m.effective_pct > 0 || m.task_count > 0));
@@ -144,14 +182,14 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
       if (waiting.length) {
         out.push({ key: 'approve', tone: 'warn', to: `${base}/procurement`,
           what: waiting.length === 1
-            ? t('projectDetail.attention.approveOne', 'Purchase request waiting for you')
-            : t('projectDetail.attention.approveMany', '{{count}} purchase requests waiting for you', { count: waiting.length }),
+            ? t('projectDetail.attention.approveOne', 'Procurement waiting for your approval')
+            : t('projectDetail.attention.approveMany', '{{count}} procurements waiting for your approval', { count: waiting.length }),
           action: t('projectDetail.attention.approveAction', 'Review') });
       }
     }
     return out.sort((x, y) => (x.tone === y.tone ? 0 : x.tone === 'danger' ? -1 : 1));
-  }, [lens, budget.overRows, budget.projectOver, receivables, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
+  }, [lens, budget.overRows, budget.projectOver, receivables.data, milestones.data, procurements.data, canApprove, currentUser?.id, realRole, base, project.currency, t]);
 
-  return { items, isPending: milestones.isPending || budget.isPending };
+  return { items, isPending, error };
 }
 

@@ -6,12 +6,10 @@ import { useTranslation } from 'react-i18next';
 import { ListState, useToast } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
 import { useProjectMutations, useProject } from '@/src/hooks/useProjects';
-import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { withTabSwitchNavState } from '@/src/lib/tabSwitchNav';
 import type { ProjectHeaderInput } from '@/src/lib/db/projects';
-import { usePermission } from '@/src/auth/usePermission';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
@@ -32,7 +30,6 @@ const ProjectDetail: React.FC = () => {
   const { projectId = '', tab: tabParam } = useParams<{ projectId: string; tab?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const may = usePermission();
   const { t } = useTranslation();
   const {
     data: project,
@@ -43,19 +40,11 @@ const ProjectDetail: React.FC = () => {
   const { updateHeader } = useProjectMutations();
   const pipelineGroup = project ? projectStatusGroup(project.status as never) : null;
   const isPipelineRecord = pipelineGroup === 'pipeline' || pipelineGroup === 'lost';
+  const area = areaFromParam(tabParam);
+  const primaryActionAllowed = area === 'overview' || area === 'contract';
+  const chaseOnly = area === 'contract';
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
-
-  // Committed spend sums every request on the project. A role that reads only the requests it raised
-  // (Engineer, migration 0350) would get a partial sum, so it gets no project-wide figure at all.
-  const readsProjectWideSpend = may('view', 'procurement');
-  const committedSpendQuery = useProjectCommittedSpend(readsProjectWideSpend ? projectId || null : null, readsProjectWideSpend);
-  const committedSpend = readsProjectWideSpend ? committedSpendQuery.data : undefined;
-  const committedOtherCurrencies = readsProjectWideSpend ? committedSpendQuery.otherCurrencies : undefined;
-  const commitmentSource = (readsProjectWideSpend && committedSpendQuery.commitmentSource) || 'unavailable';
-  const ledgerBasis = (readsProjectWideSpend && committedSpendQuery.ledgerBasis) || 'unavailable';
-  const commitmentPending = readsProjectWideSpend && committedSpendQuery.isPending;
-  const commitmentError = readsProjectWideSpend && committedSpendQuery.isError;
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed project — grounding only
@@ -69,7 +58,6 @@ const ProjectDetail: React.FC = () => {
     return () => setEntity(undefined);
   }, [project, setEntity]);
 
-  const area = areaFromParam(tabParam);
   const setArea = (next: Area) => {
     trackProjectTabViewed(next);
     // #682: keep the captured list-return context; #879: an in-page tab switch keeps focus in the tab bar.
@@ -142,10 +130,8 @@ const ProjectDetail: React.FC = () => {
 
   const header = (
     <>
-      <ProjectDetailHeader project={project} committedSpend={committedSpend} committedOtherCurrencies={committedOtherCurrencies}
-        commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} commitmentPending={commitmentPending}
-        commitmentError={commitmentError} onEditProject={openEditProject} compact
-        primaryAction={<span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} /></span>} />
+      <ProjectDetailHeader project={project} onEditProject={openEditProject} compact
+        primaryAction={primaryActionAllowed ? <span className="hidden md:inline-flex"><PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} /></span> : undefined} />
       {isPipelineRecord && <div className="mb-8"><PipelineLens project={project} locationState={location.state} /></div>}
       <ProjectDetailRail project={project} onEditProject={openEditProject} showActionSection={!isPipelineRecord}
         summaryLabel={t('projectDetail.rail.detailsShort', 'Details, codes and status')} quiet />
@@ -158,7 +144,7 @@ const ProjectDetail: React.FC = () => {
       {/* #735: the top-bar breadcrumb hides its parent crumbs at <= 920px, so the record shows the in-page BackBar there. */}
       <BackBar label={t('projectDetail.backToProjects', 'Projects')} phoneOnly onBack={goBack} />
       <ProjectSections project={project} area={area} setArea={setArea} isPipeline={isPipelineRecord} header={header} />
-      <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} mobileBar />
+      {primaryActionAllowed && <PrimaryProjectAction project={project} isPipeline={isPipelineRecord} chaseOnly={chaseOnly} mobileBar />}
       {editOpen && (
         <ProjectFormModal
           mode="editHeader"

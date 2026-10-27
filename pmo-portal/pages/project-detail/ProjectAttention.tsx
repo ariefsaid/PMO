@@ -1,14 +1,29 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Icon } from '@/src/components/ui';
+import { Button, Icon } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { AttentionItem } from './useProjectPosition';
 
 /** "Needs attention": what is wrong (with its status word), how big, and the verb that fixes it. */
-export const ProjectAttention: React.FC<{ items: AttentionItem[]; isPending?: boolean; className?: string }> = ({ items, isPending, className }) => {
+export const ProjectAttention: React.FC<{
+  items: AttentionItem[];
+  isPending?: boolean;
+  error?: { what: string; retry: () => unknown };
+  className?: string;
+}> = ({ items, isPending, error, className }) => {
   const { t } = useTranslation();
   if (isPending) return null;
+  if (error) {
+    return (
+      <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>
+        <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          <span>{t('projectDetail.attention.checkFailed', "Couldn't check {{what}}", { what: error.what })}</span>
+          <Button variant="ghost" size="sm" onClick={() => void error.retry()}>{t('common.retry', 'Retry')}</Button>
+        </p>
+      </section>
+    );
+  }
   if (items.length === 0) {
     return (
       <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>

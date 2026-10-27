@@ -10,7 +10,7 @@ import { FinanceI18nTestProvider } from './__tests__/financeI18nTestProvider';
 const state = vi.hoisted(() => ({
   budget: { data: 0, isPending: false, isError: false, refetch: vi.fn() },
   versions: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
-  position: { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 },
+  position: { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [] as unknown[], unknown: 0 },
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   pushRows: [] as unknown[],
   retryPush: vi.fn().mockResolvedValue({ pushState: 'pushed' }),
@@ -110,7 +110,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   state.budget = { data: 0, isPending: false, isError: false, refetch: vi.fn() };
   state.versions = { data: [], isPending: false, isError: false, refetch: vi.fn() };
-  state.position = { isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 };
+  state.position = { actualsPending: false, actualsError: false, refetchActuals: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 };
   state.procurements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   state.pushRows = [];
   state.role = 'Project Manager';
@@ -134,10 +134,18 @@ describe('ProjectBudget restructured tab', () => {
     expect(within(table).getByRole('columnheader', { name: 'Budget' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Spent' })).toBeInTheDocument();
     expect(within(table).getByRole('columnheader', { name: 'Left' })).toBeInTheDocument();
-    expect(within(table).getAllByText(formatNumberMax2(120))).toHaveLength(2);
-    expect(within(table).getAllByText(/committed/)).toHaveLength(2);
-    expect(within(table).getAllByText(/20 over/)).toHaveLength(2);
-    expect(within(table).getAllByText(/20 over/)[0]).toHaveClass('text-destructive-text');
+    expect(within(table).queryByText('Total')).not.toBeInTheDocument();
+    const answer = screen.getByText('20 over budget');
+    expect(answer).toHaveClass('text-destructive-text');
+    expect(screen.getByText('Spent 120 of 100')).toBeInTheDocument();
+    expect(answer.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const phoneRows = screen.getByRole('list', { name: 'Budget categories' });
+    expect(phoneRows).toHaveClass('md:hidden');
+    expect(within(phoneRows).getByRole('button', { name: /Labor/ })).toHaveTextContent(/120 of 100.*20 over/i);
+    expect(within(table).getAllByText(formatNumberMax2(120))).toHaveLength(1);
+    expect(within(table).getAllByText(/committed/)).toHaveLength(1);
+    expect(within(table).getAllByText(/20 over/)).toHaveLength(1);
+    expect(within(table).getByText(/20 over/)).toHaveClass('text-destructive-text');
     expect(within(table).queryByText(formatNumberMax2(500))).not.toBeInTheDocument();
 
     await userEvent.click(within(table).getByRole('button', { name: /expand labor/i }));
@@ -169,6 +177,17 @@ describe('ProjectBudget restructured tab', () => {
     const proposed = screen.getByRole('region', { name: 'Proposed update' });
     expect(within(proposed).queryByRole('button', { name: /^Activate$/i })).not.toBeInTheDocument();
     expect(within(proposed).getByText('Waiting for approval by finance')).toBeInTheDocument();
+  });
+
+  it('hides draft line editing on phone while keeping activation available', () => {
+    state.role = 'Finance';
+    state.versions.data = [draft() as unknown as BudgetVersionWithItems];
+    renderPage();
+
+    const addLine = screen.getByRole('button', { name: /add line item/i });
+    expect(addLine.closest('[data-testid="budget-draft-editor"]')).toHaveClass('hidden', 'md:block');
+    expect(screen.getByText('Edit the budget on a larger screen.')).toHaveClass('md:hidden');
+    expect(screen.getByRole('button', { name: /^Activate$/i })).toBeInTheDocument();
   });
 
   it('lists versions and evidence in the drawer and compares any two versions', async () => {
@@ -209,7 +228,33 @@ describe('ProjectBudget restructured tab', () => {
     renderPage();
 
     expect(screen.queryByRole('link', { name: 'Finish spending setup' })).not.toBeInTheDocument();
-    expect(screen.getByText(/categories have no spending linked yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/Spending isn't linked yet/)).toBeInTheDocument();
+  });
+
+  it('waits for spending to settle before calling it unlinked', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: null }];
+    state.position.unknown = 1;
+    state.position.actualsPending = true;
+    renderPage();
+
+    expect(screen.getByText('Checking spending…')).toBeInTheDocument();
+    expect(screen.queryByText(/Spending isn't linked yet/)).not.toBeInTheDocument();
+  });
+
+  it('offers retry for a failed spending read without claiming it is unlinked', async () => {
+    state.role = 'Admin';
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: null }];
+    state.position.unknown = 1;
+    state.position.actualsError = true;
+    renderPage();
+
+    const status = screen.getByText("Couldn't check spending.").closest<HTMLElement>('[role="status"]');
+    expect(status).toBeInTheDocument();
+    expect(screen.queryByText(/Spending isn't linked yet/)).not.toBeInTheDocument();
+    await userEvent.click(within(status!).getByRole('button', { name: 'Retry' }));
+    expect(state.position.refetchActuals).toHaveBeenCalledOnce();
   });
 
   it('keeps ERP enforcement status compact and visible only to Admin and Finance', async () => {

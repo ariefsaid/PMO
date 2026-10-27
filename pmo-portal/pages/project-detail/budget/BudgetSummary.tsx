@@ -6,7 +6,7 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatNumberMax2 } from '@/src/lib/format';
+import { formatNumberWhole } from '@/src/lib/format';
 import type { CategoryPosition } from '../useProjectPosition';
 import { buildBudgetSummaryRows, type BudgetSummaryRow } from './budgetModel';
 
@@ -14,8 +14,9 @@ interface BudgetSummaryProps {
   project: ProjectWithRefs;
   activeVersion: BudgetVersionWithItems | undefined;
   position: {
-    isError: boolean;
-    refetch: () => unknown;
+    actualsPending: boolean;
+    actualsError: boolean;
+    refetchActuals: () => unknown;
     rows: CategoryPosition[];
     canSeeActual: boolean;
     unknown: number;
@@ -29,8 +30,8 @@ function positionCell(value: number | null, budget: number, t: (key: string, fal
   if (value === null) return null;
   const remaining = budget - value;
   return remaining < 0
-    ? <span className="text-destructive-text">{t('projectDetail.budget.over', '{{amount}} over', { amount: formatNumberMax2(Math.abs(remaining)) })}</span>
-    : formatNumberMax2(remaining);
+    ? <span className="text-destructive-text">{t('projectDetail.budget.over', '{{amount}} over', { amount: formatNumberWhole(Math.abs(remaining)) })}</span>
+    : formatNumberWhole(remaining);
 }
 
 export default function BudgetSummary({
@@ -55,9 +56,7 @@ export default function BudgetSummary({
   const totalSpent = rows.length > 0 && rows.every((row) => row.spent !== null)
     ? rows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
     : null;
-  const totalCommitted = rows.length > 0 && rows.every((row) => row.committed !== null)
-    ? rows.reduce((sum, row) => sum + (row.committed ?? 0), 0)
-    : null;
+  const totalRemaining = totalSpent === null ? null : totalBudget - totalSpent;
   const columns: Column<BudgetSummaryRow>[] = [
     {
       key: 'category',
@@ -73,7 +72,7 @@ export default function BudgetSummary({
       kind: 'money',
       align: 'num',
       size: 160,
-      cell: (row) => formatNumberMax2(row.budget),
+      cell: (row) => formatNumberWhole(row.budget),
     },
     {
       key: 'spent',
@@ -83,9 +82,9 @@ export default function BudgetSummary({
       size: 220,
       cell: (row) => (
         <span className="inline-flex flex-wrap justify-end gap-x-1 tabular-nums">
-          {row.spent !== null && <span>{formatNumberMax2(row.spent)}</span>}
+          {row.spent !== null && <span>{formatNumberWhole(row.spent)}</span>}
           {row.committed !== null && row.committed > 0 && (
-            <span className="text-muted-foreground">(+{formatNumberMax2(row.committed)} {t('projectDetail.budget.committed', 'committed')})</span>
+            <span className="text-muted-foreground">(+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')})</span>
           )}
         </span>
       ),
@@ -99,41 +98,61 @@ export default function BudgetSummary({
       cell: (row) => positionCell(row.spent, row.budget, t),
     },
   ];
-  const totals = [{
-    key: 'total',
-    label: t('common.total', 'Total'),
-    values: {
-      category: t('common.total', 'Total'),
-      budget: formatNumberMax2(totalBudget),
-      spent: (
-        <span className="inline-flex flex-wrap justify-end gap-x-1 tabular-nums">
-          {totalSpent !== null && <span>{formatNumberMax2(totalSpent)}</span>}
-          {totalCommitted !== null && totalCommitted > 0 && (
-            <span className="text-muted-foreground">(+{formatNumberMax2(totalCommitted)} {t('projectDetail.budget.committed', 'committed')})</span>
-          )}
-        </span>
-      ),
-      left: positionCell(totalSpent, totalBudget, t),
-    },
-  }];
   const expanded = rows.find((row) => row.category === expandedCategory);
 
   return (
     <section aria-label={t('projectDetail.budget.summary', 'Budget summary')} className="min-w-0 space-y-3" data-testid="budget-summary">
       {activeVersion ? (
         <>
-          <DataTable
-            rows={rows}
-            columns={columns}
-            rowKey={(row) => row.category}
-            rowLabel={(row) => `${expandedCategory === row.category ? 'Collapse' : 'Expand'} ${label(row.category)} details`}
-            onActivate={(row) => setExpandedCategory((current) => current === row.category ? null : row.category)}
-            selectedKey={expandedCategory ?? undefined}
-            totals={totals}
-            tableId="project-budget-summary"
-            accessibleName={t('projectDetail.budget.tableName', 'Budget by category')}
-            cardBelow={600}
-          />
+          <div className="space-y-1" data-testid="budget-answer">
+            <p className={`text-xl font-semibold tabular-nums ${totalRemaining !== null && totalRemaining < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
+              {totalRemaining === null
+                ? t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: formatNumberWhole(totalBudget) })
+                : totalRemaining < 0
+                  ? t('projectDetail.budget.overBudgetHeadline', '{{amount}} over budget', { amount: formatNumberWhole(Math.abs(totalRemaining)) })
+                  : t('projectDetail.budget.leftHeadline', '{{amount}} left', { amount: formatNumberWhole(totalRemaining) })}
+            </p>
+            {totalSpent !== null && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.spentOf', 'Spent {{spent}} of {{budget}}', { spent: formatNumberWhole(totalSpent), budget: formatNumberWhole(totalBudget) })}</p>}
+          </div>
+          {position.canSeeActual && position.actualsPending && (
+            <p className="text-sm text-muted-foreground">{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</p>
+          )}
+          {position.canSeeActual && position.unknown > 0 && !position.actualsPending && !position.actualsError && (
+            <p className="text-sm text-muted-foreground">
+              {t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")}{' '}
+              {canManageAccounting
+                ? <Link to="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2 hover:text-foreground">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</Link>
+                : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
+            </p>
+          )}
+          <ul aria-label={t('projectDetail.budget.tableName', 'Budget categories')} className="divide-y divide-border md:hidden">
+            {rows.map((row) => {
+              const remaining = row.spent === null ? null : row.budget - row.spent;
+              const expandedRow = expandedCategory === row.category;
+              return (
+                <li key={row.category}>
+                  <button type="button" className="flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
+                    <span className="font-medium">{label(row.category)}</span>
+                    {row.spent !== null && <span className="tabular-nums">· {formatNumberWhole(row.spent)} of {formatNumberWhole(row.budget)}</span>}
+                    {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {remaining < 0 ? positionCell(row.spent, row.budget, t) : `${formatNumberWhole(remaining)} ${t('projectDetail.budget.left', 'left')}`}</span>}
+                    {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-xs text-muted-foreground">+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden md:block">
+            <DataTable
+              rows={rows}
+              columns={columns}
+              rowKey={(row) => row.category}
+              rowLabel={(row) => `${expandedCategory === row.category ? 'Collapse' : 'Expand'} ${label(row.category)} details`}
+              onActivate={(row) => setExpandedCategory((current) => current === row.category ? null : row.category)}
+              selectedKey={expandedCategory ?? undefined}
+              tableId="project-budget-summary"
+              accessibleName={t('projectDetail.budget.tableName', 'Budget by category')}
+            />
+          </div>
           {expanded && (
             <section
               aria-label={t('projectDetail.budget.lineItemsFor', '{{category}} line items', { category: label(expanded.category) })}
@@ -144,24 +163,16 @@ export default function BudgetSummary({
                 {expanded.lines.map((line) => (
                   <li key={line.id} className="flex min-w-0 items-start justify-between gap-4 py-2 text-sm">
                     <span className="min-w-0 break-words text-muted-foreground">{line.description || '—'}</span>
-                    <span className="shrink-0 tabular-nums">{formatNumberMax2(Number(line.budgeted_amount))}</span>
+                    <span className="shrink-0 tabular-nums">{formatNumberWhole(Number(line.budgeted_amount))}</span>
                   </li>
                 ))}
               </ul>
             </section>
           )}
-          {position.canSeeActual && position.unknown > 0 && (
-            <p className="text-sm text-muted-foreground">
-              {t('projectDetail.cost.unknownNote', '{{count}} categories have no spending linked yet, so they’re left out.', { count: position.unknown })}{' '}
-              {canManageAccounting
-                ? <Link to="/administration/accounting#budget-account-map" className="font-medium text-primary-text underline underline-offset-2 hover:text-foreground">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</Link>
-                : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
-            </p>
-          )}
-          {position.isError && (
+          {position.actualsError && (
             <p role="status" className="text-sm text-muted-foreground">
-              {t('projectDetail.budget.actualsError', 'Actual spending could not be loaded.')}{' '}
-              <Button variant="ghost" size="sm" onClick={() => void position.refetch()}>{t('common.retry', 'Retry')}</Button>
+              {t('projectDetail.budget.actualsError', "Couldn't check spending.")}{' '}
+              <Button variant="ghost" size="sm" onClick={() => void position.refetchActuals()}>{t('common.retry', 'Retry')}</Button>
             </p>
           )}
         </>

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderHook, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { render, renderHook, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes } from 'react-router';
 import { renderWithQueryClient } from '@/test/renderWithQueryClient';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
@@ -11,9 +12,23 @@ const state = vi.hoisted(() => ({
   fxRateCalls: [] as unknown[][],
   versions: [] as unknown[],
   finances: null as unknown,
+  financePending: false,
+  financeError: false,
+  financeRefetch: vi.fn(),
   invoices: [] as unknown[],
+  invoicesPending: false,
+  invoicesError: false,
+  invoicesRefetch: vi.fn(),
   milestones: [] as unknown[],
+  milestonesPending: false,
+  milestonesError: false,
+  milestonesRefetch: vi.fn(),
   procurements: [] as unknown[],
+  procurementsPending: false,
+  procurementsError: false,
+  procurementsRefetch: vi.fn(),
+  billing: { contractLines: [] as unknown[] },
+  tasks: [] as unknown[],
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -35,10 +50,10 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ data: state.versions, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
-  useProjectFinances: () => ({ data: state.finances, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectFinances: () => ({ data: state.finances, isPending: state.financePending, isError: state.financeError, refetch: state.financeRefetch }),
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: state.invoices, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesInvoices: () => ({ data: state.invoices, isPending: state.invoicesPending, isError: state.invoicesError, refetch: state.invoicesRefetch }),
 }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
@@ -53,16 +68,20 @@ vi.mock('@/src/hooks/useFxRates', () => ({
   },
 }));
 vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: state.milestones, isPending: false, isError: false, refetch: vi.fn() }),
+  useMilestones: () => ({ data: state.milestones, isPending: state.milestonesPending, isError: state.milestonesError, refetch: state.milestonesRefetch }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectProcurements: () => ({ data: state.procurements, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: state.procurements, isPending: state.procurementsPending, isError: state.procurementsError, refetch: state.procurementsRefetch }),
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({ useProjectBilling: () => ({ data: state.billing, isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useTasks: () => ({ data: state.tasks, isPending: false, isError: false, refetch: vi.fn() }) }));
 
 import { useBudgetPosition, useOverdueReceivables, useProjectAttention } from '../useProjectPosition';
-import { MoneyBlock } from '../ProjectBlocks';
+import { CostBlock, DeliveryBlock, MoneyBlock } from '../ProjectBlocks';
 import { PrimaryProjectAction } from '../ProjectSections';
+import { ProjectAttention } from '../ProjectAttention';
+import { MyOpenTasks } from '../ProjectActivity';
 
 const project = (overrides: Partial<ProjectWithRefs> = {}) => ({
   id: 'p1', status: 'Ongoing Project', currency: 'USD', contract_value: 1_000,
@@ -89,9 +108,23 @@ beforeEach(() => {
   state.fxRateCalls = [];
   state.versions = [];
   state.finances = null;
+  state.financePending = false;
+  state.financeError = false;
+  state.financeRefetch.mockReset();
   state.invoices = [];
+  state.invoicesPending = false;
+  state.invoicesError = false;
+  state.invoicesRefetch.mockReset();
   state.milestones = [];
+  state.milestonesPending = false;
+  state.milestonesError = false;
+  state.milestonesRefetch.mockReset();
   state.procurements = [];
+  state.procurementsPending = false;
+  state.procurementsError = false;
+  state.procurementsRefetch.mockReset();
+  state.billing = { contractLines: [] };
+  state.tasks = [];
 });
 
 describe('project money position', () => {
@@ -144,7 +177,7 @@ describe('project money position', () => {
     ];
 
     const { result } = renderHook(() => useOverdueReceivables(project()));
-    expect(result.current).toMatchObject({ count: 2, oldest: 7, balance: null });
+    expect(result.current.data).toMatchObject({ count: 2, oldest: 7, balance: null });
 
     const attention = renderHook(() => useProjectAttention(project(), 'money'));
     const ar = attention.result.current.items.find((item) => item.key === 'ar');
@@ -160,7 +193,7 @@ describe('project money position', () => {
     ];
 
     const { result } = renderHook(() => useOverdueReceivables(project()));
-    expect(result.current).toMatchObject({ count: 2, oldest: 7, balance: 75 });
+    expect(result.current.data).toMatchObject({ count: 2, oldest: 7, balance: 75 });
   });
 
   it('collects over-budget, overdue, late-phase and waiting-request actions with danger items first', () => {
@@ -180,7 +213,7 @@ describe('project money position', () => {
     expect(result.current.items[0]).toMatchObject({ what: 'Project over budget', to: '/projects/p1/budget' });
     expect(result.current.items[1]?.size).toContain('40 USD unpaid');
     expect(result.current.items[2]?.what).toContain('Design');
-    expect(result.current.items[3]?.what).toBe('Purchase request waiting for you');
+    expect(result.current.items[3]?.what).toBe('Procurement waiting for your approval');
   });
 
   it('returns no attention items for the Engineer delivery lens', () => {
@@ -196,6 +229,36 @@ describe('project money position', () => {
 
     const { result } = renderHook(() => useProjectAttention(project(), 'delivery'));
     expect(result.current.items).toEqual([]);
+  });
+
+  it.each(['milestones', 'budget actuals', 'receivables', 'procurements'])(
+    'does not declare the project clear while %s is pending', (source) => {
+      if (source === 'milestones') state.milestonesPending = true;
+      if (source === 'budget actuals') {
+        state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+        state.financePending = true;
+      }
+      if (source === 'receivables') state.invoicesPending = true;
+      if (source === 'procurements') state.procurementsPending = true;
+
+      const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
+      expect(result.current.isPending).toBe(true);
+      const view = render(<ProjectAttention items={result.current.items} isPending={result.current.isPending} />);
+      expect(view.queryByText(/Nothing needs you/i)).not.toBeInTheDocument();
+    },
+  );
+
+  it('reports one failed spending check with a retry instead of a clear state', async () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.financeError = true;
+    const { result } = renderHook(() => useProjectAttention(project(), 'pm'));
+    const view = render(
+      <ProjectAttention items={result.current.items} isPending={result.current.isPending} error={result.current.error} />,
+    );
+    expect(view.getByText("Couldn't check spending")).toBeInTheDocument();
+    expect(view.queryByText(/Nothing needs you/i)).not.toBeInTheDocument();
+    await userEvent.click(view.getByRole('button', { name: 'Retry' }));
+    expect(state.financeRefetch).toHaveBeenCalled();
   });
 });
 
@@ -242,6 +305,102 @@ describe('project primary invoice action', () => {
     );
     expect(screen.queryByRole('button', { name: 'Chase payment' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+  });
+
+  it('uses accepted unclaimed contract quantities when contract lines exist', () => {
+    state.role = 'Finance';
+    state.invoices = [];
+    state.finances = { remaining_to_invoice: 10 };
+    state.billing = { contractLines: [{ allocations: [
+      { acceptedQuantity: 8, claimedQuantity: 5 },
+      { acceptedQuantity: 4, claimedQuantity: 4 },
+    ] }] };
+
+    renderWithQueryClient(
+      <MemoryRouter><PrimaryProjectAction project={project()} isPipeline={false} /></MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+  });
+
+  it('does not raise an invoice when all accepted contract quantities have been claimed', () => {
+    state.role = 'Finance';
+    state.invoices = [];
+    state.finances = { remaining_to_invoice: 500 };
+    state.billing = { contractLines: [{ allocations: [
+      { acceptedQuantity: 8, claimedQuantity: 8 },
+    ] }] };
+
+    renderWithQueryClient(
+      <MemoryRouter><PrimaryProjectAction project={project()} isPipeline={false} /></MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+  });
+
+  it('offers only Chase payment in contract-only mode', () => {
+    state.role = 'Finance';
+    state.invoices = [];
+    state.finances = { remaining_to_invoice: 500 };
+    renderWithQueryClient(
+      <MemoryRouter><PrimaryProjectAction project={project()} isPipeline={false} chaseOnly /></MemoryRouter>,
+    );
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+  });
+
+  it('takes Raise invoice to Contract & billing and omits it in contract-only mode', async () => {
+    state.role = 'Finance';
+    state.invoices = [];
+    state.finances = { remaining_to_invoice: 50 };
+    renderWithQueryClient(
+      <MemoryRouter initialEntries={['/projects/p1/overview']}>
+        <Routes>
+          <Route path="/projects/p1/overview" element={<PrimaryProjectAction project={project()} isPipeline={false} />} />
+          <Route path="/projects/p1/contract" element={<p>Contract &amp; billing surface</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Raise invoice' }));
+    expect(screen.getByText('Contract & billing surface')).toBeInTheDocument();
+  });
+});
+
+describe('pipeline overview blocks and engineer task links', () => {
+  it('shows only the pre-win estimated budget and planned-phases line', () => {
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '150' }]);
+    state.milestones = [{ id: 'm1', name: 'Should not leak', weight: 1, effective_pct: 50, target_date: null, task_count: 1 }];
+    renderWithQueryClient(
+      <MemoryRouter>
+        <CostBlock project={project({ budget: 1200 })} isPipeline />
+        <DeliveryBlock projectId="p1" isPipeline />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText('Estimated budget 1,200')).toBeInTheDocument();
+    expect(screen.getByText('Phases are planned once the deal is won.')).toBeInTheDocument();
+    expect(screen.queryByText(/over budget|within budget|% delivered|Should not leak/i)).not.toBeInTheDocument();
+  });
+
+  it('keeps an unknown budget total without a false within-budget claim and names one setup fix', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: false, amount: null }]);
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('Budget 100')).toBeInTheDocument();
+    expect(screen.queryByText(/within budget/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Spending isn't linked yet.")).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Finish spending setup' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+    expect(screen.queryByText(/categories have no spending linked yet/i)).not.toBeInTheDocument();
+  });
+
+  it('hides phase editing below the medium breakpoint', () => {
+    renderWithQueryClient(<MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter>);
+    expect(screen.getByRole('button', { name: 'Update phases' })).toHaveClass('max-md:hidden');
+  });
+
+  it('links an overdue task to its task anchor and uses destructive text for urgency', () => {
+    state.tasks = [{ id: 'task-17', name: 'Review drawings', status: 'In Progress', assignee_id: 'viewer-1', end_date: '2000-01-01' }];
+    renderWithQueryClient(<MemoryRouter><MyOpenTasks projectId="p1" /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: /Review drawings/i })).toHaveAttribute('href', '/projects/p1/tasks#task-task-17');
+    expect(screen.getByText(/Overdue ·/)).toHaveClass('text-destructive-text');
   });
 });
 

@@ -100,6 +100,146 @@ export interface ProjectDetailHeaderProps {
   secondaryAction?: React.ReactNode;
 }
 
+interface FinancialSummaryProps extends Pick<ProjectDetailHeaderProps, 'project' | 'committedSpend' | 'committedOtherCurrencies' | 'commitmentSource' | 'ledgerBasis' | 'commitmentPending' | 'commitmentError'> {
+  isOnHand: boolean;
+  isFinanceForward: boolean;
+  canViewActual: boolean;
+  canEditValue: boolean;
+  valueEditing: boolean;
+  lockReasonOpen: boolean;
+  onToggleLockReason: () => void;
+  onBeginValueEdit: () => void;
+}
+
+/** This component is mounted only for the full header; compact project headers never fetch or build this strip. */
+const ProjectFinancialSummary: React.FC<FinancialSummaryProps> = ({
+  project,
+  committedSpend,
+  committedOtherCurrencies,
+  commitmentSource = 'unavailable',
+  ledgerBasis = 'unavailable',
+  commitmentPending = false,
+  commitmentError = false,
+  isOnHand,
+  isFinanceForward,
+  canViewActual,
+  canEditValue,
+  valueEditing,
+  lockReasonOpen,
+  onToggleLockReason,
+  onBeginValueEdit,
+}) => {
+  const { t, i18n } = useTranslation();
+  const isDesktop = useIsDesktop();
+  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
+  const activeBudget = derivedBudget ?? 0;
+  const financeQuery = useProjectFinances(project.id, { enabled: true });
+  const actuals = financeQuery.data?.actuals;
+  const authorizedActuals = ledgerBasis === 'erp' && !canViewActual ? undefined : actuals;
+  const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
+    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
+    actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
+  const actualPosition = moneyPosition.actual;
+  const actualUnavailable = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
+    : moneyPosition.headlineState === 'loading'
+      ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
+      : moneyPosition.headlineState === 'partial'
+        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
+        : <UnknownFigure reason={actualUnavailable} />;
+  const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
+    ? attributedSplit({ attributed: authorizedActuals.attributed_total })
+    : null;
+  const actualCoverage = moneyPosition.coverage.kind === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : moneyPosition.coverage.kind === 'complete'
+      ? t('uxs01.completeCoverage', 'Complete category coverage')
+      : moneyPosition.coverage.kind === 'partial'
+        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
+        : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
+  const contractAfterCost = moneyPosition.contractAfterCost;
+  const contractAfterCostTone = moneyPosition.contractAfterCostTone;
+  const contractAfterCostLabel = contractAfterCost === null
+    ? null
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
+  const spendPct = moneyPosition.spendPercent;
+  const taxDetailsNeeded = project.tax_rate == null
+    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
+  const spendTileValue: string | null = budgetPending || budgetError || activeBudget <= 0 || spendPct === null ? null : `${spendPct}%`;
+  const tiles: StatTile[] = [
+    {
+      label: t('projectDetail.header.tile.contract', 'Contract'),
+      value: (
+        <div className="flex flex-wrap items-baseline gap-2">
+          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={actualUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
+          <div className="basis-full min-w-0">
+            <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} compact />
+          </div>
+          {!valueEditing && canEditValue && isFinanceForward && (
+            <Button variant="outline" size="sm" onClick={onBeginValueEdit}
+              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
+              {t('projectDetail.header.action.edit', 'Edit')}
+            </Button>
+          )}
+          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
+            <button type="button" aria-expanded={lockReasonOpen} aria-controls="contract-value-lock-reason" onClick={onToggleLockReason}
+              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+              <Icon name="lock" className="size-3" />
+              {t('projectDetail.header.readOnly', 'Read-only')}
+              <Icon name="chev" className="size-3 rotate-90" />
+            </button>
+          )}
+        </div>
+      ),
+      sub: project.tax_treatment ? (
+        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={taxDetailsNeeded} detailsMode="disclosure" testId="contract-tile-tax-basis" />
+      ) : undefined,
+    },
+    ...(commitmentSource === 'pmo'
+      ? [{
+          label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+          value: commitmentPending
+            ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
+            : commitmentError || committedSpend === undefined
+              ? <UnknownFigure reason={actualUnavailable} />
+              : formatCurrency(committedSpend, project.currency),
+          ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
+        }]
+      : []),
+    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
+      sub: actualPosition.complete
+        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+          {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
+            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language) ?? attributedActual.attributed })}
+          </span>}
+          {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
+        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
+    ...(contractAfterCostLabel === null ? [] : [{
+      label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+      value: contractAfterCostLabel,
+      ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
+    }]),
+    ...(spendTileValue === null ? [] : [{ label: t('projectDetail.header.tile.spend', 'Spend'), value: spendTileValue }]),
+  ];
+
+  return (
+    <div className="mb-1 min-w-0">
+      <details open={isDesktop} className="min-w-0">
+        <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
+          {t('projectDetail.overview.finance.title', 'Financial summary')}
+        </summary>
+        <div className={`mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:gap-3 ${STRIP_COLS[tiles.length] ?? STRIP_COLS[5]}`}>
+          <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
+            className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
+          <StatTiles tiles={tiles.slice(1)} columns={Math.min(tiles.length - 1, 4)} variant="bare"
+            className={`gap-x-3 gap-y-2 [&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
+        </div>
+      </details>
+    </div>
+  );
+};
+
 /**
  * Detail-page header: PageHeader (icon + name + StatusPill + meta row) + a 5-stat
  * strip (Contract / PMO purchase orders / Actual / Contract remaining after cost / Spend %).
@@ -127,8 +267,8 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   editValueRequest = 0,
   secondaryAction,
 }) => {
-  const { t, i18n } = useTranslation();
-  const isDesktop = useIsDesktop();
+  const { t } = useTranslation();
+
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { toast } = useToast();
@@ -170,44 +310,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
   // relocated to the Overview "Financial summary" aside. Finance-forward roles (Admin·Exec·Finance·PM)
   // keep the header unchanged. FE-only reprioritization — never hides RLS-permitted data.
   const isFinanceForward = hasFinanceView(realRole);
-  const committed = committedSpend;
-  // Keep the PMO purchase-order amount distinct from Actual; Actual is read from the scoped
-  // project-finances source and is withheld unless category coverage is complete.
-  // Spend% uses complete Actual against the derived Active budget, never the stored project fields.
-  const { data: derivedBudget, isPending: budgetPending, isError: budgetError } = useProjectBudget(project.id);
-  const activeBudget = derivedBudget ?? 0;
-  const financeQuery = useProjectFinances(project.id, { enabled: isDelivery && isFinanceForward });
-  const actuals = financeQuery.data?.actuals;
-  const authorizedActuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : actuals;
-  const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
-    committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency,
-    actuals: authorizedActuals, contractValue: project.contract_value, activeBudget });
-  const actualPosition = moneyPosition.actual;
-  const actualUnavailable = t('uxs01.actualUnavailable', 'Unavailable');
-  const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
-    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={actualUnavailable} />
-    : moneyPosition.headlineState === 'loading'
-      ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
-      : moneyPosition.headlineState === 'partial'
-        ? <UnknownFigure reason={t('uxs01.actualPartial', 'Incomplete — see spending details')} />
-        : <UnknownFigure reason={actualUnavailable} />;
-  const attributedActual = actualPosition.basis === 'erp' && actualPosition.complete && authorizedActuals
-    ? attributedSplit({ attributed: authorizedActuals.attributed_total })
-    : null;
-  const actualCoverage = moneyPosition.coverage.kind === 'pmo'
-    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
-    : moneyPosition.coverage.kind === 'complete'
-      ? t('uxs01.completeCoverage', 'Complete category coverage')
-      : moneyPosition.coverage.kind === 'partial'
-        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
-        : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
-  const contractAfterCost = moneyPosition.contractAfterCost;
-  const contractAfterCostTone = moneyPosition.contractAfterCostTone;
-  const contractAfterCostLabel = contractAfterCost === null
-    ? null
-    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
-  const spendPct = moneyPosition.spendPercent;
-
   const canEdit = may('edit', 'project');
   const canArchive = may('archive', 'project');
   const canDelete = may('delete', 'project'); // Admin-only (rbac-visibility §B2/§K).
@@ -223,16 +325,13 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
         })
       : t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })
     : null;
-  const compactMeta = [
-    <StatusPill key="status" variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill>,
-    customerName,
-    project.pm?.full_name ? t('projectDetail.header.pm', 'PM {{name}}', { name: project.pm.full_name }) : null,
-    project.start_date || project.end_date ? `${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}` : null,
-    project.customer_contract_ref ? t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref }) : null,
-  ].filter(Boolean);
   const meta = compact ? (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground">
-      {compactMeta.map((part, i) => <span key={i} className="inline-flex items-center">{part}</span>)}
+      <span className="inline-flex items-center"><StatusPill variant={pillVariantForProjectStatus(status)}>{project.status}</StatusPill></span>
+      {customerName && <span className="inline-flex items-center">{customerName}</span>}
+      {project.pm?.full_name && <span className="inline-flex items-center">{t('projectDetail.header.pm', 'PM {{name}}', { name: project.pm.full_name })}</span>}
+      {(project.start_date || project.end_date) && <span className="hidden items-center md:inline-flex">{`${formatDateOnly(project.start_date)} – ${formatDateOnly(project.end_date)}`}</span>}
+      {project.customer_contract_ref && <span className="hidden items-center md:inline-flex">{t('projectDetail.header.po', 'PO {{ref}}', { ref: project.customer_contract_ref })}</span>}
     </div>
   ) : (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -240,85 +339,6 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {orderReference && <span>{orderReference}</span>}
     </div>
   );
-
-  // PD-A: a figure shows only when it has a value (or is transiently "—"); a capability the org does not
-  // use (PMO purchase orders on an ERP-owned org), no budget, or an incomplete Actual gets no tile or prose.
-  const taxDetailsNeeded = project.tax_rate == null
-    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
-  const spendTileValue: string | null = budgetPending || budgetError || activeBudget <= 0 || spendPct === null ? null : `${spendPct}%`;
-  const tiles: StatTile[] = [
-    {
-      label: t('projectDetail.header.tile.contract', 'Contract'),
-      value: (
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span data-testid="contract-value-amount">{project.contract_value == null ? <UnknownFigure reason={actualUnavailable} /> : formatCurrency(project.contract_value, project.currency)}</span>
-          <div className="basis-full min-w-0">
-            <FxEquivalent
-              amount={project.contract_value}
-              currency={project.currency}
-              date={project.contract_date}
-              compact
-            />
-          </div>
-          {!valueEditing && canEditValue && isFinanceForward && (
-            <Button variant="outline" size="sm" onClick={() => beginValueEdit()}
-              aria-label={t('projectDetail.header.editContractValue', 'Edit contract value')}>
-              {t('projectDetail.header.action.edit', 'Edit')}
-            </Button>
-          )}
-          {!valueEditing && !(canEditValue && isFinanceForward) && isOnHand && (
-            <button
-              type="button"
-              aria-expanded={lockReasonOpen}
-              aria-controls="contract-value-lock-reason"
-              onClick={() => setLockReasonOpen(open => !open)}
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground"
-            >
-              <Icon name="lock" className="size-3" />
-              {t('projectDetail.header.readOnly', 'Read-only')}
-              <Icon name="chev" className="size-3 rotate-90" />
-            </button>
-          )}
-        </div>
-      ),
-      sub: project.tax_treatment ? (
-        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={taxDetailsNeeded} detailsMode="disclosure" testId="contract-tile-tax-basis" />
-      ) : undefined,
-    },
-    ...(commitmentSource === 'pmo'
-      ? [{
-          label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
-          value: commitmentPending
-            ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
-            : commitmentError || committed === undefined
-              ? <UnknownFigure reason={actualUnavailable} />
-              : formatCurrency(committed, project.currency),
-          ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
-        }]
-      : []),
-    // Actual comes from the project-finances source and is withheld unless coverage is complete;
-    // partial coverage is a one-word flag — the coverage + date live once in Project finances.
-    { label: t('projectDetail.header.tile.actual', 'Actual'), value: actualFigure,
-      sub: actualPosition.complete
-        ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
-          {/* #1271 AC-3: attributed cost is named apart from tagged cost, only when there is some. */}
-          {attributedActual && actualPosition.currency && <span className="block" data-testid="actual-attributed-note">
-            {t('costAttribution:split.header', 'Includes {{attributed}} attributed', { attributed: formatExactMoney(attributedActual.attributed, actualPosition.currency, i18n.language) ?? attributedActual.attributed })}
-          </span>}
-          {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
-          {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
-        : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined },
-    ...(contractAfterCostLabel === null
-      ? []
-      : [{
-          label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
-          value: contractAfterCostLabel,
-          ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
-        }]),
-    ...(spendTileValue === null
-      ? []
-      : [{ label: t('projectDetail.header.tile.spend', 'Spend'), value: spendTileValue }]),
-  ];
 
   const beginValueEdit = () => {
     // Seed the editor with the formatted figure ("5,000,000"), not the raw number. The tax fields
@@ -433,19 +453,22 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {primaryAction}
       {secondaryAction}
       {canEdit && (
-        <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
-          {t('projectDetail.header.action.edit', 'Edit')}
-        </Button>
+        <span className="hidden md:inline-flex">
+          <Button variant="outline" size="sm" className="touch-target" onClick={onEditProject}>
+            {t('projectDetail.header.action.edit', 'Edit')}
+          </Button>
+        </span>
       )}
-      {(canArchive || canDelete || canChangeValue) && (
+      {(canEdit || canArchive || canDelete || canChangeValue) && (
         // ponytail: native <details> as the overflow menu; no menu primitive exists yet.
-        <details className="relative">
+        <details className={`relative ${canArchive || canDelete || canChangeValue ? '' : 'md:hidden'}`}>
           <summary className="touch-target inline-flex h-8 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium text-foreground hover:bg-accent [&::-webkit-details-marker]:hidden"
             aria-label={t('projectDetail.header.more', 'More actions')}>
             {t('projectDetail.header.moreShort', 'More')}
             <Icon name="chev" className="size-4 rotate-90" />
           </summary>
           <div className="absolute right-0 z-20 mt-1 flex min-w-48 flex-col rounded-lg border border-border bg-popover p-1">
+            {canEdit && <Button variant="ghost" size="sm" className="justify-start md:hidden" onClick={onEditProject}>{t('projectDetail.header.action.edit', 'Edit')}</Button>}
             {canChangeValue && <Button variant="ghost" size="sm" className="justify-start" onClick={() => beginValueEdit()}>{t('projectDetail.header.changeContractValue', 'Change contract value')}</Button>}
             {canArchive && <Button variant="ghost" size="sm" className="justify-start" onClick={() => setArchiveOpen(true)}>{t('projectDetail.header.action.archive', 'Archive')}</Button>}
             {canDelete && <Button variant="ghost" size="sm" className="justify-start text-destructive-text hover:bg-destructive/10 hover:text-destructive-text" onClick={() => setDeleteOpen(true)}>{t('projectDetail.header.action.delete', 'Delete')}</Button>}
@@ -617,19 +640,23 @@ const ProjectDetailHeader: React.FC<ProjectDetailHeaderProps> = ({
       {compact && valueEditing && isFinanceForward && <div className="mb-4 rounded-lg border border-border p-4">{sodRow}</div>}
       {!compact && isDelivery && isFinanceForward && (
         <>
-          <div className="mb-1 min-w-0">
-            <details open={isDesktop} className="min-w-0">
-              <summary className="cursor-pointer text-xs font-semibold text-muted-foreground md:hidden">
-                {t('projectDetail.overview.finance.title', 'Financial summary')}
-              </summary>
-              <div className={`mt-2 grid min-w-0 grid-cols-1 gap-2 md:mt-0 md:gap-3 ${STRIP_COLS[tiles.length] ?? STRIP_COLS[5]}`}>
-                <StatTiles tiles={tiles.slice(0, 1)} columns={1} variant="bare"
-                  className="grid-cols-1! [&>div]:min-w-0 [&>div]:col-span-1 [&>div]:py-0 md:[&>div]:py-1" />
-                <StatTiles tiles={tiles.slice(1)} columns={Math.min(tiles.length - 1, 4)} variant="bare"
-                  className={`gap-x-3 gap-y-2 [&>div]:min-w-0 ${REST_SPAN[tiles.length - 1] ?? REST_SPAN[4]}`} />
-              </div>
-            </details>
-          </div>
+          <ProjectFinancialSummary
+            project={project}
+            committedSpend={committedSpend}
+            committedOtherCurrencies={committedOtherCurrencies}
+            commitmentSource={commitmentSource}
+            ledgerBasis={ledgerBasis}
+            commitmentPending={commitmentPending}
+            commitmentError={commitmentError}
+            isOnHand={isOnHand}
+            isFinanceForward={isFinanceForward}
+            canViewActual={may('view', 'salesInvoice')}
+            canEditValue={canEditValue}
+            valueEditing={valueEditing}
+            lockReasonOpen={lockReasonOpen}
+            onToggleLockReason={() => setLockReasonOpen(open => !open)}
+            onBeginValueEdit={beginValueEdit}
+          />
           {isOnHand && !(canEditValue && isFinanceForward) && !valueEditing && (
             <div data-testid="contract-value-lock-lane" className="mb-1" hidden={!lockReasonOpen}>
               <p id="contract-value-lock-reason" data-testid="contract-value-lock-reason" className="text-xs text-muted-foreground">

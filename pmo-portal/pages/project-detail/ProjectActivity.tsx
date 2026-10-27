@@ -64,11 +64,11 @@ export const MyOpenTasks: React.FC<{ projectId: string }> = ({ projectId }) => {
         <ul className="divide-y divide-border/70 border-y border-border/70">
           {mine.slice(0, 6).map((task) => (
             <li key={task.id}>
-              <Link to={`/projects/${projectId}/tasks`} className="touch-target flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-accent/60">
+              <Link to={`/projects/${projectId}/tasks#task-${task.id}`} className="touch-target flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm hover:bg-accent/60">
                 <span className="min-w-0 basis-full font-medium text-foreground sm:basis-0 sm:flex-1">{task.name}</span>
                 <StatusPill variant={task.status === 'Blocked' ? 'overdue' : task.status === 'In Progress' ? 'progress' : 'neutral'}>{task.status}</StatusPill>
                 {task.end_date && (task.end_date < today
-                  ? <span className="shrink-0 text-xs font-medium text-muted-foreground sm:w-28 sm:text-right">{t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })}</span>
+                  ? <span className="shrink-0 text-xs font-medium text-destructive-text sm:w-28 sm:text-right">{t('projectDetail.myTasks.overdue', 'Overdue · {{days}} days', { days: Math.round((Date.parse(today) - Date.parse(task.end_date)) / 86_400_000) })}</span>
                   : <span className="shrink-0 text-xs text-muted-foreground sm:w-28 sm:text-right">{formatDateOnly(task.end_date)}</span>)}
               </Link>
             </li>

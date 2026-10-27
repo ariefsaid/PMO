@@ -41,11 +41,13 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({
-  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectFinances: () => ({ data: { remaining_to_invoice: 100_000 }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+const { invoiceState } = vi.hoisted(() => ({ invoiceState: { data: [] as Array<Record<string, unknown>> } }));
 vi.mock('@/src/hooks/useRevenue', () => ({
-  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesInvoices: () => ({ ...invoiceState, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProgressBilling', () => ({ useProjectBilling: () => ({ data: { contractLines: [] }, isPending: false, isError: false, refetch: vi.fn() }) }));
 vi.mock('@/src/hooks/useFxOrgDay', () => ({
   useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
@@ -86,7 +88,7 @@ vi.mock('../tabs/BillingTab', () => ({ default: () => <div>Billing surface</div>
 vi.mock('../ContractCascade', () => ({
   ContractCascade: ({ children }: { children: React.ReactNode }) => <div data-testid="contract-cascade">{children}</div>,
 }));
-vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div>, hasFinanceView: () => true }));
+vi.mock('../ProjectDetailHeader', () => ({ default: ({ primaryAction }: { primaryAction?: React.ReactNode }) => <div>Header{primaryAction}</div>, hasFinanceView: () => true }));
 vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
 vi.mock('../PipelineLens', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
 vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
@@ -96,7 +98,12 @@ vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () =>
 vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
 vi.mock('../useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
-  useOverdueReceivables: () => null,
+  useOverdueReceivables: () => ({
+    data: invoiceState.data.length > 0 ? { to: '/sales-invoices?project=p1&overdue=true' } : null,
+    isPending: false,
+    isError: false,
+    refetch: vi.fn(),
+  }),
 }));
 vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
 vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => null }));
@@ -172,4 +179,31 @@ describe('ProjectDetail — section deep links (AC-W2-IA-004)', () => {
       expect(screen.queryByRole('tab', { name: 'Contract & billing' })).not.toBeInTheDocument();
     },
   );
+});
+
+describe('ProjectDetail — primary action scope', () => {
+  it.each(['/projects/p1/budget', '/projects/p1/procurement', '/projects/p1/tasks', '/projects/p1/documents'])(
+    'does not pin the invoice action to %s', async (path) => {
+      await renderAt(path, 'Finance');
+      expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Chase payment' })).not.toBeInTheDocument();
+    },
+  );
+
+  it('keeps the primary action on Overview and limits Contract & billing to Chase payment', async () => {
+    invoiceState.data = [{
+      id: 'inv-1', status: 'Submitted', invoice_date: '2026-10-01', erp_due_date: '2026-10-20',
+      erp_payment_terms_days: 30, erp_outstanding_amount: '500',
+    }];
+    const overview = await renderAt('/projects/p1', 'Finance');
+    const overviewActions = screen.getAllByRole('button', { name: 'Chase payment' });
+    expect(overviewActions).toHaveLength(2);
+    expect(overviewActions.some((button) => button.closest('[data-mobile-action-bar]'))).toBe(true);
+    expect(overviewActions.some((button) => button.closest('span.hidden.md\\:inline-flex'))).toBe(true);
+    overview.unmount();
+
+    await renderAt('/projects/p1/contract', 'Finance');
+    expect(screen.getAllByRole('button', { name: 'Chase payment' })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
+  });
 });

@@ -2,7 +2,7 @@ import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Icon, ListState, ProgressBar, TaxBasisLabel } from '@/src/components/ui';
+import { Button, Icon, ListState, ProgressBar, TaxBasisLabel } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
@@ -21,8 +21,8 @@ const num = (exact: string | null | undefined): number | null => (exact == null 
 const pctOf = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 100) : 0);
 
 /** The one style for an in-block action: a quiet text action on the heading row, 44px tap area. */
-export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children: React.ReactNode; expanded?: boolean }> = ({ onClick, to, children, expanded }) => {
-  const cls = 'touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+export const BlockAction: React.FC<{ onClick?: () => void; to?: string; children: React.ReactNode; expanded?: boolean; className?: string }> = ({ onClick, to, children, expanded, className }) => {
+  const cls = cn('touch-target inline-flex items-center text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', className);
   return to
     ? <Link to={to} className={cls}>{children}</Link>
     : <button type="button" onClick={onClick} aria-expanded={expanded} className={cls}>{children}</button>;
@@ -125,7 +125,30 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
 };
 
 /* ── Cost: are we spending within budget, and where not? ─────────────────────────────────── */
-export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void }> = ({ project, onOpenBudget }) => {
+const CostUnit: React.FC<{ project: ProjectWithRefs }> = ({ project }) => (
+  <>
+    {project.currency}
+    {project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+  </>
+);
+
+const EstimatedBudgetBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
+  const { t } = useTranslation();
+  const amount = project.budget;
+  return (
+    <Block id="pd-cost" title={t('projectDetail.cost.estimateTitle', 'Budget')} unit={<CostUnit project={project} />}>
+      <Headline>{amount == null
+        ? t('projectDetail.cost.noEstimate', 'No estimated budget yet')
+        : t('projectDetail.cost.estimated', 'Estimated budget {{amount}}', { amount: whole(Number(amount)) })}</Headline>
+    </Block>
+  );
+};
+
+export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void; isPipeline?: boolean }> = ({ project, onOpenBudget, isPipeline = false }) => (
+  isPipeline ? <EstimatedBudgetBlock project={project} /> : <ActiveCostBlock project={project} onOpenBudget={onOpenBudget} />
+);
+
+const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () => void }> = ({ project, onOpenBudget }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const canFixSetup = may('manage', 'orgAccounting');
@@ -151,8 +174,9 @@ export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =
     .sort((a, b) => b.actual / (b.budget || 1) - a.actual / (a.budget || 1));
   const notStarted = pos.rows.filter((r) => r.actual === 0);
   const committedFigure = committed.commitmentSource === 'pmo' && committed.data !== undefined ? committed.data : null;
+  const hasComparisons = !pos.canSeeActual || pos.spent !== null;
 
-  const answer = !pos.canSeeActual ? (
+  const answer = !pos.canSeeActual || pos.spent === null ? (
     <Headline>{t('projectDetail.cost.budgetOnly', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Headline>
   ) : pos.projectOver !== null ? (
     <>
@@ -170,18 +194,23 @@ export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =
       <Headline>{t('projectDetail.cost.within', 'Within budget')}</Headline>
       <Sub>{t('projectDetail.cost.withinSub', 'Spent {{spent}} of {{budget}}', { spent: whole(pos.spent), budget: whole(pos.budget) })}</Sub>
     </>
-  ) : (
-    <>
-      <Headline>{t('projectDetail.cost.withinRecorded', 'Within budget so far')}</Headline>
-      <Sub>{t('projectDetail.cost.budgetTotal', 'Budget {{budget}}', { budget: whole(pos.budget) })}</Sub>
-    </>
-  );
+  ) : null;
 
   return (
-    <Block id="pd-cost" title={title} unit={project.currency} action={action}>
+    <Block id="pd-cost" title={title} unit={<CostUnit project={project} />} action={action}>
       {answer}
-      {committedFigure !== null && <Sub>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
-      {pos.canSeeActual && started.length > 0 && (
+      {pos.actualsPending && <Note>{t('projectDetail.cost.spendingChecking', 'Checking spending…')}</Note>}
+      {pos.actualsError && <Note>{t('projectDetail.cost.spendingError', "Couldn't check spending")} <Button variant="ghost" size="sm" onClick={() => void pos.refetchActuals()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {pos.canSeeActual && pos.spent === null && !pos.actualsPending && !pos.actualsError && (
+        <Note>
+          {t('projectDetail.cost.spendingUnlinked', "Spending isn't linked yet.")}{' '}
+          {canFixSetup
+            ? <FixLink to="/administration/accounting#budget-account-map">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</FixLink>
+            : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
+        </Note>
+      )}
+      {hasComparisons && committedFigure !== null && <Sub>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
+      {hasComparisons && pos.canSeeActual && started.length > 0 && (
         <ul className="@container mt-6 flex flex-col gap-3">
           {started.map((r) => {
             const over = r.actual > r.budget;
@@ -198,16 +227,8 @@ export const CostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =
           })}
         </ul>
       )}
-      {pos.canSeeActual && notStarted.length > 0 && (
+      {hasComparisons && pos.canSeeActual && notStarted.length > 0 && (
         <Note>{t('projectDetail.cost.notStarted', 'No spending yet: {{list}}', { list: notStarted.map((r) => label(r.category)).join(', ') })}</Note>
-      )}
-      {pos.canSeeActual && pos.unknown > 0 && (
-        <Note>
-          {t('projectDetail.cost.unknownNote', '{{count}} categories have no spending linked yet, so they’re left out.', { count: pos.unknown })}{' '}
-          {canFixSetup
-            ? <FixLink to="/administration/accounting#budget-account-map">{t('projectDetail.cost.finishSetup', 'Finish spending setup')}</FixLink>
-            : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
-        </Note>
       )}
     </Block>
   );
@@ -219,25 +240,31 @@ const daysLate = (iso: string) => Math.max(1, Math.round((Date.parse(todayIso())
 
 export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; children?: React.ReactNode }> = ({ projectId, isPipeline = false, children }) => {
   const { t } = useTranslation();
+  const title = t('projectDetail.delivery.title', 'Delivery');
+  if (isPipeline) {
+    return <Block id="pd-delivery" title={title}><p className="text-sm text-muted-foreground">{t('projectDetail.delivery.emptyPipeline', 'Phases are planned once the deal is won.')}</p></Block>;
+  }
+  return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
+};
+
+const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
+  const { t } = useTranslation();
   const may = usePermission();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
-  const title = t('projectDetail.delivery.title', 'Delivery');
   const action = may('edit', 'project') && (
-    <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing}>
+    <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing} className="max-md:hidden">
       {managing ? t('projectDetail.delivery.doneManaging', 'Done') : t('projectDetail.delivery.manage', 'Update phases')}
     </BlockAction>
   );
-  if (managing) return <Block id="pd-delivery" title={title} action={action}><MilestoneStrip projectId={projectId} compactWhenEmpty={isPipeline} /></Block>;
+  if (managing) return <Block id="pd-delivery" title={title} action={action}><MilestoneStrip projectId={projectId} /></Block>;
   if (q.isPending) return <Block id="pd-delivery" title={title}><ListState variant="loading" rows={3} /></Block>;
   if (q.isError) return <Block id="pd-delivery" title={title}><ListState variant="error" title={t('projectDetail.delivery.error', "Couldn't load phases")} onRetry={() => void q.refetch()} /></Block>;
   const all = q.data ?? [];
   if (all.length === 0) {
     return (
       <Block id="pd-delivery" title={title} action={action}>
-        <p className="text-sm text-muted-foreground">{isPipeline
-          ? t('projectDetail.delivery.emptyPipeline', 'Phases are planned once the deal is won.')
-          : t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
+        <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
       </Block>
     );
   }

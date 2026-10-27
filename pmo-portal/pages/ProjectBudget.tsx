@@ -678,21 +678,26 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     ) },
   ];
   const draftEditor = draftVersion && canWrite ? (
-    <LineItemEditor
-      key={draftVersion.id}
-      lineItems={draftVersion.line_items}
-      currency={draftVersion.currency}
-      onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
-      onDeleteLineItem={requestDeleteLineItem}
-      onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
-      onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
-      createIsPending={mutations.createLineItem.isPending}
-      updateIsPending={mutations.updateLineItem.isPending}
-      onSaveError={(error) => {
-        const { headline, detail } = classifyMutationError(error);
-        toast(headline, detail, 'warning');
-      }}
-    />
+    <>
+      <div data-testid="budget-draft-editor" className="hidden md:block">
+        <LineItemEditor
+          key={draftVersion.id}
+          lineItems={draftVersion.line_items}
+          currency={draftVersion.currency}
+          onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
+          onDeleteLineItem={requestDeleteLineItem}
+          onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
+          onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
+          createIsPending={mutations.createLineItem.isPending}
+          updateIsPending={mutations.updateLineItem.isPending}
+          onSaveError={(error) => {
+            const { headline, detail } = classifyMutationError(error);
+            toast(headline, detail, 'warning');
+          }}
+        />
+      </div>
+      <p className="text-sm text-muted-foreground md:hidden">{t('projectDetail.budget.editLargerScreen', 'Edit the budget on a larger screen.')}</p>
+    </>
   ) : null;
 
   // The page header carries the one filled action; a tab's own action stays outline.
