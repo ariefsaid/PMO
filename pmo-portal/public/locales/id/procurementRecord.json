@@ -85,6 +85,7 @@
     "financeOnly": "Faktur dan pembayaran ditangani oleh Finance."
   },
   "timeline": {
+    "overdue": "Terlambat {{days}} hari",
     "title": "Linimasa",
     "inDateOrder": "berdasarkan tanggal · langkah yang tidak tercatat tidak diwajibkan perusahaan",
     "fullHistory": "Riwayat lengkap",

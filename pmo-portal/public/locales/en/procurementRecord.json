@@ -85,6 +85,7 @@
     "financeOnly": "Invoices and payments are handled by Finance."
   },
   "timeline": {
+    "overdue": "Overdue {{days}} days",
     "title": "Timeline",
     "inDateOrder": "in date order · missing steps aren’t required by your company",
     "fullHistory": "Full history",

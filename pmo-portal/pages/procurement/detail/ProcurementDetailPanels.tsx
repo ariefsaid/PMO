@@ -409,7 +409,7 @@ export const ProcurementTimeline: React.FC<ProcurementTimelineProps> = ({ procur
                         {entry.facts?.map((fact) => <span key={fact}>{fact}</span>)}
                         {entry.note && <span>{entry.note}</span>}
                         {entry.source === 'accounting-system' && <span>{t('timeline.fromAccounting', 'from accounting system')}</span>}
-                        {entry.overdueDays ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive-text">{t('money.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}</span> : null}
+                        {entry.overdueDays ? <span className="rounded-full bg-destructive/10 px-2 py-0.5 font-medium text-destructive-text">{t('timeline.overdue', { defaultValue: 'Overdue {{days}} days', days: entry.overdueDays })}</span> : null}
                       </span>
                     </span>
                     {entry.amount != null && entry.currency && !isEngineer && (
