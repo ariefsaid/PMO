@@ -61,7 +61,7 @@ echo "==> disler/super-simple-software-factory — the sssf orchestrator skill (
 # The factory itself is STAMPED into the repo (adws/, tracked) — this vendors the operating
 # skill (/sssf routing, cookbooks, the visualizer). PMO adaptations live in the stamped files,
 # not skill overrides: the roster (adws/adw_sssf_config/sssf.config.yaml) runs zai + openai-codex
-# per docs/pi-delegation.md §2 — openrouter/fireworks (upstream's defaults) are banned here.
+# per docs/archive/pi-delegation.md §2 — openrouter/fireworks (upstream's defaults) are banned here.
 git clone --depth 1 https://github.com/disler/super-simple-software-factory.git "$TMP/sssf"
 rm -rf "${DEST:?}/sssf"
 cp -R "$TMP/sssf/.claude/skills/sssf" "$DEST/sssf"
