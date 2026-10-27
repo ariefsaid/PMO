@@ -73,6 +73,10 @@
     "latestStatement": "Periode terbaru {{period}}",
     "back": "Kembali"
   },
+  "table": {
+    "selectAllVisible": "Pilih semua baris yang terlihat",
+    "selectRow": "Pilih {{name}}"
+  },
   "invoices": {
     "description": "Faktur klien.",
     "clearProject": "Hapus filter proyek"

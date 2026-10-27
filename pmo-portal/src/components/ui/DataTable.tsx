@@ -4,6 +4,7 @@ import { getCoreRowModel, useReactTable, type ColumnDef } from '@tanstack/react-
 import { useTranslation } from 'react-i18next';
 import { cn } from './cn';
 import { Icon } from './icons';
+import { Checkbox } from './Checkbox';
 import { ListState } from './ListState';
 import { buttonClasses } from './buttonClasses';
 import { useIsDesktop } from './useIsDesktop';
@@ -115,6 +116,12 @@ export interface DataTableProps<Row> {
   /** Optional DOM target id for a row that a route will scroll to and focus programmatically. */
   rowTarget?: (row: Row) => string | undefined;
   selectedKey?: string;
+  /** Opt into selecting records without activating their row. */
+  selectable?: boolean;
+  /** Controlled selected row keys. */
+  selectedKeys?: Set<string>;
+  /** Receives a fresh set after an individual or visible-row selection change. */
+  onSelectionChange?: (keys: Set<string>) => void;
   sort?: SortState;
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
@@ -300,6 +307,9 @@ export function DataTable<Row>({
   rowLabel,
   rowTarget,
   selectedKey,
+  selectable = false,
+  selectedKeys,
+  onSelectionChange,
   sort,
   onSort,
   state,
@@ -322,6 +332,12 @@ export function DataTable<Row>({
   const userId = useContext(AuthContext)?.currentUser?.id;
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [internalSelectedKeys, setInternalSelectedKeys] = useState<Set<string>>(() => new Set());
+  const selection = selectedKeys ?? internalSelectedKeys;
+  const changeSelection = (next: Set<string>) => {
+    if (selectedKeys === undefined) setInternalSelectedKeys(next);
+    onSelectionChange?.(next);
+  };
   const widthIdentity = `${tableId ?? ''}:${userId ?? ''}`;
   const previousWidthIdentity = useRef(widthIdentity);
   useEffect(() => {
@@ -404,7 +420,22 @@ export function DataTable<Row>({
   }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
-  const colSpan = columns.length + (rowMenu ? 1 : 0);
+  const visibleSelectionKeys = groupedRows.flatMap((entry) => {
+    if (entry.type !== 'data' || (entry.group && collapsedGroups.has(entry.group))) return [];
+    return [entry.modelRow.id];
+  });
+  const selectedVisibleCount = visibleSelectionKeys.filter((key) => selection.has(key)).length;
+  const allVisibleSelected = visibleSelectionKeys.length > 0 && selectedVisibleCount === visibleSelectionKeys.length;
+  const someVisibleSelected = selectedVisibleCount > 0 && !allVisibleSelected;
+  const selectVisible = (checked: boolean) => {
+    const next = new Set(selection);
+    for (const key of visibleSelectionKeys) {
+      if (checked) next.add(key);
+      else next.delete(key);
+    }
+    changeSelection(next);
+  };
+  const colSpan = columns.length + (selectable ? 1 : 0) + (rowMenu ? 1 : 0);
 
   // Shared ListState node — rendered once and reused in both branches via a
   // local variable so the async-state code is one source of truth.
@@ -447,12 +478,20 @@ export function DataTable<Row>({
           ref={tableRef}
           aria-label={accessibleName}
           style={{
-            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0), tableLayout: 'fixed' as const } : {}),
+            ...(columns.some((column) => column.size !== undefined || column.kind === 'primary' || column.kind === 'status') ? { minWidth: table.getTotalSize() + (rowMenu ? 40 : 0) + (selectable ? 40 : 0), tableLayout: 'fixed' as const } : {}),
           }}
           className="w-full border-collapse text-[13.5px]"
         >
           <thead>
             <tr>
+              {selectable && <th scope="col" className="sticky top-0 z-[2] h-[38px] w-10 border-b border-border bg-card px-3 text-center">
+                <Checkbox
+                  checked={allVisibleSelected ? true : someVisibleSelected ? 'mixed' : false}
+                  disabled={state !== undefined || visibleSelectionKeys.length === 0}
+                  label={t('finance:table.selectAllVisible', 'Select all visible rows')}
+                  onChange={selectVisible}
+                />
+              </th>}
               {modelHeaders.map((header, headerIndex) => {
                 const col = columns.find((column) => column.key === header.column.id)!;
                 const sortable = header.column.getCanSort();
@@ -586,6 +625,7 @@ export function DataTable<Row>({
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
+                    {selectable && <td className="px-3" />}
                     <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
@@ -597,6 +637,7 @@ export function DataTable<Row>({
                 const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
+                const selectionLabel = rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
                 // which breaks table-row semantics and hides body rows from
                 // getByRole('row')). Whole-row onClick stays as a pointer
@@ -621,7 +662,7 @@ export function DataTable<Row>({
                             // other interactive control added to a cell in the future.
                             if (
                               (e.target as HTMLElement).closest(
-                                'button, a, select, input, textarea, label, [role="menuitem"], [contenteditable]'
+                                'button, a, select, input, textarea, label, [role="checkbox"], [role="menuitem"], [contenteditable]'
                               )
                             )
                               return;
@@ -635,6 +676,20 @@ export function DataTable<Row>({
                       selected && 'bg-primary/[0.07]'
                     )}
                   >
+                    {selectable && <td className="h-[54px] px-3 py-2 align-middle text-center">
+                      <span onClick={(event) => event.stopPropagation()}>
+                        <Checkbox
+                          checked={selection.has(key)}
+                          label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionLabel })}
+                          onChange={(checked) => {
+                            const next = new Set(selection);
+                            if (checked) next.add(key);
+                            else next.delete(key);
+                            changeSelection(next);
+                          }}
+                        />
+                      </span>
+                    </td>}
                     {modelRow.getVisibleCells().map((cell, colIndex) => {
                       const col = columns.find((column) => column.key === cell.column.id)!;
                       const activatable = onActivate && rowLabel && colIndex === 0;
@@ -691,6 +746,7 @@ export function DataTable<Row>({
           </tbody>
           {totals && totals.length > 0 && <tfoot>
             {totals.map((total) => <tr key={total.key} className="h-11 border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+              {selectable && <td />}
               {columns.map((column, index) => <td key={column.key} className={cn('px-3 py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-card', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
@@ -734,6 +790,7 @@ export function DataTable<Row>({
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
+            const selectionLabel = rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
             const [titleCol, ...restCols] = columns;
             const hasMenu = !!rowMenu;
             const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
@@ -757,7 +814,19 @@ export function DataTable<Row>({
                       the viewport at phone widths (AC-MOBILE-OVERFLOW-001). Forcing truncate
                       descendants to block lets them clip with an ellipsis within this min-w-0
                       column, independent of text width (no font-metric-dependent 1–6px bleed). */}
-                  <div className="min-w-0 flex-1 font-semibold [&_.truncate]:block">
+                  <div className="flex min-w-0 flex-1 items-start gap-3 font-semibold [&_.truncate]:block">
+                    {selectable && <span className="mt-1" onClick={(event) => event.stopPropagation()}>
+                      <Checkbox
+                        checked={selection.has(key)}
+                        label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionLabel })}
+                        onChange={(checked) => {
+                          const next = new Set(selection);
+                          if (checked) next.add(key);
+                          else next.delete(key);
+                          changeSelection(next);
+                        }}
+                      />
+                    </span>}
                     {onActivate && rowLabel ? (
                       <button
                         type="button"

@@ -73,6 +73,10 @@
     "latestStatement": "Latest period {{period}}",
     "back": "Back"
   },
+  "table": {
+    "selectAllVisible": "Select all visible rows",
+    "selectRow": "Select {{name}}"
+  },
   "invoices": {
     "description": "Client invoices.",
     "clearProject": "Clear project filter"
