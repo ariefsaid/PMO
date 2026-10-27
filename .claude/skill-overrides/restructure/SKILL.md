@@ -58,6 +58,7 @@ exists. Cover: who opens the screen and in what situation; what each role needs 
 five seconds; how people arrive (routine review, a link to one thing, a periodic run); how often
 each area is used, per role; the phone job; what can leave the screen; the one main action per
 state and role; what each role must not see; which seed records the screenshots use.
+A screen with tabs or areas: grill every one of them in this step, not after the pick.
 
 **Done when** the owner approves a brief of ≤ 25 lines (who and why · what leads per role ·
 areas in order · what's removed · main action by state · screenshot set), posted on the issue.
@@ -75,7 +76,8 @@ option in the app only if the owner can't choose from words, and then only the t
 
 ### 3. Build the chosen option
 
-Build the chosen structure as the real page (remove any option prototypes and switch). Delete
+Build the chosen structure as the real page (remove any option prototypes and switch). Split the
+build by tab or area into parallel builders with disjoint files, never one after another. Delete
 tests that pin the old look; keep and update behaviour, role, money and a11y tests; add
 translations. Run **the full gate** once, the four reviewers on the screenshot set from the brief
 (busiest record, top role and most restricted role, 1440 and 390). Every other state (empty,
@@ -175,3 +177,5 @@ Each block answers one question for its reader:
   offer combinations when two options each win on a different axis.
 - Building and gating three in-app options per screen took too long for the owner; options are
   now picked from words, and only the chosen one is built.
+- Project detail took 2.5 hours: tabs were grilled after the pick and built one after another,
+  then four reviewers checked every state. Grill all tabs first; build them in parallel.
