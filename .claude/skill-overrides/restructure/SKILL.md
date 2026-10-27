@@ -89,12 +89,14 @@ Give the local URL. Nothing merges until the owner has clicked through and said 
 1. Local gate, PR to `dev` that closes the issue, CI green, merge.
 2. Closing comment on the issue; append to **Lessons**.
 3. Cleanup, each step verified: stop the dev server you started (its exact PID); delete any
-   rows you added to the local database for screenshots; copy evidence from the worktree into
-   `docs/private/restructure/<screen>/`; then the post-merge cleanup in `CLAUDE.md` (worktree,
+   rows you added to the local database for screenshots; copy the final shots and gate tables
+   into `docs/private/restructure/<screen>/`, then delete every working image (`/tmp` shot
+   folders, captures inside the worktree). Leave the images in the Orca chat folder: the chat
+   still shows them, and Orca removes them with the chat. Then the post-merge cleanup in `CLAUDE.md` (worktree,
    local and remote branch).
 
-**Done when** the issue is closed, the PR merged, and no server, seed row, worktree or branch
-from this run remains.
+**Done when** the issue is closed, the PR merged, and no server, seed row, working image,
+worktree or branch from this run remains.
 
 ## The gate
 
