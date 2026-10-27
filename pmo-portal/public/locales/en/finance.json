@@ -21,6 +21,7 @@
     "noAccess": "You don't have access to the organization's purchases",
     "empty": "No purchases from ERPNext yet",
     "emptySub": "They appear here after the next sync once ERPNext is connected.",
+    "amountPreTaxTooltip": "Pre-tax total from the accounting-system document. Source: ERP purchase document.",
     "noProject": "No project",
     "type": {
       "order": "Purchase order",

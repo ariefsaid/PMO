@@ -54,6 +54,8 @@ export interface ProcurementBlockProps {
   projectId?: string;
   /** Narrows the rows after the role scope (the route's "Needs you" tab). */
   rowFilter?: (row: ProcurementWithRefs) => boolean;
+  /** Overrides the default newest-created order for route-owned work queues. */
+  rowOrder?: (a: ProcurementWithRefs, b: ProcurementWithRefs) => number;
   /** False when the host page already shows "New procurement" as its primary action. */
   showCreate?: boolean;
 }
@@ -292,7 +294,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, showCreate = true }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, rowOrder, showCreate = true }) => {
   const { t } = useTranslation('procurement');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -309,8 +311,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   const rows = useMemo(() => [...(data ?? [])]
     .filter((row) => !ownScoped || row.requested_by_id === currentUser?.id)
     .filter((row) => !rowFilter || rowFilter(row))
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
-  [data, ownScoped, currentUser?.id, rowFilter]);
+    .sort(rowOrder ?? ((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())),
+  [data, ownScoped, currentUser?.id, rowFilter, rowOrder]);
   const canSeeMoney = may('view', 'procurement');
   const canApprove = may('transition', 'procurement');
   const canCreate = may('create', 'procurement');

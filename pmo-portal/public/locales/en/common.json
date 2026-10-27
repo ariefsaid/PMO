@@ -4539,12 +4539,7 @@
     "updated": "Updated {{date}}",
     "showCategoryDetails": "Show category details",
     "categoryDetails": "Recorded spending by category",
-    "totalRequestValueAcross": "Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}",
     "contractRemainingAfterCost": "Contract remaining after cost",
-    "budgetPosition": "Budget position",
-    "overBudgetBy": "Over budget by {{amount}}",
-    "budgetRemaining": "Budget remaining {{amount}}",
-    "onBudget": "On budget",
     "cashReceived": "Cash received",
     "cashReceivedScope": "Receipt cash linked to this project's invoices",
     "cashReceivedUnavailable": "Unavailable — receipt-backed cash data is not available yet",
@@ -4785,10 +4780,6 @@
       "vendorInvoiced": "Record payment"
     },
     "nextStepPrefix": "Next:",
-    "more": "More",
-    "pageDescriptionOrgWide": "Raise requests and track approvals, orders and payments. Open a request for its full history.",
-    "pageDescriptionOwnScoped": "Track the requests you raised from approval through payment.",
-    "emptyScopeNote": "PMO requests only; ERP-native purchases are not listed here.",
     "projectEmptyScope": "Purchases recorded in ERPNext appear below.",
     "dashboardEmpty": "No PMO requests to show"
   },

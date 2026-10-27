@@ -110,12 +110,13 @@ describe('Procurement list restructure', () => {
 
     const needsYou = screen.getByRole('tab', { name: /Needs you/i });
     expect(needsYou).toHaveAttribute('aria-selected', 'true');
-    const reason = screen.getByText(/Pay invoice.*12d/i);
-    expect(reason).toBeInTheDocument();
     const invoiceTitle = screen.getByRole('button', { name: 'Open Older unpaid invoice' });
     const approvalTitle = screen.getByRole('button', { name: 'Open Newer approval' });
-    expect(Boolean(reason.compareDocumentPosition(invoiceTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-    expect(Boolean(invoiceTitle.compareDocumentPosition(approvalTitle) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    const invoiceRow = invoiceTitle.closest('tr, li');
+    const approvalRow = approvalTitle.closest('tr, li');
+    expect(invoiceRow).not.toBeNull();
+    expect(approvalRow).not.toBeNull();
+    expect(Boolean(invoiceRow!.compareDocumentPosition(approvalRow!) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
   it('Project Managers see procurements only for projects they manage', () => {

@@ -27,9 +27,12 @@ vi.mock('@/pages/project-detail/useProjectPosition', () => ({ useBudgetPosition:
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: 'Finance', effectiveRole: 'Finance' }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-1', org_id: 'org-1' }, role: 'Finance' }) }));
 
-const renderBlock = (rowFilter?: (r: { id: string }) => boolean) => render(
+const renderBlock = (
+  rowFilter?: (r: { id: string }) => boolean,
+  rowOrder?: (a: { id: string }, b: { id: string }) => number,
+) => render(
   <QueryClientProvider client={new QueryClient()}>
-    <MemoryRouter><ToastProvider><ProcurementBlock rowFilter={rowFilter} /></ToastProvider></MemoryRouter>
+    <MemoryRouter><ToastProvider><ProcurementBlock rowFilter={rowFilter} rowOrder={rowOrder} /></ToastProvider></MemoryRouter>
   </QueryClientProvider>,
 );
 
@@ -43,6 +46,18 @@ describe('ProcurementBlock rowFilter (route "Needs you" tab)', () => {
     renderBlock((r) => r.id === 'a');
     expect(screen.getAllByText('Row a').length).toBeGreaterThan(0);
     expect(screen.queryByText('Row b')).not.toBeInTheDocument();
+  });
+  it('uses the supplied row order instead of newest-created order', () => {
+    procState.data = [
+      { ...row('a', 'Requested'), created_at: '2026-10-01T00:00:00.000Z' },
+      { ...row('b', 'Ordered'), created_at: '2026-10-02T00:00:00.000Z' },
+    ];
+
+    renderBlock(undefined, (a, b) => a.id.localeCompare(b.id));
+
+    const rowA = screen.getByRole('button', { name: 'Open Row a' });
+    const rowB = screen.getByRole('button', { name: 'Open Row b' });
+    expect(Boolean(rowA.compareDocumentPosition(rowB) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 });
 

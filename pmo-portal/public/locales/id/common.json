@@ -4539,12 +4539,7 @@
     "updated": "Diperbarui {{date}}",
     "showCategoryDetails": "Tampilkan rincian kategori",
     "categoryDetails": "Pengeluaran tercatat menurut kategori",
-    "totalRequestValueAcross": "Nilai total permintaan: <amount>{{amount}}</amount> untuk {{n}} {{unit}}",
     "contractRemainingAfterCost": "Sisa kontrak setelah biaya",
-    "budgetPosition": "Posisi anggaran",
-    "overBudgetBy": "Melebihi anggaran sebesar {{amount}}",
-    "budgetRemaining": "Sisa anggaran {{amount}}",
-    "onBudget": "Sesuai anggaran",
     "cashReceived": "Kas diterima",
     "cashReceivedScope": "Kas kuitansi yang tertaut ke faktur proyek ini",
     "cashReceivedUnavailable": "Tidak tersedia — data kas berbasis kuitansi belum tersedia",
@@ -4785,10 +4780,6 @@
       "vendorInvoiced": "Catat pembayaran"
     },
     "nextStepPrefix": "Langkah berikutnya:",
-    "more": "Lainnya",
-    "pageDescriptionOrgWide": "Ajukan dan lacak permintaan pembelian, persetujuan, pesanan, dan pembayaran. Buka permintaan untuk melihat riwayat lengkapnya.",
-    "pageDescriptionOwnScoped": "Lacak permintaan yang Anda ajukan dari persetujuan hingga pembayaran.",
-    "emptyScopeNote": "Hanya permintaan PMO yang tampil; pembelian langsung di ERP tidak tercantum.",
     "projectEmptyScope": "Pembelian yang tercatat di ERPNext tampil di bawah.",
     "dashboardEmpty": "Tidak ada permintaan PMO untuk ditampilkan"
   },

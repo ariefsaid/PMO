@@ -28,7 +28,7 @@ import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useProjects } from '@/src/hooks/useProjects';
-import { trackProcurementDetailOpened, trackFilterApplied } from '@/src/lib/analytics';
+import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
 import { ProcurementKpiRow, type ProcurementTab } from './procurement/list/ProcurementKpiRow';
 import { formatCurrency, formatWeekdayMonthDay } from '@/src/lib/format';
@@ -39,7 +39,6 @@ import { readProcurementView, writeProcurementView } from '@/src/hooks/useProcur
 import type { ProcurementView } from '@/src/hooks/useProcurementView';
 import { useListWorkingSet, useUrlSearchInput } from '@/src/hooks/useListWorkingSet';
 import { useListReturn } from '@/src/hooks/useListReturn';
-import type { ProcurementFilterStatus, ProcurementWorkingSet } from '@/src/lib/listWorkingSet';
 import { lifecycleSteps, pillVariantForStatus } from '../components/procurement';
 import { ErpOrphansSection } from './procurement/ErpOrphansSection';
 import { needsYou, type NeedsYouResult } from './procurement/blocks/needsYou';
@@ -95,11 +94,13 @@ function routeViewFromSearch(search: string, fallback: ProcurementView): Procure
 
 function reasonCopy(result: NeedsYouResult, t: (key: string, options?: Record<string, unknown>) => string): string {
   const days = Math.max(0, Math.floor((Date.now() - result.since.getTime()) / 86_400_000));
-  const age = t(days === 1 ? 'age.oneDay' : 'age.days', { count: days, defaultValue: days === 1 ? '1 day' : `${days} days` });
-  if (result.reason === 'approve') return t('needsYou.approve', { age, defaultValue: `Waiting for your approval · ${age}` });
-  if (result.reason === 'pay') return t('needsYou.pay', { age, defaultValue: `Unpaid · ${age} outstanding` });
+  const age = days === 1
+    ? t('age.oneDay', { defaultValue: '1 day' })
+    : t('age.days', { count: days, defaultValue: '{{count}} days' });
+  if (result.reason === 'approve') return t('needsYou.approve', { age, defaultValue: 'Waiting for your approval · {{age}}' });
+  if (result.reason === 'pay') return t('needsYou.pay', { age, defaultValue: 'Unpaid · {{age}} outstanding' });
   const orderedDate = formatWeekdayMonthDay(result.since);
-  return t('needsYou.receive', { date: orderedDate, age, defaultValue: `Waiting for receipt · ordered ${orderedDate} · ${age}` });
+  return t('needsYou.receive', { date: orderedDate, age, defaultValue: 'Waiting for receipt · ordered {{date}} · {{age}}' });
 }
 
 function distinctOptions<T extends string>(entries: Array<{ value: T | null; label: string | null | undefined }>) {
@@ -151,7 +152,16 @@ const ProcurementPage: React.FC = () => {
   const cycleSupplierLookup = useMemo(() => makeRefLookup(supplierRefs, 'Supplier'), [supplierRefs]);
 
   const { workingSet, setWorkingSet } = useListWorkingSet('procurement', { sessionView: readProcurementView() });
-  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) => setWorkingSet((current) => ({ ...current, q })));
+  const updateQuery = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(location.search);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) params.set(key, value);
+      else params.delete(key);
+    }
+    const next = params.toString();
+    navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
+  }, [location.pathname, location.search, location.state, navigate]);
+  const [search, setSearch] = useUrlSearchInput(workingSet.q, (q) => updateQuery({ q: q || null }));
   const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
   const [showCycleImport, setShowCycleImport] = useState(false);
 
@@ -172,24 +182,39 @@ const ProcurementPage: React.FC = () => {
     { result: result.reason, text: reasonCopy(result, t) },
   ])), [needsYouRows, t]);
 
-  const needsYouFilter = useCallback((row: ProcurementWithRefs) => needsById.has(row.id), [needsById]);
   const tab = tabFromSearch(location.search, needsYouRows.length, canSeeOrphans);
   const selectedStage = stageFromSearch(location.search);
   const currentView = routeViewFromSearch(location.search, workingSet.view);
+  const selectedStageLabel = selectedStage === null ? null : (() => {
+    switch (selectedStage) {
+      case 'request': return t('stage.request', 'Request');
+      case 'order': return t('stage.order', 'Order');
+      case 'receive': return t('stage.receive', 'Receive');
+      case 'pay': return t('stage.pay', 'Pay');
+    }
+  })();
   const searchParams = new URLSearchParams(location.search);
   const projectId = searchParams.get('project') ?? '';
   const supplierId = searchParams.get('supplier') ?? '';
   const raisedById = searchParams.get('raisedBy') ?? '';
-
-  const updateQuery = useCallback((updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(location.search);
-    for (const [key, value] of Object.entries(updates)) {
-      if (value) params.set(key, value);
-      else params.delete(key);
-    }
-    const next = params.toString();
-    navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
-  }, [location.pathname, location.search, location.state, navigate]);
+  const scopedIds = useMemo(() => new Set(all.map((row) => row.id)), [all]);
+  const normalizedSearch = search.trim().toLocaleLowerCase();
+  const rowFilter = useCallback((row: ProcurementWithRefs) => {
+    return scopedIds.has(row.id)
+      && (tab !== 'needs-you' || needsById.has(row.id))
+      && matchesWorkingSetStatus(row.status, workingSet)
+      && (!normalizedSearch
+        || row.title.toLocaleLowerCase().includes(normalizedSearch)
+        || (row.code ?? '').toLocaleLowerCase().includes(normalizedSearch)
+        || externalRefsOf(row).some((reference) => reference.toLocaleLowerCase().includes(normalizedSearch)))
+      && (!projectId || row.project_id === projectId)
+      && (!supplierId || row.vendor_id === supplierId)
+      && (!raisedById || row.requested_by_id === raisedById)
+      && matchesStage(row, selectedStage);
+  }, [needsById, normalizedSearch, projectId, raisedById, scopedIds, selectedStage, supplierId, tab, workingSet]);
+  const needsYouOrder = useCallback((a: ProcurementWithRefs, b: ProcurementWithRefs) =>
+    (needsById.get(a.id)?.result.since.getTime() ?? 0) - (needsById.get(b.id)?.result.since.getTime() ?? 0),
+  [needsById]);
 
   const setTab = (next: ProcurementTab) => updateQuery({ tab: next });
   const onViewChange = (next: ProcurementRouteView) => {
@@ -303,12 +328,8 @@ const ProcurementPage: React.FC = () => {
     navigate(`${location.pathname}${next ? `?${next}` : ''}`, { replace: true, state: location.state });
   };
   const changeStatusFilter = (value: string) => {
-    if (value.startsWith('exact:')) {
-      setWorkingSet((current) => ({ ...current, status: value.slice('exact:'.length) as ProcurementWorkingSet['status'], statusMode: 'exact' }));
-    } else {
-      const next = value === 'group:Ordered' ? 'Ordered' : value;
-      setWorkingSet((current) => ({ ...current, status: next as ProcurementFilterStatus, statusMode: 'group' }));
-    }
+    const status = value.startsWith('exact:') ? value.slice('exact:'.length) : value;
+    updateQuery({ status: status === 'All' ? null : status });
     trackFilterApplied('status', statusOptions.length, 'procurement');
   };
 
@@ -366,6 +387,11 @@ const ProcurementPage: React.FC = () => {
   );
 
   const ready = !isPending && !isError && data !== undefined;
+  useEffect(() => {
+    if (ready && all.length === 0 && realRole) {
+      trackEmptyStateSeen('procurement-empty', realRole, 'procurement');
+    }
+  }, [all.length, ready, realRole]);
   const routeViewOptions: Array<{ value: ProcurementRouteView; label: string; icon: 'table' | 'cols' | 'grid' }> = [
     { value: 'table', label: t('view.table', 'Table'), icon: 'table' },
     { value: 'grouped', label: t('view.grouped', 'Grouped'), icon: 'grid' },
@@ -447,7 +473,7 @@ const ProcurementPage: React.FC = () => {
                 ariaLabel={t('view.label', 'Procurement view')}
               />
             </div>
-            {selectedStage && <div className="flex items-center gap-2 text-[12px] text-muted-foreground">{t('stage.filterActive', { stage: t(`stage.${selectedStage}`, selectedStage), defaultValue: `${t(`stage.${selectedStage}`, selectedStage)} stage` })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
+            {selectedStageLabel && <div className="flex items-center gap-2 text-[12px] text-muted-foreground">{t('stage.filterActive', { stage: selectedStageLabel, defaultValue: '{{stage}} stage' })}<Button variant="ghost" size="sm" onClick={() => updateQuery({ stage: null })}>{t('clear', 'Clear')}</Button></div>}
           </div>
         )}
 
@@ -492,7 +518,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={tab === 'needs-you' ? needsYouFilter : undefined} showCreate={false} />
+            <ProcurementBlock rowFilter={rowFilter} rowOrder={tab === 'needs-you' ? needsYouOrder : undefined} showCreate={false} />
           )}
         </div>
 
