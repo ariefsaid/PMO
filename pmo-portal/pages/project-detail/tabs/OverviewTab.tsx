@@ -1,9 +1,9 @@
-import { useProcurementStatusLabel } from '@/src/hooks/useProjectStatusLabel';
 import React, { useMemo } from 'react';
+import { cn } from '@/src/components/ui/cn';
 import { useNavigate } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
-import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, TaxBasisLabel } from '@/src/components/ui';
-import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
+import { Card, CardHead, CardPad, StatusPill, ListState, HoursBar, StatTiles, TaxBasisLabel, type StatTile } from '@/src/components/ui';
+import { formatCurrency, formatInstantDate } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { ProjectFinancesSection } from '../ProjectFinancesSection';
@@ -12,13 +12,14 @@ import { useBudgetVersions, useProjectBudget } from '@/src/hooks/useBudget';
 import { summarizeProcurement, recentRequests } from '@/src/lib/procurement-summary';
 import { activeSnapshot } from '@/src/lib/budget-snapshot';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { buildProjectMoneyPosition } from '@/src/lib/projectFinances';
-import { pillVariantForStatus, openPR } from '../../../components/procurement';
+import { buildProjectMoneyPosition, formatExactMoney, formatSignedExactMoney } from '@/src/lib/projectFinances';
+import { pillVariantForStatus, stageLabelForStatus, openPR } from '../../../components/procurement';
 import { projectStatusGroup } from '@/src/lib/db/projectTransitions';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-import { projectSectionHeading, projectSubsectionHeading } from '../typography';
-import { formatProjectDetailAmount } from '../formatProjectDetailMoney';
+import ProjectDrawdown from '../ProjectDrawdown';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { UnknownFigure } from '../UnknownFigure';
+import { OtherCurrencyCommitments } from '../OtherCurrencyCommitments';
 
 export interface OverviewTabProps {
   project: ProjectWithRefs;
@@ -31,11 +32,15 @@ export interface OverviewTabProps {
   commitmentError?: boolean;
   /** Callback to switch to a sibling tab (budget / procurement). */
   setTab?: (tab: 'overview' | 'budget' | 'procurement' | 'tasks' | 'documents') => void;
-  /** A compact current-phase/blocker signal and the actionable planner, in that order. */
-  phaseSummary?: React.ReactNode;
-  phasePlanner?: React.ReactNode;
-  /** Pre-win/lost replaces the delivery money band with the PipelineLens. */
-  showMoneyPosition?: boolean;
+  /**
+   * D15 (OD-W5-C3-A): when true the Overview tab renders the "Financial summary" aside
+   * — the finance StatTiles + contract-value SoD row relocated from the page header for
+   * delivery-forward roles (Engineer). Finance-forward roles (Admin·Exec·Finance·PM) keep
+   * the finance block in the header; showFinanceSummary is false/omitted for them.
+   * Always read-only (lock pill, no edit affordance) — mutations stay in the header for
+   * finance-forward roles; the Engineer never gets a contract-value edit control.
+   */
+  showFinanceSummary?: boolean;
 }
 
 /**
@@ -47,65 +52,121 @@ export interface OverviewTabProps {
  *
  * L3-RECORD: the record-identifying fields (customer / PM / dates / code / PO ref)
  * now live in the persistent page rail, so Overview no longer duplicates them.
+ *
+ * D15 (OD-W5-C3-A): when showFinanceSummary is true (delivery-forward / Engineer role),
+ * a read-only "Financial summary" aside renders near the top of the Overview tab.
+ * Finance-forward roles (Admin·Exec·Finance·PM) keep the header unchanged; this section
+ * is not rendered for them (showFinanceSummary is false/omitted).
  */
-const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, phaseSummary, phasePlanner, showMoneyPosition = true }) => {
+const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, committedOtherCurrencies, commitmentSource = 'unavailable', ledgerBasis = 'unavailable', commitmentPending = false, commitmentError = false, setTab, showFinanceSummary = false }) => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const procurementStatusLabel = useProcurementStatusLabel();
   const may = usePermission();
-  // The delivery money position has no job on pipeline/lost records, whose figures belong to
-  // PipelineLens. Keep the project-wide finance read scoped to the delivery surface as well.
-  const group = projectStatusGroup(project.status as never);
-  const isDelivery = showMoneyPosition && (group === 'onHand' || group === 'internal');
   // AC-W2-1-FE-01: use the DERIVED budget (Σ Active-version line-items) not the dead stored
   // projects.budget column.  The Budget-snapshot card already uses activeSnapshot (derived);
   // this aligns the utilization card + at-risk gate to the same source.
   // B-0.4: budget state remains distinct from a missing or unavailable Actual reading.
-  const { data: derivedBudget } = useProjectBudget(project.id);
+  const { data: derivedBudget, isPending: budgetUtilPending, isError: budgetUtilError } = useProjectBudget(project.id);
   const activeBudget = derivedBudget ?? 0;
-  const { data: projectFinances } = useProjectFinances(project.id, { enabled: isDelivery });
+  const { data: projectFinances } = useProjectFinances(project.id);
   const actuals = ledgerBasis === 'erp' && !may('view', 'salesInvoice') ? undefined : projectFinances?.actuals;
   const moneyPosition = buildProjectMoneyPosition({ ledgerBasis,
     committedSpend, commitmentPending, commitmentError, projectCurrency: project.currency, actuals,
     contractValue: project.contract_value, activeBudget });
   const actualPosition = moneyPosition.actual;
   const actualSpend = moneyPosition.comparableActual;
+  const actualCoverage = moneyPosition.coverage.kind === 'pmo'
+    ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
+    : moneyPosition.coverage.kind === 'complete'
+      ? t('uxs01.completeCoverage', 'Complete category coverage')
+      : moneyPosition.coverage.kind === 'partial'
+        ? t('uxs01.partialCoverage', 'Partial coverage · {{mapped}} of {{total}} categories recorded', { mapped: moneyPosition.coverage.mapped, total: moneyPosition.coverage.total })
+        : t('uxs01.coverageUnavailable', 'Spending coverage unavailable');
   const budgetUtilPctValue = moneyPosition.spendPercent;
-  // Missing or partial Actual data cannot become a false zero-risk result.
+  // The risk gate consumes complete Actual (DD-MONEY-1) and the Active budget; missing Actuals
+  // cannot be promoted to a zero-cost, low-risk result.
   const budgetUtil = isMoneyAtRisk({
     status: project.status as string, budget: activeBudget,
     budgetCurrency: projectFinances?.budget?.currency ?? project.currency, projectCurrency: project.currency,
     spent: actualSpend, actualCurrency: actualPosition.currency,
     actualComplete: actualPosition.complete,
   }) ? budgetUtilPctValue : null;
-  const exactMoney = (value: number) => formatProjectDetailAmount(value, project.currency, i18n.language)
-    ?? t('projectFinances.unavailable', 'Unavailable');
-  const contractContext = project.contract_value == null ? null : (
-    <section className="min-w-0 space-y-2" aria-label={t('project:projectDetail.moneyPosition.contract', 'Contract')}>
-      <h3 className={projectSubsectionHeading}>
-        {t('project:projectDetail.moneyPosition.contract', 'Contract')} · {project.currency} ·{' '}
-        <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate}
-          taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator}
-          showDetails={false} testId="overview-contract-tax-basis" />
-      </h3>
-      <dl className="project-facts min-w-0 space-y-2">
-        <div className="min-w-0">
-          <dt className="text-xs font-semibold text-muted-foreground">{t('projectDetail.header.contractValue', 'Contract value')}</dt>
-          <dd data-testid="overview-contract-value" className="break-words text-sm font-normal tabular-nums">{exactMoney(project.contract_value)}</dd>
-          <FxEquivalent as="dd" amount={project.contract_value} currency={project.currency} date={project.contract_date} />
-        </div>
-      </dl>
-    </section>
-  );
+
+  // D15: finance summary tile data (only computed when showFinanceSummary is true).
+  const contractAfterCost = moneyPosition.contractAfterCost;
+  const contractAfterCostTone = moneyPosition.contractAfterCostTone;
+  const contractAfterCostLabel = contractAfterCost === null
+    ? null
+    : formatSignedExactMoney(contractAfterCost, project.currency, i18n.language);
+  const spendPctTile = moneyPosition.spendPercent;
+  // PD-A: same cuts as the header strip — unknown = "—" + reason, partial = one word, and a figure
+  // with no value (or a capability the org does not use) gets no tile.
+  const unavailableReason = t('uxs01.actualUnavailable', 'Unavailable');
+  const actualFigure: React.ReactNode = moneyPosition.headlineState === 'available' && actualPosition.amount !== null && actualPosition.currency
+    ? formatExactMoney(actualPosition.amount, actualPosition.currency, i18n.language) ?? <UnknownFigure reason={unavailableReason} />
+    : <UnknownFigure reason={moneyPosition.headlineState === 'loading'
+      ? t('uxs01.actualLoading', 'Loading Actual…')
+      : moneyPosition.headlineState === 'partial'
+        ? t('uxs01.actualPartial', 'Incomplete — see spending details')
+        : unavailableReason} />;
+  const taxDetailsNeeded = project.tax_rate == null
+    || (project.tax_base_numerator ?? 1) !== 1 || (project.tax_base_denominator ?? 1) !== 1;
+  const financeTiles: StatTile[] = showFinanceSummary
+    ? [
+        {
+          label: t('projectDetail.overview.finance.contract', 'Contract'),
+          value: (
+            <>
+              <span>{project.contract_value == null ? <UnknownFigure reason={unavailableReason} /> : formatCurrency(project.contract_value, project.currency)}</span>
+              <FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} />
+            </>
+          ),
+          // OD-TAX-1 §2 — the delivery-role lens shows the same ceiling as the header strip, so it
+          // states the same basis, read off this project's own row.
+          sub: <TaxBasisLabel treatment={project.tax_treatment} taxRate={project.tax_rate} taxBaseNumerator={project.tax_base_numerator} taxBaseDenominator={project.tax_base_denominator} showDetails={taxDetailsNeeded} testId="overview-contract-tax-basis" />,
+        },
+        ...(commitmentSource === 'pmo'
+          ? [{
+              label: t('uxs01.pmoPurchaseOrders', 'PMO purchase orders'),
+              value: commitmentPending
+                ? <UnknownFigure reason={t('uxs01.actualLoading', 'Loading Actual…')} />
+                : commitmentError || committedSpend === undefined
+                  ? <UnknownFigure reason={unavailableReason} />
+                  : formatCurrency(committedSpend, project.currency),
+              ...(committedOtherCurrencies && committedOtherCurrencies.length > 0 ? { sub: <OtherCurrencyCommitments positions={committedOtherCurrencies} /> } : {}),
+            }]
+          : []),
+        {
+          label: t('projectDetail.overview.finance.actual', 'Actual'),
+          value: actualFigure,
+          sub: actualPosition.complete
+            ? <>{actualCoverage}{actualPosition.asOf && <span className="block">{t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}</span>}
+              {/* A PMO-basis Actual is the committed figure; name other currencies once, here only when no PMO tile does. */}
+              {actualPosition.basis === 'pmo' && commitmentSource !== 'pmo' && <OtherCurrencyCommitments positions={committedOtherCurrencies} />}</>
+            : moneyPosition.headlineState === 'partial' ? t('dashboard:spend.partial', 'Partial') : undefined,
+        },
+        ...(contractAfterCostLabel === null
+          ? []
+          : [{
+              label: t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost'),
+              value: contractAfterCostLabel,
+              ...(contractAfterCostTone === undefined ? {} : { tone: contractAfterCostTone }),
+            }]),
+        ...(!budgetUtilPending && !budgetUtilError && activeBudget > 0 && spendPctTile !== null
+          ? [{ label: t('projectDetail.overview.finance.spend', 'Spend'), value: `${spendPctTile}%` }]
+          : []),
+      ]
+    : [];
+
+  // D15: financial-summary visibility — delivery lens only (on-hand ∪ internal projects).
+  const group = projectStatusGroup(project.status as never);
+  const isDelivery = showFinanceSummary && (group === 'onHand' || group === 'internal');
 
   // T14/T15 — Procurement summary (project-filtered server-side)
   const { data: projectProcData, isPending: procPending, isError: procError, refetch: procRefetch } = useProjectProcurements(project.id);
   const projectProc = useMemo(() => projectProcData ?? [], [projectProcData]);
-  const procSummary = useMemo(() => summarizeProcurement(projectProc, project.currency), [projectProc, project.currency]);
+  const procSummary = useMemo(() => summarizeProcurement(projectProc), [projectProc]);
   const top3Proc = useMemo(() => recentRequests(projectProc, 3), [projectProc]);
-  const requestValueSummary = procSummary.requestValueByCurrency
-    .map(({ currency, amount }) => formatProjectDetailMoney(amount, currency, i18n.language, true))
-    .join(' · ');
 
   // T16/T17 — Budget snapshot
   const { data: budgetVersions, isPending: budgetPending, isError: budgetError, refetch: budgetRefetch } = useBudgetVersions(project.id);
@@ -114,82 +175,40 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
     [budgetVersions, actualSpend],
   );
 
-  const showProc = procPending || procError || projectProc.length > 0;
-  const budgetPositionSupplement = (
-    <div data-testid="overview-budget-position" className="min-w-0 space-y-2">
-      <h4 className={projectSubsectionHeading}>{t('uxs01.budgetPosition', 'Budget position')}</h4>
-      {budgetPending ? <ListState variant="loading" rows={1} className="min-h-12" /> : budgetError ? (
-        <ListState variant="error" title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")} onRetry={() => budgetRefetch()} />
-      ) : snapshot ? (
-        <>
-          <dl className="project-facts min-w-0 space-y-2">
-            <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('project:projectDetail.moneyPosition.activeBudget', 'Active budget')}</dt>
-              <dd className="break-words font-semibold tabular-nums">{exactMoney(snapshot.activeTotal)}</dd>
-            </div>
-            <div className="min-w-0">
-              <dt className="text-xs text-muted-foreground">{t('project:projectDetail.overview.budgetUtil.variance', 'Variance')}</dt>
-              <dd data-testid="budget-variance" className="break-words font-semibold tabular-nums">
-                {snapshot.variance > 0
-                  ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: exactMoney(snapshot.variance) })
-                  : snapshot.variance < 0
-                    ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: exactMoney(Math.abs(snapshot.variance)) })
-                    : t('uxs01.onBudget', 'On budget')}
-              </dd>
-            </div>
-            {budgetUtilPctValue !== null && <div className="col-span-2">
-              <dt className="text-xs font-semibold text-muted-foreground sr-only">{t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}</dt>
-              <dd data-testid="budget-used" className="flex flex-wrap items-center gap-2 font-semibold tabular-nums">
-                <span>{budgetUtilPctValue}% {t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}</span>
-                {budgetUtil !== null && <StatusPill variant="warn">{t('projectDetail.overview.budgetUtil.atRisk', 'At risk')}</StatusPill>}
-              </dd>
-            </div>}
-          </dl>
-          {snapshot.byCategory.length > 0 && <details className="min-w-0">
-            <summary className="cursor-pointer text-sm font-medium">{t('project:projectDetail.moneyPosition.budgetCategories', 'Budget categories')}</summary>
-            <div role="group" aria-label={t('projectDetail.overview.budgetSnapshot.byCategoryLabel', 'Budget by category')} className="mt-2 flex min-w-0 flex-col gap-1">
-              {snapshot.byCategory.map((cat) => <HoursBar
-                key={cat.category}
-                label={cat.category}
-                code={null}
-                hours={cat.amount}
-                maxHours={snapshot.activeTotal}
-                formatValue={(value) => exactMoney(value)}
-              />)}
-            </div>
-          </details>}
-          {setTab && <button type="button" onClick={() => setTab('budget')} className="min-h-11 text-left text-sm font-medium text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            {t('projectDetail.overview.budgetSnapshot.openBudgetTab', 'Open Budget tab')}
-          </button>}
-        </>
-      ) : budgetVersions?.some((version) => version.status === 'Active') && activeBudget > 0 ? (
-        <dl className="project-facts"><div><dt className="text-xs font-semibold">{t('project:projectDetail.moneyPosition.activeBudget', 'Active budget')}</dt><dd className="whitespace-nowrap text-sm tabular-nums">{exactMoney(activeBudget)}</dd></div></dl>
-      ) : <p className="text-sm text-muted-foreground">{t('project:projectDetail.moneyPosition.noActiveBudget', 'No active budget')}</p>}
-    </div>
-  );
+  const showProc = procError || (!procPending && projectProc.length > 0);
+  const showSnapshot = budgetError || (!budgetPending && snapshot !== null);
 
   return (
-    <div className="flex min-w-0 flex-col gap-8" role={isDelivery ? 'region' : undefined} aria-label={isDelivery ? t('project:projectDetail.moneyPosition.title', 'Money position') : undefined}>
-      {isDelivery && (may('view', 'salesInvoice')
-        ? <ProjectFinancesSection project={project} costSupplement={budgetPositionSupplement} contractContext={contractContext} deliveryAttention={phaseSummary} />
-        : <div data-testid="money-position-groups">{contractContext}<section role="group" aria-label={t('project:projectDetail.moneyPosition.spending', 'Spending')} className="min-w-0 space-y-4">
-          <h2 className={projectSectionHeading}>{t('project:projectDetail.moneyPosition.spending', 'Spending')} · {project.currency}</h2>
-          {budgetPositionSupplement}
-        </section></div>)}
-      {isDelivery && <section aria-label={t('project:projectDetail.sectionNav.delivery', 'Delivery')} className="min-w-0 space-y-4">
-        <h2 className={projectSectionHeading}>{t('project:projectDetail.sectionNav.delivery', 'Delivery')}</h2>
-        {!may('view', 'salesInvoice') && phaseSummary}
-        {phasePlanner}
-      </section>}
-      {!isDelivery && phaseSummary}
-      {!isDelivery && phasePlanner}
-      {showProc && <div data-testid="overview-procurement-summary" className="min-w-0">
+    <div className="flex min-w-0 flex-col gap-8">
+      {showFinanceSummary && isDelivery && (
+        <aside
+          data-testid="financial-summary"
+          aria-label={t('projectDetail.overview.finance.title', 'Financial summary')}
+        >
+          <h2 className="mb-3 text-[14px] font-semibold text-foreground">
+            {t('projectDetail.overview.finance.title', 'Financial summary')}
+          </h2>
+          <StatTiles tiles={financeTiles} columns={Math.min(financeTiles.length, 5)} variant="bare" />
+        </aside>
+      )}
+
+      {/* T18: Row 2 — Procurement summary + Budget snapshot */}
+      {/* #566 / OD-CR-13: the contract drawdown, full width and above the procurement/budget
+          detail. The PM manages by this number day one, so it is on the screen they land on
+          rather than behind the Work orders tab — the tab is where they ACT on it. */}
+      <ProjectDrawdown projectId={project.id} />
+
+      {/* Keep the actionable work/phase context first on phones; finances follow the work-first
+          surface rather than pushing the PM's primary delivery actions below the fold. */}
+      {may('view', 'salesInvoice') && <ProjectFinancesSection project={project} />}
+
+      {/* PD-B: each card renders only when it has something to show (or failed to load). */}
+      {(showProc || showSnapshot) && (
+        <div data-testid="overview-row2" className={cn('grid gap-6 [&>*]:min-w-0', showProc && showSnapshot && 'lg:grid-cols-2')}>
         {/* T14/T15 — Procurement summary card */}
         {showProc && <Card variant="bare">
-          <CardHead className={`border-0 px-0 py-0 ${projectSectionHeading}`}>
-            {t('projectDetail.overview.procSummary.title', 'Procurement summary')}
-          </CardHead>
-          {procPending ? <ListState variant="loading" rows={3} /> : procError ? (
+          <CardHead>{t('projectDetail.overview.procSummary.title', 'Procurement summary')}</CardHead>
+          {procError ? (
             <ListState
               variant="error"
               title={t('projectDetail.overview.procSummary.error', "Couldn't load procurement")}
@@ -218,21 +237,21 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
               </div>
 
               {/* Committed total */}
-              <div className="text-xs text-muted-foreground">
+              <div className="text-[12px] text-muted-foreground">
                 {/* #571 — one sentence; the styled amount is a placeholder a translator moves. */}
                 <Trans
                   i18nKey="uxs01.totalRequestValueAcross"
                   defaults="Total request value: <amount>{{amount}}</amount> across {{n}} {{unit}}"
                   values={{
-                  amount: requestValueSummary,
-                  n: String(procSummary.totalCount),
+                    amount: formatCurrency(procSummary.committedTotal, project.currency),
+                    n: String(procSummary.count),
                     unit:
                       procSummary.count === 1
                         ? t('projectDetail.overview.procSummary.requestOne', 'request')
                         : t('projectDetail.overview.procSummary.requestOther', 'requests'),
                   }}
                   components={{
-                    amount: <span className="font-semibold tabular text-foreground text-sm" />,
+                    amount: <span className="font-semibold tabular text-foreground text-[14px]" />,
                   }}
                 />
               </div>
@@ -245,23 +264,23 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                       <button
                         type="button"
                         onClick={() => openPR(navigate, pr)}
-                        className="w-full flex flex-wrap items-center gap-3 px-4 py-[9px] text-left hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                        className="w-full flex items-center gap-3 px-4 py-[9px] text-left hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
                       >
                         <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-1.5 min-w-0">
-                            <span className="break-words whitespace-normal text-sm font-semibold">{pr.title}</span>
+                          <div className="flex items-baseline gap-1.5 min-w-0">
+                            <span className="truncate text-[13px] font-semibold">{pr.title}</span>
                             {pr.code && (
                               <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{pr.code}</span>
                             )}
                           </div>
                           <div className="mt-0.5">
                             <StatusPill variant={pillVariantForStatus(pr.status as Parameters<typeof pillVariantForStatus>[0])}>
-                              {procurementStatusLabel(pr.status)}
+                              {stageLabelForStatus(pr.status as Parameters<typeof stageLabelForStatus>[0])}
                             </StatusPill>
                           </div>
                         </div>
-                        <span className="shrink-0 text-sm font-semibold tabular text-foreground">
-                          {formatProjectDetailMoney(Number(pr.total_value), pr.currency || project.currency, i18n.language, true)}
+                        <span className="shrink-0 text-[13px] font-semibold tabular text-foreground">
+                          {formatCurrency(Number(pr.total_value), project.currency)}
                         </span>
                       </button>
                     </li>
@@ -274,7 +293,7 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
                 <button
                   type="button"
                   onClick={() => setTab('procurement')}
-                  className="touch-target inline-flex min-h-11 items-center self-start text-xs font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
                 >
                   {t('projectDetail.overview.procSummary.viewAll', 'View all procurement')}
                 </button>
@@ -283,7 +302,98 @@ const OverviewTab: React.FC<OverviewTabProps> = ({ project, committedSpend, ledg
           )}
         </Card>}
 
-      </div>}
+        {/* T16/T17 — Budget snapshot card */}
+        {showSnapshot && <Card variant="bare">
+          <CardHead>{t('projectDetail.overview.budgetSnapshot.title', 'Budget snapshot')}</CardHead>
+          {budgetError || !snapshot ? (
+            <ListState
+              variant="error"
+              title={t('projectDetail.overview.budgetSnapshot.error', "Couldn't load budget")}
+              onRetry={() => budgetRefetch()}
+            />
+          ) : (
+            <CardPad className="flex flex-col gap-3">
+              {/* Budget totals */}
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('projectDetail.overview.budgetSnapshot.activeBudget', 'Active budget')}
+                  </dt>
+                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.activeTotal, project.currency)}</dd>
+                </div>
+                <div>
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('projectDetail.overview.budgetSnapshot.actualSpent', 'Actual spent')}
+                  </dt>
+                  <dd className="mt-0.5 text-[15px] font-bold tabular">{formatCurrency(snapshot.spent, project.currency)}</dd>
+                </div>
+                <div className="col-span-2">
+                  <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                    {t('uxs01.budgetPosition', 'Budget position')}
+                  </dt>
+                  <dd
+                    data-testid="budget-variance"
+                    className={`mt-0.5 text-[15px] font-bold tabular${snapshot.variance > 0 ? ' text-destructive-text' : ''}`}
+                  >
+                    {snapshot.variance > 0
+                      ? t('uxs01.overBudgetBy', 'Over budget by {{amount}}', { amount: formatCurrency(snapshot.variance, project.currency) })
+                      : snapshot.variance < 0
+                        ? t('uxs01.budgetRemaining', 'Budget remaining {{amount}}', { amount: formatCurrency(Math.abs(snapshot.variance), project.currency) })
+                        : t('uxs01.onBudget', 'On budget')}
+                  </dd>
+                  {/* PD-B: the deleted Budget utilization card's % + At-risk flag live here now.
+                      Text-not-color per DESIGN.md: the pill carries the meaning. */}
+                  {budgetUtilPctValue !== null && (
+                    <dd data-testid="budget-used" className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-muted-foreground">
+                      <span className="tabular">{budgetUtilPctValue}% {t('projectDetail.overview.budgetUtil.ofBudget', 'of budget')}</span>
+                      {budgetUtil !== null && (
+                        <StatusPill variant="warn">{t('projectDetail.overview.budgetUtil.atRisk', 'At risk')}</StatusPill>
+                      )}
+                    </dd>
+                  )}
+                </div>
+              </dl>
+
+              {/* Category breakdown bars */}
+              {snapshot.byCategory.length > 0 && (
+                <div
+                  role="group"
+                  aria-label={t('projectDetail.overview.budgetSnapshot.byCategoryLabel', 'Budget by category')}
+                  className="flex flex-col gap-0.5 pt-1"
+                >
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground mb-1">
+                    {t('projectDetail.overview.budgetSnapshot.byCategory', 'By category')}
+                  </div>
+                  {snapshot.byCategory.map((cat) => (
+                    <HoursBar
+                      key={cat.category}
+                      label={cat.category}
+                      code={null}
+                      hours={cat.amount}
+                      maxHours={snapshot.activeTotal}
+                      // Budget figures are money — currency-format them (reusing
+                      // the Budget tab's formatter) so they never render "2000000h".
+                      formatValue={(v) => formatCurrency(v, project.currency)}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Footer link */}
+              {setTab && (
+                <button
+                  type="button"
+                  onClick={() => setTab('budget')}
+                  className="text-[12px] font-semibold text-primary-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring self-start"
+                >
+                  {t('projectDetail.overview.budgetSnapshot.openBudgetTab', 'Open Budget tab')}
+                </button>
+              )}
+            </CardPad>
+          )}
+        </Card>}
+        </div>
+      )}
     </div>
   );
 };

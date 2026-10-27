@@ -155,64 +155,6 @@ beforeEach(() => {
   integrationsState.getBinding.mockImplementation(() => undefined);
 });
 
-describe('Project detail task toolbar and ordering', () => {
-  it('AC-PD-TASK-01 orders search, scope and status filters, due sort, views, secondary action, then primary', () => {
-    renderTab();
-    const toolbar = screen.getByRole('group', { name: 'Task tools' });
-    const orderedControls = [
-      screen.getByRole('searchbox', { name: 'Search tasks' }),
-      screen.getByRole('combobox', { name: 'Phase filter' }),
-      screen.getByRole('combobox', { name: 'Status filter' }),
-      screen.getByRole('combobox', { name: 'Sort tasks' }),
-      screen.getByRole('group', { name: 'Task view' }),
-      screen.getByRole('button', { name: 'Show archived' }),
-      screen.getByRole('button', { name: 'New task' }),
-    ];
-    expect(orderedControls.every((control) => toolbar.contains(control))).toBe(true);
-    for (let index = 0; index < orderedControls.length - 1; index += 1) {
-      expect(orderedControls[index].compareDocumentPosition(orderedControls[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    }
-    const task = screen.getByText('Survey the site');
-    expect(toolbar.compareDocumentPosition(task) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
-  it('AC-PD-TASK-02 keeps controls on no-match and clears search, phase and status filters', async () => {
-    renderTab();
-    await userEvent.type(screen.getByRole('searchbox', { name: 'Search tasks' }), 'missing task');
-    expect(screen.getByText('No tasks match these filters')).toBeInTheDocument();
-    expect(screen.getByRole('group', { name: 'Task tools' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Clear search and filters' }));
-    expect(screen.getByText('Survey the site')).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Status filter' })).toHaveValue('all');
-    expect(screen.getByRole('combobox', { name: 'Phase filter' })).toHaveValue('all');
-  });
-
-  it('AC-PD-TASK-03 sorts due dates while undated and completed tasks stay last and subtasks remain adjacent', async () => {
-    listState.data = [
-      { ...seed[0], end_date: '2026-06-20', parent_task_id: null },
-      { ...seed[1], end_date: '2026-06-10', parent_task_id: null },
-      { id: 't4', project_id: 'p1', name: 'Completed task', status: 'Done', assignee_id: null, created_by: 'pm-1', start_date: null, end_date: '2026-06-01', created_at: '2026-03-01T00:00:00Z', assignee: null, dependencies: [], parent_task_id: null },
-      { id: 't5', project_id: 'p1', name: 'Subtask', status: 'To Do', assignee_id: null, created_by: 'pm-1', start_date: null, end_date: '2026-06-05', created_at: '2026-03-02T00:00:00Z', assignee: null, dependencies: [], parent_task_id: 't1' },
-    ];
-    renderTab();
-    const table = screen.getByRole('table');
-    let rows = within(table).getAllByRole('row').slice(1);
-    expect(rows.map((row) => row.textContent)).toEqual([
-      expect.stringContaining('Mobilise crew'),
-      expect.stringContaining('Survey the site'),
-      expect.stringContaining('Subtask'),
-      expect.stringContaining('Completed task'),
-    ]);
-
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Sort tasks' }), 'latest');
-    rows = within(table).getAllByRole('row').slice(1);
-    expect(rows[0]).toHaveTextContent('Survey the site');
-    expect(rows[1]).toHaveTextContent('Subtask');
-    expect(rows[2]).toHaveTextContent('Mobilise crew');
-    expect(rows[3]).toHaveTextContent('Completed task');
-  });
-});
-
 describe('TasksTab — task-first ClickUp setup (AC-S21-001)', () => {
   it('SUB-F: a disconnected, unlinked ClickUp renders no card or prompt — just the task register', () => {
     renderTab();
@@ -273,8 +215,7 @@ describe('TasksTab — archive affordance (AC-CUA-098/099/100)', () => {
     await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[0]);
     expect(screen.getByText('Archive')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Show archived'));
-    const archivedRow = screen.getByText('Archived obsolete work').closest('tr')!;
-    await userEvent.click(within(archivedRow).getByRole('button', { name: /Row actions/i }));
+    await userEvent.click(screen.getAllByRole('button', { name: /Row actions/i })[2]);
     expect(screen.getByText('Unarchive')).toBeInTheDocument();
   });
 

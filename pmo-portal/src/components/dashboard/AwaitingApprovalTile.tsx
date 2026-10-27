@@ -21,7 +21,7 @@
  */
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router';
+import { KPITile } from '@/src/components/ui/KPITile';
 import { useProcurements } from '@/src/hooks/useProcurements';
 import { useTimesheetsAwaitingApproval } from '@/src/hooks/useTimesheetApproval';
 import { useAuth } from '@/src/auth/useAuth';
@@ -42,7 +42,7 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   label,
   testId = 'kpi-awaiting-approval',
 }) => {
-  const { t } = useTranslation('dashboard');
+  const { t } = useTranslation();
   const resolvedLabel = label ?? t('dashboard.kpi.awaitingApproval.label', 'Awaiting your approval');
   const { currentUser } = useAuth();
   const { realRole } = useEffectiveRole();
@@ -71,29 +71,30 @@ export const AwaitingApprovalTile: React.FC<AwaitingApprovalTileProps> = ({
   // carries the inbox. An error keeps the red "—" so a failure never reads as "nothing waiting".
   if (!loading && !hasError && total === 0) return null;
 
+  const vs = hasError
+    ? t('dashboard.kpi.awaitingApproval.unavailable', 'unavailable — check connection')
+    : total === 1
+        ? t('dashboard.kpi.awaitingApproval.one', '{{count}} item waiting', { count: total })
+        : t('dashboard.kpi.awaitingApproval.many', '{{count}} items waiting', { count: total });
+
+  const linkLabel = hasError
+    ? t('dashboard.kpi.awaitingApproval.linkUnavailable', '{{label}}: unavailable', { label: resolvedLabel })
+    : total === 1
+      ? t('dashboard.kpi.awaitingApproval.linkOne', '{{label}}: {{count}} item awaiting', { label: resolvedLabel, count: total })
+      : t('dashboard.kpi.awaitingApproval.linkMany', '{{label}}: {{count}} items awaiting', { label: resolvedLabel, count: total });
+
   return (
-    <div data-testid={testId} className="flex min-h-16 flex-wrap items-center justify-between gap-3 border-b border-border py-3">
-      {loading ? (
-        <p role="status" className="text-sm text-muted-foreground">{t('approval.checking', 'Checking approval requests…')}</p>
-      ) : hasError ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          {resolvedLabel}: <span className="text-foreground">—</span> · {t('approval.unavailable', 'Approval status unavailable')}
-        </p>
-      ) : (
-        <p className="text-sm">
-          <span className="tabular">{total}</span>{' '}
-          <span>{total === 1 ? t('approval.item', 'item') : t('approval.items', 'items')}</span>{' '}
-          <span className="text-muted-foreground">{resolvedLabel}</span>
-        </p>
-      )}
-      <Link
-        to="/approvals"
-        className={hasError
-          ? 'inline-flex min-h-11 items-center px-2 text-sm text-muted-foreground underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
-          : 'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 text-xs font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
-      >
-        {hasError ? t('approval.open', 'Open approvals') : t('approval.review', 'Review requests')}
-      </Link>
-    </div>
+    <KPITile
+      testId={testId}
+      tone={hasError ? 'red' : 'amber'}
+      icon="check"
+      label={resolvedLabel}
+      value={hasError ? '—' : String(total)}
+      vs={vs}
+      loading={loading}
+      to="/approvals"
+      linkLabel={linkLabel}
+      ctaLabel={t('dashboard.kpi.awaitingApproval.review', 'Review')}
+    />
   );
 };

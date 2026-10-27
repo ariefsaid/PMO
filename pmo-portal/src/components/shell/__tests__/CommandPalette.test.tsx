@@ -80,6 +80,9 @@ describe('CommandPalette', () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     const dialog = screen.getByRole('dialog');
     expect(dialog).toHaveAttribute('aria-modal', 'true');
+    expect(dialog.className).toMatch(/shadow-\[0_24px_60px_hsl\(var\(--scrim\)\/0\.35\)\]/);
+    expect(dialog.className).not.toMatch(/240_10%_4%/);
+    expect(screen.getByTestId('cmdk-backdrop').className).toContain('bg-foreground/40');
   });
 
   it('UXS-006: finds a destination by its localized route label', async () => {
@@ -171,16 +174,21 @@ describe('CommandPalette', () => {
     trigger.remove();
   });
 
-  it('I1: the active option is announced as selected', () => {
+  // I1 — active option must carry a clearly-perceptible visible-selection class
+  it('I1: active option carries visible-selection class (bg-primary/10) — not just bg-accent', () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     const opts = screen.getAllByRole('option');
+    // First item is selected by default
     expect(opts[0]).toHaveAttribute('aria-selected', 'true');
+    // Must have the primary tint class for perceptible contrast, not the invisible accent
+    expect(opts[0].className).toMatch(/bg-primary\/10/);
   });
 
-  it('I1: non-active options are announced as unselected', () => {
+  it('I1: non-active options do NOT carry bg-primary/10', () => {
     render(<CommandPalette open items={items} onClose={vi.fn()} />);
     const opts = screen.getAllByRole('option');
     expect(opts[1]).toHaveAttribute('aria-selected', 'false');
+    expect(opts[1].className).not.toMatch(/bg-primary\/10/);
   });
 
   // ── Phase E: record search states ──────────────────────────────────────────
@@ -320,7 +328,7 @@ describe('CommandPalette', () => {
     const result = await screen.findByRole('option', { name: /North Terminal/ });
     expect(within(result).getByText('North Terminal')).toBeInTheDocument();
     const context = within(result).getByText(/Contractual terminal refurbishment$/);
-    expect(context).toHaveTextContent('Contractual terminal refurbishment');
+    expect(context).toHaveClass('truncate');
     expect(context).toHaveAttribute('title', 'Project · Contractual terminal refurbishment');
   });
 
@@ -371,8 +379,10 @@ describe('CommandPalette', () => {
     const invoice = await screen.findByRole('option', { name: /SI-420/ });
     const code = within(invoice).getByTitle('Reference: PO-420 · SI-420 · CX-420');
     expect(code).toHaveTextContent('Reference: PO-420 · SI-420 · CX-420');
+    expect(code).toHaveClass('break-words');
+    expect(code).not.toHaveClass('break-all');
     for (const identifier of ['PO-420', 'SI-420', 'CX-420']) {
-      expect(within(code).getByText(identifier, { exact: true })).toBeInTheDocument();
+      expect(within(code).getByText(identifier, { exact: true })).toHaveClass('whitespace-nowrap');
     }
   });
 
@@ -387,7 +397,7 @@ describe('CommandPalette', () => {
     render(<CommandPalette open items={[]} onClose={vi.fn()} />);
     await userEvent.type(screen.getByRole('combobox'), reference);
     const result = await screen.findByRole('option');
-    expect(result).toHaveTextContent(title);
+    expect(result.querySelector('.truncate')).toHaveTextContent(title);
     await userEvent.keyboard('{Enter}');
     expect(state.navigate).toHaveBeenCalledWith(path);
   });

@@ -41,7 +41,7 @@ describe('MilestonePhaseHeader', () => {
     expect(screen.getByText('15% of project')).toBeInTheDocument();
 
     // Target date
-    const target = screen.getByText('Target Aug 15, 2026');
+    const target = screen.getByText('Target 15 Aug');
     expect(target).toBeInTheDocument();
     expect(target.className).toContain('text-warning-foreground');
 
@@ -149,7 +149,7 @@ describe('MilestonePhaseHeader', () => {
       />,
     );
 
-    const target = screen.getByText('Target Aug 15, 2026');
+    const target = screen.getByText('Target 15 Aug');
     expect(target.className).not.toContain('text-warning-foreground');
     expect(screen.queryByText('Overdue')).not.toBeInTheDocument();
   });
@@ -167,7 +167,7 @@ describe('MilestonePhaseHeader', () => {
     );
 
     expect(screen.getByText('Procurement')).toBeInTheDocument();
-    expect(screen.getByText('Target Aug 15, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
     // Compact should NOT show percentage
     expect(screen.queryByText('40%')).not.toBeInTheDocument();
     // Compact should NOT show weight share

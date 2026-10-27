@@ -94,20 +94,6 @@ const sampleProjects = [
     client: { id: 'c1', name: 'Northwind Corp' },
     pm: { id: 'pm-1', full_name: 'Alice PM' },
   },
-  {
-    id: 'p2',
-    name: 'Unassigned portfolio project',
-    code: 'P-002',
-    status: 'Ongoing',
-    project_manager_id: null,
-    client_id: 'c1',
-    contract_value: 0, currency: 'USD',
-    budget: 0,
-    spent: 0,
-    customer_contract_ref: null,
-    client: { id: 'c1', name: 'Northwind Corp' },
-    pm: null,
-  },
 ];
 
 beforeEach(() => {
@@ -143,14 +129,11 @@ describe('AC-IXD-PIPE-W5-C5 — Projects toolbar Engineer scope (N19)', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('AC-IXD-PIPE-W5-C5-N19-3: Engineer can choose role-default and portfolio scopes', async () => {
+  it('AC-IXD-PIPE-W5-C5-N19-3: Engineer toolbar STILL shows the status SegFilter tabs (not removed)', () => {
     renderAs('Engineer');
-    const scope = screen.getByRole('combobox', { name: 'Scope' });
-    expect(scope).toHaveValue('My Projects');
-    expect(screen.queryByText('Unassigned portfolio project')).not.toBeInTheDocument();
-    await userEvent.selectOptions(scope, 'All');
-    expect(scope).toHaveValue('All');
-    expect(screen.getByText('Unassigned portfolio project')).toBeInTheDocument();
+    // Status filter tabs should be present
+    expect(screen.getByRole('tab', { name: /^all$/i })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: /my projects/i })).toBeInTheDocument();
   });
 
   it('AC-IXD-PIPE-W5-C5-N19-4: Engineer toolbar STILL shows the search input', () => {

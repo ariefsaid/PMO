@@ -73,8 +73,6 @@ export interface EntityFormModalProps {
    * pass your own when the submit is disabled for another reason (e.g. an invalid value).
    */
   disabledReason?: string;
-  /** Show the disabled-submit explanation beside the footer actions as well as to assistive technology. */
-  disabledReasonVisible?: boolean;
   /** Translated/specific copy for the dirty-discard confirm (default: English generic). */
   discardCopy?: DiscardCopy;
   /** Mutation in flight: footer spinner + Esc/scrim lockout. */
@@ -115,7 +113,6 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
   onClose,
   submitDisabled,
   disabledReason,
-  disabledReasonVisible = false,
   discardCopy,
   loading = false,
   dirty = false,
@@ -303,7 +300,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
           className={cn(
             'confirm-anim relative z-[810] flex max-h-[85dvh] w-[calc(100%-32px)] flex-col rounded-lg border border-border bg-popover',
             'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-            'origin-center motion-reduce:animate-none max-sm:[&_button]:min-h-11 max-sm:[&_button]:min-w-11',
+            'origin-center motion-reduce:animate-none',
             width === 'lg' ? 'max-w-[640px]' : 'max-w-[520px]',
           )}
         >
@@ -332,10 +329,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
 
           {/* Body (the form) */}
           <form onSubmit={handleFormSubmit} className="flex min-h-0 flex-1 flex-col">
-            <div
-              tabIndex={0}
-              className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
-            >
+            <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">
               {visibleSaveError && (
                 <div
                   ref={saveErrorRef}
@@ -398,7 +392,7 @@ export const EntityFormModal: React.FC<EntityFormModalProps> = ({
             {/* Sticky footer */}
             <div className="border-t border-border px-[18px] py-3.5">
               {submitDisabled && (
-                <span id={disabledReasonId} className={disabledReasonVisible ? 'mb-2 block max-w-[60ch] type-metadata text-muted-foreground' : 'sr-only'}>
+                <span id={disabledReasonId} className="sr-only">
                   {disabledReason ?? t('entityForm.completeRequired', 'Complete all required fields (marked with an asterisk) to save.')}
                 </span>
               )}

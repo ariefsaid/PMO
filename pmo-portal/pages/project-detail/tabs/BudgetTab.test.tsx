@@ -32,15 +32,9 @@ vi.mock('@/src/hooks/useErpnextBinding', () => ({
 vi.mock('../../ProjectBudget', () => ({
   default: () => <div data-testid="pmo-budget-grid">PMO budget grid</div>,
 }));
-vi.mock('../AttributedSpendingNote', () => ({ AttributedSpendingNote: () => <p data-testid="attributed-note">Attributed spending</p> }));
+vi.mock('../AttributedSpendingNote', () => ({ AttributedSpendingNote: () => null }));
 vi.mock('../../BudgetProjection', () => ({
-  default: ({ attributionNote, afterForecast }: { attributionNote?: React.ReactNode; afterForecast?: React.ReactNode }) => (
-    <>
-      <section data-testid="erp-projection-panel">ERP projection{attributionNote}</section>
-      {afterForecast}
-      <details data-testid="budget-sources"><summary>Sources and budget enforcement</summary></details>
-    </>
-  ),
+  default: () => <div data-testid="erp-projection-panel">ERP projection</div>,
 }));
 
 import BudgetTab from './BudgetTab';
@@ -77,7 +71,7 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     expect(screen.getByTestId('pmo-budget-grid')).toBeInTheDocument();
   });
 
-  it('AC-PD-BUD-01 forecast leads the version ledger, owns the attribution caveat and precedes sources', async () => {
+  it('UX-034 the Forecast comes BEFORE the version ledger in document order', async () => {
     bindingMock.mockReturnValue({ data: binding('active'), isSuccess: true });
 
     render(<BudgetTab projectId="proj-1" />);
@@ -85,10 +79,6 @@ describe('BudgetTab mounts the ERP projection only where it can mean something',
     const forecast = await screen.findByTestId('erp-projection-panel');
     const ledger = screen.getByTestId('pmo-budget-grid');
     expect(forecast.compareDocumentPosition(ledger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(forecast).toContainElement(screen.getByTestId('attributed-note'));
-    expect(forecast.compareDocumentPosition(screen.getByTestId('attributed-note')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    const sources = screen.getByTestId('budget-sources');
-    expect(ledger.compareDocumentPosition(sources) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('LOW-2 an org with NO erpnext binding never sees the panel — its remedy copy would be unfollowable', async () => {

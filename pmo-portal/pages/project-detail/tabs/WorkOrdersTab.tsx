@@ -3,21 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router';
 import {
   Button,
+  Card,
+  CardHead,
+  CardPad,
   ConfirmDialog,
   DataTable,
   GateNotice,
-  SearchMini,
   ListState,
   StatusPill,
   TaxBasisLabel,
-  Toolbar,
   useToast,
   type Column,
   type StatusVariant,
 } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -26,7 +27,6 @@ import {
   isLegalWorkOrderTransition,
 } from '@/src/lib/db/workOrders';
 import { useProjectWorkOrders, useWorkOrderMutations } from '@/src/hooks/useWorkOrders';
-import { formatProjectDetailMoney } from '../formatProjectDetailMoney';
 import ProjectDrawdown from '../ProjectDrawdown';
 import WorkOrderFormModal from '../WorkOrderFormModal';
 import WorkOrderValueModal from '../WorkOrderValueModal';
@@ -34,7 +34,6 @@ import InvoiceWorkOrderModal from '../InvoiceWorkOrderModal';
 import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useDocuments } from '@/src/hooks/useDocuments';
-import { projectSectionHeading } from '../typography';
 import {
   useWorkOrderAcceptanceMutations, useWorkOrderAcceptances, useProjectWorkOrderLines,
 } from '@/src/hooks/useWorkOrderAcceptances';
@@ -108,8 +107,6 @@ const ROLE_RANK: Record<string, number> = {
   Admin: 50,
 };
 
-const WORK_ORDER_STATUSES: WorkOrderStatus[] = ['Draft', 'Issued', 'Closed', 'Cancelled'];
-
 const STATUS_VARIANT: Record<WorkOrderStatus, StatusVariant> = {
   Draft: 'draft',
   Issued: 'progress',
@@ -124,16 +121,13 @@ interface PendingTransition {
 }
 
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const may = usePermission();
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
   const { data, isPending, isError, refetch } = useProjectWorkOrders(projectId);
   const { create, update, setValue, transition } = useWorkOrderMutations(projectId);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | 'all'>('all');
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
 
   // `undefined` = closed · `null` = create a draft · a row = edit that draft's body.
   const [formFor, setFormFor] = useState<WorkOrderRow | null | undefined>(undefined);
@@ -144,8 +138,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
   const rows = useMemo(() => data ?? [], [data]);
   const prefix = currencySymbol(currency);
-  const displayMoney = (amount: number, currencyCode: string) =>
-    formatProjectDetailMoney(amount, currencyCode, i18n.language, true) ?? t('projectFinances.unavailable', 'Unavailable');
 
   // ── ADR-0091: contract lines (allocations) and BAST per work order. One project-scoped read of each, grouped
   //    here — never one query per row. Every write persists alone; nothing is closed optimistically.
@@ -242,14 +234,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       }
       if (billing.isError || !f) {
         return (
-          <span data-testid={`wo-billing-${row.id}`} className="text-xs text-muted-foreground">
+          <span data-testid={`wo-billing-${row.id}`} className="text-[12px] text-muted-foreground">
             {t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
           </span>
         );
       }
       const state = deriveWorkOrderBillingState(row.status, f);
-      if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>{t('project:projectDetail.workOrders.notBillable', 'Not billable before issue')}</span>;
-      const money = (amount: number) => displayMoney(amount, f.currency);
+      if (state === 'not-billable') return <span data-testid={`wo-billing-${row.id}`}>—</span>;
+      const money = (amount: number) => formatCurrencyCents(amount, f.currency);
       const line = 'text-[11px] tabular text-muted-foreground';
       return (
         <div className="flex flex-col items-start gap-0.5 whitespace-normal" data-testid={`wo-billing-${row.id}`}>
@@ -340,29 +332,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     }
   };
 
-  const query = search.trim().toLocaleLowerCase();
-  const visibleRows = useMemo(() => [...rows]
-    .sort((left, right) => {
-      if (left.order_date === null) return right.order_date === null ? left.id.localeCompare(right.id) : 1;
-      if (right.order_date === null) return -1;
-      const leftDate = left.order_date ?? '';
-      const rightDate = right.order_date ?? '';
-      const dateOrder = leftDate.localeCompare(rightDate);
-      const ordered = sortOrder === 'newest' ? -dateOrder : dateOrder;
-      return ordered || left.id.localeCompare(right.id);
-    })
-    .filter((row) => {
-      const matchesStatus = statusFilter === 'all' || row.status === statusFilter;
-      const matchesSearch = !query || [row.wo_number, row.title, row.client_po_number, row.id]
-        .some((value) => value?.toLocaleLowerCase().includes(query));
-      return matchesStatus && matchesSearch;
-    }), [rows, query, sortOrder, statusFilter]);
-  const hasActiveFilters = query.length > 0 || statusFilter !== 'all';
-  const clearFilters = () => {
-    setSearch('');
-    setStatusFilter('all');
-  };
-
   /**
    * OD-TAX-1: no bare money figure anywhere a treatment exists. `tax_treatment` is a flat NOT NULL
    * on this table, so there is always an answer and this never has to render "unknown".
@@ -379,7 +348,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     if (row.tax_rate != null && numerator === denominator) return treatmentLabel(row.tax_treatment);
     return `${treatmentLabel(row.tax_treatment)}${row.tax_rate != null ? `\u00a0${row.tax_rate}%` : ` · ${t('tax.details.unknownRate', 'rate not recorded')}`} · DPP\u00a0${numerator}/${denominator}`;
   };
-  const valueWithBasis = (row: WorkOrderRow): string => `${displayMoney(row.order_value, row.currency)} ${basisNote(row)}`;
+  const valueWithBasis = (row: WorkOrderRow): string => `${formatCurrency(row.order_value, row.currency)} ${basisNote(row)}`;
 
   const fail = (err: unknown) => {
     const { headline, detail } = classifyMutationError(err);
@@ -402,7 +371,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     await setValue.mutateAsync(input);
     toast(
       t('projectDetail.workOrders.toast.valueSet', 'Work order value set'),
-      displayMoney(input.value, currency),
+      formatCurrency(input.value, currency),
       'success',
     );
     setValueFor(null);
@@ -477,7 +446,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       toast(
         result && result.closingValue !== null
           ? t('projectTabs:contractQuantities.workOrders.acceptances.toast.closed', 'Final BAST confirmed — closed at {{amount}}', {
-            amount: displayMoney(result.closingValue, currency), interpolation: { escapeValue: false },
+            amount: formatCurrency(result.closingValue, currency), interpolation: { escapeValue: false },
           })
           : t('projectTabs:contractQuantities.workOrders.acceptances.toast.confirmed', 'BAST confirmed'),
         undefined,
@@ -488,76 +457,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       const { headline, detail } = classifyMutationError(err, undefined, { suppressCapture: true });
       setConfirmFor({ acceptance: confirmFor.acceptance, error: detail ? `${headline} ${detail}` : headline });
     }
-  };
-
-  const quantityDetails = (row: WorkOrderRow) => {
-    const mine = allocationsByWo.get(row.id) ?? [];
-    const bastList = acceptancesByWo.get(row.id) ?? [];
-    const woLabel = row.wo_number ?? row.title;
-    const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
-    return (
-      <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="min-w-0 py-2">
-        <summary className="cursor-pointer rounded text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
-          {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
-          <span className="ml-2 font-normal text-muted-foreground">
-            {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
-          </span>
-        </summary>
-        <div className="mt-3 flex flex-col gap-4">
-          <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
-            </h3>
-            {lines.isPending ? (
-              <ListState variant="loading" rows={2} />
-            ) : lines.isError ? (
-              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
-            ) : mine.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
-            ) : (
-              <ul className="flex flex-col gap-0.5 text-sm" data-testid={`wo-lines-${row.id}`}>
-                {mine.map((l) => {
-                  const item = boqRows.find((b) => b.id === l.boq_item_id);
-                  return (
-                    <li key={l.id} className="tabular">
-                      {item ? `${item.item_code} — ${item.description}` : l.boq_item_id}{' '}
-                      <span className="font-semibold">{formatNumberExact(Number(l.quantity))}{item ? ` ${item.unit}` : ''}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {editableLines && (
-              <div className="mt-2">
-                <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setLinesFor(row)}>
-                  {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
-                </Button>
-              </div>
-            )}
-          </section>
-          <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
-            <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.06em] text-muted-foreground">
-              {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
-            </h3>
-            <WorkOrderAcceptances
-              workOrder={row}
-              boqItems={boqRows}
-              documents={documents.data ?? []}
-              acceptances={bastList}
-              state={acceptancesQuery.isError ? 'error' : acceptancesQuery.isPending ? 'loading' : 'ready'}
-              onRetry={() => void acceptancesQuery.refetch()}
-              currentUserId={currentUser?.id ?? null}
-              projectManagerId={projectManagerId}
-              hasAllocations={mine.length > 0}
-              onPrepare={() => setBastFor({ row, draft: null })}
-              onEdit={(a) => setBastFor({ row, draft: a })}
-              onWithdraw={setWithdrawFor}
-              onConfirm={(a) => setConfirmFor({ acceptance: a, error: null })}
-            />
-          </section>
-        </div>
-      </details>
-    );
   };
 
   const columns: Column<WorkOrderRow>[] = [
@@ -577,7 +476,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           </span>
           {/* The scope rides under the WO number (not its own column) so Billing and Invoice stay in view beside
               the record panel; it wraps to two lines rather than widening the table. */}
-          <span className="break-words whitespace-normal" title={row.title}>{row.title}</span>
+          <span className="line-clamp-2 max-w-56 whitespace-normal" title={row.title}>{row.title}</span>
           {/* Folded status: only while the table is too narrow for the Status column (below), and never on a
               record card (mobile, or a column too narrow for the table), which already lists Status as a field. */}
           <span className="mt-0.5 max-md:hidden @2xl:hidden [[data-dt-cards]_&]:hidden">
@@ -597,12 +496,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       align: 'num',
       cell: (row) => (
         <span className="flex flex-col items-end tabular" data-testid={`wo-value-${row.id}`}>
-          <span>{displayMoney(row.order_value, row.currency)}</span>{' '}
+          <span>{formatCurrency(row.order_value, row.currency)}</span>{' '}
           <span className="whitespace-normal text-[11px] text-muted-foreground">{basisNote(row)}</span>
           {row.closing_value != null && (
             <span className="mt-0.5 whitespace-normal text-[11px] font-semibold" data-testid={`wo-closing-${row.id}`}>
               {t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', {
-                amount: displayMoney(Number(row.closing_value), row.currency),
+                amount: formatCurrency(Number(row.closing_value), row.currency),
                 interpolation: { escapeValue: false },
               })}
             </span>
@@ -626,11 +525,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       header: t('projectDetail.workOrders.column.orderDate', 'Order date'),
       colClassName: 'hidden @4xl:table-cell',
       cell: (row) => <span>{formatDateOnly(row.order_date)}</span>,
-    },
-    {
-      key: 'acceptanceEvidence',
-      header: t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities'),
-      cell: (row) => showQuantities ? quantityDetails(row) : null,
     },
     {
       key: 'actions',
@@ -669,12 +563,12 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         return (
           <div className="flex flex-wrap gap-1.5">
             {isDraft && canEdit && (
-              <Button variant="ghost" size="sm" className="max-sm:min-h-11" onClick={() => setFormFor(row)}>
+              <Button variant="ghost" size="sm" onClick={() => setFormFor(row)}>
                 {t('projectDetail.workOrders.action.edit', 'Edit')}
               </Button>
             )}
             {isDraft && canSetValue && (
-              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setValueFor(row)}>
+              <Button variant="outline" size="sm" onClick={() => setValueFor(row)}>
                 {t('projectDetail.workOrders.action.setValue', 'Set value')}
               </Button>
             )}
@@ -683,19 +577,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 {issueGateBody}
               </GateNotice>
             ) : isDraft && canTransition ? (
-              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Issued' })}>
+              <Button variant="primary" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>
                 {t('projectDetail.workOrders.action.issue', 'Issue')}
               </Button>
             ) : null}
             {isIssued && canTransition && !closeByBast(row.id) && (
-              <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => setPending({ row, to: 'Closed' })}>
+              <Button variant="outline" size="sm" onClick={() => setPending({ row, to: 'Closed' })}>
                 {t('projectDetail.workOrders.action.close', 'Close')}
               </Button>
             )}
             {canInvoice && (() => {
               const f = billingById.get(row.id);
               return f && canInvoiceWorkOrder(row.status, f) ? (
-                <Button variant="outline" size="sm" className="max-sm:min-h-11" onClick={() => {
+                <Button variant="primary" size="sm" onClick={() => {
                   setCreatedInvoice(null);
                   setInvoiceFor({ row, remaining: f.remaining });
                 }}>
@@ -707,7 +601,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
+                className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                 onClick={() => setPending({ row, to: 'Cancelled' })}
               >
                 {t('projectDetail.workOrders.action.cancel', 'Cancel')}
@@ -719,7 +613,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     },
   ];
 
-  const tableState = isPending ? 'loading' : isError ? 'error' : visibleRows.length === 0 ? 'empty' : undefined;
+  const tableState = isPending ? 'loading' : isError ? 'error' : rows.length === 0 ? 'empty' : undefined;
 
   const confirmCopy = (p: PendingTransition) => {
     if (p.to === 'Issued') {
@@ -755,154 +649,203 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     };
   };
 
-  const billingPosition = canViewBilling && rows.length > 0 ? (
-    <section data-testid="wo-billing-summary" aria-labelledby="wo-billing-summary-heading">
-      <h3 id="wo-billing-summary-heading" className={`flex flex-wrap items-center gap-2 ${projectSectionHeading}`}>
-        {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
-        {billing.data && totals.complete && excl}
-      </h3>
-      <div className="mt-3">
-        {billing.isPending ? (
-          <ListState variant="loading" rows={1} testId="wo-billing-loading" />
-        ) : billing.isError || !billing.data ? (
-          <ListState
-            variant="error"
-            title={t('projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")}
-            onRetry={() => billing.refetch()}
-          />
-        ) : (
-          <>
-            <dl className="project-facts space-y-2">
-              {([
-                ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
-                ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
-                ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
-                ...(totals.inDraft > 0
-                  ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted'), totals.inDraft] as const]
-                  : []),
-              ] as const).map(([testId, label, value]) => (
-                <div key={testId} data-testid={testId}>
-                  <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
-                  <dd className="whitespace-nowrap text-sm font-normal tabular">
-                    {totals.complete
-                      ? displayMoney(value, currency)
-                      : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            {!totals.complete && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
-              </p>
-            )}
-          </>
-        )}
-      </div>
-    </section>
-  ) : null;
-
   return (
     <div className="space-y-6">
-      <ProjectDrawdown
-        projectId={projectId}
-        title={t('project:projectDetail.workOrders.positionTitle', 'Contract headroom and billing position')}
-        alwaysShow={rows.length > 0}
-        afterFigures={(
-          <>
-            {billingPosition}
-            {dpNotice !== null && (
-              <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
-                {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
-                  '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
-                  { amount: displayMoney(dpNotice, currency), interpolation: { escapeValue: false } })}
-              </div>
-            )}
-          </>
-        )}
-      />
+      <ProjectDrawdown projectId={projectId} />
 
-      <section aria-labelledby="project-work-orders-heading">
-        <Toolbar standalone role="group" aria-label={t('project:projectDetail.workOrders.toolbar.label', 'Work order tools')}>
-          <SearchMini
-            placeholder={t('project:projectDetail.workOrders.toolbar.searchPlaceholder', 'Search by WO number, title, or client PO…')}
-            aria-label={t('project:projectDetail.workOrders.toolbar.searchLabel', 'Search work orders')}
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            containerClassName="max-sm:h-11 max-sm:basis-full max-sm:w-full max-sm:min-w-0 sm:flex-1"
-          />
-          <select
-            aria-label={t('project:projectDetail.workOrders.toolbar.statusFilter', 'Filter work orders by status')}
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as WorkOrderStatus | 'all')}
-            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <option value="all">{t('project:projectDetail.workOrders.toolbar.allStatuses', 'All statuses')}</option>
-            {WORK_ORDER_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
-          </select>
-          <select
-            aria-label={t('project:projectDetail.workOrders.toolbar.sortOrders', 'Sort work orders')}
-            value={sortOrder}
-            onChange={(event) => setSortOrder(event.target.value as 'newest' | 'oldest')}
-            className="h-8 max-sm:h-11 w-full sm:w-auto rounded-md border border-input bg-background px-2.5 text-sm text-foreground outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <option value="newest">{t('project:projectDetail.workOrders.toolbar.newest', 'Newest order date')}</option>
-            <option value="oldest">{t('project:projectDetail.workOrders.toolbar.oldest', 'Oldest order date')}</option>
-          </select>
-          {may('create', 'workOrder') && (
-            <Button variant="primary" size="sm" className="max-sm:min-h-11 max-sm:w-full" onClick={() => setFormFor(null)}>
-              {t('projectDetail.workOrders.action.new', 'New work order')}
-            </Button>
+      {dpNotice !== null && (
+        <div role="status" data-testid="wo-dp-held-notice" className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-[13px]">
+          {t('projectTabs:contractQuantities.workOrders.closing.dpHeld',
+            '{{amount}} of the down payment is still held after closing. Finance should recover the rest with the next progress claim, or refund it explicitly — closing does not clear it.',
+            { amount: formatCurrency(dpNotice, currency), interpolation: { escapeValue: false } })}
+        </div>
+      )}
+
+      {canViewBilling && (
+        <>
+          {createdInvoice && (
+            <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+              <p className="text-sm text-muted-foreground">
+                {createdInvoice.native
+                  ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
+                  : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
+              </p>
+              <Link className="inline-flex min-h-8 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
+                {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
+              </Link>
+            </div>
           )}
-        </Toolbar>
+          {rows.length > 0 && (
+            <Card variant="bare" data-testid="wo-billing-summary">
+              <CardHead level={2} className="gap-2 text-base">
+                {t('projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')}
+                {billing.data && totals.complete && excl}
+              </CardHead>
+              <CardPad>
+            {billing.isPending ? (
+              <ListState variant="loading" rows={1} testId="wo-billing-loading" />
+            ) : billing.isError || !billing.data ? (
+              <ListState
+                variant="error"
+                title={t('projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")}
+                onRetry={() => billing.refetch()}
+              />
+            ) : (
+              <>
+                {/* auto-fit sizes the totals off the card's OWN width (DESIGN.md, record-layout column): beside the record
+                    panel four IDR billions do not fit one row, so the fourth wraps instead of colliding. */}
+                <dl className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+                  {([
+                    ['wo-billing-total-still', t('projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice'), totals.stillToInvoice],
+                    ['wo-billing-total-invoiced', t('projectDetail.workOrders.billing.invoiced', 'Invoiced'), totals.invoiced],
+                    ['wo-billing-total-paid', t('projectDetail.workOrders.billing.paid', 'Paid'), totals.paid],
+                    ...(totals.inDraft > 0
+                      ? [['wo-billing-total-draft', t('projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted'), totals.inDraft] as const]
+                      : []),
+                  ] as const).map(([testId, label, value]) => (
+                    <div key={testId} data-testid={testId}>
+                      <dt className="text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{label}</dt>
+                      <dd className="mt-0.5 text-[15px] font-bold tabular">
+                        {totals.complete
+                          ? formatCurrencyCents(value, currency)
+                          : t('projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+                {!totals.complete && (
+                  <p className="mt-2 text-[12px] text-muted-foreground">
+                    {t('projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}
+                  </p>
+                )}
+              </>
+            )}
+              </CardPad>
+            </Card>
+          )}
+        </>
+      )}
 
-        {createdInvoice && (
-          <div role="status" className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-            <p className="text-sm text-muted-foreground">
-              {createdInvoice.native
-                ? t('projectDetail.workOrders.billing.draftHandoffNative', 'Draft created. A different Finance or Admin user must approve it.')
-                : t('projectDetail.workOrders.billing.draftHandoffErp', 'Draft created. A different Finance or Admin user must submit it.')}
-            </p>
-            <Link className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/sales-invoices/${encodeURIComponent(createdInvoice.id)}`}>
-              {t('projectDetail.workOrders.billing.openDraft', 'Open draft')}
-            </Link>
-          </div>
-        )}
-
-        <h2 id="project-work-orders-heading" className="mb-3.5 text-xl font-bold tracking-[-0.01em]">
+      <Card variant="bare">
+        <CardHead
+          level={2}
+          className="text-base"
+          actions={
+            may('create', 'workOrder') && (
+              <Button variant="primary" size="sm" onClick={() => setFormFor(null)}>
+                {t('projectDetail.workOrders.action.new', 'New work order')}
+              </Button>
+            )
+          }
+        >
           {t('projectDetail.workOrders.title', 'Work orders')}
-        </h2>
-        {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
-            container size (36rem = 576px) of its own width it becomes the record cards (AC-TBL-CARDS-001) instead of
-            scrolling Invoice out of sight. */}
-        <DataTable<WorkOrderRow>
+        </CardHead>
+        <CardPad>
+          {/* Beside the record panel at 1024px the column is ~350px and the table needs ~530px: below Tailwind's `@xl`
+              container size (36rem = 576px) of its own width it becomes the record cards (AC-TBL-CARDS-001) instead of
+              scrolling Invoice out of sight. */}
+          <DataTable<WorkOrderRow>
             className="@container"
-            rows={visibleRows}
+            cardBelow={576}
+            rows={rows}
             columns={columns}
             rowKey={(row) => row.id}
             selectedKey={focusWorkOrderId ?? undefined}
             state={tableState}
-            emptyTitle={hasActiveFilters
-              ? t('project:projectDetail.workOrders.toolbar.noMatches', 'No work orders match these search and filters')
-              : t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
-            emptySub={!hasActiveFilters ? t(
+            emptyTitle={t('projectDetail.workOrders.empty.title', 'No work orders on this project yet')}
+            emptySub={t(
               'projectDetail.workOrders.empty.sub',
               'Record the client’s purchase orders here. Once issued, they draw down the project’s contract value.',
-            ) : undefined}
+            )}
             errorTitle={t('projectDetail.workOrders.error.title', 'Couldn’t load the work orders')}
             errorSub={t(
               'projectDetail.workOrders.error.sub',
               'The client’s purchase orders for this project could not be read. Retry, or reopen the project.',
             )}
             onRetry={() => refetch()}
-            emptyAction={hasActiveFilters ? {
-              label: t('project:projectDetail.workOrders.toolbar.clearFilters', 'Clear search and filters'),
-              onClick: clearFilters,
-            } : undefined}
-            cardBelow={576}
-            tableId="project-detail-tabs-workorderstab-table" />
-      </section>
+          tableId="project-detail-tabs-workorderstab-table" />
+        </CardPad>
+      </Card>
 
+      {showQuantities && rows.length > 0 && (
+        <Card variant="bare" data-testid="wo-quantities">
+          <CardHead level={2} className="text-base">
+            {t('projectTabs:contractQuantities.workOrders.quantities.title', 'Contract quantities')}
+          </CardHead>
+          <CardPad>
+            {lines.isError && (
+              <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />
+            )}
+            <div className="flex flex-col gap-2">
+              {rows.map((row) => {
+                const mine = allocationsByWo.get(row.id) ?? [];
+                const bastList = acceptancesByWo.get(row.id) ?? [];
+                const woLabel = row.wo_number ?? row.title;
+                const editableLines = may('create', 'workOrderLine', { record: { status: row.status } });
+                return (
+                  <details key={row.id} data-testid={`wo-quantities-${row.id}`} className="rounded-md border border-border p-3">
+                    <summary className="cursor-pointer rounded text-[13.5px] font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
+                      {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: woLabel })}
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        {t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: mine.length, basts: bastList.length })}
+                      </span>
+                    </summary>
+                    <div className="mt-3 flex flex-col gap-4">
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
+                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                          {t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}
+                        </h3>
+                        {mine.length === 0 ? (
+                          <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.none', 'No contract lines allocated yet')}</p>
+                        ) : (
+                          <ul className="flex flex-col gap-0.5 text-[13px]" data-testid={`wo-lines-${row.id}`}>
+                            {mine.map((l) => {
+                              const item = boqRows.find((b) => b.id === l.boq_item_id);
+                              return (
+                                <li key={l.id} className="tabular">
+                                  {item ? `${item.item_code} — ${item.description}` : l.boq_item_id}{' '}
+                                  <span className="font-semibold">{formatNumberExact(Number(l.quantity))}{item ? ` ${item.unit}` : ''}</span>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                        {editableLines && (
+                          <div className="mt-2">
+                            <Button variant="outline" size="sm" onClick={() => setLinesFor(row)}>
+                              {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Edit lines')}
+                            </Button>
+                          </div>
+                        )}
+                      </section>
+                      <section aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}>
+                        <h3 className="mb-1 text-[12px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">
+                          {t('projectTabs:contractQuantities.workOrders.acceptances.heading', 'Acceptances (BAST)')}
+                        </h3>
+                        <WorkOrderAcceptances
+                          workOrder={row}
+                          boqItems={boqRows}
+                          documents={documents.data ?? []}
+                          acceptances={bastList}
+                          state={acceptancesQuery.isError ? 'error' : acceptancesQuery.isPending ? 'loading' : 'ready'}
+                          onRetry={() => void acceptancesQuery.refetch()}
+                          currentUserId={currentUser?.id ?? null}
+                          projectManagerId={projectManagerId}
+                          hasAllocations={mine.length > 0}
+                          onPrepare={() => setBastFor({ row, draft: null })}
+                          onEdit={(a) => setBastFor({ row, draft: a })}
+                          onWithdraw={setWithdrawFor}
+                          onConfirm={(a) => setConfirmFor({ acceptance: a, error: null })}
+                        />
+                      </section>
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          </CardPad>
+        </Card>
+      )}
 
       {formFor !== undefined && (
         <WorkOrderFormModal

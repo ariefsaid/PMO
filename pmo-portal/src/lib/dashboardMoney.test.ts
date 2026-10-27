@@ -96,11 +96,6 @@ describe('AC-RD-MONEY-003 short-form minors (RD-S1 discover A5/A6/A8)', () => {
     expect(moneyFigure(3_400_000, 'USD', 'x', { code: true }).value).toBe('USD\u00a03.4M');
     expect(shortMoney(3_400_000, 'USD', 'x', { code: true })).toBe('USD\u00a03.4M');
   });
-
-  it('keeps the ISO code in the exact fallback when code-form compaction is not shorter', () => {
-    expect(moneyFigure(500, 'USD', 'x', { code: true }).value).toBe('USD\u00a0500');
-    expect(moneyFigure(1_300, 'USD', 'x', { code: true })).toEqual({ value: 'USD\u00a01.3K', exactValue: 'USD\u00a01,300' });
-  });
 });
 
 describe('AC-RD-MONEY-001 moneyTotalsFigure (per-currency totals, never summed)', () => {

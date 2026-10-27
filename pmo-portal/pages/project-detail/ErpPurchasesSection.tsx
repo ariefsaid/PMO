@@ -4,11 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { ListState } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
-import { formatCurrencyAuto } from '@/src/lib/format';
+import { formatCurrency } from '@/src/lib/format';
 import { localToday } from '@/src/lib/efaktur';
 import { AGING_BUCKETS, projectAging, type AgingBucket } from '@/src/lib/erpPurchaseAging';
 import { ErpOrphansSection } from '../procurement/ErpOrphansSection';
-import { projectSectionHeading } from './typography';
 
 /**
  * FR-EPR-008 / FR-PFE-041/042 — the project's ERPNext purchase documents that are not in a purchase yet, below its PMO
@@ -43,7 +42,7 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
     <section className="mt-8" aria-labelledby="erp-purchases-heading">
       <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 id="erp-purchases-heading" className={projectSectionHeading}>
+          <h2 id="erp-purchases-heading" className="text-[16px] font-bold tracking-[-0.01em]">
             {t('erpLinks.orphansTitle', 'ERPNext documents not in a purchase')}
           </h2>
           <p className="text-sm text-muted-foreground">
@@ -60,14 +59,11 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
           onRetry={() => void refetch()} />
       )}
 
-      {orphans.length > 0 && (
-        <ErpOrphansSection rows={orphans} projectId={projectId} canLink={canLink} tableId="project-erp-orphans-table" />
-      )}
-
       {aging.length > 0 && (
-        // The unpaid position follows the unlinked ERP records and stays separate from their value.
-        <section aria-labelledby="erp-aging-heading" className="mt-4">
-          <h3 id="erp-aging-heading" className={`mb-2 ${projectSectionHeading}`}>
+        // Review 4: the aging counts every unpaid ERPNext invoice of the project, linked or not (FR-PFE-042), so it
+        // carries its own title rather than reading as a total of the list below it.
+        <section aria-labelledby="erp-aging-heading" className="mb-4">
+          <h3 id="erp-aging-heading" className="mb-2 text-[14px] font-semibold text-foreground">
             {t('erpLinks.agingTitle', 'Unpaid ERPNext invoices (incl. linked)')}
           </h3>
           {aging.map((a) => (
@@ -76,12 +72,12 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
               {AGING_BUCKETS.map((b) => (
                 <div key={b}>
                   <dt className="text-xs text-muted-foreground">{bucketLabel[b]}</dt>
-                  <dd className="tabular-nums">{formatCurrencyAuto(a.buckets[b], a.currency)}</dd>
+                  <dd className="tabular-nums">{formatCurrency(a.buckets[b], a.currency)}</dd>
                 </div>
               ))}
               <div>
                 <dt className="text-xs text-muted-foreground">{t('erpPurchases.aging.total', 'Unpaid total')}</dt>
-                <dd className="font-semibold tabular-nums">{formatCurrencyAuto(a.total, a.currency)}</dd>
+                <dd className="font-semibold tabular-nums">{formatCurrency(a.total, a.currency)}</dd>
               </div>
             </dl>
           ))}
@@ -91,6 +87,10 @@ export const ErpPurchasesSection: React.FC<{ projectId: string }> = ({ projectId
             </p>
           )}
         </section>
+      )}
+
+      {orphans.length > 0 && (
+        <ErpOrphansSection rows={orphans} projectId={projectId} canLink={canLink} tableId="project-erp-orphans-table" />
       )}
     </section>
   );

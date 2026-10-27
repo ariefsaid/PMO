@@ -92,10 +92,11 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ parts, className }) => {
               <span
                 aria-current="page"
                 title={part.title}
-                // Keep the complete record identity readable at both widths.
-                className="min-w-0 break-words whitespace-normal text-sm font-semibold text-foreground"
+                // C3: at ≤921px truncate harder (20ch) — only the current crumb
+                // shows; at desktop full width allows 40ch before ellipsis.
+                className="max-w-[40ch] overflow-hidden text-ellipsis whitespace-nowrap font-semibold text-foreground max-[921px]:max-w-[20ch]"
               >
-                {part.title && part.title !== label ? `${label} · ${part.title}` : label}
+                {label}
               </span>
             ) : (
               // C3: parent crumb links hide at exactly the breakpoint where the phoneOnly

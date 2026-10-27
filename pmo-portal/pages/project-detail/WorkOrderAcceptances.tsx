@@ -66,7 +66,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   return (
     <div className="flex flex-col gap-2">
       {sorted.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.empty', 'No BASTs yet')}</p>
+        <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.empty', 'No BASTs yet')}</p>
       ) : (
         <ul className="flex flex-col gap-2">
           {sorted.map((a) => {
@@ -79,45 +79,44 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
             const canConfirm = draft && may('confirm', 'workOrderAcceptance', { currentUserId, record: { status: a.status, prepared_by: a.prepared_by } });
             return (
               <li key={a.id} data-testid={`bast-${a.id}`} className="flex flex-col gap-1 rounded-md border border-border p-2.5">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-[13px]">
                   <span className="tabular font-semibold">{formatDateOnly(a.acceptance_date)}</span>
                   <StatusPill variant={a.is_final ? 'progress' : 'draft'}>
                     {a.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}
                   </StatusPill>
                   <StatusPill variant={STATUS_VARIANT[a.status]}>{statusLabel(a.status)}</StatusPill>
                 </div>
-                {Array.isArray(a.lines) && a.lines.length > 0 && <p className="text-xs tabular text-muted-foreground">{linesText(a)}</p>}
-                {!Array.isArray(a.lines) && <p role="alert" className="text-sm text-muted-foreground">{t('project:projectDetail.workOrders.acceptanceLinesUnavailable', 'Acceptance quantities are unavailable. Retry the acceptance read.')} <Button variant="ghost" size="sm" onClick={onRetry}>{t('projectDetail.loadError.retry', 'Retry')}</Button></p>}
-                <p className="text-xs text-muted-foreground">
+                {a.lines.length > 0 && <p className="text-[12px] tabular text-muted-foreground">{linesText(a)}</p>}
+                <p className="text-[12px] text-muted-foreground">
                   {document
                     ? t('projectTabs:contractQuantities.workOrders.acceptances.document', 'Signed BAST: {{title}}', { title: document.title })
                     : t('projectTabs:contractQuantities.workOrders.acceptances.noDocument', 'No signed BAST document linked')}
                 </p>
                 {a.status === 'Confirmed' && a.confirm_basis === 'sole_operator' && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[12px] text-muted-foreground">
                     {t('projectTabs:contractQuantities.workOrders.acceptances.soleOperator', 'Confirmed by the only active member')}
                   </p>
                 )}
-                {a.note && <p className="text-xs">{a.note}</p>}
+                {a.note && <p className="text-[12px]">{a.note}</p>}
                 {draft && canConfirm && preparedByMe && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[12px] text-muted-foreground">
                     {t('projectTabs:contractQuantities.workOrders.acceptances.selfConfirmHint', 'You prepared this. Another Admin or Finance user must confirm it, unless you are the only active member.')}
                   </p>
                 )}
                 {(canEdit || canWithdraw || canConfirm) && (
                   <div className="flex flex-wrap gap-1.5">
                     {canConfirm && (
-                      <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={() => onConfirm(a)}>
+                      <Button variant="primary" size="sm" onClick={() => onConfirm(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.confirm', 'Confirm BAST')}
                       </Button>
                     )}
                     {canEdit && (
-                      <Button variant="outline" size="sm" className="max-sm:min-h-11" aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.editLabel', 'Edit draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onEdit(a)}>
+                      <Button variant="outline" size="sm" aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.editLabel', 'Edit draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onEdit(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.edit', 'Edit')}
                       </Button>
                     )}
                     {canWithdraw && (
-                      <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text max-sm:min-h-11"
+                      <Button variant="ghost" size="sm" className="text-destructive-text hover:bg-destructive/10 hover:text-destructive-text"
                         aria-label={t('projectTabs:contractQuantities.workOrders.acceptances.withdrawLabel', 'Withdraw draft BAST of {{date}}', { date: a.acceptance_date })} onClick={() => onWithdraw(a)}>
                         {t('projectTabs:contractQuantities.workOrders.acceptances.withdraw', 'Withdraw')}
                       </Button>
@@ -131,7 +130,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
       )}
       {canPrepare && (
         <div>
-          <Button variant="primary" size="sm" className="max-sm:min-h-11" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
+          <Button variant="primary" size="sm" onClick={onPrepare}>{t('projectTabs:contractQuantities.workOrders.acceptances.prepare', 'Prepare BAST')}</Button>
         </div>
       )}
     </div>

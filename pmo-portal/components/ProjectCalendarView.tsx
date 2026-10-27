@@ -14,6 +14,7 @@ import {
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { MilestoneDate } from '@/src/lib/db/milestones';
 import { formatWeekdayMonthDay } from '@/src/lib/format';
+import { projectDisplayName } from '@/src/lib/projectDisplayName';
 
 type CalEventKind = 'start' | 'end' | 'milestone';
 
@@ -26,8 +27,6 @@ interface CalEvent {
   label: string;
   /** Accessible button name. */
   ariaLabel: string;
-  /** Visible event kind, so identity is not conveyed by truncation alone. */
-  kindLabel: string;
   /** Contractual project identity, with phase context for milestones. */
   contractualTitle: string;
 }
@@ -62,7 +61,7 @@ function deriveEvents(
   t: TFunction,
 ): CalEvent[] {
   const events: CalEvent[] = [];
-  const nameById = new Map(projects.map((p) => [p.id, p.name]));
+  const nameById = new Map(projects.map((p) => [p.id, projectDisplayName(p)]));
   const contractualNameById = new Map(projects.map((p) => [p.id, p.name]));
   for (const p of projects) {
     if (p.start_date) {
@@ -70,9 +69,8 @@ function deriveEvents(
         kind: 'start',
         iso: p.start_date,
         projectId: p.id,
-        label: p.name,
-        ariaLabel: t('projects:calendar.startAriaLabel', '{{project}} — Start', { project: p.name }),
-        kindLabel: t('projects:calendar.start', 'Start'),
+        label: projectDisplayName(p),
+        ariaLabel: `${projectDisplayName(p)} — start`,
         contractualTitle: p.name,
       });
     }
@@ -81,9 +79,8 @@ function deriveEvents(
         kind: 'end',
         iso: p.end_date,
         projectId: p.id,
-        label: p.name,
-        ariaLabel: t('projects:calendar.endAriaLabel', '{{project}} — End', { project: p.name }),
-        kindLabel: t('projects:calendar.end', 'End'),
+        label: projectDisplayName(p),
+        ariaLabel: `${projectDisplayName(p)} — end`,
         contractualTitle: p.name,
       });
     }
@@ -97,12 +94,11 @@ function deriveEvents(
       kind: 'milestone',
       iso: m.targetDate,
       projectId: m.projectId,
-      kindLabel: t('projects:calendar.eventPhaseTarget', 'Phase target'),
-      label: t('projects:calendar.phaseEventLabel', '{{project}} · {{phase}}', {
+      label: t('projects.calendar.phaseEventLabel', '{{project}} · {{phase}}', {
         project: projectName,
         phase: m.name,
       }),
-      ariaLabel: t('projects:calendar.phaseEventAriaLabel', '{{project}} — Phase target: {{phase}}', {
+      ariaLabel: t('projects.calendar.phaseEventAriaLabel', '{{project}} — Phase: {{phase}}', {
         project: projectName,
         phase: m.name,
       }),
@@ -123,12 +119,12 @@ const ProjectEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => void
     aria-label={event.ariaLabel}
     title={event.contractualTitle}
     className={cn(
-      'touch-target block min-h-11 w-full whitespace-normal break-words rounded px-1.5 py-1 text-left text-sm font-normal',
+      'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       chipClass(event.kind),
     )}
   >
-    <><span>{event.label}</span><span className="font-semibold"> · {event.kindLabel}</span></>
+    {event.label}
   </button>
 );
 
@@ -143,12 +139,12 @@ const MilestoneEventChip: React.FC<{ event: CalEvent; onOpen: (id: string) => vo
     aria-label={event.ariaLabel}
     title={event.contractualTitle}
     className={cn(
-      'touch-target block min-h-11 w-full whitespace-normal break-words rounded px-1.5 py-1 text-left text-sm font-normal',
+      'block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium',
       'hover:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring',
       chipClass('milestone'),
     )}
   >
-    <><span>{event.label}</span><span className="font-semibold"> · {event.kindLabel}</span></>
+    {event.label}
   </button>
 );
 
@@ -212,17 +208,17 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
   const goToday = () => moveTo(todayCursor());
 
   const nav = (
-    <div className="mb-3 flex min-w-0 flex-wrap items-center gap-2">
-      <h2 className="mr-auto break-words text-xl font-bold">{monthLabel(cursor.year, cursor.month)}</h2>
-      <Button variant="outline" size="icon" className="touch-target min-h-11 min-w-11" onClick={goPrev} aria-label={t('projects.calendar.previousMonth', 'Previous month')}>
+    <div className="mb-3 flex items-center gap-2">
+      <Button variant="outline" size="icon" onClick={goPrev} aria-label={t('projects.calendar.previousMonth', 'Previous month')}>
         <Icon name="back" />
       </Button>
-      <Button variant="outline" size="icon" className="touch-target min-h-11 min-w-11" onClick={goNext} aria-label={t('projects.calendar.nextMonth', 'Next month')}>
+      <Button variant="outline" size="icon" onClick={goNext} aria-label={t('projects.calendar.nextMonth', 'Next month')}>
         <Icon name="chev" />
       </Button>
-      <Button variant="outline" size="sm" className="touch-target min-h-11" onClick={goToday} aria-label={t('projects.calendar.goToday', 'Go to today')}>
+      <Button variant="outline" size="sm" onClick={goToday} aria-label={t('projects.calendar.goToday', 'Go to today')}>
         {t('projects.calendar.today', 'Today')}
       </Button>
+      <h2 className="ml-1 text-[15px] font-semibold">{monthLabel(cursor.year, cursor.month)}</h2>
     </div>
   );
 
@@ -304,7 +300,7 @@ const ProjectCalendarView: React.FC<ProjectCalendarViewProps> = ({
           const heading = formatWeekdayMonthDay(date);
           return (
             <div key={iso} className="border-b border-border p-3 last:border-b-0">
-              <div className="mb-1.5 text-xl font-bold">{heading}</div>
+              <div className="mb-1.5 text-[13px] font-semibold">{heading}</div>
               <div className="flex flex-col gap-1">
                 {(eventsByDay.get(iso) ?? []).map((ev, i) => (
                   <EventChip key={`${ev.kind}-${ev.projectId}-${i}`} event={ev} onOpen={onOpenProject} />

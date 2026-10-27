@@ -37,6 +37,6 @@ describe('ProjectCalendarView — responsive agenda', () => {
     expect(screen.getByTestId('calendar-agenda')).toBeInTheDocument();
     expect(screen.queryByTestId('calendar-month-grid')).not.toBeInTheDocument();
     // The project event is still reachable as a button in the agenda.
-    expect(screen.getByRole('button', { name: /Acme — Start/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Acme — start/ })).toBeInTheDocument();
   });
 });

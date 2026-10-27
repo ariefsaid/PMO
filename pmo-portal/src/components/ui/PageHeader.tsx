@@ -1,6 +1,5 @@
 import React from 'react';
 import { cn } from './cn';
-import { PageHeading } from './PageHeading';
 
 export interface PageStat {
   label: string;
@@ -28,11 +27,9 @@ export interface PageHeaderProps {
    * supplies the framing — the inner icon + name + status + actions anatomy is unchanged.
    */
   surface?: 'card' | 'bare';
-  /** Opt into the shared content-track page heading on routes adopting the new frame. */
-  sharedPageHeading?: boolean;
 }
 
-/** Detail-page header card (`phead`): shared record heading + stats + actions. */
+/** Detail-page header card (`phead`): icon + name + status + meta + stats + actions. */
 export const PageHeader: React.FC<PageHeaderProps> = ({
   icon,
   iconColor,
@@ -44,7 +41,6 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
   className,
   'data-testid': dataTestId,
   surface = 'card',
-  sharedPageHeading = false,
 }) => (
   <div
     data-testid={dataTestId}
@@ -53,43 +49,25 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
       className,
     )}
   >
-    {sharedPageHeading ? (
-      <PageHeading
-        kind="record"
-        title={name}
-        scope={meta}
-        status={status}
-        leading={icon ? (
-          <span
-            className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-white [&_svg]:size-5"
-            style={{ background: iconColor ?? 'hsl(var(--primary))' }}
-            aria-hidden="true"
-          >
-            {icon}
-          </span>
-        ) : undefined}
-        actions={actions}
-      />
-    ) : (
-      <div className="flex flex-wrap items-start gap-3.5">
-        {icon && (
-          <span
-            className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-white [&_svg]:size-5"
-            style={{ background: iconColor ?? 'hsl(var(--primary))' }}
-          >
-            {icon}
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
-            <h1 className="min-w-0 flex-1 break-words text-[19px] font-bold tracking-[-0.02em] sm:truncate">{name}</h1>
-            {status}
-          </div>
-          {meta && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{meta}</div>}
+    {/* Narrow widths: the record name gets width priority; the action zone can wrap below. */}
+    <div className="flex flex-wrap items-start gap-3.5">
+      {icon && (
+        <span
+          className="grid size-11 shrink-0 place-items-center rounded-[10px] text-[17px] font-bold text-white [&_svg]:size-5"
+          style={{ background: iconColor ?? 'hsl(var(--primary))' }}
+        >
+          {icon}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+          <h1 className="min-w-0 flex-1 break-words text-[19px] font-bold tracking-[-0.02em] sm:truncate">{name}</h1>
+          {status}
         </div>
-        {actions && <div className="ml-auto flex w-full shrink-0 items-center gap-2 sm:w-auto">{actions}</div>}
+        {meta && <div className="mt-0.5 text-[12.5px] text-muted-foreground">{meta}</div>}
       </div>
-    )}
+      {actions && <div className="ml-auto flex w-full shrink-0 items-center gap-2 sm:w-auto">{actions}</div>}
+    </div>
     {stats && stats.length > 0 && (
       <div
         className="mt-4 grid gap-[22px] border-t border-border pt-4"

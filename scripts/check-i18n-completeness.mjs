@@ -175,10 +175,7 @@ export function blankComments(src) {
 }
 
 /**
- * Every key a source file references — a hook-bound translator call and
- * `<Trans i18nKey="some.key" …>`. Translator bindings are resolved in lexical scope, so two
- * components in one file can bind `t` to different namespaces; aliases of the returned `t` are
- * checked too.
+ * Every key a source file references — `t('some.key' …)` and `<Trans i18nKey="some.key" …>`.
  *
  * Both shapes are ordinary literal references and must count identically. `<Trans>` is the only
  * way to keep markup INSIDE one translatable sentence (#571): a sentence with a `<strong>` or a
@@ -209,17 +206,11 @@ export function collectKeyRefEntries(src) {
     const ns = literalText(node.arguments[0]) ?? literalText(objectProperty(node.arguments[0], 'ns')) ?? 'common';
     const parent = node.parent;
     if (!ts.isVariableDeclaration(parent) || !ts.isObjectBindingPattern(parent.name)) return;
-    const scope = findScope(parent);
-    let scopedFunctions = translationFunctions.get(scope);
-    if (!scopedFunctions) {
-      scopedFunctions = new Map();
-      translationFunctions.set(scope, scopedFunctions);
-    }
     for (const element of parent.name.elements) {
       if (!ts.isBindingElement(element)) continue;
       const sourceName = element.propertyName && ts.isIdentifier(element.propertyName)
         ? element.propertyName.text : ts.isIdentifier(element.name) ? element.name.text : undefined;
-      if (sourceName === 't' && ts.isIdentifier(element.name)) scopedFunctions.set(element.name.text, ns);
+      if (sourceName === 't' && ts.isIdentifier(element.name)) translationFunctions.set(element.name.text, ns);
     }
   };
   const refsForKey = (key, namespace) => {
@@ -229,24 +220,16 @@ export function collectKeyRefEntries(src) {
   };
   const findHooks = (node) => { findHookNamespaces(node); ts.forEachChild(node, findHooks); };
   findHooks(sourceFile);
-  const namespaceForTranslationCall = (expression, location) => {
-    if (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
-        expression.expression.text === 'i18n' && expression.name.text === 't') return 'common';
-    if (!ts.isIdentifier(expression)) return undefined;
-    for (let scope = findScope(location); scope; scope = findScope(scope.parent)) {
-      const namespace = translationFunctions.get(scope)?.get(expression.text);
-      if (namespace) return namespace;
-    }
-    return expression.text === 't' ? 'common' : undefined;
-  };
+  const isTargetCall = (expression) =>
+    (ts.isIdentifier(expression) && expression.text === 't') ||
+    (ts.isPropertyAccessExpression(expression) && ts.isIdentifier(expression.expression) &&
+      expression.expression.text === 'i18n' && expression.name.text === 't');
   const isBareTrans = (tagName) => ts.isIdentifier(tagName) && tagName.text === 'Trans';
   const visit = (node) => {
-    const baseNamespace = ts.isCallExpression(node)
-      ? namespaceForTranslationCall(node.expression, node)
-      : undefined;
-    if (ts.isCallExpression(node) && baseNamespace !== undefined) {
+    if (ts.isCallExpression(node) && isTargetCall(node.expression)) {
       const key = literalText(node.arguments[0]);
       if (key !== undefined && key.length > 0) {
+        const baseNamespace = ts.isIdentifier(node.expression) ? translationFunctions.get(node.expression.text) ?? 'common' : 'common';
         const optionsNs = literalText(objectProperty(node.arguments[1], 'ns'));
         refs.push(refsForKey(key, optionsNs ?? baseNamespace));
       }
@@ -1804,27 +1787,6 @@ function selfTest() {
       namespaces: { feature: { title: 'Title' } },
     });
     check('namespaced key present passes', !result.missing.length, JSON.stringify(result.missing));
-    const scopedNamespaces = `
-      function Sales() { const { t } = useTranslation('sales'); return t('pipeline.title'); }
-      function Shell() { const { t } = useTranslation(); return t('shell.title'); }
-    `;
-    const scopedResult = analyse({
-      ...clean,
-      launchScopeFiles: { [acFile]: scopedNamespaces },
-      referenceFiles: { [acFile]: scopedNamespaces },
-      catalogue: { shell: { title: 'Shell' } },
-      namespaces: { sales: { pipeline: { title: 'Sales' } } },
-    });
-    check('same translation identifier resolves each hook namespace in its lexical scope', !scopedResult.missing.length, JSON.stringify(scopedResult.missing));
-    const aliasedNamespace = `function Sales() { const { t: salesT } = useTranslation('sales'); return salesT('pipeline.title'); }`;
-    const aliasedResult = analyse({
-      ...clean,
-      launchScopeFiles: { [acFile]: aliasedNamespace },
-      referenceFiles: { [acFile]: aliasedNamespace },
-      catalogue: {},
-      namespaces: { sales: { pipeline: { title: 'Sales' } } },
-    });
-    check('aliased translation function resolves its hook namespace', !aliasedResult.missing.length, JSON.stringify(aliasedResult.missing));
     const explicitNamespaces = analyse({
       ...clean, launchScopeFiles: { [acFile]: "t('feature:title'); t('title', { ns: 'feature' });" },
       referenceFiles: { [acFile]: "t('feature:title'); t('title', { ns: 'feature' });" },

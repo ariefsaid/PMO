@@ -2,7 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 
 import type { IntegrationsRepository } from '@/src/lib/repositories/types';
 
@@ -67,13 +67,13 @@ describe('AC-M365SEP-017 — M365 organisation approval on the admin surface', (
     expect(screen.getByText('ClickUp')).toBeInTheDocument();
     expect(screen.getByText('ERPNext')).toBeInTheDocument();
 
-    // The separate approval decision is available inside the Microsoft service details.
-    fireEvent.click(screen.getByTestId('m365-organization-approval-details').querySelector('summary')!);
+    // The affordance is a labelled action button visible to an Admin.
     expect(
       screen.getByRole('button', { name: /approve in microsoft 365/i }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('m365-org-approval')).toHaveTextContent(/only if microsoft asks/i);
-    // It is NOT a credential connector entry — M365 stays its own service block.
+    // It is NOT a TIERS entry — no data-tier attribute, no credential Connect form. M365 is its own
+    // block (a mutation here guards against someone forcing it into the TIERS array).
     const m365Card = screen.getByTestId('m365-org-approval');
     expect(m365Card.getAttribute('data-tier')).toBeNull();
   });
@@ -99,9 +99,9 @@ describe('IntegrationsView — organization ownership scope label (AC-ADMIA-006)
     wrapWithRole('Admin', <IntegrationsView />);
     const scope = await screen.findByTestId('integrations-owner-scope');
     // The org surface labels its scope explicitly…
-    expect(scope).toHaveTextContent(/organization connections are shared/i);
-    // A personal connection remains distinct from shared setup.
-    expect(scope).toHaveTextContent(/personal connection is separate/i);
+    expect(scope).toHaveTextContent(/organization/i);
+    // A personal connection never activates organization integrations.
+    expect(scope).toHaveTextContent(/personal connections do not activate organization integrations/i);
   });
 
   it('AC-ADMIA-006: the org scope copy names the personal surface by label, never a raw route string', async () => {

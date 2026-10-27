@@ -25,6 +25,7 @@ const renderRail = (project: Record<string, unknown>) =>
     <ToastProvider>
       <ProjectDetailRail
         project={project as never}
+        showActionSection={false}
       />
     </ToastProvider>,
   );

@@ -25,8 +25,6 @@ import { Icon } from './icons';
 export interface MobileToolbarDisclosureProps {
   /** Accessible + visible label for the trigger and the panel region. */
   label: string;
-  /** Use a named More icon on phones when the collection toolbar is space-constrained. */
-  compactOnMobile?: boolean;
   /** The disclosure panel body (e.g. filter fields or bulk-action buttons). */
   children: React.ReactNode;
   /** Optional count badge on the trigger (e.g. active secondary-filter count). */
@@ -43,10 +41,6 @@ export interface MobileToolbarDisclosureProps {
   defaultOpen?: boolean;
   /** Close after a native select changes and return focus to the trigger. */
   closeOnSelectChange?: boolean;
-  /** Float the phone panel over the collection without moving its results. */
-  mobileOverlay?: boolean;
-  /** Align a floating phone panel with the start or end of its trigger. */
-  mobileOverlayAlign?: 'start' | 'end';
 }
 
 // First selectors win; `:not([disabled])` handles disabled native controls so a
@@ -70,7 +64,6 @@ function hasActiveDialog(): boolean {
 
 export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = ({
   label,
-  compactOnMobile = false,
   children,
   count,
   className,
@@ -79,8 +72,6 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   onOpenChange,
   defaultOpen = false,
   closeOnSelectChange = false,
-  mobileOverlay = false,
-  mobileOverlayAlign = 'start',
 }) => {
   const [internalOpen, setInternalOpen] = useState<boolean>(() => defaultOpen);
   const isControlled = openProp !== undefined;
@@ -173,30 +164,27 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
   }, [isOpen]);
 
   return (
-    <div ref={wrapperRef} className={cn('relative min-w-0', className)}>
+    <div ref={wrapperRef} className={cn('min-w-0', className)}>
       <Button
         ref={triggerRef}
         data-mobile-toolbar-disclosure-trigger
         type="button"
         variant="outline"
-        title={compactOnMobile ? label : undefined}
-        className={cn('min-h-11 md:min-h-8', compactOnMobile && 'max-md:w-11 max-md:px-0')}
         aria-expanded={isOpen}
         aria-controls={panelId}
         onClick={() => setOpen(!isOpen)}
       >
-        {compactOnMobile && <Icon name="menu" className="size-4 md:hidden" />}
-        <span className={cn('flex items-center gap-1.5', compactOnMobile && 'max-md:sr-only')}>
+        <span className="flex items-center gap-1.5">
           {label}
           {typeof count === 'number' && count > 0 && (
             <span
               data-testid="mobile-toolbar-count"
-              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-[0.6875rem] font-semibold tabular text-muted-foreground"
+              className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-secondary px-1 text-[11px] font-semibold tabular text-muted-foreground"
             >
               {count}
             </span>
           )}
-          <Icon name="chev" className={cn('size-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
+          <Icon name="chev" className={`size-3.5 transition-transform ${isOpen ? '-rotate-90' : 'rotate-90'}`} />
         </span>
       </Button>
       {isOpen && (
@@ -213,12 +201,6 @@ export const MobileToolbarDisclosure: React.FC<MobileToolbarDisclosureProps> = (
           }}
           className={cn(
             'mt-2 w-full min-w-0 max-w-full rounded-lg border border-border bg-card p-3 text-foreground',
-            mobileOverlay && [
-              'absolute top-full z-50 w-[min(22rem,calc(100vw-2rem))] max-h-[min(70dvh,32rem)] overflow-y-auto shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
-              mobileOverlayAlign === 'end' ? 'right-0' : 'left-0',
-              'md:static md:mt-2 md:max-h-none md:w-full md:max-w-full md:overflow-visible md:shadow-none',
-            ],
-            compactOnMobile && mobileOverlay && 'max-md:fixed! max-md:inset-x-4! max-md:top-auto! max-md:w-auto! max-md:max-w-none!',
             panelClassName,
           )}
         >

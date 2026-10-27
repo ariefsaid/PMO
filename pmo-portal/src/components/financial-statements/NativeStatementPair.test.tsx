@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { axe } from 'jest-axe';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, useLocation } from 'react-router';
 import { FinancialStatementsSection } from './FinancialStatementsSection';
 import { NativeStatementPair } from './NativeStatementPair';
 import type { NativeReportColumn, NativeReportScalar, StatementReportPair, StatementReportPeriod } from '@/src/lib/adapterSeam/erpnext/statementReports';
@@ -143,32 +142,17 @@ const labels = {
 
 const presentation = { precision: 2, roundingMethod: 'Commercial Rounding' };
 
-function CurrentQuery() {
-  const location = useLocation();
-  return <output data-testid="current-query">{location.search}</output>;
-}
-
-function renderPair(
-  pair: Pick<StatementReportPair, 'current' | 'prior'> = pairWithUnusableAccountUnion(),
-  reportTitle = 'Trial Balance',
-  url = '/financial-statements?section=statements',
-  showQuery = false,
-) {
+function renderPair(pair: Pick<StatementReportPair, 'current' | 'prior'> = pairWithUnusableAccountUnion(), reportTitle = 'Trial Balance') {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   return render(
-    <MemoryRouter initialEntries={[url]}>
-      <>
-        <NativeStatementPair
-          pair={pair}
-          reportTitle={reportTitle}
-          companyLabel="Sample organization"
-          currency="IDR"
-          presentation={presentation}
-          labels={labels}
-        />
-        {showQuery && <CurrentQuery />}
-      </>
-    </MemoryRouter>,
+    <NativeStatementPair
+      pair={pair}
+      reportTitle={reportTitle}
+      companyLabel="Sample organization"
+      currency="IDR"
+      presentation={presentation}
+      labels={labels}
+    />,
   );
 }
 
@@ -220,25 +204,13 @@ function plPair(reportName: NativeReportColumn['reportName'] = 'Profit and Loss 
 }
 
 describe('NativeStatementPair — statement format (AC-008)', () => {
-  it('restores the selected trial-balance side and collapsed groups from the report URL', () => {
-    renderPair(undefined, 'Trial Balance', '/financial-statements?section=statements&tbSide=prior', true);
-    expect(screen.getByRole('table')).toHaveAccessibleName(/For the period 1 Jan 2024 – 31 Jan 2024/);
-    fireEvent.click(screen.getByRole('button', { name: 'Current period' }));
-    expect(screen.getByTestId('current-query')).toHaveTextContent('tbSide=current');
-
-    cleanup();
-    renderPair(plPair(), 'Profit and Loss Statement', '/financial-statements?section=statements', true);
-    fireEvent.click(screen.getByRole('button', { name: 'Collapse all' }));
-    expect(screen.getByTestId('current-query')).toHaveTextContent(/collapsed=/);
-  });
-
   it('renders the trial balance as ONE table for the current period with the native money columns', async () => {
     const { container } = renderPair();
     const table = screen.getByRole('table', { name: /Trial Balance/ });
 
     expect(screen.getAllByRole('table')).toHaveLength(1);
     expect(table).toHaveAccessibleName(/Sample organization/);
-    expect(table).toHaveAccessibleName(/For the period 1 Jan 2025 – 31 Jan 2025/);
+    expect(table).toHaveAccessibleName(/For the period Jan 1, 2025 – Jan 31, 2025/);
     expect(table).toHaveAccessibleName(/Amounts in IDR/);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Opening Debit', 'Opening Credit', 'Debit', 'Credit', 'Closing Debit', 'Closing Credit', 'Returned Total']);
@@ -285,7 +257,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(previous).toHaveAttribute('aria-pressed', 'true');
     const table = screen.getByRole('table');
     expect(screen.getAllByRole('table')).toHaveLength(1);
-    expect(table).toHaveAccessibleName(/For the period 1 Jan 2024 – 31 Jan 2024/);
+    expect(table).toHaveAccessibleName(/For the period Jan 1, 2024 – Jan 31, 2024/);
     expect(within(table).getByText('Prior-only Account')).toBeInTheDocument();
     expect(within(table).queryByText('Current-only Expense')).not.toBeInTheDocument();
     expect(cellsOf(rowFor(table, 'Prior-only Account'))).toEqual(['901.00', '902.00', '903.00', '904.00', '905.00', '906.00']);
@@ -413,7 +385,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
     expect(screen.getAllByRole('table')).toHaveLength(1);
     expect(screen.queryByRole('button', { name: 'Previous period' })).not.toBeInTheDocument();
     const table = screen.getByRole('table', { name: /Profit and loss/ });
-    expect(table).toHaveAccessibleName(/For the period 1 Sep 2026 – 30 Sep 2026/);
+    expect(table).toHaveAccessibleName(/For the period Sep 1, 2026 – Sep 30, 2026/);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Sep 2026Current period', 'Aug 2026Previous period']);
 
@@ -444,7 +416,7 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
   it('states the balance sheet as-at date once, in its heading', () => {
     renderPair(plPair('Balance Sheet'), 'Balance sheet');
     const table = screen.getByRole('table', { name: /Balance sheet/ });
-    expect(table).toHaveAccessibleName(/As at 30 Sep 2026/);
+    expect(table).toHaveAccessibleName(/As at Sep 30, 2026/);
     expect(screen.getAllByText(/As at/)).toHaveLength(1);
     const headers = within(table).getAllByRole('columnheader').map((cell) => cell.textContent);
     expect(headers).toEqual(['Account', 'Sep 2026Current period', 'Aug 2026Previous period']);
@@ -468,22 +440,20 @@ describe('NativeStatementPair — statement format (AC-008)', () => {
 
   it('composes inside the section without replacing its capture time or delayed note', () => {
     render(
-      <MemoryRouter>
-        <FinancialStatementsSection
-          title="Financial statements"
-          context="Capture window: Jan 31, 2025, 12:00 PM – Jan 31, 2025, 1:00 PM"
-          state={{ kind: 'complete', asOf: '2025-01-31T13:00:00.000Z', hasActivity: true, delayed: true, background: 'idle' }}
-          labels={{
-            unavailable: 'Statements are not available yet', unavailableDescription: 'No complete statement is available.',
-            noActivity: labels.noActivity, noActivityDescription: labels.noActivityDescription,
-            error: 'Statements could not be loaded', errorDescription: 'Try again.', retry: 'Retry',
-            updated: 'Updated', delayed: 'Update delayed', refreshing: 'Refreshing',
-          }}
-          onRetry={vi.fn()}
-        >
-          <NativeStatementPair pair={pairWithUnusableAccountUnion()} reportTitle="Trial Balance" currency="IDR" presentation={presentation} labels={labels} />
-        </FinancialStatementsSection>
-      </MemoryRouter>,
+      <FinancialStatementsSection
+        title="Financial statements"
+        context="Capture window: Jan 31, 2025, 12:00 PM – Jan 31, 2025, 1:00 PM"
+        state={{ kind: 'complete', asOf: '2025-01-31T13:00:00.000Z', hasActivity: true, delayed: true, background: 'idle' }}
+        labels={{
+          unavailable: 'Statements are not available yet', unavailableDescription: 'No complete statement is available.',
+          noActivity: labels.noActivity, noActivityDescription: labels.noActivityDescription,
+          error: 'Statements could not be loaded', errorDescription: 'Try again.', retry: 'Retry',
+          updated: 'Updated', delayed: 'Update delayed', refreshing: 'Refreshing',
+        }}
+        onRetry={vi.fn()}
+      >
+        <NativeStatementPair pair={pairWithUnusableAccountUnion()} reportTitle="Trial Balance" currency="IDR" presentation={presentation} labels={labels} />
+      </FinancialStatementsSection>,
     );
     const section = screen.getByRole('region', { name: 'Financial statements' });
 

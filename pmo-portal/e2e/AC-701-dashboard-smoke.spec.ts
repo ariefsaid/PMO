@@ -6,16 +6,12 @@ import { login } from './helpers';
 test('AC-701 Executive sees real org-scoped KPI values from the RPC', async ({ page }) => {
   await login(page, 'exec@acme.test');
   await page.goto('/');
-  const breadcrumb = page.getByRole('navigation', { name: 'Breadcrumb' });
-  await expect(breadcrumb).toContainText('Home');
-  await expect(breadcrumb).toContainText('Dashboard');
   // SP-2401 + SP-2402 + P001 + P003 + P013 = 5 Ongoing projects (rich solar seed, PR-#118 resync)
-  // The active-only contract and count remain together in the Delivery book.
-  const deliveryBook = page.getByTestId('dashboard-delivery-book');
-  await expect(deliveryBook.getByText('Active contract value').first().locator('xpath=following-sibling::dd[1]'))
-    .toContainText('5 active projects');
+  // SL-B: the active-project count rides on the contract-value tile's sub-line.
+  await expect(page.getByTestId('kpi-total-contract-value')).toContainText('5 active projects');
   // SP-2401 5,250,000 + SP-2402 7,800,000 + P001 5,000,000 + P003 3,000,000 + P013 2,000,000 = 23,050,000
-  // The row shows the exact value with its currency, rather than a shortened KPI figure.
-  await expect(deliveryBook.getByText('Active contract value').first().locator('xpath=following-sibling::dd[1]'))
-    .toContainText('$23,050,000');
+  // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the tile's title.
+  const contractTile = page.getByTestId('kpi-total-contract-value');
+  await expect(contractTile).toContainText('$23.1M');
+  await expect(contractTile.locator('[title="$23,050,000"]')).toBeVisible();
 });

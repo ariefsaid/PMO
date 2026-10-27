@@ -19,12 +19,6 @@ describe('ListState', () => {
     expect(region.querySelectorAll('.skel').length).toBeGreaterThan(0);
   });
 
-  it('loading: allows a caller to name the operation while the skeleton keeps its geometry', () => {
-    render(<ListState variant="loading" loadingLabel="Loading project finances…" rows={2} />);
-    expect(screen.getByTestId('liststate-loading')).toHaveTextContent('Loading project finances…');
-    expect(screen.getByTestId('liststate-loading').querySelectorAll('.skel')).toHaveLength(2);
-  });
-
   it('loading: testId prop overrides the default liststate-loading testid', () => {
     render(<ListState variant="loading" testId="milestone-strip-skeleton" />);
     expect(screen.getByTestId('milestone-strip-skeleton')).toHaveAttribute('aria-busy', 'true');

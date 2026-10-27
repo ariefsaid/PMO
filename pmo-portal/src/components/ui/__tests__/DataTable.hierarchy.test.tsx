@@ -77,11 +77,7 @@ describe('DataTable hierarchy contract', () => {
     const statusCell = within(table).getAllByRole('cell')[1];
     const moneyCell = within(table).getAllByRole('cell')[2];
     expect(primaryCell).not.toHaveClass('whitespace-nowrap');
-    const primaryIdentity = primaryCell?.querySelector('span.whitespace-normal.break-words');
-    expect(primaryIdentity).toHaveTextContent('Synthetic item');
-    expect(primaryIdentity).not.toHaveAttribute('title');
-    expect(primaryIdentity).not.toHaveClass('line-clamp-2');
-    expect(within(primaryCell as HTMLElement).getByText('Synthetic item')).toBeVisible();
+    expect(primaryCell?.querySelector('.line-clamp-2')).toHaveAttribute('title', 'Synthetic item');
     expect(within(primaryCell as HTMLElement).getByText('Reference A')).toBeInTheDocument();
     expect(statusCell).toHaveClass('whitespace-nowrap');
     expect(table.querySelector('th[data-col-key="status"]')).toHaveStyle({ minWidth: '112px', maxWidth: '220px' });

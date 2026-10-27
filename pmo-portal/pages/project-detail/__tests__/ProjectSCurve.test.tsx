@@ -188,7 +188,7 @@ describe('ProjectSCurve', () => {
     // Two legend swatches + their text.
     expect(screen.getAllByTestId('legend-dot')).toHaveLength(2);
     expect(screen.getByText('Planned')).toBeInTheDocument();
-    expect(screen.getByText('Estimated historical progress')).toBeInTheDocument();
+    expect(screen.getByText('Actual to date')).toBeInTheDocument();
   });
 
   it('AC-SC-006 / PD-B: ready with no dated milestones renders nothing — no chart, no empty card', () => {

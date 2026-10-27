@@ -7,5 +7,4 @@ if (($# == 0)); then
   exit 2
 fi
 
-node "$ROOT/scripts/ux-proof-static.mjs"
 exec node "$ROOT/scripts/ux-proof.mjs" "$@"

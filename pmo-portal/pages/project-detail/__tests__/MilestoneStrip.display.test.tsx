@@ -238,7 +238,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
       calculated_pct: 40, effective_pct: 40,
     }];
     const previousYear = render$();
-    expect(screen.getByText('Target Oct 15, 2025')).toBeInTheDocument();
+    expect(screen.getByText('Target 15 Oct, 2025')).toBeInTheDocument();
     previousYear.unmount();
     milestoneState.data = [{
       id: 'm-current-year', project_id: 'p1', name: 'Current-year overdue phase', sort_order: 0,
@@ -246,7 +246,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
       calculated_pct: 40, effective_pct: 40,
     }];
     render$();
-    expect(screen.getByText('Target Oct 15, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Target 15 Oct')).toBeInTheDocument();
     vi.useRealTimers();
   });
 
@@ -282,7 +282,7 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     expect(screen.getByRole('list', { name: 'Delivery phases' })).toBeInTheDocument();
     expect(screen.getByText('Engineering design')).toBeInTheDocument();
     expect(screen.getByText('75%')).toBeInTheDocument();
-    expect(screen.getByText('Target Aug 15, 2026')).toBeInTheDocument();
+    expect(screen.getByText('Target 15 Aug')).toBeInTheDocument();
     // Weight share: both milestones have weight 1 out of 2 total = 50% each
     expect(screen.getAllByText('50% of project')).toHaveLength(2);
     // Desktop cards should NOT show 'From tasks' anymore
@@ -360,7 +360,9 @@ describe('MilestoneStrip display (AC-DEL-008, AC-DEL-009)', () => {
     const rollup = screen.getByLabelText('Project delivery 60%');
     expect(rollup).toBeInTheDocument();
     expect(screen.getByText('Project delivery')).toBeInTheDocument();
-    expect(screen.getByText('60%')).toBeInTheDocument();
+    // The big tabular % is rendered
+    const bigPct = screen.getByText('60%');
+    expect(bigPct.className).toContain('text-[23px]');
   });
 
   it('AC-DEL-009: null calculated renders 0% effective headline and weight share, no From tasks on desktop', () => {

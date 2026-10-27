@@ -219,7 +219,7 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // /companies + /incidents promoted to MODULES (B-7, AC-W2-IA-002) — no longer placeholders.
   // /approvals promoted to MODULES (fix #7) — breadcrumb now resolves via the module, not here.
   // B-10 (AC-W2-IA-005): /reports stays a route (deep-links resolve) but is not a rail item.
-  '/reports': 'Project revenue',
+  '/reports': 'Reports',
   '/administration': 'Administration',
   // My Tasks page (B-1) has its own nav item but no detail route — register so the breadcrumb
   // resolves "My Tasks" on direct deep-link (not "Dashboard").
@@ -238,7 +238,7 @@ export const PLACEHOLDER_TITLES: Record<string, string> = {
   // to "Not found". The i18n keys (shell.nav.*) already ship and mirror the rail labels.
   '/sales-invoices': 'Sales Invoices',
   '/incoming-payments': 'Incoming Payments',
-  '/revenue-by-project': 'Project revenue',
+  '/revenue-by-project': 'Revenue by Project',
 };
 
 /**
@@ -391,8 +391,7 @@ export function breadcrumbForPath(
       '/integrations': 'shell.nav.integrations',
       '/sales-invoices': 'shell.nav.salesInvoices',
       '/incoming-payments': 'shell.nav.incomingPayments',
-      '/revenue-by-project': 'moneyIn:uxs42.projectRevenue',
-      '/reports': 'moneyIn:uxs42.projectRevenue',
+      '/revenue-by-project': 'shell.nav.revenueByProject',
       '/my-tasks': 'shell.nav.myTasks',
     };
     const i18nKey = PLACEHOLDER_I18N_KEY[pathname];
@@ -553,25 +552,32 @@ export function recordStatusGroupForPath(
 }
 
 /**
- * Maps a project record route to its canonical rail destination.
+ * Maps a (pathname, statusGroup) pair to the rail's active-item override (Option A, Task D).
  *
  * Returns:
- *  - 'projects' when on any `/projects/:id` detail, whatever its stage or cache state
- *  - null when the current route is not a `/projects/:id` detail
+ *  - 'salesPipeline' when on a `/projects/:id` detail and the record is pipeline or lost
+ *  - 'projects'      when on a `/projects/:id` detail and the record is onHand or internal
+ *  - null            when the caches are still pending (statusGroup = undefined) OR when the
+ *                    current route is not a `/projects/:id` detail — in both cases the Rail
+ *                    falls back to its URL-based NavLink `isActive` logic.
  *
  * Only `/projects/<id>` (with any optional trailing `/tab`) qualifies — the index `/projects`
  * never triggers the override so the Projects nav item stays active there as usual.
  */
 export function deriveRailActiveOverride(
   pathname: string,
-  _statusGroup: ProjectStatusGroup | undefined,
-): 'projects' | null {
+  statusGroup: ProjectStatusGroup | undefined,
+): 'salesPipeline' | 'projects' | null {
   // Must be a /projects/:id detail route (not the index).
   if (!pathname.startsWith('/projects/')) return null;
   const segment = pathname.slice('/projects/'.length).split('/')[0];
   if (!segment) return null; // bare /projects/ with no id
 
-  return 'projects';
+  // Caches still resolving → no override; let NavLink URL-matching stand.
+  if (!statusGroup) return null;
+
+  if (statusGroup === 'pipeline' || statusGroup === 'lost') return 'salesPipeline';
+  return 'projects'; // onHand | internal
 }
 
 /**

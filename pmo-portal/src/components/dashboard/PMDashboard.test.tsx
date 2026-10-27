@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter } from 'react-router';
 import { PMDashboard } from './PMDashboard';
-import { PageFrame } from '@/src/components/shell';
 import { BahasaProvider } from '@/test/bahasa';
 import { setActiveLocale } from '@/src/lib/locale/activeLocale';
 
@@ -54,23 +53,10 @@ const renderPane = (locale: 'en' | 'id' = 'en') => {
   setActiveLocale({ locale, numberLocale: locale === 'id' ? 'id-ID' : 'en-US', timezone: 'UTC' });
   return render(
   <BahasaProvider locale={locale}>
-    <MemoryRouter>
-      <PageFrame breadcrumb={[
-        { label: locale === 'id' ? 'Beranda' : 'Home', href: '/' },
-        { label: locale === 'id' ? 'Dasbor' : 'Dashboard' },
-      ]}>
-        <PMDashboard />
-      </PageFrame>
-      <LocationProbe />
-    </MemoryRouter>
+    <MemoryRouter><PMDashboard /></MemoryRouter>
   </BahasaProvider>,
   );
 };
-
-function LocationProbe() {
-  const location = useLocation();
-  return <output data-testid="pm-dashboard-search">{location.search}</output>;
-}
 
 beforeEach(() => {
   projState.data = mine;
@@ -79,53 +65,22 @@ beforeEach(() => {
 });
 
 describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
-  it('AC-806-PM-01: merges delivery status and spending into one risk-first, URL-stateful worklist', () => {
-    renderPane();
-
-    expect(screen.getByRole('heading', { name: 'My delivery projects' })).toBeInTheDocument();
-    const rows = screen.getAllByTestId(/^pm-project-row-/);
-    expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual([
-      'pm-project-row-p2', 'pm-project-row-p1', 'pm-project-row-p4', 'pm-project-row-p6',
-    ]);
-    expect(screen.queryByTestId('kpi-my-projects')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('kpi-my-contract-value')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('kpi-at-risk')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Project Status' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('group', { name: 'Spending vs contract' })).not.toBeInTheDocument();
-
-    const projectB = screen.getByTestId('pm-project-row-p2');
-    expect(within(projectB).getByText('USD')).toBeVisible();
-    expect(within(projectB).getAllByText('USD')).toHaveLength(1);
-    const evidence = within(projectB).getByRole('button', { name: /evidence.*my project b/i });
-    expect(evidence).toHaveTextContent('Evidence');
-    fireEvent.click(evidence);
-    expect(screen.getByTestId('pm-dashboard-search')).toHaveTextContent('pmProjectEvidence=p2');
-    expect(within(projectB).getByText('980,000')).toBeInTheDocument();
-    expect(within(projectB).getByText('2,000,000')).toBeInTheDocument();
-    expect(within(projectB).getAllByText('USD')).toHaveLength(1);
-    expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveTextContent('Open budget');
-    expect(screen.getByRole('link', { name: 'Open budget for My Project B' })).toHaveAttribute('href', '/projects/p2/budget');
-    expect(screen.getByRole('progressbar', { name: /My Project B.*49% of contract/i })).toBeInTheDocument();
-
-    fireEvent.change(screen.getByTestId('pm-project-sort'), { target: { value: 'name' } });
-    expect(screen.getByTestId('pm-dashboard-search')).toHaveTextContent('pmProjectEvidence=p2');
-    expect(screen.getByTestId('pm-dashboard-search')).toHaveTextContent('pmSort=name');
-    expect(screen.getAllByTestId(/^pm-project-row-/).map((row) => row.getAttribute('data-testid'))).toEqual([
-      'pm-project-row-p1', 'pm-project-row-p2', 'pm-project-row-p4', 'pm-project-row-p6',
-    ]);
-  });
-
   it('AC-UXA-001: localizes PM copy and project statuses without changing values or destinations', () => {
     renderPane('id');
     expect(screen.getByRole('heading', { name: 'Dashboard saya' })).toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Beranda');
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dasbor');
-    expect(screen.getByRole('heading', { name: 'Proyek pelaksanaan saya' })).toBeInTheDocument();
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('4 proyek pelaksanaan');
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('10.600.000');
+    expect(screen.getByText('Proyek saya')).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'Bantuan: Proyek saya' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Proyek pengiriman yang ditetapkan kepada Anda sebagai manajer proyek.');
+    expect(screen.getByRole('link', { name: 'Buka proyek saya' })).toHaveAttribute('href', '/projects?filter=My+Projects');
     expect(screen.getByText('Menang — menunggu rapat awal')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Tinjau 1 proyek berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
-    expect(screen.getByRole('link', { name: 'My Project B' })).toHaveAttribute('href', '/projects/p2');
+    expect(screen.getByText('Pengeluaran dibanding kontrak')).toBeInTheDocument();
+    expect(screen.getByText('Status Proyek')).toBeInTheDocument();
+    expect(screen.getAllByText(/Belum tersedia|Not available yet/).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('US$10,6 jt');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="US$10.600.000"]')).not.toBeNull();
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
+    expect(screen.getByRole('link', { name: 'Buka proyek saya yang berisiko' })).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(screen.getAllByRole('link', { name: 'My Project B' }).every((link) => link.getAttribute('href') === '/projects/p2')).toBe(true);
     expect(mine.find((project) => project.id === 'p2')?.status).toBe('Won, Pending KoM');
 
     cleanup();
@@ -148,26 +103,32 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
   });
   it('counts on-hand and internal delivery projects, including Close Out', () => {
     renderPane();
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('4 delivery projects');
+    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('4');
   });
   it('sums my delivery contract value including Close Out, not the whole org', () => {
     renderPane();
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('USD 10,600,000');
-    expect(screen.getByTestId('pm-project-scope')).not.toHaveTextContent('Someone Else');
+    // The server read model supplies assigned projects only; the display preserves the row currency.
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
   });
   it('AC-RD-RISK-001: says risk cannot be checked when active projects have no usable budgets', () => {
     projState.data = [
       { id: 'p-unknown', name: 'Unbudgeted project', contract_value: null, currency: 'USD', budget: null, spent: null, realized_margin_pct: null, contract_remaining: null, status: 'Ongoing Project', project_manager_id: 'pm-1', actual_complete: false, actual_currency: null, budget_currency: null },
     ];
     renderPane();
-    expect(screen.getByTestId('pm-risk-unavailable-p-unknown')).toBeInTheDocument();
-    expect(screen.getByTestId('pm-project-data-note')).toHaveTextContent('Risk needs a positive active budget');
+    // SL-B: no at-risk tile (no false 0); the one page note says why.
+    expect(screen.queryByTestId('kpi-at-risk')).not.toBeInTheDocument();
+    expect(screen.getAllByText("Risk can't be checked yet — no active budget.")).toHaveLength(1);
     expect(screen.queryByText(/all on track/i)).not.toBeInTheDocument();
   });
-  it('renders one quiet at-risk doorway in the project scope', () => {
+  it('renders exactly one at-risk tile in the KPI band, with its drillthrough and help', () => {
     renderPane();
-    expect(screen.getAllByTestId('dashboard-at-risk-link')).toHaveLength(1);
-    expect(screen.getByTestId('dashboard-at-risk-link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    const atRiskTiles = screen.getAllByTestId('kpi-at-risk');
+    expect(atRiskTiles).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: 'Attention and approvals' })).queryByText(/^At risk$/)).not.toBeInTheDocument();
+    expect(atRiskTiles[0]).toHaveTextContent('budget usage > 90%');
+    expect(within(atRiskTiles[0]).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+    expect(within(atRiskTiles[0]).getByRole('button', { name: /Help: At risk/i })).toBeInTheDocument();
   });
   it('N15: combined approvals tile = approvable PRs (1) + timesheets (2) = 3, links to /approvals', () => {
     renderPane();
@@ -179,7 +140,7 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     renderPane();
     expect(screen.queryByText(/Procurement approvals — coming soon/i)).not.toBeInTheDocument();
   });
-  it('renders each assigned delivery status, including Close Out; pre-win statuses are not listed', () => {
+  it('renders a status pill per delivery status, including Close Out; pre-win statuses are not listed', () => {
     renderPane();
     expect(screen.getByText('Won, Pending KoM')).toBeInTheDocument();
     expect(screen.getByText('On Hold')).toBeInTheDocument();
@@ -187,24 +148,53 @@ describe('PMDashboard (real — my projects + timesheets awaiting)', () => {
     expect(screen.queryByText('Loss Tender')).toBeNull();
     expect(screen.queryByText('Leads')).toBeNull();
   });
-  it('UIP-011: every worklist project name is an accessible, correctly routed project link', () => {
+  it('UIP-011: every Project Status name is an accessible, correctly routed project link', () => {
     renderPane();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+
     for (const project of mine.filter((m) => !['Loss Tender', 'Leads'].includes(m.status))) {
-      const projectLink = within(screen.getByTestId(`pm-project-row-${project.id}`)).getByRole('link', { name: project.name });
+      const projectLink = within(statusCard).getByRole('link', { name: project.name });
       expect(projectLink).toHaveAttribute('href', `/projects/${project.id}`);
+      expect(projectLink.className).toContain('focus-visible:outline');
     }
-    expect(screen.queryByRole('link', { name: other.name })).not.toBeInTheDocument();
+
+    expect(within(statusCard).queryByRole('link', { name: other.name })).not.toBeInTheDocument();
   });
 });
 
-describe('PMDashboard worklist margin — no false values (I2)', () => {
+describe('PMDashboard KPI grid — monotonic arbitrary breakpoints (C1)', () => {
+  it('KPI band uses only arbitrary min-[] variants — no named sm: mixed in', () => {
+    const { container } = renderPane();
+    const band = container.querySelector('[aria-label="My KPIs"]') as HTMLElement;
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
+describe('PMDashboard Project Status margin — no false-green (I2)', () => {
   it('AC-UX-015: names the trailing metric and shows billed-work margin, not contract remainder', () => {
+    // Assigned fixture: delivery rows (including Close Out) are listed; p3/p5 are lost/pipeline and excluded.
     renderPane();
-    const marginRow = within(screen.getByTestId('pm-project-row-p1'));
-    expect(marginRow.getByText('Margin to date')).toBeInTheDocument();
-    expect(marginRow.getByRole('img', { name: 'My Project A margin to date: 25.0%' })).toHaveTextContent('25.0%');
-    const unknownMarginRow = within(screen.getByTestId('pm-project-row-p2'));
-    expect(unknownMarginRow.getByRole('img', { name: 'Margin unavailable' })).toHaveTextContent('—');
+    // Server read model reports 25% profit margin on billed work.
+    const allText = document.body.textContent ?? '';
+    expect(allText).toContain('25.0%');
+    // G3: delivery rows without a margin read a concrete "Not set" value,
+    // never a bare em-dash placeholder (the "—" in the section heading separator
+    // is typographic, not a value placeholder, so we scope to the list rows).
+    const listItems = document.querySelectorAll('ul li');
+    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project B'));
+    expect(lossTenderItem?.textContent).toMatch(/Belum tersedia|Not available yet/);
+    expect(lossTenderItem?.textContent).not.toContain('—');
+    expect(lossTenderItem?.textContent).not.toMatch(/\d+\.\d+%/);
+  });
+  it('does not emit text-success on non-active project margin cells', () => {
+    const { container } = renderPane();
+    const listItems = container.querySelectorAll('ul li');
+    const lossTenderItem = [...listItems].find((li) => li.textContent?.includes('My Project B'));
+    // The margin span must NOT carry text-success
+    const marginSpan = lossTenderItem?.querySelector('span:last-child');
+    expect(marginSpan?.className).not.toContain('text-success');
   });
 });
 
@@ -217,8 +207,8 @@ describe('PMDashboard states', () => {
   it('shows an error + retry when the projects query fails', () => {
     projState.isError = true; projState.data = undefined;
     renderPane();
-    expect(screen.getByRole('heading', { name: 'My delivery projects' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Retry/i })).toHaveLength(1);
+    // At least one Retry button (both cards show error).
+    expect(screen.getAllByRole('button', { name: /Retry/i }).length).toBeGreaterThan(0);
   });
   it('shows a delivery-scoped empty state when assignments are only pre-win projects', () => {
     projState.data = [mine[4]];
@@ -229,10 +219,10 @@ describe('PMDashboard states', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-AT-RISK-INACTIVE — inactive projects must NOT inflate the at-risk count
+// AC-AT-RISK-INACTIVE — inactive projects must NOT inflate the at-risk KPI
 // ---------------------------------------------------------------------------
 
-describe('AC-AT-RISK-INACTIVE: worklist excludes inactive projects from risk', () => {
+describe('AC-AT-RISK-INACTIVE: at-risk KPI excludes inactive projects', () => {
   it('AC-AT-RISK-INACTIVE: a Loss Tender project at 95% budget utilization is NOT counted as at-risk', () => {
     // Override projState with one active at-risk project + one inactive at-risk project.
     // Only the active one should count.
@@ -243,9 +233,8 @@ describe('AC-AT-RISK-INACTIVE: worklist excludes inactive projects from risk', (
       { id: 'p-inactive', name: 'Inactive At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Loss Tender', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
-    expect(screen.getByTestId('dashboard-at-risk-link')).toHaveAccessibleName('Review 1 at-risk project');
-    expect(screen.getByTestId('pm-project-row-p-active')).toBeInTheDocument();
-    expect(screen.queryByTestId('pm-project-row-p-inactive')).not.toBeInTheDocument();
+    // Only the active one qualifies — count must be 1, not 2
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
 
   it('AC-AT-RISK-INACTIVE: an active project at 95% budget utilization IS counted as at-risk', () => {
@@ -253,36 +242,41 @@ describe('AC-AT-RISK-INACTIVE: worklist excludes inactive projects from risk', (
       { id: 'p-active', name: 'Active At Risk', contract_value: 2_000_000, currency: 'USD', budget: 1_000_000, spent: 950_000, status: 'Ongoing Project', project_manager_id: 'pm-1', client: null, pm: null, actual_complete: true, actual_currency: 'USD', budget_currency: 'USD' },
     ];
     renderPane();
-    expect(screen.getByTestId('dashboard-at-risk-link')).toHaveAccessibleName('Review 1 at-risk project');
+    expect(screen.getByTestId('kpi-at-risk')).toHaveTextContent('1');
   });
 });
 
 // ---------------------------------------------------------------------------
-// AC-W3-G2 — merged worklist loading/error states
+// AC-W3-G2 — Project Status card loading/error states
 // ---------------------------------------------------------------------------
 
-describe('AC-W3-G2: PMDashboard worklist retains its frame while loading and on error', () => {
-  it('AC-W3-G2: isPending → worklist keeps its heading and loading state', () => {
+describe('AC-W3-G2: PMDashboard "Project Status" card handles loading and error', () => {
+  it('AC-W3-G2: isPending → Project Status card shows loading state, not empty state', () => {
     projState.isPending = true; projState.data = undefined;
     renderPane();
-    expect(screen.getByRole('heading', { name: 'My delivery projects' })).toBeInTheDocument();
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
-    expect(screen.queryByTestId('pm-projects-empty')).not.toBeInTheDocument();
+    // There must be at least 2 loading skeletons — one per card (BvA + Project Status).
+    const loaders = screen.getAllByTestId('liststate-loading');
+    expect(loaders.length).toBeGreaterThanOrEqual(2);
+    // The empty "Nothing to show yet" must NOT appear.
+    expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
   });
 
-  it('AC-W3-G2: isError → worklist keeps one local retry, not an empty state', () => {
+  it('AC-W3-G2: isError → Project Status card shows error + retry, not empty state', () => {
     projState.isError = true; projState.data = undefined;
     renderPane();
-    expect(screen.getByRole('heading', { name: 'My delivery projects' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /Retry/i })).toHaveLength(1);
-    expect(screen.queryByTestId('pm-projects-empty')).not.toBeInTheDocument();
+    // There must be at least 2 Retry buttons — one per card (BvA + Project Status).
+    const retryButtons = screen.getAllByRole('button', { name: /Retry/i });
+    expect(retryButtons.length).toBeGreaterThanOrEqual(2);
+    // The empty "Nothing to show yet" must NOT appear.
+    expect(screen.queryByText(/Nothing to show yet/i)).toBeNull();
   });
 
-  it('AC-W3-G2: populated → one worklist shows each project once', () => {
+  it('AC-W3-G2: populated → Project Status card still shows the project list', () => {
     projState.data = mine; projState.isPending = false; projState.isError = false;
     renderPane();
-    expect(screen.getAllByTestId(/^pm-project-row-/)).toHaveLength(4);
-    expect(within(screen.getByTestId('pm-project-row-p1')).getAllByRole('link', { name: 'My Project A' })).toHaveLength(1);
+    // All my projects appear (multiple elements OK — BvA chart + Project Status list).
+    expect(screen.getAllByText('My Project A').length).toBeGreaterThan(0);
+    // No loading or error states.
     expect(screen.queryByTestId('liststate-loading')).toBeNull();
     expect(screen.queryByRole('button', { name: /Retry/i })).toBeNull();
   });
@@ -292,12 +286,19 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
   it('AC-1238-001: delivery surfaces include Close Out and exclude lost/pipeline rows', () => {
     renderPane();
     // Ongoing 4M + Won Pending KoM 2M + On Hold 1M + Close Out 3.6M; Loss Tender + Leads stay excluded.
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('4 delivery projects');
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('USD 10,600,000');
-    expect(screen.getAllByTestId(/^pm-project-row-/)).toHaveLength(4);
-    expect(screen.queryByTestId('pm-project-row-p3')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('pm-project-row-p5')).not.toBeInTheDocument();
-    expect(screen.getByTestId('pm-project-row-p6')).toBeInTheDocument();
+    expect(screen.getByTestId('kpi-my-projects')).toHaveTextContent('4');
+    // OD-MONEY-FMT: short on the KPI card, the exact sum rides in the figure title.
+    expect(screen.getByTestId('kpi-my-contract-value')).toHaveTextContent('$10.6M');
+    expect(screen.getByTestId('kpi-my-contract-value').querySelector('[title="$10,600,000"]')).not.toBeNull();
+    const spending = screen.getByRole('group', { name: 'Spending vs contract' });
+    expect(within(spending).queryByText('My Project C')).toBeNull();
+    expect(within(spending).queryByText('My Project E')).toBeNull();
+    expect(within(spending).getByText('My Project D')).toBeInTheDocument();
+    expect(within(spending).getByText('My Project F')).toBeInTheDocument();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+    expect(within(statusCard).queryByText('My Project C')).toBeNull();
+    expect(within(statusCard).queryByText('My Project E')).toBeNull();
+    expect(within(statusCard).getByText('My Project F')).toBeInTheDocument();
   });
   it('AC-1238-001: mixed currencies among delivery projects stay unknown, never summed', () => {
     projState.data = [
@@ -305,26 +306,26 @@ describe('AC-1238: PM dashboard counts only active-delivery projects', () => {
       { ...mine[1], currency: 'IDR', actual_currency: 'IDR', budget_currency: 'IDR' },
     ];
     renderPane();
-    const scope = screen.getByTestId('pm-project-scope');
-    expect(scope).toHaveTextContent('USD 4,000,000');
-    expect(scope).toHaveTextContent('IDR');
-    expect(scope).toHaveTextContent('2,000,000');
-    expect(scope).not.toHaveTextContent('USD 6,000,000');
+    expect(within(screen.getByTestId('kpi-my-contract-value')).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
   });
 });
 
 describe('AC-1238: PM project-status row legibility', () => {
-  it('AC-1238-002: the full project name remains visible and accessible', () => {
+  it('AC-1238-002: the project name is never squeezed out — it keeps a minimum width, title and wrapping row', () => {
     renderPane();
-    const link = within(screen.getByTestId('pm-project-row-p2')).getByRole('link', { name: 'My Project B' });
-    expect(link).toBeVisible();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+    const link = within(statusCard).getByRole('link', { name: 'My Project B' });
+    expect(link).toHaveAttribute('title', 'My Project B');
+    expect(link.className).toMatch(/min-w-\[/);
+    expect(link.closest('li')?.className).toContain('flex-wrap');
   });
   it('AC-1238-003: margin is labelled (visible + accessible name) and every status shares one dot marker', () => {
     projState.data = [mine[0], mine[3]];
     renderPane();
-    const row = within(screen.getByTestId('pm-project-row-p1'));
-    expect(row.getByText('Margin to date')).toBeInTheDocument();
-    expect(row.getByRole('img', { name: 'My Project A margin to date: 25.0%' })).toBeInTheDocument();
-    expect(row.getByText('Ongoing Project')).toBeInTheDocument();
+    const statusCard = screen.getByRole('region', { name: 'Project Status' });
+    const row = within(statusCard).getByRole('link', { name: 'My Project A' }).closest('li') as HTMLElement;
+    expect(within(row).getByText('Margin')).toBeInTheDocument();
+    expect(within(row).getByRole('img', { name: 'My Project A margin to date: 25.0%' })).toBeInTheDocument();
+    expect(statusCard.querySelector('[class*="outline-offset-2"]')).toBeNull();
   });
 });

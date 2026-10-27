@@ -125,7 +125,7 @@ describe('#716 — Projects calendar month lives in the working set (AC-LRC-003)
   it('leaving the calendar view drops the month key from the URL', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderAt('/projects?view=calendar&month=2026-03');
-    await user.selectOptions(screen.getByRole('combobox', { name: 'View' }), 'table');
+    await user.click(screen.getByRole('tab', { name: /^Table$/i }));
     await waitFor(() => expect(search().has('view')).toBe(false));
     expect(search().has('month')).toBe(false);
   });

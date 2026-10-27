@@ -471,7 +471,7 @@ describe('review fixes: bid comparison presentation', () => {
 
   it('exposes the full vendor title on the primary cell', () => {
     render(<VendorQuotesTab {...defaultProps} quotations={[selectedQuote]} />);
-    expect(screen.getAllByText('Apex Supply', { exact: true }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByTitle('Apex Supply').length).toBeGreaterThanOrEqual(1);
   });
 });
 

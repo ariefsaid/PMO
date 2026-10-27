@@ -3,16 +3,22 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import ExecutiveDashboard from './ExecutiveDashboard';
-import { PageFrame } from '@/src/components/shell';
 import type { ExecutiveDashboard as ExecutiveDashboardData } from '@/src/lib/db/dashboard';
 import { ToastProvider } from '@/src/components/ui/Toast';
 
+type Analytics = typeof import('@/src/lib/analytics');
+const analytics = vi.hoisted(() => ({ trackComingSoonClicked: vi.fn<Analytics['trackComingSoonClicked']>() }));
 const desktop = vi.hoisted(() => ({ value: true }));
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktop.value }));
 // OD-BILL-1: the Still-to-invoice card reads through react-query; stubbed like the other dashboard hooks.
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useUnbilledWorkOrders: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/lib/analytics', async importOriginal => ({
+  ...await importOriginal<Analytics>(),
+  trackComingSoonClicked: analytics.trackComingSoonClicked,
+} satisfies Analytics));
+
 // Oracle payload — extended dual-lens fields (no avg_gross_margin)
 const populated = {
   active_projects: 2,
@@ -81,7 +87,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     winRateRangeTracker.current = range;
     return { data: winRateOracle, isPending: false, isError: false };
   },
-  useSalesPipeline: () => ({ data: { stages: [{ status: 'Negotiation', count: 1, total_value: 2000000, win_probability: 0.4, weighted_value: 800000 }] }, isPending: false, isError: false }),
+  useSalesPipeline: () => ({ data: null, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useOrgFeatures', () => ({ useOrgFeatures: () => ({ data: {}, isLoading: false }) }));
 vi.mock('@/src/auth/impersonation', () => ({
@@ -106,9 +112,7 @@ const renderPage = () =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <PageFrame breadcrumb={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}>
-          <ExecutiveDashboard />
-        </PageFrame>
+        <ExecutiveDashboard />
       </ToastProvider>
     </MemoryRouter>,
   );
@@ -116,18 +120,19 @@ const renderPage = () =>
 beforeEach(() => {
   desktop.value = true;
   dashState.isPending = false; dashState.isError = false; dashState.data = populated;
-  approvalState.timesheets = [{ id: 't1' }];
 });
 
 describe('ExecutiveDashboard (real data)', () => {
-  it('AC-SL-B-001: no budgets keeps risk unknown and pipeline margin unavailable', () => {
+  it('AC-SL-B-001: no budgets → one risk note, no forecast-margin tile or headline, no Active projects tile', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, projects_at_risk: 0, ...({ active_delivery_projects: 2, risk_unchecked_projects: 2 } as object) } as typeof populated;
     renderPage();
-    expect(screen.getByText('Risk is not checked for 2 delivery projects')).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
-    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
+    expect(screen.getAllByText(/Risk can't be checked yet/)).toHaveLength(1);
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-active-projects')).not.toBeInTheDocument();
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+    const marginCard = screen.getByTestId('dashboard-pipeline-margin');
+    expect(within(marginCard).getByText('Pipeline (weighted)')).toBeInTheDocument();
+    expect(within(marginCard).queryByText('Pipeline forecast margin')).toBeNull();
     expect(screen.queryByText(/Active-budget risk/)).not.toBeInTheDocument();
   });
 
@@ -143,35 +148,12 @@ describe('ExecutiveDashboard (real data)', () => {
         ],
       };
       renderPage();
-      const delivery = screen.getByRole('region', { name: 'Delivery book' });
-      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('3,400,000');
-      expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('USD');
-      const idr = within(delivery).getByTestId('dashboard-delivery-position-IDR');
-      expect(idr).toHaveTextContent('IDR');
-      expect(idr).toHaveTextContent('373,500,000,000');
+      const tile = screen.getByTestId('kpi-on-hand-margin');
+      expect(tile).toHaveTextContent('USD 3.4M');
+      expect(tile).not.toHaveTextContent(/\$3\.4M/);
     } finally {
       orgState.currency = 'USD';
     }
-  });
-
-  it('AC-806-EXEC-CURRENCY-001 labels unavailable mixed-currency figures with their currency', () => {
-    dashState.data = {
-      ...populated,
-      on_hand_value_by_currency: [
-        { currency: 'IDR', contract_value: null as unknown as number, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 0, realized_margin_known: null as unknown as number, unknown_projects: 1 },
-        { currency: 'USD', contract_value: 3_400_000, actual_known: null as unknown as number, contract_remaining: null as unknown as number, actual_coverage_count: 0, actual_coverage_total: 0, realized_margin_known: null as unknown as number, unknown_projects: 1 },
-      ],
-      on_hand_realized_margin_by_currency: [
-        { currency: 'IDR', known_amount: null as unknown as number, unknown_projects: 1 },
-        { currency: 'USD', known_amount: null as unknown as number, unknown_projects: 1 },
-      ],
-    };
-    renderPage();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR')).toHaveTextContent('—');
-    expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('—');
-    expect(within(within(delivery).getByTestId('dashboard-delivery-position-IDR')).getAllByRole('link', { name: /IDR:/ }).length).toBeGreaterThan(0);
-    expect(within(within(delivery).getByTestId('dashboard-delivery-position-USD')).getAllByRole('link', { name: /USD:/ }).length).toBeGreaterThan(0);
   });
 
   it('shows on-hand contract amounts per currency when the aggregate is mixed-currency', () => {
@@ -192,14 +174,15 @@ describe('ExecutiveDashboard (real data)', () => {
       on_hand_actual_coverage_total: 150,
     };
     renderPage();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(within(delivery).getByTestId('dashboard-delivery-position-IDR')).toHaveTextContent('2,000,000,000');
-    expect(within(delivery).getByTestId('dashboard-delivery-position-USD')).toHaveTextContent('1,000,000');
-    expect(delivery).toHaveTextContent('Actual coverage: 144 of 150 mapped cost categories');
-    expect(within(delivery).getByRole('link', { name: 'Review accounting mappings' }))
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    // OD-MONEY-FMT: each currency shows once, in the short form (amount plus currency, never "USD $...").
+    expect(tile).toHaveTextContent('IDR 2B');
+    expect(tile).toHaveTextContent('$1M');
+    expect(tile).not.toHaveTextContent(/USD\s*\$/);
+    expect(tile).toHaveTextContent('Actual incomplete: 6 cost categories not mapped');
+    expect(within(tile).getByRole('link', { name: 'Review accounting mappings' }))
       .toHaveAttribute('href', '/administration/accounting#budget-account-map');
-    expect(delivery).toHaveTextContent('Some portfolio values are unavailable');
-    expect(delivery).toHaveTextContent('—');
+    expect(tile).not.toHaveTextContent('Not available yet');
   });
 
   it('AC-RD-UNAVAIL-001: an unknowable margin or amount is a dash with the reason, not prose in the figure slot', () => {
@@ -209,64 +192,66 @@ describe('ExecutiveDashboard (real data)', () => {
       pipeline_weighted_value: null as unknown as number,
     };
     renderPage();
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
-    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
-    expect(within(pipeline).queryByText('Not available yet')).toBeNull();
+    // SL-B: an uncomputable margin has no tile at all (never a dash-only or prose tile).
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(within(weighted).getByRole('button', { name: 'Not available yet' })).toHaveTextContent('—');
+    expect(within(weighted).queryByText('Not available yet', { selector: ':not(.sr-only)' })).toBeNull();
   });
 
   it('gives active contract value its own label distinct from contract value on hand', () => {
     renderPage();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('Contract value on hand');
-    expect(delivery).toHaveTextContent('Active contract value');
-    expect(delivery).toHaveTextContent('8,000,000');
+    const onHand = screen.getByTestId('kpi-on-hand-margin');
+    const active = screen.getByTestId('kpi-total-contract-value');
+    expect(onHand).toHaveTextContent('Contract value on hand');
+    expect(active).toHaveTextContent('Active contract value');
+    expect(active).not.toHaveTextContent('Contract value on hand');
   });
 
   it('a null pipeline margin from zero gross value shows no margin tile and the weighted card title (SL-B)', () => {
     dashState.data = { ...populated, pipeline_projected_margin: null, pipeline_total_value: 0 };
     renderPage();
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
-    expect(within(pipeline).getByText('Forecast margin').parentElement).toHaveTextContent('—');
+    expect(screen.queryByTestId('kpi-pipeline-projected-margin')).not.toBeInTheDocument();
+    expect(within(screen.getByTestId('dashboard-pipeline-margin')).getByText('Pipeline (weighted)')).toBeInTheDocument();
   });
 
-  it('AC-701 keeps active project count and exact contract value in the delivery book', () => {
+  it('renders Active Projects = 2 and Total Contract Value $8,000,000 (AC-701)', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('8,000,000');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('2 active projects');
+    expect(screen.getByTestId('kpi-total-contract-value')).toHaveTextContent('$8,000,000');
   });
 
-  it('AC-UX-016: approval decision appears before delivery evidence', () => {
-    renderPage();
-    const attention = screen.getByTestId('dashboard-attention');
-    const delivery = screen.getByTestId('dashboard-delivery-book');
-    expect(attention.compareDocumentPosition(delivery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(within(attention).getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
+  it('AC-UX-016: actionable approvals precede the passive KPI band', () => {
+    const { container } = renderPage();
+    const approvals = screen.getByTestId('kpi-awaiting-approval');
+    const kpis = container.querySelector('[aria-label="Portfolio KPIs"]')!;
+    expect(approvals.compareDocumentPosition(kpis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
   it('AC-SL-A-001: nothing waiting → no approvals tile and no Review button on the executive dashboard', () => {
     approvalState.timesheets = [];
     try {
       renderPage();
-      expect(screen.queryByRole('link', { name: 'Review requests' })).not.toBeInTheDocument();
-      expect(screen.getByRole('link', { name: 'Review at-risk projects' })).toHaveAttribute('href', '/projects?filter=at-risk');
+      expect(screen.queryByTestId('kpi-awaiting-approval')).not.toBeInTheDocument();
+      expect(screen.queryByText('Review')).not.toBeInTheDocument();
     } finally {
       approvalState.timesheets = [{ id: 't1' }];
     }
   });
-  it('pending approvals provide the primary Review requests action to /approvals', () => {
+  it('batch-3: desktop awaiting-approval tile surfaces a visible Review CTA to /approvals', () => {
     renderPage();
-    expect(screen.getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
+    const tile = screen.getByTestId('kpi-awaiting-approval');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/approvals');
+    expect(tile).toHaveTextContent(/Review/i);
   });
   it('budget-vs-actual region surfaces the active project count (AC-703)', () => {
     renderPage();
-    expect(screen.getByRole('region', { name: 'Delivery book' })).toHaveTextContent('2 active projects');
+    expect(screen.getByTestId('dashboard-pipeline')).toHaveTextContent('2');
   });
   it('AC-RF-007: purchasing chart states that ERP-native purchases are outside PMO scope', () => {
     renderPage();
-    const disclosure = screen.getByText('Purchasing requests', { selector: 'summary' }).closest('details')!;
-    expect(disclosure).toHaveTextContent('Draft');
-    expect(disclosure).toHaveTextContent('Paid');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('PMO purchasing requests');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
+    expect(screen.getByTestId('dashboard-proc-status')).toHaveTextContent('5');
   });
 
   it('AC-S19-004: dashboard links use the shared full status labels and preserve raw status filters', () => {
@@ -279,8 +264,7 @@ describe('ExecutiveDashboard (real data)', () => {
       ],
     };
     renderPage();
-    const chart = screen.getByTestId('dashboard-purchasing');
-    fireEvent.click(within(chart).getByText('Purchasing requests'));
+    const chart = screen.getByTestId('dashboard-proc-status');
     expect(within(chart).getByRole('link', { name: /Purchase Request/ })).toHaveAttribute(
       'href',
       '/procurement?status=Requested',
@@ -306,9 +290,9 @@ describe('ExecutiveDashboard (real data)', () => {
   it('AC-S19-004: no PMO requests is clear while ERP-native purchasing stays in scope copy', () => {
     dashState.data = { ...populated, procurements_by_status: [] };
     renderPage();
-    const chart = screen.getByTestId('dashboard-purchasing');
-    fireEvent.click(within(chart).getByText('Purchasing requests'));
+    const chart = screen.getByTestId('dashboard-proc-status');
     expect(within(chart).getByText('No PMO requests to show')).toBeInTheDocument();
+    expect(chart).toHaveTextContent('ERP-native purchases are outside this PMO request chart.');
   });
   it('spending-vs-contract list shows project names and contract denominator', () => {
     renderPage();
@@ -321,14 +305,12 @@ describe('ExecutiveDashboard states', () => {
   it('loading skeleton while pending (AC-706)', () => {
     dashState.isPending = true; dashState.isError = false;
     renderPage();
-    expect(screen.getByTestId('dashboard-delivery-book')).toBeInTheDocument();
-    expect(screen.getByTestId('dashboard-pipeline')).toBeInTheDocument();
-    expect(screen.getAllByText(/Loading/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dashboard-loading')).toBeInTheDocument();
   });
   it('error state with retry (AC-707)', () => {
     dashState.isError = true; dashState.isPending = false;
     renderPage();
-    expect(screen.getAllByText(/Couldn't load the dashboard/i).length).toBeGreaterThan(0);
+    expect(screen.getByTestId('dashboard-error')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
   it('empty state when org has no projects/procurements (AC-708)', () => {
@@ -343,23 +325,21 @@ describe('ExecutiveDashboard states', () => {
     };
     renderPage();
     expect(screen.getByTestId('dashboard-empty')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open projects' })).toHaveAttribute('href', '/projects');
-    expect(screen.queryByRole('table', { name: 'Spending comparison' })).not.toBeInTheDocument();
   });
 });
 
 describe('ExecutiveDashboard design polish', () => {
-  it('known risk is linked to its project filter', () => {
-    approvalState.timesheets = [];
+  it('DA-1: actionable warning link uses the accessible warning-foreground token', () => {
     renderPage();
-    const warningLink = screen.getByRole('link', { name: 'Review at-risk projects' });
-    expect(warningLink).toHaveAttribute('href', '/projects?filter=at-risk');
+    const warningLink = screen.getByRole('link', { name: /Review 1 at-risk project/i });
+    expect(warningLink).toHaveClass('text-warning-foreground');
+    expect(warningLink).not.toHaveClass('text-warning');
   });
 
-  it('DA-3: mobile dashboard renders the Project revenue action', () => {
+  it('DA-3: mobile dashboard renders the Board pack action', () => {
     desktop.value = false;
     renderPage();
-    expect(screen.getByRole('button', { name: /project revenue/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /board pack/i })).toBeInTheDocument();
     desktop.value = true;
   });
 });
@@ -367,19 +347,23 @@ describe('ExecutiveDashboard design polish', () => {
 describe('ExecutiveDashboard dual-lens tiles (AC-1114 / FR-SPD-012)', () => {
   it('AC-1114: renders contracted revenue and billed-work margin without implying contract remainder is profit', () => {
     renderPage();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('Contract remaining after known Actual');
-    expect(delivery).toHaveTextContent('Margin on billed work');
-    expect(delivery).not.toHaveTextContent('94.9%');
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(within(pipeline).getByText('Forecast margin')).toBeInTheDocument();
-    expect(pipeline).toHaveTextContent('20.0%');
+    expect(screen.getByTestId('kpi-on-hand-margin')).toHaveTextContent('Margin on billed work');
+    expect(screen.getByTestId('kpi-on-hand-margin')).not.toHaveTextContent('94.9%');
+    // OD-MONEY-FMT: KPI cards show the short form; the exact amount is the title (goal oracle: right currency).
+    const weighted = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(weighted).toHaveTextContent('$800K');
+    expect(weighted.querySelector('[title="$800,000"]')).not.toBeNull();
+    // Pipeline forecast-margin tile shows ONLY the weighted pipeline projected margin (20.0%) —
+    // the dual on-hand↔weighted toggle was removed (AC-IXD-DASH-002: one metric name = one number).
+    expect(screen.getByTestId('kpi-pipeline-projected-margin')).toHaveTextContent('20.0%');
+    expect(screen.queryByTestId('kpi-avg-gross-margin')).toBeNull();
   });
 
   it('AC-IXD-DASH-002: the forecast-margin tile shows weightedPct only — no lens toggle', () => {
     renderPage();
-    const pipeline = screen.getByRole('region', { name: 'Pipeline' });
-    expect(pipeline).toHaveTextContent('20.0%');
+    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
+    // Weighted pipeline projected margin 20.0%, with no on-hand option to toggle to.
+    expect(tile).toHaveTextContent('20.0%');
     expect(screen.queryByRole('tab', { name: /Weighted/i })).toBeNull();
     expect(screen.queryByRole('tab', { name: /On-hand/i })).toBeNull();
   });
@@ -389,11 +373,11 @@ describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
   it('AC-1115: win-rate tile toggles count↔value and period re-queries (FR-SPD-013)', () => {
     resetWinRateRangeTracker();
     renderPage();
-    expect(screen.getByTestId('win-rate-rate-count')).toHaveTextContent('66.7%');
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-value'));
-    expect(screen.getByTestId('win-rate-rate-USD')).toHaveTextContent('92.5%');
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('92.5%');
     fireEvent.click(screen.getByTestId('win-rate-toggle-count'));
-    expect(screen.getByTestId('win-rate-rate-count')).toHaveTextContent('66.7%');
+    expect(screen.getByTestId('kpi-win-rate')).toHaveTextContent('66.7%');
 
     const initialKey = winRateRangeTracker.current?.key;
     fireEvent.click(screen.getByTestId('win-rate-period-q'));
@@ -404,7 +388,6 @@ describe('ExecutiveDashboard win-rate widget (AC-1115 / FR-SPD-013)', () => {
 describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', () => {
   it('AC-JR-W1-10: each procurement status legend entry links to /procurement?status=<Status>', () => {
     renderPage();
-    fireEvent.click(screen.getByText('Purchasing requests'));
     // The populated oracle has 5 procurement statuses; each should now be a link.
     const draftLink = screen.getByRole('link', { name: /Draft/i });
     expect(draftLink).toHaveAttribute('href', '/procurement?status=Draft');
@@ -418,7 +401,6 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
 
   it('AC-JR-W1-10: procurement status links use encodeURIComponent for statuses with spaces', () => {
     renderPage();
-    fireEvent.click(screen.getByText('Purchasing requests'));
     // "Vendor Quote" has a space — the raw status value is still encoded unchanged.
     const vendorLink = screen.getByRole('link', { name: /Vendor Quote/i });
     expect(vendorLink).toHaveAttribute('href', '/procurement?status=Vendor%20Quoted');
@@ -428,24 +410,57 @@ describe('ExecutiveDashboard Procurement-by-Status drill links (AC-JR-W1-10)', (
 describe('ExecutiveDashboard noun fix: "opportunity value" → "project value" (AC-JR-W4-05)', () => {
   it('AC-JR-W4-05: Pipeline (weighted) help tooltip says "project value" not "opportunity value"', () => {
     renderPage();
-    const measurement = screen.getByText('How figures are measured').closest('details');
-    fireEvent.click(screen.getByText('How figures are measured'));
-    expect(measurement).toHaveTextContent('Contract value for won, on-hold, delivery, and closed-out work');
-    expect(measurement).toHaveTextContent('Wins divided by won plus lost closed project outcomes.');
-    expect(document.body.textContent).not.toContain('Recorded outcomes only; unrecorded decisions are not counted.');
+    const tile = screen.getByTestId('kpi-pipeline-weighted-value');
+    // The Pipeline (weighted) tile IS a link variant — help glyph is aria-hidden.
+    // Trigger hover to open the tooltip and verify text.
+    const helpSpan = tile.querySelector('[aria-hidden="true"][class*="cursor-help"]') as HTMLElement | null;
+    if (helpSpan) {
+      fireEvent.mouseEnter(helpSpan);
+      const tooltip = document.querySelector('[role="tooltip"]');
+      if (tooltip) {
+        expect(tooltip.textContent).not.toContain('opportunity value');
+        expect(tooltip.textContent).toContain('project value');
+      }
+    }
     // Regression: old "opportunity value" text must not appear anywhere in the rendered page
     expect(document.body.textContent).not.toContain('opportunity value');
   });
 });
 
-describe('ExecutiveDashboard scope', () => {
-  it('keeps the dashboard inside the portfolio scope and uses one primary action', () => {
+describe('ExecutiveDashboard token purity / no mockData', () => {
+  it('does not render legacy gray/dark utility classes on the KPI band', () => {
+    const { container } = renderPage();
+    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
+    expect(band).toBeTruthy();
+    expect(band.querySelector('.text-gray-500')).toBeNull();
+    expect(band.querySelector('.dark\\:text-gray-400')).toBeNull();
+  });
+
+  it('reflows the KPI band 1→2→3→4 using monotonic arbitrary breakpoints only (C1 — no named sm: mixed in)', () => {
+    const { container } = renderPage();
+    const band = container.querySelector('[aria-label="Portfolio KPIs"]') as HTMLElement;
+    // All tiers must be arbitrary min-[] to avoid Tailwind v4 cascade-order bug
+    expect(band.className).toContain('grid-cols-1');
+    expect(band.className).toContain('min-[560px]:grid-cols-2');
+    expect(band.className).toContain('min-[920px]:grid-cols-3');
+    expect(band.className).toContain('min-[1180px]:grid-cols-4');
+    // Named sm: MUST NOT appear on grid-cols — it would override all arbitrary tiers at ≥640px
+    expect(band.className).not.toContain('sm:grid-cols');
+  });
+});
+
+describe('coming_soon_clicked: the "Board pack" deferred export affordance (2026-07-13 wiring plan)', () => {
+  beforeEach(() => {
+    analytics.trackComingSoonClicked.mockClear();
+  });
+
+  it('AC: clicking the disabled Board pack affordance fires trackComingSoonClicked (demand signal)', () => {
     renderPage();
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Home');
-    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Dashboard');
-    expect(screen.getByRole('heading', { level: 1, name: 'Executive Dashboard' })).toBeInTheDocument();
-    expect(screen.getByText('Portfolio · delivery and sales evidence')).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /Review (requests|at-risk projects)/ })).toHaveLength(1);
+    const boardPack = screen.getByRole('button', { name: /board pack \(coming soon\)/i });
+    expect(boardPack).toBeDisabled();
+    // The wrapping span reports the click — a disabled button cannot dispatch one.
+    fireEvent.click(boardPack.parentElement!);
+    expect(analytics.trackComingSoonClicked).toHaveBeenCalledWith('board-pack-export', 'dashboard');
   });
 });
 

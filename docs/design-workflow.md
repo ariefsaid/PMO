@@ -1,6 +1,6 @@
 # UI/UX Workflow
 
-> Superseded for composition by OD-VISUAL-RESET and `docs/ux/UX-STANDARD.md`; sections below are history.
+> Superseded for composition by OD-VISUAL-RESET; sections below are history.
 
 > **⚑ SUPERSEDED IN PART by ADR-0030 (2026-06-16) — read `docs/qa-portfolio.md` first.** The standing
 > **4-lens design review run ×2** (mockup round + rendered round) below is being replaced by the

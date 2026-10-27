@@ -10,28 +10,25 @@
  *     NOT toggleable by anyone.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
-import { BahasaProvider } from '@/test/bahasa';
 
-const { orgFeaturesState, isOperatorState, toggleMock, toastSpy, refetchMock } = vi.hoisted(() => ({
+const { orgFeaturesState, isOperatorState, toggleMock, toastSpy } = vi.hoisted(() => ({
   // The own-org feature map returned by useOrgFeatures (the Features section's read source).
   orgFeaturesState: {
-    value: { incidents: false, crm: true } as Record<string, boolean | undefined> | undefined,
-    status: { isPending: false, isError: false, isFetching: false },
+    value: { incidents: false, crm: true } as Record<string, boolean | undefined>,
   },
   isOperatorState: { value: false },
   toggleMock: { fn: vi.fn() },
   toastSpy: { fn: vi.fn() },
-  refetchMock: { fn: vi.fn() },
 }));
 
 vi.mock('@/src/hooks/useOrgFeatures', () => ({
-  useOrgFeatures: () => ({ data: orgFeaturesState.value, ...orgFeaturesState.status, refetch: refetchMock.fn }),
+  useOrgFeatures: () => ({ data: orgFeaturesState.value }),
 }));
 vi.mock('@/src/auth/useIsOperator', () => ({
   useIsOperator: () => isOperatorState.value,
@@ -74,28 +71,11 @@ const renderSection = (props?: Partial<React.ComponentProps<typeof Administratio
     </QueryClientProvider>,
   );
 
-const renderSectionBahasa = () =>
-  render(
-    <BahasaProvider>
-      <QueryClientProvider client={makeQc()}>
-        <ImpersonationProvider realRole="Admin">
-          <MemoryRouter>
-            <ToastProvider>
-              <AdministrationFeatures isOperator={isOperatorState.value} orgId="org-1" />
-            </ToastProvider>
-          </MemoryRouter>
-        </ImpersonationProvider>
-      </QueryClientProvider>
-    </BahasaProvider>,
-  );
-
 beforeEach(() => {
   orgFeaturesState.value = { incidents: false, crm: true };
-  orgFeaturesState.status = { isPending: false, isError: false, isFetching: false };
   isOperatorState.value = false;
   toggleMock.fn = vi.fn();
   toastSpy.fn = vi.fn();
-  refetchMock.fn = vi.fn();
 });
 
 describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles', () => {
@@ -105,8 +85,8 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
     // No switch controls for an org-Admin (state is shown as a pill, not a control).
     expect(screen.queryByRole('switch')).toBeNull();
     // The features are listed as text (label present).
-    expect(screen.getByText('Incidents', { exact: true })).toBeInTheDocument();
-    expect(screen.getByText('CRM (Sales Pipeline, Companies, Contacts)', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/incidents/i)).toBeInTheDocument();
+    expect(screen.getByText(/crm/i)).toBeInTheDocument();
   });
 
   it('AC-ENT-004: the Operator sees real role="switch" toggles', () => {
@@ -118,83 +98,6 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
     const incidentsSwitch = switches.find((s) => /incidents/i.test(s.getAttribute('aria-label') ?? ''));
     expect(incidentsSwitch).toBeDefined();
     expect(incidentsSwitch).toHaveAttribute('aria-checked', 'false');
-  });
-
-  it('shows editable capabilities in localized name order with their consequence beside the switch', () => {
-    isOperatorState.value = true;
-    renderSection();
-    const editableRows = screen.getAllByRole('switch').map((control) =>
-      control.closest('li')?.textContent?.trim(),
-    );
-
-    expect(editableRows[0]).toMatch(/^CRM/);
-    expect(editableRows[0]).toContain('Manage sales pipelines, companies and contacts');
-    expect(editableRows[1]).toMatch(/^Import \/ Export/);
-    expect(editableRows[2]).toMatch(/^Incidents/);
-    expect(editableRows[3]).toMatch(/^Microsoft 365 integration/);
-    expect(editableRows[4]).toMatch(/^Procurement/);
-    expect(editableRows[5]).toMatch(/^Timesheets/);
-  });
-
-  it('keeps Preview and Always included entries in collapsed disclosures', () => {
-    isOperatorState.value = true;
-    renderSection();
-
-    expect(screen.getByText('Preview').closest('details')).not.toHaveAttribute('open');
-    expect(screen.getByText('Always included').closest('details')).not.toHaveAttribute('open');
-    expect(screen.getByText('Agent Assistant').closest('details')).toBe(screen.getByText('Preview').closest('details'));
-    expect(screen.getByText('Projects').closest('details')).toBe(screen.getByText('Always included').closest('details'));
-  });
-
-  it('#693: capability states and disclosures are translated in Bahasa', () => {
-    isOperatorState.value = true;
-    renderSectionBahasa();
-
-    expect(screen.getByRole('region', { name: 'Kapabilitas yang dapat diubah' })).toBeInTheDocument();
-    expect(screen.getByRole('switch', { name: 'Insiden' })).toBeInTheDocument();
-    expect(screen.getAllByText('Nonaktif', { exact: true }).length).toBeGreaterThan(0);
-    const preview = screen.getByText('Pratinjau').closest('details')!;
-    const alwaysIncluded = screen.getByText('Selalu tersedia').closest('details')!;
-    expect(preview).not.toHaveAttribute('open');
-    expect(alwaysIncluded).not.toHaveAttribute('open');
-
-    fireEvent.click(screen.getByText('Pratinjau'));
-    expect(within(preview).getAllByText('Pratinjau — nonaktif').length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByText('Selalu tersedia'));
-    expect(within(alwaysIncluded).getAllByText('Selalu aktif', { exact: true })).toHaveLength(4);
-  });
-
-  it('does not present environment defaults as confirmed capability values while the read is pending', () => {
-    isOperatorState.value = true;
-    orgFeaturesState.value = undefined;
-    orgFeaturesState.status.isPending = true;
-    renderSection();
-
-    expect(screen.getByTestId('liststate-loading')).toBeInTheDocument();
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-  });
-
-  it('offers retry when capability state fails before any confirmed values are available', () => {
-    isOperatorState.value = true;
-    orgFeaturesState.value = undefined;
-    orgFeaturesState.status.isError = true;
-    renderSection();
-
-    fireEvent.click(screen.getByRole('button', { name: /retry/i }));
-    expect(refetchMock.fn).toHaveBeenCalledTimes(1);
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument();
-  });
-
-  it('retains the last confirmed values and exposes a scoped retry after refresh failure', () => {
-    isOperatorState.value = true;
-    orgFeaturesState.value = { crm: true };
-    orgFeaturesState.status.isError = true;
-    renderSection();
-
-    const crmSwitch = screen.getByRole('switch', { name: /crm/i });
-    expect(crmSwitch).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText(/last confirmed settings are still shown/i)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: /retry/i })).toHaveLength(1);
   });
 
   it('AC-ENT-004: clicking a toggle calls repositories.orgFeature.toggle with the new state', async () => {
@@ -211,7 +114,6 @@ describe('AC-ENT-004 — Features section: org-Admin read-only, Operator toggles
         key: 'incidents',
         enabled: true,
       });
-      expect(screen.getByText('Saved', { exact: true })).toBeInTheDocument();
     });
   });
 

@@ -59,7 +59,7 @@ describe('InvoiceWorkOrderModal over the real dispatch transport (AC-BWO-004)', 
 
     const region = await screen.findByTestId('entity-modal-save-error');
     expect(region).toHaveTextContent('That would invoice past the work order');
-    expect(region).toHaveTextContent(/This work order had \$120,000 still to invoice when you opened this dialog/);
+    expect(region).toHaveTextContent(/This work order had \$120,000\.00 still to invoice when you opened this dialog/);
     expect(region).not.toHaveTextContent('Update failed');
     expect(region).not.toHaveTextContent('only 40000.00');
     expect(h.invoke).toHaveBeenCalledWith('adapter-dispatch', expect.objectContaining({
@@ -77,7 +77,7 @@ describe('InvoiceWorkOrderModal over the real dispatch transport (AC-BWO-004)', 
       await userEvent.click(screen.getByRole('button', { name: 'Buat draf faktur' }));
       const region = await screen.findByTestId('entity-modal-save-error');
       expect(region).toHaveTextContent('Tagihan ini akan melewati nilai Work Order');
-      expect(region).toHaveTextContent(/Rp\s?120\.000/);
+      expect(region).toHaveTextContent(/Rp\s?120\.000,00/);
       expect(region).not.toHaveTextContent('Update failed');
       expect(region).not.toHaveTextContent('only 40000.00');
     } finally {

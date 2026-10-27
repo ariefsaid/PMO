@@ -14,7 +14,7 @@ const base = {
   customer_contract_ref: null, end_client: null,
 };
 const renderRail = (project: Record<string, unknown>) =>
-  render(<ToastProvider><ProjectDetailRail project={project as never} /></ToastProvider>);
+  render(<ToastProvider><ProjectDetailRail project={project as never} showActionSection={false} /></ToastProvider>);
 
 describe('ProjectDetailRail contract name (AC-002 #1325)', () => {
   it('shows a Contract name row when a short name is set', () => {

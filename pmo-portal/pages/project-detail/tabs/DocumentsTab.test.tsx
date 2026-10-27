@@ -357,16 +357,12 @@ describe('DocumentsTab — delete (AC-DOC-006)', () => {
 });
 
 describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC-DOC-081 / AC-DOC-082 / AC-DOC-083)', () => {
-  it('AC-DOC-080: orders identity, category/revision, status/date, then File with upload/download affordances', () => {
+  it('AC-DOC-080: renders the File column between Code and Category with upload/download affordances', () => {
     renderTab('Admin', 'admin-1');
     const headers = screen.getAllByRole('columnheader').map((header) => header.textContent?.trim());
     expect(headers).toContain('File');
     expect(headers.indexOf('Code')).toBeLessThan(headers.indexOf('File'));
-    expect(headers.indexOf('Code')).toBeLessThan(headers.indexOf('Category'));
-    expect(headers.indexOf('Category')).toBeLessThan(headers.indexOf('Revision'));
-    expect(headers.indexOf('Revision')).toBeLessThan(headers.indexOf('Status'));
-    expect(headers.indexOf('Status')).toBeLessThan(headers.indexOf('Document date'));
-    expect(headers.indexOf('Document date')).toBeLessThan(headers.indexOf('File'));
+    expect(headers.indexOf('File')).toBeLessThan(headers.indexOf('Category'));
 
     expect(screen.getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Download file for Survey Report/i })).toBeInTheDocument();
@@ -407,7 +403,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     await menuOf('Cover Note');
     expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
-    await menuOf('Structural calculation report', 1);
+    await menuOf('Structural calculation report');
     expect(screen.queryByRole('menuitem', { name: 'New revision' })).not.toBeInTheDocument();
   });
 
@@ -489,7 +485,7 @@ describe('DocumentsTab — file upload integration (AC-DOC-050 / AC-DOC-080 / AC
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d3/survey-report-rev-a.pdf', { download: true });
     expect(anchorClick).toHaveBeenCalled();
 
-    await userEvent.click(screen.getAllByRole('button', { name: /View Structural calculation report/i })[1]);
+    await userEvent.click(screen.getAllByRole('button', { name: /View Structural calculation report/i })[0]);
     const drawer = screen.getByRole('dialog');
     await userEvent.click(within(drawer).getByRole('button', { name: /Download structural-calc-rev-a\.pdf/i }));
     expect(repositoryState.document.getSignedUrl).toHaveBeenCalledWith('org-1/p1/d5/structural-calc-rev-a.pdf', { download: true });
@@ -531,7 +527,7 @@ describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
 
   it('AC-DOC-082 / AC-DOC-080: drawer shows superseding lineage and file information for superseded rows', async () => {
     renderTab('Admin', 'admin-1');
-    const drawer = await openDrawer('Structural calculation report', 1);
+    const drawer = await openDrawer('Structural calculation report', 0);
     expect(within(drawer).getByText(/Superseded by/i)).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /View revision B of Structural calculation report/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /Download structural-calc-rev-a\.pdf/i })).toBeInTheDocument();
@@ -578,7 +574,7 @@ describe('DocumentsTab — detail drawer D12 (AC-W5-C6-D12)', () => {
 
   it('AC-DOC-082: drawer lineage links navigate between parent and child revisions', async () => {
     renderTab('Admin', 'admin-1');
-    const drawer = await openDrawer('Structural calculation report', 0);
+    const drawer = await openDrawer('Structural calculation report', 1);
     await userEvent.click(within(drawer).getByRole('button', { name: /View revision A of Structural calculation report/i }));
     const linkedDrawer = screen.getByRole('dialog');
     expect(document.getElementById(linkedDrawer.getAttribute('aria-labelledby')!)?.textContent).toContain('Structural calculation report');

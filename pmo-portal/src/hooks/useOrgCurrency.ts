@@ -22,13 +22,12 @@ function useOrgCurrencyQuery() {
 }
 
 /** Currency plus its loading/error state for views that must not label amounts with the USD placeholder. */
-export function useOrgCurrencyState(): { currency: string; isResolved: boolean; isError: boolean; refetch: () => Promise<unknown> } {
+export function useOrgCurrencyState(): { currency: string; isResolved: boolean; isError: boolean } {
   const query = useOrgCurrencyQuery();
   return {
     currency: query.data ?? 'USD',
     isResolved: query.data !== undefined && !query.isPlaceholderData,
     isError: query.isError,
-    refetch: query.refetch,
   };
 }
 

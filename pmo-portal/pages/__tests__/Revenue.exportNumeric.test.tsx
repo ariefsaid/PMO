@@ -4,7 +4,7 @@
  *
  * ⚑ The oracle is the CELL TYPE in the generated workbook, read back with exceljs — not the string
  * shape of the value. The whole real path runs: the page's own `exportValue`s → `buildExportRows` →
- * `toWorkbookBuffer` → parse the bytes. Only the ExportButton render is intercepted to capture its real columns.
+ * `toWorkbookBuffer` → parse the bytes. Nothing in the chain is mocked except the table render.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
@@ -19,12 +19,18 @@ import { resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocal
 
 // ⚑ The button-driven path (click → download) is proved in Revenue.exportAndCurrency.test.tsx (#731);
 // this file reads the numeric cell types directly. The shipped
-// `columns` (with their real `exportValue`s) are captured off the ExportButton the page renders, then
+// `columns` (with their real `exportValue`s) are captured off the DataTable the page renders, then
 // pushed through the same buildExportRows → toWorkbookBuffer path `useExport` runs.
 const table = vi.hoisted(() => ({ props: null as null | { rows: unknown[]; columns: unknown[] } }));
-vi.mock('@/src/components/export', async (orig) => {
-  const actual = await orig<typeof import('@/src/components/export')>();
-  return { ...actual, ExportButton: (props: { rows: unknown[]; columns: unknown[] }) => { table.props = props; return null; } };
+vi.mock('@/src/components/ui', async (orig) => {
+  const actual = (await orig()) as Record<string, unknown>;
+  return {
+    ...actual,
+    DataTable: (props: { rows: unknown[]; columns: unknown[] }) => {
+      table.props = props;
+      return null;
+    },
+  };
 });
 
 const state = vi.hoisted(() => ({
@@ -129,8 +135,8 @@ describe.each(LOCALES)('#701 money exports carry numeric cells — viewer locale
     setActiveLocale(loc);
     renderPage(<SalesInvoices />);
     const { ws, col } = await exportedSheet();
-    const amount = ws.getRow(2).getCell(col('Net amount'));
-    const outstanding = ws.getRow(2).getCell(col('Outstanding gross'));
+    const amount = ws.getRow(2).getCell(col('Amount'));
+    const outstanding = ws.getRow(2).getCell(col('Outstanding'));
     expect(amount.type).toBe(ExcelJS.ValueType.Number);
     expect(amount.value).toBe(1234567.89);
     expect(outstanding.type).toBe(ExcelJS.ValueType.Number);
@@ -146,16 +152,5 @@ describe('#701 a missing amount exports an empty cell, not a text zero', () => {
     const cell = ws.getRow(2).getCell(col('Amount'));
     expect(cell.type).not.toBe(ExcelJS.ValueType.Number);
     expect(cell.type === ExcelJS.ValueType.Null || cell.value === '' || cell.value === null).toBe(true);
-  });
-});
-
-describe('money-in inclusive invoice export semantics', () => {
-  it('keeps tax-inclusive source amount distinct from net and gross export values', async () => {
-    state.invoices = [{ ...invoice, amount: 1110, tax_amount: 110, tax_treatment: 'inclusive' }];
-    renderPage(<SalesInvoices />);
-    const { ws, col } = await exportedSheet();
-    expect(ws.getRow(2).getCell(col('Net amount')).value).toBe(1000);
-    expect(ws.getRow(2).getCell(col('Invoice gross')).value).toBe(1110);
-    expect(ws.getRow(2).getCell(col('Recorded amount')).value).toBe(1110);
   });
 });

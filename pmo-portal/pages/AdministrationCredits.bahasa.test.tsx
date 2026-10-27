@@ -38,7 +38,7 @@ describe('Administration Credits in Bahasa (#693 F-1)', () => {
   it('#693: the balance readout and Grant affordance are Bahasa', async () => {
     getOrgBalance.mockResolvedValue(1200);
     renderPanel();
-    expect(await screen.findByText('Saldo tersedia')).toBeInTheDocument();
+    expect(await screen.findByText('Saldo organisasi')).toBeInTheDocument();
     expect(screen.getByText('kredit')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Berikan kredit' })).toBeInTheDocument();
     expect(screen.queryByText('Grant credits')).toBeNull();
@@ -47,7 +47,7 @@ describe('Administration Credits in Bahasa (#693 F-1)', () => {
   it('#693: the load-error state is Bahasa with a Bahasa Retry', async () => {
     getOrgBalance.mockRejectedValue(new Error('boom'));
     renderPanel();
-    expect(await screen.findByText('Saldo tidak tersedia')).toBeInTheDocument();
+    expect(await screen.findByText('Gagal memuat saldo')).toBeInTheDocument();
     expect(screen.getByText('Permintaan gagal. Periksa koneksi Anda dan coba lagi.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Coba lagi' })).toBeInTheDocument();
   });

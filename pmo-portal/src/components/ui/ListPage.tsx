@@ -1,7 +1,6 @@
 import React from 'react';
 import { Toolbar } from './DataTable';
 import { useIsDesktop } from './useIsDesktop';
-import { PageHeading } from './PageHeading';
 
 export interface ListPageProps {
   /** Page H1 (the entity noun — "Companies", "Projects", "Pipeline", …). */
@@ -18,8 +17,6 @@ export interface ListPageProps {
    * gated by the consumer. Lives top-right in the header row.
    */
   primaryAction?: React.ReactNode;
-  /** Place a collection primary after the toolbar controls instead of beside the title. */
-  primaryActionPlacement?: 'heading' | 'toolbar';
 
   // --- toolbar slots (fixed canonical order, empty slots held in place) ---
   /** Left-most: status filter segments / text chips. */
@@ -45,10 +42,6 @@ export interface ListPageProps {
   mobileToolbar?: React.ReactNode;
   /** Page-specific desktop toolbar layout refinements. */
   desktopToolbarClassName?: string;
-  /** Place search before the collection scope filters (used by the Projects workflow). */
-  searchFirst?: boolean;
-  /** Put view selection before secondary export/import actions in visual and keyboard order. */
-  viewBeforeActions?: boolean;
 
   /** Optional banner (e.g. an in-use delete `GateNotice`) above the toolbar. */
   banner?: React.ReactNode;
@@ -75,7 +68,6 @@ export const ListPage: React.FC<ListPageProps> = ({
   description,
   count,
   primaryAction,
-  primaryActionPlacement = 'heading',
   filters,
   search,
   secondaryFilter,
@@ -84,8 +76,6 @@ export const ListPage: React.FC<ListPageProps> = ({
   view,
   mobileToolbar,
   desktopToolbarClassName,
-  searchFirst = false,
-  viewBeforeActions = false,
   banner,
   children,
   className,
@@ -99,26 +89,30 @@ export const ListPage: React.FC<ListPageProps> = ({
     filters || search || secondaryFilter || exportAction || importAction || view || mobileToolbar,
   );
   const useMobileToolbar = Boolean(mobileToolbar) && isBelowMd;
-  const toolbarPrimaryAction = primaryActionPlacement === 'toolbar' && hasToolbar ? primaryAction : undefined;
-  const headingPrimaryAction = toolbarPrimaryAction ? undefined : primaryAction;
 
   return (
     <div className={className}>
-      <div data-testid="list-page-header" className="mb-4">
-        <PageHeading
-          kind="collection"
-          title={title}
-          scope={description}
-          status={count !== undefined && (
-            <span
-              data-testid="list-page-count"
-              className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-[12.5px] font-semibold tabular text-muted-foreground"
-            >
-              {count}
-            </span>
+      <div
+        data-testid="list-page-header"
+        className="mb-4 flex flex-wrap items-start justify-between gap-3"
+      >
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-[24px] font-bold tracking-[-0.02em]">{title}</h1>
+            {count !== undefined && (
+              <span
+                data-testid="list-page-count"
+                className="inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full bg-secondary px-2 text-[12.5px] font-semibold tabular text-muted-foreground"
+              >
+                {count}
+              </span>
+            )}
+          </div>
+          {description && (
+            <p className="mt-0.5 max-w-[68ch] text-sm text-muted-foreground">{description}</p>
           )}
-          actions={headingPrimaryAction}
-        />
+        </div>
+        {primaryAction}
       </div>
 
       {banner}
@@ -131,32 +125,17 @@ export const ListPage: React.FC<ListPageProps> = ({
             className="flex-col items-stretch gap-2.5"
           >
             {mobileToolbar}
-            {toolbarPrimaryAction && (
-              <div data-testid="page-primary-action-slot" data-page-primary-action-slot="collection-toolbar" className="flex w-full justify-end max-sm:[&>*]:min-h-11 max-sm:[&>*]:w-full">
-                {toolbarPrimaryAction}
-              </div>
-            )}
           </Toolbar>
         ) : (
           <Toolbar standalone data-testid="list-page-toolbar" className={desktopToolbarClassName}>
-            {searchFirst ? search : filters}
-            {searchFirst ? filters : search}
+            {filters}
+            {search}
             {secondaryFilter}
-            {viewBeforeActions && view && (
-              <div data-testid="list-page-view" className="ml-auto">
-                {view}
-              </div>
-            )}
             {exportAction}
             {importAction}
-            {!viewBeforeActions && view && (
+            {view && (
               <div data-testid="list-page-view" className="ml-auto">
                 {view}
-              </div>
-            )}
-            {toolbarPrimaryAction && (
-              <div data-testid="page-primary-action-slot" data-page-primary-action-slot="collection-toolbar" className="basis-full flex justify-end xl:col-span-full">
-                {toolbarPrimaryAction}
               </div>
             )}
           </Toolbar>

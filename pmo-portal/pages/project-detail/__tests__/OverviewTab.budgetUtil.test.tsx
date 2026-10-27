@@ -33,7 +33,6 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ 
 vi.mock('@/src/hooks/useWorkOrders', () => ({
   useProjectDrawdown: () => ({ data: null, isPending: true, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 
 vi.mock('@/src/hooks/useBudget', () => ({
   useBudgetVersions: () => ({ data: [{ id: 'bv1', status: 'Active', total: 900_000, line_items: [] }] as unknown as BudgetVersionWithItems[], isPending: false, isError: false, refetch: vi.fn() }),

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { ToastProvider } from '@/src/components/ui/Toast';
@@ -97,49 +97,45 @@ beforeEach(() => {
   tsState.isError = false;
 });
 
-describe('ExecutiveDashboard — approval status errors (AC-W2-4-06)', () => {
-  it('AC-W2-4-06: procurement failure is unavailable and provides a quiet inbox link', () => {
+describe('ExecutiveDashboard — mobile approval count on error (AC-W2-4-06)', () => {
+  it('AC-W2-4-06: mobile approvals band shows "—" when procurements fetch errors (not 0)', () => {
     procState.isError = true;
     renderPage();
 
-    const attention = screen.getByTestId('dashboard-attention');
-    expect(attention).toHaveTextContent('Approval status is unavailable');
-    expect(within(attention).getByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/approvals');
-    expect(within(attention).queryByText(/0 approval/)).not.toBeInTheDocument();
-    expect(within(attention).queryByRole('link', { name: 'Review requests' })).not.toBeInTheDocument();
+    const band = screen.getByTestId('mobile-approvals-band');
+    // Should show em-dash, not 0
+    expect(band).toHaveTextContent('—');
+    expect(band).not.toHaveTextContent('0');
   });
 
-  it('AC-W2-4-06: timesheet failure is unavailable and provides a quiet inbox link', () => {
+  it('AC-W2-4-06: mobile approvals band shows "—" when timesheets fetch errors (not 0)', () => {
     procState.isError = false;
     procState.data = [];
     tsState.isError = true;
     renderPage();
 
-    const attention = screen.getByTestId('dashboard-attention');
-    expect(attention).toHaveTextContent('Approval status is unavailable');
-    expect(within(attention).getByRole('link', { name: 'Open approvals' })).toHaveAttribute('href', '/approvals');
-    expect(within(attention).queryByText(/0 approval/)).not.toBeInTheDocument();
+    const band = screen.getByTestId('mobile-approvals-band');
+    expect(band).toHaveTextContent('—');
+    expect(band).not.toHaveTextContent('0');
   });
 
-  it('AC-SL-A-001: confirms a clear queue without offering a review action', () => {
+  it('AC-SL-A-001: hides the mobile approvals band when nothing is waiting (no error)', () => {
     procState.isError = false;
     procState.data = [];
     tsState.isError = false;
     tsState.data = [];
     renderPage();
-    const attention = screen.getByTestId('dashboard-attention');
-    expect(attention).toHaveTextContent('No approval requests need a decision');
-    expect(within(attention).queryByRole('link', { name: /Review|Open approvals/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId('mobile-approvals-band')).not.toBeInTheDocument();
   });
 
-  it('shows a known count and review action when items wait without error', () => {
+  it('shows numeric count when items wait and no error', () => {
     procState.isError = false;
     procState.data = [];
     tsState.isError = false;
     tsState.data = [{ id: 't1' }];
     renderPage();
-    const attention = screen.getByTestId('dashboard-attention');
-    expect(attention).toHaveTextContent('1 approval request needs your decision');
-    expect(within(attention).getByRole('link', { name: 'Review requests' })).toHaveAttribute('href', '/approvals');
+    const band = screen.getByTestId('mobile-approvals-band');
+    expect(band).toHaveTextContent('1');
+    expect(band).not.toHaveTextContent('—');
   });
 });

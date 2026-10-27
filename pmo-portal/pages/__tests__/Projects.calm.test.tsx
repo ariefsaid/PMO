@@ -1,4 +1,9 @@
-/** Projects table keeps identity, customer and money evidence legible without duplicating caveats. */
+/**
+ * AC-RD-SUB-PL-A — the Projects table says each fact once (v0.24 UI subtraction).
+ * The default screen carries fewer elements: one help sentence, one Filters trigger, no
+ * optional-columns toggle, no End customer column, no per-row references disclosure, no
+ * repeated coverage prose, one table-level coverage note.
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -79,24 +84,27 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
-  it('scope line has one quiet Pipeline link', () => {
+  it('help text is the single Pipeline pointer', () => {
     renderPage();
-    expect(screen.getAllByRole('link', { name: 'Pipeline' })).toHaveLength(1);
+    expect(screen.getByText('Pre-win projects live in the Pipeline.')).toBeInTheDocument();
+    expect(screen.queryByText(/Track your active and completed projects/)).not.toBeInTheDocument();
   });
 
-  it('keeps end-customer identity beside the project without a second data column', () => {
+  it('has no optional-columns toggle and no End customer column; end customer is a muted line only when set', () => {
     renderPage();
+    expect(screen.queryByRole('button', { name: /optional columns|hide empty columns/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: /end customer/i })).not.toBeInTheDocument();
-    expect(screen.getByText('End customer: Endco')).toBeInTheDocument();
+    expect(screen.getAllByText('Endco')).toHaveLength(1);
   });
 
-  it('project identity keeps customer and references labelled and visible', () => {
+  it('name cell carries no per-row references disclosure; identifiers sit on one mono line', () => {
     renderPage();
+    expect(screen.queryByText('More project references')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Customer contract reference/)).not.toBeInTheDocument();
     const first = screen.getByText('Synthetic project 0').closest('tr')!;
-    const identity = within(first).getByTestId('projects-identity-secondary');
-    expect(identity).toHaveTextContent(/PMO Project Number:\s*PMO-1000/);
-    expect(identity).toHaveTextContent(/Client Project Code:\s*CLI-0/);
-    expect(identity).toHaveTextContent(/Customer contract reference:\s*CONTRACT-0/);
+    const ids = within(first).getByText('PMO-1000 · CLI-0');
+    expect(ids).toHaveClass('font-mono');
   });
 
   it('classification fields live inside the one Filters disclosure (no second trigger)', async () => {
@@ -109,25 +117,17 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     expect(screen.getByLabelText('Filter by customer')).toBeInTheDocument();
   });
 
-  it('AC-RD-TBL-PROJ-001 / R-003: one shared coverage note explains scope, cause, and a named remedy', () => {
+  it('Actual cells are amount only; one table note carries partial coverage and the date', () => {
     renderPage();
     const body = document.querySelector('tbody')!;
-    expect(within(body).queryByText(/ERP actual|Committed POs|Updated/)).not.toBeInTheDocument();
-    const note = screen.getByTestId('projects-data-note');
-    expect(note).toHaveAttribute('role', 'status');
-    expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
-    expect(note).toHaveTextContent('Actual is partial on 2 of 25 projects.');
-    expect(within(note).getByRole('link', { name: 'Review project finances' })).toBeVisible();
-
+    expect(within(body).queryByText(/ERP actual|Committed POs|Updated|Incomplete source coverage/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Incomplete source coverage')).not.toBeInTheDocument();
+    const notes = screen.getAllByText(/Actual is partial on/);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toHaveTextContent('Actual is partial on 2 of 25 projects. Updated');
+    // null Actual stays unavailable, never 0
     const partialRow = screen.getByText('Synthetic project 1').closest('tr')!;
-    const actualHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent === 'Actual');
-    const budgetHeaderIndex = [...document.querySelectorAll('thead th')].findIndex((header) => header.textContent?.includes('Budget used'));
-    for (const cell of [partialRow.cells[actualHeaderIndex], partialRow.cells[budgetHeaderIndex]]) {
-      const unavailable = within(cell).getByText('Unavailable');
-      expect(unavailable).toHaveAttribute('aria-describedby', 'projects-data-note');
-      expect(within(cell).queryByRole('link')).not.toBeInTheDocument();
-      expect(within(cell).queryByText('Incomplete source coverage')).not.toBeInTheDocument();
-    }
+    expect(within(partialRow).getAllByText('Unavailable').length).toBeGreaterThan(0);
     expect(within(partialRow).queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -140,22 +140,23 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
   it('only a restricted row carries a per-row tag', () => {
     renderPage();
     const restricted = screen.getByText('Synthetic project 3').closest('tr')!;
-    expect(within(restricted).getAllByText('Restricted rows excluded')).toHaveLength(2);
-    expect(screen.getAllByText('Restricted rows excluded')).toHaveLength(2);
+    expect(within(restricted).getByText('Restricted excluded')).toBeInTheDocument();
+    expect(screen.getAllByText('Restricted excluded')).toHaveLength(1);
   });
 
-  it('Budget used reports the percentage against its Active-budget basis', () => {
+  it('Budget used is bar + % only; the "x of y" detail is a title, not text', () => {
     renderPage();
+    const body = document.querySelector('tbody')!;
+    expect(within(body).queryByText(/of .* Active budget/)).not.toBeInTheDocument();
     const bar = within(screen.getByText('Synthetic project 4').closest('tr')!).getByRole('progressbar', { name: '25% of Active budget' });
-    expect(bar).toBeInTheDocument();
+    expect(bar.closest('[title]')).toHaveAttribute('title', '$1,000,004.00 of $4,000,000.00 Active budget');
   });
 
-  it('delivery without phases is named explicitly', () => {
+  it('Progress without phases is a dash, not "No phases yet"', () => {
     renderPage();
+    expect(screen.queryByText('No phases yet')).not.toBeInTheDocument();
     const noPhases = screen.getByText('Synthetic project 0').closest('tr')!;
-    expect(within(noPhases).getByText('No phases yet')).toBeInTheDocument();
-    // C-05 keeps one canonical project-opening action per row; delivery detail lives on that record.
-    expect(within(noPhases).getByRole('button', { name: /^(?:Open project )?Synthetic project 0$/ })).toBeVisible();
+    expect(within(noPhases).getByRole('img', { name: 'No phases yet' })).toHaveTextContent('—');
   });
 
   it('phone Filters panel drops the "Loading options…" and "No options available" lines', async () => {
@@ -184,9 +185,8 @@ describe('AC-RD-SUB-PL-A: Projects table says each fact once', () => {
     renderPage();
     await userEvent.click(screen.getByRole('button', { name: /^Filters/ }));
     const panel = screen.getByRole('region', { name: 'Filters' });
-    clientsState.refetch.mockClear();
-    await userEvent.click(within(panel).getByRole('button', { name: 'Retry options' }));
-    expect(clientsState.refetch).toHaveBeenCalled();
+    expect(within(panel).getByRole('alert')).toHaveTextContent("Couldn't load options");
+    expect(within(panel).getByRole('button', { name: 'Retry' })).toBeInTheDocument();
     clientsState.isError = false; clientsState.isSuccess = true;
   });
 });

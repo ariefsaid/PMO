@@ -47,7 +47,6 @@ import { isFeatureEnabled } from '@/src/lib/features';
 import { buildViewsPaletteItems } from '@/src/lib/viewspec/paletteItems';
 import { contextualListReturnNavigation } from '@/src/lib/listReturnContext';
 import { useReturnNavigate } from '@/src/hooks/useListReturn';
-import { LegacyReportRedirect } from './pages/money-in/LegacyReportRedirect';
 // A2 (ADR-0040): AssistantPanel + provider + hotkey — flag-gated, absent when off.
 import { AgentRuntimeProvider } from '@/src/lib/agent/runtime/AgentRuntimeProvider';
 import { useAgentRuntimeContext } from '@/src/lib/agent/runtime/AgentRuntimeContext';
@@ -91,8 +90,10 @@ const ExpenseClaimNewPage = React.lazy(() => import('./pages/ExpenseClaimNew'));
 const ExpenseClaimDetailPage = React.lazy(() => import('./pages/ExpenseClaimDetail'));
 const SalesInvoicesPage = React.lazy(() => import('./pages/SalesInvoices'));
 const IncomingPaymentsPage = React.lazy(() => import('./pages/IncomingPayments'));
+const RevenueByProjectPage = React.lazy(() => import('./pages/RevenueByProject'));
 const ErpPurchasesPage = React.lazy(() => import('./pages/ErpPurchases'));
-const MoneyInReportsPage = React.lazy(() => import('./pages/money-in/MoneyInReports'));
+const FinancialStatementsPage = React.lazy(() => import('./pages/FinancialStatements'));
+const ManagementPackPage = React.lazy(() => import('./pages/ManagementPack'));
 const ProfileSettingsPage = React.lazy(() => import('./pages/ProfileSettings'));
 
 /**
@@ -174,7 +175,7 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/expenses', element: <ExpenseClaimsPage /> },
   { path: '/expenses/new', element: <ExpenseClaimNewPage /> },
   { path: '/expenses/:claimId', element: <ExpenseClaimDetailPage /> },
-  { path: '/reports', element: <LegacyReportRedirect view="earned" /> },
+  { path: '/reports', element: <FeatureRoute feature="revenue" element={<ManagementPackPage />} /> },
   { path: '/administration', element: <AdministrationEntryRedirect /> },
   { path: '/administration/users', element: <AdministrationPage /> },
   { path: '/administration/integrations', element: <AdministrationPage /> },
@@ -193,9 +194,9 @@ export const appRouteConfig: RouteObject[] = [
   { path: '/sales-invoices/:invoiceId', element: <SalesInvoicesPage /> },
   { path: '/incoming-payments', element: <IncomingPaymentsPage /> },
   { path: '/incoming-payments/:receiptId', element: <IncomingPaymentsPage /> },
-  { path: '/revenue-by-project', element: <LegacyReportRedirect view="billing" /> },
+  { path: '/revenue-by-project', element: <RevenueByProjectPage /> },
   { path: '/erp-purchases', element: <ErpPurchasesPage /> },
-  { path: '/financial-statements', element: <MoneyInReportsPage /> },
+  { path: '/financial-statements', element: <FinancialStatementsPage /> },
   // M365 connection-model (D2): the personal-connect surface any active member of an entitled
   //   org can reach. This is the route the token-custody callback redirects to (Phase A) —
   //   AC-M365SEP-018 asserts it resolves here so the callback never falls through to the catch-all.
@@ -227,7 +228,6 @@ export const ShellChrome: React.FC = () => {
   const navigate = useNavigate();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [railOpen, setRailOpen] = useState(false);
-  const [railCollapsed, setRailCollapsed] = useState(false);
   const paletteTriggerRef = useRef<HTMLElement | null>(null);
 
   // A2: Read panel open-state controls from AgentRuntimeProvider context.
@@ -307,12 +307,6 @@ export const ShellChrome: React.FC = () => {
   // a placeholder route reads its own page title; the module segment navigates
   // to its index. (AC-NAV-003/004/005)
   const breadcrumb = useMemo<BreadcrumbPart[]>(() => {
-    if (pathname === '/') {
-      return [
-        { label: t('dashboard:breadcrumb.home', 'Home'), href: '/' },
-        { label: t('shell.nav.dashboard', 'Dashboard'), i18nKey: 'shell.nav.dashboard' },
-      ];
-    }
     if (pathname === '/settings/profile') {
       return [{ label: t('shell.nav.profileSettings', 'Profile & preferences') }];
     }
@@ -325,22 +319,6 @@ export const ShellChrome: React.FC = () => {
           onClick: () => breadcrumbNavigate(listPath),
         },
         { label: t('shell.nav.invoiceRecord', 'Invoice record') },
-      ];
-    }
-    if (/^\/incoming-payments\/[^/]+$/.test(pathname)) {
-      const sourceUrl = (location.state as { moneyInSource?: { url?: unknown } } | null)?.moneyInSource?.url;
-      const listPath = typeof sourceUrl === 'string' &&
-        (sourceUrl === '/incoming-payments' || sourceUrl.startsWith('/incoming-payments?'))
-        ? sourceUrl
-        : '/incoming-payments';
-      return [
-        {
-          label: t('shell.nav.incomingPayments', 'Incoming Payments'),
-          href: listPath,
-          onClick: () => breadcrumbNavigate(listPath),
-          i18nKey: 'shell.nav.incomingPayments',
-        },
-        { label: t('shell:nav.receiptRecord', 'Receipt record') },
       ];
     }
     // The pipeline partition the resolvers read = open pipeline ∪ lost deals (Blocker 1). A lost
@@ -374,7 +352,6 @@ export const ShellChrome: React.FC = () => {
   }, [
     pathname,
     location.search,
-    location.state,
     contextualParent,
     t,
     breadcrumbNavigate,
@@ -384,45 +361,14 @@ export const ShellChrome: React.FC = () => {
     opportunities,
   ]);
 
-  // Project records belong to Projects for every stage and cold-load state. The source-list return
-  // context preserves Sales Pipeline as the originating collection lens.
-  const railActiveOverride = useMemo<'projects' | null>(() => deriveRailActiveOverride(pathname, undefined), [pathname]);
-  const projectRecordRoute = /^\/projects\/[^/]+(?:\/[^/]+)?$/u.test(pathname) && pathname !== '/projects/new';
-  const administrationRoute = pathname === '/administration' || pathname.startsWith('/administration/');
-  const personalIntegrationsRoute = pathname === '/integrations';
-  const salesInvoiceRecordRoute = /^\/sales-invoices\/[^/]+$/u.test(pathname);
-  const incomingPaymentRecordRoute = /^\/incoming-payments\/[^/]+$/u.test(pathname);
-  const moneyInFrameRoute = pathname === '/sales-invoices' || salesInvoiceRecordRoute ||
-    pathname === '/incoming-payments' || incomingPaymentRecordRoute || pathname === '/financial-statements';
-  const usesContentPageFrame =
-    pathname === '/' ||
-    pathname === '/projects' ||
-    pathname === '/sales' ||
-    projectRecordRoute ||
-    pathname === '/approvals' ||
-    pathname === '/timesheets' ||
-    administrationRoute ||
-    personalIntegrationsRoute ||
-    moneyInFrameRoute;
-  const areaName = pathname === '/'
-    ? t('shell.nav.dashboard', 'Dashboard')
-    : pathname === '/approvals'
-      ? t('shell.nav.approvals', 'Approvals')
-      : pathname === '/timesheets'
-        ? t('shell.nav.timesheets', 'Timesheets')
-        : pathname === '/sales'
-          ? t('shell.nav.sales', 'Sales Pipeline')
-          : administrationRoute
-            ? t('shell.nav.administration', 'Administration')
-            : personalIntegrationsRoute
-              ? t('shell.nav.integrations', 'My integrations')
-              : pathname === '/sales-invoices' || salesInvoiceRecordRoute
-                ? t('shell.nav.salesInvoices', 'Sales Invoices')
-                : pathname === '/incoming-payments' || incomingPaymentRecordRoute
-                  ? t('shell.nav.incomingPayments', 'Incoming Payments')
-                  : pathname === '/financial-statements'
-                    ? t('shell.nav.financialStatements', 'Financial statements')
-                    : t('shell.nav.projects', 'Projects');
+  // Option A (Task D): stage-aware rail highlight for /projects/:id detail routes.
+  // Reuses the same cached lists as the breadcrumb — no new query. The override is
+  // null while caches are pending (NavLink URL-based fallback) and resolves on the
+  // next render once the pipeline/projects lists settle.
+  const railActiveOverride = useMemo<'salesPipeline' | 'projects' | null>(() => {
+    const statusGroup = recordStatusGroupForPath(pathname, { projects, opportunities });
+    return deriveRailActiveOverride(pathname, statusGroup);
+  }, [pathname, projects, opportunities]);
 
   // AC-W3-N3: filter Navigate items by the viewer's REAL role, plus verified Operator membership.
   // A plain Engineer does not see Sales/Procurement/Companies/Administration; a verified Operator
@@ -473,12 +419,9 @@ export const ShellChrome: React.FC = () => {
   return (
     <>
       <AppShell
-        railCollapsed={railCollapsed}
         rail={
           <Rail
             onNavigate={() => setRailOpen(false)}
-            collapsed={railCollapsed}
-            onToggleCollapse={() => setRailCollapsed((value) => !value)}
             railActiveOverride={railActiveOverride}
             operatorAccessError={needsOperatorRecovery}
             // A2: pass openPanel so the Rail "Assistant" button opens the panel (FR-AP-005).
@@ -487,18 +430,9 @@ export const ShellChrome: React.FC = () => {
             assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
           />
         }
-        drawerRail={
-          <Rail
-            onNavigate={() => setRailOpen(false)}
-            railActiveOverride={railActiveOverride}
-            operatorAccessError={needsOperatorRecovery}
-            onOpenAssistant={isFeatureEnabled('agentAssistant') ? openPanel : undefined}
-            assistantPanelOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : undefined}
-          />
-        }
         header={
           <ContextBar
-            {...(usesContentPageFrame ? { areaName } : { breadcrumb })}
+            breadcrumb={breadcrumb}
             onOpenPalette={openPalette}
             onToggleRail={() => setRailOpen((v) => !v)}
           />
@@ -509,18 +443,6 @@ export const ShellChrome: React.FC = () => {
         assistantOpen={isFeatureEnabled('agentAssistant') ? assistantOpen : false}
         // A2: mount the panel as a sibling of <main> when flag is on (FR-AP-002, D-A2-6).
         assistant={isFeatureEnabled('agentAssistant') ? <AssistantPanel /> : undefined}
-        pageFrame={usesContentPageFrame ? {
-          breadcrumb,
-          ...(projectRecordRoute ? {
-            returnLabel: t('shell.nav.projects', 'Projects'),
-          } : {}),
-          ...(salesInvoiceRecordRoute ? {
-            returnLabel: t('shell.nav.salesInvoices', 'Sales Invoices'),
-          } : {}),
-          ...(incomingPaymentRecordRoute ? {
-            returnLabel: t('shell.nav.incomingPayments', 'Incoming Payments'),
-          } : {}),
-        } : undefined}
       >
         <AppRoutes />
       </AppShell>

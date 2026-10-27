@@ -67,8 +67,6 @@ export interface ComboboxProps {
   /** Stable DOM id for form error-summary focus links. */
   id?: string;
   className?: string;
-  /** Optional trigger sizing for contexts with larger touch targets. */
-  triggerClassName?: string;
 }
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -91,7 +89,6 @@ export const Combobox: React.FC<ComboboxProps> = ({
   disabled,
   id,
   className,
-  triggerClassName,
 }) => {
   const { t } = useTranslation();
   const baseId = useId();
@@ -300,16 +297,15 @@ export const Combobox: React.FC<ComboboxProps> = ({
           disabled={disabled}
           onClick={() => !disabled && setOpen((o) => !o)}
           className={cn(
-            'flex min-h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] py-1 text-sm text-foreground',
+            'flex h-8 w-full items-center gap-2 rounded-md border bg-background px-[10px] text-[13.5px] text-foreground',
             'hover:border-primary/50 disabled:cursor-not-allowed disabled:bg-secondary disabled:text-muted-foreground',
             error ? 'border-destructive' : 'border-input',
-            triggerClassName,
           )}
         >
           {selected ? (
             <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
               <Avatar opt={selected} size={20} />
-              <span className="min-w-0 whitespace-normal break-words">{selected.label}</span>
+              <span className="truncate">{selected.label}</span>
             </span>
           ) : (
             <span className="flex-1 text-left text-muted-foreground">{placeholder}</span>
@@ -413,9 +409,9 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       )}
                     >
                       <Avatar opt={opt} size={22} />
-                      <span className="min-w-0 break-words">{opt.label}</span>
+                      <span className="min-w-0 truncate">{opt.label}</span>
                       {opt.sub && (
-                        <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] break-words text-[11px] font-semibold text-muted-foreground">{opt.sub}</span>
+                        <span title={opt.sub} className="ml-1.5 min-w-0 shrink-[3] truncate text-[11.5px] text-muted-foreground">{opt.sub}</span>
                       )}
                       {isSelected && (
                         <Icon name="check" className="ml-auto size-[15px] shrink-0 text-primary" />

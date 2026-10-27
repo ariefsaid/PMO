@@ -4,7 +4,6 @@ export { ContextBar, type ContextBarProps } from './ContextBar';
 export { CommandPalette, type PaletteItem, type CommandPaletteProps } from './CommandPalette';
 export { Breadcrumb, type BreadcrumbPart, type BreadcrumbProps } from './Breadcrumb';
 export { BackBar, type BackBarProps } from './BackBar';
-export { PageFrame, type PageFrameProps } from './PageFrame';
 export {
   MODULES,
   modulesForRole,

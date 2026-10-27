@@ -16,20 +16,6 @@ const EN_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales
 const ID_DASHBOARD = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/dashboard.json'), 'utf8'));
 const EN_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/finance.json'), 'utf8'));
 const ID_FINANCE = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8'));
-const EN_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8'));
-const ID_PROJECT = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8'));
-const EN_SHELL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/shell.json'), 'utf8'));
-const ID_SHELL = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/shell.json'), 'utf8'));
-const EN_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/administration.json'), 'utf8'));
-const ID_ADMINISTRATION = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/administration.json'), 'utf8'));
-const EN_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/integrations.json'), 'utf8'));
-const ID_INTEGRATIONS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/integrations.json'), 'utf8'));
-const EN_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/m365Documents.json'), 'utf8'));
-const ID_M365_DOCUMENTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/m365Documents.json'), 'utf8'));
-const EN_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/projects.json'), 'utf8'));
-const ID_PROJECTS = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/projects.json'), 'utf8'));
-const EN_SALES = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/sales.json'), 'utf8'));
-const ID_SALES = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/sales.json'), 'utf8'));
 
 function makeBahasaI18n(locale: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -39,30 +25,8 @@ function makeBahasaI18n(locale: 'en' | 'id') {
     defaultNS: 'common',
     fallbackNS: 'common',
     resources: {
-      id: {
-        common: ID,
-        projects: ID_PROJECTS,
-        dashboard: ID_DASHBOARD,
-        finance: ID_FINANCE,
-        project: ID_PROJECT,
-        shell: ID_SHELL,
-        sales: ID_SALES,
-        administration: ID_ADMINISTRATION,
-        integrations: ID_INTEGRATIONS,
-        m365Documents: ID_M365_DOCUMENTS,
-      },
-      en: {
-        common: EN,
-        projects: EN_PROJECTS,
-        dashboard: EN_DASHBOARD,
-        finance: EN_FINANCE,
-        project: EN_PROJECT,
-        shell: EN_SHELL,
-        sales: EN_SALES,
-        administration: EN_ADMINISTRATION,
-        integrations: EN_INTEGRATIONS,
-        m365Documents: EN_M365_DOCUMENTS,
-      },
+      id: { common: ID, dashboard: ID_DASHBOARD, finance: ID_FINANCE },
+      en: { common: EN, dashboard: EN_DASHBOARD, finance: EN_FINANCE },
     },
     initImmediate: false,
     interpolation: { escapeValue: false },

@@ -394,18 +394,6 @@ describe('SelectField: native select for short fixed enums', () => {
     expect(select).toHaveClass('h-8');
     expect(select).not.toHaveClass('h-7');
   });
-
-  it('raises native field controls to a 44px minimum on coarse pointers', () => {
-    render(
-      <SelectField
-        label="Period"
-        value="2026-10"
-        onChange={() => {}}
-        options={[{ value: '2026-10', label: '2026-10' }]}
-      />,
-    );
-    expect(screen.getByLabelText('Period').className).toContain('[@media(pointer:coarse)]:h-11');
-  });
 });
 
 describe('FieldError: standalone inline error', () => {

@@ -250,17 +250,7 @@ export function createS21ClickUpFetch({
   };
 }
 
-/**
- * @typedef {{kind: 'local'} | {kind: 'forward', path: string} | {kind: 'blocked', reason: string}} S21BrowserRequestDecision
- */
-
-/**
- * @param {string} requestUrl
- * @param {string} method
- * @param {string} supabaseOrigin
- * @param {string | null} [appOrigin=null]
- * @returns {S21BrowserRequestDecision}
- */
+/** @param {string} requestUrl @param {string} method @param {string} supabaseOrigin @param {string | null} [appOrigin=null] */
 export function classifyS21BrowserRequest(requestUrl, method, supabaseOrigin, appOrigin = null) {
   let url;
   try {
@@ -301,7 +291,6 @@ export function createS21BrowserRequestGuard(supabaseOrigin, appOrigin = null) {
   let clickupOnboardRequests = 0;
 
   return {
-    /** @param {string} requestUrl @param {string} method @returns {S21BrowserRequestDecision} */
     classify(requestUrl, method) {
       const result = classifyS21BrowserRequest(requestUrl, method, supabaseOrigin, appOrigin);
       if (result.reason === 'operator-initializer') clickupOnboardRequests += 1;

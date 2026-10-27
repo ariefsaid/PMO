@@ -4,12 +4,14 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   Button,
+  Icon,
   EntityFormModal,
   type SubmitError,
   FormSection,
   NumberField,
   TextField,
   ListState,
+  SectionHeader,
   useToast,
   useEntityForm,
 } from '@/src/components/ui';
@@ -105,33 +107,42 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
   });
 
   return (
-    <section aria-label={t('admin.nav.credits', 'Credits')} className="min-w-0">
+    <div>
+      <SectionHeader
+        title={t('admin.nav.credits', 'Credits')}
+        action={
+          isOperator && (
+            <Button variant="primary" onClick={() => setGrantOpen(true)}>
+              <Icon name="plus" />
+              {t('admin.credits.grant', 'Grant credits')}
+            </Button>
+          )
+        }
+      />
+
       {balanceQuery.isPending && (
-        <ListState variant="loading" rows={1} />
+        <div className="rounded-lg border border-border bg-card">
+          <ListState variant="loading" rows={1} />
+        </div>
       )}
       {balanceQuery.isError && (
         <ListState
           variant="error"
-          title={t('admin.credits.error.title', 'Balance unavailable')}
+          title={t('admin.credits.error.title', "Couldn't load balance")}
           sub={t('admin.loadErrorSub', 'The request failed. Check your connection and try again.')}
           retryLabel={t('admin.retry', 'Retry')}
           onRetry={() => void balanceQuery.refetch()}
         />
       )}
       {balanceQuery.data !== undefined && (
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
-          <p className="min-w-0 text-sm">
-            <span className="text-muted-foreground">{t('administration:admin.credits.balanceLabel', 'Available balance')}</span>
-            <span className="ml-3 text-xl font-bold tabular" data-testid="org-credit-balance">
-              {formatNumberExact(balanceQuery.data)}{' '}
-              <span className="text-sm font-semibold text-muted-foreground">
-                {t('admin.credits.unit', 'credits')}
-              </span>
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <span className="text-[13px] text-muted-foreground">{t('admin.credits.orgBalance', 'Org balance')}</span>
+          <span className="text-[20px] font-bold tabular" data-testid="org-credit-balance">
+            {formatNumberExact(balanceQuery.data)}{' '}
+            <span className="text-[13px] font-semibold text-muted-foreground">
+              {t('admin.credits.unit', 'credits')}
             </span>
-          </p>
-          {isOperator && <Button variant="primary" className="min-h-11" onClick={() => setGrantOpen(true)}>
-            {t('admin.credits.grant', 'Grant credits')}
-          </Button>}
+          </span>
         </div>
       )}
 
@@ -145,7 +156,7 @@ export const AdministrationCredits: React.FC<AdministrationCreditsProps> = ({
           }
         />
       )}
-    </section>
+    </div>
   );
 };
 

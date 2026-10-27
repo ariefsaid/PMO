@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import React from 'react';
 import { PMDashboard } from '../PMDashboard';
 
 /**
- * W2-4d — PM delivery evidence remains unavailable, not zero, when project data fails.
- * AC-W2-4-04: scope keeps an unavailable state and offers a local retry.
+ * W2-4d — PMDashboard KPI band shows "—" (not 0/$0/0) when projects fetch errors.
+ * AC-W2-4-04: "My projects", "My contract value", and "At risk" tiles show "—" on error.
  */
 
 // FR-L10N-020: this tree reads useOrgCurrency (org-denominated aggregates). Pinned here rather
@@ -44,13 +44,21 @@ const renderPMDashboard = () =>
     </MemoryRouter>,
   );
 
-describe('PMDashboard — delivery worklist on projects fetch error (AC-W2-4-04)', () => {
-  it('AC-W2-4-04: shows unavailable scope and retry without fabricated zero values', () => {
+describe('PMDashboard — KPI band on projects fetch error (AC-W2-4-04)', () => {
+  it('AC-W2-4-04: shows "—" (not 0/$0/0) in the three data-driven KPI tiles on error', () => {
     renderPMDashboard();
 
-    expect(screen.getByTestId('pm-project-scope')).toHaveTextContent('Not available yet');
-    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load your projects");
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
-    expect(screen.queryByTestId('pm-projects-empty')).not.toBeInTheDocument();
+    const myProjects = screen.getByTestId('kpi-my-projects');
+    const contractValue = screen.getByTestId('kpi-my-contract-value');
+    const atRisk = screen.getByTestId('kpi-at-risk');
+
+    // Each tile should show em-dash, not a fabricated 0/$0/0
+    expect(within(myProjects).getByText('—')).toBeInTheDocument();
+    expect(within(contractValue).getByText('—')).toBeInTheDocument();
+    expect(within(atRisk).getByText('—')).toBeInTheDocument();
+
+    // Must NOT show fabricated zeros
+    expect(within(myProjects).queryByText('0')).toBeNull();
+    expect(within(contractValue).queryByText('$0')).toBeNull();
   });
 });

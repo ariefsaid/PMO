@@ -14,12 +14,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import React from 'react';
 
-const { entitlement } = vi.hoisted(() => ({ entitlement: { enabled: true } }));
-
-vi.mock('@/src/auth/useFeature', () => ({
-  useFeature: () => entitlement.enabled,
-}));
-
 vi.mock('@/src/components/integrations/M365ConnectionCard', () => ({
   M365ConnectionCard: () => (
     <div data-testid="personal-m365-card">Personal Microsoft 365 connection card</div>
@@ -58,16 +52,5 @@ describe('Integrations — the PERSONAL connection route (AC-ADMIA-006)', () => 
     expect(
       screen.queryByText(/organization integration.*(ready|active|activated)/i),
     ).not.toBeInTheDocument();
-  });
-
-  it('explains when Microsoft 365 is unavailable and gives the member a next step', () => {
-    entitlement.enabled = false;
-    renderPage();
-
-    expect(screen.getByRole('status')).toHaveTextContent(/not available for this workspace/i);
-    expect(screen.getByRole('status')).toHaveTextContent(/ask a workspace administrator to enable it/i);
-    expect(screen.queryByTestId('personal-m365-card')).not.toBeInTheDocument();
-
-    entitlement.enabled = true;
   });
 });

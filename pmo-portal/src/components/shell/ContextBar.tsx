@@ -6,9 +6,7 @@ import { NotificationBell } from './NotificationBell';
 import { AccountMenu } from './AccountMenu';
 
 export interface ContextBarProps {
-  breadcrumb?: BreadcrumbPart[];
-  /** Current area name for routes that use the content-track page frame. */
-  areaName?: string;
+  breadcrumb: BreadcrumbPart[];
   onOpenPalette: () => void;
   /** Opens the mobile rail drawer (≤920px). */
   onToggleRail: () => void;
@@ -19,7 +17,6 @@ export interface ContextBarProps {
  *  in the one responsive AccountMenu; no inline desktop cluster or phone-only menus. */
 export const ContextBar: React.FC<ContextBarProps> = ({
   breadcrumb,
-  areaName,
   onOpenPalette,
   onToggleRail,
 }) => {
@@ -40,11 +37,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({
         <Icon name="menu" />
       </button>
 
-      {areaName ? (
-        <span data-shell-area-name className="min-w-0 truncate text-[13.5px] font-semibold text-foreground">
-          {areaName}
-        </span>
-      ) : breadcrumb ? <Breadcrumb parts={breadcrumb} /> : null}
+      <Breadcrumb parts={breadcrumb} />
 
       <div className="flex-1" />
 

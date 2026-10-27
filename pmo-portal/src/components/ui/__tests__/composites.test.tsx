@@ -187,7 +187,7 @@ describe('Funnel', () => {
     );
     const probChip = screen.getByText('20%');
     // Must carry text-[11px] — not text-[10px] (which was below the AA floor)
-    expect(probChip.className).toContain('text-[0.6875rem]');
+    expect(probChip.className).toContain('text-[11px]');
     expect(probChip.className).not.toContain('text-[10px]');
   });
 

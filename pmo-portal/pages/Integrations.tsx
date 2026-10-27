@@ -1,6 +1,5 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFeature } from '@/src/auth/useFeature';
 import { M365ConnectionCard } from '@/src/components/integrations/M365ConnectionCard';
 
 /**
@@ -23,7 +22,6 @@ import { M365ConnectionCard } from '@/src/components/integrations/M365Connection
  */
 const IntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
-  const microsoftEnabled = useFeature('m365_integration');
   return (
     <div>
       {/* C-MIN-3: page-level h1 so screen readers + document.querySelector('h1') find a level-1
@@ -39,16 +37,7 @@ const IntegrationsPage: React.FC = () => {
         )}
       </p>
       <div className="mt-4 max-w-xl">
-        {microsoftEnabled ? (
-          <M365ConnectionCard />
-        ) : (
-          <p role="status" className="rounded-md border border-border bg-secondary/35 px-4 py-3 text-sm text-muted-foreground">
-            {t(
-              'integrations:personalM365.unavailable',
-              'Microsoft 365 is not available for this workspace. Ask a workspace administrator to enable it.',
-            )}
-          </p>
-        )}
+        <M365ConnectionCard />
       </div>
     </div>
   );

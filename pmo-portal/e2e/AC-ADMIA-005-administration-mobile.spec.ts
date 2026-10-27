@@ -53,24 +53,6 @@ const OPERATOR_SECTIONS = [
 
 const sectionNav = (page: Page) => page.getByRole('navigation', { name: 'Administration sections' });
 
-async function openSectionNavigation(page: Page, vw: number) {
-  if (vw >= 768) return;
-  const navigation = sectionNav(page);
-  const summary = page.getByText('Administration sections', { exact: true });
-  await expect(summary).toBeVisible();
-  if (!(await navigation.isVisible())) await summary.click();
-  await expect(sectionNav(page)).toBeVisible();
-}
-
-async function closeSectionNavigation(page: Page, vw: number) {
-  if (vw >= 768) return;
-  if (!(await sectionNav(page).isVisible())) return;
-  const summary = page.getByText('Administration sections', { exact: true });
-  await expect(summary).toBeVisible();
-  await summary.click();
-  await expect(sectionNav(page)).not.toBeVisible();
-}
-
 /** Returns elements whose right edge exceeds the viewport, excluding legitimate horizontal scrollers
  *  and their descendants. Runs in the page. */
 async function findBleeders(page: Page, vw: number) {
@@ -131,40 +113,35 @@ async function driveSections(
 ) {
   // Every Admin destination link is reachable and navigates to a visible, overflow-free panel.
   for (const s of sections) {
-    await openSectionNavigation(page, vw);
     const link = sectionNav(page).getByRole('link', { name: s.name });
     await expect(link).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${s.url}$`));
+    await expect(page.getByTestId(s.testid)).toBeVisible();
+
+    // Selected panel heading is visible; at phone widths it must also be within the first scroll region.
+    const heading = page.getByRole('heading', { level: 1, name: 'Administration' });
+    const panelHeading = page.getByRole('heading', { level: 2, name: s.heading });
+    await expect(heading).toBeVisible();
+    await expect(panelHeading).toBeVisible();
+    await waitForFonts(page);
     if (vw < 600) {
+      for (const el of [heading, sectionNav(page).getByRole('link', { name: s.name }), panelHeading]) {
+        const box = await el.boundingBox();
+        expect(box, `${s.name} control should have a layout box at ${vw}px`).not.toBeNull();
+        expect(
+          box!.y,
+          `${s.name} control must sit within the first scroll region at ${vw}px — its top (${Math.round(
+            box!.y,
+          )}px) is below the ${height}px viewport.`,
+        ).toBeLessThan(height);
+      }
       const linkBox = await link.boundingBox();
       expect(linkBox, `${s.name} link should have a layout box at ${vw}px`).not.toBeNull();
       expect(
         linkBox!.height,
         `${s.name} link must offer a 44px-tall phone touch target, without overlap from adjacent links`,
       ).toBeGreaterThanOrEqual(44);
-      expect(linkBox!.y, `${s.name} link should be reachable within the phone viewport`).toBeLessThan(height);
-    }
-    const alreadySelected = await link.getAttribute('aria-current') === 'page';
-    if (vw < 600 && alreadySelected) {
-      await expect(page).toHaveURL(new RegExp(`${s.url}$`));
-      await closeSectionNavigation(page, vw);
-    } else {
-      await link.click();
-      await expect(page).toHaveURL(new RegExp(`${s.url}$`));
-    }
-    await expect(page.getByTestId(s.testid)).toBeVisible();
-
-    // The route job is the page h1. On phone, the navigation disclosure closes on arrival.
-    const heading = page.getByRole('heading', { level: 1, name: s.heading });
-    await expect(heading).toBeVisible();
-    await waitForFonts(page);
-    if (vw < 600) {
-      await expect(sectionNav(page)).not.toBeVisible();
-      const headingBox = await heading.boundingBox();
-      expect(headingBox, `${s.name} route-job heading should have a layout box at ${vw}px`).not.toBeNull();
-      expect(
-        headingBox!.y,
-        `${s.name} route-job heading must sit within the first scroll region at ${vw}px`,
-      ).toBeLessThan(height);
     }
 
     await assertNoHorizontalOverflow(page, vw);
@@ -183,13 +160,11 @@ test('AC-ADMIA-005: Administration destinations stay reachable and overflow-free
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/administration');
-  await expect(sectionNav(page)).not.toBeVisible();
   await driveSections(page, 390, 844);
 
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.goto('/administration');
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await expect(sectionNav(page)).not.toBeVisible();
   await driveSections(page, 390, 844);
 });
 
@@ -197,6 +172,5 @@ test('AC-ADMIA-005: Operator can reach all six Administration sections on a 390p
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, OPERATOR);
   await page.goto('/administration');
-  await expect(sectionNav(page)).not.toBeVisible();
   await driveSections(page, 390, 844, OPERATOR_SECTIONS);
 });

@@ -63,6 +63,8 @@ vi.mock('@/src/auth/impersonation', () => ({
 
 import SalesPipeline from '../SalesPipeline';
 
+// list-working-set-return (#682): the scope ViewToggle only renders in table view (kanban
+// already shows every column); the view is URL-owned now, so force it via `?view=table`.
 const renderPage = () =>
   render(
     <ImpersonationProvider realRole="Project Manager">
@@ -85,7 +87,9 @@ describe('SalesPipeline — Lost scope error (AC-W2-4-05)', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
+    // Switch to "Lost" scope (ViewToggle renders role="tab")
+    const lostBtn = screen.getByRole('tab', { name: /^Lost$/i });
+    await user.click(lostBtn);
 
     // Should NOT show false empty
     expect(screen.queryByText(/No lost projects/i)).toBeNull();
@@ -97,7 +101,8 @@ describe('SalesPipeline — Lost scope error (AC-W2-4-05)', () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Project scope' }), 'Lost');
+    const lostBtn = screen.getByRole('tab', { name: /^Lost$/i });
+    await user.click(lostBtn);
 
     const retryBtn = screen.getByRole('button', { name: /retry/i });
     await user.click(retryBtn);

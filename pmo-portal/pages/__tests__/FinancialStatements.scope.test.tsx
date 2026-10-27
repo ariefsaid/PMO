@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { Session } from '@supabase/supabase-js';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AuthContext, type AuthContextValue } from '@/src/auth/AuthContext';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -121,26 +121,20 @@ const authValue = (role: string): AuthContextValue => ({
   refreshCurrentUser: vi.fn(),
 });
 
-function renderPage(role = 'Finance', initialUrl = '/financial-statements?section=statements') {
+function renderPage(role = 'Finance') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
   const view = render(
     <QueryClientProvider client={client}>
       <AuthContext.Provider value={authValue(role)}>
         <ImpersonationProvider realRole={role as AuthContextValue['role']}>
-          <MemoryRouter initialEntries={[initialUrl]}>
+          <MemoryRouter>
             <FinancialStatements />
-            <CurrentUrl />
           </MemoryRouter>
         </ImpersonationProvider>
       </AuthContext.Provider>
     </QueryClientProvider>,
   );
   return { ...view, client };
-}
-
-function CurrentUrl() {
-  const location = useLocation();
-  return <output data-testid="statement-url">{location.pathname}{location.search}</output>;
 }
 
 function requestedInputs(): GetFinancialStatementInput[] {
@@ -179,33 +173,10 @@ function expectBothTrialBalancePeriods() {
 }
 
 describe('Financial statements company scope (AC-007)', () => {
-  it('restores a deep-linked statement, admitted scope, and supplied period from the URL', async () => {
-    renderPage('Finance', `/financial-statements?section=statements&periodKind=quarter&periodStart=2026-04-01&statement=profit_and_loss&scope=${projectId}&view=earned&from=2026-01&to=2026-06`);
-
-    expect(await screen.findByText('Current native row', {}, { timeout: 15_000 })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: 'Period type' })).toHaveValue('quarter');
-    expect(screen.getByRole('combobox', { name: 'Period' })).toHaveValue('2026-04-01');
-    expect(screen.getByRole('combobox', { name: 'Statement' })).toHaveValue('profit_and_loss');
-    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Scope' })).toHaveValue(projectId));
-    expect(readSpy).toHaveBeenCalledWith(expect.objectContaining({
-      periodKind: 'quarter', periodStart: '2026-04-01', statement: 'profit_and_loss', projectId,
-    }));
-    expect(screen.getByTestId('statement-url')).toHaveTextContent('view=earned');
-    expect(screen.getByTestId('statement-url')).toHaveTextContent('from=2026-01');
-    expect(screen.getByTestId('statement-url')).toHaveTextContent('to=2026-06');
-
-    fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'balance_sheet' } });
-    await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
-      periodKind: 'quarter', periodStart: '2026-04-01', statement: 'balance_sheet',
-    })));
-    expect(screen.getByTestId('statement-url')).toHaveTextContent('scope=company');
-    expect(screen.getByTestId('statement-url')).toHaveTextContent('from=2026-01');
-  });
-
   it('AC-007: uses the safe read context, mapped PMO names, and the supplied current/prior month pair', async () => {
     renderPage();
 
-    expect(await screen.findByText('Current native row', {}, { timeout: 15_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
     expectBothTrialBalancePeriods();
     expect(screen.getByText(/Read Company Label/)).toBeInTheDocument();
     expect(screen.queryByText('Catalogue Company Label')).not.toBeInTheDocument();
@@ -227,7 +198,7 @@ describe('Financial statements company scope (AC-007)', () => {
 
   it('AC-007 support: a failed mapped-name refresh retires the project choice while Company remains usable', async () => {
     const { client } = renderPage();
-    await screen.findByText('Current native row', {}, { timeout: 15_000 });
+    await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
     await screen.findByRole('option', { name: /PRJ-42 · North Terminal/ });
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });
@@ -245,23 +216,23 @@ describe('Financial statements company scope (AC-007)', () => {
     expect(requestedInputs().filter((input) => input.projectId === projectId)).toHaveLength(1);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'company' } });
-    expect(await screen.findByText('Current native row', {}, { timeout: 15_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' }));
   });
 
   it('AC-007: quarter and fiscal-year selections use catalogue ranges and BS as-at ends without deriving dates', async () => {
     renderPage();
-    await screen.findByText('Current native row', {}, { timeout: 15_000 });
+    await screen.findByText('Current native row');
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'quarter' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'quarter', periodStart: '2026-04-01' })));
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'balance_sheet' } });
-    expect(await screen.findByText(/As at 30 Jun 2026/)).toBeInTheDocument();
+    expect(await screen.findByText(/As at Jun 30, 2026/)).toBeInTheDocument();
     expect(screen.getAllByText(/As at/)).toHaveLength(1);
     expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({
       periodKind: 'quarter', periodStart: '2026-04-01', statement: 'balance_sheet', viewKind: 'account_breakdown',
     }));
-    expect(screen.getByRole('table')).toHaveAccessibleName(/As at 30 Jun 2026/);
+    expect(screen.getByRole('table')).toHaveAccessibleName(/As at Jun 30, 2026/);
 
     fireEvent.change(screen.getByRole('combobox', { name: 'Period type' }), { target: { value: 'fiscal_year' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ periodKind: 'fiscal_year', periodStart: '2026-04-01' })));
@@ -274,7 +245,7 @@ describe('Financial statements company scope (AC-007)', () => {
       .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectRefresh = reject; }));
     renderPage();
 
-    expect(await screen.findByText('Current native row', {}, { timeout: 15_000 })).toBeInTheDocument();
+    expect(await screen.findByText('Current native row')).toBeInTheDocument();
     expectBothTrialBalancePeriods();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeVisible();
     const updated = screen.getByTestId('snapshot-provenance').textContent;
@@ -299,7 +270,7 @@ describe('Financial statements company scope (AC-007)', () => {
 
   it('AC-007: switching mapped-project P&L to TB atomically returns to Company and never requests project TB', async () => {
     renderPage();
-    await screen.findByText('Current native row', {}, { timeout: 15_000 });
+    await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' })));
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });
@@ -317,7 +288,7 @@ describe('Financial statements company scope (AC-007)', () => {
 
   it('AC-007: a catalogue refresh removing the selected project clears its content without broadening to Company', async () => {
     const { client } = renderPage();
-    await screen.findByText('Current native row', {}, { timeout: 15_000 });
+    await screen.findByText('Current native row');
     fireEvent.change(screen.getByRole('combobox', { name: 'Statement' }), { target: { value: 'profit_and_loss' } });
     await waitFor(() => expect(readSpy).toHaveBeenLastCalledWith(expect.objectContaining({ statement: 'profit_and_loss' })));
     fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: projectId } });

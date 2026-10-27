@@ -129,14 +129,6 @@ const flushMount = async () => {
 };
 
 describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1.2)', () => {
-  it('keeps the scrollable form body reachable by keyboard', async () => {
-    render(<Harness />);
-    const body = screen.getByRole('dialog').querySelector<HTMLElement>('form > div[tabindex="0"]');
-    expect(body).toBeInTheDocument();
-    body?.focus();
-    expect(body).toHaveFocus();
-  });
-
   it('AC-A11Y-FORM-001: tabbing out of an empty required field moves focus onward and does not return', async () => {
     const user = userEvent.setup();
     render(<Harness />);
@@ -169,8 +161,6 @@ describe('AC-A11Y-FORM-001: blur-surfaced errors must never move focus (WCAG 2.1
     const name = screen.getByLabelText(/^Full name/);
     await user.tab({ shift: true });
     expect(name).not.toHaveFocus();
-    expect(screen.getByRole('dialog').querySelector('form > div[tabindex="0"]')).toHaveFocus();
-    await user.tab({ shift: true });
     expect(screen.getByRole('button', { name: /close/i })).toHaveFocus();
   });
 

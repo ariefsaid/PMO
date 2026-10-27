@@ -1,7 +1,6 @@
 import React from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
-import { DisclosureSummary, ListState, StatusPill, Switch, useToast } from '@/src/components/ui';
+import { StatusPill, Switch, useToast } from '@/src/components/ui';
 import { repositories } from '@/src/lib/repositories';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { useOrgFeatures } from '@/src/hooks/useOrgFeatures';
@@ -43,37 +42,9 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
   isOperator,
   orgId,
 }) => {
-  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const featuresQuery = useOrgFeatures();
-  const { data: orgFeatures } = featuresQuery;
-  const [outcomes, setOutcomes] = React.useState<Record<string, 'saving' | 'saved' | 'error'>>({});
-
-  // Keep these catalogue keys static so the i18n completeness guard can verify the feature copy.
-  const featureNames: Record<EntitleableKey, string> = {
-    incidents: t('administration:admin.features.name.incidents', FEATURE_LABELS.incidents),
-    crm: t('administration:admin.features.name.crm', FEATURE_LABELS.crm),
-    procurement: t('administration:admin.features.name.procurement', FEATURE_LABELS.procurement),
-    timesheets: t('administration:admin.features.name.timesheets', FEATURE_LABELS.timesheets),
-    import_export: t('administration:admin.features.name.import_export', FEATURE_LABELS.import_export),
-    agent_assistant: t('administration:admin.features.name.agent_assistant', FEATURE_LABELS.agent_assistant),
-    user_views: t('administration:admin.features.name.user_views', FEATURE_LABELS.user_views),
-    m365_integration: t('administration:admin.features.name.m365_integration', FEATURE_LABELS.m365_integration),
-    projects: t('administration:admin.features.name.projects', FEATURE_LABELS.projects),
-    dashboard: t('administration:admin.features.name.dashboard', FEATURE_LABELS.dashboard),
-    approvals: t('administration:admin.features.name.approvals', FEATURE_LABELS.approvals),
-    administration: t('administration:admin.features.name.administration', FEATURE_LABELS.administration),
-    revenue: t('administration:admin.features.name.revenue', FEATURE_LABELS.revenue),
-  };
-  const featureConsequences: Partial<Record<OrgFeatureKey, string>> = {
-    incidents: t('administration:admin.features.consequence.incidents', { defaultValue: 'Track and coordinate operational incidents.' }),
-    crm: t('administration:admin.features.consequence.crm', { defaultValue: 'Manage sales pipelines, companies and contacts.' }),
-    procurement: t('administration:admin.features.consequence.procurement', { defaultValue: 'Manage purchase requests and orders.' }),
-    timesheets: t('administration:admin.features.consequence.timesheets', { defaultValue: 'Record and review project hours.' }),
-    import_export: t('administration:admin.features.consequence.import_export', { defaultValue: 'Import and export workspace records.' }),
-    m365_integration: t('administration:admin.features.consequence.m365_integration', { defaultValue: 'Connect Microsoft 365 for workspace integrations.' }),
-  };
+  const { data: orgFeatures } = useOrgFeatures();
 
   const toggleMutation = useMutation({
     mutationFn: (args: { orgId: string; key: OrgFeatureKey; enabled: boolean }) =>
@@ -92,147 +63,68 @@ export const AdministrationFeatures: React.FC<AdministrationFeaturesProps> = ({
 
   /** Resolve a gatable key: a stored row overrides the env default (FR-ENT-004). */
   const resolve = (key: OrgFeatureKey): boolean => orgFeatures?.[key] ?? FEATURE_ENV_DEFAULT[key];
-  const featureLabel = (key: EntitleableKey) => featureNames[key];
 
-  const handleToggle = async (key: OrgFeatureKey, current: boolean) => {
-    setOutcomes((previous) => ({ ...previous, [key]: 'saving' }));
-    try {
-      await toggleMutation.mutateAsync({ orgId, key, enabled: !current });
-      setOutcomes((previous) => ({ ...previous, [key]: 'saved' }));
-    } catch {
-      setOutcomes((previous) => ({ ...previous, [key]: 'error' }));
-    }
+  const handleToggle = (key: OrgFeatureKey, current: boolean) => {
+    toggleMutation.mutate({ orgId, key, enabled: !current });
   };
 
   // Toggleable keys (take effect immediately via useFeature → Rail/FeatureRoute). The env-gated
   // keys (agent_assistant/user_views) are excluded — their effective gate is still the deployment
   // env flag (plan M5), so toggling them would look like a no-op; render them read-only instead.
-  const toggleable: OrgFeatureKey[] = [...FEATURE_KEYS_TOGGLEABLE].sort((a, b) =>
-    featureLabel(a).localeCompare(featureLabel(b), i18n.resolvedLanguage ?? i18n.language),
-  );
+  const toggleable: OrgFeatureKey[] = [...FEATURE_KEYS_TOGGLEABLE];
   const envGated: OrgFeatureKey[] = ([...FEATURE_KEYS] as OrgFeatureKey[]).filter(
     (k) => !FEATURE_KEYS_TOGGLEABLE.includes(k),
   );
   const core: EntitleableKey[] = [...CORE_FEATURES];
 
-  if (featuresQuery.isPending && !orgFeatures) {
-    return <ListState variant="loading" rows={4} />;
-  }
-
-  if (featuresQuery.isError && !orgFeatures) {
-    return (
-      <ListState
-        variant="error"
-        title={t('administration:admin.features.loadError', "Couldn't load workspace capabilities")}
-        sub={t('administration:admin.features.loadErrorHelp', 'The request failed. Check your connection and try again.')}
-        retryLabel={t('admin.retry', 'Retry')}
-        onRetry={() => void featuresQuery.refetch()}
-      />
-    );
-  }
-
   return (
-    <div className="space-y-4">
-      {featuresQuery.isError && orgFeatures && (
-        <ListState
-          variant="error"
-          title={t('administration:admin.features.refreshError', "Couldn't refresh workspace capabilities")}
-          sub={t('administration:admin.features.lastConfirmed', 'The last confirmed settings are still shown. Check your connection and retry.')}
-          retryLabel={t('admin.retry', 'Retry')}
-          onRetry={() => void featuresQuery.refetch()}
-        />
-      )}
-      {featuresQuery.isFetching && orgFeatures && !featuresQuery.isError && (
-        <p role="status" className="text-sm text-muted-foreground">
-          {t('administration:admin.features.refreshing', 'Refreshing capabilities…')}
-        </p>
-      )}
-      <section aria-label={t('administration:admin.features.editable', 'Editable capabilities')}>
-        <ul className="divide-y divide-border rounded-lg border border-border bg-card">
-          {toggleable.map((key) => {
-            const enabled = resolve(key);
-            const label = featureLabel(key);
-            const consequenceId = `feature-consequence-${key}`;
-            const outcome = outcomes[key];
+    <div className="rounded-lg border border-border bg-card">
+      <ul className="divide-y divide-border">
+        {toggleable.map((key) => {
+          const enabled = resolve(key);
+          const label = FEATURE_LABELS[key];
+          if (isOperator) {
             return (
-              <li key={key} className="flex min-h-16 items-center justify-between gap-3 px-4 py-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium">{label}</p>
-                  <p id={consequenceId} className="mt-0.5 text-sm text-muted-foreground">
-                    {featureConsequences[key] ?? FEATURE_LABELS[key]}
-                  </p>
-                  {outcome && (
-                    <p role="status" className={outcome === 'error' ? 'mt-1 text-sm text-destructive' : 'mt-1 text-sm text-muted-foreground'}>
-                      {outcome === 'saving'
-                        ? t('administration:admin.features.saving', 'Saving…')
-                        : outcome === 'saved'
-                          ? t('administration:admin.features.saved', 'Saved')
-                          : t('administration:admin.features.saveError', "Couldn't save this capability. Your last confirmed setting is still shown.")}
-                    </p>
-                  )}
-                </div>
-                {isOperator ? (
-                  <div className="flex shrink-0 items-center gap-2">
-                    <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                      {enabled ? t('administration:admin.features.on', 'On') : t('administration:admin.features.off', 'Off')}
-                    </StatusPill>
-                    <Switch
-                      checked={enabled}
-                      onChange={() => void handleToggle(key, enabled)}
-                      label={label}
-                      describedBy={consequenceId}
-                      disabled={toggleMutation.isPending}
-                      touchTarget
-                      className="my-1"
-                    />
-                  </div>
-                ) : (
-                  <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                      {enabled
-                        ? t('administration:admin.features.includedInPlan', 'Included in your plan')
-                        : t('administration:admin.features.hidden', 'Hidden')}
-                  </StatusPill>
-                )}
+              <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
+                <span className="text-[13.5px] font-medium">{label}</span>
+                <Switch
+                  checked={enabled}
+                  onChange={() => handleToggle(key, enabled)}
+                  label={label}
+                  disabled={toggleMutation.isPending}
+                />
               </li>
             );
-          })}
-        </ul>
-      </section>
-
-      <details className="group rounded-lg border border-border bg-card px-4">
-        <DisclosureSummary className="py-2 text-sm font-semibold">
-          {t('administration:admin.features.preview', 'Preview')}
-        </DisclosureSummary>
-        <ul className="divide-y divide-border border-t border-border">
-          {envGated.map((key) => {
-            const enabled = resolve(key);
-            return (
-              <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
-                <span className="text-sm font-medium">{featureLabel(key)}</span>
-                <StatusPill variant={enabled ? 'won' : 'neutral'}>
-                  {enabled
-                    ? t('administration:admin.features.previewOn', 'Preview — on')
-                    : t('administration:admin.features.previewOff', 'Preview — off')}
-                </StatusPill>
-              </li>
-            );
-          })}
-        </ul>
-      </details>
-
-      <details className="group rounded-lg border border-border bg-card px-4">
-        <DisclosureSummary className="py-2 text-sm font-semibold">
-          {t('administration:admin.features.alwaysIncluded', 'Always included')}
-        </DisclosureSummary>
-        <ul className="divide-y divide-border border-t border-border">
-          {core.map((key) => (
-            <li key={key} className="flex min-h-14 items-center justify-between gap-3 px-4 py-3">
-              <span className="text-sm font-medium">{featureLabel(key)}</span>
-              <StatusPill variant="neutral">{t('administration:admin.features.alwaysOn', 'Always on')}</StatusPill>
+          }
+          return (
+            <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[13.5px] font-medium">{label}</span>
+              <StatusPill variant={enabled ? 'won' : 'neutral'}>
+                {enabled ? 'Included in your plan' : 'Hidden'}
+              </StatusPill>
             </li>
-          ))}
-        </ul>
-      </details>
+          );
+        })}
+        {envGated.map((key) => {
+          // Read-only for BOTH personas: the toggle has no immediate effect (env flag is the
+          // effective gate at the call site). Shown as a "Preview" so the UI is honest about that.
+          const enabled = resolve(key);
+          return (
+            <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
+              <span className="text-[13.5px] font-medium">{FEATURE_LABELS[key]}</span>
+              <StatusPill variant={enabled ? 'won' : 'neutral'}>
+                {enabled ? 'Preview — on' : 'Preview — off'}
+              </StatusPill>
+            </li>
+          );
+        })}
+        {core.map((key) => (
+          <li key={key} className="flex items-center justify-between gap-3 px-4 py-3">
+            <span className="text-[13.5px] font-medium">{FEATURE_LABELS[key]}</span>
+            <StatusPill variant="neutral">Always on</StatusPill>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 };

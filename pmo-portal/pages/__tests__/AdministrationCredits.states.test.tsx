@@ -53,7 +53,7 @@ describe('AdministrationCredits — loading and error states (AC-RAM-002)', () =
     getOrgBalance.mockRejectedValueOnce(new Error('network down')).mockResolvedValueOnce(120);
     renderSection();
 
-    expect(await screen.findByText('Balance unavailable')).toBeInTheDocument();
+    expect(await screen.findByText("Couldn't load balance")).toBeInTheDocument();
     expect(screen.queryByTestId('org-credit-balance')).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: /retry/i }));

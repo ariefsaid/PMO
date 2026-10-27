@@ -9,7 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { formatNumberExact } from '@/src/lib/format';
+import { formatCurrencyCents } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
@@ -66,7 +66,7 @@ const CLAIMS = [
 ];
 const DOCS = [{ id: 'doc-1', org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: 'Progress report', revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: 'docs/report.pdf', created_at: '' }];
 // jest-dom collapses whitespace (incl. the currency's no-break space) in the element text, so normalise the expectation the same way.
-const money = (value: number) => formatNumberExact(value);
+const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -78,7 +78,7 @@ beforeEach(() => {
 });
 
 function renderTab(clientId: string | null = 'c1') {
-  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" taxTreatment="exclusive" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
+  render(<MemoryRouter><ToastProvider><BillingTab projectId="p1" currency="IDR" clientId={clientId} projectManagerId="pm-1" /></ToastProvider></MemoryRouter>);
   return userEvent.setup();
 }
 
@@ -105,46 +105,8 @@ async function renderTabLocalized(lng: 'en' | 'id') {
 }
 
 describe('BillingTab', () => {
-  it('AC-PD-BILL-01 shows the billing answer, newest dated claims, then the progress and BoQ register', () => {
-    h.claims = [
-      claim('claim-old', { created_at: '2026-08-01T00:00:00Z' }),
-      claim('claim-new', { created_at: '2026-10-15T00:00:00Z' }),
-    ];
+  it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
-
-    const answer = screen.getByRole('heading', { name: 'Billing · IDR · excl. PPN' });
-    const claims = screen.getByRole('heading', { name: 'Billing claims · IDR · excl. PPN' });
-    const boq = screen.getByRole('heading', { name: 'Bill of quantities · IDR · excl. PPN' });
-    expect(answer.compareDocumentPosition(claims) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(claims.compareDocumentPosition(boq) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-
-    const dates = screen.getAllByTestId(/^claim-date-/);
-    expect(dates.map((date) => date.getAttribute('datetime'))).toEqual([
-      '2026-10-15T00:00:00Z',
-      '2026-08-01T00:00:00Z',
-    ]);
-  });
-
-  it('AC-PD-BILL-02 gives eligible Finance the Create invoice chooser as the single primary action', () => {
-    renderTab();
-
-    expect(screen.getByRole('button', { name: 'Create invoice' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Record progress' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-  });
-
-  it('AC-PD-BILL-03 gives an eligible project assessor Record progress when invoice creation is unavailable', () => {
-    h.role = 'Project Manager';
-    h.userId = 'pm-1';
-    renderTab();
-
-    expect(screen.getByRole('button', { name: 'Record progress' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create invoice' })).toBeNull();
-  });
-
-  it('AC-PB-008 the summary names currency and tax basis once and shows whole-unit values without repeated currency marks', () => {
-    renderTab();
-    expect(screen.getByRole('heading', { name: 'Billing · IDR · excl. PPN' })).toBeInTheDocument();
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
     expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
     expect(screen.getByTestId('billing-assessed')).toHaveTextContent(money(600_000));
@@ -152,7 +114,6 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('billing-dp-held')).toHaveTextContent(money(160_000));
     expect(screen.getByTestId('billing-remaining')).toHaveTextContent(money(750_000));
     expect(screen.getByTestId('billing-not-submitted')).toHaveTextContent(money(40_000));
-    expect(screen.getByTestId('billing-contract')).not.toHaveTextContent(/IDR|\.00/);
   });
 
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
@@ -180,7 +141,7 @@ describe('BillingTab', () => {
     expect(screen.getByTestId('boq-assessed-b1')).toHaveTextContent('6');
     expect(screen.getByTestId('boq-claimed-b1')).toHaveTextContent('5');
     expect(screen.getByTestId('boq-remaining-b1')).toHaveTextContent('5');
-    expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('Not assessed');
+    expect(screen.getByTestId('boq-assessed-b2')).toHaveTextContent('—');
     expect(screen.getByTestId('boq-remaining-b2')).toHaveTextContent('Over-claimed');
   });
 
@@ -288,16 +249,14 @@ describe('BillingTab', () => {
       }
     });
 
-    it('SUB-B each money group names currency and tax basis once in its section head', () => {
+    it('SUB-B a non-zero assessed, DP-held or not-submitted figure appears again, and "excl. PPN" is said once on the summary head', () => {
       renderTab();
       for (const id of ['billing-assessed', 'billing-gap', 'billing-dp-held', 'billing-not-submitted']) {
         expect(screen.getByTestId(id)).toBeInTheDocument();
       }
-      expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(3);
-      expect(screen.getByRole('heading', { name: 'Billing · IDR · excl. PPN' })).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Billing claims · IDR · excl. PPN' })).toBeInTheDocument();
-      expect(screen.getByRole('heading', { name: 'Bill of quantities · IDR · excl. PPN' })).toBeInTheDocument();
-      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent(/IDR|excl\. PPN|\.00/);
+      expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+      expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('excl. PPN');
+      expect(screen.getByTestId('billing-billed')).not.toHaveTextContent('excl. PPN');
     });
 
     it('SUB-B with no BoQ and no claims, both cards sit inside one closed "Quantity billing" disclosure', () => {
@@ -306,26 +265,26 @@ describe('BillingTab', () => {
       const details = screen.getByText('Quantity billing').closest('details') as HTMLDetailsElement;
       expect(details).not.toBeNull();
       expect(details.open).toBe(false);
-      expect(within(details).getByRole('heading', { name: /Bill of quantities · IDR · excl\. PPN/ })).toBeInTheDocument();
-      expect(within(details).getByRole('heading', { name: /Billing claims · IDR · excl\. PPN/ })).toBeInTheDocument();
+      expect(within(details).getByText('Bill of quantities')).toBeInTheDocument();
+      expect(within(details).getByText('Billing claims')).toBeInTheDocument();
     });
 
     it('SUB-B once there is a BoQ line or a claim, the cards render plainly without the disclosure', () => {
       renderTab();
       expect(screen.queryByText('Quantity billing')).toBeNull();
-      expect(screen.getByRole('heading', { name: /Bill of quantities · IDR · excl\. PPN/ }).closest('details')).toBeNull();
+      expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
     });
 
     it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Create invoice' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Create invoice' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });

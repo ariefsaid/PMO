@@ -144,7 +144,7 @@ vi.mock('../../../components/ProjectFormModal', () => ({
 }));
 
 describe('ProjectDetail route panel loading', () => {
-  it('keeps the project header and task action usable while loading only the selected section', async () => {
+  it('keeps the project header and task action usable while loading only the selected panel', async () => {
     const { default: ProjectDetail } = await import('../ProjectDetail');
     expect(routeChunkState.loads).toMatchObject({
       overview: 0,
@@ -176,8 +176,10 @@ describe('ProjectDetail route panel loading', () => {
     );
 
     const header = await screen.findByTestId('project-detail-header');
-    const tasksLink = screen.getByRole('link', { name: 'Tasks' });
-    expect(tasksLink).toHaveAttribute('aria-current', 'page');
+    const tasksTab = screen.getByRole('tab', { name: 'Tasks' });
+    const taskPanel = screen.getByRole('tabpanel');
+    expect(tasksTab).toHaveAttribute('aria-selected', 'true');
+    expect(taskPanel).toHaveAttribute('aria-labelledby', tasksTab.id);
     expect(routeChunkState.loads.tasks).toBe(1);
     expect(routeChunkState.loads).toMatchObject({
       overview: 0,
@@ -198,10 +200,10 @@ describe('ProjectDetail route panel loading', () => {
     fireEvent.click(linkAction);
     expect(routeChunkState.taskActionClicks()).toBe(1);
 
-    fireEvent.click(screen.getByRole('link', { name: 'Billing' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Billing' }));
     const billingPanel = await screen.findByTestId('tab-billing');
     expect(billingPanel).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Billing' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('tab', { name: 'Billing' })).toHaveAttribute('aria-selected', 'true');
     expect(routeChunkState.loads.billing).toBe(1);
     expect(routeChunkState.loads.tasks).toBe(1);
     expect(header).toBeInTheDocument();

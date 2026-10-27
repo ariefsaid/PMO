@@ -4,11 +4,14 @@ import { projectDisplayName } from '@/src/lib/projectDisplayName';
 import { useTranslation } from 'react-i18next';
 import { formatDateOnly } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import ProjectStatusControl from '../../components/ProjectStatusControl';
 import { ProjectErpLink } from './ProjectErpLink';
 import { classificationValueLabel } from '@/src/lib/projectClassification';
 
 export interface ProjectDetailRailProps {
   project: ProjectWithRefs;
+  onEditProject?: () => void;
+  showActionSection?: boolean;
 }
 
 const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -18,9 +21,9 @@ const RailSectionLabel: React.FC<{ children: React.ReactNode }> = ({ children })
 );
 
 const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label, value }) => (
-  <div className="grid max-w-lg grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-2 py-2 text-sm">
-    <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
-    <dd className="min-w-0 break-words text-left font-normal text-foreground tabular">{value}</dd>
+  <div className="grid grid-cols-[112px_minmax(0,1fr)] gap-3 py-3 text-sm">
+    <dt className="text-muted-foreground">{label}</dt>
+    <dd className="min-w-0 break-words text-right font-medium text-foreground">{value}</dd>
   </div>
 );
 
@@ -37,7 +40,7 @@ const ProjectClassificationRows: React.FC<{ project: ProjectWithRefs }> = ({ pro
   );
 };
 
-const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
+const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project, showActionSection = true }) => {
   const { t } = useTranslation();
   const notSet = t('projectDetail.rail.notSet', 'Not set');
   return (
@@ -48,18 +51,32 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
     >
       <details>
         <summary className="touch-target cursor-pointer rounded-sm py-2 text-sm font-semibold text-foreground">
-          {t('uxs13.projectDetailsAndActions', 'Project details')}
+          {t('uxs13.projectDetailsAndActions', 'Project details and actions')}
         </summary>
         <div className="space-y-8 pt-3">
+        {showActionSection && (
+          <section aria-label={t('projectDetail.rail.actionsAriaLabel', 'Project rail actions')}>
+            <RailSectionLabel>{t('projectDetail.rail.recordHeading', 'Record')}</RailSectionLabel>
+            <div className="space-y-3">
+              <ProjectStatusControl
+                project={project}
+                triggerVariant="primary"
+                triggerSize="sm"
+              />
+            </div>
+          </section>
+        )}
+
         <section aria-labelledby="project-details-heading">
           <RailSectionLabel>
             <span id="project-details-heading">{t('projectDetail.rail.detailsHeading', 'Details')}</span>
           </RailSectionLabel>
-          <dl className="divide-y divide-border/70">
+          <dl className="divide-y divide-border/70 border-y border-border/70">
             {/* #1325: the header leads with the short name; the contractual name is readable here without hovering. */}
             {projectDisplayName(project) !== project.name && (
               <DetailRow label={t('projects:shortName.contractName', 'Contract name')} value={project.name} />
             )}
+            <DetailRow label={t('projectDetail.rail.customer', 'Customer')} value={project.client ? companyDisplayName(project.client) : notSet} />
             {/* #758: the end customer shows ONLY when set — an optional value, so an unset one
                 is omitted rather than rendered as "Not set". */}
             {project.end_client && (
@@ -68,26 +85,31 @@ const ProjectDetailRail: React.FC<ProjectDetailRailProps> = ({ project }) => {
                 value={companyDisplayName(project.end_client)}
               />
             )}
+            <DetailRow
+              label={t('projectDetail.rail.projectManager', 'Project manager')}
+              value={project.pm?.full_name ?? t('projectDetail.rail.unassigned', 'Unassigned')}
+            />
             <ProjectClassificationRows project={project} />
+            <DetailRow label={t('projectDetail.rail.start', 'Start')} value={formatDateOnly(project.start_date)} />
+            <DetailRow label={t('projectDetail.rail.targetEnd', 'Target end')} value={formatDateOnly(project.end_date)} />
             <DetailRow
               label={t('projectDetail.rail.pmoNumber', 'PMO Project Number')}
-              value={<span className="text-sm tabular">{project.pmo_project_number}</span>}
+              value={<span className="font-mono text-[13px]">{project.pmo_project_number}</span>}
             />
             <DetailRow
               label={t('projectDetail.rail.clientCode', 'Client Project Code')}
-              value={project.code ? <span className="text-sm tabular">{project.code}</span> : notSet}
+              value={project.code ? <span className="font-mono text-[13px]">{project.code}</span> : notSet}
             />
             <DetailRow
               label={t('projectDetail.rail.customerPoRef', 'Customer PO ref')}
               value={
                 project.customer_contract_ref ? (
-                  <span className="text-sm tabular">{project.customer_contract_ref}</span>
+                  <span className="font-mono text-[13px]">{project.customer_contract_ref}</span>
                 ) : (
                   notSet
                 )
               }
             />
-            {project.contract_date && <DetailRow label={t('project:projectDetail.rail.customerPoDate', 'Customer PO date')} value={formatDateOnly(project.contract_date)} />}
           </dl>
         </section>
         <ProjectErpLink projectId={project.id} />

@@ -1,6 +1,6 @@
 // @e2e-isolation: dedicated-row — owns task 81000000-0000-0000-0000-000000000019 on SP-2401; no other spec reads it.
 import { test, expect } from '@playwright/test';
-import { signIn, selectProjectSection } from './helpers';
+import { signIn } from './helpers';
 
 /**
  * AC-SCA-014 — End-to-end: completing a task moves the S-curve actual line.
@@ -54,7 +54,7 @@ test(
   async ({ page }) => {
     await signIn(page, 'pm@acme.test');
 
-    // ── Step 1: open the Meridian delivery project's Overview section ───────────
+    // ── Step 1: open the Meridian delivery project Overview tab ─────────────────
     await page.goto(`/projects/${PROJECT_ID}/overview`);
     await expect(page).toHaveURL(new RegExp(PROJECT_ID), { timeout: 15_000 });
 
@@ -80,8 +80,8 @@ test(
     // Verify aria-label and figcaption agree before mutation (NFR-SCA-001 sanity).
     expect(captionPctBefore).toBe(pctBefore);
 
-    // ── Step 2: navigate to the Tasks section and find the In-Progress task ─────
-    await selectProjectSection(page, 'Tasks');
+    // ── Step 2: navigate to the Tasks tab and find the In-Progress task ─────────
+    await page.getByRole('tab', { name: /tasks/i }).click();
     await expect(page).toHaveURL(new RegExp(`${PROJECT_ID}/tasks`), { timeout: 10_000 });
 
     // The task table may need a moment to populate from the query cache.
@@ -97,8 +97,8 @@ test(
     // Wait for the mutation to commit — the select reflects the new value.
     await expect(statusSelect).toHaveValue('Done', { timeout: 15_000 });
 
-    // ── Step 4: navigate back to Overview (S-curve refreshes) ───────────────────
-    await selectProjectSection(page, 'Overview');
+    // ── Step 4: navigate back to the Overview tab (S-curve refreshes) ───────────
+    await page.getByRole('tab', { name: /overview/i }).click();
     await expect(page).toHaveURL(new RegExp(`${PROJECT_ID}/overview`), { timeout: 10_000 });
 
     // Wait for the S-curve figure to be present again.

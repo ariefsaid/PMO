@@ -6,7 +6,7 @@ import type { AwardType, BiddingEntity, ProjectClassification, ProjectClassifica
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 
 const LOCATION_DEBOUNCE_MS = 300;
-export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, hideAppliedSummary = false, resetToken, panel }: {
+export default function ProjectClassificationFilters({ rows, value, onChange, open, onOpenChange, inlineTrigger = false, closeOnMobileSelect = false, resetToken, panel }: {
   rows: readonly ProjectClassification[];
   value: FilterValues;
   onChange: (patch: FilterValues) => void;
@@ -17,8 +17,6 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   inlineTrigger?: boolean;
   /** Preserve Projects' phone selection-and-return-to-trigger behavior. */
   closeOnMobileSelect?: boolean;
-  /** Let Projects render one combined applied-filter summary with its other filters. */
-  hideAppliedSummary?: boolean;
   /** Bump when the page's Clear-filters action runs: cancels a pending location debounce and empties the box. */
   resetToken?: number;
   /**
@@ -70,23 +68,13 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   const [locationText, setLocationText] = useState(value.location ?? '');
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastLocation = useRef(value.location ?? '');
-  const observedLocation = useRef(value.location ?? '');
-  const ownLocationEmits = useRef(new Set<string>());
   // Only an outside change that moves `value.location` (Clear filters, Back, drill links) drops
   // the typed text. Own select/chip emits leave location alone, so the URL-backed value catching
   // up in any number of router transitions never wipes a pending debounced entry.
   useEffect(() => {
     const next = value.location ?? '';
-    if (next === observedLocation.current) return;
-    observedLocation.current = next;
-    // Router transitions can acknowledge an older own emit after newer typing. Only an
-    // outside value resets the editor; a repeated or delayed own echo never cancels it.
-    if (ownLocationEmits.current.delete(next)) {
-      if (next === lastLocation.current) ownLocationEmits.current.clear();
-      return;
-    }
+    if (next === lastLocation.current) return;
     lastLocation.current = next;
-    ownLocationEmits.current.clear();
     clearTimeout(timer.current);
     setLocationText(next);
   }, [value]);
@@ -98,7 +86,6 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     lastReset.current = resetToken;
     clearTimeout(timer.current);
     lastLocation.current = '';
-    ownLocationEmits.current.clear();
     setLocationText('');
   }, [resetToken]);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -117,15 +104,15 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
   };
   const activeKeys = CLASSIFICATION_FILTER_KEYS.filter((key) => Boolean(value[key]));
   const fields = (
-    <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
       <SelectField label={t('projectClassification.filterServiceLine', 'Filter by service line')} value={value.serviceLine ?? ''}
-        onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} className="min-h-11" />
+        onChange={(serviceLine) => onChange({ serviceLine })} options={optionsFor('service_line', value.serviceLine)} />
       <SelectField label={t('projectClassification.filterSector', 'Filter by sector')} value={value.sector ?? ''}
-        onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} className="min-h-11" />
+        onChange={(sector) => onChange({ sector })} options={optionsFor('sector', value.sector)} />
       <SelectField label={t('projectClassification.filterAwardType', 'Filter by award type')} value={value.awardType ?? ''}
-        onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} className="min-h-11" />
+        onChange={(awardType) => onChange({ awardType: (awardType || undefined) as AwardType | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, AWARD_TYPES)]} />
       <SelectField label={t('projectClassification.filterBiddingEntity', 'Filter by bidding entity')} value={value.biddingEntity ?? ''}
-        onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} className="min-h-11" />
+        onChange={(biddingEntity) => onChange({ biddingEntity: (biddingEntity || undefined) as BiddingEntity | undefined })} options={[{ value: '', label: all }, ...classificationValueOptions(t, BIDDING_ENTITIES)]} />
       <TextField label={t('projectClassification.filterLocation', 'Filter by location')} value={locationText}
         onChange={(location) => {
           setLocationText(location);
@@ -133,10 +120,9 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
           timer.current = setTimeout(() => {
             // Our own emit: when the URL catches up to it, that is not an outside change.
             lastLocation.current = location;
-            ownLocationEmits.current.add(location);
             onChange({ location });
           }, LOCATION_DEBOUNCE_MS);
-        }} className="min-h-11" />
+        }} />
     </div>
   );
   // Outside dismissal is committed after the click completes (see the effect above), so a record row
@@ -145,32 +131,17 @@ export default function ProjectClassificationFilters({ rows, value, onChange, op
     if (!next && pointerGesture.current) closeAfterClick.current = true;
     else commitOpen(next);
   };
-  const panelFields = panel ? (
-    <div className="grid min-w-0 gap-3">
-      {fields}
-      {activeKeys.length > 0 && <Button variant="ghost" className="touch-target w-fit text-primary-text" onClick={() => {
-        focusTrigger();
-        clearTimeout(timer.current);
-        lastLocation.current = '';
-        setLocationText('');
-        onChange({ serviceLine: '', sector: '', awardType: undefined, biddingEntity: undefined, location: '' });
-        requestOpen(false);
-      }}>
-        {t('projectClassification.clear', 'Clear classifications')}
-      </Button>}
-    </div>
-  ) : fields;
   return (
     <div ref={rootRef} className={panel ? 'min-w-0' : inlineTrigger ? 'contents' : 'w-full min-w-0'} data-testid="project-classification-filters">
-      {panel ? panel(panelFields, { open: isOpen, onOpenChange: requestOpen }) : (
+      {panel ? panel(fields, { open: isOpen, onOpenChange: requestOpen }) : (
         <MobileToolbarDisclosure label={t('projectClassification.title', 'Classification')}
           count={activeClassificationCount(value)} open={isOpen} onOpenChange={requestOpen}
-          className={inlineTrigger ? 'contents' : undefined} panelClassName={inlineTrigger ? 'order-1 max-h-40 overflow-y-auto rounded-none border-0 px-0 md:max-h-none md:overflow-visible' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
+          className={inlineTrigger ? 'contents' : undefined} closeOnSelectChange={closeOnMobileSelect && !isDesktop}>
           {fields}
         </MobileToolbarDisclosure>
       )}
-      {!hideAppliedSummary && activeKeys.length > 0 && (
-        <div className={`mt-2 flex w-full min-w-0 flex-wrap items-center gap-2 ${inlineTrigger ? 'order-2' : ''}`}>
+      {activeKeys.length > 0 && (
+        <div className="mt-2 flex w-full min-w-0 flex-wrap items-center gap-2">
           <ul aria-label={t('projectClassification.applied', 'Applied classifications')} className="flex min-w-0 flex-wrap gap-2">
             {activeKeys.map((key) => {
               const selection = `${labels[key]}: ${classificationValueLabel(t, value[key]!)}`;

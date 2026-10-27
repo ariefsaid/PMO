@@ -81,7 +81,7 @@ describe('F1: register rows stay short', () => {
   it('F1: the Date value never wraps mid-date', () => {
     h.docs.data = [makeLinkedDoc()];
     renderTab();
-    expect(screen.getAllByText('Jun 1, 2026')[0]).toHaveClass('whitespace-nowrap');
+    expect(screen.getAllByText('2026-06-01')[0]).toHaveClass('whitespace-nowrap');
   });
 });
 
@@ -90,16 +90,12 @@ describe('F4/F17: header actions', () => {
     renderTab();
     const link = screen.getByRole('button', { name: 'Link from Microsoft 365' });
     const add = screen.getByRole('button', { name: 'Add document' });
-    const actions = screen.getByRole('group', { name: 'Document actions' });
-    expect(within(actions).getByRole('button', { name: 'Link from Microsoft 365' })).toBe(link);
-    expect(within(actions).getByRole('button', { name: 'Add document' })).toBe(add);
-    expect(within(actions).getAllByRole('button')).toHaveLength(2);
+    expect(link.parentElement).toBe(add.parentElement);
+    expect(link.parentElement).toHaveClass('flex-wrap');
     expect(screen.queryByRole('button', { name: 'From Microsoft 365' })).not.toBeInTheDocument();
-    const toolbar = link.parentElement!.parentElement!;
-    expect(within(toolbar).queryByRole('button', { name: 'Create folder in SharePoint' })).not.toBeInTheDocument();
-    const folder = screen.getByRole('button', { name: 'Create folder in SharePoint' });
-    expect(folder).toBeInTheDocument();
-    expect(folder.compareDocumentPosition(screen.getByRole('heading', { name: 'Document register' })) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    const headingRow = screen.getByRole('heading', { name: 'Document register' }).parentElement!.parentElement!;
+    expect(within(headingRow).queryByRole('button', { name: 'Create folder in SharePoint' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Create folder in SharePoint' })).toBeInTheDocument();
   });
 });
 

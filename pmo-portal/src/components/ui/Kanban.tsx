@@ -47,7 +47,7 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
             className="size-[9px] shrink-0 rounded-full"
             style={{ background: dotColor }}
           />
-          <h2 className="text-[13px] font-bold tracking-[-0.01em]">{title}</h2>
+          <span className="text-[13px] font-bold tracking-[-0.01em]">{title}</span>
           {prob && (
             <span className="grid h-[17px] place-items-center rounded-full border border-border bg-background px-1.5 text-[10.5px] font-bold text-muted-foreground">
               {prob}

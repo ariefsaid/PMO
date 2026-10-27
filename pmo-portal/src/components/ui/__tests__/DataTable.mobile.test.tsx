@@ -91,125 +91,11 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(document.querySelector('table')).toBeNull();
   });
 
-  it('renders a keyboard-focusable sticky-identity table at mobile when a dense row has more than four facts', () => {
-    mockViewport(false);
-    const denseColumns: Column<Row>[] = [
-      { ...columns[0], stickyLeft: true },
-      ...columns.slice(1),
-    ];
-    render(
-      <DataTable
-        rows={rows}
-        columns={denseColumns}
-        rowKey={(r) => r.id}
-        accessibleName="Budget category forecast"
-        mobileTable
-      />,
-    );
-    const tableRegion = getTableBranch();
-    expect(tableRegion).toBeInTheDocument();
-    expect(tableRegion).toHaveAttribute('role', 'region');
-    expect(tableRegion).toHaveAttribute('tabindex', '0');
-    expect(getCardBranch()).not.toBeInTheDocument();
-    expect(tableRegion!.querySelector('th.sticky')).toBeInTheDocument();
-  });
-
   it('at desktop (≥768px) renders the table branch and NOT the card branch', () => {
     mockViewport(true);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     expect(getTableBranch()).toBeInTheDocument();
     expect(getCardBranch()).not.toBeInTheDocument();
-  });
-
-  it('keeps a named, keyboard-scrollable table on phones for financial matrices', async () => {
-    mockViewport(false);
-    const matrixColumns: Column<Row>[] = [
-      { key: 'name', header: 'Publication date', cell: (row) => row.name, stickyLeft: true, rowHeader: true },
-      { key: 'value', header: 'Source', cell: (row) => row.status },
-      { key: 'status', header: 'IDR per USD', cell: (row) => row.value, align: 'num' },
-    ];
-    render(
-      <DataTable
-        rows={rows}
-        columns={matrixColumns}
-        rowKey={(r) => r.id}
-        accessibleName="Exchange rates"
-        mobileTable
-      />,
-    );
-
-    const region = screen.getByRole('region', { name: 'Exchange rates' });
-    expect(getTableBranch()).toBeInTheDocument();
-    expect(getCardBranch()).not.toBeInTheDocument();
-    expect(screen.getByRole('table', { name: 'Exchange rates' })).toBeInTheDocument();
-    expect(region).toHaveAttribute('tabindex', '0');
-    expect(region).toHaveClass('overflow-x-auto');
-    expect(getTableBranch()?.querySelector('th[scope="row"]')).toHaveClass('sticky', 'left-0');
-
-    await userEvent.tab();
-    expect(region).toHaveFocus();
-  });
-
-  it('omits a phone-hidden secondary fact from compact cards while leaving the rest of the row available', () => {
-    mockViewport(false);
-    const phoneHidden: Column<Row> = {
-      key: 'manager',
-      header: 'Manager',
-      cell: (row: Row) => `Manager for ${row.name}`,
-      phoneHidden: true,
-    };
-    render(<DataTable rows={rows} columns={[columns[0], phoneHidden, columns[2]]} rowKey={(r) => r.id} />);
-
-    const cards = Array.from(getCardBranch()!.querySelectorAll(':scope > li'));
-    expect(cards[0]).toBeVisible();
-    expect(cards[0]).toHaveTextContent('Alpha Corp');
-    expect(Array.from(cards[0].querySelectorAll('dt')).map((dt) => dt.textContent)).toEqual(['Status']);
-    expect(cards[0]).not.toHaveTextContent('Manager for Alpha Corp');
-  });
-
-  it('keeps a phone-hidden secondary fact in the desktop table', () => {
-    mockViewport(true);
-    const phoneHidden: Column<Row> = {
-      key: 'manager',
-      header: 'Manager',
-      cell: (row: Row) => `Manager for ${row.name}`,
-      phoneHidden: true,
-    };
-    render(<DataTable rows={rows} columns={[columns[0], phoneHidden, columns[2]]} rowKey={(r) => r.id} />);
-
-    expect(getTableBranch()).toHaveTextContent('Manager');
-    expect(getTableBranch()).toHaveTextContent('Manager for Alpha Corp');
-  });
-
-  it('keeps the full identity visible and puts secondary facts behind one summary-bearing 44px disclosure', async () => {
-    mockViewport(false);
-    const fullName = 'Pembangunan Gedung Layanan Terpadu Tahap IV Baru';
-    const longRows = [{ id: 'LONG-1', name: fullName, context: 'Northwind Works International', memo: 'Supporting evidence' }];
-    const longColumns: Column<(typeof longRows)[number]>[] = [
-      { key: 'name', header: 'Project', kind: 'primary', cell: (row) => row.name, primaryTitle: (row) => row.name, secondaryCell: (row) => row.context },
-      { key: 'memo', header: 'Evidence', cell: (row) => row.memo },
-    ];
-    render(
-      <DataTable
-        rows={longRows}
-        columns={longColumns}
-        rowKey={(row) => row.id}
-        mobileDetails={{ columnKeys: ['memo'], summary: (_row, count) => `Other details · ${count}` }}
-      />,
-    );
-
-    expect(screen.getByText(fullName)).toBeInTheDocument();
-    expect(screen.getByText('Northwind Works International')).toBeInTheDocument();
-    const identity = screen.getByText(fullName);
-    expect(identity.className).toContain('break-words');
-    expect(identity.className).not.toMatch(/line-clamp|truncate/);
-    expect(screen.queryByText('Supporting evidence')).not.toBeVisible();
-
-    const disclosure = screen.getByText('Other details · 1').closest('summary');
-    expect(disclosure).toBeInTheDocument();
-    expect(disclosure).toHaveClass('min-h-11');
-    await userEvent.click(disclosure!);
-    expect(screen.getByText('Supporting evidence')).toBeVisible();
   });
 
   it('a column whose cell renders nothing for a row is left out of THAT card (no orphan label), kept on the others', () => {
@@ -260,21 +146,6 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(screen.getByRole('button', { name: 'Open Beta Ltd' })).toBeInTheDocument();
   });
 
-  it('keeps the phone row-opening action at the 44px minimum hit height', () => {
-    mockViewport(false);
-    render(
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(r) => r.id}
-        onActivate={vi.fn()}
-        rowLabel={(r) => `Open ${r.name}`}
-      />,
-    );
-
-    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toHaveClass('min-h-11');
-  });
-
   // ── Card anatomy ─────────────────────────────────────────────────────────
 
   it('each row produces an <li> in the card branch (one per row)', () => {
@@ -312,28 +183,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     expect(label).toHaveClass('self-start');
   });
 
-  it('keeps custom phone rows and their actions without duplicate generic facts', async () => {
-    mockViewport(false);
-    const onOpen = vi.fn();
-    render(
-      <DataTable
-        rows={rows}
-        columns={columns}
-        rowKey={(row) => row.id}
-        mobileRow={(row) => <button onClick={() => onOpen(row.id)}>Open {row.name}</button>}
-        mobileDetails={{ columnKeys: ['value'], summary: () => 'Other facts' }}
-        rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]}
-      />,
-    );
-    expect(screen.getByRole('button', { name: 'Open Alpha Corp' })).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Row actions' })).toHaveLength(rows.length);
-    expect(screen.queryByText('Value')).not.toBeInTheDocument();
-    expect(screen.queryByText('Other facts')).not.toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole('button', { name: 'Open Alpha Corp' }));
-    expect(onOpen).toHaveBeenCalledExactlyOnceWith('R-1');
-  });
-
-  it('numeric columns retain their paired label and tabular figures', () => {
+  it('numeric columns carry the tabular and text-right classes on their <dd>', () => {
     mockViewport(false);
     render(<DataTable rows={rows} columns={columns} rowKey={(r) => r.id} />);
     const cardBranch = getCardBranch()!;
@@ -344,7 +194,7 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     const valueDd = valueDt!.nextElementSibling as HTMLElement;
     expect(valueDd.tagName).toBe('DD');
     expect(valueDd.className).toContain('tabular');
-    expect(valueDd.parentElement).toBe(valueDt!.parentElement);
+    expect(valueDd.className).toContain('text-right');
   });
 
   // ── Activation (rowLabel + onActivate) ───────────────────────────────────
@@ -426,7 +276,6 @@ describe('DataTable — mobile card-reflow (AC-IXD-MOBILE-W4-C1)', () => {
     );
     await userEvent.click(screen.getAllByRole('button', { name: /row actions/i })[0]);
     const menuItem = screen.getByRole('menuitem', { name: 'Edit item' });
-    expect(menuItem.className).toContain('touch-target');
     await userEvent.click(menuItem);
     expect(onEdit).toHaveBeenCalled();
   });
@@ -579,29 +428,5 @@ describe('DataTable accessible structure name', () => {
     expect(screen.getByRole('list')).not.toHaveAttribute('aria-label');
     expect(screen.getAllByRole('listitem')).toHaveLength(rows.length);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-  });
-});
-
-
-describe('merged project collection and detail table behavior', () => {
-  it('a custom phone row replaces the default fact list instead of duplicating its facts', () => {
-    mockViewport(false);
-    render(<DataTable rows={rows} columns={columns} rowKey={(row) => row.id}
-      mobileRow={(row) => <span>{row.name} · custom record</span>} />);
-    expect(screen.getByText('Alpha Corp · custom record')).toBeInTheDocument();
-    expect(screen.queryByText('Value')).toBeNull();
-    expect(screen.queryByText('125000')).toBeNull();
-    expect(screen.queryByRole('table')).toBeNull();
-  });
-
-  it.each([true, false])('custom loading is busy and announced for desktop=%s without invented records', (desktop) => {
-    mockViewport(desktop);
-    const view = render(<DataTable rows={[]} columns={columns} rowKey={(row) => row.id} state="loading"
-      loadingLayout={{ rows: 2, cell: () => <span>Pending cell</span>, mobileRow: <span>Pending row</span>, announcement: 'Reading projects' }} />);
-    expect(screen.getByRole('status', { name: 'Reading projects' })).toBeInTheDocument();
-    expect(view.container.firstElementChild).toHaveAttribute('aria-busy', 'true');
-    expect(screen.queryByTestId('liststate-loading')).toBeNull();
-    expect(screen.queryByText('Alpha Corp')).toBeNull();
-    expect(screen.getAllByTestId('data-table-loading-row')).toHaveLength(2);
   });
 });

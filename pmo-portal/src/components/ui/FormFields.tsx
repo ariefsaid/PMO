@@ -37,7 +37,7 @@ export const FieldError: React.FC<FieldErrorProps> = ({ id, children, className 
     <span
       id={id}
       role="alert"
-      className={cn('flex items-center gap-1.5 text-sm font-normal text-destructive-text', className)}
+      className={cn('flex items-center gap-1.5 text-[12px] font-medium text-destructive-text', className)}
     >
       <Icon name="alert" className="size-[13px] shrink-0" />
       {children}
@@ -99,7 +99,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
       <label
         htmlFor={fieldId}
         className={cn(
-          'text-xs font-semibold leading-4 text-foreground',
+          'text-[12px] font-semibold leading-[1.3] text-foreground',
           hideLabel && 'sr-only',
         )}
       >
@@ -117,7 +117,7 @@ export const FieldShell: React.FC<FieldShellProps> = ({
         'aria-describedby': describedby,
       })}
       {helper && !error && (
-        <span id={helpId} className="text-sm text-muted-foreground">
+        <span id={helpId} className="text-[12px] text-muted-foreground">
           {helper}
         </span>
       )}
@@ -128,8 +128,8 @@ export const FieldShell: React.FC<FieldShellProps> = ({
 
 /** The shared input visual shell (token-pure). */
 const inputBase =
-  'h-8 w-full rounded-md border border-input bg-background px-[10px] text-sm text-foreground ' +
-  'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground [@media(pointer:coarse)]:h-11 ' +
+  'h-8 w-full rounded-md border border-input bg-background px-[10px] text-[13.5px] text-foreground ' +
+  'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground ' +
   'disabled:cursor-not-allowed';
 const inputInvalid = 'border-destructive';
 
@@ -268,7 +268,7 @@ export const NumberField: React.FC<NumberFieldProps> = ({
           {prefix && (
             <span
               aria-hidden
-              className="pointer-events-none absolute left-[10px] top-1/2 -translate-y-1/2 text-sm text-muted-foreground"
+              className="pointer-events-none absolute left-[10px] top-1/2 -translate-y-1/2 text-[13.5px] text-muted-foreground"
             >
               {prefix}
             </span>
@@ -339,7 +339,7 @@ export const TextArea: React.FC<TextAreaProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className={cn(
-          'min-h-16 w-full resize-y rounded-md border border-input bg-background px-[10px] py-2 text-sm leading-[1.5] text-foreground',
+          'min-h-16 w-full resize-y rounded-md border border-input bg-background px-[10px] py-2 text-[13.5px] leading-[1.5] text-foreground',
           'placeholder:text-muted-foreground disabled:bg-secondary disabled:text-muted-foreground disabled:cursor-not-allowed',
           error && inputInvalid,
           className,
@@ -465,7 +465,7 @@ export interface FormSectionProps {
 export const FormSection: React.FC<FormSectionProps> = ({ legend, children, className }) => (
   <fieldset className={cn('m-0 mb-4 border-0 p-0 last:mb-0', className)}>
     {legend && (
-      <legend className="mb-2.5 p-0 text-xl font-bold tracking-[-0.01em] text-foreground">
+      <legend className="mb-2.5 p-0 text-[13px] font-semibold tracking-[-0.01em] text-foreground">
         {legend}
       </legend>
     )}

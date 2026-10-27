@@ -4,8 +4,8 @@ import { login, openPipelineCard } from './helpers';
 
 /**
  * AC-IXD-PROJ-007 (Model B, ADR-0020): a Loss Tender (lost) deal is sales history, not delivery
- * work. It appears in the PIPELINE's named Lost scope on Board and Table, and is ABSENT from the
- * active Projects list.
+ * work. It appears in the PIPELINE — reachable both as a terminal "Lost" kanban column AND
+ * behind a "Lost" table filter (no clipping) — and is ABSENT from the active Projects list.
  *
  * Seed (seed.sql): P004 "Coastal Depot Bid" = Loss Tender. pm/exec own it.
  */
@@ -32,12 +32,10 @@ test(
     await waitProjectsReady(page);
     await expect(projectRow(page, LOST_DEAL)).toHaveCount(0);
 
-    // ── It is reachable in the Pipeline's Lost scope and terminal group ─────────
+    // ── It is reachable in the PIPELINE — the terminal "Lost" kanban column ───
     await page.goto('/sales');
     const board = page.getByLabel('Sales pipeline board');
     await expect(board).toBeVisible({ timeout: 15_000 });
-    await page.getByRole('combobox', { name: 'Project scope' }).selectOption('Lost');
-    await expect(page).toHaveURL(/[?&]scope=Lost/);
     const lostColumn = page.getByTestId('stage-Lost');
     await expect(lostColumn).toBeVisible();
     // the lost deal card is inside the Lost column and fully reachable (not clipped):
@@ -50,10 +48,10 @@ test(
     await openPipelineCard(page, LOST_DEAL, lostColumn);
     await expect(page.getByRole('heading', { name: LOST_DEAL })).toBeVisible({ timeout: 15_000 });
 
-    // ── It is reachable in Table under the same Lost scope ───────────────────
-    await page.goto('/sales?view=table&scope=Lost');
+    // ── It is reachable behind the "Lost" TABLE filter ───────────────────────
+    await page.goto('/sales');
     await page.getByRole('tab', { name: /^Table$/i }).click();
-    await expect(page.getByRole('combobox', { name: 'Project scope' })).toHaveValue('Lost');
+    await page.getByRole('tab', { name: /^Lost$/i }).click();
     await expect(page.getByText(LOST_DEAL).first()).toBeVisible({ timeout: 15_000 });
   },
 );

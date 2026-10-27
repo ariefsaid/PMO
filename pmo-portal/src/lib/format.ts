@@ -74,18 +74,6 @@ function currencyFormatterFor(shape: string, currency: string, opts: Intl.Number
   });
 }
 
-/** The currency's standard fraction width for an explicit viewer locale. */
-export function currencyFractionDigits(currency: string, locale = getNumberLocale()): number | null {
-  try {
-    return numberFormatterFor('currency-fraction-digits', locale, currency, {
-      style: 'currency',
-      currency,
-    }).resolvedOptions().maximumFractionDigits ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
@@ -95,65 +83,20 @@ export function formatExactMoney(
   value: string | null,
   currency: string,
   locale: string,
-  opts: { trimZeroFraction?: boolean; trimTrailingFractionZeros?: boolean; includeCurrency?: boolean; currencyDisplay?: 'code' | 'symbol' } = {},
+  opts: { trimZeroFraction?: boolean } = {},
 ): string | null {
   if (value === null || !/^[A-Z]{3}$/.test(currency) || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
-  if (opts.includeCurrency === false) return formatExactNumber(value, locale, opts);
   const negative = value.startsWith('-');
   const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
   const whole = BigInt(wholeText);
   const cents = BigInt(fraction.padEnd(2, '0'));
   try {
-    const visibleFraction = opts.trimTrailingFractionZeros === true
-      ? String(cents).padStart(2, '0').replace(/0+$/, '')
-      : String(cents).padStart(2, '0');
-    const digits = opts.trimZeroFraction === true && cents === 0n ? 0 : visibleFraction.length;
-    const code = opts.currencyDisplay === 'code';
-    const parts = numberFormatterFor(`exact-currency-${code ? 'code' : 'symbol'}-${digits}`, locale, currency, {
+    const trim = opts.trimZeroFraction === true && cents === 0n;
+    const parts = numberFormatterFor(trim ? 'exact-currency-whole' : 'exact-currency', locale, currency, {
       style: 'currency', currency,
-      ...(code ? { currencyDisplay: 'code' as const } : {}),
-      minimumFractionDigits: digits, maximumFractionDigits: digits,
+      minimumFractionDigits: trim ? 0 : 2, maximumFractionDigits: trim ? 0 : 2,
     }).formatToParts(whole);
-    const localizedFraction = digits === 0 ? '' : numberFormatterFor(`exact-currency-fraction-${digits}`, locale, undefined, {
-      style: 'decimal', useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits,
-    }).formatToParts(Number(cents) / 100).find((part) => part.type === 'fraction')?.value;
-    if (digits > 0 && !localizedFraction) return null;
-    const body = parts.map((part) => part.type === 'fraction' ? localizedFraction : part.value).join('');
-    return negative ? `−${body}` : body;
-  } catch {
-    return null;
-  }
-}
-
-/** Format an exact decimal inside a named currency group without repeating its currency mark. */
-export function formatExactNumber(
-  value: string | null,
-  locale: string,
-  opts: { trimZeroFraction?: boolean; trimTrailingFractionZeros?: boolean } = {},
-): string | null {
-  if (value === null || !/^-?[0-9]+(?:[.][0-9]{1,2})?$/.test(value)) return null;
-  const negative = value.startsWith('-');
-  const [wholeText, fraction = ''] = (negative ? value.slice(1) : value).split('.');
-  const whole = BigInt(wholeText);
-  const cents = BigInt(fraction.padEnd(2, '0'));
-  try {
-    const visibleFraction = opts.trimTrailingFractionZeros === true
-      ? String(cents).padStart(2, '0').replace(/0+$/, '')
-      : String(cents).padStart(2, '0');
-    const digits = opts.trimZeroFraction === true && cents === 0n ? 0 : visibleFraction.length;
-    const wholeParts = numberFormatterFor('exact-number-whole', locale, undefined, {
-      style: 'decimal', useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0,
-    }).formatToParts(whole);
-    let body = wholeParts.map((part) => part.value).join('');
-    if (digits > 0) {
-      const fractionParts = numberFormatterFor(`exact-number-fraction-${digits}`, locale, undefined, {
-        style: 'decimal', useGrouping: false, minimumFractionDigits: digits, maximumFractionDigits: digits,
-      }).formatToParts(Number(cents) / 100);
-      const decimal = fractionParts.find((part) => part.type === 'decimal')?.value;
-      const fractionText = fractionParts.find((part) => part.type === 'fraction')?.value;
-      if (!decimal || !fractionText) return null;
-      body += `${decimal}${fractionText}`;
-    }
+    const body = parts.map((part) => part.type === 'fraction' ? String(cents).padStart(2, '0') : part.value).join('');
     return negative ? `−${body}` : body;
   } catch {
     return null;
@@ -447,14 +390,6 @@ export function formatDateOnly(iso: string | null | undefined): string {
   return parsed ? dateFormatter().format(parsed) : '—';
 }
 
-/** Day-month-year calendar date for the money-in reading surfaces; no timezone shift. */
-export function formatBusinessDate(iso: string | null | undefined): string {
-  const parsed = parseDateOnly(iso);
-  if (!parsed) return '—';
-  const parts = dateFormatter().formatToParts(parsed);
-  return ['day', 'month', 'year'].map((type) => parts.find((part) => part.type === type)?.value).join(' ');
-}
-
 /** Numeric calendar date stored as `YYYY-MM-DD`; personal timezone never shifts the value. */
 export function formatDateOnlyNumeric(iso: string | null | undefined): string {
   const parsed = parseDateOnly(iso);
@@ -472,18 +407,6 @@ export function formatInstantDate(iso: string | null | undefined): string {
   if (!parsed) return '—';
   const timezone = getActiveLocale().timezone;
   return dateFormatterFor('instantDate', getDateLocale(), { ...DATE_OPTS, timeZone: timezone }).format(parsed);
-}
-
-/** Saved-timezone provenance timestamp with unambiguous date and a named timezone. */
-export function formatInstantTimestamp(iso: string): string {
-  const d = parseInstant(iso);
-  if (!d) return iso;
-  const timezone = getActiveLocale().timezone;
-  const parts = dateFormatterFor('instantTimestamp', getDateLocale(), {
-    day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: timezone,
-  }).formatToParts(d);
-  const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value;
-  return `${part('day')} ${part('month')} ${part('year')} · ${part('hour')}:${part('minute')} ${timezone}`;
 }
 
 /**
@@ -658,15 +581,6 @@ export function formatCurrencyAuto(value: number, currency: string): string {
 // Was duplicated verbatim in AdministrationUsage + AgentCostMetrics.
 export function formatCurrencyFine(value: number, currency: string): string {
   return currencyFormatterFor('fine', currency, { minimumFractionDigits: 2, maximumFractionDigits: 4 }).format(value);
-}
-
-/** Plain number twin for a grouped currency column whose unit is stated once in its heading. */
-export function formatNumberFine(value: number): string {
-  const preserveSubunitPrecision = Math.abs(value) < 1 && value !== 0;
-  return numberFormatterFor(preserveSubunitPrecision ? 'fine-plain-subunit' : 'fine-plain-whole', getNumberLocale(), undefined, {
-    minimumFractionDigits: preserveSubunitPrecision ? 2 : 0,
-    maximumFractionDigits: 4,
-  }).format(value);
 }
 
 // Plain grouped number (counts, tokens): "1,234,567". Replaces bare n.toLocaleString().

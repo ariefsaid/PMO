@@ -40,7 +40,6 @@ export {
 export { ReceiptPreview, type ReceiptPreviewProps } from './ReceiptPreview';
 export { DecisionContextSummary, type DecisionContextSummaryProps } from './DecisionContextSummary';
 export { Drawer, type DrawerProps } from './Drawer';
-export { DisclosureSummary } from './DisclosureSummary';
 
 export { Kanban, KanbanColumn, KanbanCard, type KanbanColumnProps, type KanbanCardProps } from './Kanban';
 export { KanbanStageIndicator, type KanbanStageItem, type KanbanStageIndicatorProps } from './KanbanStageIndicator';
@@ -54,7 +53,6 @@ export { Funnel, type FunnelStage, type FunnelProps } from './Funnel';
 export { GateNotice, type GateNoticeProps } from './GateNotice';
 export { AccessDenied, type AccessDeniedProps } from './AccessDenied';
 export { PageHeader, type PageStat, type PageHeaderProps } from './PageHeader';
-export { PageHeading, type PageHeadingKind, type PageHeadingProps } from './PageHeading';
 export { RecordHeader, type RecordHeaderProps } from './RecordHeader';
 export { SectionHeader, type SectionHeaderProps } from './SectionHeader';
 export { ListPage, type ListPageProps } from './ListPage';

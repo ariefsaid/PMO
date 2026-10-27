@@ -34,10 +34,8 @@ export function moneyFigure(
   opts: ShortMoneyOptions = {},
 ): MoneyFigure {
   const exact = typeof amount === 'string'
-    ? formatExactMoney(amount, currency, getNumberLocale(), { trimZeroFraction: true, ...(opts.code ? { currencyDisplay: 'code' } : {}) })
-    : opts.code && amount !== null && Number.isFinite(amount)
-      ? formatExactMoney(String(amount), currency, getNumberLocale(), { trimZeroFraction: true, currencyDisplay: 'code' })
-      : formatDashboardMoney(amount, currency);
+    ? formatExactMoney(amount, currency, getNumberLocale(), { trimZeroFraction: true })
+    : formatDashboardMoney(amount, currency);
   const numeric = typeof amount === 'string' ? Number(amount) : amount;
   if (exact === null || numeric === null || !Number.isFinite(numeric)) {
     return { value: '—', unavailableReason };

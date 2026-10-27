@@ -50,8 +50,6 @@ describe('ErpPurchasesSection', () => {
 
     const aging = screen.getByLabelText(/Unpaid by age · IDR/);
     expect(screen.getByRole('heading', { name: 'Unpaid ERPNext invoices (incl. linked)' })).toBeInTheDocument();
-    const firstUnlinkedDocument = screen.getByRole('button', { name: /^Link PINV-PAID/ });
-    expect(firstUnlinkedDocument.compareDocumentPosition(aging) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const total = within(aging).getByText('Unpaid total').nextElementSibling!;
     expect(total.textContent).toMatch(/250/);
     expect(total.textContent).not.toMatch(/1[.,]?150/);

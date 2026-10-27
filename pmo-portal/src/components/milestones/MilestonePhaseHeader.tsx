@@ -1,6 +1,7 @@
 import React from 'react';
+import { getYear, parseISO } from 'date-fns';
 import { useTranslation } from 'react-i18next';
-import { pct, formatDateOnly } from '@/src/lib/format';
+import { pct, formatDayMonth } from '@/src/lib/format';
 import { StatusPill } from '@/src/components/ui';
 
 export type MilestonePhaseHeaderProps = {
@@ -18,6 +19,11 @@ export type MilestonePhaseHeaderProps = {
   onEditProgress?: () => void;
 };
 
+const formatTargetDate = (value: string | null) =>
+  value
+    ? `Target ${formatDayMonth(new Date(`${value}T00:00:00`))}`
+    : null;
+
 export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
   variant,
   name,
@@ -32,12 +38,17 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
 }) => {
   // Above the `compact` early return — a hook after it runs conditionally.
   const { t } = useTranslation();
-  const targetLabel = targetDate ? `${t('projectDetail.milestones.targetDate', 'Target')} ${formatDateOnly(targetDate)}` : null;
+  const targetLabel = targetDate && isOverdue && getYear(parseISO(targetDate)) !== new Date().getFullYear()
+    ? t('uxs13.overdueTargetDateWithYear', 'Target {{date}}, {{year}}', {
+        date: formatDayMonth(parseISO(targetDate)),
+        year: getYear(parseISO(targetDate)),
+      })
+    : formatTargetDate(targetDate);
 
   if (variant === 'compact') {
     return (
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-normal">{name}</span>
+        <span className="text-[13px] font-bold">{name}</span>
         {targetLabel && <span className="text-[11.5px] text-muted-foreground">{targetLabel}</span>}
       </div>
     );
@@ -61,7 +72,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
               (15-35px overlap on the 4-column desktop card grid at 1280/1440). `break-words` forces
               a wrap point at any character rather than only at spaces, so the name always stays
               within its own column instead of bleeding into the sibling's. */}
-          <span data-testid="milestone-phase-name" className="min-w-0 break-words text-sm font-normal text-foreground">{name}</span>
+          <span data-testid="milestone-phase-name" className="min-w-0 break-words text-[12px] font-semibold text-foreground">{name}</span>
           {/* AC-RAM-004 (#688): raw text-primary as small text is ~3.5:1 on the dark canvas (sub-AA,
               DESIGN.md accessibility posture). text-primary-text is the AA on-canvas variant, same
               token the "Back to Sales Pipeline" link (PipelineLens) already uses for blue text. */}
@@ -98,7 +109,7 @@ export const MilestonePhaseHeader: React.FC<MilestonePhaseHeaderProps> = ({
       {/* Right column: effective percentage — a fixed min-width reserves its own column so it
           never shares horizontal space with the (now-wrapping) name column beside it. */}
       <div data-testid="milestone-phase-pct" className="min-w-[44px] shrink-0 text-right">
-        <div className="text-sm font-normal leading-none tabular text-foreground">{pct(effectivePct)}</div>
+        <div className="text-[23px] font-bold leading-none tabular text-foreground">{pct(effectivePct)}</div>
       </div>
     </div>
   );

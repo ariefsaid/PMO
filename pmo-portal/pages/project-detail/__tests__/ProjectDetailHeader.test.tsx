@@ -11,9 +11,21 @@ import ProjectDetailHeader from '../ProjectDetailHeader';
 import { currencySymbol } from '@/src/lib/format';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
+vi.mock('@/src/components/fx/FxEquivalent', () => ({
+  default: () => (
+    <span data-testid="fx-equivalent">
+      <span aria-hidden="true" title="≈ Rp 81,500,000 (JISDOR 2026-01-10)" className="block truncate whitespace-nowrap">
+        ≈ Rp 81,500,000 (JISDOR 2026-01-10)
+      </span>
+      <span className="sr-only">≈ Rp 81,500,000 (JISDOR 2026-01-10)</span>
+    </span>
+  ),
+}));
+
 // Mutable real-role box + project mutations (hoisted) — drive the edit/archive/value gating.
-const { roleBox, projectMutations } = vi.hoisted(() => ({
+const { roleBox, desktopBox, projectMutations } = vi.hoisted(() => ({
   roleBox: { value: 'Project Manager' },
+  desktopBox: { value: true },
   projectMutations: {
     create: { mutateAsync: vi.fn(), isPending: false },
     updateHeader: { mutateAsync: vi.fn(), isPending: false },
@@ -21,6 +33,25 @@ const { roleBox, projectMutations } = vi.hoisted(() => ({
     remove: { mutateAsync: vi.fn(), isPending: false },
     setContractValue: { mutateAsync: vi.fn(), isPending: false },
   },
+}));
+vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => desktopBox.value }));
+// B-0.2: useProjectBudget is now called from ProjectDetailHeader to get the DERIVED
+// budget (Σ Active-version line-items). Default: 4_200_000 (real budget, not the
+// stale stored budget 4_700_000 on the onHand fixture).
+const { budgetBox } = vi.hoisted(() => ({ budgetBox: { data: 4_200_000 as number | undefined, isPending: false, isError: false } }));
+const { financeBox } = vi.hoisted(() => ({
+  financeBox: {
+    data: {
+      actuals: {
+        currency: 'USD', total: '1800000.00', excludes_restricted_rows: false,
+        categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' as string | null }],
+      },
+    },
+  },
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => ({ ...financeBox, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useBudget', () => ({
+  useProjectBudget: () => budgetBox,
 }));
 // VAT editability comes from the scoped server reader, never an invoice list in the UI.
 const { vatBox } = vi.hoisted(() => ({ vatBox: { data: { eligible: true, reason: null as string | null, hasInvoices: false }, isPending: false, isFetching: false, isError: false, refetch: vi.fn() } }));
@@ -35,13 +66,6 @@ vi.mock('@/src/auth/useAuth', () => ({
 }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value, canImpersonate: false, viewAs: vi.fn() }),
-}));
-vi.mock('../../../components/ProjectStatusControl', () => ({
-  default: ({ triggerVariant }: { triggerVariant?: string }) => React.createElement('button', {
-    type: 'button',
-    'aria-label': 'Change status',
-    'data-variant': triggerVariant ?? 'outline',
-  }, 'Change status'),
 }));
 
 const onHand = {
@@ -72,32 +96,30 @@ const onHand = {
 
 const preWin = { ...onHand, status: 'Leads', customer_contract_ref: null } as ProjectWithRefs;
 
-const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand) => {
+const renderHeader = (role = 'Project Manager', project: ProjectWithRefs = onHand, committedSpend = 2_100_000, commitmentSource: 'pmo' | 'not-tracked' | 'unavailable' = 'not-tracked', ledgerBasis: 'pmo' | 'erp' | 'unavailable' = 'erp') => {
   roleBox.value = role;
   return render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectDetailHeader project={project} />
+        <ProjectDetailHeader project={project} committedSpend={committedSpend} commitmentSource={commitmentSource} ledgerBasis={ledgerBasis} />
       </ToastProvider>
     </MemoryRouter>,
   );
 };
 
-const renderHeaderWithMore = async (role = 'Project Manager', project: ProjectWithRefs = onHand) => {
-  const view = renderHeader(role, project);
-  const moreActions = screen.queryByText('More actions');
-  if (moreActions) await userEvent.click(moreActions);
-  return view;
-};
-
 beforeEach(() => {
   setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
   roleBox.value = 'Project Manager';
+  financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
   vatBox.data = { eligible: true, reason: null, hasInvoices: false };
   vatBox.isPending = false;
   vatBox.isFetching = false;
   vatBox.isError = false;
   vatBox.refetch.mockReset();
+  desktopBox.value = true;
+  budgetBox.data = 4_200_000;
+  budgetBox.isPending = false;
+  budgetBox.isError = false;
   Object.values(projectMutations).forEach((m) => {
     m.mutateAsync.mockReset();
     m.mutateAsync.mockResolvedValue(undefined);
@@ -107,27 +129,121 @@ beforeEach(() => {
 afterEach(() => resetActiveLocale());
 
 describe('ProjectDetailHeader — content', () => {
-  it('UIP-006: contract editing remains reachable from the identity header and cancel makes no write', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+  it.each(['Project Manager', 'Finance'])('UIP-006: %s sees one idle contract amount and one tax-basis presentation', (role) => {
+    renderHeader(role);
+    expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
+    expect(screen.getAllByText(/excl\. PPN/)).toHaveLength(1);
+    const contractTile = screen.getAllByTestId('stat-tile')[0];
+    if (role === 'Finance') {
+      expect(within(contractTile).getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
+    } else {
+      expect(within(contractTile).getByText('Read-only')).toBeInTheDocument();
+    }
+  });
+
+  it('UIP-005: phone keeps all financial metrics collapsed by default and discloses them on demand', async () => {
+    desktopBox.value = false;
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    const disclosure = screen.getByText('Financial summary').closest('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    expect(screen.getByText('$5,000,000')).not.toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit contract value' })).not.toBeVisible();
+    await userEvent.click(screen.getByText('Financial summary'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(screen.getByText('$5,000,000')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit contract value' })).toBeVisible();
+    expect(disclosure).toHaveTextContent('PMO purchase orders$2,100,000');
+    expect(disclosure).toHaveTextContent('Actual$2,100,000.00');
+    expect(disclosure).toHaveTextContent('Contract remaining after cost$2,900,000.00');
+    expect(disclosure).toHaveTextContent('Spend50%');
+  });
+
+  it('UIP-006: the PM lock chip is in the contract value row and discloses its reason in a full-width lane', async () => {
+    renderHeader('Project Manager');
+    const lock = screen.getByRole('button', { name: /Read-only/i });
+    const contractTile = screen.getAllByTestId('stat-tile')[0];
+    expect(contractTile.children[1]).toContainElement(lock);
+    expect(lock).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(lock);
+    expect(lock).toHaveAttribute('aria-expanded', 'true');
+    const reason = screen.getByTestId('contract-value-lock-reason');
+    expect(reason).toHaveTextContent('Once a project is won, the contract value is locked for your role.');
+    expect(reason.parentElement).toHaveAttribute('data-testid', 'contract-value-lock-lane');
+    expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
+  });
+
+  it('UIP-006: explicit edit keeps the editor and audit explanation; Cancel restores the single read', async () => {
+    renderHeader('Finance');
     expect(screen.queryByText(/Changing the value on a won project/)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     expect(screen.getByRole('textbox', { name: /Contract value/i })).toHaveValue('5,000,000');
     expect(screen.getByText(/Changing the value on a won project/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
-    expect(screen.queryByText('$5,000,000')).not.toBeInTheDocument();
+    expect(screen.getAllByText('$5,000,000')).toHaveLength(1);
     expect(projectMutations.setContractValue.mutateAsync).not.toHaveBeenCalled();
   });
-  it('PA-02: keeps customer, PM and dates in the scope line and PO details after the section content', async () => {
+  it('UX-007/RF-057: leads with customer and order context; codes live in the rail, not a second header disclosure (PD-A)', async () => {
     renderHeader();
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
     expect(screen.getByText('Ongoing Project')).toBeInTheDocument();
-    const scope = screen.getByRole('group', { name: 'Project scope' });
-    expect(scope).toHaveTextContent('Innovate Corp');
-    expect(scope).toHaveTextContent('PM: Alice Manager');
-    expect(scope).toHaveTextContent('Jan 1, 2026 – Dec 18, 2026');
-    expect(screen.queryByText(/PO CPO-2026-001/)).not.toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
+    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
     expect(screen.queryByText('More project details')).not.toBeInTheDocument();
     expect(screen.queryByText(/PMO-26-7711/)).not.toBeInTheDocument();
+  });
+
+  it('keeps the JISDOR caption on one compact line after the original amount', () => {
+    renderHeader('Finance');
+    const tile = screen.getAllByTestId('stat-tile')[0];
+    const amount = within(tile).getByTestId('contract-value-amount');
+    const equivalent = within(tile).getByTestId('fx-equivalent');
+    const clipped = equivalent.querySelector('[aria-hidden="true"]');
+    const edit = within(tile).getByRole('button', { name: 'Edit contract value' });
+    expect(amount.compareDocumentPosition(equivalent) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(clipped).toHaveClass('truncate', 'whitespace-nowrap');
+    expect(clipped).toHaveAttribute('title', clipped?.textContent?.trim());
+    expect(equivalent.querySelector('.sr-only')).toHaveTextContent(clipped?.textContent?.trim() ?? '');
+    expect(equivalent.compareDocumentPosition(edit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders a 5-stat strip with contract/actual figures (AC-G)', () => {
+    renderHeader();
+    expect(screen.getByText('Contract')).toBeInTheDocument();
+    expect(screen.getByText('Actual')).toBeInTheDocument();
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.getAllByText('$5,000,000').length).toBeGreaterThan(0);
+    expect(screen.getByText('$3,200,000.00')).toBeInTheDocument();
+  });
+
+  it('does not call an unknown contract value zero or claim no active budget while its read is pending', () => {
+    budgetBox.data = undefined;
+    budgetBox.isPending = true;
+    renderHeader('Project Manager', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
+    expect(screen.getByTestId('contract-value-amount')).toHaveTextContent('Unavailable');
+    expect(screen.queryByText('Loading budget…')).not.toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+  });
+
+  it('DD-MONEY-3 does not show zero PMO commitments when procurement is ERP-owned', () => {
+    renderHeader('Project Manager', onHand, 0, 'not-tracked');
+    expect(screen.queryByText('PMO purchase orders')).not.toBeInTheDocument();
+    expect(screen.queryByText('Not tracked in PMO yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('$0')).not.toBeInTheDocument();
+  });
+
+  it('uses a named contract-after-cost measure and never calls it margin (UX-022, DD-MONEY-2)', () => {
+    budgetBox.data = undefined;
+    renderHeader('Project Manager', onHand, 0);
+    expect(screen.getByText('Contract remaining after cost')).toBeInTheDocument();
+    expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
+    expect(screen.queryByText('No active budget')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spend')).not.toBeInTheDocument();
+  });
+
+  it('shows a negative contract-after-cost figure with a true minus glyph and destructive tone (edge)', () => {
+    financeBox.data.actuals.total = '6000000.00';
+    renderHeader('Project Manager', onHand, 6_000_000);
+    expect(screen.getByText(/−\$1,000,000/)).toBeInTheDocument();
   });
 
   it('C3: renders no disabled "Edit Project" stub action', () => {
@@ -135,53 +251,17 @@ describe('ProjectDetailHeader — content', () => {
     expect(screen.queryByRole('button', { name: /Edit Project/i })).toBeNull();
   });
 
-  it('H-09: delivery and pipeline headers show the full identity when a short name exists', () => {
+  it('AC-002 #1325: delivery and pipeline headers display a short name with contractual hover and NULL fallback', () => {
     const delivery = { ...onHand, short_name: 'Harbor Operations' } as ProjectWithRefs;
     const pipeline = { ...preWin, short_name: 'Tender package' } as ProjectWithRefs;
     const { rerender } = renderHeader('Project Manager', delivery);
-    const deliveryHeader = within(screen.getByTestId('record-header'));
-    expect(deliveryHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
-    expect(deliveryHeader.queryByTitle('Innovate Corp HQ Fit-Out')).not.toBeInTheDocument();
-    expect(deliveryHeader.queryByRole('heading', { name: 'Harbor Operations' })).not.toBeInTheDocument();
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} /></ToastProvider></MemoryRouter>);
-    const pipelineHeader = within(screen.getByTestId('record-header'));
-    expect(pipelineHeader.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toHaveTextContent('Innovate Corp HQ Fit-Out');
-    expect(pipelineHeader.queryByRole('heading', { name: 'Tender package' })).not.toBeInTheDocument();
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} /></ToastProvider></MemoryRouter>);
+    const deliveryName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Harbor Operations' });
+    expect(within(deliveryName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Harbor Operations');
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={pipeline} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
+    const pipelineName = within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Tender package' });
+    expect(within(pipelineName).getByTitle('Innovate Corp HQ Fit-Out')).toHaveTextContent('Tender package');
+    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} commitmentSource="not-tracked" ledgerBasis="erp" /></ToastProvider></MemoryRouter>);
     expect(within(screen.getByTestId('record-header')).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-  });
-
-  it('R-002: leaves route return to the shared frame and links the customer parent', () => {
-    roleBox.value = 'Project Manager';
-    render(
-      <MemoryRouter initialEntries={[{
-        pathname: '/projects/p1',
-        state: { pmoListReturn: { list: 'sales', path: '/sales?stage=Tender+Submitted&view=table', scrollTop: 265 } },
-      }] }>
-        <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
-      </MemoryRouter>,
-    );
-    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
-    const header = screen.getByTestId('record-header');
-    expect(within(header).getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: 'Project scope' })).getByRole('link', { name: 'Innovate Corp' }))
-      .toHaveAttribute('href', '/companies/c2');
-  });
-
-  it('R-002: keeps route return out of the identity header for pipeline and delivery stages', () => {
-    const projectContext = { pmoListReturn: { list: 'projects', path: '/projects?status=Leads' } };
-    const { rerender } = render(
-      <MemoryRouter initialEntries={[{ pathname: '/projects/p1', state: projectContext }] }>
-        <ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider>
-      </MemoryRouter>,
-    );
-    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
-
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={preWin} /></ToastProvider></MemoryRouter>);
-    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
-
-    rerender(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} /></ToastProvider></MemoryRouter>);
-    expect(screen.queryByRole('link', { name: /Back to (?:Sales Pipeline|Projects)/i })).not.toBeInTheDocument();
   });
 
   it('CW-3a: the Project detail opens with the shared RecordHeader (icon + name + status + action zone)', () => {
@@ -194,84 +274,51 @@ describe('ProjectDetailHeader — content', () => {
     // the standardized top-right action zone holds the record actions (Edit, etc.)
     expect(within(header).getByTestId('record-header-actions')).toBeInTheDocument();
   });
-
-  it('PA-04 keeps Edit visible in the title action row and status transitions in More actions', async () => {
-    renderHeader();
-    const more = screen.getByText('More actions').closest('details');
-    expect(more).not.toHaveAttribute('open');
-    expect(within(screen.getByTestId('record-header-actions')).getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByText('More actions'));
-    expect(more).toHaveAttribute('open');
-    expect(within(more!).queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Change status' })).toBeInTheDocument();
-  });
-
-  it('PA-04 gives Finance an available Overview transition as the primary title action', () => {
-    roleBox.value = 'Finance';
-    render(
-      <MemoryRouter>
-        <ToastProvider>
-          <ProjectDetailHeader project={onHand} isOverview />
-        </ToastProvider>
-      </MemoryRouter>,
-    );
-    const actions = screen.getByTestId('record-header-actions');
-    const status = within(actions).getByRole('button', { name: 'Change status' });
-    expect(status).toHaveAttribute('data-variant', 'primary');
-    expect(status.closest('details')).toBeNull();
-    expect(within(actions).getByText('More actions')).toBeInTheDocument();
-  });
 });
 
 // ── AC-PRJ-004 edit-header / AC-PRJ-005 archive gating ───────────────────────
 describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
-  it('AC-PRJ-004: a delivery role (PM) sees the header Edit action', async () => {
-    await renderHeaderWithMore('Project Manager', onHand);
+  it('AC-PRJ-004: a delivery role (PM) sees the header Edit action', () => {
+    renderHeader('Project Manager');
     expect(screen.getByRole('button', { name: /^Edit$/i })).toBeInTheDocument();
   });
 
-  it('AC-PRJ-004: Finance does NOT see Edit (FE stricter than RLS)', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+  it('AC-PRJ-004: Finance does NOT see Edit (FE stricter than RLS)', () => {
+    renderHeader('Finance');
     expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-004: Engineer does NOT see Edit', async () => {
-    await renderHeaderWithMore('Engineer', onHand);
+  it('AC-PRJ-004: Engineer does NOT see Edit', () => {
+    renderHeader('Engineer');
     expect(screen.queryByRole('button', { name: /^Edit$/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', async () => {
-    await renderHeaderWithMore('Executive', onHand);
-    expect(screen.getByText('Archive', { exact: true }).closest('summary')).toBeInTheDocument();
+  it('AC-PRJ-005: Executive sees Archive (archive = Admin·Exec)', () => {
+    renderHeader('Executive');
+    expect(screen.getByRole('button', { name: /Archive/i })).toBeInTheDocument();
   });
 
-  it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', async () => {
-    await renderHeaderWithMore('Project Manager', onHand);
-    expect(screen.queryByText('Archive', { exact: true })).not.toBeInTheDocument();
+  it('AC-PRJ-005: PM does NOT see Archive (archive = Admin·Exec)', () => {
+    renderHeader('Project Manager');
+    expect(screen.queryByRole('button', { name: /Archive/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-007: Admin sees hard Delete only after opening the Archive menu', async () => {
-    await renderHeaderWithMore('Admin', onHand);
-    expect(screen.queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
-    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
-    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
-    expect(within(archiveMenu!).getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+  it('AC-PRJ-007: Admin sees the hard-Delete action', () => {
+    renderHeader('Admin');
+    expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
   });
 
   it.each(['Executive', 'Project Manager', 'Finance', 'Engineer'])(
     'AC-PRJ-007: %s does NOT see the hard-Delete action (Admin-only)',
-    async (role) => {
-      await renderHeaderWithMore(role, onHand);
+    (role) => {
+      renderHeader(role);
       expect(screen.queryByRole('button', { name: /^Delete$/i })).not.toBeInTheDocument();
     },
   );
 
   it('AC-PRJ-007: Delete routes through a destructive confirm and calls the delete mutation (nothing on a single click)', async () => {
-    await renderHeaderWithMore('Admin', onHand);
-    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
-    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
-    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Delete$/i }));
+    renderHeader('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     // Nothing is deleted on the trigger click — only after the confirm.
     expect(projectMutations.remove.mutateAsync).not.toHaveBeenCalled();
     const dialog = await screen.findByRole('alertdialog');
@@ -281,10 +328,8 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
 
   it('AC-PRJ-007: a referenced-project delete (23503) surfaces a classified warning toast, suggesting Archive', async () => {
     projectMutations.remove.mutateAsync.mockRejectedValue(new AppError('referenced', '23503'));
-    await renderHeaderWithMore('Admin', onHand);
-    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
-    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
-    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Delete$/i }));
+    renderHeader('Admin');
+    await userEvent.click(screen.getByRole('button', { name: /^Delete$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /delete project/i }));
     const toast = await findToastAnnouncement('alert', /Still in use|Archive/i);
@@ -297,7 +342,7 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
     render(
       <MemoryRouter>
         <ToastProvider>
-          <ProjectDetailHeader project={onHand} onEditProject={onEditProject} />
+          <ProjectDetailHeader project={onHand} committedSpend={2_100_000} onEditProject={onEditProject} />
         </ToastProvider>
       </MemoryRouter>,
     );
@@ -306,12 +351,10 @@ describe('ProjectDetailHeader — Edit + Archive affordances (gating)', () => {
   });
 
   it('AC-PRJ-005: Archive routes through a destructive confirm and calls the archive mutation', async () => {
-    await renderHeaderWithMore('Executive', onHand);
-    const archiveMenu = screen.getByText('Archive', { exact: true }).closest('details')!;
-    await userEvent.click(within(archiveMenu).getByText('Archive', { exact: true }));
+    renderHeader('Executive');
+    await userEvent.click(screen.getByRole('button', { name: /Archive/i }));
     // The mutation is NOT called until the confirm is pressed (nothing writes on a single click).
     expect(projectMutations.archive.mutateAsync).not.toHaveBeenCalled();
-    await userEvent.click(within(archiveMenu).getByRole('button', { name: /^Archive project$/i }));
     const dialog = await screen.findByRole('alertdialog');
     await userEvent.click(within(dialog).getByRole('button', { name: /Archive project/i }));
     await waitFor(() => expect(projectMutations.archive.mutateAsync).toHaveBeenCalledWith('p1'));
@@ -335,27 +378,28 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   // spend summary) are not mounted on a pre-win record. The deal's value is captured at
   // create-time and surfaced as the PipelineLens "Value" stat; the on-hand SoD lock/edit
   // distinction (the goal-oracle) is asserted on the on-hand record below.
-  it('AC-IXD-PROJ-004: PRE-WIN, the delivery contract-value editor + spend summary are NOT mounted', async () => {
-    await renderHeaderWithMore('Project Manager', preWin);
+  it('AC-IXD-PROJ-004: PRE-WIN, the delivery contract-value editor + spend summary are NOT mounted', () => {
+    renderHeader('Project Manager', preWin);
     expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
     // the delivery StatTiles strip (Contract / Committed / Actual / margin / Spend) is gone too
     expect(screen.queryByText('On-hand margin')).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', async () => {
-    await renderHeaderWithMore('Project Manager', onHand);
+  it('AC-PRJ-006: on a WON/on-hand project, a PM sees the value as READ-ONLY (locked), no edit control', () => {
+    renderHeader('Project Manager', onHand);
+    expect(screen.getByText(/Read-only/i)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit contract value/i })).not.toBeInTheDocument();
   });
 
-  it('AC-PRJ-006: on a WON/on-hand project, Finance CAN edit the value (money authority)', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+  it('AC-PRJ-006: on a WON/on-hand project, Finance CAN edit the value (money authority)', () => {
+    renderHeader('Finance', onHand);
     expect(screen.getByRole('button', { name: /Edit contract value/i })).toBeInTheDocument();
     expect(screen.queryByText(/Read-only/i)).not.toBeInTheDocument();
   });
 
   it('AC-PRJ-006: editing the value on a WON project commits through an audit confirm naming the SoD', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     const input = screen.getByRole('textbox', { name: /Contract value/i });
     await userEvent.clear(input);
@@ -380,7 +424,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
 
   it('AC-PLC-009: does not open SoD confirmation for an en-US value with excess precision', async () => {
     setActiveLocale({ locale: 'en', numberLocale: 'en-US', timezone: 'UTC' });
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
     await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '1.234');
@@ -395,7 +439,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
 
   it('AC-PLC-009: records id-ID grouped contract value as 1234 after SoD confirmation', async () => {
     setActiveLocale({ locale: 'id', numberLocale: 'id-ID', timezone: 'Asia/Jakarta' });
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     await userEvent.clear(screen.getByRole('textbox', { name: /Contract value/i }));
     await userEvent.type(screen.getByRole('textbox', { name: /Contract value/i }), '1.234');
@@ -415,7 +459,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
 
   // ── #513: the ceiling may not be restated without restating what it means ──
   it('#513: Save is blocked until the tax treatment is chosen, and the reason is on screen', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     await userEvent.type(screen.getByLabelText(/tax amount/i), '565400');
     // A value is present and the tax amount is stated, but nobody has said what the value MEANS.
@@ -429,14 +473,14 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   it('#513: the treatment select opens with NOTHING chosen — never the backfilled value', async () => {
     // 0197 backfilled every existing row to 'exclusive' to keep the arithmetic inert. Pre-selecting
     // from the row would re-assert a marker no human ever stated — the defect, not the fix.
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     expect((screen.getByLabelText(/tax treatment/i) as HTMLSelectElement).value).toBe('');
     expect(screen.getByRole('button', { name: /^Save$/i })).toBeDisabled();
   });
 
   it('#513: the SoD confirm names the basis the new value is stated on, not just the number', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     const input = screen.getByRole('textbox', { name: /Contract value/i });
     await userEvent.clear(input);
@@ -457,7 +501,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   });
 
   it('polish#4: the inline editor shows formatted thousands ($5,000,000) on open, not the raw number', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     const input = screen.getByRole('textbox', { name: /Contract value/i }) as HTMLInputElement;
     // On open the draft reads the formatted figure, NOT the raw "5000000".
@@ -465,7 +509,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   });
 
   it('polish#4: typing reformats with thousands separators while editing', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     const input = screen.getByRole('textbox', { name: /Contract value/i }) as HTMLInputElement;
     await userEvent.clear(input);
@@ -476,7 +520,7 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
 
   it('AC-PRJ-006: an RPC SoD rejection (42501) surfaces a classified warning toast', async () => {
     projectMutations.setContractValue.mutateAsync.mockRejectedValue(new AppError('not authorized', '42501'));
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     const input = screen.getByRole('textbox', { name: /Contract value/i });
     await userEvent.clear(input);
@@ -490,12 +534,200 @@ describe('ProjectDetailHeader — contract_value SoD treatment', () => {
   });
 });
 
+// ── AC-B-0-2: Spend% uses derived budget (not dead projects.budget) ──────────
+describe('ProjectDetailHeader — Spend% uses derived budget (AC-B-0-2)', () => {
+  it('AC-B-0-2: Spend% is computed from useProjectBudget (derived), not projects.budget', () => {
+    // Project with stored budget=0 (dead column) but derivedBudget=1_000_000 (line-items).
+    // committedSpend=500_000 → real Spend% = 50%; if dead column used → 0%.
+    const zeroStoredBudget = { ...onHand, budget: 0 } as unknown as ProjectWithRefs;
+    budgetBox.data = 1_000_000; // derived budget from useProjectBudget
+    financeBox.data.actuals.total = '500000.00';
+    financeBox.data.actuals.categories[0].amount = '500000.00';
+
+    renderHeader('Project Manager', zeroStoredBudget, 500_000);
+
+    // Locate the Spend stat tile
+    const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
+    const spendTile = Array.from(tiles).find((el) => el.textContent?.includes('Spend'));
+    expect(spendTile).toBeTruthy();
+    // Must show 50% (derived basis), NOT "0%" (dead stored projects.budget renders as Spend0%).
+    // Use regex word-boundary to avoid false match: "50%" contains "0%" literally, so we
+    // check for the exact string "0%" preceded by "Spend" to detect the false-zero case.
+    expect(spendTile!.textContent).toContain('50%');
+    expect(spendTile!.textContent).not.toMatch(/^Spend0%$/);
+  });
+
+  afterEach(() => {
+    budgetBox.data = 4_200_000; // reset to default
+  });
+});
+
+// ── DD-MONEY-1: Actual follows complete mapped project-finances data ──
+describe('ProjectDetailHeader — Actual tile derives from mapped project finances (DD-MONEY-1)', () => {
+  // The dead stored project.spent field and separate committed PO total must not drive Actual.
+  const deadSpentProject = {
+    ...onHand,
+    spent: 0, // as in production — the dead stored column
+  } as unknown as ProjectWithRefs;
+
+  it('DD-MONEY-1/A3 withholds PMO Actual until the purchase-order read succeeds', () => {
+    roleBox.value = 'Finance';
+    render(<MemoryRouter><ToastProvider><ProjectDetailHeader project={onHand} committedSpend={2_100_000}
+      commitmentSource="pmo" ledgerBasis="pmo" commitmentPending /></ToastProvider></MemoryRouter>);
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual).toHaveTextContent('Loading Actual…');
+    expect(actual).not.toHaveTextContent('$2,100,000');
+  });
+
+  it('AC-CAT-016 names attributed cost under the Actual tile only when there is some', () => {
+    financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', tagged_total: '1500000.00', attributed_total: '300000.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } } as typeof financeBox.data;
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual).toHaveTextContent('Includes $300,000.00 attributed');
+  });
+
+  it('AC-CAT-016 leaves the Actual tile unchanged when attributed cost is zero', () => {
+    financeBox.data = { actuals: { currency: 'USD', total: '1800000.00', tagged_total: '1800000.00', attributed_total: '0.00',
+      excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } } as typeof financeBox.data;
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const actual = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual?.textContent).not.toMatch(/attributed/i);
+  });
+
+  it('DD-MONEY-1: ERP Actual keeps its source currency and withholds project-currency ratios', () => {
+    financeBox.data = { actuals: { currency: 'IDR', total: '1800000.00', excludes_restricted_rows: false,
+      categories: [{ category: 'Labor', mapped: true, amount: '1800000.00' }] } };
+    renderHeader('Finance', onHand, 2_100_000, 'not-tracked');
+    const tiles = Array.from(document.querySelectorAll('[data-testid="stat-tile"]'));
+    const actual = tiles.find((tile) => tile.textContent?.includes('Actual'));
+    expect(actual?.textContent).toContain('IDR');
+    expect(actual?.textContent).toContain('Complete category coverage');
+    expect(screen.queryByText('Contract remaining after cost')).not.toBeInTheDocument();
+    expect(screen.queryByText('Spend')).not.toBeInTheDocument();
+  });
+
+  it('DD-MONEY-1: incomplete Actuals are never shown as a complete headline amount', () => {
+    financeBox.data.actuals.total = '1780000.00';
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader();
+    const actualTile = Array.from(document.querySelectorAll('[data-testid="stat-tile"]')).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile?.textContent).toContain('Incomplete — see spending details');
+    expect(actualTile?.textContent).not.toContain('$1,780,000');
+  });
+
+  it('DD-MONEY-1: Actual shows complete mapped costs and stays distinct from committed spend', () => {
+    financeBox.data.actuals.total = '3700000.00';
+    financeBox.data.actuals.categories[0].amount = '3700000.00';
+    renderHeader('Project Manager', deadSpentProject, 4_000_000);
+    // Locate the "Actual" stat-tile, which is deliberately not the separate PO total.
+    const tiles = document.querySelectorAll('[data-testid="stat-tile"]');
+    const actualTile = Array.from(tiles).find((el) => el.textContent?.includes('Actual'));
+    expect(actualTile).toBeTruthy();
+    // The tile shows mapped actuals ($3,700,000), not the dead stored $0 or $4m committed amount.
+    expect(actualTile!.textContent).toContain('$3,700,000');
+    expect(actualTile!.textContent).not.toContain('$4,000,000');
+    expect(actualTile!.textContent).not.toContain('$0');
+  });
+});
+
+// ── content-over-containers (monochrome-calm reskin, L2-RECORD) ──────────────
+// The delivery finance strip + contract-value row sit directly on the canvas —
+// no card-in-card box (a borderless StatTiles strip + a de-boxed SoD row). Fewer
+// boxes, more air; the KPI values + SoD gating behavior are unchanged.
+describe('ProjectDetailHeader — content-over-containers (L2-RECORD)', () => {
+  it('the finance stat strip is borderless (no card frame around the KPIs)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const strip = document.querySelector('[data-testid="stat-tiles"]') as HTMLElement;
+    expect(strip).toBeInTheDocument();
+    expect(strip.className).not.toContain('border-border');
+    expect(strip.className).not.toContain('bg-border');
+    expect(strip.className).not.toContain('rounded-lg');
+  });
+
+  it('the contract-value SoD row sits on the canvas (no card box)', () => {
+    renderHeader('Project Manager', onHand, 2_100_000);
+    const sod = screen.getByTestId('contract-value-sod');
+    expect(sod.className).not.toContain('bg-card');
+    expect(sod.className).not.toContain('border-border');
+    expect(sod.className).not.toContain('rounded-lg');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// #548 / OD-TAX-1 §2 — every contract figure states its basis, and states the ROW's basis
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+describe('#548 (OD-TAX-1): the contract value renders its tax basis', () => {
+  const inclusive = { ...onHand, tax_treatment: 'inclusive', tax_amount: 495000 } as unknown as ProjectWithRefs;
+  const exclusive = { ...onHand, tax_treatment: 'exclusive', tax_amount: 550000 } as unknown as ProjectWithRefs;
+  const unstated = { ...onHand, contract_value: 0, tax_treatment: null, tax_amount: null } as unknown as ProjectWithRefs;
+
+  it('#548: an INCLUSIVE contract has one visible basis presentation', () => {
+    renderHeader('Finance', inclusive);
+    expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('incl. PPN');
+  });
+
+  it('#548: an EXCLUSIVE contract reads "excl. PPN" — the label is derived from the row, not fixed', () => {
+    // ⚑ The pair is the oracle. One-treatment fixtures cannot distinguish a derived label from a
+    // hardcoded one (the DD-CUR-6 / #529 blind spot named in this issue's own test note).
+    renderHeader('Finance', exclusive);
+    expect(screen.getAllByTestId('contract-tile-tax-basis')).toHaveLength(1);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveTextContent('excl. PPN');
+  });
+
+  it('#548: a project with NO stated treatment renders NO basis — never a guessed one', () => {
+    // 0197 pairs a NULL treatment with a zero contract value: there is no figure to qualify, so a
+    // label here would be a claim the database deliberately does not make.
+    renderHeader('Finance', unstated);
+    expect(screen.queryByTestId('contract-tile-tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('#548: the basis follows the RECORD even when it differs from what other records use', () => {
+    // The point of OD-TAX-1: a government/SOE contract quoted inclusive sits in the same org as
+    // commercial contracts quoted exclusive, and each states its own basis.
+    const { unmount } = renderHeader('Finance', inclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    unmount();
+    renderHeader('Finance', exclusive);
+    expect(screen.getByTestId('contract-tile-tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+  });
+
+  it('AC-S39-002: an unknown stored rate stays informational while the real contract prerequisite remains explicit', async () => {
+    const user = userEvent.setup();
+    const rateUnknown = {
+      ...onHand,
+      tax_rate: null,
+      tax_base_numerator: 11,
+      tax_base_denominator: 12,
+    } as unknown as ProjectWithRefs;
+    renderHeader('Finance', rateUnknown);
+
+    const basis = screen.getByTestId('contract-tile-tax-basis');
+    expect(basis).toHaveTextContent('excl. PPN');
+    expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
+    const trigger = within(basis).getByRole('button', { name: 'Show tax details' });
+    const details = document.getElementById(trigger.getAttribute('aria-controls')!)!;
+    expect(details).not.toBeVisible();
+    expect(details).toHaveTextContent('rate not recorded');
+    await user.click(trigger);
+    expect(details).toBeVisible();
+    expect(details).toHaveTextContent('rate not recorded');
+    expect(details).toHaveTextContent('DPP 11/12');
+    expect(screen.queryByTestId('contract-tax-required-hint')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Edit contract value' }));
+    expect(screen.getByTestId('contract-tax-required-hint')).toHaveTextContent(/State the tax treatment and the tax amount/);
+    expect(screen.getByText(/Leave blank when the rate is not recorded; enter the tax amount instead/)).toBeInTheDocument();
+  });
+});
+
 describe('#694 ProjectDetailHeader — contract-value adornment is the project currency', () => {
   const idrProject = { ...onHand, currency: 'IDR' } as ProjectWithRefs;
   const adornmentOf = (label: RegExp) => screen.getByLabelText(label).parentElement!.textContent;
 
   it('#694: an IDR project shows the IDR glyph beside Contract value and Tax amount, never $', async () => {
-    await renderHeaderWithMore('Finance', idrProject);
+    renderHeader('Finance', idrProject);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     expect(adornmentOf(/^Contract value/i)).toBe(currencySymbol('IDR'));
     expect(adornmentOf(/tax amount/i)).toBe(currencySymbol('IDR'));
@@ -503,7 +735,7 @@ describe('#694 ProjectDetailHeader — contract-value adornment is the project c
   });
 
   it('#694: a USD project still shows $', async () => {
-    await renderHeaderWithMore('Finance', onHand);
+    renderHeader('Finance', onHand);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
     expect(adornmentOf(/^Contract value/i)).toBe('$');
   });
@@ -511,7 +743,7 @@ describe('#694 ProjectDetailHeader — contract-value adornment is the project c
 
 describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', () => {
   const openEditor = async (role: string, project: ProjectWithRefs = onHand) => {
-    await renderHeaderWithMore(role, project);
+    renderHeader(role, project);
     await userEvent.click(screen.getByRole('button', { name: /Edit contract value/i }));
   };
 
@@ -565,5 +797,81 @@ describe('OD-TAX-4 / #856: the project VAT flag in the contract-value editor', (
     await openEditor('Finance');
     expect(screen.getByRole('checkbox', { name: /Subject to VAT/i })).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByTestId('contract-vat-flag-hint')).toHaveTextContent(/checking whether PPN can be changed/i);
+  });
+});
+
+// ── AC-RD-HDR-001 (PD-A): compact strip, no prose in figure slots ─────────────────────
+describe('ProjectDetailHeader — compact strip (AC-RD-HDR-001)', () => {
+  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+  const tileFor = (label: string) => screen.getAllByTestId('stat-tile').find((tile) => tile.firstElementChild?.textContent === label)!;
+
+  it('AC-RD-HDR-001: PMO purchase orders get a tile only when PMO owns purchasing', () => {
+    for (const source of ['not-tracked', 'unavailable'] as const) {
+      const { unmount } = renderHeader('Finance', onHand, 0, source);
+      expect(tileLabels()).not.toContain('PMO purchase orders');
+      expect(screen.queryByText(/Not tracked in PMO/i)).not.toBeInTheDocument();
+      unmount();
+    }
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileLabels()).toContain('PMO purchase orders');
+  });
+
+  it('AC-RD-HDR-001: an incomplete Actual is "—" plus "Partial" — no prose, no coverage line in the figure slot', () => {
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader('Finance');
+    const tile = tileFor('Actual');
+    const value = tile.children[1];
+    expect(value.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
+    expect(value.querySelector('.sr-only')).toHaveTextContent('Incomplete — see spending details');
+    expect(value).not.toHaveTextContent('$');
+    expect(tile.children[2]).toHaveTextContent(/^Partial$/);
+    expect(tile).not.toHaveTextContent(/coverage|Updated/i);
+  });
+
+  it('AC-RD-HDR-001: an unknown contract value is "—" with its reason, never "$0"', () => {
+    renderHeader('Finance', { ...onHand, contract_value: null } as unknown as ProjectWithRefs);
+    const amount = screen.getByTestId('contract-value-amount');
+    expect(amount.querySelector('[aria-hidden="true"]')).toHaveTextContent('—');
+    expect(amount.querySelector('.sr-only')).toHaveTextContent('Unavailable');
+    expect(amount).not.toHaveTextContent('$');
+  });
+
+  it('AC-RD-HDR-001: contract-remaining and spend appear only when they have a value — no "No active budget" prose', () => {
+    budgetBox.data = undefined;
+    financeBox.data.actuals.categories.push({ category: 'Materials', mapped: false, amount: null });
+    renderHeader('Finance');
+    expect(tileLabels()).toEqual(['Contract', 'Actual']);
+    expect(screen.queryByText(/No active budget/)).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001: a budget still loading shows no Spend tile (not a claim of no budget)', () => {
+    budgetBox.data = undefined;
+    budgetBox.isPending = true;
+    renderHeader('Finance');
+    expect(tileLabels()).not.toContain('Spend');
+    expect(screen.queryByText(/Loading budget/)).not.toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001: with a budget and complete Actual the strip carries every known figure', () => {
+    renderHeader('Finance', onHand, 2_100_000, 'pmo', 'pmo');
+    expect(tileLabels()).toEqual(['Contract', 'PMO purchase orders', 'Actual', 'Contract remaining after cost', 'Spend']);
+  });
+
+  it('AC-RD-HDR-001: "excl. PPN" lives in the Contract tile; rate/DPP toggle only when DPP is not 1/1 or the rate is missing', () => {
+    const { unmount } = renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 } as unknown as ProjectWithRefs);
+    expect(within(tileFor('Contract')).getByTestId('contract-tile-tax-basis')).toHaveTextContent(/^excl\. PPN$/);
+    expect(screen.queryByRole('button', { name: /tax details/i })).not.toBeInTheDocument();
+    unmount();
+    renderHeader('Finance', { ...onHand, tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 } as unknown as ProjectWithRefs);
+    expect(within(tileFor('Contract')).getByRole('button', { name: /show tax details/i })).toBeInTheDocument();
+  });
+
+  it('AC-RD-HDR-001 / RD-059: PMO number and client code are not duplicated in the header — the rail owns them', () => {
+    renderHeader('Finance');
+    expect(screen.queryByText('More project details')).not.toBeInTheDocument();
+    expect(screen.queryByText(/PMO Project Number/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Client Project Code/)).not.toBeInTheDocument();
+    expect(screen.getByText('Innovate Corp')).toBeInTheDocument();
+    expect(screen.getByText('PO CPO-2026-001 (Jan 10, 2026)')).toBeInTheDocument();
   });
 });

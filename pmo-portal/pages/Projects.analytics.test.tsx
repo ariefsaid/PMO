@@ -108,10 +108,10 @@ describe('Projects: project_detail_opened fires with a route PATTERN + source', 
   });
 });
 
-describe('Projects: filter_applied fires on the status scope selector', () => {
+describe('Projects: filter_applied fires on the status SegFilter', () => {
   it('AC: switching to Ongoing fires filter_applied with the option-set size, never the label', async () => {
     renderPage();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Scope' }), { target: { value: 'Ongoing' } });
+    fireEvent.click(screen.getByRole('tab', { name: /^Ongoing$/ }));
     expect(analytics.trackFilterApplied).toHaveBeenCalledWith('status', 5, 'projects');
   });
 });

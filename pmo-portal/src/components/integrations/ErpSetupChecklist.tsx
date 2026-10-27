@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQueryClient, type UseQueryResult } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { repositories } from '@/src/lib/repositories';
 import {
@@ -20,15 +20,19 @@ import { ProjectMatchReview } from './ProjectMatchReview';
 // #775 phase B — `expenses` is offered only once its release guard (#901) is open (FR-EXP-118, DD-EXP-22).
 const ERP_DOMAINS = ['companies', 'procurement', 'revenue', 'timesheets', ...(EXPENSES_EMPLOYABLE ? ['expenses'] : [])];
 export function ErpSetupChecklist(
-  { orgId, onRefreshCompany, readinessQuery }: {
+  { orgId, onRefreshCompany }: {
     orgId: string | undefined;
     onRefreshCompany: () => void;
-    readinessQuery: UseQueryResult<Awaited<ReturnType<typeof repositories.integrations.getErpSetup>>>;
   },
 ) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const setup = readinessQuery;
+  const setup = useQuery({
+    queryKey: ['integrations', 'setup', orgId],
+    queryFn: () => repositories.integrations.getErpSetup(),
+    enabled: Boolean(orgId),
+    retry: false,
+  });
   const [editing, setEditing] = useState<'defaults' | 'domain' | null>(null);
   const [onboarding, setOnboarding] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -141,7 +145,7 @@ export function ErpSetupChecklist(
   const incomplete = setup.data ? getErpSetupIncompleteness(setup.data) : null;
   const hasOutstandingSetup = incomplete ? Object.values(incomplete).some(Boolean) : false;
   const actionLink =
-    'touch-target text-sm font-medium text-foreground underline underline-offset-4 break-words';
+    'text-sm font-medium text-foreground underline underline-offset-4 break-words';
   return (
     <section
       aria-labelledby='erp-setup-heading'
@@ -149,17 +153,17 @@ export function ErpSetupChecklist(
     >
       <h3
         id='erp-setup-heading'
-        className='text-xl font-bold tracking-[-0.01em] text-foreground'
+        className='text-base font-semibold text-foreground'
       >
         {t('uxs08.reviewTitle', 'Business setup review')}
       </h3>
-      <p className='mb-4 mt-4 max-w-[65ch] text-sm text-muted-foreground'>
+      <p className='mb-3 mt-1 max-w-[65ch] text-sm text-muted-foreground'>
         {t(
           'uxs08.reviewDescription',
           'Review how your organization keeps business information current. Completed links stay in place; only work needing attention needs a decision.',
         )}
       </p>
-      <h4 className='mb-4 text-xs font-semibold text-foreground'>
+      <h4 className='mb-2 text-sm font-semibold text-foreground'>
         {t('uxs08.dataHeading', 'Keep business information up to date')}
       </h4>
       {setup.isPending && !setup.data
@@ -208,7 +212,7 @@ export function ErpSetupChecklist(
                       ? setup.data.domains.map((value) =>
                         domainText(value)
                       ).join(', ')
-                      : t('integrations:erpSetup.noDomains', 'No connected information is currently updating from ERPNext')}
+                      : t('uxs07.noDomains', 'No connected information is currently updating from ERPNext')}
                   </p>
                 </div>
                 <Button variant='outline' size='sm' onClick={openDomains}>

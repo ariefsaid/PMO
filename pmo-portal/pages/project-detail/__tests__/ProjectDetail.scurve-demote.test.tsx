@@ -1,6 +1,11 @@
 /**
- * AC-IFW-RECORD-02 — Progress curve belongs to the Overview section and does not
- * appear in Budget, Tasks, or pre-win/lost sections.
+ * AC-IFW-RECORD-02 — S-curve scope: the Progress curve renders ONLY when the Overview
+ * tab is active (it is an Overview-panel widget, not a shell-level widget). It must NOT
+ * appear below Budget / Tasks / other tabs. It remains hidden for pre-win/isPipeline records.
+ *
+ * Deliberate UX change (BDD rule): the prior test asserted document-order (tablist before
+ * S-curve); now that the S-curve is moved INSIDE the Overview tabpanel the ordering test
+ * is superseded — the scope test (Overview-only) is the correct oracle.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
@@ -170,15 +175,12 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(
-    () => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument(),
-    { timeout: 10_000 },
-  );
+  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
   return view;
 };
 
 // ── tests ─────────────────────────────────────────────────────────────────────
-describe('AC-IFW-RECORD-02: S-curve is Overview-only for delivery projects', () => {
+describe('AC-IFW-RECORD-02: S-curve is Overview-tab-only for delivery projects', () => {
   beforeEach(() => {
     projectsState.data = [deliveryRow];
     projectsState.isPending = false;
@@ -187,18 +189,18 @@ describe('AC-IFW-RECORD-02: S-curve is Overview-only for delivery projects', () 
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-02 (a): the Progress curve is rendered in Overview', async () => {
-    // The default project route opens Overview.
+  it('AC-IFW-RECORD-02 (a): the Progress curve IS rendered when the Overview tab is active', async () => {
+    // Default route → Overview tab is active.
     await renderAt('/projects/del1');
     expect(await screen.findByText('Progress curve')).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02 (b): the Progress curve is absent from Tasks', async () => {
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Tasks tab is active', async () => {
     await renderAt('/projects/del1/tasks');
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-02 (b): the Progress curve is absent from Budget', async () => {
+  it('AC-IFW-RECORD-02 (b): the Progress curve is NOT rendered when the Budget tab is active', async () => {
     await renderAt('/projects/del1/budget');
     expect(screen.queryByText('Progress curve')).not.toBeInTheDocument();
   });

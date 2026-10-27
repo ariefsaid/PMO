@@ -53,7 +53,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: dash, isPending: false, isError: false, refetch: vi.fn() }),
   usePMDashboardProjects: () => ({ data: mine ?? [], isPending: false, isError: false, refetch: vi.fn() }),
   useFinanceBudgetReview: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useSalesPipeline: () => ({ data: { stages: [{ status: 'Negotiation', count: 1, total_value: 2_000_000, win_probability: 0.4, weighted_value: 800_000 }] }, isPending: false, isError: false, refetch: vi.fn() }),
+  useSalesPipeline: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
   useWinRate: () => ({ data: null, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
@@ -98,21 +98,60 @@ const renderExec = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
-  it('AC-806-EXEC-SPEND-001: project identity reaches the canonical project record', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-1: the active-projects count (on the contract tile, SL-B) drills to /projects?filter=Ongoing', () => {
     renderExec();
-    const table = screen.getByRole('table', { name: /spending comparison/ });
-    expect(within(table).getByRole('link', { name: 'Alpha' })).toHaveAttribute('href', '/projects/p1');
-    expect(within(table).getByRole('link', { name: 'Beta' })).toHaveAttribute('href', '/projects/p2');
+    const tile = screen.getByTestId('kpi-total-contract-value');
+    expect(tile).toHaveTextContent(/\d+ active projects/);
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
-  it('AC-806-EXEC-BOOK-001: delivery position shows exact values without a misleading aggregate link', () => {
+  it('AC-IXD-DASH-W5-C2A-EXEC-2: "Total contract value" tile drills to /projects?filter=Ongoing', () => {
     renderExec();
-    const delivery = screen.getByRole('region', { name: 'Delivery book' });
-    expect(delivery).toHaveTextContent('6,000,000');
-    expect(delivery).toHaveTextContent('USD');
-    expect(delivery).toHaveTextContent('8,000,000');
-    expect(delivery.querySelector('a[href="/projects?filter=Ongoing"]')).toBeNull();
-    expect(screen.getByRole('link', { name: 'Negotiation' })).toHaveAttribute('href', '/sales?status=Negotiation');
+    const tile = screen.getByTestId('kpi-total-contract-value');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-2: "Total contract value" vs copy says "active" not "active + closed-out"', () => {
+    renderExec();
+    const tile = screen.getByTestId('kpi-total-contract-value');
+    expect(tile).not.toHaveTextContent('active + closed-out');
+    expect(tile).toHaveTextContent(/active/i);
+  });
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-3: "Total project spend" tile drills to /projects?filter=Ongoing', () => {
+    renderExec();
+    const tile = screen.getByTestId('kpi-total-spend');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-4: "Pipeline (weighted)" tile drills to /sales', () => {
+    renderExec();
+    const tile = screen.getByTestId('kpi-pipeline-weighted-value');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/sales');
+  });
+
+  it('AC-UX-017: contracted revenue separates contract remainder and billed-work margin without a misleading drill link', () => {
+    renderExec();
+    const tile = screen.getByTestId('kpi-on-hand-margin');
+    expect(tile.tagName).toBe('DIV');
+    expect(tile).not.toHaveAttribute('href');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-EXEC-6: "Pipeline forecast margin" tile is NOT a link (OD-W5-C2-D)', () => {
+    renderExec();
+    const tile = screen.getByTestId('kpi-pipeline-projected-margin');
+    expect(tile.tagName).toBe('DIV');
+    expect(tile).not.toHaveAttribute('href');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-a11y: each drill tile has a non-empty aria-label (full sentence)', () => {
+    renderExec();
+    for (const testId of ['kpi-total-contract-value', 'kpi-total-spend', 'kpi-pipeline-weighted-value']) {
+      const tile = screen.getByTestId(testId);
+      const label = within(tile).getByRole('link').getAttribute('aria-label');
+      expect(label, `${testId} should have aria-label`).toBeTruthy();
+      expect(label!.length, `${testId} aria-label should be a full sentence`).toBeGreaterThan(10);
+    }
   });
 });
 
@@ -128,9 +167,37 @@ const renderFinance = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Finance dashboard KPI drills', () => {
-  it('AC-806-FIN-PAY-001: invoice case rows open the canonical procurement record', () => {
-    const { container } = renderFinance();
-    expect(container.querySelector('a[href="/procurement/pr1"]')).toBeInTheDocument();
+  it('AC-IXD-DASH-W5-C2A-FIN-1: "Contracted revenue" tile drills to /projects?filter=Ongoing', () => {
+    renderFinance();
+    const tile = screen.getByTestId('kpi-revenue');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-FIN-2: "Recorded spending" tile drills to /projects?filter=Ongoing', () => {
+    renderFinance();
+    const tile = screen.getByTestId('kpi-spend');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-FIN-3: "Outstanding invoices" tile drills to /procurement?status=Vendor+Invoiced', () => {
+    renderFinance();
+    const tile = screen.getByTestId('kpi-outstanding');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/procurement?status=Vendor+Invoiced');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-FIN-3: "Outstanding invoices" tile has a descriptive linkLabel', () => {
+    renderFinance();
+    const tile = screen.getByTestId('kpi-outstanding');
+    const label = within(tile).getByRole('link').getAttribute('aria-label');
+    expect(label).toBeTruthy();
+    expect(label!.toLowerCase()).toContain('vendor');
+  });
+
+  it('AC-UX-017: the margin-to-date tile is not a link that implies cash or profit finality', () => {
+    renderFinance();
+    const tile = screen.getByTestId('kpi-margin');
+    expect(tile.tagName).toBe('DIV');
+    expect(tile).not.toHaveAttribute('href');
   });
 });
 
@@ -157,11 +224,30 @@ const renderPM = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — PM dashboard KPI drills', () => {
-  it('AC-806-PM-WORKLIST-001: project identity opens its assigned project record', () => {
-    const { container } = renderPM();
-    expect(screen.getByRole('link', { name: 'My Project A' })).toHaveAttribute('href', '/projects/p1');
-    expect(screen.getByRole('link', { name: 'My Project B' })).toHaveAttribute('href', '/projects/p2');
-    expect(container.querySelector('a[href="/projects?filter=at-risk"]')).toBeInTheDocument();
+  it('AC-IXD-DASH-W5-C2A-PM-1: "My projects" tile drills to /projects?filter=My+Projects', () => {
+    renderPM();
+    const tile = screen.getByTestId('kpi-my-projects');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-PM-2: "My contract value" tile drills to /projects?filter=My+Projects', () => {
+    renderPM();
+    const tile = screen.getByTestId('kpi-my-contract-value');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=My+Projects');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" tile drills to /projects?filter=at-risk', () => {
+    renderPM();
+    const tile = screen.getByTestId('kpi-at-risk');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/projects?filter=at-risk');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-PM-3: "At risk" tile has a descriptive linkLabel', () => {
+    renderPM();
+    const tile = screen.getByTestId('kpi-at-risk');
+    const label = within(tile).getByRole('link').getAttribute('aria-label');
+    expect(label).toBeTruthy();
+    expect(label!.toLowerCase()).toContain('risk');
   });
 });
 
@@ -191,9 +277,24 @@ const renderEngineer = () =>
   );
 
 describe('AC-IXD-DASH-W5-C2A — Engineer dashboard KPI drills', () => {
-  it('AC-806-ENG-WEEK-001: the dated weekly summary keeps the Log hours destination', () => {
+  it('AC-IXD-DASH-W5-C2A-ENG-1: "Hours this week" tile drills to /timesheets', () => {
     renderEngineer();
-    expect(screen.getByTestId('engineer-week-summary')).toHaveTextContent('This week');
-    expect(screen.getByRole('link', { name: "Log this week's hours" })).toHaveAttribute('href', '/timesheets');
+    const tile = screen.getByTestId('kpi-hours-week');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-ENG-2: "Timesheet status" tile drills to /timesheets', () => {
+    renderEngineer();
+    const tile = screen.getByTestId('kpi-timesheet-status');
+    expect(within(tile).getByRole('link')).toHaveAttribute('href', '/timesheets');
+  });
+
+  it('AC-IXD-DASH-W5-C2A-ENG-3: drill tiles have descriptive aria-labels', () => {
+    renderEngineer();
+    for (const testId of ['kpi-hours-week', 'kpi-timesheet-status']) {
+      const tile = screen.getByTestId(testId);
+      const label = within(tile).getByRole('link').getAttribute('aria-label');
+      expect(label, `${testId} should have aria-label`).toBeTruthy();
+    }
   });
 });
