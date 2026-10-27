@@ -1941,8 +1941,6 @@
       "markAsPaid": "Tandai Lunas",
       "markVendorInvoiced": "Tandai invoice diterima",
       "reject": "Tolak",
-      "requestVendorQuotes": "Minta penawaran vendor",
-      "rework": "Revisi (kembali ke Draf)",
       "selectQuote": "Bandingkan dan pilih penawaran",
       "submitRequest": "Ajukan permintaan"
     },
@@ -1975,7 +1973,6 @@
     "savePayment": "Simpan pembayaran",
     "paymentRecorded": "Pembayaran dicatat",
     "captureRecorded": "{{label}} dicatat",
-    "approvalNotes": "Catatan persetujuan",
     "backToProcurement": "Pengadaan",
     "status": "Status",
     "dateLabel": "Tanggal",
@@ -2011,38 +2008,15 @@
       "notYetSelected": "Belum dipilih",
       "pending": "Menunggu",
       "project": "Proyek",
-      "requestedBy": "Diminta oleh",
-      "vendor": "Vendor"
+      "requestedBy": "Diminta oleh"
     },
-    "editHeader": "Edit",
     "error": {
       "sub": "Terjadi kesalahan saat mengambil detail pengadaan.",
       "title": "Gagal memuat pengadaan"
     },
-    "lifecycleLabel": "Siklus pengadaan",
-    "meta": {
-      "requestedBy": "diminta oleh"
-    },
-    "rejectionNotes": "Catatan penolakan",
-    "tabs": {
-      "documents": "Dokumen",
-      "lineItems": "Rincian item",
-      "overview": "Ringkasan",
-      "vendorQuotes": "Penawaran vendor",
-      "history": "Riwayat"
-    },
     "tabsLabel": "Bagian pengadaan",
     "quotes": {
       "emptyTitle": "Belum ada penawaran tercatat. Tambahkan penawaran vendor untuk membandingkannya."
-    },
-    "tile": {
-      "goodsReceived": "Barang diterima",
-      "poCommitted": "Komitmen PO",
-      "prValue": "Nilai PR",
-      "receiptOne": "penerimaan",
-      "receiptOther": "penerimaan",
-      "selectedFallback": "dipilih",
-      "selectedQuote": "Penawaran terpilih"
     },
     "toast": {
       "grRecorded": "Penerimaan barang dicatat",

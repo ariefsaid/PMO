@@ -1,5 +1,5 @@
 import { projectDisplayName } from '@/src/lib/projectDisplayName';
-import React, { useLayoutEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -11,7 +11,6 @@ import {
   Button,
   Combobox,
   StatusPill,
-  LifecycleStepper,
   ListState,
   Icon,
   ConfirmDialog,
@@ -21,14 +20,16 @@ import {
   useToast,
   ProjectNameLink,
   CompanyNameLink,
-  type StatTile,
   type TabItem,
 } from '@/src/components/ui';
 import { BackBar } from '@/src/components/shell';
-import { ProcurementOverviewTab, type DetailRow } from './procurement/ProcurementOverviewTab';
+import type { DetailRow } from './procurement/ProcurementOverviewTab';
 import { useProcurementDetail, useProcurementMutations } from '@/src/hooks/useProcurementDetail';
 import { useProcurementCrudMutations } from '@/src/hooks/useProcurementCrud';
+import { useProcurementRecordMutations } from '@/src/hooks/useProcurementRecords';
+import { useErpOrphans } from '@/src/hooks/useErpPurchases';
 import { useErpItemOptions } from '@/src/hooks/useErpItemOptions';
+import { useProject } from '@/src/hooks/useProjects';
 import { useVendorOptions } from '@/src/hooks/useFkOptions';
 import { useVendorWithholdingRegister, useVendorWithholdingSlipMutations } from '@/src/hooks/useVendorWithholdingSlips';
 import { useEffectiveRole } from '@/src/auth/impersonation';
@@ -58,7 +59,6 @@ import {
   type VendorInvoiceCapture,
 } from './procurement/ProcurementDecisionZone';
 import { buildLedgerRows, type LedgerRow } from '@/src/lib/db/procurementLedger';
-import { buildProgressionTimeline } from '@/src/lib/db/procurementHistory';
 import {
   isLegalTransition,
   canCancel,
@@ -72,14 +72,13 @@ import type { ErpVendorTaxAmounts, PphType } from '@/src/lib/vendorWithholding';
 import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { RecordHistory } from '@/src/components/history/RecordHistory';
-import {
-  lifecycleSteps,
-  visibleLifecycleSteps,
-  pillVariantForStatus,
-  stageLabelForStatus,
-  selectedQuotation,
-  toastStateLabel,
-} from '../components/procurement';
+import { RecordCaptureForm, type CreateRecordInput, type RecordKind } from './procurement/RecordCaptureForm';
+import { LinkErpDocumentsDialog } from './procurement/LinkErpDocumentsDialog';
+import { DecisionSupportPanel } from './procurement/DecisionSupportPanel';
+import { ProcurementBudgetSignal, ProcurementStageTracker, ProcurementMoneySummary, ProcurementTimeline } from './procurement/detail/ProcurementDetailPanels';
+import type { ErpPurchaseRow } from '@/src/lib/repositories/erpPurchases';
+import { pillVariantForStatus, stageLabelForStatus, selectedQuotation, toastStateLabel } from '../components/procurement';
+import { stageForStatus } from './procurement/blocks/stage';
 
 // ---------------------------------------------------------------------------
 // Role gates for cosmetic display (FR-PROC-006, OD-PROC-1 matrix, AC-805).
@@ -99,7 +98,6 @@ const RECEIPT_ROLES = new Set(['Project Manager', 'Admin']); // requester also a
 const LEDGER_KIND = {
   PR: 'purchase_request', RFQ: 'rfq', Quote: 'quotation', PO: 'purchase_order', GR: 'goods_receipt', Invoice: 'vendor_invoice', Payment: 'payment',
 } as const;
-const REQUEST_STAGE_STATUSES: ReadonlySet<string> = new Set(['Requested', 'Approved', 'Vendor Quoted', 'Quote Selected']);
 const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 
 // ---------------------------------------------------------------------------
@@ -107,11 +105,12 @@ const INVOICE_PAY_ROLES = new Set(['Finance', 'Admin']);
 // Overview (status-at-a-glance: stepper above + the Overview bento). An absent/unknown
 // :tab defaults to Overview and is role-invariant (CW-7); an explicit :tab always wins.
 // ---------------------------------------------------------------------------
-type ProcTab = 'overview' | 'items' | 'documents' | 'quotes' | 'history';
-const PROC_TAB_VALUES: ProcTab[] = ['overview', 'items', 'documents', 'quotes', 'history'];
+type ProcTab = 'timeline' | 'items' | 'quotes' | 'files' | 'details';
+const PROC_TAB_VALUES: ProcTab[] = ['timeline', 'items', 'quotes', 'files', 'details'];
 function tabFromParam(param: string | undefined): ProcTab {
+  if (param === 'overview' || param === 'documents' || param === 'history') return 'timeline';
   if (param && (PROC_TAB_VALUES as string[]).includes(param)) return param as ProcTab;
-  return 'overview';
+  return 'timeline';
 }
 
 type ActionVariant = 'primary' | 'success' | 'destructive' | 'outline';
@@ -210,7 +209,7 @@ function allowedActions(
 
   // Rejected → Draft: requester rework (FR-PROC-007)
   if (legal('Draft') && isRequester) {
-    actions.push({ to: 'Draft', label: t('procurementDetail.action.rework', 'Rework (Back to Draft)'), variant: 'outline' });
+    actions.push({ to: 'Draft', label: t('procurementRecord:action.rework', 'Rework'), variant: 'outline' });
   }
 
   // Approved → Vendor Quoted / Ordered (skip): PM/Finance/Admin (FR-PROC-008)
@@ -219,7 +218,7 @@ function allowedActions(
   // Purchase Order" is a valid skip-to-PO path but is demoted to `outline` so only
   // ONE blue appears per stage (DESIGN.md One-Blue Rule). BOTH remain clickable.
   if (legal('Vendor Quoted') && canSource(role)) {
-    actions.push({ to: 'Vendor Quoted', label: t('procurementDetail.action.requestVendorQuotes', 'Request Vendor Quotes'), variant: 'primary' });
+    actions.push({ to: 'Vendor Quoted', label: t('procurementRecord:action.requestQuotes', 'Request quotations'), variant: 'primary' });
   }
   if (legal('Ordered') && canSource(role) && status === 'Approved') {
     // outline (not primary) — see D7 note above
@@ -318,10 +317,13 @@ const ProcurementDetails: React.FC = () => {
   const targetInvoiceId = bupotId ? bupotParams.get('bupotBill') : null;
 
   const detailQuery = useProcurementDetail(procurementId);
-  const linkedDocs = useLinkedErpDocuments(procurementId).data;
+  const projectScopeQuery = useProject(realRole === 'Project Manager' ? detailQuery.data?.project_id ?? undefined : undefined);
+  const linkedErpQuery = useLinkedErpDocuments(procurementId);
+  const linkedDocs = linkedErpQuery.data ?? [];
   const gates = useProcurementGates().data;
   const mutations = useProcurementMutations(procurementId ?? '');
   const crud = useProcurementCrudMutations(procurementId ?? '');
+  const recordMutations = useProcurementRecordMutations(procurementId ?? '');
   const erpItems = useErpItemOptions('purchase');
   const [recordSlipInvoice, setRecordSlipInvoice] = useState<ProcurementDetail['invoices'][number] | null>(null);
   const [slipHistoryInvoiceId, setSlipHistoryInvoiceId] = useState<string | null>(null);
@@ -351,6 +353,12 @@ const ProcurementDetails: React.FC = () => {
   const [notesInput, setNotesInput] = useState('');
   const [showCreateGR, setShowCreateGR] = useState(false);
   const [showCreateVI, setShowCreateVI] = useState(false);
+  const [captureKind, setCaptureKind] = useState<RecordKind | null>(null);
+  const [recordMenuOpen, setRecordMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(tabParam === 'history');
+  const quoteAutoOpen = useRef(false);
   // CW-3a: the header Edit affordance (RecordHeader action zone) toggles the inline
   // header-edit panel. Procurement's role-allowed header action set is Edit only —
   // there is no archive/delete (Cancel is a lifecycle transition, in the action zone).
@@ -363,6 +371,7 @@ const ProcurementDetails: React.FC = () => {
   // Confirm-before-write (owner rule): a transition action / GR / VI is staged
   // here and only commits when the ConfirmDialog's Confirm is pressed.
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const erpOrphanQuery = useErpOrphans(undefined, { enabled: linkDialogOpen });
 
   // FR-AXP-021 (Track C): publish the loaded record to the live agent context so a
   // follow-up like "summarize this" grounds to the viewed procurement case —
@@ -375,9 +384,35 @@ const ProcurementDetails: React.FC = () => {
   const { setEntity } = useAgentContext();
   useLayoutEffect(() => {
     if (!detailQuery.data) return;
+    if (realRole === 'Engineer' && detailQuery.data.requested_by_id !== currentUser?.id) return;
+    if (realRole === 'Project Manager' && (projectScopeQuery.isPending || projectScopeQuery.isError || projectScopeQuery.data?.project_manager_id !== currentUser?.id)) return;
     setEntity({ type: 'procurement_case', id: detailQuery.data.id, label: detailQuery.data.title });
     return () => setEntity(undefined);
-  }, [detailQuery.data, setEntity]);
+  }, [detailQuery.data, setEntity, realRole, currentUser?.id, projectScopeQuery.data, projectScopeQuery.isPending, projectScopeQuery.isError]);
+
+  // Arrival capture links are emitted by the procurement creation flow. Consume the
+  // query once, open the existing record capture, then keep unrelated query state.
+  useEffect(() => {
+    if (!detailQuery.data) return;
+    const params = new URLSearchParams(location.search);
+    const requested = params.get('record');
+    if (!requested) return;
+    let nextPath = location.pathname;
+    if (requested === 'receipt') setShowCreateGR(true);
+    else if (requested === 'invoice') setShowVICapture(true);
+    else if (requested === 'po') setCaptureKind('purchase_order');
+    else if (requested === 'payment') setCaptureKind('payment');
+    else if (requested === 'quotation') {
+      quoteAutoOpen.current = true;
+      nextPath = `/procurement/${procurementId}/quotes`;
+    }
+    params.delete('record');
+    const query = params.toString();
+    navigate(`${nextPath}${query ? `?${query}` : ''}${location.hash}`, {
+      replace: true,
+      ...(requested === 'quotation' ? { state: withTabSwitchNavState(location.state) } : {}),
+    });
+  }, [detailQuery.data, location.hash, location.pathname, location.search, location.state, navigate, procurementId]);
 
   // Back to the Procurement index (AC-NAV-007/AC-LRC-005): `returnToList` navigates to the
   // captured Procurement list URL when the record was opened from a narrowed list, and falls
@@ -397,6 +432,19 @@ const ProcurementDetails: React.FC = () => {
       replace: true,
       state: withTabSwitchNavState(location.state),
     });
+  useEffect(() => {
+    if (!tabParam || !['overview', 'documents', 'history'].includes(tabParam)) return;
+    if (tabParam === 'history') setHistoryOpen(true);
+    navigate(`/procurement/${procurementId}/timeline${location.search}`, {
+      replace: true,
+      state: withTabSwitchNavState(location.state),
+    });
+  }, [tabParam, procurementId, location.search, location.state, navigate]);
+  useEffect(() => {
+    if (!quoteAutoOpen.current || tabParam !== 'quotes') return;
+    document.querySelector<HTMLButtonElement>('[data-testid="add-quotation"]')?.click();
+    quoteAutoOpen.current = false;
+  }, [tabParam]);
 
   // ── Loading (AC-804, NFR-PROC-UI-001) ────────────────────────────────────
   if (detailQuery.isPending) {
@@ -462,6 +510,24 @@ const ProcurementDetails: React.FC = () => {
 
   const p: ProcurementDetail = detailQuery.data;
   const role = realRole ?? '';
+  const managerId = projectScopeQuery.data?.project_manager_id;
+  if (role === 'Project Manager' && p.project_id && projectScopeQuery.isPending) {
+    return <>
+      <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
+      <div data-testid="procurement-loading"><ListState variant="loading" rows={6} /></div>
+    </>;
+  }
+  const recordInScope = role === 'Engineer'
+    ? p.requested_by_id === currentUser?.id
+    : role === 'Project Manager'
+      ? Boolean(p.project_id && !projectScopeQuery.isError && projectScopeQuery.data != null && managerId === currentUser?.id)
+      : true;
+  if (!recordInScope) {
+    return <>
+      <div data-testid="mobile-back-bar" className="hidden max-[920px]:block"><BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} /></div>
+      <div data-testid="procurement-no-access"><ListState variant="empty" icon="lock" title={t('procurementDetail.accessDenied.title', "You don't have access to this record")} sub={t('procurementDetail.accessDenied.sub', "This procurement request either doesn't exist or isn't visible to your role. If you raised it, open it from your own requests.")} /></div>
+    </>;
+  }
   const isRequester = p.requested_by_id === currentUser?.id;
   // SoD-b: a user cannot pay a request they themselves approved.
   const isApprover = !!currentUser?.id && p.approved_by_id === currentUser.id;
@@ -474,6 +540,51 @@ const ProcurementDetails: React.FC = () => {
       : null;
   const hasValue = purchaseHasValue(p);
   const actions = sortActions(allowedActions(p.status, role, isRequester, isApprover, t, routeAllows, (p.payments?.length ?? 0) > 0, hasValue));
+  const actionFor = (to: ProcurementStatus) => actions.find((action) => action.to === to);
+  const transitionMainAction = p.status === 'Draft'
+    ? actionFor('Requested')
+    : p.status === 'Requested'
+      ? actionFor('Approved')
+      : p.status === 'Approved'
+        ? actionFor('Ordered') ?? actionFor('Vendor Quoted')
+        : p.status === 'Quote Selected'
+          ? actionFor('Ordered')
+        : p.status === 'Rejected'
+          ? actionFor('Draft')
+        : p.status === 'Vendor Quoted'
+          ? actionFor('Quote Selected')
+          : p.status === 'Ordered'
+            ? actionFor('Received')
+            : p.status === 'Received'
+              ? actionFor('Vendor Invoiced')
+              : p.status === 'Vendor Invoiced'
+                ? actionFor('Paid')
+                : undefined;
+  const mainAction = transitionMainAction ? {
+    ...transitionMainAction,
+    label: p.status === 'Draft' ? t('procurementRecord:action.submit', 'Submit for approval')
+      : p.status === 'Approved' && transitionMainAction.to === 'Ordered' ? t('procurementRecord:action.recordOrder', 'Record order')
+        : p.status === 'Quote Selected' && transitionMainAction.to === 'Ordered' ? t('procurementRecord:action.recordOrder', 'Record order')
+        : p.status === 'Vendor Quoted' ? t('procurementRecord:action.chooseQuote', 'Choose quote')
+          : p.status === 'Rejected' ? t('procurementRecord:action.rework', 'Rework')
+          : p.status === 'Ordered' ? t('procurementRecord:action.recordReceipt', 'Record receipt')
+            : p.status === 'Received' ? t('procurementRecord:action.recordInvoice', 'Record supplier invoice')
+              : p.status === 'Vendor Invoiced' ? t('procurementRecord:action.recordPayment', 'Record payment')
+                : transitionMainAction.label,
+  } : undefined;
+  const returnAction = p.status === 'Requested' ? actionFor('Rejected') : undefined;
+  const secondaryTransitionActions = actions.filter((action) => action.to !== transitionMainAction?.to && action.to !== 'Rejected' && action.to !== 'Cancelled');
+  const isEngineer = role === 'Engineer';
+  const approverLimitLine = p.status === 'Requested' && !isRequester && routeAllows && p.approvalRoute
+    ? p.approvalRoute.reason === 'within_budget'
+      ? t('procurementRecord:approval.withinLimit', 'Within your limit')
+      : t('procurementRecord:approval.goesTo', 'Goes to {{name}}', { name: p.approvalRoute.approvers.map((approver) => approver.fullName).join(' or ') })
+    : null;
+  const waitingNote = p.status === 'Requested' && isRequester
+    ? t('procurementRecord:waiting.approval', 'Waiting for approval')
+    : p.status === 'Vendor Invoiced' && !actionFor('Paid')
+      ? t('procurementRecord:waiting.payment', 'Payment: waiting for Finance')
+      : null;
   // AC-IXD-PROC-004 (PROC-004): the chosen quote that backs the "Selected quote" tile + the
   // QuotationsSection row pill. Centralized in components/procurement.ts so the binding holds
   // from the `Quote Selected` state onward through Paid — preferring the RPC's is_selected flag,
@@ -511,6 +622,7 @@ const ProcurementDetails: React.FC = () => {
     && realRole != null
     && ['Admin', 'Executive', 'Project Manager', 'Finance'].includes(realRole)
     && may('edit', 'procurement');
+  const canLinkAccounting = role === 'Admin' || role === 'Finance';
   const currentUserId = currentUser?.id ?? null;
 
 
@@ -540,13 +652,15 @@ const ProcurementDetails: React.FC = () => {
       onApprove={approveHigherAmount}
     />
   ) : null;
-  const showNotes = actions.some((a) => a.to === 'Approved' || a.to === 'Rejected');
   // C3: the one line saying why "Mark as Paid" is absent — only to someone who would otherwise be offered it.
   const paidNeedsValue = !hasValue && INVOICE_PAY_ROLES.has(role) && !isApprover
     && ['Draft', 'Approved', 'Quote Selected', 'Ordered', 'Received', 'Vendor Invoiced'].includes(p.status)
     && ((p.payments?.length ?? 0) > 0 || p.status === 'Vendor Invoiced');
   const gateMsg = sodGateMessage(p, role, isRequester)
     ?? (paidNeedsValue ? t('procurement:detail.paidNeedsValue', 'Add a line item or a document with an amount before marking this paid.') : null);
+  const decisionContextNote = gateMsg ?? (p.status === 'Requested' && !isRequester && actionFor('Approved')
+    ? t('procurementRecord:sod.approverHint', 'You may approve or reject this request. The requester cannot self-approve — separation of duties requires a different reviewer.')
+    : null);
   // AC-IXD-PROC-005: a create affordance disappears once its stage has passed.
   // The GR form is offered only while goods are being received (Ordered |
   // Received); the VI form only while the request is at Vendor Invoiced. Neither
@@ -805,88 +919,13 @@ const ProcurementDetails: React.FC = () => {
     mutations.createInvoice.isPending ||
     mutations.captureVendorInvoice.isPending;
 
-  // ── Stat tiles (sparse + honest — I2/I3 design-review fixes) ───────────────
-  // I3: only render a tile when its value is real (not a placeholder like
-  //     "Pending / None yet / no PO yet / awaiting delivery"). Early/Draft cases
-  //     had 4 placeholder tiles that re-introduced the empty-state noise the
-  //     revamp removed. Build the tile array conditionally then pass the live set.
-  // I2: on terminal states (Paid / Cancelled) never show "awaiting delivery" —
-  //     derive the sub-text from actual record state; omit the tile if no receipt
-  //     exists rather than asserting a falsehood.
-  const statTilesRaw: (StatTile | null)[] = [
-    // PR value — always shown (every procurement has a total_value)
-    {
-      label: t('procurementDetail.tile.prValue', 'PR value'),
-      value: formatCurrency(Number(p.total_value), p.currency),
-      sub: p.project ? projectDisplayName(p.project) : undefined,
-    },
-    // Selected quote — only when a quote is committed (Quote Selected onward).
-    // AC-IXD-PROC-004: the chosen quotation tile is bound through to Paid.
-    // PRD-1 (AC-JR-W3B-E1): vendor name is a CompanyNameLink.
-    selectedQuote
-      ? {
-          label: t('procurementDetail.tile.selectedQuote', 'Selected quote'),
-          value: formatCurrency(Number(selectedQuote.total_amount), selectedQuote.currency),
-          sub: (
-            <CompanyNameLink
-              companyId={p.vendor_id}
-              name={p.vendor?.name ?? selectedQuote.vq_number ?? t('procurementDetail.tile.selectedFallback', 'selected')}
-              className="text-[11px]"
-            />
-          ),
-        }
-      : null,
-    // PO committed — only when a purchase_order record exists.
-    // I1 companion: we derive existence from the record table, not the denormalized
-    // p.po_number header column (which may be set before a PO record is captured).
-    p.purchase_orders && p.purchase_orders.length > 0
-      ? {
-          label: t('procurementDetail.tile.poCommitted', 'PO committed'),
-          // Use the PO record's amount if available, else fall back to total_value —
-          // and its currency alongside it (PO ?? parent PR, FR-L10N-020).
-          value: formatCurrency(
-            Number(
-              (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).amount ??
-                p.total_value,
-            ),
-            (p.purchase_orders[0] as { amount?: number | null; currency?: string | null }).currency ??
-              p.currency,
-          ),
-          sub: p.vendor?.name ? (
-            // PRD-1 (AC-JR-W3B-E1)
-            <CompanyNameLink
-              companyId={p.vendor_id}
-              name={p.vendor.name}
-              className="text-[11px]"
-            />
-          ) : undefined,
-        }
-      : null,
-    // Goods received — only when at least one receipt exists.
-    // I2: on terminal states, derive sub from actual receipt status (not "awaiting
-    // delivery"). If no receipt exists on a terminal case, omit the tile entirely.
-    p.receipts.length > 0
-      ? {
-          label: t('procurementDetail.tile.goodsReceived', 'Goods received'),
-          value: `${p.receipts.length} ${
-            p.receipts.length > 1
-              ? t('procurementDetail.tile.receiptOther', 'receipts')
-              : t('procurementDetail.tile.receiptOne', 'receipt')
-          }`,
-          // Derive from actual receipt status — never assert "awaiting delivery"
-          // on a terminal case (Paid/Cancelled) where goods are already settled.
-          sub: p.receipts[p.receipts.length - 1].status,
-        }
-      : null,
-  ];
-  const stats = statTilesRaw.filter((t): t is StatTile => t !== null);
-
   // The separator goes BETWEEN present parts only — a purchase with no request number (e.g. one created from an ERPNext
   // document) must not start with a stray "·".
   const meta = [
     p.code ? <span key="code" className="font-mono">{p.code}</span> : null,
     p.project?.name ? <ProjectNameLink key="proj" projectId={p.project_id} name={projectDisplayName(p.project)} legalName={p.project.name} /> : null,
-    p.requested_by?.full_name ? <span key="req">{t('procurementDetail.meta.requestedBy', 'requested by')} {p.requested_by.full_name}</span> : null,
+    p.vendor?.name ? <CompanyNameLink key="supplier" companyId={p.vendor_id} name={p.vendor.name} /> : <span key="supplier-missing">{t('procurementRecord:status.supplierNotChosen', 'Supplier not chosen yet')}</span>,
+    p.requested_by?.full_name ? <span key="req" className="inline-flex items-center gap-1.5"><span aria-hidden="true" className="grid size-5 place-items-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">{p.requested_by.full_name.trim().slice(0, 1).toUpperCase()}</span><span>{t('procurementRecord:meta.raisedBy', 'Raised by')} {p.requested_by.full_name}</span></span> : null,
   ].filter((part): part is React.ReactElement => part !== null)
     .map((part, i) => <span key={String(part.key)}>{i > 0 && ' · '}{part}</span>);
 
@@ -902,7 +941,7 @@ const ProcurementDetails: React.FC = () => {
       ),
     },
     {
-      label: t('procurementDetail.detail.vendor', 'Vendor'),
+      label: t('procurementRecord:details.supplier', 'Supplier'),
       value: p.vendor?.name ? (
         <CompanyNameLink companyId={p.vendor_id} name={p.vendor.name} />
       ) : (
@@ -923,26 +962,21 @@ const ProcurementDetails: React.FC = () => {
         <span className="text-muted-foreground">{t('procurementDetail.detail.pending', 'Pending')}</span>
       ),
     },
+    { label: t('procurementRecord:details.budgetCategory', 'Budget category'), value: p.budget_category || '—' },
+    {
+      label: t('procurementRecord:details.accountingStatus', 'Accounting-system status'),
+      value: `${p.purchase_orders.length} purchase orders · ${linkedDocs.length} documents linked`,
+    },
   ];
 
-  // Progression-history events — transition-centric merge (buildProgressionTimeline):
-  // transitions are the spine; each matching record is folded in as a docRef annotation
-  // rather than a separate row. Results in ~one row per lifecycle event (no duplication).
-  const historyEvents = buildProgressionTimeline(p, p.id);
-
-  // Tab bar (counts on the three non-Overview tabs). Documents count = the ledger
-  // row count (all 7 record types, one row each, as built by buildLedgerRows).
+  // Counts are derived from the loaded records; SharePoint references stay out.
   const ledgerRows = buildLedgerRows(p);
-  // The badge counts the ledger only. SharePoint links are listed separately on the tab and are not
-  // records, so they are neither counted here nor fetched until the Documents tab is opened (#1020 F8).
-  // The badge counts the purchase's own records plus the ERPNext documents linked to it. SharePoint links stay out of it:
-  // they are fetched only when this tab opens (#1020 F8).
-  const documentsCount = ledgerRows.length + (linkedDocs?.length ?? 0);
+  const documentsCount = ledgerRows.length + linkedDocs.length + p.statusEvents.length;
   // FR-PFE-038: a SharePoint link can be attached to any record of the purchase or a linked ERP document.
   const attachTypeName: Record<LedgerRow['type'], string> = {
     PR: t('procurement:documents.type.pr', 'Purchase request'), RFQ: t('procurement:documents.type.rfq', 'Quote request'),
     Quote: t('procurement:documents.type.quote', 'Quotation'), PO: t('procurement:documents.type.po', 'Purchase order'),
-    GR: t('procurement:documents.type.gr', 'Goods receipt'), Invoice: t('procurement:documents.type.invoice', 'Vendor invoice'),
+    GR: t('procurement:documents.type.gr', 'Goods receipt'), Invoice: t('procurement:documents.type.invoice', 'Supplier invoice'),
     Payment: t('procurement:documents.type.payment', 'Payment'),
   };
   // Labelled by type + number (never a raw id); a record with no number yet is just its type.
@@ -957,24 +991,82 @@ const ProcurementDetails: React.FC = () => {
     })),
   ];
   const procTabs: TabItem<ProcTab>[] = [
-    { value: 'overview', label: t('procurementDetail.tabs.overview', 'Overview') },
+    { value: 'timeline', label: t('procurementRecord:tabs.timeline', 'Timeline'), count: documentsCount || null },
     {
       value: 'items',
-      label: t('procurementDetail.tabs.lineItems', 'Line items'),
+      label: t('procurementRecord:tabs.items', 'Line items'),
       count: p.items.length || null,
     },
     {
-      value: 'documents',
-      label: t('procurementDetail.tabs.documents', 'Documents'),
-      count: documentsCount || null,
-    },
-    {
       value: 'quotes',
-      label: t('procurementDetail.tabs.vendorQuotes', 'Vendor quotes'),
+      label: t('procurementRecord:tabs.quotes', 'Quotations'),
       count: p.quotations.length || null,
     },
-    { value: 'history', label: t('procurementDetail.tabs.history', 'History') },
+    { value: 'files', label: t('procurementRecord:tabs.files', 'Files'), count: ledgerRows.reduce((sum, row) => sum + row.fileCount, 0) || null },
+    { value: 'details', label: t('procurementRecord:tabs.details', 'Details') },
   ];
+  const recordKinds = recordableFirstKinds({
+    canSource: canSource(role),
+    canReceive: isRequester || RECEIPT_ROLES.has(role),
+    canInvoicePay: INVOICE_PAY_ROLES.has(role),
+  });
+  const recordKindLabels: Record<RecordKind, string> = {
+    purchase_request: t('procurementRecord:record.purchaseRequest', 'Purchase request'),
+    rfq: t('procurementRecord:record.quoteRequest', 'Quote request'),
+    purchase_order: t('procurementRecord:record.purchaseOrder', 'Purchase order'),
+    goods_receipt: t('procurementRecord:record.receipt', 'Receipt'),
+    vendor_invoice: t('procurementRecord:record.supplierInvoice', 'Supplier invoice'),
+    payment: t('procurementRecord:record.payment', 'Payment'),
+  };
+  const beginCapture = (kind: RecordKind) => {
+    setRecordMenuOpen(false);
+    setCaptureKind(kind);
+  };
+  const createCapturedRecord = (input: CreateRecordInput) => {
+    if (captureKind === 'purchase_request') return recordMutations.createPurchaseRequest.mutateAsync(input as Parameters<typeof recordMutations.createPurchaseRequest.mutateAsync>[0]);
+    if (captureKind === 'rfq') return recordMutations.createRfq.mutateAsync(input as Parameters<typeof recordMutations.createRfq.mutateAsync>[0]);
+    if (captureKind === 'purchase_order') return recordMutations.createPurchaseOrder.mutateAsync(input as Parameters<typeof recordMutations.createPurchaseOrder.mutateAsync>[0]);
+    if (captureKind === 'payment') return recordMutations.createPayment.mutateAsync(input as Parameters<typeof recordMutations.createPayment.mutateAsync>[0]);
+    return Promise.resolve(undefined);
+  };
+  const busyCapturing = captureKind === 'purchase_request' ? recordMutations.createPurchaseRequest.isPending
+    : captureKind === 'rfq' ? recordMutations.createRfq.isPending
+      : captureKind === 'purchase_order' ? recordMutations.createPurchaseOrder.isPending
+        : captureKind === 'payment' ? recordMutations.createPayment.isPending
+          : captureKind === 'goods_receipt' ? mutations.createReceipt.isPending
+            : captureKind === 'vendor_invoice' ? mutations.createInvoice.isPending : false;
+  const clickMainAction = () => {
+    if (!mainAction) return;
+    if (mainAction.to === 'Received') {
+      setShowCreateGR(true);
+      return;
+    }
+    if (mainAction.to === 'Vendor Invoiced') {
+      setShowVICapture(true);
+      return;
+    }
+    onActionClick(transitionMainAction ?? mainAction);
+  };
+  const secondaryClick = () => {
+    if (returnAction) onActionClick({ ...returnAction, label: t('procurementRecord:action.return', 'Return'), variant: 'outline' });
+    else setTab('quotes');
+  };
+  const openQuotationCapture = () => {
+    if (tabParam === 'quotes') {
+      document.querySelector<HTMLButtonElement>('[data-testid="add-quotation"]')?.click();
+      return;
+    }
+    quoteAutoOpen.current = true;
+    setTab('quotes');
+  };
+  const exportCurrentProcurement = () => {
+    const csv = ['number,title,status,project,supplier', [p.code ?? '', p.title, p.status, p.project?.name ?? '', p.vendor?.name ?? ''].map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')].join('\n');
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    link.download = `${p.code ?? 'procurement'}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
 
   return (
     <div>
@@ -987,10 +1079,7 @@ const ProcurementDetails: React.FC = () => {
         <BackBar label={t('procurementDetail.backToProcurement', 'Procurement')} onBack={goBack} />
       </div>
 
-      {/* CW-3a: the ONE RecordHeader anatomy — icon + name + status pill + top-right
-          action zone (DESIGN.md §7). Procurement's role-allowed header action is Edit
-          (requester/Admin while Draft/Rejected); it has no archive/delete (Cancel is a
-          lifecycle transition, surfaced in the decision/action zone below). */}
+      {/* The record header carries the one current-stage action and document/menu actions. */}
       <RecordHeader
         name={p.title}
         iconColor={p.status === 'Paid' ? 'hsl(var(--success))' : 'hsl(var(--primary))'}
@@ -998,57 +1087,72 @@ const ProcurementDetails: React.FC = () => {
         status={
           <span data-testid="procurement-status-badge" data-status={p.status}>
             <StatusPill variant={pillVariantForStatus(p.status)}>
-              {stageLabelForStatus(p.status)}
+              {p.status === 'Requested' ? t('procurementRecord:status.waitingApproval', 'Waiting for approval')
+                : p.status === 'Vendor Invoiced' ? t('procurementRecord:status.invoicedNotPaid', 'Invoiced, not paid')
+                  : p.status === 'Vendor Quoted' ? t('procurementRecord:status.quotationReceived', 'Quotation received')
+                    : p.status === 'Quote Selected' ? t('procurementRecord:status.quoteChosen', 'Quote chosen')
+                      : p.status === 'Rejected' ? t('procurementRecord:status.returned', 'Returned')
+                        : stageLabelForStatus(p.status)}
             </StatusPill>
           </span>
         }
         meta={meta.length ? <span>{meta}</span> : undefined}
-        actions={
-          canEditHeader ? (
-            <Button
-              variant="outline"
-              size="sm"
-              data-testid="edit-header"
-              onClick={() => setHeaderEditOpen((open) => !open)}
-              aria-expanded={headerEditOpen}
-            >
-              {t('procurementDetail.editHeader', 'Edit')}
+        actions={<div className="flex flex-wrap items-center justify-end gap-2">
+          {waitingNote && <span className="hidden text-[12px] text-muted-foreground xl:inline">{waitingNote}</span>}
+          <div className="relative hidden sm:block">
+            <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
+              {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="down" className="size-3.5" />
             </Button>
-          ) : undefined
-        }
+            {recordMenuOpen && <div role="menu" aria-label={t('procurementRecord:recordMenu', 'Record another document')} className="absolute right-0 top-full z-30 mt-1 min-w-56 rounded-md border border-border bg-card p-1 shadow-lg">
+              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => beginCapture(kind)}>{recordKindLabels[kind]}</button>)}
+              {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setRecordMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
+              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setRecordMenuOpen(false); setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
+            </div>}
+          </div>
+          {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
+          {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementRecord:action.return', 'Return')}</Button>}
+          {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}
+          {mainAction && <Button variant="primary" size="sm" className="hidden sm:inline-flex" disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{mainAction.label}</Button>}
+          <div className="relative">
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
+            {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="absolute right-0 top-full z-30 mt-1 hidden min-w-48 rounded-md border border-border bg-card p-1 shadow-lg sm:block">
+              {canEditHeader && <button type="button" role="menuitem" data-testid="edit-header" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
+              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
+              {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
+              {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
+              {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent sm:hidden" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
+              {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
+              <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
+              {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
+              {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
+            </div>}
+          </div>
+        </div>}
       />
 
-      {/* Full lifecycle bar stepper (PR → VQ → PO → GR → VI → Paid) — the ONE stepper
-          (DESIGN.md §5; the numbered-circle node variant was retired in the Coherence Wave). */}
-      <Card className="mb-4">
-        <CardPad>
-          <LifecycleStepper
-            variant="bar"
-            steps={visibleLifecycleSteps(lifecycleSteps(p.status, {
-              // I1 (design-review): refs must come from ACTUAL record rows, not the
-              // denormalized header columns (p.pr_number / p.po_number). The header
-              // columns may be set even when no record exists in the ledger, causing
-              // the stepper to show a doc number that has no corresponding record in
-              // the Documents tab — a dishonest doorway. Derive each ref from the
-              // actual record arrays so the stepper can only show a ref when a record
-              // genuinely exists. GR and VI already used the record arrays.
-              pr_number: p.purchase_requests?.[0]?.pr_number ?? null,
-              vq_number: selectedQuote?.vq_number,
-              po_number: p.purchase_orders?.[0]?.po_number ?? null,
-              gr_number: p.receipts[0]?.gr_number,
-              vi_number: p.invoices[0]?.vi_number,
-            }), {
-              // The approval path (Requested → Approved → quoting) always began with a request, whether or not its record row is loaded.
-              pr: (p.purchase_requests?.length ?? 0) > 0 || REQUEST_STAGE_STATUSES.has(p.status),
-              vq: (p.quotations?.length ?? 0) > 0,
-              po: (p.purchase_orders?.length ?? 0) > 0,
-              gr: p.receipts.length > 0,
-              vi: p.invoices.length > 0,
-            })}
-            aria-label={t('procurementDetail.lifecycleLabel', 'Procurement lifecycle')}
-          />
-        </CardPad>
-      </Card>
+      {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive">{mutationError}</p>}
+      <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
+  <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
+    projectId={p.project_id}
+    totalValue={Number(p.total_value)}
+    status={p.status}
+    currency={p.currency}
+  />} />
+      {ceilingNotice && <div className="mt-2">{ceilingNotice}</div>}
+      {stageForStatus(p.status) === 'Request' && p.project_id && <DecisionSupportPanel
+        projectId={p.project_id}
+        totalValue={Number(p.total_value)}
+        projectName={p.project ? projectDisplayName(p.project) : null}
+        projectLegalName={p.project?.name}
+        status={p.status}
+        currency={p.currency}
+      />}
+      {approverLimitLine && <p className="mt-2 text-[12.5px] font-medium text-muted-foreground">{approverLimitLine}</p>}
+      {decisionContextNote && <p data-testid="sod-ready-hint" className="mb-3 text-[12.5px] text-muted-foreground">{decisionContextNote}</p>}
+      {mainAction?.to === 'Approved' && <label className="mb-4 mt-2 block max-w-xl text-[12px] font-medium text-muted-foreground">{t('procurementRecord:approval.note', 'Approval note (optional)')}
+        <textarea data-testid="procurement-notes-input" value={notesInput} onChange={(event) => setNotesInput(event.target.value)} rows={2} className="mt-1 block w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-[13px] text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" />
+      </label>}
+      {waitingNote && <p className="mb-3 text-[12.5px] text-muted-foreground sm:hidden">{waitingNote}</p>}
 
       {/* Draft-header edit (requester while Draft/Rejected) — opened from the header Edit action */}
       {canEditHeader && headerEditOpen && (
@@ -1073,9 +1177,7 @@ const ProcurementDetails: React.FC = () => {
         />
       )}
 
-      {/* ░░ TABBED RECORD SHELL — mirrors /projects/:id/:tab ░░
-          Default tab = Overview (the bento: stat-at-a-glance + budget + detail +
-          progression). The other tabs home the Line items / Documents / Vendor quotes. */}
+      {/* Deep-linkable detail sections */}
       <Tabs<ProcTab>
         items={procTabs}
         value={tab}
@@ -1090,21 +1192,14 @@ const ProcurementDetails: React.FC = () => {
         aria-labelledby={tabId('procurement-detail', tab)}
         data-testid={`procurement-tabpanel-${tab}`}
       >
-        {tab === 'overview' && (
-          <ProcurementOverviewTab
-            tiles={stats}
-            detailRows={detailRows}
-            events={historyEvents}
-            projectId={p.project_id}
-            projectName={p.project ? projectDisplayName(p.project) : null}
-            projectLegalName={p.project?.name ?? null}
-            totalValue={Number(p.total_value)}
-            status={p.status}
-            currency={p.currency}
-          />
-        )}
+        {tab === 'timeline' && <div className="space-y-4">
+          <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer={isEngineer} canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => setHistoryOpen((open) => !open)} />
+          {historyOpen && <Card data-testid="procurement-full-history"><CardHead actions={<Button variant="outline" size="sm" onClick={() => setHistoryOpen(false)}>{t('procurementRecord:close', 'Close')}</Button>}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</CardHead><CardPad><RecordHistory entityType="procurement" entityId={p.id} includeChildren /></CardPad></Card>}
+        </div>}
 
         {tab === 'items' && (
+          <div className="space-y-2">
+          <p className="text-[12.5px] text-muted-foreground">{p.items.length} {t('procurementRecord:items.countLabel', 'line items')}</p>
           <LineItemsSection
             erpItems={erpItems.connected ? erpItems : undefined}
             items={p.items}
@@ -1125,15 +1220,16 @@ const ProcurementDetails: React.FC = () => {
             }}
             currency={p.currency}
           />
+          </div>
         )}
 
         {/* ░░ Documents tab — Slice 2: ProcurementLedger (the single case ledger).
             All 7 record types, chronological, one row each. Filter chips: All /
             Financial / Has file. Capture affordance at bottom (LedgerCaptureRow).
             ProcurementRecordsSection / DocRow / ProcurementDocumentsSection removed. ░░ */}
-        {tab === 'documents' && (
+        {tab === 'files' && (
           <Card variant="bare">
-            <ProcurementLedger
+            {!isEngineer ? <ProcurementLedger
               detail={p}
               rows={ledgerRows}
               procurementId={p.id}
@@ -1168,7 +1264,7 @@ const ProcurementDetails: React.FC = () => {
               vendorId={p.vendor_id}
               itemsNet={itemsNetTotal(p.items)}
               gates={gates}
-            />
+            /> : <ProcurementTimeline procurement={p} ledgerRows={ledgerRows} linkedDocuments={linkedDocs} isEngineer canWriteFiles={canManageFiles} uploadedById={currentUserId} onFullHistory={() => { setHistoryOpen(true); setTab('timeline'); }} />}
             {vendorPickerOpen && canSetVendor && (
               <div role="dialog" aria-label={t('bupot.setVendor', 'Set vendor')} className="mt-3 flex flex-wrap items-end gap-3 rounded-md border border-border p-3">
                 <Combobox
@@ -1207,7 +1303,7 @@ const ProcurementDetails: React.FC = () => {
                 <Button variant="outline" size="sm" onClick={() => setVendorPickerOpen(false)}>{t('bupot.cancelSetVendor', 'Cancel')}</Button>
               </div>
             )}
-            <LinkedErpDocuments procurementId={p.id} />
+            {!isEngineer && <LinkedErpDocuments procurementId={p.id} />}
             <ProcurementMicrosoftReferences procurementId={p.id} requestNumber={p.pr_number} createdAt={p.created_at} targets={attachTargets} />
           </Card>
         )}
@@ -1218,9 +1314,27 @@ const ProcurementDetails: React.FC = () => {
             Reuses the existing selectQuote RPC + SoD/role gating unchanged. ░░ */}
         {/* #878: PR/RFQ/PO/payment are filed under their PROCUREMENT (0277), so the document
             children roll up here — the project reaches them on read through this procurement. */}
-        {tab === 'history' && <RecordHistory entityType="procurement" entityId={p.id} includeChildren />}
 
         {tab === 'quotes' && (
+          <>
+          {p.quotations.length > 0 && <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="quotation-comparison-cards">
+            {p.quotations.map((quote) => {
+              const chosen = selectedQuote?.id === quote.id;
+              const baseline = selectedQuote ? Number(selectedQuote.total_amount) : null;
+              const difference = baseline != null && !chosen ? Number(quote.total_amount) - baseline : null;
+              const percent = difference != null && baseline != null && baseline !== 0 ? (difference / baseline) * 100 : null;
+              const supplierName = vendorMap[quote.vendor_id] ?? (quote.vendor_id === p.vendor_id ? p.vendor?.name : null) ?? quote.vq_number ?? t('procurementRecord:details.supplier', 'Supplier');
+              return <article key={quote.id} className="rounded-md border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <h2 className="min-w-0 break-words text-[14px] font-semibold">{supplierName}</h2>
+                  {chosen && <StatusPill variant="won">{t('procurementRecord:quotes.chosen', 'Chosen')}</StatusPill>}
+                </div>
+                <p className="mt-3 text-[18px] font-semibold tabular-nums">{formatCurrency(Number(quote.total_amount), quote.currency)}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">{t('procurementRecord:quotes.validUntil', 'Valid until')}: {quote.valid_until ?? '—'}</p>
+                {difference != null && <p className="mt-2 text-[12px] text-muted-foreground">{t('procurementRecord:quotes.vsChosen', 'vs chosen')}: {difference > 0 ? '+' : ''}{formatCurrency(difference, quote.currency)}{percent == null ? '' : ` · ${percent > 0 ? '+' : ''}${percent.toFixed(1)}%`}</p>}
+              </article>;
+            })}
+          </div>}
           <VendorQuotesTab
             quotations={p.quotations}
             selectedId={selectedQuote?.id ?? null}
@@ -1260,21 +1374,41 @@ const ProcurementDetails: React.FC = () => {
               );
             }}
           />
+          </>
         )}
+        {tab === 'details' && <Card data-testid="procurement-detail-dl"><CardHead>{t('procurementRecord:tabs.details', 'Details')}</CardHead><CardPad>
+          <dl className="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2">
+            {detailRows.map((row) => <div key={row.label}><dt className="text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">{row.label}</dt><dd className="mt-0.5 text-[13.5px]">{row.value}</dd></div>)}
+          </dl>
+          {canEditHeader && <Button className="mt-4" variant="outline" onClick={() => setHeaderEditOpen(true)}>{t('procurementRecord:editDetails', 'Edit details')}</Button>}
+        </CardPad></Card>}
       </div>
 
-      {/* One responsive decision area follows the request value and financial evidence.
-          The same controls serve desktop and phone; no mirrored mobile approval button. */}
-      <ProcurementDecisionZone
+      {captureKind && <div className="mt-4" data-testid="procurement-record-capture">
+        <CardHead actions={<Button variant="outline" size="sm" onClick={() => setCaptureKind(null)}>{t('procurementRecord:close', 'Close')}</Button>}>{recordKindLabels[captureKind]}</CardHead>
+        <RecordCaptureForm
+          kind={captureKind}
+          onCreate={createCapturedRecord}
+          busy={busyCapturing}
+          invoices={p.invoices}
+          vendorId={p.vendor_id}
+          itemsNet={itemsNetTotal(p.items)}
+          currency={p.currency}
+          onStage={(staged) => { setMutationError(null); setPendingConfirm(staged); }}
+          onClose={() => setCaptureKind(null)}
+        />
+      </div>}
+
+      {(showVICapture || showCreateGR || showCreateVI) && <ProcurementDecisionZone
         p={p}
-        actions={actions}
+        actions={[]}
         gateMsg={gateMsg}
         routeNote={routeNote}
-        ceilingNotice={ceilingNotice}
+        ceilingNotice={null}
         isDraft={isDraft}
         isRequester={isRequester}
         isApprover={isApprover}
-        showNotes={showNotes}
+        showNotes={false}
         notesInput={notesInput}
         setNotesInput={setNotesInput}
         showVICapture={showVICapture}
@@ -1291,7 +1425,36 @@ const ProcurementDetails: React.FC = () => {
         mutationError={mutationError}
         onActionClick={onActionClick}
         mutations={mutations}
-      />
+      />}
+
+      {mainAction && <>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card p-3 shadow-[0_-2px_10px_hsl(var(--foreground)/0.06)] sm:hidden">
+          <div className="mx-auto flex max-w-3xl gap-2">
+            <Button variant="primary" className="min-h-11 flex-1" aria-label={t('procurementRecord:action.record', 'Record')} disabled={mainAction.to === 'Requested' && p.items.length === 0} onClick={clickMainAction}>{t('procurementRecord:action.record', 'Record')}</Button>
+            <Button variant="outline" className="min-h-11" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} aria-expanded={moreMenuOpen} onClick={() => setMoreMenuOpen((open) => !open)}>⋯</Button>
+          </div>
+          {moreMenuOpen && <div role="menu" aria-label={t('procurementRecord:moreActions', 'More procurement actions')} className="mx-auto mt-2 max-h-[55vh] max-w-3xl overflow-y-auto rounded-md border border-border bg-card p-1 shadow-lg">
+            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { secondaryClick(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.return', 'Return')}</button>}
+            {recordKinds.map((kind) => <button key={kind} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { beginCapture(kind); setMoreMenuOpen(false); }}>{recordKindLabels[kind]}</button>)}
+            {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setMoreMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
+            {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setLinkDialogOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
+            {canEditHeader && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHeaderEditOpen(true); setMoreMenuOpen(false); }}>{t('procurementRecord:editDetails', 'Edit details')}</button>}
+            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setHistoryOpen(true); setTab('timeline'); setMoreMenuOpen(false); }}>{t('procurementRecord:timeline.fullHistory', 'Full history')}</button>
+            {secondaryTransitionActions.map((action) => <button key={action.to} type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { onActionClick(action); setMoreMenuOpen(false); }}>{action.label}</button>)}
+            <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { exportCurrentProcurement(); setMoreMenuOpen(false); }}>{t('procurementRecord:export', 'Export')}</button>
+            {returnAction && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(returnAction); setMoreMenuOpen(false); }}>{t('procurementDetail.action.reject', 'Reject')}</button>}
+            {actionFor('Cancelled') && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] text-destructive hover:bg-accent" onClick={() => { onActionClick(actionFor('Cancelled')!); setMoreMenuOpen(false); }}>{t('procurementRecord:cancelProcurement', 'Cancel procurement')}</button>}
+          </div>}
+        </div>
+        <div aria-hidden="true" className="h-16 sm:hidden" />
+      </>}
+      {linkDialogOpen && <LinkErpDocumentsDialog
+        docs={(erpOrphanQuery.data ?? []) as ErpPurchaseRow[]}
+        projectId={p.project_id ?? undefined}
+        onClose={() => setLinkDialogOpen(false)}
+        onLinked={() => { setLinkDialogOpen(false); void detailQuery.refetch(); toast(t('procurementRecord:erpLinked', 'Accounting-system document linked'), undefined, 'success'); }}
+        onPartiallyLinked={(result) => { setLinkDialogOpen(false); void detailQuery.refetch(); toast(t('procurementRecord:erpLinked', 'Accounting-system document linked'), result.refused.join(' · '), 'warning'); }}
+      />}
 
       {recordSlipInvoice && p.vendor_id && <VendorWithholdingSlipRecordForm
         invoice={recordSlipInvoice} vendorId={p.vendor_id} vendorName={vendorMap[p.vendor_id]} onClose={() => setRecordSlipInvoice(null)}
@@ -1306,27 +1469,9 @@ const ProcurementDetails: React.FC = () => {
           const params = new URLSearchParams(location.search);
           params.set('bupot', slipId);
           params.set('bupotBill', invoiceId);
-          navigate(`/procurement/${encodeURIComponent(id)}/documents?${params.toString()}${location.hash}`);
+          navigate(`/procurement/${encodeURIComponent(id)}/timeline?${params.toString()}${location.hash}`);
         }}
       />}
-
-      {/* Approval / rejection notes */}
-      {p.approval_notes && (
-        <Card className="mt-4">
-          <CardHead>{t('procurementDetail.approvalNotes', 'Approval notes')}</CardHead>
-          <CardPad>
-            <p className="text-[13.5px]">{p.approval_notes}</p>
-          </CardPad>
-        </Card>
-      )}
-      {p.rejection_notes && (
-        <Card className="mt-4">
-          <CardHead>{t('procurementDetail.rejectionNotes', 'Rejection notes')}</CardHead>
-          <CardPad>
-            <p className="text-[13.5px] text-destructive">{p.rejection_notes}</p>
-          </CardPad>
-        </Card>
-      )}
 
       {/* P1-P4 — confirm-before-write. One dialog drives every staged mutation;
           forward steps + GR/VI are default-tone, Reject/Cancel are destructive. */}

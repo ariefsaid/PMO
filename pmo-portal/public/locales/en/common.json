@@ -1941,8 +1941,6 @@
       "markAsPaid": "Mark as Paid",
       "markVendorInvoiced": "Mark Vendor Invoiced",
       "reject": "Reject",
-      "requestVendorQuotes": "Request Vendor Quotes",
-      "rework": "Rework (Back to Draft)",
       "selectQuote": "Compare and select a quote",
       "submitRequest": "Submit Request"
     },
@@ -1975,7 +1973,6 @@
     "savePayment": "Save Payment",
     "paymentRecorded": "Payment recorded",
     "captureRecorded": "{{label}} recorded",
-    "approvalNotes": "Approval notes",
     "backToProcurement": "Procurement",
     "status": "Status",
     "dateLabel": "Date",
@@ -2011,10 +2008,8 @@
       "notYetSelected": "Not yet selected",
       "pending": "Pending",
       "project": "Project",
-      "requestedBy": "Requested by",
-      "vendor": "Vendor"
+      "requestedBy": "Requested by"
     },
-    "editHeader": "Edit",
     "error": {
       "sub": "Something went wrong fetching the procurement details.",
       "title": "Couldn't load procurement"
@@ -2024,30 +2019,9 @@
       "optional": "(optional)",
       "placeholder": "e.g. PRQ-0026100001"
     },
-    "lifecycleLabel": "Procurement lifecycle",
-    "meta": {
-      "requestedBy": "requested by"
-    },
-    "rejectionNotes": "Rejection notes",
-    "tabs": {
-      "documents": "Documents",
-      "lineItems": "Line items",
-      "overview": "Overview",
-      "vendorQuotes": "Vendor quotes",
-      "history": "History"
-    },
     "tabsLabel": "Procurement sections",
     "quotes": {
       "emptyTitle": "No quotes recorded. Add a vendor quote to compare bids."
-    },
-    "tile": {
-      "goodsReceived": "Goods received",
-      "poCommitted": "PO committed",
-      "prValue": "PR value",
-      "receiptOne": "receipt",
-      "receiptOther": "receipts",
-      "selectedFallback": "selected",
-      "selectedQuote": "Selected quote"
     },
     "toast": {
       "grRecorded": "Goods receipt recorded",
