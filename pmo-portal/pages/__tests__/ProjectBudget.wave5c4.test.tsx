@@ -65,6 +65,10 @@ vi.mock('@/src/hooks/useBudget', () => ({
 }));
 
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
+vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => ({ data: [], isPending: false, isError: false }) }));
+vi.mock('../project-detail/useProjectPosition', () => ({ useBudgetPosition: () => ({ isPending: false, isError: false, refetch: vi.fn(), hasBudget: true, canSeeActual: true, rows: [], unknown: 0 }) }));
+vi.mock('../project-detail/budget/BudgetErpNotice', () => ({ default: () => null }));
+vi.mock('@tanstack/react-query', () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock('@/src/auth/useAuth', () => ({
   useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' }, role: 'Project Manager' }),
 }));
@@ -78,12 +82,13 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 
 import ProjectBudget from '../ProjectBudget';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const renderPage = (projectId = 'p-1') =>
   render(
     <MemoryRouter>
       <ToastProvider>
-        <ProjectBudget projectId={projectId} />
+        <ProjectBudget projectId={projectId} project={{ id: projectId, currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
       </ToastProvider>
     </MemoryRouter>
   );
@@ -200,23 +205,20 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-IXD-BUDGET-W5-C4: Clone auto-opens new draft
+// AC-IXD-BUDGET-W5-C4: Update budget creates an editable Draft
 // ---------------------------------------------------------------------------
-describe('AC-IXD-BUDGET-W5-C4: clone-to-revise auto-opens new draft', () => {
-  it('after cloning, the returned new draft version id becomes the selected version', async () => {
+describe('AC-IXD-BUDGET-W5-C4: Update budget opens the new draft editor', () => {
+  it('cloning the active version refreshes the tab into the draft editing state', async () => {
     budgetState.data = 500000;
     // Start: only active; after clone resolves, new draft appears
     versionsState.data = [activeVersion];
 
     const { rerender } = renderPage();
 
-    // Verify active is selected initially (SUB-D: a lone version has no selector;
-    // the Active version's card is what is shown)
-    expect(screen.queryByRole('combobox', { name: /version/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Expand Materials details/i }));
     expect(screen.getByText('Steel')).toBeInTheDocument();
 
-    // Click "Clone to revise" — stages confirm
-    await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update budget' }));
     expect(mockClone).not.toHaveBeenCalled();
 
     // Confirm the clone
@@ -228,25 +230,25 @@ describe('AC-IXD-BUDGET-W5-C4: clone-to-revise auto-opens new draft', () => {
     rerender(
       <MemoryRouter>
         <ToastProvider>
-          <ProjectBudget projectId="p-1" />
+          <ProjectBudget projectId="p-1" project={{ id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
         </ToastProvider>
       </MemoryRouter>
     );
 
-    // The new draft should now be the selected version (auto-selected by returned id)
+    // The new draft is exposed for editing as soon as the versions query refreshes.
     await waitFor(() => {
-      const cb = screen.getByRole('combobox', { name: /version/i }) as HTMLSelectElement;
-      expect(cb.value).toBe('v-new-draft');
+      expect(screen.getByRole('region', { name: 'Proposed update' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Add line item/i })).toBeInTheDocument();
     });
   });
 
-  it('clone auto-opens draft: the selected version card shows the new draft', async () => {
+  it('the new draft remains discoverable in the Versions drawer', async () => {
     budgetState.data = 500000;
     versionsState.data = [activeVersion];
 
     const { rerender } = renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update budget' }));
     await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
 
     // After clone + query invalidation → new draft with "Version 1 (copy)" name
@@ -254,22 +256,21 @@ describe('AC-IXD-BUDGET-W5-C4: clone-to-revise auto-opens new draft', () => {
     rerender(
       <MemoryRouter>
         <ToastProvider>
-          <ProjectBudget projectId="p-1" />
+          <ProjectBudget projectId="p-1" project={{ id: 'p-1', currency: 'USD', tax_treatment: 'exclusive' } as unknown as ProjectWithRefs} />
         </ToastProvider>
       </MemoryRouter>
     );
 
-    await waitFor(() => {
-      expect(screen.getByText('Version 1 (copy)')).toBeInTheDocument();
-    });
+    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    expect(screen.getByText('Version 1 (copy)')).toBeInTheDocument();
   });
 
-  it('clone shows a success toast (routine write — OD-UX-1, no confirm needed)', async () => {
+  it('Update budget shows a success toast after cloning', async () => {
     budgetState.data = 500000;
     versionsState.data = [activeVersion];
     renderPage();
 
-    await userEvent.click(screen.getByRole('button', { name: /Clone to revise/i }));
+    await userEvent.click(screen.getByRole('button', { name: 'Update budget' }));
     await userEvent.click(screen.getByRole('button', { name: /Clone version/i }));
 
     expect(await findToastAnnouncement('status', /.+/)).toBeInTheDocument();
@@ -473,31 +474,24 @@ describe('AC-IXD-BUDGET-W5-C4: inline line-item edit — Draft', () => {
 // ---------------------------------------------------------------------------
 // AC-IXD-BUDGET-W5-C4: Inline edit absent on Active/Archived versions
 // ---------------------------------------------------------------------------
-describe('AC-IXD-BUDGET-W5-C4: inline edit gate — Active / Archived (read-only)', () => {
-  it('Active version line items have NO Edit button', () => {
+describe('AC-IXD-BUDGET-W5-C4: only Draft lines are editable', () => {
+  it('active line details are readable but have no Edit button', async () => {
     budgetState.data = 500000;
     versionsState.data = [activeVersion];
     renderPage();
 
-    // Active line item "Steel" is visible in read-only view
+    await userEvent.click(screen.getByRole('button', { name: /Expand Materials details/i }));
     expect(screen.getByText('Steel')).toBeInTheDocument();
-    // No Edit button
     expect(screen.queryByRole('button', { name: /Edit line item/i })).not.toBeInTheDocument();
   });
 
   it('Archived version line items have NO Edit button', async () => {
     budgetState.data = 0;
-    // SUB-D: the selector only exists with 2+ versions, so pair the archived one with an Active.
     versionsState.data = [activeVersion, archivedVersionWithItems];
     renderPage();
 
-    // Select archived version (default is Active)
-    await userEvent.selectOptions(
-      screen.getByRole('combobox', { name: /version/i }),
-      'v-arch'
-    );
-
-    expect(screen.getByText('Crane')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Versions' }));
+    expect(screen.getByText('Old v0')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Edit line item/i })).not.toBeInTheDocument();
   });
 });

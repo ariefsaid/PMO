@@ -1,61 +1,32 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { ListState } from '@/src/components/ui';
+import { useProject } from '@/src/hooks/useProjects';
 import ProjectBudget from '../../ProjectBudget';
-import BudgetProjection from '../../BudgetProjection';
-import { AttributedSpendingNote } from '../AttributedSpendingNote';
-import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
-import { useBudgetVersions } from '@/src/hooks/useBudget';
 
 export interface BudgetTabProps {
   projectId: string;
 }
 
-/**
- * Thin wrapper that mounts the already-real `<ProjectBudget>` (its
- * query/version/RPC logic is untouched; only its chrome was re-skinned to
- * tokens + StatusPill). Kept as a one-responsibility tab so the detail shell
- * never reaches into budget internals.
- *
- * P3c slice 6 (FR-BUD-151): mounts `<BudgetProjection>` (since S-04 ABOVE the budget version grid) —
- * PMO's forward view (never pushed to ERP, FR-BUD-160). It fetches + gates itself independently of
- * `<ProjectBudget>`.
- *
- * ⚑ LOW-2(a) (money-safety audit round 7): the projection panel is a view onto an EXTERNAL system's
- * enforcement state, so it is mounted ONLY for an org that actually employs ERPNext. For any other org
- * there is never a mirror row, never an actuals snapshot and never an ETC control (it renders inside
- * `rows.map`), so the panel is permanently its own empty state — whose remedy copy tells the reader to
- * "push it to the ERP", a route they do not have. Unfollowable advice is worse than an absent panel: it
- * implies their data is incomplete when nothing is wrong.
- *
- * ⚑ THE EMPLOY SIGNAL (FR-BUD-006(a)/FR-BUD-010): employment is the ACTIVE ERPNext BINDING, never a
- * `domain_externally_owned('budget')` flip — the spec forbids that row ever being created (budget is
- * Posture B, PMO stays SoT). This mirrors the server-side `orgEmploysErpnext` predicate (an active
- * erpnext binding) and the `get_budget_push_status` gate; the FE gate is UX only and fails CLOSED.
- *
- * SUB-D: the projection also needs an ACTIVE budget version to forecast against. Without one it has nothing
- * to say, and there is no standing "forecast appears once…" box either — an absent panel needs no explanation.
- *
- * Fails CLOSED — an unknown/loading/errored/absent/disconnected binding does NOT mount it, so there is no
- * flash of an empty ERP panel and no unfollowable advice on a failed read. `<ProjectBudget>` is
- * deliberately unconditional: it is PMO-SoT and has nothing to do with any external system.
- */
 const BudgetTab: React.FC<BudgetTabProps> = ({ projectId }) => {
-  const { data: erpnextBinding } = useErpnextBinding();
-  const { data: versions } = useBudgetVersions(projectId);
-  const employsExternalBudget = erpnextBinding?.status === 'active';
-  const hasActiveVersion = (versions ?? []).some((v) => v.status === 'Active');
-  return (
-    // S-04 (UX-034): the Forecast leads — "will it finish within budget?" is the question this tab
-    // answers — and the version ledger/operations follow. Same two components, only the order changes.
-    <div className="flex flex-col gap-5">
-      {employsExternalBudget && hasActiveVersion && (
-        <>
-          <AttributedSpendingNote projectId={projectId} />
-          <BudgetProjection projectId={projectId} />
-        </>
-      )}
-      <ProjectBudget projectId={projectId} />
-    </div>
-  );
+  const { t } = useTranslation();
+  const projectQuery = useProject(projectId);
+
+  if (projectQuery.isPending) {
+    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
+  }
+  if (projectQuery.isError || !projectQuery.data) {
+    return (
+      <ListState
+        variant="error"
+        title={t('projectDetail.budget.projectLoadError', "Couldn't load this project")}
+        sub={t('projectDetail.budget.projectLoadErrorSub', 'Project details could not be checked for the budget. Try again.')}
+        onRetry={() => void projectQuery.refetch()}
+      />
+    );
+  }
+
+  return <ProjectBudget projectId={projectId} project={projectQuery.data} />;
 };
 
 export default BudgetTab;

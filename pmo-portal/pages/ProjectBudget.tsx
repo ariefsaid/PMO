@@ -1,22 +1,20 @@
 import React, { useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
-import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import { useAuth } from '@/src/auth/useAuth';
-import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
+import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
-  formatCurrency,
   formatCurrencyAuto,
+  formatNumberMax2,
   formatMoneyInputValue,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   Button,
-  Badge,
-  StatusPill,
   ListState,
   Toolbar,
   DataTable,
@@ -24,37 +22,21 @@ import {
   ConfirmDialog,
   useToast,
   NumberField,
+  TaxBasisLabel,
 } from '@/src/components/ui';
-import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
+import type { ProjectWithRefs } from '@/src/lib/db/projects';
+import { useBudgetPosition } from './project-detail/useProjectPosition';
+import BudgetSummary from './project-detail/budget/BudgetSummary';
+import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
+import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
+import { compareBudgetVersions, type BudgetComparisonRow } from './project-detail/budget/budgetModel';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 const BUDGET_CATEGORIES = Constants.public.Enums.budget_category;
-
-function budgetStatusLabel(status: Enums<'budget_status'>, t: (key: string, fallback: string) => string): string {
-  const labels: Record<Enums<'budget_status'>, string> = {
-    Draft: t('financeCopy.statusDraft', 'Draft'),
-    Active: t('financeCopy.statusActive', 'Active'),
-    Archived: t('financeCopy.statusArchived', 'Archived'),
-  };
-  return labels[status];
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const StatusBadge: React.FC<{ status: Enums<'budget_status'> }> = ({ status }) => {
-  const { t } = useTranslation();
-  return (
-    <span data-testid={`version-status-${status.toLowerCase()}`}>
-      <StatusPill variant={budgetVersionVariant(status)}>{budgetStatusLabel(status, t)}</StatusPill>
-    </span>
-  );
-};
 
 // ---------------------------------------------------------------------------
 // Line-item editor (for Draft versions)
@@ -503,185 +485,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Version card
-// ---------------------------------------------------------------------------
-interface VersionCardProps {
-  version: BudgetVersionWithItems;
-  canWrite: boolean;
-  /** OD-BUDGET-6: whether this user may activate this Draft (a second person). */
-  canActivate: boolean;
-  /** Why Activate is withheld from a writer, when it is (shown in place of the button). */
-  activateBlockedReason?: string | null;
-  /** Each callback STAGES a confirm at the page level — none writes on click. */
-  onActivate: (id: string) => void;
-  onArchive: (id: string) => void;
-  onClone: (id: string) => void;
-  onDeleteDraft: (id: string) => void;
-  onCreateLineItem: (versionId: string, item: NewLineItem) => Promise<unknown>;
-  onDeleteLineItem: (id: string) => void;
-  /** Routine inline update — no confirm required (OD-UX-1). */
-  onUpdateLineItem: (id: string, patch: Partial<Pick<BudgetLineItemRow, 'category' | 'description' | 'budgeted_amount' | 'fiscal_year'>>) => Promise<unknown>;
-  onUpdateLineItemSuccess: () => void;
-  /** B-0.6/0.7: passed through to LineItemEditor. */
-  createIsPending?: boolean;
-  updateIsPending?: boolean;
-  onLineItemSaveError?: (err: unknown) => void;
-}
-
-const VersionCard: React.FC<VersionCardProps> = ({
-  version,
-  canWrite,
-  canActivate,
-  activateBlockedReason,
-  onActivate,
-  onArchive,
-  onClone,
-  onDeleteDraft,
-  onCreateLineItem,
-  onDeleteLineItem,
-  onUpdateLineItem,
-  onUpdateLineItemSuccess,
-  createIsPending,
-  updateIsPending,
-  onLineItemSaveError,
-}) => {
-  const { t } = useTranslation();
-  // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
-  const showFiscalYear = version.line_items.some((li) => li.fiscal_year);
-  const readOnlyColumns: Column<BudgetLineItemRow>[] = [
-    {
-      key: 'category', header: t('financeCopy.category', "Category"), kind: 'text', size: 170,
-      cell: (li) => budgetCategoryLabel(li.category as Enums<'budget_category'>, t),
-    },
-    {
-      key: 'description', header: t('financeCopy.description', "Description"), kind: 'meta', size: 260,
-      cell: (li) => <span className="text-muted-foreground">{li.description ?? '—'}</span>,
-    },
-    // FR-BFY-061: an Active/Archived version's phasing is VISIBLE but not editable —
-    // `enforce_draft_line_item` (0005) rejects the write, and re-phasing goes through
-    // clone → edit → activate (OD-BUDGET-5). An affordance the DB refuses is worse than none.
-    ...(showFiscalYear ? [{
-      key: 'fiscal_year', header: t('financeCopy.fiscalYear', "Fiscal year"), kind: 'text' as const, size: 150,
-      cell: (li: BudgetLineItemRow) => (
-        <span className="text-muted-foreground">
-          {li.fiscal_year ?? <span className="italic">{t('financeCopy.unPhased', "Un-phased")}</span>}
-        </span>
-      ),
-    }] : []),
-    {
-      key: 'amount', header: t('financeCopy.budgeted', "Budgeted"), kind: 'money', align: 'num', size: 184,
-      cell: (li) => <span className="font-medium">{formatCurrencyAuto(Number(li.budgeted_amount), version.currency)}</span>,
-    },
-  ];
-  return (
-    <div data-testid="version-card" className="rounded-lg border border-border bg-card p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3">
-          <span className="font-mono text-[13px] text-muted-foreground">v{version.version}</span>
-          <span className="font-semibold">{version.name}</span>
-          <StatusBadge status={version.status} />
-          {version.activation_basis === 'sole_operator' && (
-            <Badge>{t('financeCopy.activatedBySoleOperator', 'Activated by sole operator')}</Badge>
-          )}
-        </div>
-        <span
-          data-testid={version.status === 'Active' ? 'derived-budget' : undefined}
-          className="ml-auto shrink-0 whitespace-nowrap font-bold tabular"
-        >
-          {formatCurrency(version.total, version.currency)}
-        </span>
-      </div>
-
-      {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
-          stages a ConfirmDialog at the page level; none mutates on a single
-          click (owner rule, B2-B5). */}
-      {canWrite && (
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {version.status === 'Draft' && (
-            <>
-              {canActivate && (
-                <Button variant="success" size="sm" onClick={() => onActivate(version.id)}>
-                  {t('financeCopy.activate', "Activate")}</Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onDeleteDraft(version.id)}
-                className="text-destructive-text hover:bg-destructive/10"
-              >
-                {t('financeCopy.deleteDraft', "Delete draft")}</Button>
-              {activateBlockedReason && (
-                <p data-testid="activate-blocked-reason" className="basis-full text-[13px] text-muted-foreground">
-                  {activateBlockedReason}
-                </p>
-              )}
-            </>
-          )}
-          {version.status === 'Active' && (
-            <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onArchive(version.id)}
-                className="text-warning-foreground hover:bg-warning/18"
-              >
-                {t('financeCopy.archive', "Archive")}</Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onClone(version.id)}
-                className="text-primary-text hover:bg-primary/10"
-              >
-                {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
-            </>
-          )}
-          {version.status === 'Archived' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => onClone(version.id)}
-              className="text-primary-text hover:bg-primary/10"
-            >
-              {t('financeCopy.cloneToRevise', "Clone to revise")}</Button>
-          )}
-        </div>
-      )}
-
-      {/* Line-item editor for Draft; read-only view for others */}
-      {version.status === 'Draft' && canWrite ? (
-        <LineItemEditor
-          lineItems={version.line_items}
-          currency={version.currency}
-          onCreateLineItem={(item) => onCreateLineItem(version.id, item)}
-          onDeleteLineItem={onDeleteLineItem}
-          onUpdateLineItem={onUpdateLineItem}
-          onSaveSuccess={onUpdateLineItemSuccess}
-          createIsPending={createIsPending}
-          updateIsPending={updateIsPending}
-          onSaveError={onLineItemSaveError}
-        />
-      ) : (
-        version.line_items.length > 0 && (
-          <div className="relative mt-4">
-            <DataTable
-              rows={version.line_items}
-              columns={readOnlyColumns}
-              rowKey={(li) => li.id}
-              tableId="budget-version-line-items"
-              accessibleName={t('financeCopy.lineItemsSection', 'Line items')}
-            />
-          </div>
-        )
-      )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
 // Main page component (NFR-BV-UI-001)
 // ---------------------------------------------------------------------------
 interface ProjectBudgetProps {
   projectId: string;
+  project: ProjectWithRefs;
 }
 
 /** A staged, not-yet-committed budget mutation awaiting the ConfirmDialog
@@ -694,237 +502,155 @@ type PendingBudgetConfirm =
   | { kind: 'deleteDraft'; id: string; label: string }
   | { kind: 'deleteLineItem'; id: string; label: string };
 
-const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
+const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => {
   const { t } = useTranslation();
-  // Cosmetic gate on the REAL role (ADR-0016): budget line-item write = the shipped
-  // WRITE_ROLES (Admin·Exec·PM·Finance). RLS is the real authority.
   const can = usePermission();
   const canWrite = can('edit', 'budgetLine');
+  const canReadProcurements = can('view', 'procurement');
+  const canManageAccounting = can('manage', 'orgAccounting');
   const { currentUser } = useAuth();
   const currentUserId = currentUser?.id ?? null;
   const { toast } = useToast();
-  // The derived total (useProjectBudget) has no version of its own to carry a currency —
-  // fall back to the org default until a version is selected (FR-L10N-020).
-  const orgCurrency = useOrgCurrency();
+  const queryClient = useQueryClient();
 
   const budgetQuery = useProjectBudget(projectId);
   const versionsQuery = useBudgetVersions(projectId);
   const mutations = useBudgetMutations(projectId);
+  const position = useBudgetPosition(project);
+  const procurementsQuery = useProjectProcurements(canReadProcurements ? projectId : null);
 
   const [newVersionName, setNewVersionName] = useState('');
   const [showNewVersionForm, setShowNewVersionForm] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  // Confirm-before-write: a chosen action is staged here and only commits when
-  // the ConfirmDialog's Confirm is pressed (B1-B5 + delete-line-item, §6.5).
+  const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingBudgetConfirm | null>(null);
 
-  // Derive versions early so useMemo is unconditional (Rules of Hooks).
-  // Memoized to give a stable array reference (avoids react-hooks/exhaustive-deps warning on
-  // the selected memo below).
   const versions = useMemo<BudgetVersionWithItems[]>(
     () => (versionsQuery.data ?? []) as BudgetVersionWithItems[],
-    [versionsQuery.data]
+    [versionsQuery.data],
   );
-  const derivedTotal = budgetQuery.data ?? 0;
+  const activeVersion = versions.find((version) => version.status === 'Active');
+  const draftVersion = versions.find((version) => version.status === 'Draft');
+  const activationModeQuery = useBudgetActivationMode(draftVersion?.id);
 
-  // AC-BD-02/03: default-resolution priority: explicit pick → Active → highest Draft → highest Archived → first
-  const selected = useMemo<BudgetVersionWithItems | null>(() => {
-    if (versions.length === 0) return null;
-    const byId = selectedId ? versions.find((v) => v.id === selectedId) : undefined;
-    if (byId) return byId;
-    return (
-      versions.find((v) => v.status === 'Active') ??
-      [...versions].reverse().find((v) => v.status === 'Draft') ??
-      [...versions].reverse().find((v) => v.status === 'Archived') ??
-      versions[0]
-    );
-  }, [versions, selectedId]);
-
-  const activationModeQuery = useBudgetActivationMode(selected?.id);
-
-  // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
-    return (
-      <div data-testid="budget-loading" className="rounded-lg border border-border bg-card">
-        <ListState variant="loading" rows={4} />
-      </div>
-    );
+    return <div data-testid="budget-loading"><ListState variant="loading" rows={4} /></div>;
   }
-
-  // Error state
   if (budgetQuery.isError || versionsQuery.isError) {
     return (
       <ListState
         variant="error"
         title={t('financeCopy.budgetLoadFailed', "Couldn't load budget")}
-        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', "Something went wrong fetching the budget data.")}
+        sub={t('financeCopy.somethingWentWrongFetchingTheBudgetData', 'Something went wrong fetching the budget data.')}
         onRetry={() => {
-          budgetQuery.refetch();
-          versionsQuery.refetch();
+          void budgetQuery.refetch();
+          void versionsQuery.refetch();
         }}
       />
     );
   }
 
-  // Server mode only widens the cosmetic affordance for the current sole operator; the RPC remains authoritative.
   const soleOperator = activationModeQuery.data === 'sole_operator';
-  const canActivate =
-    !!selected &&
-    (soleOperator || can('transition', 'budgetVersion', {
-      currentUserId,
-      record: { status: selected.status, created_by: selected.created_by, editor_ids: selected.editor_ids },
-    }));
-  const activateBlockedReason =
-    !selected || !canWrite || canActivate || selected.status !== 'Draft'
-      ? null
-      : selected.editor_ids?.includes(currentUserId ?? '')
-        ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
-        : selected.created_by == null
-          ? t('financeCopy.activateNeedsAdminOrFinance', 'No drafter is recorded for this version, so only Admin or Finance can activate it.')
-          : selected.created_by === currentUserId
-            ? t('financeCopy.activateEditorBlocked', 'You edited this version, so someone else must activate it.')
-            : null;
-
-  // Human-readable label for a version id (confirm copy). Falls back to the id.
+  const canActivate = !!draftVersion && (soleOperator || can('transition', 'budgetVersion', {
+    currentUserId,
+    record: { status: draftVersion.status, created_by: draftVersion.created_by, editor_ids: draftVersion.editor_ids },
+  }));
   const versionLabel = (id: string): string => {
-    const v = versions.find((x) => x.id === id);
-    return v ? `${v.name} (v${v.version})` : id;
+    const version = versions.find((item) => item.id === id);
+    return version ? version.name + ' (v' + version.version + ')' : id;
   };
-
-  // Stage a confirm without writing. The page renders one ConfirmDialog from
-  // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
   const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
-  const requestActivate = (id: string) =>
-    setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
-  const requestClone = (id: string) =>
-    setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
-  const requestArchive = (id: string) =>
-    setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
-  const requestDeleteDraft = (id: string) =>
-    setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
-  const requestDeleteLineItem = (id: string) =>
-    setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
+  const requestActivate = (id: string) => setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
+  const requestClone = (id: string) => setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
+  const requestArchive = (id: string) => setPendingConfirm({ kind: 'archive', id, label: versionLabel(id) });
+  const requestDeleteDraft = (id: string) => setPendingConfirm({ kind: 'deleteDraft', id, label: versionLabel(id) });
+  const requestDeleteLineItem = (id: string) => setPendingConfirm({ kind: 'deleteLineItem', id, label: id });
 
-  // Commit the staged mutation and toast on resolve (§6.7). The RPC contract is
-  // byte-for-byte preserved — the confirm only gates WHEN each mutateAsync runs.
   const commitBudgetConfirm = async () => {
-    const c = pendingConfirm;
-    if (!c) return;
+    const confirm = pendingConfirm;
+    if (!confirm) return;
     try {
-      switch (c.kind) {
+      switch (confirm.kind) {
         case 'create': {
-          const created = await mutations.createVersion.mutateAsync({ projectId, name: c.name });
-          setSelectedId(created.id);
+          await mutations.createVersion.mutateAsync({ projectId, name: confirm.name });
           setShowNewVersionForm(false);
           setNewVersionName('');
           setPendingConfirm(null);
-          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), c.name, 'success');
+          toast(t('financeCopy.budgetVersionCreated', 'Budget version created'), confirm.name, 'success');
           break;
         }
         case 'activate': {
-          const { pushState } = await mutations.activate.mutateAsync(c.id);
+          const { pushState } = await mutations.activate.mutateAsync(confirm.id);
+          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
-          // ⚑ HIGH-C: PMO's transition succeeded either way (ADR-0059 §3.2 — the ERPNext push is a
-          // CONSEQUENCE of activation, never its precondition), but a push that did not land must be
-          // said out loud. Otherwise ERPNext keeps enforcing the previous budget (or none) while this
-          // screen reports a clean success — and when the dispatch never reached the edge function
-          // there is no mirror row for the sweep backstop to re-drive either. The recovery affordance
-          // is the Budget projection's "Retry the push".
           if (pushState === 'failed') {
             toast(
               t('financeCopy.versionActivatedERPNotUpdated', 'Version activated — but ERPNext was not updated'),
-              t('financeCopy.budgetActiveRetryFromProjection', "{{version}}. PMO's budget is active; retry the push from the Budget projection.", { version: c.label }),
+              t('projectDetail.budget.erpReviewHint', "{{version}}. The budget is active; ask Finance or an administrator to review ERP enforcement.", { version: confirm.label }),
               'warning',
             );
           } else if (pushState === 'nothing-to-push') {
-            // ⚑ FU-2 round 2: the version has NO line items, so the fan-out attempted no fiscal year and
-            // created no ERP `Budget`. Announcing a push would be a statement about money that never
-            // moved; announcing a failure would invent an attempt. Nothing was sent — say that, and name
-            // the act that changes it. (The per-year `never-pushed` banner agrees rather than contradicts.)
             toast(
               t('financeCopy.versionActivatedNothingSent', 'Version activated — nothing was sent to ERPNext'),
-              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: c.label }),
+              t('financeCopy.noBudgetLinesToPush', '{{version}} has no budget lines, so no ERPNext Budget was created. Add lines and activate a new version to enforce one.', { version: confirm.label }),
               'warning',
             );
           } else {
-            toast(t('financeCopy.versionActivated', 'Version activated'), c.label, 'success');
+            toast(t('financeCopy.versionActivated', 'Version activated'), confirm.label, 'success');
           }
           break;
         }
         case 'clone': {
-          const newDraftId = await mutations.cloneVersion.mutateAsync(c.id);
+          await mutations.cloneVersion.mutateAsync(confirm.id);
           setPendingConfirm(null);
-          // Auto-open the new draft (N9: clone auto-opens new draft)
-          setSelectedId(newDraftId);
-          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: c.label }), 'success');
+          toast(t('financeCopy.versionCloned', 'Version cloned'), t('financeCopy.newDraftFrom', 'New draft from {{version}}', { version: confirm.label }), 'success');
           break;
         }
         case 'archive':
-          await mutations.archive.mutateAsync(c.id);
+          await mutations.archive.mutateAsync(confirm.id);
+          void queryClient.invalidateQueries({ queryKey: ['budget-push-status', projectId] });
           setPendingConfirm(null);
-          toast(t('financeCopy.versionArchived', 'Version archived'), c.label, 'success');
+          toast(t('financeCopy.versionArchived', 'Version archived'), confirm.label, 'success');
           break;
         case 'deleteDraft':
-          await mutations.deleteDraft.mutateAsync(c.id);
+          await mutations.deleteDraft.mutateAsync(confirm.id);
           setPendingConfirm(null);
-          toast(t('financeCopy.draftDeleted', 'Draft deleted'), c.label, 'success');
+          toast(t('financeCopy.draftDeleted', 'Draft deleted'), confirm.label, 'success');
           break;
         case 'deleteLineItem':
-          await mutations.deleteLineItem.mutateAsync(c.id);
+          await mutations.deleteLineItem.mutateAsync(confirm.id);
           setPendingConfirm(null);
           toast(t('financeCopy.lineItemDeleted', 'Line item deleted'), undefined, 'success');
           break;
       }
-    } catch (err) {
+    } catch (error) {
       setPendingConfirm(null);
-      toast(t('financeCopy.actionFailed', 'Action failed'), err instanceof Error ? err.message : undefined, 'warning');
+      toast(t('financeCopy.actionFailed', 'Action failed'), error instanceof Error ? error.message : undefined, 'warning');
     }
   };
 
-  // The single page-level ConfirmDialog, derived from pendingConfirm. Destructive
-  // (modal+scrim) for archive / delete-draft / delete-line-item; default
-  // (popover severity) for create / activate / clone (§6.5 + §3.1).
-  const confirmInFlight =
-    mutations.createVersion.isPending ||
-    mutations.activate.isPending ||
-    mutations.cloneVersion.isPending ||
-    mutations.archive.isPending ||
-    mutations.deleteDraft.isPending ||
-    mutations.deleteLineItem.isPending;
-
-  const confirmCopy: Record<
-    PendingBudgetConfirm['kind'],
-    { tone: 'default' | 'destructive'; title: string; confirmLabel: string }
-  > = {
-    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', "Create budget version?"), confirmLabel: t('financeCopy.createVersion', 'Create version') },
-    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', "Make this the active budget?"), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
-    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', "Clone to a new draft?"), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
-    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', "Archive this version?"), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
-    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', "Delete this draft?"), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
-    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', "Delete this line item?"), confirmLabel: t('financeCopy.delete', 'Delete') },
+  const confirmInFlight = mutations.createVersion.isPending || mutations.activate.isPending || mutations.cloneVersion.isPending ||
+    mutations.archive.isPending || mutations.deleteDraft.isPending || mutations.deleteLineItem.isPending;
+  const confirmCopy: Record<PendingBudgetConfirm['kind'], { tone: 'default' | 'destructive'; title: string; confirmLabel: string }> = {
+    create: { tone: 'default', title: t('financeCopy.createBudgetVersion', 'Create budget version?'), confirmLabel: t('financeCopy.createVersion', 'Create version') },
+    activate: { tone: 'default', title: t('financeCopy.makeThisTheActiveBudget', 'Make this the active budget?'), confirmLabel: t('financeCopy.activateVersion', 'Activate version') },
+    clone: { tone: 'default', title: t('financeCopy.cloneToANewDraft', 'Clone to a new draft?'), confirmLabel: t('financeCopy.cloneVersion', 'Clone version') },
+    archive: { tone: 'destructive', title: t('financeCopy.archiveThisVersion', 'Archive this version?'), confirmLabel: t('financeCopy.archiveVersion', 'Archive version') },
+    deleteDraft: { tone: 'destructive', title: t('financeCopy.deleteThisDraft', 'Delete this draft?'), confirmLabel: t('financeCopy.deleteDraft', 'Delete draft') },
+    deleteLineItem: { tone: 'destructive', title: t('financeCopy.deleteThisLineItem', 'Delete this line item?'), confirmLabel: t('financeCopy.delete', 'Delete') },
   };
-
-  // Each handler receives its OWN narrowed variant (a per-kind mapped type), so
-  // no fragile in-body re-narrowing (`c.kind === 'create' ? c.name : ''`) is
-  // needed and no empty-string '""' can render (item J). The call site dispatches
-  // through a single helper that ties the handler to the matching variant.
-  type ConfirmDescriptions = {
-    [K in PendingBudgetConfirm['kind']]: (c: Extract<PendingBudgetConfirm, { kind: K }>) => string;
-  };
+  type ConfirmDescriptions = { [K in PendingBudgetConfirm['kind']]: (confirm: Extract<PendingBudgetConfirm, { kind: K }>) => string };
   const confirmDescriptions: ConfirmDescriptions = {
-    create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
-    activate: (c) => c.soleOperator
+    create: (confirm) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: confirm.name }),
+    activate: (confirm) => confirm.soleOperator
       ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
-      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
-    clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
-    archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
-    deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
+      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: confirm.label }),
+    clone: (confirm) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: confirm.label }),
+    archive: (confirm) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: confirm.label }),
+    deleteDraft: (confirm) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: confirm.label }),
     deleteLineItem: () => t('financeCopy.confirmDeleteLineItemDescription', 'This permanently removes the line item from the draft. This cannot be undone.'),
   };
-  const describeConfirm = (c: PendingBudgetConfirm): string =>
-    // Safe: the union is keyed by `kind`, so the handler at c.kind accepts c.
-    (confirmDescriptions[c.kind] as (x: PendingBudgetConfirm) => string)(c);
-
+  const describeConfirm = (confirm: PendingBudgetConfirm): string =>
+    (confirmDescriptions[confirm.kind] as (value: PendingBudgetConfirm) => string)(confirm);
   const budgetConfirm = pendingConfirm && (
     <ConfirmDialog
       open
@@ -933,154 +659,132 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
-      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-version-select')}
+      restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-primary-action, #budget-versions-trigger')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
     />
   );
 
-  const hasActive = versions.some((v) => v.status === 'Active');
-  const head = (
-    // AC-W6-IXD-BUDHEAD (B-3): the redundant <h2>Project Budget</h2> duplicated the
-    // selected "Budget" tab label (which already names the section). Dropped — the
-    // useful "Active budget: $X" line is promoted as the quiet section lead. The tab
-    // is the section heading; no orphaned hierarchy (the page <h1> is the project name).
-    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        {/* UX-033: the Active amount is announced ONCE, in the version header below. This line exists only
-            to keep it in view while another version is open — and DD-MONEY-4: with no Active version it says
-            so, instead of presenting a Draft or $0 as the budget. */}
-        {versions.length === 0 ? null : !hasActive ? (
-          <p className="text-sm text-muted-foreground">{t('uxs04.noActiveBudget', 'No active budget')}</p>
-        ) : selected?.status !== 'Active' ? (
-          <p className="text-sm text-muted-foreground">
-            {t('financeCopy.activeBudget', "Active budget:")}{' '}
-            <span data-testid="derived-budget" className="font-semibold tabular text-foreground">
-              {formatCurrency(derivedTotal, selected?.currency ?? orgCurrency)}
-            </span>
-          </p>
-        ) : null}
-      </div>
-      {canWrite && (
-        <Button variant="outline" onClick={() => setShowNewVersionForm(true)}>
-          {t('financeCopy.newVersion', "+ New version")}</Button>
-      )}
-    </div>
-  );
+  const categoryLabel = (category: string) => budgetCategoryLabel(category, t);
+  const proposedChanges = activeVersion && draftVersion
+    ? compareBudgetVersions(activeVersion.line_items, draftVersion.line_items)
+    : [];
+  const comparisonColumns: Column<BudgetComparisonRow>[] = [
+    { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'text', size: 180, cell: (row) => categoryLabel(row.category) },
+    { key: 'current', header: t('projectDetail.budget.current', 'Current'), kind: 'money', align: 'num', size: 145, cell: (row) => formatNumberMax2(row.a) },
+    { key: 'proposed', header: t('projectDetail.budget.proposed', 'Proposed'), kind: 'money', align: 'num', size: 145, cell: (row) => formatNumberMax2(row.b) },
+    { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', size: 140, cell: (row) => (
+      <span className={row.change > 0 ? 'text-destructive-text' : undefined}>{row.change > 0 ? '+' : ''}{formatNumberMax2(row.change)}</span>
+    ) },
+  ];
+  const draftEditor = draftVersion && canWrite ? (
+    <LineItemEditor
+      key={draftVersion.id}
+      lineItems={draftVersion.line_items}
+      currency={draftVersion.currency}
+      onCreateLineItem={(item) => mutations.createLineItem.mutateAsync({ versionId: draftVersion.id, item })}
+      onDeleteLineItem={requestDeleteLineItem}
+      onUpdateLineItem={(id, patch) => mutations.updateLineItem.mutateAsync({ id, patch })}
+      onSaveSuccess={() => toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')}
+      createIsPending={mutations.createLineItem.isPending}
+      updateIsPending={mutations.updateLineItem.isPending}
+      onSaveError={(error) => {
+        const { headline, detail } = classifyMutationError(error);
+        toast(headline, detail, 'warning');
+      }}
+    />
+  ) : null;
 
-  // Empty state
-  if (versions.length === 0) {
-    return (
-      <div data-testid="budget-empty" className="flex flex-col gap-4">
-        {head}
-        {showNewVersionForm && canWrite && (
-          <NewVersionForm
-            onSubmit={requestCreate}
-            onCancel={() => setShowNewVersionForm(false)}
-            value={newVersionName}
-            onChange={setNewVersionName}
-          />
-        )}
-        <div className="rounded-lg border border-border bg-card">
+  // The page header carries the one filled action; a tab's own action stays outline.
+  const primaryAction = !activeVersion && !draftVersion && canWrite
+    ? <Button id="budget-primary-action" variant="outline" onClick={() => setShowNewVersionForm(true)}>{t('projectDetail.budget.createBudget', 'Create budget')}</Button>
+    : !activeVersion && draftVersion && canActivate
+      ? <Button id="budget-primary-action" variant="outline" onClick={() => requestActivate(draftVersion.id)}>{t('financeCopy.activate', 'Activate')}</Button>
+      : activeVersion && !draftVersion && canWrite
+        ? <Button id="budget-primary-action" variant="outline" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>
+        : null;
+
+  return (
+    <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : undefined}>
+      <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
+          <p className="mt-1 flex items-baseline gap-2 text-xs text-muted-foreground">
+            <span>{project.currency}</span>
+            {project.tax_treatment && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" />}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {primaryAction}
+          {versions.length > 0 && <Button id="budget-versions-trigger" variant="ghost" size="sm" onClick={() => setVersionsOpen(true)}>{t('projectDetail.budget.versions', 'Versions')}</Button>}
+        </div>
+      </header>
+
+      {showNewVersionForm && !activeVersion && !draftVersion && canWrite && (
+        <NewVersionForm onSubmit={requestCreate} onCancel={() => setShowNewVersionForm(false)} value={newVersionName} onChange={setNewVersionName} />
+      )}
+
+      {!activeVersion && !draftVersion && versions.length === 0 && (
+        <div className="border-t border-border pt-4">
           <ListState
             variant="empty"
             icon="dollar"
-            title={t('financeCopy.noBudgetVersionsYet', "No budget versions yet")}
-            sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', "Create a Draft version to start planning the project budget.")}
+            title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')}
+            sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')}
           />
         </div>
-        {budgetConfirm}
-      </div>
-    );
-  }
-
-  // Normal state: version selector + single card (AC-BD-01/04/05)
-  const selectFieldCls =
-    'h-8 rounded-md border border-input bg-background px-2.5 text-[13px] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring';
-
-  return (
-    <div className="flex flex-col gap-4">
-      {head}
-
-      {showNewVersionForm && canWrite && (
-        <NewVersionForm
-          onSubmit={requestCreate}
-          onCancel={() => setShowNewVersionForm(false)}
-          value={newVersionName}
-          onChange={setNewVersionName}
-        />
       )}
 
-      {/* AC-BD-01: Version selector bar — SUB-D: only when there is a version to switch to. */}
-      {versions.length > 1 && (
-        <Toolbar
-          standalone
-          className="flex flex-wrap items-center gap-2 py-2"
-          data-testid="version-selector"
-        >
-          {/* A1: visible label wired to select */}
-          <label
-            htmlFor="budget-version-select"
-            className="text-[12px] font-semibold text-muted-foreground"
-          >
-            {t('financeCopy.version', "Version")}</label>
-          {/* A2/A3: native select — keyboard nav, focus ring, type-ahead all free */}
-          <select
-            id="budget-version-select"
-            aria-label={t('financeCopy.version', "Version")}
-            value={selected?.id ?? ''}
-            onChange={(e) => setSelectedId(e.target.value)}
-            className={`${selectFieldCls} min-w-[200px] max-w-xs`}
-          >
-            {versions.map((v) => (
-              // A4/N1/N2: status in text (not color only), no em-dash, no emoji
-              <option key={v.id} value={v.id}>
-                {`v${v.version} · ${v.name}`}
-              </option>
-            ))}
-          </select>
-        </Toolbar>
-      )}
-
-      {/* AC-BD-05: exactly ONE VersionCard */}
-      <div className="flex flex-col gap-4">
-        {selected && (
-          <VersionCard
-            key={selected.id}
-            version={selected}
-            canWrite={canWrite}
-            canActivate={canActivate}
-            activateBlockedReason={activateBlockedReason}
-            onActivate={requestActivate}
-            onArchive={requestArchive}
-            onClone={requestClone}
-            onDeleteDraft={requestDeleteDraft}
-            // create/update line-item stay direct (Open-Q#3: a form submit is
-            // already a deliberate two-step, not a single click).
-            onCreateLineItem={(versionId, item) =>
-              mutations.createLineItem.mutateAsync({ versionId, item })
-            }
-            onDeleteLineItem={requestDeleteLineItem}
-            // Inline edit is routine (OD-UX-1): single-click Save + toast, no confirm.
-            onUpdateLineItem={(id, patch) =>
-              mutations.updateLineItem.mutateAsync({ id, patch })
-            }
-            onUpdateLineItemSuccess={() =>
-              toast(t('financeCopy.lineItemUpdated', 'Line item updated'), undefined, 'success')
-            }
-            // B-0.7: thread isPending into Save buttons (double-submit guard).
-            createIsPending={mutations.createLineItem.isPending}
-            updateIsPending={mutations.updateLineItem.isPending}
-            // B-0.6: surface mutation errors via toast (no silent no-op).
-            onLineItemSaveError={(err) => {
-              const { headline, detail } = classifyMutationError(err);
-              toast(headline, detail, 'warning');
-            }}
+      {activeVersion && draftVersion && (
+        <section aria-label={t('projectDetail.budget.proposedUpdate', 'Proposed update')} className="min-w-0 space-y-3" data-testid="budget-proposed-update">
+          <h3 className="text-sm font-semibold">{t('projectDetail.budget.proposedUpdate', 'Proposed update')}</h3>
+          <DataTable
+            rows={proposedChanges}
+            columns={comparisonColumns}
+            rowKey={(row) => row.category}
+            tableId="project-budget-proposed-update"
+            accessibleName={t('projectDetail.budget.proposedUpdateTable', 'Proposed budget changes')}
+            cardBelow={600}
           />
-        )}
-        {selected && <BudgetDocumentLinks key={`evidence-${selected.id}`} versionId={selected.id} status={selected.status} />}
-      </div>
+          {draftEditor}
+          {canActivate
+            ? <Button variant="success" onClick={() => requestActivate(draftVersion.id)}>{t('financeCopy.activate', 'Activate')}</Button>
+            : <p className="text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+        </section>
+      )}
 
+      {!activeVersion && draftVersion && (
+        <section aria-label={t('projectDetail.budget.draftBudget', 'Draft budget')} className="min-w-0 space-y-3">
+          {draftEditor}
+          {!canActivate && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.waitingForFinance', 'Waiting for approval by finance')}</p>}
+        </section>
+      )}
+
+      <BudgetErpNotice
+        projectId={projectId}
+        activeVersion={activeVersion}
+      />
+
+      <BudgetSummary
+        project={project}
+        activeVersion={activeVersion}
+        position={position}
+        procurements={procurementsQuery.data}
+        canReadProcurements={canReadProcurements && !procurementsQuery.isPending && !procurementsQuery.isError}
+        canManageAccounting={canManageAccounting}
+      />
+
+      <BudgetVersionsDrawer
+        open={versionsOpen}
+        onClose={() => setVersionsOpen(false)}
+        versions={versions}
+        canWrite={canWrite}
+        hasDraft={Boolean(draftVersion)}
+        nestedOpen={Boolean(pendingConfirm)}
+        onArchive={requestArchive}
+        onClone={requestClone}
+        onDeleteDraft={requestDeleteDraft}
+      />
       {budgetConfirm}
     </div>
   );
