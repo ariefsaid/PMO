@@ -135,7 +135,7 @@ const ProcurementPage: React.FC = () => {
   const canCreate = may('create', 'procurement');
   const canViewOrphans = canSeeOrphans && may('view', 'procurement');
 
-  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true });
+  const { data, isPending, isError, refetch } = useProcurements({ withRefs: true, withSharedDetails: true });
   const projectQuery = useProjectOptions();
   const supplierQuery = useVendorOptions();
   const { data: projectOptions = [] } = projectQuery;
@@ -361,7 +361,7 @@ const ProcurementPage: React.FC = () => {
         {userId && <ImportButton entity="procurement" descriptor={importDescriptor} onImported={() => void refetch()} label={t('moreTools.importProcurements', 'Import procurements')} className="w-full justify-start" />}
         {userId && canCreate && <Button variant="outline" onClick={() => setShowCycleImport(true)} className="w-full justify-start"><Icon name="upload" />{t('moreTools.importCycle', 'Import cycle data')}</Button>}
       </MobileToolbarDisclosure>
-      {canCreate && <Button variant="primary" className="hidden sm:inline-flex" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button>}
+      {canCreate && <span className="hidden sm:block"><Button variant="primary" onClick={() => navigate('/procurement/new')}><Icon name="plus" />{t('newProcurement', 'New procurement')}</Button></span>}
     </div>
   );
 
@@ -492,7 +492,7 @@ const ProcurementPage: React.FC = () => {
           )}
 
           {ready && tab !== 'orphans' && tabRows.length > 0 && currentView === 'table' && (
-            <ProcurementBlock rowFilter={tab === 'needs-you' ? needsYouFilter : undefined} />
+            <ProcurementBlock rowFilter={tab === 'needs-you' ? needsYouFilter : undefined} showCreate={false} />
           )}
         </div>
 

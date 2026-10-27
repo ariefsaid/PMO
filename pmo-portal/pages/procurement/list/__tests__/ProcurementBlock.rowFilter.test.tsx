@@ -45,3 +45,18 @@ describe('ProcurementBlock rowFilter (route "Needs you" tab)', () => {
     expect(screen.queryByText('Row b')).not.toBeInTheDocument();
   });
 });
+
+describe('ProcurementBlock showCreate', () => {
+  it('shows its own New procurement by default (the project tab)', () => {
+    renderBlock();
+    expect(screen.getByRole('button', { name: /new procurement/i })).toBeInTheDocument();
+  });
+  it('omits its own New procurement when the host page owns the primary action', () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter><ToastProvider><ProcurementBlock showCreate={false} /></ToastProvider></MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByRole('button', { name: /new procurement/i })).not.toBeInTheDocument();
+  });
+});

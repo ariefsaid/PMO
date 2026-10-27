@@ -54,6 +54,8 @@ export interface ProcurementBlockProps {
   projectId?: string;
   /** Narrows the rows after the role scope (the route's "Needs you" tab). */
   rowFilter?: (row: ProcurementWithRefs) => boolean;
+  /** False when the host page already shows "New procurement" as its primary action. */
+  showCreate?: boolean;
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
@@ -287,7 +289,7 @@ function ProcurementBudgetLeft({
   );
 }
 
-export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter }) => {
+export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, showCreate = true }) => {
   const { t } = useTranslation();
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
@@ -905,7 +907,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 </Button>
               )}
               <span className="flex-1" />
-              {canCreate && (
+              {canCreate && showCreate && (
                 <Button size="sm" onClick={() => navigate(projectId ? `/procurement/new?project=${encodeURIComponent(projectId)}` : '/procurement/new')}>
                   <Icon name="plus" />{t('projectDetail.procurement.newRequest', 'New procurement')}
                 </Button>
