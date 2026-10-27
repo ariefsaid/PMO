@@ -8,7 +8,7 @@
     "supplierNotChosen": "Pemasok belum dipilih"
   },
   "tabs": { "timeline": "Linimasa", "items": "Item baris", "quotes": "Penawaran", "files": "Berkas", "details": "Detail" },
-  "details": { "supplier": "Pemasok", "budgetCategory": "Kategori anggaran", "accountingStatus": "Status sistem akuntansi" },
+  "details": { "supplier": "Pemasok", "budgetCategory": "Kategori anggaran", "accountingStatus": "Status sistem akuntansi", "accountingStatusValue": "{{orders}} · {{docs}}", "purchaseOrders_one": "{{count}} pesanan pembelian", "purchaseOrders_other": "{{count}} pesanan pembelian", "documentsLinked_one": "{{count}} dokumen tertaut", "documentsLinked_other": "{{count}} dokumen tertaut" },
   "items": { "countLabel": "item baris" },
   "action": {
     "submit": "Ajukan untuk persetujuan", "recordOrder": "Catat pesanan", "chooseQuote": "Pilih penawaran",

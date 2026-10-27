@@ -8,7 +8,7 @@
     "supplierNotChosen": "Supplier not chosen yet"
   },
   "tabs": { "timeline": "Timeline", "items": "Line items", "quotes": "Quotations", "files": "Files", "details": "Details" },
-  "details": { "supplier": "Supplier", "budgetCategory": "Budget category", "accountingStatus": "Accounting-system status" },
+  "details": { "supplier": "Supplier", "budgetCategory": "Budget category", "accountingStatus": "Accounting-system status", "accountingStatusValue": "{{orders}} · {{docs}}", "purchaseOrders_one": "{{count}} purchase order", "purchaseOrders_other": "{{count}} purchase orders", "documentsLinked_one": "{{count}} document linked", "documentsLinked_other": "{{count}} documents linked" },
   "items": { "countLabel": "line items" },
   "action": {
     "submit": "Submit for approval", "recordOrder": "Record order", "chooseQuote": "Choose quote",

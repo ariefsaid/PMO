@@ -961,13 +961,13 @@ const ProcurementDetails: React.FC = () => {
     {
       label: t('procurementDetail.detail.approvedBy', 'Approved by'),
       value: p.approved_by?.full_name ?? (
-        <span className="text-muted-foreground">{t('procurementDetail.detail.pending', 'Pending')}</span>
+        <span className="text-muted-foreground">{stageForStatus(p.status) === 'Request' ? t('procurementDetail.detail.pending', 'Pending') : '—'}</span>
       ),
     },
     { label: t('procurementRecord:details.budgetCategory', 'Budget category'), value: p.budget_category || '—' },
     {
       label: t('procurementRecord:details.accountingStatus', 'Accounting-system status'),
-      value: `${p.purchase_orders.length} purchase orders · ${linkedDocs.length} documents linked`,
+      value: t('procurementRecord:details.accountingStatusValue', { defaultValue: '{{orders}} · {{docs}}', orders: t('procurementRecord:details.purchaseOrders', { count: p.purchase_orders.length, defaultValue: '{{count}} purchase orders' }), docs: t('procurementRecord:details.documentsLinked', { count: linkedDocs.length, defaultValue: '{{count}} documents linked' }) }),
     },
   ];
 
@@ -1135,13 +1135,15 @@ const ProcurementDetails: React.FC = () => {
       />
 
       {mutationError && <p role="alert" data-testid="procurement-mutation-error" className="mb-3 rounded-md border border-destructive/25 bg-destructive/[0.04] px-3 py-2 text-[13px] text-destructive">{mutationError}</p>}
-      <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
-  <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
-    projectId={p.project_id}
-    totalValue={Number(p.total_value)}
-    status={p.status}
-    currency={p.currency}
-  />} />
+      <div className="space-y-3">
+        <ProcurementStageTracker procurement={p} linkedDocuments={linkedDocs} />
+        <ProcurementMoneySummary procurement={p} linkedDocuments={linkedDocs} isEngineer={isEngineer} budgetSignal={isEngineer ? undefined : <ProcurementBudgetSignal
+          projectId={p.project_id}
+          totalValue={Number(p.total_value)}
+          status={p.status}
+          currency={p.currency}
+        />} />
+      </div>
       {ceilingNotice && <div className="mt-2">{ceilingNotice}</div>}
       {stageForStatus(p.status) === 'Request' && p.project_id && <DecisionSupportPanel
         projectId={p.project_id}
