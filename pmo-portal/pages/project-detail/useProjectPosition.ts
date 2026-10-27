@@ -58,9 +58,10 @@ export function useBudgetPosition(project: ProjectWithRefs) {
 export function useOverdueReceivables(project: ProjectWithRefs) {
   const may = usePermission();
   const enabled = may('view', 'salesInvoice');
-  const invoices = useSalesInvoices(enabled ? project.id : undefined);
+  const invoices = useSalesInvoices(project.id, { enabled });
   const { day: orgToday } = useFxOrgDay(enabled);
   return useMemo(() => {
+    if (!enabled) return null;
     const overdue = (invoices.data ?? []).filter((inv) => inv.status === 'Submitted' || inv.status === 'Unpaid')
       .map((inv) => ({ inv, age: overdueAgeDays(deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date), orgToday) }))
       .filter((x): x is { inv: typeof x.inv; age: number } => x.age !== null && x.age > 0);
@@ -73,7 +74,7 @@ export function useOverdueReceivables(project: ProjectWithRefs) {
       // The org-wide invoice list already filters by project + overdue (oldest first): the chase surface.
       to: `/sales-invoices?project=${project.id}&overdue=true`,
     };
-  }, [invoices.data, orgToday, project.id]);
+  }, [enabled, invoices.data, orgToday, project.id]);
 }
 
 export interface AttentionItem {
@@ -118,7 +119,7 @@ export function useProjectAttention(project: ProjectWithRefs, lens: 'money' | 'p
         size: budget.projectOver !== null ? t('projectDetail.attention.mostly', 'mostly {{category}}', { category: budgetCategoryLabel(worst.category, t) }) : undefined,
         action: t('projectDetail.attention.budgetAction', 'Review budget') });
     }
-    if (receivables) {
+    if (receivables && lens !== 'delivery') {
       out.push({ key: 'ar', tone: 'danger', to: receivables.to,
         what: receivables.count === 1 ? t('projectDetail.attention.arWhatOne', 'Customer invoice overdue') : t('projectDetail.attention.arWhatMany', '{{count}} customer invoices overdue', { count: receivables.count }),
         // Only a known balance is a figure; an unsynced balance shows age only, never the invoice total.

@@ -1,3 +1,4 @@
+import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
@@ -87,17 +88,19 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
   const invoicedPct = Math.min(100, pctOf(invoiced, contract));
   const receivedPct = received === null ? 0 : Math.min(100, pctOf(received, contract));
   // Owner spec: one line contract → invoiced → received, values large, labels small; read as a flow.
-  const step = (label: string, value: number) => (
+  const step = (label: string, value: number, extra?: React.ReactNode) => (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground">{label}</dt>
       <dd className="mt-1 text-lg font-semibold tabular-nums leading-tight text-foreground sm:text-xl">{whole(value)}</dd>
+      {extra && <dd className="mt-1">{extra}</dd>}
     </div>
   );
   const arrow = <Icon name="chev" className="mt-6 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />;
   return (
     <Block id="pd-money" title={title} unit={unit}>
       <dl className="flex items-start gap-3 sm:gap-5">
-        {step(t('projectDetail.money.contract', 'Contract'), contract)}
+        {/* AC-FX-011: a foreign-currency contract also shows its org-currency equivalent at the contract date. */}
+        {step(t('projectDetail.money.contract', 'Contract'), contract, <FxEquivalent amount={contract} currency={project.currency} date={project.contract_date} compact />)}
         {arrow}
         {step(t('projectDetail.money.invoiced', 'Invoiced'), invoiced)}
         {received !== null && <>{arrow}{step(t('projectDetail.money.received', 'Received'), received)}</>}

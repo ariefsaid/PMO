@@ -182,7 +182,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     navigate.mockClear();
   });
 
-  it('AC-IFW-RECORD-01: pre-win record renders PipelineLens (Project journey / Next actions) BEFORE the Delivery phases section', async () => {
+  it('AC-IFW-RECORD-01: pre-win record renders the PipelineLens project journey', async () => {
     await renderAt('/projects/opp1');
 
     // The PipelineLens "Project stage journey" stepper must be in the DOM (CW-1: "Deal" → "Project")
@@ -193,16 +193,8 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(projectJourney).toBeInTheDocument();
     expect(projectJourneyHeading).toBeInTheDocument();
 
-    // T1: The prewin-compact-planner affordance is always present (M2 implementation — the compact
-    // one-liner always renders for a pre-win empty planner, making the ordering check unconditional).
-    // The compact div renders AFTER the PipelineLens in document order.
-    const compactPlanner = screen.getByTestId('prewin-compact-planner');
-    expect(compactPlanner).toBeInTheDocument();
-
-    // The compact planner must come AFTER the "Project journey" heading in document order.
-    const pos = projectJourneyHeading.compareDocumentPosition(compactPlanner);
-    // DOCUMENT_POSITION_FOLLOWING (4): compactPlanner comes AFTER projectJourneyHeading
-    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(projectJourney).toBeInTheDocument();
+    expect(projectJourneyHeading).toBeInTheDocument();
   });
 
   it('AC-IFW-RECORD-01: pre-win record does NOT render the "Progress curve" (S-curve hidden for pre-win)', async () => {
@@ -217,7 +209,7 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.queryByText('Classification')).not.toBeInTheDocument();
     const rail = screen.getByTestId('project-detail-rail');
     expect(rail.querySelector('details')).not.toHaveAttribute('open');
-    expect(within(rail).getByText('Project details and actions')).toBeInTheDocument();
+    expect(within(rail).getByText('Details, codes and status')).toBeInTheDocument();
     expect(within(rail).getByText('Engineering')).toBeInTheDocument();
     // a deal has no delivery status action: lifecycle changes belong to the pipeline lens
     expect(within(rail).queryByRole('button', { name: /change status/i })).not.toBeInTheDocument();
@@ -232,28 +224,15 @@ describe('AC-IFW-RECORD-01: pre-win detail layout — sales levers above deliver
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
   });
 
-  it('AC-IFW-RECORD-01 (M2): pre-win + empty planner renders a compact one-line affordance, NOT the full "Plan this project\'s delivery phases" band', async () => {
-    // milestonesState.data = [] (from beforeEach) — empty planner, pre-win record
-    await renderAt('/projects/opp1');
-
-    // The full EmptyPlanningPrompt heading must NOT be visible on pre-win
-    expect(screen.queryByText(/Plan this project's delivery phases/i)).not.toBeInTheDocument();
-
-    // A compact affordance (one-liner) must be present instead
-    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
-  });
-
-  it('SUB-A: a pre-win record has no Work orders or Billing tab, and their URLs fall back to Overview', async () => {
+  it('SUB-A: a pipeline deal has Overview, Budget, Tasks and Documents, with no Procurement or Contract tab', async () => {
     await renderAt('/projects/opp1');
     const tabs = within(screen.getByRole('tablist', { name: /Project sections/i })).getAllByRole('tab').map((tab) => tab.textContent);
-    expect(tabs).not.toContain('Work orders');
-    expect(tabs).not.toContain('Billing');
-    expect(tabs).toEqual(expect.arrayContaining(['Overview', 'Budget', 'Procurement', 'Tasks', 'Documents']));
+    expect(tabs).toEqual(['Overview', 'Budget', 'Tasks', 'Documents']);
   });
 
-  it('SUB-A: deep-linking a pre-win record to /work-orders shows Overview instead', async () => {
-    await renderAt('/projects/opp1/work-orders');
+  it.each(['/work-orders', '/procurement'])('SUB-A: a pipeline deal deep-link to %s falls back to Overview', async (area) => {
+    await renderAt(`/projects/opp1${area}`);
     expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
-    expect(screen.getByTestId('prewin-compact-planner')).toBeInTheDocument();
+    expect(screen.getByLabelText('Project stage journey')).toBeInTheDocument();
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import userEvent from '@testing-library/user-event';
@@ -6,115 +6,75 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
 import { ToastProvider } from '@/src/components/ui';
-vi.mock('@/pages/project-detail/ProjectFinancesSection', () => ({ ProjectFinancesSection: () => null }));
-// ProjectErpLink reads the org's ERP binding through react-query; it has its own test (AC-SETUP-001).
-vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
-/**
- * AC-CHG-018 — History tab. (Derived from the B-9 deep-link harness, AC-W2-IA-004): /projects/:id/:tab? symmetric deep-link.
- * The Budget tab was the only URL-addressable tab (/projects/:id/budget); the other
- * four had no URL — an asymmetric half-applied deep-link (OUTSTANDING E2).
- *
- * Fix: generalize to /projects/:id/:tab? so all five tabs are deep-linkable
- * symmetrically. An unknown :tab defaults to overview; /budget keeps working
- * (backward-compat).
- *
- * Owning layer: component (RTL) — AC-W2-IA-004.
- */
-
-// Minimal mocks — we only need the tab-selection logic, not the real data.
-const projData = [
-  {
-    id: 'p1',
-    name: 'Innovate HQ',
-    status: 'Ongoing Project',
-    budget: 100000,
-    spent: 0,
-    archived_at: null,
-    created_at: '',
-    last_update: '',
-    org_id: 'o1',
-    contract_value: 200000,
-    win_probability: 1,
-    stage_id: null,
-    code: null,
-    customer_contract_ref: null,
-    client: null,
-    client_id: null,
-    project_manager_id: null,
-    pm: null,
-  },
-];
+const project = {
+  id: 'p1', name: 'Innovate HQ', status: 'Ongoing Project', currency: 'USD', contract_value: 200_000,
+  client_id: null, project_manager_id: null, client: null, pm: null, code: 'P-1',
+} as never;
 
 vi.mock('@/src/hooks/useProjects', () => ({
-  useProjects: () => ({ data: projData, isPending: false }),
-  // #840: the detail route reads ONE project by id (any stage), never the whole list.
-  useProject: (id: string) => {
-    const l = (({ data: projData, isPending: false })) as { data?: { id: string }[] | null; isPending?: boolean; isError?: boolean; refetch?: () => void };
-    return { isPending: false, isError: false, refetch: vi.fn(), ...l, data: (l.data ?? []).find((p) => p.id === id) ?? null };
-  },
-  useClientCompanies: () => ({ data: [] }),
-  useProjectManagers: () => ({ data: [] }),
-  useProjectMutations: () => ({ create: { mutateAsync: vi.fn(), isPending: false } }),
+  useProject: (id: string) => ({ data: id === 'p1' ? project : null, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectMutations: () => ({
+    create: { mutateAsync: vi.fn(), isPending: false }, updateHeader: { mutateAsync: vi.fn(), isPending: false },
+    archive: { mutateAsync: vi.fn(), isPending: false }, remove: { mutateAsync: vi.fn(), isPending: false },
+  }),
 }));
-vi.mock('@/src/lib/db/opportunity', () => ({
-  useOpportunity: () => ({ data: undefined, isPending: false }),
-}));
+vi.mock('@/src/lib/db/opportunity', () => ({ useOpportunity: () => ({ data: undefined, isPending: false }) }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
-  useProjectTransition: () => ({
-    mutate: vi.fn(),
-    mutateAsync: vi.fn(),
-    isError: false,
-    error: null,
-    isPending: false,
-  }),
-}));
-// Stub the tab content components so we only test tab selection, not data.
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
-vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
-vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
-vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
-vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div data-testid="tab-documents">Documents</div> }));
-vi.mock('../tabs/BillingTab', () => ({ default: () => <div data-testid="tab-billing">Billing</div> }));
-vi.mock('../PipelineLens', () => ({ default: () => <div>Pipeline</div> }));
-// ProjectSCurve reads useTasks (ADR-0032) and renders inside ProjectDetail → mock it.
-vi.mock('@/src/hooks/useTasks', () => ({
-  useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-}));
-vi.mock('@/src/hooks/useMilestones', () => ({
-  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useMilestoneMutations: () => ({
-    create: { mutateAsync: vi.fn(), isPending: false },
-    update: { mutateAsync: vi.fn(), isPending: false },
-    remove: { mutateAsync: vi.fn(), isPending: false },
-    setTaskMilestone: { mutateAsync: vi.fn(), isPending: false },
-  }),
+  useProjectTransition: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isError: false, error: null, isPending: false }),
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
-  useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectCommittedSpend: () => ({ data: undefined, isPending: false, isError: false, commitmentSource: 'unavailable' }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
-vi.mock('../ProjectDetailHeader', () => ({
-  default: () => <div>Header</div>,
-  // Re-export the predicate so ProjectDetail.tsx's import of hasFinanceView resolves.
-  hasFinanceView: (role: string | null): boolean => {
-    if (!role) return false;
-    return ['Admin', 'Executive', 'Finance', 'Project Manager'].includes(role);
-  },
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useBudget', () => ({
+  useBudgetVersions: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useTasks', () => ({
+  useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useAssignableProfiles: () => ({ data: [], isPending: false }),
+}));
+vi.mock('@/src/hooks/useMilestones', () => ({
+  useMilestones: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useComments', () => ({
+  useComments: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 
-vi.mock('@/src/components/history/RecordHistory', () => ({
-  RecordHistory: (p: { entityType: string; entityId: string; includeChildren?: boolean; kindFilters?: boolean }) => (
-    <div data-testid="tab-history">{`${p.entityType}:${p.entityId}:${String(p.includeChildren)}:${String(p.kindFilters)}`}</div>
-  ),
+vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div>, hasFinanceView: () => true }));
+vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('../useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => null,
 }));
+vi.mock('../tabs/BudgetTab', () => ({ default: () => <div>Budget surface</div> }));
+vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div>Procurement surface</div> }));
+vi.mock('../tabs/TasksTab', () => ({ default: () => <div>Tasks surface</div> }));
+vi.mock('../tabs/DocumentsTab', () => ({ default: () => <div>Documents surface</div> }));
+vi.mock('../tabs/WorkOrdersTab', () => ({ default: () => <div>Work orders</div> }));
+vi.mock('../tabs/BillingTab', () => ({ default: () => <div>Billing surface</div> }));
+vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
+vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => <div>Change history</div> }));
+vi.mock('@/pages/project-detail/ProjectErpLink', () => ({ ProjectErpLink: () => null }));
 
 import ProjectDetail from '../ProjectDetail';
 
-vi.mock('@/src/components/comments/CommentsSection', () => ({ CommentsSection: () => null }));
-
 const renderAt = async (path: string) => {
+  window.history.replaceState({}, '', path);
   const view = render(
     <ImpersonationProvider realRole="Project Manager">
       <MemoryRouter initialEntries={[path]}>
@@ -127,22 +87,37 @@ const renderAt = async (path: string) => {
       </MemoryRouter>
     </ImpersonationProvider>,
   );
-  await waitFor(() => expect(screen.queryByTestId('project-detail-panel-loading')).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument());
   return view;
 };
 
-describe('ProjectDetail — History tab (AC-CHG-018)', () => {
-  it('AC-CHG-018: /projects/:id/history deep-links to the History tab with child roll-up and kind filters', async () => {
+beforeEach(() => window.history.replaceState({}, '', '/'));
+afterEach(() => window.history.replaceState({}, '', '/'));
+
+describe('ProjectDetail Activity drawer (AC-CHG-018)', () => {
+  it('AC-CHG-018: the legacy /history route opens Overview with the Activity drawer open', async () => {
     await renderAt('/projects/p1/history');
-    expect(screen.getByTestId('tab-history')).toHaveTextContent('project:p1:true:true');
+
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'History' })).not.toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Activity' })).toBeInTheDocument();
   });
 
-  it('AC-CHG-018: the History tab is keyboard-operable and selects via the tab bar', async () => {
-    await renderAt('/projects/p1');
-    const tab = screen.getByRole('tab', { name: 'History' });
-    tab.focus();
-    await userEvent.keyboard('{Enter}');
-    expect(await screen.findByTestId('tab-history')).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'History' })).toHaveAttribute('aria-selected', 'true');
+  it('AC-CHG-018: Activity is available from Overview only and closing its drawer restores focus', async () => {
+    const overviewPage = await renderAt('/projects/p1');
+    const activityLine = screen.getByRole('button', { name: /Activity · no comments yet/i });
+    expect(activityLine).toBeInTheDocument();
+
+    await userEvent.click(activityLine);
+    expect(screen.getByRole('dialog', { name: 'Activity' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Activity' })).not.toBeInTheDocument());
+    expect(activityLine).toHaveFocus();
+    overviewPage.unmount();
+
+    const tasksPage = await renderAt('/projects/p1/tasks');
+    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Activity · no comments yet/i })).not.toBeInTheDocument();
+    tasksPage.unmount();
   });
 });

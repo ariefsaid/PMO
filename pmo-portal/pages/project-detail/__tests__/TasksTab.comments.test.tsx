@@ -107,6 +107,7 @@ describe('TasksTab comments for a non-editor reader', () => {
   it('AC-CMT-001 an Engineer who cannot edit the task opens its comments, reads and posts', async () => {
     const user = userEvent.setup();
     renderTab('Engineer', 'eng-2');
+    await user.click(screen.getByRole('button', { name: 'All' }));
     expect(screen.queryByRole('button', { name: 'Edit Survey the site' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Comments Survey the site' }));
     const dialog = await screen.findByRole('dialog');

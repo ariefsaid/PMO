@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import React from 'react';
@@ -91,11 +92,12 @@ vi.mock('@/src/lib/db/projectTransitions', async (orig) => {
   const actual = await (orig() as Promise<Record<string, unknown>>);
   return { ...actual, transitionProject: vi.fn().mockResolvedValue(undefined) };
 });
+const roleBox = vi.hoisted(() => ({ value: 'Project Manager' }));
 vi.mock('@/src/auth/useAuth', () => ({
-  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: 'Project Manager' }),
+  useAuth: () => ({ currentUser: { id: 'u-alice', org_id: 'org-1' }, role: roleBox.value }),
 }));
 vi.mock('@/src/auth/impersonation', () => ({
-  useEffectiveRole: () => ({ effectiveRole: 'Project Manager', realRole: 'Project Manager' }),
+  useEffectiveRole: () => ({ effectiveRole: roleBox.value, realRole: roleBox.value }),
 }));
 vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
@@ -165,6 +167,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
     <MemoryRouter initialEntries={[path]}>
       <ToastProvider>
         <Routes>
+          <Route path="/projects/:projectId/:tab?" element={<ProjectDetail />} />
           <Route path="/projects/:projectId" element={<ProjectDetail />} />
         </Routes>
       </ToastProvider>
@@ -175,6 +178,7 @@ const renderAt = async (path: string | { pathname: string; state?: unknown }) =>
 };
 
 beforeEach(() => {
+  roleBox.value = 'Project Manager';
   navigate.mockClear();
   projectsState.data = [];
   projectsState.isPending = false;
@@ -182,23 +186,27 @@ beforeEach(() => {
 });
 
 describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
-  it('AC-IXD-PROJ-004: an ON-HAND record renders the delivery tabs + the contract-value SoD editor (no pipeline lens)', async () => {
+  it('AC-IXD-PROJ-004: Finance opens Change contract value from the compact header More menu', async () => {
+    roleBox.value = 'Finance';
     projectsState.data = [onHandRow];
     await renderAt('/projects/p1');
 
     // header is shared across lenses
     expect(screen.getByRole('heading', { name: 'Innovate Corp HQ Fit-Out' })).toBeInTheDocument();
-    // delivery lens: the 5 section tabs are present
+    // Finance can open project areas, but the SoD editor stays behind its explicit action.
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
-    // the contract-value SoD editor row is mounted on a won/on-hand project
+    expect(screen.queryByTestId('contract-value-sod')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('More actions'));
+    await userEvent.click(screen.getByRole('button', { name: 'Change contract value' }));
     expect(screen.getByTestId('contract-value-sod')).toBeInTheDocument();
+    expect(screen.getByLabelText('Contract value')).toBeInTheDocument();
     // the pipeline lens is NOT mounted
     expect(screen.queryByLabelText('Project stage journey')).toBeNull();
     expect(screen.queryByRole('button', { name: /Advance to/i })).toBeNull();
   });
 
-  it('AC-IXD-PROJ-008 (ADR-0021): a PIPELINE (pre-win) record renders the project journey banner ABOVE the full delivery tabs (so budget/tasks/procurement are reachable pre-win)', async () => {
+  it('AC-IXD-PROJ-008 (ADR-0021): a pipeline record shows PipelineLens with Overview, Budget, Tasks and Documents', async () => {
     projectsState.data = [pipelineRow];
     // the live status/value also flows through the pipeline cache
     pipelineState.data = {
@@ -214,10 +222,11 @@ describe('ProjectDetail — stage-adaptive lens (AC-IXD-PROJ-004)', () => {
     expect(screen.getByRole('button', { name: /Advance to/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark won/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Mark lost/i })).toBeInTheDocument();
-    // ADR-0021: the delivery tabs ARE now mounted pre-win (the budget/tasks/procurement planning
-    // surface a PM needs while pursuing the deal) — this is the override of ADR-0020 §1.
+    // A deal can be planned in Budget and Tasks before it is won; Procurement and Contract are
+    // not available until it reaches delivery.
     expect(screen.getByRole('tablist', { name: /project sections/i })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Budget' })).toBeInTheDocument();
+    const tabs = Array.from(screen.getByRole('tablist', { name: /project sections/i }).querySelectorAll('[role="tab"]')).map((tab) => tab.textContent);
+    expect(tabs).toEqual(['Overview', 'Budget', 'Tasks', 'Documents']);
     // the contract-value SoD editor stays delivery-only (the deal's value lives in the banner).
     expect(screen.queryByTestId('contract-value-sod')).toBeNull();
   });

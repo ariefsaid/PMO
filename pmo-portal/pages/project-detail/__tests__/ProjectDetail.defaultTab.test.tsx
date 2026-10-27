@@ -10,7 +10,7 @@
  * Owning layer: Vitest/RTL — pure FE logic, no DB required.
  */
 import { describe, it, expect, vi } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { renderWithQueryClient as render } from '@/test/renderWithQueryClient';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import React from 'react';
@@ -77,7 +77,6 @@ vi.mock('@/src/hooks/useProjectTransitions', () => ({
 }));
 
 // Stub tab contents — we only test which tab is active, not what's inside them.
-vi.mock('../tabs/OverviewTab', () => ({ default: () => <div data-testid="tab-overview">Overview</div> }));
 vi.mock('../tabs/BudgetTab', () => ({ default: () => <div data-testid="tab-budget">Budget</div> }));
 vi.mock('../tabs/ProcurementTab', () => ({ default: () => <div data-testid="tab-procurement">Procurement</div> }));
 vi.mock('../tabs/TasksTab', () => ({ default: () => <div data-testid="tab-tasks">Tasks</div> }));
@@ -102,6 +101,24 @@ vi.mock('@/src/hooks/useProcurements', () => ({
   useProjectCommittedSpend: () => ({ data: 0, isPending: false, isError: false, refetch: vi.fn() }),
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => null,
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
 }));
 
 // Stub ProjectDetailHeader — its own mutation/auth setup is tested separately.
@@ -146,70 +163,65 @@ describe('AC-IXD-PROJ-W5-C3-A: role-invariant default tab (CW-7, supersedes OD-W
 
   it('CW-7 (was AC-IXD-PROJ-W5-C3-A-01): Engineer opening /projects/:id (no tab) lands on Overview, not Tasks', async () => {
     await renderAs('Engineer', '/projects/p1');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+    expect(screen.getByRole('tabpanel')).toHaveAttribute('id', 'project-detail-tabpanel-overview');
   });
 
   it('CW-7 (was AC-IXD-PROJ-W5-C3-A-02): the Overview tab item is aria-selected=true for Engineer (no tab param)', async () => {
     await renderAs('Engineer', '/projects/p1');
     const tablist = screen.getByRole('tablist', { name: /project sections/i });
-    const overviewTab = Array.from(tablist.querySelectorAll('[role="tab"]')).find(
-      (t) => t.textContent === 'Overview',
-    );
-    expect(overviewTab).not.toBeUndefined();
-    expect(overviewTab!.getAttribute('aria-selected')).toBe('true');
+    expect(within(tablist).getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('AC-PB-008: Engineer sees only Overview, Procurement, Tasks and Documents tabs', async () => {
+    await renderAs('Engineer', '/projects/p1');
+    const tabs = Array.from(screen.getByRole('tablist', { name: /project sections/i }).querySelectorAll('[role="tab"]'))
+      .map((tab) => tab.textContent);
+    expect(tabs).toEqual(['Overview', 'Procurement', 'Tasks', 'Documents']);
   });
 
   // ── All other roles ALSO default to Overview (unchanged) ───────────────────
 
   it('AC-IXD-PROJ-W5-C3-A-03: Project Manager opening /projects/:id (no tab) lands on Overview', async () => {
     await renderAs('Project Manager', '/projects/p1');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-04: Executive opening /projects/:id (no tab) lands on Overview', async () => {
     await renderAs('Executive', '/projects/p1');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-05: Finance opening /projects/:id (no tab) lands on Overview', async () => {
     await renderAs('Finance', '/projects/p1');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-06: Admin opening /projects/:id (no tab) lands on Overview', async () => {
     await renderAs('Admin', '/projects/p1');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 
   // ── Deep-link always wins regardless of role ──────────────────────────────
 
-  it('AC-IXD-PROJ-W5-C3-A-07: Engineer with explicit /projects/:id/budget deep-link opens Budget (deep-link wins over role default)', async () => {
+  it('AC-PB-008: an Engineer deep-link to /projects/:id/budget falls back to Overview', async () => {
     await renderAs('Engineer', '/projects/p1/budget');
-    expect(screen.getByTestId('tab-budget')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Budget' })).not.toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-08: Project Manager with explicit /projects/:id/tasks deep-link opens Tasks', async () => {
     await renderAs('Project Manager', '/projects/p1/tasks');
-    expect(screen.getByTestId('tab-tasks')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Tasks', selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-09: Engineer with explicit /projects/:id/overview deep-link opens Overview', async () => {
     await renderAs('Engineer', '/projects/p1/overview');
-    expect(screen.getByTestId('tab-overview')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Overview', selected: true })).toBeInTheDocument();
   });
 
   it('AC-IXD-PROJ-W5-C3-A-10: Finance with explicit /projects/:id/procurement deep-link opens Procurement', async () => {
     await renderAs('Finance', '/projects/p1/procurement');
-    expect(screen.getByTestId('tab-procurement')).toBeInTheDocument();
-    expect(screen.queryByTestId('tab-overview')).not.toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Procurement', selected: true })).toBeInTheDocument();
   });
 });

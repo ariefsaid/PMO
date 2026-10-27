@@ -2676,21 +2676,54 @@
       "transitionFailed": "Transisi gagal"
     },
     "procurement": {
-      "column": {
-        "request": "Permintaan",
-        "status": "Status",
-        "value": "Nilai"
-      },
       "empty": {
-        "title": "Belum ada permintaan pembelian untuk proyek ini"
+        "sub": "Pembelian yang dicatat di ERPNext akan muncul di bawah.",
+        "title": "Belum ada pengadaan untuk proyek ini."
       },
       "error": {
-        "sub": "Terjadi kesalahan saat mengambil permintaan pembelian proyek ini.",
+        "sub": "Terjadi kesalahan saat mengambil data pengadaan proyek ini.",
         "title": "Gagal memuat pengadaan"
       },
-      "newRequest": "Permintaan baru",
+      "erpDisclosure": "Dokumen sistem akuntansi",
+      "group": {
+        "inProgress": "Sedang berjalan",
+        "invoicedOrPaid": "Ditagih atau dibayar",
+        "needsAction": "Perlu tindakan",
+        "rejectedOrCancelled": "Ditolak atau dibatalkan"
+      },
+      "newRequest": "Pengadaan baru",
+      "nextStep": {
+        "approved": "Minta penawaran atau pesan",
+        "awaitingApproval": "Setujui atau tolak",
+        "delivered": "Catat faktur pemasok",
+        "draft": "Ajukan untuk persetujuan",
+        "gettingQuotes": "Pilih penawaran",
+        "ordered": "Catat pengiriman",
+        "quoteChosen": "Ajukan pesanan",
+        "supplierInvoiced": "Bayar"
+      },
       "openRow": "Buka",
-      "title": "Permintaan pembelian"
+      "stage": {
+        "approved": "Disetujui",
+        "awaitingApproval": "Menunggu persetujuan",
+        "cancelled": "Dibatalkan",
+        "delivered": "Diterima",
+        "draft": "Draf",
+        "gettingQuotes": "Sedang mencari penawaran",
+        "ordered": "Dipesan",
+        "paid": "Dibayar",
+        "quoteChosen": "Penawaran dipilih",
+        "rejected": "Ditolak",
+        "supplierInvoiced": "Ditagih pemasok"
+      },
+      "summary": {
+        "awaitingApproval": "Menunggu persetujuan",
+        "committed": "Komitmen",
+        "paid": "Dibayar",
+        "reserved": "Dicadangkan"
+      },
+      "supplierMissing": "Pemasok belum dipilih",
+      "title": "Pengadaan"
     },
     "rail": {
       "actionsAriaLabel": "Tindakan panel proyek",

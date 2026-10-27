@@ -17,7 +17,6 @@ const routeChunkState = vi.hoisted(() => {
   });
   return {
     loads: {
-      overview: 0,
       budget: 0,
       procurement: 0,
       tasks: 0,
@@ -33,10 +32,6 @@ const routeChunkState = vi.hoisted(() => {
   };
 });
 
-vi.mock('../tabs/OverviewTab', () => {
-  routeChunkState.loads.overview += 1;
-  return { default: () => <div data-testid="tab-overview">Overview panel</div> };
-});
 vi.mock('../tabs/BudgetTab', () => {
   routeChunkState.loads.budget += 1;
   return { default: () => <div data-testid="tab-budget">Budget panel</div> };
@@ -118,6 +113,24 @@ vi.mock('@/src/hooks/useMilestones', () => ({
 vi.mock('@/src/hooks/useTasks', () => ({
   useTasks: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useProjectFinances', () => ({
+  useProjectFinances: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('../useProjectPosition', () => ({
+  useProjectAttention: () => ({ items: [], isPending: false }),
+  useOverdueReceivables: () => null,
+}));
+vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
+vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));
+vi.mock('../ProjectActivity', () => ({ ActivityFooter: () => null, MyOpenTasks: () => null, ProjectActivity: () => null }));
+vi.mock('../ProjectDrawdown', () => ({ default: () => null }));
+vi.mock('../ProjectSCurve', () => ({ default: () => null }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useFxOrgDay', () => ({
+  useFxOrgDay: () => ({ day: '2026-10-27', isPending: false, isError: false, retry: vi.fn() }),
+}));
 vi.mock('@/src/lib/db/opportunity', () => ({
   useOpportunity: () => ({ data: undefined, isPending: false }),
 }));
@@ -147,7 +160,6 @@ describe('ProjectDetail route panel loading', () => {
   it('keeps the project header and task action usable while loading only the selected panel', async () => {
     const { default: ProjectDetail } = await import('../ProjectDetail');
     expect(routeChunkState.loads).toMatchObject({
-      overview: 0,
       budget: 0,
       procurement: 0,
       tasks: 0,
@@ -182,7 +194,6 @@ describe('ProjectDetail route panel loading', () => {
     expect(taskPanel).toHaveAttribute('aria-labelledby', tasksTab.id);
     expect(routeChunkState.loads.tasks).toBe(1);
     expect(routeChunkState.loads).toMatchObject({
-      overview: 0,
       budget: 0,
       procurement: 0,
       workOrders: 0,
@@ -200,10 +211,10 @@ describe('ProjectDetail route panel loading', () => {
     fireEvent.click(linkAction);
     expect(routeChunkState.taskActionClicks()).toBe(1);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Billing' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Contract & billing' }));
     const billingPanel = await screen.findByTestId('tab-billing');
     expect(billingPanel).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: 'Billing' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Contract & billing' })).toHaveAttribute('aria-selected', 'true');
     expect(routeChunkState.loads.billing).toBe(1);
     expect(routeChunkState.loads.tasks).toBe(1);
     expect(header).toBeInTheDocument();
