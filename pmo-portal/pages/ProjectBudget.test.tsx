@@ -104,7 +104,7 @@ const renderPage = (projectId = 'p-1') => {
   // Existing lifecycle/editor proofs exercise the line editor itself. The new composed tab keeps it
   // behind the draft banner, so open that disclosure for this behavior-focused suite.
   if (versionsState.data?.some((version) => (version as { status?: string }).status === 'Draft')) {
-    const editDraft = screen.queryByRole('button', { name: 'Edit draft' });
+    const editDraft = screen.queryByRole('button', { name: /^(Edit draft|Ubah draf)$/i });
     if (editDraft) fireEvent.click(editDraft);
   }
   return result;
@@ -210,9 +210,9 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
   it('renders all six confirmation descriptions in Bahasa in an id locale session', async () => {
     await financeTestI18n.changeLanguage('id');
     const cases = [
-      { versions: [], trigger: /Create budget/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
+      { versions: [], trigger: /Buat anggaran/i, fill: true, confirm: /^Buat$/i, body: 'Ini membuat versi anggaran Draf baru bernama' },
       { versions: [draftVersion], trigger: /Activate v2|Aktifkan v2/i, confirm: /Aktifkan versi/i, body: 'Ini menjadikan Draft v2 (v2) sebagai anggaran aktif' },
-      { versions: [activeVersion], trigger: /Update budget/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
+      { versions: [activeVersion], trigger: /Perbarui anggaran/i, confirm: /Salin versi/i, body: 'Ini menyalin Version 1 (v1) menjadi Draf baru' },
       { versions: [activeVersion], trigger: /Arsipkan/i, confirm: /Arsipkan versi/i, body: 'Ini menonaktifkan Version 1 (v1) sebagai anggaran aktif', openVersions: true },
       { versions: [draftVersion], trigger: /Hapus draf/i, confirm: /Hapus draf/i, body: 'Ini menghapus draf Draft v2 (v2) secara permanen', openVersions: true },
       { versions: [draftVersion], trigger: /Hapus item anggaran/i, confirm: /^Hapus$/i, body: 'Ini menghapus item anggaran dari draf secara permanen' },
@@ -225,7 +225,7 @@ describe('ProjectBudget Bahasa confirmation copy (BU-2)', () => {
         await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
         await userEvent.type(screen.getByPlaceholderText(/nama versi/i), 'Anggaran baru');
       } else {
-        if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+        if (scenario.openVersions) await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
         await userEvent.click(screen.getByRole('button', { name: scenario.trigger }));
       }
       if (scenario.fill) await userEvent.click(screen.getByRole('button', { name: scenario.confirm }));
@@ -437,26 +437,26 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = activeVersion.total;
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const soleView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByText('Activated by sole operator')).toBeInTheDocument();
     soleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: 'standard' }];
     const standardView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.queryByText('Activated by sole operator')).not.toBeInTheDocument();
     standardView.unmount();
 
     await financeTestI18n.changeLanguage('id');
     versionsState.data = [{ ...activeVersion, activation_basis: 'sole_operator' }];
     const idSoleView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByText('Diaktifkan oleh operator tunggal')).toBeInTheDocument();
     idSoleView.unmount();
 
     versionsState.data = [{ ...activeVersion, activation_basis: null }];
     const legacyView = renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.queryByText('Diaktifkan oleh operator tunggal')).not.toBeInTheDocument();
     legacyView.unmount();
   });
@@ -464,7 +464,7 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Draft')).toBeInTheDocument();
     resetState();
   });
@@ -473,7 +473,7 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Active')).toBeInTheDocument();
     resetState();
   });
@@ -482,7 +482,7 @@ describe('ProjectBudget version status display', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(within(screen.getByRole('dialog', { name: 'Budget versions' })).getByText('Archived')).toBeInTheDocument();
     resetState();
   });
@@ -497,7 +497,7 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [draftVersion];
     renderPage();
     expect(screen.getByRole('button', { name: /Activate/i })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
     resetState();
   });
@@ -572,9 +572,9 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
+    expect(screen.getByText('You drafted or edited this version, so someone else must activate it.')).toBeInTheDocument();
     // The drafter keeps every other Draft affordance.
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByRole('button', { name: /Delete draft/i })).toBeInTheDocument();
   });
 
@@ -584,7 +584,7 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [{ ...draftVersion, created_by: 'u2', editor_ids: ['u1'] }];
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
+    expect(screen.getByText('You drafted or edited this version, so someone else must activate it.')).toBeInTheDocument();
   });
 
   it('OD-BUDGET-6: a PM sees that a version with no recorded drafter needs Admin or Finance', () => {
@@ -592,7 +592,7 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [{ ...draftVersion, created_by: null }];
     renderPage();
     expect(screen.queryByRole('button', { name: /^Activate v2$/i })).not.toBeInTheDocument();
-    expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
+    expect(screen.getByText('No drafter is recorded for this version. Ask an Admin or Finance user to activate it.')).toBeInTheDocument();
   });
 
   it('OD-BUDGET-6: Finance may activate a version with no recorded drafter', () => {
@@ -601,7 +601,7 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [{ ...draftVersion, created_by: null }];
     renderPage();
     expect(screen.getByRole('button', { name: /^Activate v2$/i })).toBeInTheDocument();
-    expect(screen.queryByText('Waiting for approval by finance')).not.toBeInTheDocument();
+    expect(screen.queryByText('No drafter is recorded for this version. Ask an Admin or Finance user to activate it.')).not.toBeInTheDocument();
   });
 
   it('OD-BUDGET-6: the drafter reason renders from the shipped Indonesian catalogue', async () => {
@@ -609,14 +609,14 @@ describe('ProjectBudget Draft version actions', () => {
     versionsState.data = [{ ...draftVersion, created_by: 'u1' }];
     await financeTestI18n.changeLanguage('id');
     renderPage();
-    expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
+    expect(screen.getByText('Anda menyusun atau mengedit versi ini, jadi orang lain harus mengaktifkannya.')).toBeInTheDocument();
   });
 
   it('B5: Delete draft opens a DESTRUCTIVE modal; deleteDraft fires only on Confirm', async () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /Delete draft/i }));
     expect(mockDeleteDraft).not.toHaveBeenCalled();
     expect(screen.getByRole('alertdialog')).toBeInTheDocument();
@@ -668,7 +668,7 @@ describe('ProjectBudget Active version actions', () => {
     versionsState.data = [activeVersion];
     renderPage();
     expect(screen.getByRole('button', { name: 'Update budget' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByRole('button', { name: /^Archive$/i })).toBeInTheDocument();
     resetState();
   });
@@ -677,7 +677,7 @@ describe('ProjectBudget Active version actions', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     // Owner rule: nothing mutates on the first click; a destructive modal appears.
     expect(mockArchive).not.toHaveBeenCalled();
@@ -691,7 +691,7 @@ describe('ProjectBudget Active version actions', () => {
     budgetState.data = 4700000;
     versionsState.data = [activeVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Archive$/i }));
     await userEvent.click(screen.getByRole('button', { name: /^Cancel$/i }));
     expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
@@ -721,7 +721,7 @@ describe('ProjectBudget Archived version actions', () => {
     versionsState.data = [archivedVersion];
     renderPage();
     expect(screen.getByRole('button', { name: 'New version' })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByRole('button', { name: /Clone to revise/i })).toBeInTheDocument();
     resetState();
   });
@@ -730,7 +730,7 @@ describe('ProjectBudget Archived version actions', () => {
     budgetState.data = 0;
     versionsState.data = [archivedVersion];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.queryByRole('button', { name: /Activate/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Archive$/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Delete draft/i })).not.toBeInTheDocument();
@@ -755,7 +755,7 @@ describe('ProjectBudget line-item add form (Draft)', () => {
     budgetState.data = 0;
     versionsState.data = [draftVersion];
     render(<BahasaProvider><QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter><ToastProvider><ProjectBudget projectId="p-1" project={project} /></ToastProvider></MemoryRouter></QueryClientProvider></BahasaProvider>);
-    await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Ubah draf' }));
     await userEvent.click(screen.getByText(/Tambah item anggaran/i));
     expect(screen.getByRole('option', { name: 'Biaya khusus' })).toHaveValue('Special expenses');
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Kategori item anggaran' }), 'Special expenses');
@@ -991,7 +991,7 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
   it('AC-M365DOC-052 mounts the Microsoft evidence panel beneath the selected version only', async () => {
     versionsState.data = [{ ...activeVersion, line_items: [] }];
     renderPage();
-    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    await userEvent.click(screen.getByRole('button', { name: /^(Manage versions|Kelola versi)$/i }));
     expect(screen.getByTestId('evidence-v-active')).toBeInTheDocument();
   });
 });

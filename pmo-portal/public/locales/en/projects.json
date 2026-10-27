@@ -21,5 +21,9 @@
   },
   "committed": {
     "otherCurrencies": "Plus amounts in other currencies: {{amounts}}"
+  },
+  "table": {
+    "selectRow": "Select {{row}}",
+    "selectAllRows": "Select all rows"
   }
 }

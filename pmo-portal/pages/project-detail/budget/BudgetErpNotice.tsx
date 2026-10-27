@@ -28,11 +28,15 @@ const pushStatusVariant = (state: string | null): 'neutral' | 'progress' | 'won'
 export default function BudgetErpNotice({
   projectId,
   activeVersion,
+  hasDraft = false,
+  onRecover,
 }: {
   projectId: string;
   activeVersion: BudgetVersionWithItems | undefined;
+  hasDraft?: boolean;
+  onRecover?: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { realRole } = useEffectiveRole();
   const may = usePermission();
   const { toast } = useToast();
@@ -131,6 +135,12 @@ export default function BudgetErpNotice({
             {index > 0 && <span aria-hidden="true">·</span>}
             <StatusPill variant={pushStatusVariant(state)}>{pushStateLabel(state)}</StatusPill>
             {message && <span>{message}</span>}
+            {unstamped && onRecover && (
+              <span className="inline-flex flex-wrap items-center gap-x-2">
+                <span>{t('projectDetail.budget.unstampedRecovery', 'Clone the active version or edit the existing draft, then activate it to record a real activation date.')}</span>
+                <Button variant="ghost" size="sm" onClick={onRecover}>{hasDraft ? t('projectDetail.budget.editDraftRecovery', 'Edit draft') : t('projectDetail.budget.cloneToRevise', 'Clone to revise')}</Button>
+              </span>
+            )}
             {row.fiscalYear && <span>({row.fiscalYear})</span>}
             {row.erpBudgetName && <span>{row.erpBudgetName}</span>}
             {needsMap && (

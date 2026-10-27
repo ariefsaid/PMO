@@ -40,7 +40,7 @@ export default function BudgetVersionsDrawer({
   onClone,
   onDeleteDraft,
 }: BudgetVersionsDrawerProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [comparing, setComparing] = useState(false);
   const [versionA, setVersionA] = useState(versions[0]?.id ?? '');
   const [versionB, setVersionB] = useState(versions[1]?.id ?? versions[0]?.id ?? '');
@@ -54,8 +54,8 @@ export default function BudgetVersionsDrawer({
   );
   const compareColumns: Column<BudgetComparisonRow>[] = [
     { key: 'category', header: t('financeCopy.category', 'Category'), kind: 'primary', cell: (row) => budgetCategoryLabel(row.category, t) },
-    { key: 'a', header: t('projectDetail.budget.versionA', 'A'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.a) },
-    { key: 'b', header: t('projectDetail.budget.versionB', 'B'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.b) },
+    { key: 'a', header: t('projectDetail.budget.versionMarkerA', 'A'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.a) },
+    { key: 'b', header: t('projectDetail.budget.versionMarkerB', 'B'), kind: 'money', align: 'num', cell: (row) => formatNumberMax2(row.b) },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (row) => (
       <span className={row.change > 0 ? 'text-destructive-text' : undefined}>
         {row.change > 0 ? '+' : ''}{formatNumberMax2(row.change)}

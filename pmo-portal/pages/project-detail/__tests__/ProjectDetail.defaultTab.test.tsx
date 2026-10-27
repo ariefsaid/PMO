@@ -33,6 +33,7 @@ const projData = [
     last_update: '',
     org_id: 'o1',
     contract_value: 200_000,
+    currency: 'USD',
     win_probability: 1,
     stage_id: null,
     code: null,
@@ -107,7 +108,7 @@ vi.mock('@/src/hooks/useProjectFinances', () => ({
 }));
 vi.mock('../useProjectPosition', () => ({
   useProjectAttention: () => ({ items: [], isPending: false }),
-  useOverdueReceivables: () => null,
+  useOverdueReceivables: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('../ProjectAttention', () => ({ ProjectAttention: () => null }));
 vi.mock('../ProjectBlocks', () => ({ CostBlock: () => null, DeliveryBlock: () => null, MoneyBlock: () => null }));

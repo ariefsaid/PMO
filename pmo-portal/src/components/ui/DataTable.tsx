@@ -329,7 +329,7 @@ export function DataTable<Row>({
   totals,
   selection,
 }: DataTableProps<Row>) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('projects');
   const columns = useMemo(() => allColumns.filter((column) => !column.exportOnly), [allColumns]);
   const userId = useContext(AuthContext)?.currentUser?.id;
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>(() => readColumnSizing(tableId, userId, columns as Column<unknown>[]));
@@ -867,7 +867,7 @@ export function DataTable<Row>({
                         <React.Fragment key={col.key}>
                           <dt
                             className={cn(
-                              'text-[11px] font-semibold uppercase tracking-[0.06em] text-muted-foreground self-start',
+                              'text-[11px] font-semibold text-muted-foreground self-start',
                               stripHiddenClasses(col.colClassName)
                             )}
                           >
@@ -950,7 +950,7 @@ const MENU_GAP = 4; // `mt-1` equivalent between trigger and menu (DESIGN.md spa
  * per row; `ariaLabel` names the trigger for its row (e.g. "Link PINV-1").
  */
 const RowMenu: React.FC<{ items: RowMenuItem[]; label?: string; ariaLabel?: string }> = ({ items, label, ariaLabel }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('projects');
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);

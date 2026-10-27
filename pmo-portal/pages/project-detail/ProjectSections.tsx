@@ -49,6 +49,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
   const lens = useLens();
   const may = usePermission();
   const attention = useProjectAttention(project, lens);
+  const attentionProps = { items: attention.items, isPending: attention.isPending, error: attention.error, excludeKeys: lens === 'delivery' ? attention.myVisibleTaskKeys : undefined };
   const curve = !isPipeline && lens !== 'delivery'
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null;
@@ -59,7 +60,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
           <div className="grid min-w-0 gap-8 xl:grid-cols-2">
             <MyOpenTasks projectId={project.id} />
             <section className="min-w-0 border-y border-border/70 py-4">
-              <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
+              <ProjectAttention {...attentionProps} />
             </section>
           </div>
           <DeliveryBlock projectId={project.id} isPipeline />
@@ -79,7 +80,7 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
         <div className="grid min-w-0 gap-8 xl:grid-cols-2">
           <MyOpenTasks projectId={project.id} />
           <section className="min-w-0 border-y border-border/70 py-4">
-            <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
+            <ProjectAttention {...attentionProps} />
           </section>
         </div>
         <DeliveryBlock projectId={project.id} />
@@ -125,7 +126,7 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
 };
 
 function useAreaLabels(): Record<Area, string> {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return {
     overview: t('projectDetail.tabs.overview', 'Overview'),
     budget: t('projectDetail.tabs.budget', 'Budget'),
@@ -151,7 +152,7 @@ function useVisibleAreas(isPipeline: boolean): Area[] {
 
 /** The project's areas as tabs under one header (owner pick A+C, #1402); activity opens from the Overview foot. */
 const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, header }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const labels = useAreaLabels();
   const areas = useVisibleAreas(isPipeline).filter((a) => a !== 'activity');
   // A deep link to an area this role or stage doesn't have lands on the Overview (AC-PB-008, SUB-A).
@@ -188,7 +189,7 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
  * share (≥5%) of the contract is still to invoice; otherwise none.
  */
 export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeline: boolean; mobileBar?: boolean; chaseOnly?: boolean }> = ({ project, isPipeline, mobileBar = false, chaseOnly = false }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const canInvoice = may('create', 'salesInvoice') && !isPipeline;
   const receivables = useOverdueReceivables(project);
@@ -201,7 +202,7 @@ export const PrimaryProjectAction: React.FC<{ project: ProjectWithRefs; isPipeli
 };
 
 const RaiseInvoiceAction: React.FC<{ project: ProjectWithRefs; mobileBar: boolean }> = ({ project, mobileBar }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const finances = useProjectFinances(project.id);
   const billing = useProjectBilling(project.id);
   if (finances.isPending || finances.isError || billing.isPending || billing.isError) return null;

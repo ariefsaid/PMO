@@ -3,6 +3,7 @@ export interface BudgetLineLike {
   category: string;
   description: string | null;
   budgeted_amount: number | string;
+  fiscal_year?: string | null;
 }
 
 export interface ActualCategoryLike {

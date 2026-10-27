@@ -68,7 +68,8 @@ export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: str
   </section>
 );
 
-export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey'> {
+export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey' | 'tableId'> {
+  tableId: string;
   label: string;
   rows: ProcurementWithRefs[];
   columns: Column<ProcurementWithRefs>[];
@@ -77,10 +78,10 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
 }
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
-export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, ...tableProps }) => (
+export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, tableId, ...tableProps }) => (
   <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
     {children}
-    <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} />
+    <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} tableId={`procurement-block-${tableId}`} />
   </section>
 );
 
@@ -549,7 +550,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       key: 'settlement',
       header: <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}><span tabIndex={0}>{t('procurement.settlement', 'Paid / invoiced')}</span></Tooltip>,
       kind: 'text',
-      size: 200,
+      size: 110,
       cell: (row) => {
         const money = moneyFor(row, erp.data);
         if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return <span className="text-muted-foreground">—</span>;
@@ -559,8 +560,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
             <span tabIndex={0} className="inline-flex w-full items-center gap-2 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
               <span aria-hidden="true" className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-primary" style={{ width: `${percent}%` }} /></span>
-              <span className="truncate text-xs tabular text-muted-foreground">
-                {formatCurrency(paid, row.currency)} / {formatCurrency(money.invoiced.amount, row.currency)}
+              <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
+                {percent}%
               </span>
             </span>
           </Tooltip>
@@ -577,7 +578,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 350,
+        size: 300,
         sortKey: 'title',
         cell: (row) => {
           const isExpanded = expandedId === row.id;
@@ -653,12 +654,11 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        size: 185,
-        cell: (row) => (
-          <span className={row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}>
-            {nextStepText(row.status, canDecideRow(row), t)}
-          </span>
-        ),
+        size: 150,
+        cell: (row) => {
+          const next = nextStepText(row.status, canDecideRow(row), t);
+          return <Tooltip content={next}><span title={next} className={`block max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
+        },
         exportValue: (row) => nextStepText(row.status, canApprove, t),
       },
       {

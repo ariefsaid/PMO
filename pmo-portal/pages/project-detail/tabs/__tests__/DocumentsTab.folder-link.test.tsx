@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { ImpersonationProvider } from '@/src/auth/impersonation';
@@ -46,13 +47,13 @@ import DocumentsTab from '../DocumentsTab';
 
 const renderTab = () =>
   render(
-    <MemoryRouter>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><MemoryRouter>
       <ImpersonationProvider realRole="Project Manager">
         <ToastProvider>
           <DocumentsTab projectId="p1" projectCode="PRJ-1" />
         </ToastProvider>
       </ImpersonationProvider>
-    </MemoryRouter>,
+    </MemoryRouter></QueryClientProvider>,
   );
 
 beforeEach(() => {
@@ -76,7 +77,7 @@ describe('DocumentsTab — linking a SharePoint folder (#1320 AC-1)', () => {
     expect(h.create.mock.calls[0][0]).toMatchObject({ title: 'Synthetic folder', category: 'Reference', source: 'onedrive', microsoft: FOLDER });
   });
 
-  it('AC-1: a linked folder row shows no issue status and no category; a file row still does', () => {
+  it('AC-1: a linked folder row uses the Reference category without an issue status; a file row still does', () => {
     h.docs.data = [
       makeLinkedDoc({ id: 'f1', title: 'Site folder', category: 'Reference', ms_item_kind: 'folder', ms_item_name: 'Site folder', ms_web_url: FOLDER.web_url }),
       makeLinkedDoc({ id: 'f2', title: 'Foundation GA' }),
@@ -84,17 +85,17 @@ describe('DocumentsTab — linking a SharePoint folder (#1320 AC-1)', () => {
     renderTab();
     const folderRow = screen.getByRole('button', { name: 'View Site folder' }).closest('tr') as HTMLElement;
     expect(within(folderRow).queryByText('Draft')).not.toBeInTheDocument();
-    expect(within(folderRow).queryByText('Reference')).not.toBeInTheDocument();
+    expect(within(folderRow).getByText('Reference')).toBeInTheDocument();
     const fileRow = screen.getByRole('button', { name: 'View Foundation GA' }).closest('tr') as HTMLElement;
     expect(within(fileRow).getByText('Draft')).toBeInTheDocument();
     expect(within(fileRow).getByText('Drawing')).toBeInTheDocument();
   });
 
-  it('AC-1: the folder drawer omits the status, category, code and revision fields', async () => {
+  it('AC-1: the folder preview omits the status, category, code and revision fields', async () => {
     h.docs.data = [makeLinkedDoc({ title: 'Site folder', category: 'Reference', ms_item_kind: 'folder', ms_web_url: FOLDER.web_url })];
     renderTab();
     await userEvent.click(screen.getByRole('button', { name: 'View Site folder' }));
-    const drawer = screen.getByRole('dialog');
+    const drawer = screen.getByRole('complementary');
     expect(within(drawer).queryByText('Draft')).not.toBeInTheDocument();
     for (const label of ['Status', 'Category', 'Code', 'Revision']) {
       expect(within(drawer).queryByText(label)).not.toBeInTheDocument();

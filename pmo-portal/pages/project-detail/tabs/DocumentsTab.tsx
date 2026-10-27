@@ -57,6 +57,7 @@ import type {
 import { workflowVariant } from '@/src/lib/status/statusVariants';
 import { useIsDesktop } from '@/src/components/ui/useIsDesktop';
 import { toCsv } from '@/src/lib/export/toCsv';
+import { formatDateOnly } from '@/src/lib/format';
 
 export interface DocumentsTabProps {
   projectId: string;
@@ -131,7 +132,7 @@ interface PendingTransition {
 
 const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = null }) => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isDesktop = useIsDesktop();
   const may = usePermission();
   const documentLinkPermissions = useDocumentLinkPermissions();
@@ -359,13 +360,10 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
         <span tabIndex={0} className="inline-flex"><StatusPill variant={workflowVariant(doc.status)}>{doc.status}</StatusPill></span>
       </Tooltip>
     );
-  const updatedCell = () => (
-    <Tooltip
-      title={t('projectDetail.documents.tooltip.updatedTitle', 'Updated')}
-      content={t('projectDetail.documents.tooltip.updatedUnavailable', 'The document register does not store a last-updated timestamp.')}
-    >
-      <span tabIndex={0} aria-label={t('projectDetail.documents.updatedUnavailable', 'Updated date unavailable')} className="text-muted-foreground">{'—'}</span>
-    </Tooltip>
+  const documentDateCell = (doc: ProjectDocumentRow) => (
+    <span className="whitespace-nowrap tabular text-muted-foreground">
+      {doc.doc_date ? formatDateOnly(doc.doc_date) : '—'}
+    </span>
   );
   const selectedDocumentsHaveFile = selectedDocuments.some((doc) => {
     const webUrl = projectReference(doc)?.web_url;
@@ -427,11 +425,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       exportValue: ownerLabel,
     },
     {
-      key: 'updated',
-      header: t('projectDetail.documents.column.updated', 'Updated'),
+      key: 'doc_date',
+      header: t('projectDetail.documents.column.docDate', 'Date'),
       size: 104, minSize: 96, maxSize: 132,
-      cell: updatedCell,
-      exportValue: () => '',
+      cell: documentDateCell,
+      exportValue: (doc) => doc.doc_date ?? '',
     },
   ];
 
@@ -1272,7 +1270,7 @@ interface LineageButtonProps {
 }
 
 const LineageButton: React.FC<LineageButtonProps> = ({ revision, title, direction, onClick }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <button
     type="button"
@@ -1298,7 +1296,7 @@ const DocumentTitleCell: React.FC<{
   childDoc: ProjectDocumentRow | null;
   onViewDocument: (doc: ProjectDocumentRow) => void;
 }> = ({ doc, parentDoc, childDoc, onViewDocument }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <div className="min-w-0">
       <button
@@ -1379,7 +1377,7 @@ interface DocumentHeaderActionsProps {
 }
 
 const DocumentHeaderActions: React.FC<DocumentHeaderActionsProps> = ({ primaryAction, fullRecordHref }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <div className="flex flex-wrap items-center gap-2">
       {primaryAction && (
@@ -1411,7 +1409,7 @@ const DocumentActionFooter: React.FC<DocumentActionFooterProps> = ({
   onDelete,
   onDownload,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
     <>
       {canEdit && (
@@ -1453,7 +1451,7 @@ const DocumentPreviewFields: React.FC<DocumentPreviewProps> = ({
   fileContent,
   microsoftFile,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isFolder = isMicrosoftFolder(doc);
   return (
     <>
@@ -1612,7 +1610,7 @@ const DocumentPreviewPanel: React.FC<DocumentDrawerProps> = ({
   fileContent,
   microsoftFile,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isFolder = isMicrosoftFolder(doc);
   const [primaryTransition, ...secondaryTransitions] = transitions;
   return (
@@ -1673,7 +1671,7 @@ const DocumentFormModal: React.FC<DocumentFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { t: tf } = useTranslation('recordFolders');
   const isEdit = !!doc;
   // A folder is a reference, not a register document: it has no category, revision, code or date.
@@ -1856,7 +1854,7 @@ interface MicrosoftEntryProps {
  * secondary notice (setup link, reconnect, retry) and no picker request is made.
  */
 const MicrosoftEntry: React.FC<MicrosoftEntryProps> = ({ code, onClose, onSelect }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const { connection, isPending, refetch } = useMicrosoftDocuments();
   const canBrowse = connection?.connected === true && connection.status === 'active';
 

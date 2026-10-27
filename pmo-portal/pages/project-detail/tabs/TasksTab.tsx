@@ -143,7 +143,7 @@ interface EditableTaskStatusProps {
 }
 
 const EditableTaskStatus: React.FC<EditableTaskStatusProps> = ({ task, editable, disabled, pendingPush, onChange }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [editing, setEditing] = useState(false);
   const selectContainerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -202,7 +202,7 @@ const EditableTaskStatus: React.FC<EditableTaskStatusProps> = ({ task, editable,
 };
 
 const TaskActionsDisclosure: React.FC<{ items: RowMenuItem[] }> = ({ items }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [open, setOpen] = useState(false);
   const closeOnEscape = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape') return;
@@ -245,7 +245,7 @@ const TasksTab: React.FC<TasksTabProps> = (props) => {
  * clarity projection, RLS is the authority.
  */
 const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const { realRole } = useEffectiveRole();
   const { currentUser } = useAuth();
@@ -541,22 +541,9 @@ const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => 
           {task.name}
         </span>;
       },
-      secondaryCell: (task) => (
-        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] font-normal text-muted-foreground">
-          <span title={t('projectDetail.tasks.idSource', 'Source: task record ID')}>
-            {task.id.slice(0, 8)}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>
-            {task.priority ?? t('projectDetail.tasks.noPriority', 'No priority')}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span className="inline-flex items-center gap-1" title={t('projectDetail.tasks.commentsOpenHint', 'Open the task to read or add comments')}>
-            <Icon name="message" className="size-3" />
-            {t('comments.title', 'Comments')}
-          </span>
-        </span>
-      ),
+      secondaryCell: (task) => task.priority ? (
+        <span className="text-[11.5px] font-normal text-muted-foreground" title={t('projectDetail.tasks.prioritySource', 'Source: task priority field')}>{task.priority}</span>
+      ) : null,
     },
     {
       key: 'assignee',
@@ -575,11 +562,12 @@ const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => 
       key: 'due',
       header: t('projectDetail.tasks.column.due', 'Due'),
       kind: 'date',
+      size: 260,
       cell: (task) => task.end_date ? <Tooltip content={t(
         'projectDetail.tasks.dueTooltip',
         'Due date from the task record. Late days compare the due date with today in the organization timezone.',
       )}>
-        <span tabIndex={0} className={`tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
+        <span tabIndex={0} className={`block whitespace-normal break-words tabular ${task.status !== 'Done' && task.end_date < today ? 'text-destructive-text' : 'text-muted-foreground'}`}>
           {formatDateOnly(task.end_date)}
           {task.status !== 'Done' && task.end_date < today && (
             <span> · {daysLate(task.end_date, today)} {daysLate(task.end_date, today) === 1 ? t('projectDetail.tasks.dayLate', 'day late') : t('projectDetail.tasks.daysLate', 'days late')}</span>
@@ -599,17 +587,6 @@ const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => 
           pendingPush={pendingPushByTask[task.id] ?? IDLE_PENDING_PUSH}
         />
       ),
-    },
-    {
-      key: 'progress',
-      header: t('projectDetail.tasks.column.progress', 'Progress'),
-      cell: () => <Tooltip content={t(
-        'projectDetail.tasks.noTaskProgress',
-        'Task-level progress is not stored. Phase progress is calculated from the phase task statuses or its manual override.',
-      )}>
-        <span tabIndex={0} className="text-muted-foreground">—</span>
-      </Tooltip>,
-      colClassName: 'hidden lg:table-cell',
     },
   ];
 
@@ -949,7 +926,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
   externallyOwned,
   pendingPushByTask,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const byStatus = (s: TaskStatus) => tasks.filter((task) => task.status === s);
   return (
     <Kanban className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1042,7 +1019,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
   onUpdate,
   onError,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!task;
   const { data: profiles, isPending: profilesPending, isError: profilesError } =
     useAssignableProfiles();
@@ -1280,7 +1257,7 @@ const TaskFormModal: React.FC<TaskFormModalProps> = ({
               selectedOption={selectedMilestone}
               loadOptions={async () => milestoneOptions}
               onChange={(v) => setMilestoneId(v || null)}
-              placeholder={t('projectDetail.tasks.ungrouped', 'Ungrouped')}
+              placeholder={t('projectDetail.tasks.noMilestone', 'No phase')}
               searchPlaceholder={t('projectDetail.tasks.form.searchMilestones', 'Search phases…')}
               noun={t('projectDetail.tasks.phaseNoun', 'phase')}
             />
@@ -1413,7 +1390,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
   onAddTask,
   onActivate,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [expandedDoneGroups, setExpandedDoneGroups] = useState<Set<string>>(() => new Set());
   const tasksByMilestone = useMemo(() => {
     const map = new Map<string | null, TaskWithRefs[]>();
@@ -1588,7 +1565,7 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   onClose,
   nestedOpen,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   if (!task) return null;
   const subtasks = allTasks.filter((candidate) => candidate.parent_task_id === task.id && candidate.tombstoned_at == null);
   const taskCode = task.id.slice(0, 8);

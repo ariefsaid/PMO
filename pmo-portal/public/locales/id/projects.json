@@ -21,5 +21,9 @@
   },
   "committed": {
     "otherCurrencies": "Ditambah jumlah dalam mata uang lain: {{amounts}}"
+  },
+  "table": {
+    "selectRow": "Pilih {{row}}",
+    "selectAllRows": "Pilih semua baris"
   }
 }

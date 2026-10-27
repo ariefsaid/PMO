@@ -42,7 +42,7 @@ export default function BudgetSummary({
   canReadProcurements,
   canManageAccounting,
 }: BudgetSummaryProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const rows = buildBudgetSummaryRows({
     lines: activeVersion?.line_items ?? [],
@@ -91,7 +91,7 @@ export default function BudgetSummary({
     },
     {
       key: 'left',
-      header: t('projectDetail.budget.left', 'Left'),
+      header: t('projectDetail.budget.leftLabel', 'Left'),
       kind: 'money',
       align: 'num',
       size: 150,
@@ -134,7 +134,7 @@ export default function BudgetSummary({
                   <button type="button" className="touch-target flex w-full flex-wrap items-baseline gap-x-1 py-2 text-left text-sm" aria-expanded={expandedRow} onClick={() => setExpandedCategory((current) => current === row.category ? null : row.category)}>
                     <span className="font-medium">{label(row.category)}</span>
                     {row.spent !== null
-                      ? <span className="tabular-nums">· {formatNumberWhole(row.spent)} of {formatNumberMax2(row.budget)}</span>
+                      ? <span className="tabular-nums">· {formatNumberWhole(row.spent)} {t('projectDetail.budget.connectorOf', 'of')} {formatNumberMax2(row.budget)}</span>
                       : <span className="tabular-nums">· {t('financeCopy.budget', 'Budget')} {formatNumberMax2(row.budget)}</span>}
                     {remaining !== null && <span className={`tabular-nums ${remaining < 0 ? 'text-destructive-text' : 'text-muted-foreground'}`}>· {remaining < 0 ? positionCell(row.spent, row.budget, t) : `${formatNumberWhole(remaining)} ${t('projectDetail.budget.left', 'left')}`}</span>}
                     {row.committed !== null && row.committed > 0 && <span className="basis-full pl-2 text-xs text-muted-foreground">+{formatNumberWhole(row.committed)} {t('projectDetail.budget.committed', 'committed')}</span>}
@@ -152,7 +152,7 @@ export default function BudgetSummary({
               onActivate={(row) => setExpandedCategory((current) => current === row.category ? null : row.category)}
               selectedKey={expandedCategory ?? undefined}
               tableId="project-budget-summary"
-              accessibleName={t('projectDetail.budget.tableName', 'Budget by category')}
+              accessibleName={t('projectDetail.budget.tableAccessibleName', 'Budget by category')}
               className="rounded-none border-0 bg-transparent"
             />
           </div>

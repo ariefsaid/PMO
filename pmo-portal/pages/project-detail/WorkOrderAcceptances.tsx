@@ -37,7 +37,7 @@ const WorkOrderAcceptances: React.FC<WorkOrderAcceptancesProps> = ({
   workOrder, boqItems, documents, acceptances, state, onRetry, currentUserId, projectManagerId, hasAllocations,
   onPrepare, onEdit, onWithdraw, onConfirm,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const may = usePermission();
   const itemOf = new Map(boqItems.map((b) => [b.id, b]));
   const canPrepare = workOrder.status === 'Issued' && hasAllocations

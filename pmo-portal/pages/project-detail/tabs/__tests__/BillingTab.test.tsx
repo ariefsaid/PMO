@@ -91,6 +91,8 @@ const RouteSearch = () => {
 // #891: the withdrawn-claim refusal headline is LOCALIZED — assertions pin the REAL shipped copy.
 const readCatalogue = (lng: 'en' | 'id') =>
   JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/common.json`), 'utf8')) as Record<string, unknown>;
+const readProjectCatalogue = (lng: 'en' | 'id') =>
+  JSON.parse(readFileSync(join(process.cwd(), `public/locales/${lng}/project.json`), 'utf8')) as Record<string, unknown>;
 
 async function renderTabLocalized(lng: 'en' | 'id') {
   const i18n = i18next.createInstance();
@@ -98,7 +100,9 @@ async function renderTabLocalized(lng: 'en' | 'id') {
     lng,
     fallbackLng: 'en',
     defaultNS: 'common',
-    resources: { en: { common: readCatalogue('en') }, id: { common: readCatalogue('id') } },
+    fallbackNS: 'common',
+    ns: ['common', 'project'],
+    resources: { en: { common: readCatalogue('en'), project: readProjectCatalogue('en') }, id: { common: readCatalogue('id'), project: readProjectCatalogue('id') } },
     parseMissingKeyHandler,
     returnEmptyString: false,
   });
@@ -153,7 +157,7 @@ describe('BillingTab', () => {
     expect(screen.queryByTestId('billing-contract')).not.toBeInTheDocument();
     expect(screen.queryByText(money(50_000))).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Billing claims' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Start invoice' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Raise invoice' })).not.toBeInTheDocument();
   });
 
   it("AC-PB-008 the not-submitted figure says it counts claims only — never mistaken for the Work orders tab's not yet submitted, which also counts draft invoices (#785 Discover)", () => {
@@ -285,7 +289,8 @@ describe('BillingTab', () => {
     h.connected = false;
     renderTab();
     expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Raise invoice' })).toBeNull();
+    const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+    expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
   });
 
   it('AC-PB-008 Finance gets no billing buttons when the project has no client', () => {
@@ -333,16 +338,18 @@ describe('BillingTab', () => {
       expect(screen.getByText('Bill of quantities').closest('details')).toBeNull();
     });
 
-    it('SUB-B "New claim" is hidden while "Start invoice" is offered, and shown when it is not', () => {
+    it('M18 "New claim" is hidden while "Raise invoice" is offered, and shown when it is not', () => {
       renderTab();
-      expect(screen.getByRole('button', { name: 'Start invoice' })).toBeInTheDocument();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'New claim' })).toBeNull();
     });
 
     it('SUB-B Finance without a resolved revenue route keeps the "New claim" button', () => {
       h.routeReady = false;
       renderTab();
-      expect(screen.queryByRole('button', { name: 'Start invoice' })).toBeNull();
+      const summaryHeader = screen.getByRole('heading', { name: /Billing summary/ }).parentElement?.parentElement;
+      expect(within(summaryHeader!).queryByRole('button', { name: 'Raise invoice' })).toBeNull();
       expect(screen.getByRole('button', { name: 'New claim' })).toBeInTheDocument();
     });
   });

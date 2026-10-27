@@ -24,7 +24,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, formatNumberWhole, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, formatNumberWhole, formatUtcMonthYear, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -56,7 +56,12 @@ import { claimNet, summarizeBilling, type AllocationFacts } from '@/src/lib/prog
 import { summarizeInvoiceSettlement } from '../ContractCascade';
 import { useRevenueMode } from '@/src/hooks/useRevenueMode';
 import { useRevenueRouteReady } from '@/src/hooks/useOwnershipCacheSync';
-import { canInvoiceWorkOrder } from '@/src/lib/workOrderBilling';
+import {
+  canInvoiceWorkOrder,
+  deriveWorkOrderBillingState,
+  summarizeProjectWorkOrderBilling,
+  type WorkOrderBillingState,
+} from '@/src/lib/workOrderBilling';
 
 /**
  * The work-order surface for one project (#566) — the client's inbound POs and the drawdown they
@@ -134,7 +139,25 @@ interface PendingTransition {
 }
 
 const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clientId = null, focusWorkOrderId = null, projectManagerId = null }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
+  const billingStateLabels: Record<Exclude<WorkOrderBillingState, 'not-billable'>, string> = {
+    incomplete: t('common:projectDetail.workOrders.billing.status.incomplete', "Can't total"),
+    'over-invoiced': t('common:projectDetail.workOrders.billing.status.overInvoiced', 'Over-invoiced'),
+    'not-invoiced': t('common:projectDetail.workOrders.billing.status.notInvoiced', 'Not invoiced'),
+    paid: t('common:projectDetail.workOrders.billing.status.paid', 'Paid'),
+    'awaiting-submission': t('common:projectDetail.workOrders.billing.status.awaitingSubmission', 'Awaiting submission'),
+    'fully-invoiced': t('common:projectDetail.workOrders.billing.status.fullyInvoiced', 'Fully invoiced'),
+    'partly-invoiced': t('common:projectDetail.workOrders.billing.status.partlyInvoiced', 'Partly invoiced'),
+  };
+  const billingStateTones: Record<Exclude<WorkOrderBillingState, 'not-billable'>, StatusVariant> = {
+    incomplete: 'warn',
+    'over-invoiced': 'lost',
+    'not-invoiced': 'open',
+    paid: 'won',
+    'awaiting-submission': 'neutral',
+    'fully-invoiced': 'neutral',
+    'partly-invoiced': 'progress',
+  };
   const [searchParams, setSearchParams] = useSearchParams();
   const may = usePermission();
   const { currentUser } = useAuth();
@@ -264,6 +287,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
     () => new Map((billing.data ?? []).map((b) => [b.workOrderId, b] as const)),
     [billing.data],
   );
+  const billingTotals = useMemo(() => summarizeProjectWorkOrderBilling(billing.data ?? []), [billing.data]);
   const [invoiceFor, setInvoiceFor] = useState<{ row: WorkOrderRow; remaining: number } | null>(null);
   const [createdInvoice, setCreatedInvoice] = useState<{ id: string; native: boolean } | null>(null);
   const [claimFor, setClaimFor] = useState<WorkOrderRow | null>(null);
@@ -501,9 +525,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
   const visibleCustomerOrders = customerOrders.filter((row) => filteredOrderIds.has(row.id));
   const visibleDraftOrders = draftOrders.filter((row) => filteredOrderIds.has(row.id));
   const deliveryCandidates = liveOrders.filter(canPrepareForOrder);
-  const drawdownHeadroom = canViewBilling && summary && billing.data && !billing.isPending && !billing.isError
-    ? summary.contractNet - billing.data.filter((row) => row.status === 'Issued' || row.status === 'Closed').reduce((sum, row) => sum + row.orderNet, 0)
-    : null;
   const orderExportColumns: Column<WorkOrderRow>[] = [
     { key: 'number', header: t('projectDetail.workOrders.export.number', 'Work order'), cell: (row) => row.wo_number ?? row.title, exportValue: (row) => row.wo_number ?? row.title },
     { key: 'title', header: t('projectDetail.workOrders.export.title', 'Title'), cell: (row) => row.title, exportValue: (row) => row.title },
@@ -516,7 +537,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       cell: (claim) => claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
       secondaryCell: (claim) => formatDateOnly(claim.created_at) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Gross'), align: 'num', kind: 'money',
-      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from the accepted quantities and contract rates.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.gross_amount), currency)}</span></Tooltip>,
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.gross_amount), currency)}</span></Tooltip>,
       exportValue: (claim) => Number(claim.gross_amount) },
     { key: 'recovery', header: t('projectDetail.billing.claims.column.recovery', 'DP recovery'), align: 'num', kind: 'money',
       cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.dp_recovery_amount), currency)}</span></Tooltip>,
@@ -612,13 +633,23 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </select>
           </label>
         </div>
-        {canViewBilling && <div className="mb-4 border-l-2 border-border pl-3 text-sm" role="status">
-          <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
-          <Tooltip content={t('projectDetail.workOrders.drawdown.source', 'Computed as net contract value less the net value of issued and closed work orders.') }>
-            <strong className={`ml-2 cursor-help tabular-nums ${drawdownHeadroom !== null && drawdownHeadroom < 0 ? 'text-destructive-text' : 'text-foreground'}`}>
-              {drawdownHeadroom === null ? '—' : formatCurrencyCents(drawdownHeadroom, currency)}
-            </strong>
-          </Tooltip>
+        {canViewBilling && <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 border-l-2 border-border pl-3 text-sm" role="status">
+          {rows.length > 0 && billing.data && <span data-testid="wo-billing-summary" aria-label={t('common:projectDetail.workOrders.billing.summaryTitle', 'Billing against work orders')} className="flex flex-wrap gap-x-4 gap-y-1">
+            <span>
+              <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>
+              <strong data-testid="wo-billing-total-still" className="ml-2 tabular-nums">
+                {billingTotals.complete ? formatCurrencyCents(billingTotals.stillToInvoice, currency) : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+              </strong>
+            </span>
+            <span>
+              <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')}</span>
+              <strong data-testid="wo-billing-total-draft" aria-label={t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')} className="ml-2 tabular-nums">
+                {billingTotals.complete
+                  ? t('common:projectDetail.workOrders.billing.lineNotSubmitted', 'Not yet submitted {{amount}}', { amount: formatCurrencyCents(billingTotals.inDraft, currency) })
+                  : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+              </strong>
+            </span>
+          </span>}
         </div>}
 
         {isPending ? (
@@ -634,7 +665,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <>
             {!showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
               <p className="py-3 text-sm text-muted-foreground">
-                {t('projectDetail.contract.empty', 'No contract lines or customer orders yet.')}
+                {t('projectDetail.workOrders.emptyRegister', 'No customer orders yet. Client purchase orders are recorded here and draw down the project contract ceiling when issued.')}
               </p>
             )}
             {showQuantities && visibleCustomerOrders.length === 0 && visibleDraftOrders.length === 0 && (
@@ -668,25 +699,27 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                     return (
                       <li key={row.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
                         <div className="min-w-0">
-                          <button type="button" className="rounded-sm text-left font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+                          <button type="button" data-wo-anchor={row.id} tabIndex={-1} className="rounded-sm text-left font-medium text-foreground underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                             aria-label={t('projectDetail.workOrders.action.openDetails', 'View details for {{order}}', { order: row.wo_number ?? row.title })}
                             onClick={() => openPoDrawer(row)}>
                             {row.wo_number ?? row.title}
                           </button>
                           {row.wo_number && <span className="ml-2 text-sm text-muted-foreground">{row.title}</span>}
-                          {row.client_po_number && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}</span>}
+                          {row.client_po_number && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
+                          {row.order_date && <span className="ml-3 text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
                         </div>
                         <div className="flex flex-wrap items-center gap-1">
                           {canEdit && <Button variant="ghost" size="sm" onClick={() => setFormFor(row)}>{t('projectDetail.workOrders.action.editOrder', 'Edit order')}</Button>}
                           {canSetValue && <Button variant="ghost" size="sm" onClick={() => setValueFor(row)}>{t('projectDetail.workOrders.action.setValue', 'Set value')}</Button>}
                           {issueBlocked && canTransition ? <GateNotice variant="blocked" className="max-w-sm px-2 py-1.5 text-xs">{issueGateBody}</GateNotice>
                             : canTransition && <Button variant="ghost" size="sm" onClick={() => setPending({ row, to: 'Issued' })}>{t('projectDetail.workOrders.action.issue', 'Issue')}</Button>}
-                          {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancel', 'Cancel')}</Button>}
+                          {canTransition && <Button variant="ghost" size="sm" className="text-destructive-text" onClick={() => setPending({ row, to: 'Cancelled' })}>{t('projectDetail.workOrders.action.cancelGeneric', 'Cancel')}</Button>}
                           <MenuButton ariaLabel={t('projectDetail.workOrders.action.orderMenuLabel', 'Actions for {{order}}', { order: row.wo_number ?? row.title })} items={[
                             ...(canEdit ? [{ label: t('projectDetail.workOrders.action.editOrder', 'Edit order'), onClick: () => setFormFor(row) }] : []),
                             ...(canSetValue ? [{ label: t('projectDetail.workOrders.action.setValue', 'Set value'), onClick: () => setValueFor(row) }] : []),
+                            ...(may('create', 'workOrderLine', { record: { status: row.status } }) ? [{ label: t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines'), onClick: () => setLinesFor(row) }] : []),
                             ...(!issueBlocked && canTransition ? [{ label: t('projectDetail.workOrders.action.issue', 'Issue'), onClick: () => setPending({ row, to: 'Issued' }) }] : []),
-                            ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancel', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
+                            ...(canTransition ? [{ label: t('projectDetail.workOrders.action.cancelGeneric', 'Cancel'), danger: true, onClick: () => setPending({ row, to: 'Cancelled' }) }] : []),
                             { label: t('projectDetail.workOrders.action.viewPo', 'View customer PO'), onClick: () => openPoDrawer(row) },
                           ]} />
                         </div>
@@ -724,6 +757,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                 && settlement?.balancesKnown
                 && billingRow?.figuresComplete !== false;
               const orderFiguresMissing = canViewBilling && !orderFiguresComplete;
+              const billingState = billingRow ? deriveWorkOrderBillingState(row.status, billingRow) : null;
               const workOrderStatusTone: StatusVariant = row.status === 'Closed' ? 'won' : row.status === 'Cancelled' ? 'lost' : 'progress';
               const latestConfirmedBast = bastList.find((acceptance) => acceptance.status === 'Confirmed');
               const orderOverdue = orderInvoices.reduce((sum, invoice) => {
@@ -794,9 +828,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       </h3>
                       <span className="min-w-0 break-words text-sm text-foreground">{row.title}</span>
                       <StatusPill variant={workOrderStatusTone}>{row.status}</StatusPill>
-                      {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Client PO')} {row.client_po_number}</span>}
+                      {canViewBilling && billingState && billingState !== 'not-billable' && <StatusPill variant={billingStateTones[billingState]}>
+                        {billingStateLabels[billingState]}
+                      </StatusPill>}
+                      {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
+                      {row.order_date && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
                       <div className="ml-auto flex flex-wrap items-center gap-2">
-                        {canRaiseOrderInvoice && billingRow && <Tooltip content={t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.') }>
+                        {canRaiseOrderInvoice && billingRow && <Tooltip content={`${t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.')} ${t('common:projectDetail.workOrders.billing.lineNet', 'Net value {{amount}}', { amount: formatCurrencyCents(billingRow.orderNet, currency) })}`}>
                           <Button variant="primary" size="sm" onClick={raiseOrderInvoice}>
                             {`${t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')} · ${formatCurrency(billingRow.remaining, currency)}`}
                           </Button>
@@ -808,15 +846,27 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       </div>
                     </div>
 
-                    {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`}>
-                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
-                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
+                    {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`} aria-label={t('common:projectDetail.workOrders.billing.column', 'Billing')}>
+                      {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
+                        ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatCurrencyCents(settlement.invoiced, currency), paid: formatCurrencyCents(settlement.paid, currency) })
+                        : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
+                      {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
                       {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
+                      {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }>
+                        <div className="min-w-0 text-xs">
+                          <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
+                          <dd className="cursor-help text-muted-foreground tabular-nums">{billingRow.remaining < 0
+                            ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatCurrencyCents(Math.abs(billingRow.remaining), currency) })
+                            : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatCurrencyCents(billingRow.remaining, currency) })}</dd>
+                        </div>
+                      </Tooltip>}
                     </dl>}
 
                     {orderFiguresMissing && <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoicesQuery.isError || billing.isError ? 'alert' : 'status'}>
                       <span>{invoicesQuery.isError || billing.isError
-                        ? t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
+                        ? billing.isError
+                          ? t('common:projectDetail.workOrders.billing.loadError', "Couldn't load billing for these work orders")
+                          : t('projectDetail.cascade.invoiceError', "Couldn't load invoice figures.")
                         : invoicesQuery.isPending || billing.isPending
                           ? t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')
                           : t('projectDetail.workOrders.billing.figuresIncomplete', 'Invoice figures are incomplete.')}</span>
@@ -824,6 +874,20 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                         {t('common.retry', 'Retry')}
                       </button>
                     </p>}
+
+                    {canViewBilling && billingRow?.figuresComplete === false && <div className="text-xs text-muted-foreground" role="note">
+                      <p>{t('common:projectDetail.workOrders.billing.incompleteNote', 'An invoice on one of these work orders has no amount or is in another currency, so the totals cannot be added up.')}</p>
+                      {billingRow.problems && billingRow.problems.length > 0 && <ul className="mt-1 list-inside list-disc">
+                        {billingRow.problems.map((problem) => {
+                          const invoiceName = problem.number
+                            ? `${t('common:projectDetail.workOrders.billing.cause.anInvoice', 'An invoice')} ${problem.number}`
+                            : t('common:projectDetail.workOrders.billing.cause.anInvoice', 'An invoice');
+                          return <li key={problem.recordId}>{problem.cause === 'no-amount'
+                            ? t('common:projectDetail.workOrders.billing.cause.noAmount', '{{number}} has no amount', { number: invoiceName })
+                            : t('common:projectDetail.workOrders.billing.cause.otherCurrency', '{{number}} is in {{currency}}', { number: invoiceName, currency: problem.currency ?? '—' })}</li>;
+                        })}
+                      </ul>}
+                    </div>}
 
                     {canViewBilling && orderOverdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
                       <span className="inline-flex w-fit cursor-help items-center gap-2 text-xs text-warning-foreground tabular-nums">
@@ -873,7 +937,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                           : t('projectTabs:contractQuantities.workOrders.acceptances.confirmed', 'Confirmed')}</StatusPill>
                           : <StatusPill variant="neutral">{t('projectDetail.cascade.noBast', 'No BAST yet')}</StatusPill>}
                     </div>
-                    {canViewBilling && <div className="flex flex-wrap items-center gap-2" aria-label={t('projectDetail.cascade.invoiceStatus', 'Invoice status')}>
+                    {canViewBilling && <div className="flex flex-wrap items-center gap-2" aria-label={t('projectDetail.cascade.invoiceStatusLabel', 'Invoice status')}>
                       <span className="text-muted-foreground">{t('projectDetail.cascade.invoices', 'Invoices')}</span>
                       {orderInvoices.length === 0 ? <span className="text-muted-foreground">—</span> : orderInvoices.map((invoice) => {
                         const tone: StatusVariant = invoice.status === 'Paid' ? 'won'
@@ -892,13 +956,19 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                   <div className="mt-4 flex flex-col gap-3">
                     {lines.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.contractLines.loadError', 'Couldn’t load the contract lines')} onRetry={() => void lines.refetch()} />}
                     {acceptancesQuery.isError && <ListState variant="error" title={t('projectTabs:contractQuantities.workOrders.acceptances.error', 'Couldn’t load the BASTs')} onRetry={() => void acceptancesQuery.refetch()} />}
-                    {(hasOrderLines || bastList.length > 0 || canPrepare) && (
+                    {(hasOrderLines || bastList.length > 0 || canPrepare || row.status === 'Issued') && (
                       <details className="group">
                         <summary className="cursor-pointer text-xs text-muted-foreground underline underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
                           {t('projectTabs:contractQuantities.workOrders.quantities.summary', 'Contract lines and BAST — {{wo}}', { wo: row.wo_number ?? row.title })}
                           <span className="ml-2">{t('projectTabs:contractQuantities.workOrders.quantities.counts', '{{lines}} lines · {{basts}} BAST', { lines: rawLines.length, basts: bastList.length })}</span>
                         </summary>
                         <div className="mt-3 flex flex-col gap-4">
+                          {!hasOrderLines && row.status === 'Issued' && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
+                            <p className="text-[13px] text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.acceptances.form.noAllocations', 'Allocate contract lines to this work order first.')}</p>
+                            {canEditLines && <Button variant="outline" size="sm" className="mt-2" onClick={() => setLinesFor(row)}>
+                              {t('projectTabs:contractQuantities.workOrders.contractLines.edit', 'Allocate contract lines')}
+                            </Button>}
+                          </section>}
                           {hasOrderLines && <section aria-label={t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}>
                             <h4 className="mb-1 text-xs font-semibold text-muted-foreground">{t('projectTabs:contractQuantities.workOrders.contractLines.heading', 'Contract lines')}</h4>
                             <ul className="flex flex-col gap-0.5 text-xs" data-testid={`wo-lines-${row.id}`}>
@@ -967,6 +1037,22 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {t('projectDetail.billing.claims.evidenceFirst', 'Claims need evidence attached before an invoice draft can be raised.')}
             </div>
           </dl>
+          <details className="mb-4 border-b border-border pb-4">
+            <summary className="touch-target w-fit cursor-pointer rounded-sm text-sm font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              {t('projectDetail.billing.summary.details', 'Billing summary details')}
+            </summary>
+            {summary ? <dl data-testid="work-orders-billing-detail" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+              <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={formatCurrencyCents(summary.workBilled, currency)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={formatCurrencyCents(summary.contractNet, currency)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={formatCurrencyCents(summary.remaining, currency)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={summary.assessedToDate === null ? '—' : formatCurrencyCents(summary.assessedToDate, currency)} detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
+              {summary.assessment && <p className="col-span-2 text-xs text-muted-foreground sm:col-span-3" data-testid="work-orders-assessment-period">
+                {t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete', { month: formatUtcMonthYear(new Date(`${summary.assessment.month}T00:00:00Z`)), pct: formatNumberExact(summary.assessment.pctComplete) })}
+              </p>}
+              {!summary.assessment && <p className="col-span-2 text-xs text-muted-foreground sm:col-span-3" data-testid="work-orders-no-assessment">{t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}</p>}
+              <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatCurrencyCents(summary.notSubmitted, currency)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
+            </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
+          </details>
           <DataTable<ProgressClaimWithInvoice>
             rows={claimRows}
             columns={projectClaimColumns}
@@ -1087,7 +1173,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             </section>
             <section aria-labelledby="line-quantity-history">
               <h4 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h4>
-              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
                 {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>
                   <Tooltip content={t('projectDetail.cascade.source.acceptedHistory', 'Source: quantity recorded on this BAST.') }><span className="cursor-help tabular-nums">{formatNumberExact(quantity)} {selected.item?.unit ?? ''}</span></Tooltip>
@@ -1107,8 +1193,10 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         </div>}>
         <dl className="space-y-4 p-4 text-sm">
           <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')}</dt><dd className="mt-1 font-medium">{poDrawerFor.client_po_number ?? '—'}</dd></div>
+          {poDrawerFor.order_date && <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')}</dt><dd className="mt-1 font-medium">{formatDateOnly(poDrawerFor.order_date)}</dd></div>}
           {poDrawerFor.description && <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.description', 'Description')}</dt><dd className="mt-1 whitespace-pre-wrap">{poDrawerFor.description}</dd></div>}
           {canViewBilling && poDrawerFor.order_value !== null && <div><dt className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderValue', 'Order value')}</dt><Tooltip content={t('projectDetail.workOrders.orderValueSource', 'Source: the customer order value set by an authorized reviewer.') }><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums">{formatCurrency(Number(poDrawerFor.order_value), currency)} · {basisNote(poDrawerFor)}</dd></Tooltip></div>}
+          {canViewBilling && poDrawerFor.closing_value !== null && <p className="text-sm font-semibold tabular-nums">{t('projectTabs:contractQuantities.workOrders.closing.closedAt', 'Closed at {{amount}} (excl. PPN)', { amount: formatCurrency(Number(poDrawerFor.closing_value), currency), interpolation: { escapeValue: false } })}</p>}
         </dl>
       </Drawer>}
 
@@ -1142,7 +1230,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claimDrawerFor.invoice ? `/sales-invoices/${encodeURIComponent(claimDrawerFor.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
         </div>}>
         <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-          <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrencyCents(Number(claimDrawerFor.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from the accepted quantities and contract rates.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrencyCents(Number(claimDrawerFor.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
           <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatCurrencyCents(Number(claimDrawerFor.dp_recovery_amount), currency)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
           <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatCurrencyCents(claimNet(Number(claimDrawerFor.gross_amount), Number(claimDrawerFor.dp_recovery_amount)), currency)} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
           <QuantityFigure label={t('projectDetail.billing.claims.column.evidence', 'Evidence')} value={formatNumberExact(claimDrawerFor.evidence?.length ?? 0)} detail={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.') } />
@@ -1394,7 +1482,7 @@ const QuantityFigure: React.FC<{ label: string; value: string; detail?: string }
 );
 
 const InvoiceTableRow: React.FC<{ invoice: InvoiceWithWorkOrder; onOpen: () => void }> = ({ invoice, onOpen }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const figures = invoiceBalanceFigures(invoice);
   const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
   return <tr className="border-t border-border/70">
@@ -1408,7 +1496,7 @@ const InvoiceTableRow: React.FC<{ invoice: InvoiceWithWorkOrder; onOpen: () => v
 };
 
 const InvoiceCard: React.FC<{ invoice: InvoiceWithWorkOrder; onOpen: () => void }> = ({ invoice, onOpen }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const figures = invoiceBalanceFigures(invoice);
   const notApplicable = invoice.status === 'Draft' || invoice.status === 'Cancelled';
   return <li className="min-w-0 py-3" data-testid={`invoice-card-${invoice.id}`}>

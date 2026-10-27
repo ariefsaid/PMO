@@ -9,7 +9,7 @@ import type { CommittedOtherCurrencies } from '@/src/hooks/useProcurements';
  * when every commitment is in the project currency.
  */
 export function OtherCurrencyCommitments({ positions }: { positions: CommittedOtherCurrencies | undefined }) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   if (!positions || positions.length === 0) return null;
   const amounts = positions.map((position) => formatCurrency(position.amount, position.currency)).join(', ');
   return (

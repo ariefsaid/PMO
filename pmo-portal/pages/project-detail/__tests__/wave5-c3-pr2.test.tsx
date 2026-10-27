@@ -351,7 +351,7 @@ describe('AC-IXD-PROJ-W5-C3 D9-pipeline: PQ → Pre-Qualification label', () => 
 // ═════════════════════════════════════════════════════════════════════════════
 
 describe('SUB-I: opportunity lens figures and notices', () => {
-  const tileLabels = () => screen.getAllByTestId('stat-tile').map((tile) => tile.firstElementChild?.textContent);
+  const tileLabels = () => Array.from(document.querySelectorAll('dl dt')).map((label) => label.textContent);
 
   it('SUB-I: an open deal shows Value, Win probability, Weighted, Owner — no Decision tile, no "Ready to advance." box', () => {
     renderLens();

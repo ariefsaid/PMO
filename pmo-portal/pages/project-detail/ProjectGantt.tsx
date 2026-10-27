@@ -74,7 +74,7 @@ export interface ProjectGanttProps {
 const ROW_H = 40; // px — lane row height (bar + vertical padding)
 const LANE_HEADER_H = 36; // px — milestone lane header height
 const AXIS_H = 32; // px — time axis height
-const TABLE_W = 260; // px — left task-table pane width
+const TABLE_W = 360; // px — left task-name pane needs room for readable labels
 
 // ── Flattened row model (shared by the table + the timeline so they align) ─────
 
@@ -95,7 +95,7 @@ type FlatRow = LaneHeaderRow | TaskRow;
 // ── Main component ────────────────────────────────────────────────────────────
 
 const ProjectGantt: React.FC<ProjectGanttProps> = ({ tasks, milestones, onActivateTask, rowMenu, onSwitchView }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const prefersReducedMotion = usePrefersReducedMotion();
   const isNarrow = useIsNarrow();
   const [scale, setScale] = useState<GanttScale>('month');
@@ -462,7 +462,7 @@ interface GanttMobileNoticeProps {
 }
 
 const GanttMobileNotice: React.FC<GanttMobileNoticeProps> = ({ onSwitchView }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <div
     data-testid="gantt-mobile-notice"
@@ -513,7 +513,7 @@ interface GanttAxisProps {
 }
 
 const GanttAxis: React.FC<GanttAxisProps> = ({ ticks, todayLeft, contentWidth }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <div
     className="relative border-b border-border"
@@ -558,7 +558,7 @@ const MilestoneDiamond: React.FC<MilestoneDiamondProps> = ({
   targetIso,
   contentHeight,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <>
     {/* Vertical dotted guide from the diamond through the lane band */}
@@ -611,7 +611,7 @@ const GanttBarBlock: React.FC<GanttBarBlockProps> = ({
   prefersReducedMotion,
   onActivate,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isPoint = bar.kind === 'point';
   const depsSuffix =
     predecessorNames.length > 0
@@ -711,7 +711,7 @@ const TaskTableRow: React.FC<TaskTableRowProps> = ({
   onActivate,
   rowMenuItems,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const [actionsOpen, setActionsOpen] = useState(false);
   const { bar } = row;
   // B1: use compact human dates ("Jan 1 – Jan 11") to prevent date string from
@@ -799,7 +799,7 @@ interface UndatedFooterProps {
 }
 
 const UndatedFooter: React.FC<UndatedFooterProps> = ({ undated, onActivateTask }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   return (
   <div className="border-t border-border px-4 py-3">
     <div className="mb-1.5 text-[12px] font-semibold text-muted-foreground">

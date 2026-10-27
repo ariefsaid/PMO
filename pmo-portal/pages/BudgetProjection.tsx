@@ -5,9 +5,10 @@ import { Link, useSearchParams } from 'react-router';
 import type { Column } from '@/src/components/ui';
 import { Button, DataTable, Drawer, Icon, ListState, NumberField, ProgressBar, StatusPill, Tooltip } from '@/src/components/ui';
 import type { BudgetProjectionCellRow } from '@/src/lib/repositories/budgetProjection';
-import { fetchBudgetProjection, listBudgetFiscalYears, upsertBudgetProjectionEtc } from '@/src/lib/repositories/budgetProjection';
+import { fetchActiveBudgetCategoryPhasing, fetchBudgetProjection, listBudgetFiscalYears, upsertBudgetProjectionEtc } from '@/src/lib/repositories/budgetProjection';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
-import { formatCurrencyAuto, parseMoneyInputAtScale } from '@/src/lib/format';
+import { formatCurrencyAuto, formatInstantDate, parseMoneyInputAtScale } from '@/src/lib/format';
+import { classifyMutationError } from '@/src/lib/classifyMutationError';
 
 interface BudgetProjectionProps {
   projectId: string;
@@ -30,7 +31,7 @@ function projectionTone(row: BudgetProjectionCellRow): 'neutral' | 'won' | 'warn
 }
 
 export default function BudgetProjection({ projectId, currency, canEdit, committedByCategory, canReadCommitments, onAdjustInDraft, onExport }: BudgetProjectionProps) {
-  const { t } = useTranslation();
+  const { t } = useTranslation('finance');
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [requestedYear, setRequestedYear] = useState<string | undefined>(undefined);
@@ -50,8 +51,32 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
     queryFn: () => fetchBudgetProjection(projectId, fiscalYear),
     enabled: Boolean(projectId && fiscalYear),
   });
+  const phasingQuery = useQuery({
+    queryKey: ['active-budget-category-phasing', projectId],
+    queryFn: () => fetchActiveBudgetCategoryPhasing(projectId),
+    enabled: Boolean(projectId && fiscalYear),
+  });
   const rows = projectionQuery.data ?? [];
   const selected = rows.find((row) => row.category === searchParams.get('open')) ?? null;
+  const phasing = phasingQuery.data;
+  const budgetYearOnRecord = Object.values(phasing?.years ?? {}).some((years) => years.includes(fiscalYear));
+  const hasLinesForCategory = (category: BudgetProjectionCellRow['category']) => Boolean((phasing?.years[category]?.length ?? 0) || phasing?.unphased[category]);
+  const budgetReasonFor = (row: BudgetProjectionCellRow): string | null => {
+    if (row.pmoBudgetAmount !== null) return null;
+    const years = phasing?.years[row.category] ?? [];
+    const unphased = phasing?.unphased[row.category] === true;
+    const otherYears = years.filter((year) => year !== fiscalYear);
+    if (otherYears.length && !unphased) return t('projectDetail.budget.reasonBudgetedOtherYear', 'Budgeted in another fiscal year: {{years}}', { years: otherYears.join(', ') });
+    if (hasLinesForCategory(row.category) && unphased) return t('projectDetail.budget.reasonStaleAttribution', 'Budget attribution is stale or incomplete. Review the line phasing.');
+    if (row.attributionKnown === false) return t('projectDetail.budget.reasonPartialAttribution', 'Some budget lines cannot be attributed to this fiscal year. Review the line phasing.');
+    if (!budgetYearOnRecord) return t('projectDetail.budget.reasonNoBudgetYear', 'No budget is recorded for this fiscal year.');
+    return t('projectDetail.budget.reasonNoBudgetLine', 'No budget line is recorded for this category.');
+  };
+  const rowReasonFor = (row: BudgetProjectionCellRow): string | null => row.actualsToDate === null
+    ? row.actualsAsOf === null
+      ? t('projectDetail.budget.reasonNoLedger', 'No ledger reading is available for this fiscal year.')
+      : t('projectDetail.budget.reasonNoAccount', 'No accounting ledger account is mapped for this category.')
+    : budgetReasonFor(row);
   const openForecastRow = (row: BudgetProjectionCellRow) => {
     const next = new URLSearchParams(searchParams);
     next.set('open', row.category);
@@ -64,19 +89,22 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
   };
   const saveEtc = useMutation({
     mutationFn: async (entries: Array<{ category: BudgetProjectionCellRow['category']; amount: number }>) => {
-      const failed: Array<{ category: BudgetProjectionCellRow['category']; amount: number }> = [];
+      const failed: Array<{ category: BudgetProjectionCellRow['category']; amount: number; reason: string }> = [];
+      const saved: BudgetProjectionCellRow['category'][] = [];
       for (const entry of entries) {
         try {
           await upsertBudgetProjectionEtc(projectId, fiscalYear, entry.category, entry.amount);
-        } catch {
-          failed.push(entry);
+          saved.push(entry.category);
+        } catch (error) {
+          failed.push({ ...entry, reason: classifyMutationError(error).headline });
         }
       }
-      return failed;
+      return { failed, saved };
     },
-    onSuccess: (failed) => {
+    onSuccess: ({ failed }) => {
       void queryClient.invalidateQueries({ queryKey: ['budget-projection', projectId, fiscalYear] });
       setEtcDraft(Object.fromEntries(failed.map((item) => [item.category, String(item.amount)])));
+      setEtcErrors(Object.fromEntries(failed.map((item) => [item.category, t('projectDetail.budget.etcRowNotSaved', 'Not saved. {{reason}}', { reason: item.reason })])));
       if (failed.length === 0) setEditing(false);
     },
   });
@@ -154,7 +182,7 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
       header: t('projectDetail.budget.forecastFinal', 'Forecast final'),
       kind: 'money',
       align: 'num',
-      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastFinalFormula', 'Calculated as spending to date plus cost to finish.')}><span tabIndex={0}>{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')}><span tabIndex={0}>{moneyText(row.projectedFinalCost, currency)}</span></Tooltip>,
     },
     {
       key: 'remaining',
@@ -206,18 +234,18 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
         <div className="flex flex-wrap items-center gap-2">
           {rows.length > 0 && <Button variant="outline" size="sm" onClick={() => onExport(rows)}>{t('projectDetail.budget.export', 'Export')}</Button>}
           {canEdit && rows.length > 0 && (editing ? <>
-            <Button variant="primary" size="sm" loading={saveEtc.isPending} onClick={saveEdits}>{saveEtc.data?.length ? t('projectDetail.budget.retryFailedEtc', 'Retry failed edits') : t('common.save', 'Save')}</Button>
+            <Button variant="primary" size="sm" loading={saveEtc.isPending} onClick={saveEdits}>{saveEtc.data?.failed.length ? t('projectDetail.budget.retryFailedEtc', 'Retry failed edits') : t('common.save', 'Save')}</Button>
             <Button variant="outline" size="sm" onClick={() => { setEditing(false); setEtcErrors({}); setEtcDraft({}); }}>{t('common.cancel', 'Cancel')}</Button>
           </> : <Button variant="outline" size="sm" onClick={beginEdit}>{t('projectDetail.budget.editCostToFinish', 'Edit cost to finish')}</Button>)}
         </div>
       </div>
       {fiscalYear === '' ? (
-        <ListState variant="empty" title={t('projectDetail.budget.chooseFiscalYear', 'Choose a fiscal year to view the ERP forecast')} sub={t('projectDetail.budget.chooseFiscalYearSub', 'The forecast uses the client fiscal calendar and the ERP ledger for one fiscal year at a time.')} />
+        <ListState variant="empty" title={t('projectDetail.budget.chooseFiscalYear', 'Choose a fiscal year to view the ERP forecast')} sub={t('projectDetail.budget.chooseFiscalYearSub', 'Activate and push a budget version, then choose its fiscal year. If no ledger rows have arrived yet, wait for the first posting to sync.')} />
       ) : projectionQuery.isPending ? <ListState variant="loading" rows={4} />
         : projectionQuery.isError ? <ListState variant="error" title={t('projectDetail.budget.forecastError', 'Forecast could not be loaded')} onRetry={() => void projectionQuery.refetch()} />
-          : rows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noForecastRows', 'No forecast categories for this fiscal year')} sub={t('projectDetail.budget.noForecastRowsSub', 'Add and phase budget lines to this fiscal year, then retry the forecast.')} />
+          : rows.length === 0 ? <ListState variant="empty" title={t('projectDetail.budget.noForecastRows', 'No forecast categories for this fiscal year')} sub={t('projectDetail.budget.noForecastRowsSub', 'Activate and push a budget version for this fiscal year. If it is already active and pushed, wait for the first ERP ledger posting to sync.')} />
             : <>
-              {saveEtc.data?.length ? <p role="status" className="text-sm text-warning-foreground">{t('projectDetail.budget.etcPartialSave', 'Some cost-to-finish updates did not save. Their values remain here so you can retry.')}</p> : null}
+              {saveEtc.data?.failed.length ? <p role="status" className="text-sm text-warning-foreground">{t('projectDetail.budget.etcPartialSaveNamed', 'Saved: {{saved}}. Not saved: {{failed}}. The failed values remain here so you can retry.', { saved: saveEtc.data.saved.map((category) => budgetCategoryLabel(category, t)).join(', ') || t('projectDetail.budget.none', 'none'), failed: saveEtc.data.failed.map((item) => budgetCategoryLabel(item.category, t)).join(', ') })}</p> : null}
               <DataTable
                 rows={rows}
                 columns={columns}
@@ -231,7 +259,11 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
                 totals={totals}
               />
               <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide; the current source does not assign them to a fiscal year. They are shown separately and are not included in the fiscal-year forecast final.')}</p>
-              {rows.some((row) => !row.attributionKnown) && <p className="text-sm text-muted-foreground">{t('projectDetail.budget.forecastAttributionUnknown', 'Some budget amounts cannot be attributed to this fiscal year. Review line phasing before treating these totals as complete.')}</p>}
+              {rows.some((row) => row.actualsToDate === null || row.pmoBudgetAmount === null) && <div role="status" data-testid="forecast-incomplete" className="space-y-1 text-sm text-muted-foreground">
+                <p>{t('projectDetail.budget.forecastIncompleteCategories', 'Incomplete categories: {{categories}}', { categories: rows.filter((row) => row.actualsToDate === null || row.pmoBudgetAmount === null).map((row) => budgetCategoryLabel(row.category, t)).join(', ') })}</p>
+                {rows.filter((row) => row.actualsToDate === null || row.pmoBudgetAmount === null).map((row) => <p key={`reason-${row.category}`}>{budgetCategoryLabel(row.category, t)}: {rowReasonFor(row)}</p>)}
+              </div>}
+              {rows.find((row) => row.actualsAsOf)?.actualsAsOf && <p className="text-xs text-muted-foreground">{t('projectDetail.budget.forecastSummaryAsOf', 'Recorded spending as of {{date}}', { date: formatInstantDate(rows.find((row) => row.actualsAsOf)!.actualsAsOf!) })}</p>}
             </>}
       <Drawer
         open={Boolean(selected)}
@@ -252,8 +284,8 @@ export default function BudgetProjection({ projectId, currency, canEdit, committ
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               [t('financeCopy.budget', 'Budget'), moneyText(selected.pmoBudgetAmount, currency), t('projectDetail.budget.forecastBudgetSource', 'Source: the active budget version, phased to this fiscal year.')],
-              [t('projectDetail.budget.spent', 'Spent'), moneyText(selected.actualsToDate, currency), t('projectDetail.budget.forecastActualsSource', 'Source: ERP ledger through the recorded as-of date.')],
-              [t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide'), canReadCommitments ? moneyText(committedByCategory[selected.category] ?? 0, currency) : '—', t('projectDetail.budget.forecastCommitmentScope', 'Committed amounts are project-wide and not assigned to a fiscal year.')],
+              [t('projectDetail.budget.spent', 'Spent'), moneyText(selected.actualsToDate, currency), t('projectDetail.budget.forecastActualsAsOf', 'Source: ERP ledger through the recorded as-of date.')],
+              [t('projectDetail.budget.projectCommitmentsShort', 'Committed · project-wide'), canReadCommitments ? moneyText(committedByCategory[selected.category] ?? 0, currency) : '—', t('projectDetail.budget.forecastCommitmentSummary', 'Committed amounts are project-wide and not assigned to a fiscal year.')],
               [t('projectDetail.budget.costToFinish', 'Cost to finish'), formatCurrencyAuto(selected.pmoEtc, currency), t('projectDetail.budget.etcSource', 'PM estimate to complete, saved for this fiscal year.')],
               [t('projectDetail.budget.forecastFinal', 'Forecast final'), moneyText(selected.projectedFinalCost, currency), t('projectDetail.budget.forecastFinalFormula', 'Calculated as ERP spending to date plus cost to finish.')],
               [t('projectDetail.budget.forecastRemaining', 'Forecast remaining'), moneyText(selected.projectedVariance, currency), t('projectDetail.budget.forecastRemainingFormula', 'Calculated as fiscal-year budget minus forecast final. Negative values are an overrun.')],

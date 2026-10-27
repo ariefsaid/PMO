@@ -24,6 +24,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({ useProjectCommittedSpend: () => h.commitments }));
 vi.mock('@/src/hooks/useProjectFinances', () => ({ useProjectFinances: () => h.query }));
+vi.mock('@/src/components/fx/FxEquivalent', () => ({ default: () => null }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) =>
   action === 'manage' && entity === 'orgAccounting' && h.role === 'Admin' }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ realRole: h.role, effectiveRole: h.effectiveRole }) }));
@@ -42,6 +43,8 @@ const enCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/
 const idCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/common.json'), 'utf8')) as Record<string, unknown>;
 const enProjectCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/project.json'), 'utf8')) as Record<string, unknown>;
 const idProjectCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/project.json'), 'utf8')) as Record<string, unknown>;
+const enFinanceCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/en/finance.json'), 'utf8')) as Record<string, unknown>;
+const idFinanceCatalogue = JSON.parse(readFileSync(join(process.cwd(), 'public/locales/id/finance.json'), 'utf8')) as Record<string, unknown>;
 const localeI18n = createInstance();
 
 const payload = (overrides: Partial<ProjectFinances> = {}): ProjectFinances => ({
@@ -94,8 +97,8 @@ describe('ProjectFinancesSection attributed cost (#1271 AC-3)', () => {
 describe('ProjectFinancesSection reading states', () => {
   it('AC-PFIN-015 renders the finance section from translated English and Indonesian catalogues without raw keys', async () => {
     await localeI18n.init({
-      lng: 'en', fallbackLng: 'en', defaultNS: 'common', ns: ['common', 'project'],
-      resources: { en: { common: enCatalogue, project: enProjectCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue } },
+      lng: 'en', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common', ns: ['common', 'project', 'finance'],
+      resources: { en: { common: enCatalogue, project: enProjectCatalogue, finance: enFinanceCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue, finance: idFinanceCatalogue } },
       interpolation: { escapeValue: false }, react: { useSuspense: false },
     });
     h.query.data = payload();
@@ -166,7 +169,7 @@ describe('ProjectFinancesSection reading states', () => {
     h.commitments.ledgerBasis = 'pmo';
     h.commitments.otherCurrencies = [{ currency: 'EUR', amount: 40 }];
     render(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('$75.00')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('$75.00', { selector: 'p' })).toBeInTheDocument();
     expect(screen.getByTestId('committed-other-currencies')).toHaveTextContent('Plus amounts in other currencies: €40');
   });
 
@@ -174,16 +177,19 @@ describe('ProjectFinancesSection reading states', () => {
     h.query.data = payload({ actuals: { currency: 'USD', as_of: '2026-10-16T00:00:00Z', total: '120.00', excludes_restricted_rows: false,
       categories: [{ category: 'Labor', mapped: true, amount: '120.00' }] } });
     const { rerender } = render(<ProjectFinancesSection project={project} />);
-    expect(within(screen.getByTestId('project-finances')).getAllByText('$120.00')).toHaveLength(2);
+    expect(within(screen.getByTestId('project-finance-position-details')).getByText('$120.00')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('$120.00', { selector: 'p' })).toBeInTheDocument();
 
     h.commitments.ledgerBasis = 'pmo';
     rerender(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('$75.00')).toBeInTheDocument();
-    expect(screen.getByText('Committed PMO purchase orders')).toBeInTheDocument();
+    expect(within(screen.getByTestId('project-finance-position-details')).getByText('$75.00')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('$75.00', { selector: 'p' })).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('Committed PMO purchase orders', { selector: 'p' })).toBeInTheDocument();
 
     h.commitments.ledgerBasis = 'unavailable';
     rerender(<ProjectFinancesSection project={project} />);
-    expect(screen.getByText('Unavailable')).toBeInTheDocument();
+    expect(within(screen.getByText('Actual').parentElement!).getByText('Unavailable')).toBeInTheDocument();
+    expect(within(screen.getByRole('heading', { name: /Recorded spending/ }).parentElement!).getByText('Unavailable', { selector: 'p' })).toBeInTheDocument();
     expect(screen.queryByText('$0.00')).not.toBeInTheDocument();
   });
 
@@ -291,8 +297,8 @@ describe('ProjectFinancesSection reading states', () => {
 
   it('AC-1044-001 localizes the setup handoff and invoice scope in both catalogues', async () => {
     if (!localeI18n.isInitialized) {
-      await localeI18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', ns: ['common', 'project'],
-        resources: { en: { common: enCatalogue, project: enProjectCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue } },
+      await localeI18n.init({ lng: 'en', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common', ns: ['common', 'project', 'finance'],
+        resources: { en: { common: enCatalogue, project: enProjectCatalogue, finance: enFinanceCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue, finance: idFinanceCatalogue } },
         interpolation: { escapeValue: false }, react: { useSuspense: false } });
     }
     h.role = 'Finance';
@@ -440,8 +446,8 @@ describe('ProjectFinancesSection reading states', () => {
   it('AC-UWC-009 renders known, incomplete, and invalid cash honestly in both catalogues without disturbing settlement or Actuals', async () => {
     if (!localeI18n.isInitialized) {
       await localeI18n.init({
-        lng: 'en', fallbackLng: 'en', defaultNS: 'common',
-        resources: { en: { common: enCatalogue }, id: { common: idCatalogue } },
+        lng: 'en', fallbackLng: 'en', defaultNS: 'common', fallbackNS: 'common', ns: ['common', 'project', 'finance'],
+        resources: { en: { common: enCatalogue, project: enProjectCatalogue, finance: enFinanceCatalogue }, id: { common: idCatalogue, project: idProjectCatalogue, finance: idFinanceCatalogue } },
         interpolation: { escapeValue: false }, react: { useSuspense: false },
       });
     }

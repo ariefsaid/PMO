@@ -145,15 +145,15 @@ beforeEach(() => {
 // ── List states ───────────────────────────────────────────────────────────────
 
 describe('list states', () => {
-  it('AC-1402 renders the shared first-use state when there are no contract lines or orders', () => {
+  it('M17 explains client-PO drawdown in the empty register', () => {
     renderTab();
-    expect(screen.getByText('No contract lines or customer orders yet.')).toBeInTheDocument();
+    expect(screen.getByText(/No customer orders yet\. Client purchase orders/)).toBeInTheDocument();
   });
 
   it('renders a loading state, not an empty one, while the list is in flight', () => {
     listState.isPending = true;
     renderTab();
-    expect(screen.queryByText('No contract lines or customer orders yet.')).not.toBeInTheDocument();
+    expect(screen.queryByText(/No customer orders yet\. Client purchase orders/)).not.toBeInTheDocument();
   });
 
   it('renders an error with a retry when the list fails', async () => {
@@ -208,6 +208,27 @@ describe('the rows', () => {
     expect(screen.getByRole('heading', { name: 'Draft orders' })).toBeInTheDocument();
     expect(within(screen.getByRole('region', { name: 'Draft orders' })).getByRole('button', { name: 'View details for Phase 1 fabrication' })).toBeInTheDocument();
     expect(screen.queryByText('Not issued yet')).not.toBeInTheDocument();
+  });
+
+  it('M15 shows the order date on a draft order card and in its details drawer', async () => {
+    listState.data = [row({ order_date: '2026-08-01' })];
+    const user = userEvent.setup();
+    renderTab();
+    expect(screen.getByText(/Order date.*Aug 1, 2026/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'View details for Phase 1 fabrication' }));
+    expect(within(screen.getByRole('dialog')).getByText('Aug 1, 2026')).toBeInTheDocument();
+  });
+
+  it('M16 lets Admin, Project Manager, and Finance allocate lines on a Draft work order', async () => {
+    listState.data = [row({ status: 'Draft' })];
+    for (const role of ['Admin', 'Project Manager', 'Finance'] as const) {
+      const user = userEvent.setup();
+      const view = renderTab(role);
+      await user.click(screen.getByRole('button', { name: 'Actions for Phase 1 fabrication' }));
+      await user.click(screen.getByRole('menuitem', { name: 'Allocate contract lines' }));
+      expect(screen.getByRole('dialog', { name: 'Contract lines — Phase 1 fabrication' })).toBeInTheDocument();
+      view.unmount();
+    }
   });
 });
 

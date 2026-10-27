@@ -8,11 +8,12 @@ import type { AttentionItem } from './useProjectPosition';
 /** "Needs attention": what is wrong (with its status word), how big, and the verb that fixes it. */
 export const ProjectAttention: React.FC<{
   items: AttentionItem[];
+  excludeKeys?: ReadonlySet<string>;
   isPending?: boolean;
   error?: { what: string; retry: () => unknown };
   className?: string;
-}> = ({ items, isPending, error, className }) => {
-  const { t } = useTranslation();
+}> = ({ items, excludeKeys, isPending, error, className }) => {
+  const { t } = useTranslation('project');
   if (isPending) {
     return (
       <section aria-labelledby="pd-attention" className={className}>
@@ -31,7 +32,9 @@ export const ProjectAttention: React.FC<{
       </section>
     );
   }
-  if (items.length === 0) {
+  const visibleItems = excludeKeys ? items.filter((item) => !excludeKeys.has(item.key)) : items;
+  if (excludeKeys && visibleItems.length === 0) return null;
+  if (visibleItems.length === 0) {
     return (
       <section aria-label={t('projectDetail.attention.title', 'Needs attention')} className={className}>
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -47,11 +50,11 @@ export const ProjectAttention: React.FC<{
       <h2 id="pd-attention" className="mb-4 text-sm font-semibold text-foreground">
         {t('projectDetail.attention.title', 'Needs attention')}{' '}
         <Tooltip content={t('projectDetail.attention.countTooltip', 'Count of current project items that need follow-up.')}>
-          <span tabIndex={0} className="font-normal text-muted-foreground">{items.length}</span>
+          <span tabIndex={0} className="font-normal text-muted-foreground">{visibleItems.length}</span>
         </Tooltip>
       </h2>
       <ul className="divide-y divide-border/70 border-y border-border/70">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <li key={item.key}>
             <Tooltip content={item.explanation ?? t('projectDetail.attention.rowTooltip', 'Status is based on project records and their current workflow state.')} className="w-full">
               <Link to={item.to} className="touch-target flex items-baseline gap-x-4 py-3 hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">

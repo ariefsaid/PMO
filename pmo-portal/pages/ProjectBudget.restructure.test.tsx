@@ -14,11 +14,13 @@ const state = vi.hoisted(() => ({
   procurements: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   pushRows: [] as unknown[],
   projectionRows: [] as unknown[],
+  phasing: { years: {} as Record<string, string[]>, unphased: {} as Record<string, true> },
   fiscalYears: [{ fiscalYear: 'FY-2026', isActivePush: true }],
   retryPush: vi.fn().mockResolvedValue({ pushState: 'pushed' }),
   saveEtc: vi.fn().mockResolvedValue(undefined),
   releaseHold: vi.fn().mockResolvedValue(undefined),
   role: 'Project Manager',
+  binding: { status: 'active' } as { status: string } | null,
   activate: vi.fn().mockResolvedValue({ pushState: 'pushed' }),
   archive: vi.fn().mockResolvedValue(undefined),
   clone: vi.fn().mockResolvedValue('v-clone'),
@@ -48,7 +50,7 @@ vi.mock('@/src/hooks/useProcurements', () => ({ useProjectProcurements: () => st
 vi.mock('./project-detail/useProjectPosition', () => ({ useBudgetPosition: () => state.position }));
 vi.mock('@/src/hooks/useUsers', () => ({ useUsers: () => ({ data: [], isPending: false }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
-vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: { status: 'active' }, isPending: false }) }));
+vi.mock('@/src/hooks/useErpnextBinding', () => ({ useErpnextBinding: () => ({ data: state.binding, isPending: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u1', org_id: 'org-1' } }) }));
 vi.mock('@/src/auth/impersonation', () => ({
   useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role, canImpersonate: false, viewAs: vi.fn() }),
@@ -64,6 +66,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
     retryActiveBudgetPush: state.retryPush,
     releaseActiveBudgetPushHold: state.releaseHold,
     fetchBudgetProjection: vi.fn().mockImplementation(() => Promise.resolve(state.projectionRows)),
+    fetchActiveBudgetCategoryPhasing: vi.fn().mockImplementation(() => Promise.resolve(state.phasing)),
     listBudgetFiscalYears: vi.fn().mockImplementation(() => Promise.resolve(state.fiscalYears)),
     upsertBudgetProjectionEtc: state.saveEtc,
   };
@@ -124,8 +127,10 @@ beforeEach(() => {
   state.procurements = { data: [], isPending: false, isError: false, refetch: vi.fn() };
   state.pushRows = [];
   state.projectionRows = [];
+  state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], Travel: ['FY-2026'] }, unphased: {} };
   state.fiscalYears = [{ fiscalYear: 'FY-2026', isActivePush: true }];
   state.role = 'Project Manager';
+  state.binding = { status: 'active' };
 });
 
 describe('ProjectBudget Option A', () => {
@@ -239,10 +244,119 @@ describe('ProjectBudget Option A', () => {
     renderPage();
 
     expect(screen.queryByRole('button', { name: 'Activate v2' })).not.toBeInTheDocument();
-    expect(screen.getByText('Waiting for approval by finance')).toBeInTheDocument();
+    expect(screen.getByText('You drafted or edited this version, so someone else must activate it.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Edit draft' }));
     expect(screen.getByTestId('budget-draft-editor')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /add line item/i })).toBeInTheDocument();
+  });
+
+  it('M8: Clone to revise selects the returned Draft in the version selector', async () => {
+    const archivedVersion = { ...active(), id: 'v-archived', status: 'Archived', version: 2 } as unknown as BudgetVersionWithItems;
+    state.versions.data = [archivedVersion];
+    state.clone.mockImplementationOnce(async () => {
+      state.versions.data = [archivedVersion, draft({ id: 'v-clone' }) as unknown as BudgetVersionWithItems];
+      return 'v-clone';
+    });
+    renderPage();
+    await userEvent.click(screen.getByRole('button', { name: 'Manage versions' }));
+    const drawer = screen.getByRole('dialog', { name: 'Budget versions' });
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Clone to revise' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Clone version' }));
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Version' })).toHaveValue('v-clone'));
+  });
+
+  it.each(['Active', 'Archived'] as const)('M8: read-only %s category detail includes each line fiscal year', async (status) => {
+    const activeVersion = active([line('li-active', 'Labor', 'Design', 100)]) as unknown as BudgetVersionWithItems;
+    const archivedLine = { ...line('li-archived', 'Labor', 'Design legacy', 80), fiscal_year: 'FY-2027' };
+    const archivedVersion = { ...active([archivedLine]), id: 'v-archived', status: 'Archived', version: 2 } as unknown as BudgetVersionWithItems;
+    state.versions.data = [activeVersion, archivedVersion];
+    renderPage();
+    if (status === 'Archived') await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Version' }), 'v-archived');
+    await userEvent.click(screen.getByRole('row', { name: /Labor/ }));
+    expect(screen.getByText(status === 'Active' ? /Fiscal year: FY-2026/ : /Fiscal year: FY-2027/)).toBeInTheDocument();
+  });
+
+  it('M13: an unstamped Active version offers the clone action beside the recovery instructions', async () => {
+    state.role = 'Finance';
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.pushRows = [{ pushState: 'unstamped-activation', fiscalYear: 'FY-2026', pushError: null, unmappedCategories: null, erpBudgetName: null, holdReleasable: false, staleAttribution: false }];
+    renderPage();
+    await userEvent.click(screen.getByText('Sources and budget enforcement'));
+    expect(screen.getByText(/Clone the active version or edit the existing draft, then activate it/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clone to revise' }));
+    expect(screen.getByRole('heading', { name: 'Clone to a new draft?' })).toBeInTheDocument();
+  });
+
+  it('M20: a forecast deep link falls back to plan when the organization has no active ERP binding', () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.binding = null;
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(screen.getByRole('table', { name: 'Budget vs actual by category' })).toBeInTheDocument();
+    expect(screen.queryByTestId('budget-forecast-view')).not.toBeInTheDocument();
+  });
+
+  it('M20: a forecast deep link falls back to plan when there is no Active budget', () => {
+    state.versions.data = [draft() as unknown as BudgetVersionWithItems];
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(screen.queryByTestId('budget-forecast-view')).not.toBeInTheDocument();
+    expect(screen.getByText('No active budget')).toBeInTheDocument();
+  });
+
+  it('M11: incomplete forecast totals name categories, explain row causes, and show the ledger timestamp', async () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.projectionRows = [
+      { category: 'Labor', pmoBudgetAmount: 100, actualsToDate: null, actualsAsOf: null, pmoEtc: 5, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null, attributionKnown: true },
+      { category: 'Materials', pmoBudgetAmount: null, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 2, projectedFinalCost: 12, projectedVariance: null, projectedUtilization: null, attributionKnown: true },
+      { category: 'Travel', pmoBudgetAmount: 100, actualsToDate: null, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 0, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null, attributionKnown: true },
+      { category: 'Equipment', pmoBudgetAmount: null, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 0, projectedFinalCost: 10, projectedVariance: null, projectedUtilization: null, attributionKnown: true },
+      { category: 'Professional Fees', pmoBudgetAmount: null, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 0, projectedFinalCost: 10, projectedVariance: null, projectedUtilization: null, attributionKnown: false },
+    ];
+    state.phasing = { years: { Labor: ['FY-2026'], Materials: ['FY-2027'], 'Professional Fees': ['FY-2026'] }, unphased: { 'Professional Fees': true } };
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(await screen.findByTestId('forecast-incomplete')).toHaveTextContent('Incomplete categories: Labor, Materials, Travel, Equipment, Professional Fees');
+    expect(screen.getByText(/Labor: No ledger reading is available/)).toBeInTheDocument();
+    expect(screen.getByText(/Materials: Budgeted in another fiscal year: FY-2027/)).toBeInTheDocument();
+    expect(screen.getByText(/Travel: No accounting ledger account is mapped/)).toBeInTheDocument();
+    expect(screen.getByText(/Equipment: No budget line is recorded/)).toBeInTheDocument();
+    expect(screen.getByText(/Professional Fees: Budget attribution is stale or incomplete/)).toBeInTheDocument();
+    expect(screen.getByText(/Recorded spending as of/)).toBeInTheDocument();
+  });
+
+  it('M14: an empty fiscal-year projection explains activation, ERP push, and the first ledger posting', async () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.projectionRows = [];
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(await screen.findByText(/Activate and push a budget version for this fiscal year/)).toBeInTheDocument();
+    expect(screen.getByText(/wait for the first ERP ledger posting to sync/)).toBeInTheDocument();
+  });
+
+  it('M11: a projection row says when no budget exists for its fiscal year', async () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.phasing = { years: {}, unphased: {} };
+    state.projectionRows = [{ category: 'Labor', pmoBudgetAmount: null, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 0, projectedFinalCost: null, projectedVariance: null, projectedUtilization: null, attributionKnown: true }];
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    expect(await screen.findByText(/Labor: No budget is recorded for this fiscal year/)).toBeInTheDocument();
+  });
+
+  it('M12: a partial cost-to-finish save names saved and failed categories and keeps the classified row reason', async () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.projectionRows = [
+      { category: 'Labor', pmoBudgetAmount: 100, actualsToDate: 10, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 5, projectedFinalCost: 15, projectedVariance: 85, projectedUtilization: 15, attributionKnown: true },
+      { category: 'Materials', pmoBudgetAmount: 100, actualsToDate: 20, actualsAsOf: '2026-10-20T00:00:00Z', pmoEtc: 2, projectedFinalCost: 22, projectedVariance: 78, projectedUtilization: 22, attributionKnown: true },
+    ];
+    state.saveEtc.mockImplementation(async (_project, _year, category) => {
+      if (category === 'Materials') throw new Error('Write rejected');
+    });
+    renderPage(['/projects/p-1/budget?budgetView=forecast']);
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit cost to finish' }));
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Cost to finish for Labor' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Cost to finish for Labor' }), '7');
+    await userEvent.clear(screen.getByRole('textbox', { name: 'Cost to finish for Materials' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'Cost to finish for Materials' }), '9');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(state.saveEtc).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText(/Saved: Labor\. Not saved: Materials\./)).toBeInTheDocument();
+    expect(screen.getByText(/Not saved\./)).toBeInTheDocument();
   });
 
   it('keeps version comparison and Microsoft evidence reachable in the versions drawer', async () => {

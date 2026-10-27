@@ -110,7 +110,7 @@ const WorkOrderFormModal: React.FC<WorkOrderFormModalProps> = ({
   onCreate,
   onUpdate,
 }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('project');
   const isEdit = !!workOrder;
 
   const validateWithT = useCallback((v: FormValues) => validate(v, t, isEdit), [t, isEdit]);
