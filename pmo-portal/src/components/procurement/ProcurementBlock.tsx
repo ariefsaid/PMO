@@ -59,7 +59,9 @@ export interface ProcurementBlockProps {
 }
 
 export const ProcurementStageBand: React.FC<React.PropsWithChildren<{ label: string }>> = ({ label, children }) => (
-  <section aria-label={label} className="grid grid-cols-2 gap-2 sm:grid-cols-5">{children}</section>
+  <section aria-label={label} className="overflow-x-auto rounded-lg border border-border bg-card">
+    <div className="flex min-w-[620px] sm:min-w-0">{children}</div>
+  </section>
 );
 
 export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWithRefs>, 'rows' | 'columns' | 'rowKey'> {
@@ -67,11 +69,12 @@ export interface ProcurementListProps extends Omit<DataTableProps<ProcurementWit
   rows: ProcurementWithRefs[];
   columns: Column<ProcurementWithRefs>[];
   children: React.ReactNode;
+  embedded?: boolean;
 }
 
 /** Shared list surface and DataTable contract, including its controlled selection and row menu. */
-export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, ...tableProps }) => (
-  <section aria-label={label} className="overflow-hidden rounded-lg border border-border bg-card">
+export const ProcurementList: React.FC<ProcurementListProps> = ({ label, rows, columns, children, embedded = false, ...tableProps }) => (
+  <section aria-label={label} className={embedded ? 'overflow-hidden' : 'overflow-hidden rounded-lg border border-border bg-card'}>
     {children}
     <DataTable rows={rows} columns={columns} rowKey={(row) => row.id} {...tableProps} />
   </section>
@@ -290,7 +293,7 @@ function ProcurementBudgetLeft({
 }
 
 export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, rowFilter, showCreate = true }) => {
-  const { t } = useTranslation();
+  const { t } = useTranslation('procurement');
   const { currentUser, role } = useAuth();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -527,10 +530,10 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                 {amount === undefined ? t('procurement.moneyUnknown', 'Not recorded') : formatCurrency(amount, row.currency)}
               </span>
             </Tooltip>
-            <div className="text-[11px] text-muted-foreground">{basis}</div>
+            <div className="text-xs text-muted-foreground">{basis}</div>
             {unpaidVisibleToRole(role) && (unpaid !== null && unpaid > 0 || money.unpaid.unknown) && (
               <Tooltip content={t('procurement.unpaidTooltip', 'Invoice amount less recorded payments, or the ERP outstanding balance.')}>
-                <div tabIndex={0} className="rounded-sm text-[11px] text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+                <div tabIndex={0} className="rounded-sm text-xs text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
                   {t('procurement.unpaidLine', 'Unpaid {{amount}}', {
                     amount: unpaid === null ? t('procurement.moneyUnknown', 'Not recorded') : formatCurrency(unpaid, row.currency),
                   })}
@@ -593,7 +596,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   <Icon name={isExpanded ? 'up' : 'down'} className="size-3.5" />
                 </button>
               </div>
-              <span className="block truncate font-mono text-[11px] text-muted-foreground">
+              <span className="block truncate font-mono text-xs text-muted-foreground">
                 {row.code ?? row.id.slice(0, 8)} · {row.vendor?.name ?? t('projectDetail.procurement.noSupplier', 'No supplier')}
               </span>
               {isExpanded && (
@@ -774,7 +777,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
   return (
     <div className="space-y-4">
       {isPending ? (
-        <div className="rounded-lg border border-border bg-card"><ListState variant="loading" rows={3} /></div>
+        <div className={projectId ? undefined : 'rounded-lg border border-border bg-card'}><ListState variant="loading" rows={3} /></div>
       ) : !isError && data && (
         <ProcurementStageBand label={t('projectDetail.procurement.stageBand.label', 'Procurement stages')}>
           {stageStats.map(({ key, rows: stageRows, currencyTotals }) => {
@@ -792,18 +795,20 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
                   type="button"
                   aria-pressed={selectedStage === key}
                   onClick={() => setSelectedStage((current) => current === key ? null : key)}
-                  className={`flex min-h-[78px] min-w-0 flex-col items-start justify-center rounded-lg border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'border-primary bg-primary/5' : 'border-border bg-card hover:bg-accent/40'}`}
+                  className={`flex min-h-[68px] min-w-0 flex-1 flex-col items-start justify-center border-r border-border px-3 py-2 text-left transition-colors last:border-r-0 focus-visible:relative focus-visible:z-10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring ${selectedStage === key ? 'bg-primary/5' : 'hover:bg-accent/40'}`}
                 >
-                  <span className="flex w-full min-w-0 items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
+                  <span className="flex w-full min-w-0 items-center justify-between gap-1 text-xs font-semibold text-muted-foreground">
                     <span className="truncate">{stageLabel}</span>
-                    {forYou > 0 && <span className="shrink-0 font-medium text-primary">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
+                    {forYou > 0 && <span className="shrink-0 font-medium text-primary-text">{t('projectDetail.procurement.forYou', '{{count}} for you', { count: forYou })}</span>}
                   </span>
-                  <span className="mt-1 text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
+                  <span className="mt-1 flex w-full min-w-0 items-baseline justify-between gap-2">
+                    <span className="text-[18px] font-semibold leading-tight tabular text-foreground">{stageRows.length}</span>
                   {canSeeMoney && currencyTotals.length > 0 && (
-                    <span className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 text-[11px] text-muted-foreground">
+                    <span className="flex min-w-0 flex-wrap justify-end gap-x-2 text-xs text-muted-foreground">
                       {currencyTotals.map((item) => <span key={item.currency} className="truncate">{formatCurrency(item.value, item.currency)}</span>)}
                     </span>
                   )}
+                  </span>
                 </button>
               </Tooltip>
             );
@@ -815,6 +820,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
         label={heading}
         rows={filteredRows}
         columns={columns}
+        embedded={Boolean(projectId)}
         accessibleName={projectId ? t('projectDetail.procurement.table.accessibleName', 'Project procurement') : t('procurement.table.accessibleName', 'Procurement')}
         rowMenu={rowMenu}
         selectedKey={selected?.id}

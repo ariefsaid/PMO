@@ -1,17 +1,25 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon, ListState, TaxBasisLabel } from '@/src/components/ui';
-import { cn } from '@/src/components/ui/cn';
+import { Link, useSearchParams } from 'react-router';
+import { DataTable, Drawer, ListState, ProgressBar, StatusPill, TaxBasisLabel, Tooltip, type Column, type RowMenuItem } from '@/src/components/ui';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
+import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
 import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
+
+interface UnorderedLine {
+  key: string;
+  item: import('@/src/lib/db/progressBilling').BoqItemRow;
+  balance: number;
+  allocations: import('@/src/lib/progressBilling').AllocationFacts[];
+}
 
 export interface InvoiceSettlementInput {
   status: string;
@@ -49,12 +57,16 @@ const qty = (n: number) => formatNumberMax2(n);
 /** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
 export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode }> = ({ project, children }) => {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openRecordId = searchParams.get('open');
+  const openRecordType = searchParams.get('openType');
   const may = usePermission();
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const orders = useProjectWorkOrders(project.id);
   const canViewMoney = may('view', 'salesInvoice');
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
+  const orderBilling = useWorkOrderBilling(project.id, canViewMoney);
 
   if (boq.isPending || billing.isPending || orders.isPending) return <ListState variant="loading" rows={6} />;
   if (boq.isError || billing.isError || orders.isError || !billing.data) {
@@ -72,7 +84,7 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
   const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
   const settlement = summarizeInvoiceSettlement(invoiceRows);
-  const showSummary = hasReadingLayer || (canViewMoney && (
+  const showSummary = canViewMoney && (hasReadingLayer || (
     invoices.isPending || invoices.isError || invoiceRows.length > 0 || Number(project.contract_value) > 0
   ));
   const contractValue = hasReadingLayer
@@ -81,6 +93,46 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
   const invoiceFiguresMissing = canViewMoney && (
     invoices.isPending || invoices.isError || settlement.invoiced === null || !settlement.balancesKnown
   );
+  const orderBillingRows = orderBilling.data ?? [];
+  const lineCanInvoice = allocations.reduce((sum, allocation) => {
+    const item = items.find((candidate) => candidate.id === allocation.boqItemId);
+    if (!item || allocation.acceptedQuantity === null) return sum;
+    return sum + Math.max(0, allocation.acceptedQuantity - allocation.claimedQuantity) * Number(item.rate);
+  }, 0);
+  const moneyOrderCanInvoice = orderBillingRows
+    .filter((order) => order.lineCount === 0 && order.figuresComplete)
+    .reduce((sum, order) => sum + Math.max(0, order.remaining), 0);
+  const canInvoice = lineCanInvoice + moneyOrderCanInvoice;
+  const currentDate = new Date();
+  const today = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(currentDate.getDate()).padStart(2, '0')}`;
+  const overdue = invoiceRows.reduce((sum, invoice) => {
+    if (!invoice.erp_due_date || invoice.erp_due_date >= today || invoice.status === 'Draft' || invoice.status === 'Cancelled') return sum;
+    const balance = invoice.status === 'Paid' ? 0 : invoice.erp_outstanding_amount;
+    return balance === null ? sum : sum + Math.max(0, balance);
+  }, 0);
+  const percent = (value: number | null) => contractValue > 0 && value !== null
+    ? Math.max(0, Math.round(value / contractValue * 100))
+    : null;
+  const unorderedRows: UnorderedLine[] = items.flatMap((item) => {
+    const balance = facts.get(item.id)?.contractBalance ?? 0;
+    return balance > 0 ? [{ key: item.id, item, balance, allocations: facts.get(item.id)?.allocations ?? [] }] : [];
+  });
+  const selectedUnorderedLine = openRecordType === 'contractBoq'
+    ? unorderedRows.find((line) => line.key === openRecordId) ?? null
+    : null;
+  const openBoqLine = (line: UnorderedLine) => {
+    const next = new URLSearchParams(searchParams);
+    next.set('open', line.key);
+    next.set('openType', 'contractBoq');
+    setSearchParams(next);
+  };
+  const closeUnorderedLine = (id: string) => {
+    if (openRecordId !== id || openRecordType !== 'contractBoq') return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    next.delete('openType');
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
@@ -92,30 +144,44 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
             </span>
           </div>
-          <dl className="flex flex-wrap items-start gap-x-5 gap-y-3">
-            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatNumberWhole(contractValue)} />
+          <ol className="grid min-w-0 grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3 lg:grid-cols-5" aria-label={t('projectDetail.cascade.title', 'Contract')}>
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatNumberWhole(contractValue)} percentage={contractValue > 0 ? 100 : null} detail={hasReadingLayer ? t('projectDetail.cascade.source.contract', 'Source: priced contract lines (quantity × rate), excluding tax.') : t('projectDetail.cascade.source.contractFallback', 'Source: the project billing summary, excluding tax.')} />
             {hasReadingLayer && <>
-              <Arrow />
-              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatNumberWhole(ordered)} />
-              <Arrow />
-              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatNumberWhole(delivered)} />
+              <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatNumberWhole(ordered)} percentage={percent(ordered)} detail={t('projectDetail.cascade.source.ordered', 'Source: contract allocation quantities × contract rates.')} />
+              <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatNumberWhole(delivered)} percentage={percent(delivered)} detail={t('projectDetail.cascade.source.delivered', 'Source: quantities accepted on confirmed BASTs × contract rates.')} />
             </>}
             {canViewMoney && settlement.invoiced !== null && !invoices.isPending && !invoices.isError && <>
-              <Arrow />
-              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} />
+              <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} percentage={percent(settlement.invoiced)} detail={t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />
             </>}
             {canViewMoney && settlement.balancesKnown && !invoices.isPending && !invoices.isError && <>
-              <Arrow />
-              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} />
+              <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} percentage={percent(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />
             </>}
-          </dl>
+          </ol>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+            {(orderBilling.isError || orderBilling.isPending) ? (
+              <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
+                {orderBilling.isError ? t('projectDetail.cascade.orderBillingError', 'Can invoice is unavailable while work-order billing is loading.') : t('projectDetail.cascade.orderBillingLoading', 'Can invoice is loading.')}
+              </span>
+            ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
+              <span className="inline-flex cursor-help items-center gap-2 border-l-2 border-primary pl-2 tabular-nums">
+                <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
+                <strong className="font-semibold text-foreground">{project.currency} {formatNumberWhole(canInvoice)}</strong>
+              </span>
+            </Tooltip>}
+            {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
+              <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
+                <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
+                <strong className="font-semibold">{project.currency} {formatNumberWhole(overdue)}</strong>
+              </span>
+            </Tooltip>}
+          </div>
           <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            {hasReadingLayer && <span>{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span>}
-            {billing.data.dpBilled > 0 && <span>· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
+            {hasReadingLayer && <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Source: unallocated contract quantity multiplied by its contract rate.') }><span className="cursor-help">{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatNumberWhole(notYetOrdered)}</strong></span></Tooltip>}
+            {billing.data.dpBilled > 0 && <Tooltip content={t('projectDetail.cascade.source.downPayment', 'Source: project billing totals for down payment billed and recovered.') }><span className="cursor-help">· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
               billed: formatNumberWhole(billing.data.dpBilled),
               recovered: formatNumberWhole(billing.data.dpRecovered),
               interpolation: { escapeValue: false },
-            })}</span>}
+            })}</span></Tooltip>}
           </p>
           {invoiceFiguresMissing && !children && (
             <p className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role={invoices.isError ? 'alert' : 'status'}>
@@ -134,80 +200,93 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
 
       {children}
 
-      {hasReadingLayer && (() => {
-        const open = items.filter((item) => (facts.get(item.id)?.contractBalance ?? 0) > 0);
-        if (!open.length) return null;
+      {hasReadingLayer && unorderedRows.length > 0 && (() => {
+        const columns: Column<UnorderedLine>[] = [
+          { key: 'item', header: t('projectDetail.cascade.colItem', 'Item'), kind: 'primary', rowHeader: true,
+            cell: (line) => <span>{line.item.item_code && <span className="mr-2 text-xs text-muted-foreground">{line.item.item_code}</span>}{line.item.description}</span>,
+            secondaryCell: (line) => line.item.unit },
+          { key: 'contract', header: t('projectDetail.cascade.colContract', 'Contract'), align: 'num', kind: 'number',
+            cell: (line) => <Tooltip content={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity))} {line.item.unit}</span></Tooltip>,
+            exportValue: (line) => Number(line.item.quantity) },
+          { key: 'ordered', header: t('projectDetail.cascade.colOrdered', 'Ordered'), align: 'num', kind: 'number',
+            cell: (line) => <Tooltip content={t('projectDetail.cascade.source.ordered', 'Source: quantities allocated to customer orders.') }><span className="cursor-help tabular-nums">{qty(Number(line.item.quantity) - line.balance)} {line.item.unit}</span></Tooltip>,
+            exportValue: (line) => Number(line.item.quantity) - line.balance },
+          { key: 'left', header: t('projectDetail.cascade.colLeft', 'Remaining'), align: 'num', kind: 'number',
+            cell: (line) => <Tooltip content={t('projectDetail.cascade.source.leftToOrder', 'Contract quantity less quantities already allocated to customer orders.') }><span className="cursor-help tabular-nums font-semibold">{qty(line.balance)} {line.item.unit}</span></Tooltip>,
+            exportValue: (line) => line.balance },
+          ...(canViewMoney ? [{ key: 'value', header: t('projectDetail.cascade.colValue', 'Value'), align: 'num' as const, kind: 'money' as const,
+            cell: (line: UnorderedLine) => <Tooltip content={t('projectDetail.cascade.source.notOrderedValue', 'Unordered contract quantity multiplied by its contract rate.') }><span className="cursor-help tabular-nums">{formatNumberWhole(line.balance * Number(line.item.rate))}</span></Tooltip>,
+            exportValue: (line: UnorderedLine) => line.balance * Number(line.item.rate) }] : []),
+        ];
+        const menu = (line: UnorderedLine): RowMenuItem[] => [
+          { label: t('projectDetail.cascade.viewQuantityHistory', 'View quantity history'), onClick: () => openBoqLine(line) },
+        ];
         return (
           <section aria-labelledby="pd-not-ordered" className="min-w-0">
             <h3 id="pd-not-ordered" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</h3>
-            <LineTable
-              head={[t('projectDetail.cascade.colContract', 'Contract'), t('projectDetail.cascade.colLeft', 'Left to order')]}
-              rows={open.map((item) => {
-                const fact = facts.get(item.id)!;
-                return { key: item.id, code: item.item_code, name: item.description, unit: item.unit, cells: [qty(Number(item.quantity)), <span key="l" className="font-semibold">{qty(fact.contractBalance)}</span>] };
-              })}
+            <DataTable<UnorderedLine>
+              rows={unorderedRows}
+              columns={columns}
+              rowKey={(line) => line.key}
+              rowLabel={(line) => t('projectDetail.cascade.openUnorderedLine', 'Open {{item}} quantity history', { item: line.item.description })}
+              accessibleName={t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}
+              onActivate={openBoqLine}
+              rowMenu={menu}
+              cardBelow={720}
+              tableId="project-detail-not-yet-ordered"
             />
           </section>
         );
       })()}
+
+      {selectedUnorderedLine && <Drawer open title={selectedUnorderedLine.item.description}
+        subtitle={`${selectedUnorderedLine.item.item_code} · ${selectedUnorderedLine.item.unit}`}
+        status={<StatusPill variant="neutral">{t('projectDetail.billing.boq.lineStatus', 'Contract line')}</StatusPill>}
+        onClose={() => closeUnorderedLine(selectedUnorderedLine.key)}
+        headerActions={<Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={`/projects/${encodeURIComponent(project.id)}/billing`} onClick={() => closeUnorderedLine(selectedUnorderedLine.key)}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>}>
+        <div className="flex flex-col gap-5 p-4">
+          <dl className="grid grid-cols-2 gap-3 text-sm">
+            <UnorderedFigure label={t('projectDetail.cascade.colContract', 'Contract')} value={`${qty(Number(selectedUnorderedLine.item.quantity))} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.contractQuantity', 'Source: priced contract line quantity.')} />
+            <UnorderedFigure label={t('projectDetail.cascade.colOrdered', 'Ordered')} value={`${qty(Number(selectedUnorderedLine.item.quantity) - selectedUnorderedLine.balance)} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.ordered', 'Source: quantities allocated to customer orders.')} />
+            <UnorderedFigure label={t('projectDetail.cascade.colLeft', 'Remaining')} value={`${qty(selectedUnorderedLine.balance)} ${selectedUnorderedLine.item.unit}`} detail={t('projectDetail.cascade.source.leftToOrder', 'Contract quantity less quantities already allocated to customer orders.')} />
+            {canViewMoney && <UnorderedFigure label={t('projectDetail.cascade.colValue', 'Value')} value={`${project.currency} ${formatNumberWhole(selectedUnorderedLine.balance * Number(selectedUnorderedLine.item.rate))}`} detail={t('projectDetail.cascade.source.notOrderedValue', 'Unordered contract quantity multiplied by its contract rate.')} />}
+          </dl>
+          <section aria-labelledby="unordered-line-history">
+            <h3 id="unordered-line-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h3>
+            {selectedUnorderedLine.allocations.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noQuantityHistory', 'No customer order quantities yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
+              {selectedUnorderedLine.allocations.map((allocation) => {
+                const order = orders.data?.find((candidate) => candidate.id === allocation.workOrderId);
+                return <li key={allocation.workOrderId} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <span>{order?.wo_number ?? order?.title ?? allocation.workOrderId}</span>
+                  <Tooltip content={t('projectDetail.cascade.source.lineOrdered', 'Source: quantity allocated to this work order.')}><span className="cursor-help tabular-nums">{qty(allocation.quantity)} {selectedUnorderedLine.item.unit}</span></Tooltip>
+                </li>;
+              })}
+            </ul>}
+          </section>
+        </div>
+      </Drawer>}
+
     </div>
   );
 };
 
-const MoneyStep: React.FC<{ label: string; value: string }> = ({ label, value }) => (
-  <div className="min-w-0">
-    <dt className="text-xs text-muted-foreground">{label}</dt>
-    <dd className="mt-1 text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</dd>
-  </div>
-);
-
-const Arrow: React.FC = () => <Icon name="chev" className="mt-6 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />;
-
-interface Row { key: string; code: string; name: string; unit: string; cells: React.ReactNode[]; sub?: boolean }
-
-const LineTable: React.FC<{ head: string[]; rows: Row[] }> = ({ head, rows }) => {
+const MoneyStep: React.FC<{ label: string; value: string; percentage: number | null; detail: string }> = ({ label, value, percentage, detail }) => {
   const { t } = useTranslation();
   return (
-    <>
-    <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={`${t('projectDetail.cascade.colItem', 'Item')} · ${head.join(' · ')}`}>
-      <table className="w-full min-w-[40rem] text-sm">
-        <thead>
-          <tr className="border-b border-border text-left text-xs text-muted-foreground">
-            <th scope="col" className="py-2 pl-3 pr-4 font-medium">{t('projectDetail.cascade.colItem', 'Item')}</th>
-            <th scope="col" className="w-16 py-2 pr-4 font-medium">{t('projectDetail.cascade.colUnit', 'Unit')}</th>
-            {head.map((heading) => <th key={heading} scope="col" className="w-28 py-2 pl-4 pr-3 text-right font-medium">{heading}</th>)}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.key} className={cn(row.sub ? 'text-xs text-muted-foreground' : 'border-t border-border/70')}>
-              <td className={cn('py-2 pl-3 pr-4', row.sub && 'py-1 pl-8')}>
-                {row.code && <span className="mr-2 text-xs tabular-nums text-muted-foreground">{row.code}</span>}
-                <span className={cn(!row.sub && 'text-foreground')}>{row.name}</span>
-              </td>
-              <td className={cn('py-2 pr-4 text-muted-foreground', row.sub && 'py-1')}>{row.unit}</td>
-              {row.cells.map((cell, index) => <td key={index} className={cn('py-2 pl-4 pr-3 text-right tabular-nums', row.sub && 'py-1')}>{cell}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-    <ul className="divide-y divide-border md:hidden">
-      {rows.map((row) => (
-        <li key={row.key} className="py-3">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
-            {row.code && <span className="font-mono text-xs text-muted-foreground">{row.code}</span>}
-            <span className="break-words font-medium text-foreground">{row.name}</span>
-            <span className="text-xs text-muted-foreground">{row.unit}</span>
-          </div>
-          <dl className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            {head.map((heading, index) => <div key={heading} className="inline-flex items-baseline gap-1">
-              <dt>{heading}</dt><dd className="font-medium text-foreground">{row.cells[index]}</dd>
-            </div>)}
-          </dl>
-        </li>
-      ))}
-    </ul>
-    </>
+    <li className="min-w-0 border-l border-border pl-3 first:border-l-0 first:pl-0">
+      <Tooltip content={detail}>
+        <span className="w-fit cursor-help text-xs text-muted-foreground">{label}</span>
+      </Tooltip>
+      <Tooltip content={detail}><div className="mt-1 w-fit cursor-help text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</div></Tooltip>
+      {percentage !== null && <Tooltip content={t('projectDetail.cascade.percentOfContractSource', 'Computed as this stage value divided by the contract value.') }>
+        <span className="mt-2 block w-full max-w-36 cursor-help"><ProgressBar value={percentage} showValue compact aria-label={label} /></span>
+      </Tooltip>}
+      {percentage === null && <span className="mt-2 block text-xs text-muted-foreground">—</span>}
+    </li>
   );
 };
+
+const UnorderedFigure: React.FC<{ label: string; value: string; detail: string }> = ({ label, value, detail }) => (
+  <div><dt className="text-xs text-muted-foreground">{label}</dt><Tooltip content={detail}><dd className="mt-1 w-fit cursor-help font-semibold tabular-nums">{value}</dd></Tooltip></div>
+);
+
