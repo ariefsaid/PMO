@@ -22,6 +22,7 @@ const routeChunkState = vi.hoisted(() => {
       tasks: 0,
       workOrders: 0,
       billing: 0,
+      contract: 0,
       documents: 0,
     },
     tasksContent,
@@ -60,6 +61,10 @@ vi.mock('../tabs/WorkOrdersTab', () => {
 vi.mock('../tabs/BillingTab', () => {
   routeChunkState.loads.billing += 1;
   return { default: () => <div data-testid="tab-billing">Billing panel</div> };
+});
+vi.mock('../ContractCascade', () => {
+  routeChunkState.loads.contract += 1;
+  return { ContractCascade: ({ children }: { children: React.ReactNode }) => <div data-testid="contract-cascade">{children}</div> };
 });
 vi.mock('../tabs/DocumentsTab', () => {
   routeChunkState.loads.documents += 1;
@@ -165,6 +170,7 @@ describe('ProjectDetail route panel loading', () => {
       tasks: 0,
       workOrders: 0,
       billing: 0,
+      contract: 0,
       documents: 0,
     });
 
@@ -212,10 +218,13 @@ describe('ProjectDetail route panel loading', () => {
     expect(routeChunkState.taskActionClicks()).toBe(1);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Contract & billing' }));
-    const billingPanel = await screen.findByTestId('tab-billing');
-    expect(billingPanel).toBeInTheDocument();
+    expect(await screen.findByTestId('contract-cascade')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-work-orders')).toBeInTheDocument();
+    expect(screen.getByTestId('tab-billing')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Contract & billing' })).toHaveAttribute('aria-selected', 'true');
     expect(routeChunkState.loads.billing).toBe(1);
+    expect(routeChunkState.loads.contract).toBe(1);
+    expect(routeChunkState.loads.workOrders).toBe(1);
     expect(routeChunkState.loads.tasks).toBe(1);
     expect(header).toBeInTheDocument();
   });

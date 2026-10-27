@@ -10,8 +10,6 @@ import { ProjectAttention } from './ProjectAttention';
 import { useOverdueReceivables, useProjectAttention } from './useProjectPosition';
 import { CostBlock, DeliveryBlock, MoneyBlock } from './ProjectBlocks';
 import { ActivityFooter, MyOpenTasks, ProjectActivity } from './ProjectActivity';
-import ProjectDrawdown from './ProjectDrawdown';
-import { ContractCascade, type CascadeView } from './ContractCascade';
 
 const BudgetTab = React.lazy(() => import('./tabs/BudgetTab'));
 const ProcurementTab = React.lazy(() => import('./tabs/ProcurementTab'));
@@ -19,6 +17,7 @@ const TasksTab = React.lazy(() => import('./tabs/TasksTab'));
 const DocumentsTab = React.lazy(() => import('./tabs/DocumentsTab'));
 const WorkOrdersTab = React.lazy(() => import('./tabs/WorkOrdersTab'));
 const BillingTab = React.lazy(() => import('./tabs/BillingTab'));
+const ContractCascade = React.lazy(() => import('./ContractCascade').then((module) => ({ default: module.ContractCascade })));
 const ProjectSCurve = React.lazy(() => import('./ProjectSCurve'));
 
 import { AREAS, type Area } from './projectDetailAreas';
@@ -77,9 +76,6 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
 
 /** One area's working surface, identical in every layout. */
 const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'overview'> }> = ({ project, area }) => {
-  const { t } = useTranslation();
-  const may = usePermission();
-  const canSeeBilling = may('view', 'progressClaim');
   switch (area) {
     case 'budget': return <BudgetTab projectId={project.id} />;
     case 'procurement': return <ProcurementTab projectId={project.id} />;
@@ -87,37 +83,16 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
     case 'documents': return <DocumentsTab projectId={project.id} projectCode={project.code} />;
     case 'activity': return <ProjectActivity projectId={project.id} />;
     case 'contract': {
-      // Prototype switch for the owner's pick (#1402): ?billing=orders|lines; today's screens fold below.
-      const view = new URLSearchParams(window.location.search).get('billing') as CascadeView | null;
-      if (view === 'orders' || view === 'lines') {
-        return (
-          <div className="flex min-w-0 flex-col gap-12">
-            <ContractCascade project={project} view={view} />
-            <details className="border-t border-border/70 pt-4">
-              <summary className="cursor-pointer text-xs text-muted-foreground">Today’s order and billing screens (for comparison)</summary>
-              <div className="mt-6 flex flex-col gap-12">
-                <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null} focusWorkOrderId={null} projectManagerId={project.project_manager_id ?? null} />
-                {canSeeBilling && <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null} projectManagerId={project.project_manager_id ?? null} />}
-              </div>
-            </details>
-          </div>
-        );
-      }
       return (
-      <div className="flex min-w-0 flex-col gap-12">
-        <ProjectDrawdown projectId={project.id} />
-        <section aria-labelledby="pd-customer-orders" className="min-w-0">
-          <h2 id="pd-customer-orders" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.contract.orders', 'Customer orders')}</h2>
-          <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
-            focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')} projectManagerId={project.project_manager_id ?? null} />
-        </section>
-        {canSeeBilling && (
-          <section aria-labelledby="pd-billing" className="min-w-0">
-            <h2 id="pd-billing" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.contract.billing', 'Progress billing')}</h2>
-            <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null} projectManagerId={project.project_manager_id ?? null} />
-          </section>
-        )}
-      </div>
+        <ContractCascade project={project}>
+          <div className="flex min-w-0 flex-col gap-4">
+            <BillingTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+              projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />
+            <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
+              focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
+              projectManagerId={project.project_manager_id ?? null} showSettlementNote={false} />
+          </div>
+        </ContractCascade>
       );
     }
   }

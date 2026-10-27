@@ -53,6 +53,8 @@ vi.mock('@/src/hooks/useWorkOrders', () => ({
 vi.mock('@/src/hooks/useProgressBilling', () => ({
   useBoqItems: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
   useProjectBilling: () => ({ data: null, isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectClaims: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProgressBillingMutations: () => ({}),
 }));
 vi.mock('@/src/hooks/useWorkOrderAcceptances', () => ({
   useWorkOrderLines: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -64,6 +66,8 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: [], is
 vi.mock('@/src/hooks/useWorkOrderBilling', () => ({
   useWorkOrderBilling: () => ({ data: undefined, isPending: true, isError: false, refetch: vi.fn() }),
 }));
+vi.mock('@/src/hooks/useRevenue', () => ({ useSalesInvoices: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }) }));
+vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: true }) }));
 // #913: the Invoice gate reads the revenue mode through a hook. These specs predate it and mount without a
 // QueryClientProvider; the revenue-mode gating is covered in WorkOrdersTab.billing.test.tsx. 'erp' is the mode these
 // specs were written under.
@@ -138,15 +142,15 @@ beforeEach(() => {
 // ── List states ───────────────────────────────────────────────────────────────
 
 describe('list states', () => {
-  it('renders the empty state when the project has no work orders yet', () => {
+  it('AC-1402 renders the shared first-use state when there are no contract lines or orders', () => {
     renderTab();
-    expect(screen.getByText('No work orders on this project yet')).toBeInTheDocument();
+    expect(screen.getByText('No contract lines or customer orders yet.')).toBeInTheDocument();
   });
 
   it('renders a loading state, not an empty one, while the list is in flight', () => {
     listState.isPending = true;
     renderTab();
-    expect(screen.queryByText('No work orders on this project yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('No contract lines or customer orders yet.')).not.toBeInTheDocument();
   });
 
   it('renders an error with a retry when the list fails', async () => {
@@ -163,7 +167,7 @@ describe('list states', () => {
 describe('the rows', () => {
   it('OD-TAX-1: an order value never renders bare — it carries its tax basis', () => {
     listState.data = [
-      row({ id: 'wo-1', tax_treatment: 'exclusive' }),
+      row({ id: 'wo-1', status: 'Issued', tax_treatment: 'exclusive' }),
       row({ id: 'wo-2', tax_treatment: 'inclusive', order_value: 111_000, wo_number: 'WO-0001', status: 'Issued' }),
     ];
     renderTab();
@@ -173,9 +177,9 @@ describe('the rows', () => {
 
   it('SUB-C: rate and DPP are shown only when DPP is not 1/1 or the rate is missing', () => {
     listState.data = [
-      row({ id: 'wo-1', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
-      row({ id: 'wo-2', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
-      row({ id: 'wo-3', tax_rate: null }),
+      row({ id: 'wo-1', status: 'Issued', tax_rate: 11, tax_base_numerator: 1, tax_base_denominator: 1 }),
+      row({ id: 'wo-2', status: 'Issued', tax_rate: 11, tax_base_numerator: 11, tax_base_denominator: 12 }),
+      row({ id: 'wo-3', status: 'Issued', tax_rate: null }),
     ];
     renderTab();
     expect(screen.getByTestId('wo-value-wo-1')).toHaveTextContent(/^\$250,000\s*excl\. PPN$/);
@@ -183,10 +187,12 @@ describe('the rows', () => {
     expect(screen.getByTestId('wo-value-wo-3')).toHaveTextContent('rate not recorded');
   });
 
-  it('says a draft has no WO number yet rather than showing an empty cell', () => {
+  it('AC-1402 keeps draft orders in their quiet section with the order title', () => {
     listState.data = [row({ wo_number: null })];
     renderTab();
-    expect(screen.getByText('Not issued yet')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Draft orders' })).toBeInTheDocument();
+    expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
+    expect(screen.queryByText('Not issued yet')).not.toBeInTheDocument();
   });
 });
 
@@ -236,14 +242,14 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     renderTab('Project Manager');
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     const issueGate = screen.getAllByRole('alert').find((el) => el.textContent?.includes('your supervisor'));
-    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before this order can be issued.');
+    expect(issueGate).toHaveTextContent('The value must be set by your supervisor or a more senior active reviewer before it can be issued.');
   });
 
   it('a PM gets create, edit, set-value, issue and cancel on a draft set by a senior user', () => {
     listState.data = [row({ order_value_set_by: 'u-2' })];
     renderTab('Project Manager');
-    expect(screen.getByRole('button', { name: 'New work order' })).toBeInTheDocument();
-    for (const name of ['Edit', 'Set value', 'Issue', 'Cancel']) {
+    expect(screen.getByRole('button', { name: 'New customer order' })).toBeInTheDocument();
+    for (const name of ['Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.getByRole('button', { name })).toBeInTheDocument();
     }
   });
@@ -276,7 +282,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     listState.data = [row()];
     renderTab('Engineer');
     expect(screen.getByText('Phase 1 fabrication')).toBeInTheDocument();
-    for (const name of ['New work order', 'Edit', 'Set value', 'Issue', 'Cancel']) {
+    for (const name of ['New customer order', 'Edit order', 'Set value', 'Issue', 'Cancel']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
@@ -286,7 +292,7 @@ describe('authorization (UX gate; the RPCs are the authority)', () => {
     renderTab('Project Manager');
     expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Edit order' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Set value' })).not.toBeInTheDocument();
   });
 

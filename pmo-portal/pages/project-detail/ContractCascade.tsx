@@ -1,195 +1,178 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Icon, ListState, StatusPill, TaxBasisLabel } from '@/src/components/ui';
+import { Icon, ListState, TaxBasisLabel } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import { usePermission } from '@/src/auth/usePermission';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useProjectWorkOrders } from '@/src/hooks/useWorkOrders';
-import { useWorkOrderBilling } from '@/src/hooks/useWorkOrderBilling';
-import { formatNumberMax2, formatNumberWhole } from '@/src/lib/format';
+import { useSalesInvoices } from '@/src/hooks/useRevenue';
+import { formatCurrency, formatNumberMax2 } from '@/src/lib/format';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
+import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
-export type CascadeView = 'orders' | 'lines';
+type InvoiceRowWithWorkOrder = SalesInvoiceRow & { work_order_id?: string | null };
 
-const whole = (n: number) => formatNumberWhole(n);
+export interface InvoiceSettlementInput {
+  status: string;
+  amount: number | null;
+  erp_outstanding_amount: number | null;
+}
+
+export interface InvoiceSettlementSummary {
+  invoiced: number | null;
+  paid: number;
+  unpaid: number | null;
+  balancesKnown: boolean;
+}
+
+/** Submitted invoices settle from ERP balances; unknown balances contribute only fully Paid invoices. */
+// eslint-disable-next-line react-refresh/only-export-components -- shared money summary is used by WorkOrdersTab.
+export function summarizeInvoiceSettlement(invoices: readonly InvoiceSettlementInput[]): InvoiceSettlementSummary {
+  const submitted = invoices.filter((invoice) => invoice.status !== 'Draft' && invoice.status !== 'Cancelled');
+  const cents = (value: number | null): number | null => value !== null && Number.isFinite(value) ? Math.round(value * 100) : null;
+  const amounts = submitted.map((invoice) => cents(invoice.amount));
+  const balances = submitted.map((invoice) => cents(invoice.erp_outstanding_amount));
+  const balancesKnown = amounts.every((value) => value !== null) && balances.every((value) => value !== null);
+  const invoiced = amounts.every((value) => value !== null)
+    ? amounts.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100
+    : null;
+  const paidCents = balancesKnown
+    ? submitted.reduce((sum, invoice) => sum + (cents(invoice.amount) ?? 0) - (cents(invoice.erp_outstanding_amount) ?? 0), 0)
+    : submitted.reduce((sum, invoice) => invoice.status === 'Paid' ? sum + (cents(invoice.amount) ?? 0) : sum, 0);
+  const unpaid = balancesKnown ? balances.reduce<number>((sum, value) => sum + (value ?? 0), 0) / 100 : null;
+  return { invoiced, paid: paidCents / 100, unpaid, balancesKnown };
+}
+
 const qty = (n: number) => formatNumberMax2(n);
 
-/**
- * Contract → customer order → delivered (BAST) → invoiced → paid, built from the contract lines.
- * Quantities trickle down per line; paid is money (payments are not quantities).
- */
-export const ContractCascade: React.FC<{ project: ProjectWithRefs; view: CascadeView }> = ({ project, view }) => {
+/** Contract value summary and the customer's ordered → delivered → invoiced reading layer. */
+export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: React.ReactNode }> = ({ project, children }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const orders = useProjectWorkOrders(project.id);
-  const money = useWorkOrderBilling(project.id, may('view', 'salesInvoice'));
+  const canViewMoney = may('view', 'salesInvoice');
+  const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
 
   if (boq.isPending || billing.isPending || orders.isPending) return <ListState variant="loading" rows={6} />;
   if (boq.isError || billing.isError || orders.isError || !billing.data) {
     return <ListState variant="error" title={t('projectDetail.cascade.error', "Couldn't load the contract")} onRetry={() => { void boq.refetch(); void billing.refetch(); void orders.refetch(); }} />;
   }
+
   const items = boq.data ?? [];
-  if (items.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.empty', 'No contract lines yet. Load the contract’s line items to track orders, delivery and billing by line.')}</p>;
-  }
-  const facts = new Map(billing.data.contractLines.map((l) => [l.boqItemId, l]));
-  const wos = (orders.data ?? []).filter((w) => w.status !== 'Cancelled' && w.status !== 'Draft')
-    .sort((a, b) => (a.wo_number ?? '').localeCompare(b.wo_number ?? ''));
-  const woMoney = new Map((money.data ?? []).map((m) => [m.workOrderId, m]));
-  const rate = new Map(items.map((i) => [i.id, Number(i.rate)]));
-  const allocs = billing.data.contractLines.flatMap((l) => l.allocations);
-
-  const contract = items.reduce((s, i) => s + Number(i.quantity) * Number(i.rate), 0);
-  const ordered = allocs.reduce((s, a) => s + a.quantity * (rate.get(a.boqItemId) ?? 0), 0);
-  const delivered = allocs.reduce((s, a) => s + (a.acceptedQuantity ?? 0) * (rate.get(a.boqItemId) ?? 0), 0);
-  const invoiced = (money.data ?? []).reduce((s, m) => s + m.invoiced, 0);
-  const paid = (money.data ?? []).reduce((s, m) => s + m.paid, 0);
-  const showMoney = may('view', 'salesInvoice');
-
-  const step = (label: string, value: number) => (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-lg font-semibold tabular-nums leading-tight text-foreground">{whole(value)}</dd>
-    </div>
-  );
-  const arrow = <Icon name="chev" className="mt-6 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />;
+  const facts = new Map(billing.data.contractLines.map((line) => [line.boqItemId, line]));
+  const allocations = billing.data.contractLines.flatMap((line) => line.allocations);
+  const hasReadingLayer = items.length > 0;
+  const rate = new Map(items.map((item) => [item.id, Number(item.rate)]));
+  const contract = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.rate), 0);
+  const ordered = allocations.reduce((sum, allocation) => sum + allocation.quantity * (rate.get(allocation.boqItemId) ?? 0), 0);
+  const delivered = allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rate.get(allocation.boqItemId) ?? 0), 0);
+  const notYetOrdered = items.reduce((sum, item) => sum + (facts.get(item.id)?.contractBalance ?? 0) * Number(item.rate), 0);
+  const invoiceRows = (invoices.data ?? []) as InvoiceRowWithWorkOrder[];
+  const settlement = summarizeInvoiceSettlement(invoiceRows);
 
   return (
-    <div className="flex min-w-0 flex-col gap-12">
-      <section aria-labelledby="pd-cascade" className="min-w-0">
-        <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
-          <h2 id="pd-cascade" className="text-sm font-semibold text-foreground">{t('projectDetail.cascade.title', 'Contract')}</h2>
-          <span className="text-xs text-muted-foreground">{project.currency}
-            {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
-          </span>
-        </div>
-        <dl className="flex flex-wrap items-start gap-x-4 gap-y-3">
-          {step(t('projectDetail.cascade.contract', 'Contract'), contract)}{arrow}
-          {step(t('projectDetail.cascade.ordered', 'Ordered'), ordered)}{arrow}
-          {step(t('projectDetail.cascade.delivered', 'Delivered'), delivered)}
-          {showMoney && <>{arrow}{step(t('projectDetail.cascade.invoiced', 'Invoiced'), invoiced)}{arrow}{step(t('projectDetail.cascade.paid', 'Paid'), paid)}</>}
-        </dl>
-        <p className="mt-3 text-xs tabular-nums text-muted-foreground">
-          {t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <span className="font-semibold text-foreground">{whole(contract - ordered)}</span>
-          {showMoney && <> · {t('projectDetail.cascade.deliveredNotInvoiced', 'Delivered, not invoiced')} <span className="font-semibold text-foreground">{whole(Math.max(0, delivered - invoiced))}</span>
-            {' · '}{t('projectDetail.cascade.unpaid', 'Unpaid')} <span className="font-semibold text-foreground">{whole(invoiced - paid)}</span></>}
-        </p>
-      </section>
-
-      {view === 'orders' ? (
-        <>
-          {wos.map((w) => {
-            const m = woMoney.get(w.id);
-            const lines = allocs.filter((a) => a.workOrderId === w.id);
-            return (
-              <section key={w.id} aria-labelledby={`pd-wo-${w.id}`} className="min-w-0">
-                <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h3 id={`pd-wo-${w.id}`} className="text-sm font-semibold text-foreground">{w.wo_number ?? w.title}</h3>
-                  <span className="text-sm text-foreground">{w.title}</span>
-                  <StatusPill variant={w.status === 'Closed' ? 'won' : 'progress'}>{w.status === 'Closed' ? t('projectDetail.cascade.delivered', 'Delivered') : t('projectDetail.cascade.inProgress', 'In progress')}</StatusPill>
-                  {w.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.cascade.po', 'PO {{po}}', { po: w.client_po_number })}</span>}
-                  {showMoney && m && (
-                    <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                      {t('projectDetail.cascade.invoicedOf', 'Invoiced')} <span className="font-semibold text-foreground">{whole(m.invoiced)}</span>
-                      {' · '}{t('projectDetail.cascade.paid', 'Paid')} <span className="font-semibold text-foreground">{whole(m.paid)}</span>
-                      {m.invoiced - m.paid > 0 && <> · <span className="font-semibold text-destructive-text">{t('projectDetail.cascade.unpaidAmt', '{{amount}} unpaid', { amount: whole(m.invoiced - m.paid) })}</span></>}
-                    </span>
-                  )}
-                </div>
-                <LineTable
-                  head={[t('projectDetail.cascade.colOrdered', 'Ordered'), t('projectDetail.cascade.colDelivered', 'Delivered'), t('projectDetail.cascade.colInvoiced', 'Invoiced'), t('projectDetail.cascade.colCanInvoice', 'Can invoice')]}
-                  rows={lines.map((a) => {
-                    const item = items.find((i) => i.id === a.boqItemId)!;
-                    const acc = a.acceptedQuantity;
-                    const can = acc === null ? 0 : Math.max(0, acc - a.claimedQuantity);
-                    return {
-                      key: a.boqItemId, code: item.item_code, name: item.description, unit: item.unit,
-                      cells: [
-                        qty(a.quantity),
-                        acc === null ? <span className="text-muted-foreground">0</span>
-                          : <span className={cn(acc < a.quantity && a.final && 'text-warning-foreground')}>{qty(acc)}{acc < a.quantity && a.final && <span className="ml-1 text-xs">{t('projectDetail.cascade.short', '({{n}} short)', { n: qty(a.quantity - acc) })}</span>}</span>,
-                        qty(a.claimedQuantity),
-                        can > 0 ? <span className="font-semibold text-primary-text">{qty(can)}</span> : <span className="text-muted-foreground">0</span>,
-                      ],
-                    };
-                  })}
-                />
-              </section>
-            );
-          })}
-          {(() => {
-            const open = items.filter((i) => (facts.get(i.id)?.contractBalance ?? 0) > 0);
-            if (!open.length) return null;
-            return (
-              <section aria-labelledby="pd-not-ordered" className="min-w-0">
-                <h3 id="pd-not-ordered" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</h3>
-                <LineTable
-                  head={[t('projectDetail.cascade.colContract', 'Contract'), t('projectDetail.cascade.colLeft', 'Left to order')]}
-                  rows={open.map((i) => {
-                    const f = facts.get(i.id)!;
-                    // A closed order hands back what it didn't deliver, so "left" can exceed contract − ordered.
-                    return { key: i.id, code: i.item_code, name: i.description, unit: i.unit, cells: [qty(Number(i.quantity)), <span key="l" className="font-semibold">{qty(f.contractBalance)}</span>] };
-                  })}
-                />
-              </section>
-            );
-          })()}
-        </>
-      ) : (
-        <section aria-labelledby="pd-lines" className="min-w-0">
-          <h3 id="pd-lines" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.cascade.linesTitle', 'Contract lines')}</h3>
-          <LineTable
-            head={[t('projectDetail.cascade.colContract', 'Contract'), t('projectDetail.cascade.colOrdered', 'Ordered'), t('projectDetail.cascade.colDelivered', 'Delivered'), t('projectDetail.cascade.colInvoiced', 'Invoiced'), t('projectDetail.cascade.colLeft', 'Left to order')]}
-            rows={items.flatMap((i) => {
-              const f = facts.get(i.id);
-              const lineAllocs = f?.allocations ?? [];
-              const main = {
-                key: i.id, code: i.item_code, name: i.description, unit: i.unit,
-                cells: [qty(Number(i.quantity)), qty(f?.orderedQuantity ?? 0), qty(f?.acceptedQuantity ?? 0), qty(lineAllocs.reduce((s, a) => s + a.claimedQuantity, 0)),
-                  (f?.contractBalance ?? 0) > 0 ? <span key="l" className="font-semibold">{qty(f!.contractBalance)}</span> : <span key="l" className="text-muted-foreground">0</span>],
-              };
-              const subs = lineAllocs.map((a) => {
-                const w = wos.find((x) => x.id === a.workOrderId);
-                return {
-                  key: `${i.id}-${a.workOrderId}`, sub: true, code: '', name: w?.wo_number ?? '', unit: '',
-                  cells: ['', qty(a.quantity), qty(a.acceptedQuantity ?? 0), qty(a.claimedQuantity), ''],
-                };
-              });
-              return [main, ...(subs.length > 1 ? subs : [])];
-            })}
-          />
+    <div className="flex min-w-0 flex-col gap-8">
+      {hasReadingLayer && (
+        <section aria-labelledby="pd-cascade" className="min-w-0">
+          <div className="mb-4 flex flex-wrap items-baseline gap-x-2">
+            <h2 id="pd-cascade" className="text-sm font-semibold text-foreground">{t('projectDetail.cascade.title', 'Contract')}</h2>
+            <span className="text-xs text-muted-foreground">{project.currency}
+              {isTaxTreatment(project.tax_treatment) && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="inline text-xs text-muted-foreground" /></>}
+            </span>
+          </div>
+          <dl className="flex flex-wrap items-start gap-x-5 gap-y-3">
+            <MoneyStep label={t('projectDetail.cascade.contract', 'Contract')} value={formatCurrency(contract, project.currency)} />
+            <Arrow />
+            <MoneyStep label={t('projectDetail.cascade.ordered', 'Ordered')} value={formatCurrency(ordered, project.currency)} />
+            <Arrow />
+            <MoneyStep label={t('projectDetail.cascade.delivered', 'Delivered')} value={formatCurrency(delivered, project.currency)} />
+            {canViewMoney && <>
+              <Arrow />
+              {invoices.isPending ? <ListState variant="loading" rows={1} className="w-24 p-0" /> : invoices.isError
+                ? <span className="text-xs text-muted-foreground">{t('projectDetail.cascade.invoiceUnavailable', 'Invoice totals unavailable')}</span>
+                : <MoneyStep label={t('projectDetail.cascade.invoiced', 'Invoiced')} value={settlement.invoiced === null ? t('projectDetail.workOrders.billing.unavailable', 'Unavailable') : formatCurrency(settlement.invoiced, project.currency)} />}
+              <Arrow />
+              {invoices.isPending ? <ListState variant="loading" rows={1} className="w-24 p-0" /> : invoices.isError
+                ? <span className="text-xs text-muted-foreground">{t('projectDetail.cascade.paidUnavailable', 'Paid total unavailable')}</span>
+                : <MoneyStep label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(settlement.paid, project.currency)} />}
+            </>}
+          </dl>
+          <p className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground">
+            <span>{t('projectDetail.cascade.notOrdered', 'Not yet ordered')} <strong className="font-semibold text-foreground">{formatCurrency(notYetOrdered, project.currency)}</strong></span>
+            {canViewMoney && !invoices.isPending && !invoices.isError && <>
+              <span>· {t('projectDetail.cascade.deliveredNotInvoiced', 'Delivered, not invoiced')} <strong className="font-semibold text-foreground">{settlement.invoiced === null ? '—' : formatCurrency(Math.max(0, delivered - settlement.invoiced), project.currency)}</strong></span>
+              <span>· {t('projectDetail.cascade.unpaid', 'Unpaid')} <strong className="font-semibold text-foreground">{settlement.unpaid === null ? t('projectDetail.cascade.balancePending', 'balances pending') : formatCurrency(settlement.unpaid, project.currency)}</strong></span>
+            </>}
+            {billing.data.dpBilled > 0 && <span>· {t('projectDetail.cascade.downPaymentSummary', 'Down payment {{billed}} · recovered {{recovered}}', {
+              billed: formatCurrency(billing.data.dpBilled, project.currency),
+              recovered: formatCurrency(billing.data.dpRecovered, project.currency),
+              interpolation: { escapeValue: false },
+            })}</span>}
+          </p>
+          {canViewMoney && !invoices.isPending && !invoices.isError && !settlement.balancesKnown && (
+            <p className="mt-2 text-xs text-muted-foreground" role="note">{t('projectDetail.cascade.partialPaymentNote', 'Part payments appear once invoice balances arrive from accounting.')}</p>
+          )}
+          {canViewMoney && invoices.isError && <ListState variant="error" title={t('projectDetail.cascade.invoiceError', "Couldn't load invoices")} onRetry={() => void invoices.refetch()} />}
         </section>
       )}
+
+      {children}
+
+      {hasReadingLayer && (() => {
+        const open = items.filter((item) => (facts.get(item.id)?.contractBalance ?? 0) > 0);
+        if (!open.length) return null;
+        return (
+          <section aria-labelledby="pd-not-ordered" className="min-w-0">
+            <h3 id="pd-not-ordered" className="mb-3 text-sm font-semibold text-foreground">{t('projectDetail.cascade.notOrderedTitle', 'Not yet ordered')}</h3>
+            <LineTable
+              head={[t('projectDetail.cascade.colContract', 'Contract'), t('projectDetail.cascade.colLeft', 'Left to order')]}
+              rows={open.map((item) => {
+                const fact = facts.get(item.id)!;
+                return { key: item.id, code: item.item_code, name: item.description, unit: item.unit, cells: [qty(Number(item.quantity)), <span key="l" className="font-semibold">{qty(fact.contractBalance)}</span>] };
+              })}
+            />
+          </section>
+        );
+      })()}
     </div>
   );
 };
+
+const MoneyStep: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="min-w-0">
+    <dt className="text-xs text-muted-foreground">{label}</dt>
+    <dd className="mt-1 text-lg font-semibold tabular-nums leading-tight text-foreground">{value}</dd>
+  </div>
+);
+
+const Arrow: React.FC = () => <Icon name="chev" className="mt-6 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />;
 
 interface Row { key: string; code: string; name: string; unit: string; cells: React.ReactNode[]; sub?: boolean }
 
 const LineTable: React.FC<{ head: string[]; rows: Row[] }> = ({ head, rows }) => {
   const { t } = useTranslation();
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-md border border-border">
       <table className="w-full min-w-[40rem] text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs text-muted-foreground">
-            <th scope="col" className="py-2 pr-4 font-medium">{t('projectDetail.cascade.colItem', 'Item')}</th>
+            <th scope="col" className="py-2 pl-3 pr-4 font-medium">{t('projectDetail.cascade.colItem', 'Item')}</th>
             <th scope="col" className="w-16 py-2 pr-4 font-medium">{t('projectDetail.cascade.colUnit', 'Unit')}</th>
-            {head.map((h) => <th key={h} scope="col" className="w-28 py-2 pl-4 text-right font-medium">{h}</th>)}
+            {head.map((heading) => <th key={heading} scope="col" className="w-28 py-2 pl-4 pr-3 text-right font-medium">{heading}</th>)}
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.key} className={cn(r.sub ? 'text-xs text-muted-foreground' : 'border-t border-border/70')}>
-              <td className={cn('py-2 pr-4', r.sub && 'py-1 pl-8')}>
-                {r.code && <span className="mr-2 text-xs tabular-nums text-muted-foreground">{r.code}</span>}
-                <span className={cn(!r.sub && 'text-foreground')}>{r.name}</span>
+          {rows.map((row) => (
+            <tr key={row.key} className={cn(row.sub ? 'text-xs text-muted-foreground' : 'border-t border-border/70')}>
+              <td className={cn('py-2 pl-3 pr-4', row.sub && 'py-1 pl-8')}>
+                {row.code && <span className="mr-2 text-xs tabular-nums text-muted-foreground">{row.code}</span>}
+                <span className={cn(!row.sub && 'text-foreground')}>{row.name}</span>
               </td>
-              <td className={cn('py-2 pr-4 text-muted-foreground', r.sub && 'py-1')}>{r.unit}</td>
-              {r.cells.map((c, idx) => <td key={idx} className={cn('py-2 pl-4 text-right tabular-nums', r.sub && 'py-1')}>{c}</td>)}
+              <td className={cn('py-2 pr-4 text-muted-foreground', row.sub && 'py-1')}>{row.unit}</td>
+              {row.cells.map((cell, index) => <td key={index} className={cn('py-2 pl-4 pr-3 text-right tabular-nums', row.sub && 'py-1')}>{cell}</td>)}
             </tr>
           ))}
         </tbody>

@@ -83,6 +83,9 @@ vi.mock('../tabs/WorkOrdersTab', () => ({
   ),
 }));
 vi.mock('../tabs/BillingTab', () => ({ default: () => <div>Billing surface</div> }));
+vi.mock('../ContractCascade', () => ({
+  ContractCascade: ({ children }: { children: React.ReactNode }) => <div data-testid="contract-cascade">{children}</div>,
+}));
 vi.mock('../ProjectDetailHeader', () => ({ default: () => <div>Header</div>, hasFinanceView: () => true }));
 vi.mock('../ProjectDetailRail', () => ({ default: () => <aside data-testid="project-detail-rail" /> }));
 vi.mock('../PipelineLens', () => ({ default: () => <div data-testid="pipeline-lens" /> }));
