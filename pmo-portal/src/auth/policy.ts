@@ -21,6 +21,7 @@ import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
 
 export type Action =
   | 'view'
+  | 'act'
   | 'create'
   | 'edit'
   | 'archive'

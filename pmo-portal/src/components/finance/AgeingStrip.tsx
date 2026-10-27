@@ -38,7 +38,11 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
             {bucketKeys.map((key, index) => (
               <div key={key} className={`min-w-0 py-1.5 ${index > 0 ? 'border-l border-border pl-3' : ''}`}>
                 <div className="text-xs text-muted-foreground">{labels[key]}</div>
-                <div className="tabular text-[16px] font-semibold">{formatCurrencyCents(buckets[key] ?? 0, currency)}</div>
+                <div className="tabular text-[16px] font-semibold">
+                  {formatCurrencyCents(kind === 'receivables'
+                    ? (buckets as AgeingBuckets)[key as keyof AgeingBuckets] ?? 0
+                    : (buckets as PayablesAgeingBuckets)[key as keyof PayablesAgeingBuckets] ?? 0, currency)}
+                </div>
               </div>
             ))}
           </div>

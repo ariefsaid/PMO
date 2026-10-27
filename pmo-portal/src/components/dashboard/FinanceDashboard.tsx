@@ -267,7 +267,7 @@ export const FinanceDashboard: React.FC = () => {
     ? t('uxs03.realizedMarginKnown', 'Known margin on billed work')
     : t('uxs03.realizedMargin', 'Margin on billed work');
   const outstanding = useMemo(() => {
-    const invoiced = (procurements ?? []).filter((p) => p.status === INVOICED_STATUS);
+    const invoiced = (procurements ?? []).filter(isProcurementReadyToPay);
     const currencies = new Set(invoiced.map((p) => p.currency));
     if (currencies.size > 1 || invoiced.some((p) => typeof p.total_value !== 'number' || !Number.isFinite(p.total_value))) return null;
     return invoiced.reduce((sum, p) => sum + p.total_value, 0);
