@@ -22,9 +22,20 @@ const h = vi.hoisted(() => ({
   /** null = ownership still loading; otherwise derived from `route`. */
   ownershipLoaded: true,
   userId: 'u-fin2',
-  role: 'Finance' as 'Finance' | 'Project Manager',
+  role: 'Finance' as 'Finance' | 'Project Manager' | 'Executive',
   toast: vi.fn(),
+  exportedRows: [] as unknown[],
 }));
+vi.mock('@/src/components/export', async () => {
+  const React = await import('react');
+  return {
+    ExportButton: ({ rows, label = 'Export' }: { rows: unknown[]; label?: string }) => React.createElement('button', {
+      type: 'button',
+      onClick: () => { h.exportedRows = rows; },
+    }, label),
+    withCurrencyColumn: <Row,>(columns: Row[]) => columns,
+  };
+});
 vi.mock('@/src/hooks/useErpItemOptions', () => ({ useErpItemOptions: () => ({ connected: false, loadOptions: async () => [] }) }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrency: () => 'IDR',
@@ -137,6 +148,7 @@ beforeEach(async () => {
   h.userId = 'u-fin2';
   h.role = 'Finance';
   h.toast.mockClear();
+  h.exportedRows = [];
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -177,6 +189,74 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('AC-1405 an embedded invoice row opens a URL-addressable drawer and preserves the list behind it', async () => {
+    h.invoices.data = [nativeInvoice({ status: 'Submitted', pmo_number: 'INV-2610070001', erp_outstanding_amount: 610_000 })];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    await user.click(screen.getByRole('button', { name: 'Open INV-2610070001' }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&open=si-n1');
+    expect(screen.getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mark received' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 a Finance user who is not an invoice author can approve a draft from the drawer', () => {
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 an invoice already marked received offers Record payment when it remains unpaid', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 grouping invoices by client shows that client’s open balance', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-a', pmo_number: 'INV-A', status: 'Unpaid', erp_outstanding_amount: 600_000 }),
+      nativeInvoice({ id: 'si-b', pmo_number: 'INV-B', status: 'Unpaid', erp_outstanding_amount: 400_000 }),
+      nativeInvoice({ id: 'si-c', pmo_number: 'INV-C', customer_name: 'Borealis Marine', status: 'Paid', erp_outstanding_amount: 0 }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    await user.click(screen.getByRole('tab', { name: 'Client' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&group=client');
+    expect(screen.getByRole('button', { name: /Acme Energy\s*2/ })).toBeInTheDocument();
+    expect(screen.getByText(/Open balance/)).toBeInTheDocument();
+  });
+
+  it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
+    h.userId = 'u-fin1';
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 an Executive can open an invoice drawer but sees no primary actions', () => {
+    h.role = 'Executive';
+    h.invoices.data = [nativeInvoice()];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Approve|Mark received|Record payment/ })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 exports only the selected invoice rows from the embedded bulk bar', async () => {
+    h.invoices.data = [
+      nativeInvoice({ id: 'si-a', pmo_number: 'INV-A' }),
+      nativeInvoice({ id: 'si-b', pmo_number: 'INV-B', customer_name: 'Borealis Marine' }),
+    ];
+    const user = userEvent.setup();
+    renderPage('/finance/receivables?view=invoices', true);
+    expect(screen.queryByRole('button', { name: 'Export selected' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('checkbox', { name: 'Select INV-A' }));
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Export selected' }));
+    expect((h.exportedRows as SalesInvoiceRow[]).map((row) => row.id)).toEqual(['si-a']);
+  });
+
   it('AC-NAR-001 a PMO invoice needs a project — Create stays disabled until one is chosen — and sends the typed line', async () => {
     const user = userEvent.setup();
     renderPage();
@@ -206,7 +286,7 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Approve' }));
     expect(screen.getByText('Site survey')).toBeInTheDocument();
     expect(screen.getByText('Net (before tax)')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Continue to approve' }));
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
     await user.click(screen.getByRole('button', { name: 'Approve invoice' }));
     expect(h.submitMutate).toHaveBeenCalledWith({ siId: 'si-n1', intent: expect.objectContaining({ id: expect.any(String) }) });
   });

@@ -95,6 +95,21 @@ describe('DataTable row selection', () => {
     expect(screen.getByRole('checkbox', { name: 'Select all visible rows' })).toHaveAttribute('aria-checked', 'mixed');
   });
 
+  it('renders a group balance computed from that group’s rows', () => {
+    render(
+      <DataTable
+        rows={rows}
+        columns={columns}
+        rowKey={(row) => row.id}
+        groupBy={(row) => row.group}
+        groupHeader={(label, groupRows) => `Open balance ${label}: ${groupRows.length * 25}`}
+      />,
+    );
+
+    expect(screen.getByText('Open balance Client A: 25')).toBeInTheDocument();
+    expect(screen.getByText('Open balance Client B: 25')).toBeInTheDocument();
+  });
+
   it('keeps row selection available in the phone card layout', async () => {
     mockViewport(false);
     const onSelectionChange = vi.fn();

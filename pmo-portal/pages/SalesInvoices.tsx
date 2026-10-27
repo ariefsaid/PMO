@@ -17,6 +17,9 @@ import {
   FormSection,
   Button,
   Icon,
+  Drawer,
+  MenuButton,
+  Tooltip,
   TaxBasisLabel,
   Badge,
   useToast,
@@ -57,6 +60,7 @@ import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { SalesInvoiceApprovalPreview } from '@/pages/approvals/SalesInvoiceApprovalRow';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
+import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
 /** Status filter segments. "PartlyPaid" is a display state of a PMO invoice (DD-NAR-3), never a stored status. */
 type StatusFilter = 'All' | SalesInvoiceStatus | 'PartlyPaid';
@@ -269,7 +273,16 @@ const SalesInvoiceEvidenceSection: React.FC<{ invoice: SalesInvoiceRow }> = ({ i
   );
 };
 
-const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+type InvoiceGroupMode = 'none' | 'client' | 'project';
+
+interface SalesInvoicesProps {
+  embedded?: boolean;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (keys: Set<string>) => void;
+  onRecordPayment?: (invoice: SalesInvoiceRow) => void;
+}
+
+const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selectedKeys, onSelectionChange, onRecordPayment }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -278,6 +291,7 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
   const { currentUser } = useAuth();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useSalesInvoices();
+  const { data: paymentRows = [] } = useIncomingPayments(undefined, embedded);
   const { day: organizationToday } = useFxOrgDay(true);
   const orgCurrency = useOrgCurrency();
   const { create, setReceivedDate, setEfaktur, submitInvoice, cancelInvoice, pendingPush } = useRevenueMutations();
@@ -309,12 +323,12 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
   const canRecordEfaktur = may('record_efaktur', 'salesInvoice');
   // One permission oracle for both the row-menu action and its View-modal continuation. The RPC
   // applies the same append-only author-set SoD rule; read-only users may still open invoice details.
-  const canApproveDraft = (inv: SalesInvoiceRow) =>
+  const canApproveDraft = useCallback((inv: SalesInvoiceRow) =>
     inv.status === 'Draft'
     && may('submit_sales_invoice', 'salesInvoice', {
       currentUserId: currentUser?.id,
       record: { author_id: inv.author_user_id, author_ids: inv.author_user_ids },
-    });
+    }), [currentUser?.id, may]);
 
   const all = useMemo(() => data ?? [], [data]);
 
@@ -340,8 +354,18 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
     }, { replace: true });
   }, [mode, searchParams, setSearchParams, statusFilters]);
   const viewTarget = invoiceId ? all.find((inv) => inv.id === invoiceId) ?? null : null;
+  const openInvoiceId = embedded ? searchParams.get('open') : null;
+  const panelInvoice = openInvoiceId ? all.find((inv) => inv.id === openInvoiceId) ?? null : null;
+  const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
+  const effectiveSelectedKeys = selectedKeys ?? localSelectedKeys;
+  const handleSelectionChange = (next: Set<string>) => {
+    if (selectedKeys === undefined) setLocalSelectedKeys(next);
+    onSelectionChange?.(next);
+  };
 
   const selectedProject = projectOptions?.find((option) => option.value === searchParams.get('project')) ?? null;
+  const requestedGroup = searchParams.get('group');
+  const groupMode: InvoiceGroupMode = requestedGroup === 'client' || requestedGroup === 'project' ? requestedGroup : 'none';
 
   const updateListParam = (key: 'q' | 'status' | 'attribution' | 'project' | 'customer' | 'overdue', value: string) => {
     setSearchParams((current) => {
@@ -351,6 +375,17 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
       return next;
     }, { replace: true });
   };
+
+  const setQueryValue = (key: string, value: string) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (value) next.set(key, value);
+      else next.delete(key);
+      return next;
+    }, { replace: true });
+  };
+  const openInvoicePanel = (invoice: SalesInvoiceRow) => setQueryValue('open', invoice.id);
+  const closeInvoicePanel = () => setQueryValue('open', '');
 
   const invoiceDisplayLabel = (inv: SalesInvoiceRow) => {
     if (inv.si_number) return inv.si_number;
@@ -462,6 +497,15 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
   // a plain ref — it must be per (record, verb) or a retry on invoice B would carry invoice A's key.
   // Released only after a terminal success (never on error — reusing the key on retry IS the fix).
   const verbIntents = useCommandIntentMap();
+  const recordPrimaryAction = viewTarget
+    ? canApproveDraft(viewTarget)
+      ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(viewTarget) }
+      : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && !viewTarget.received_date && canRecordReceipt && !(viewTarget.pmo_native && !native)
+        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(viewTarget) }
+        : (viewTarget.status === 'Submitted' || viewTarget.status === 'Unpaid') && (viewTarget.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
+          ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => navigate(`/incoming-payments?invoice=${encodeURIComponent(viewTarget.id)}&create=1`) }
+          : null
+    : null;
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -549,13 +593,16 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
           />
         ) : viewTarget ? (
           <>
-            <header className="mb-5 border-b border-border pb-4">
-              <h1 className="text-[24px] font-bold tracking-[-0.02em]">
-                {viewTarget.si_number
-                  ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
-                  : invoiceDisplayLabel(viewTarget)}
-              </h1>
-              <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+            <header className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+              <div>
+                <h1 className="text-[24px] font-bold tracking-[-0.02em]">
+                  {viewTarget.si_number
+                    ? t('financeCopy.invoiceRecordTitle', 'Invoice {{number}}', { number: viewTarget.si_number })
+                    : invoiceDisplayLabel(viewTarget)}
+                </h1>
+                <p className="mt-1 text-sm text-muted-foreground">{viewTarget.customer_name ?? '—'}</p>
+              </div>
+              {recordPrimaryAction && <Button variant="primary" onClick={recordPrimaryAction.onClick}>{recordPrimaryAction.label}</Button>}
             </header>
             <section aria-label={t('uxs17.collectionSummary', 'Invoice collection details')} className="mb-5 border-b border-border pb-4">
               <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -621,7 +668,7 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
                   <div className="flex flex-wrap gap-2">
                     {may('download_pdf', 'salesInvoice', { record: { status: viewTarget.status, erp_docstatus: viewTarget.erp_docstatus } }) && (
                       <Button
-                        variant="primary"
+                        variant="outline"
                         disabled={pdfDownload.inFlightIds.has(viewTarget.id)}
                         onClick={() => void pdfDownload.download(viewTarget)}
                       >
@@ -631,24 +678,12 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
                           : t('uxs17.downloadApprovedPdf', 'Download approved PDF')}
                       </Button>
                     )}
-                    {canRecordReceipt && (
-                      <Button variant="outline" onClick={() => setReceiptTarget(viewTarget)}>
-                        {t('financeCopy.recordReceivedDate', 'Record received date')}
-                      </Button>
-                    )}
                   </div>
                 )}
               </section>
             )}
             <SalesInvoiceEvidenceSection invoice={viewTarget} />
             <SalesInvoiceApprovalPreview inv={viewTarget} showFx />
-            {canApproveDraft(viewTarget) && (
-              <div className="mt-5 flex justify-end">
-                <Button variant="primary" onClick={() => setSubmitTarget(viewTarget)}>
-                  {t('financeCopy.continueToApprove', 'Continue to approve')}
-                </Button>
-              </div>
-            )}
           </>
         ) : (
           <ListState
@@ -671,6 +706,16 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
           onConfirm={onSubmitConfirm}
           onCancel={() => setSubmitTarget(null)}
         />
+        {receiptTarget && <ReceivedDateModal
+          invoice={receiptTarget}
+          loading={setReceivedDate.isPending}
+          onClose={() => setReceiptTarget(null)}
+          onSave={async (date) => {
+            await setReceivedDate.mutateAsync({ siId: receiptTarget.id, receivedDate: date });
+            toast(t('financeCopy.receivedDateSaved', 'Received date saved'), invoiceNumber(receiptTarget) ?? receiptTarget.id, 'success');
+            setReceiptTarget(null);
+          }}
+        />}
       </main>
     );
   }
@@ -701,12 +746,12 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
         : preErp;
       return (
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <Link
+          {embedded ? <span className={draftLabel ? 'truncate text-[13px] text-foreground' : 'truncate font-mono text-[13px] text-foreground'} title={draftLabel ?? number ?? ''}>{draftLabel ?? number ?? '—'}</span> : <Link
             to={`/sales-invoices/${encodeURIComponent(inv.id)}${location.search}`}
             state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
             className={draftLabel ? 'truncate text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline' : 'truncate font-mono text-[13px] text-foreground underline-offset-2 hover:underline focus-visible:underline'}
             title={draftLabel ?? number ?? ''}
-          >{draftLabel ?? number ?? '—'}</Link>
+          >{draftLabel ?? number ?? '—'}</Link>}
           {/* #784 AC-NAR-004 (DD-NAR-11): a PMO invoice from before the ERP took revenue over is history. */}
           {inv.pmo_native && !native && (
             <Badge title={preErpDetail}>
@@ -718,6 +763,7 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
       );
     },
     secondaryCell: (inv) => {
+      if (embedded) return null;
       const project = projectLabelOf(inv);
       const customer = invoiceNumber(inv) || inv.status !== 'Draft' ? (inv.customer_name ?? '—') : null;
       if (!customer && !project) return null;
@@ -754,9 +800,27 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
         && inv.erp_outstanding_amount > 0
         && inv.erp_outstanding_amount < gross
       );
-      return partlySettled
-        ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
-        : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>;
+      const due = deriveArDueDate(inv.invoice_date, inv.erp_payment_terms_days, inv.erp_due_date, inv.received_date);
+      const lateDays = overdueAgeDays(due, organizationToday) ?? 0;
+      const statusDetail = inv.status === 'Draft'
+        ? canApproveDraft(inv)
+          ? t('finance:receivables.statusDraftApproval', 'Draft · to approve')
+          : t('finance:receivables.statusDraftSecond', 'Draft · needs a second approver')
+        : inv.status === 'Cancelled'
+          ? t('finance:receivables.statusCancelled', 'Cancelled')
+          : inv.status === 'Paid'
+            ? t('finance:receivables.statusPaid', 'Paid')
+            : lateDays > 0
+              ? t('uxs05.overdueDays', '{{count}} days overdue', { count: lateDays })
+              : t('finance:receivables.statusUnpaid', 'Unpaid · not yet due');
+      return (
+        <span className="flex flex-col items-start gap-0.5">
+          {partlySettled
+            ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+            : <StatusPill variant={salesInvoiceStatusVariant(inv.status)}>{salesInvoiceStatusLabel(inv.status, t)}</StatusPill>}
+          {embedded && <span className="text-xs text-muted-foreground">{statusDetail}</span>}
+        </span>
+      );
     },
     exportValue: (inv) => inv.status,
   };
@@ -797,7 +861,7 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
   };
   const outstandingColumn: Column<SalesInvoiceRow> = {
     key: 'erp_outstanding_amount',
-    header: t('financeCopy.outstanding', "Outstanding"),
+    header: embedded ? <span className="inline-flex items-center gap-1">{t('financeCopy.outstanding', 'Outstanding')}<Tooltip content={t('finance:receivables.outstanding', 'Outstanding · tax included')}><button type="button" aria-label={t('finance:receivables.outstanding', 'Outstanding · tax included')} className="inline-grid size-4 place-items-center rounded-full normal-case text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">?</button></Tooltip></span> : t('financeCopy.outstanding', "Outstanding"),
     kind: 'money',
     align: 'num',
     size: 170,
@@ -859,6 +923,57 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
     invoiceColumn, referenceColumn, statusColumn, amountColumn, outstandingColumn, dueColumn,
     ...(showEfaktur ? [efakturColumn] : []),
   ];
+  const clientColumn: Column<SalesInvoiceRow> = {
+    key: 'client',
+    header: t('finance:receivables.client', 'Client'),
+    kind: 'text',
+    size: 170,
+    cell: (inv) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
+    exportValue: (inv) => inv.customer_name ?? '',
+  };
+  const projectColumn: Column<SalesInvoiceRow> = {
+    key: 'project',
+    header: t('finance:receivables.project', 'Project'),
+    kind: 'text',
+    size: 190,
+    cell: (inv) => {
+      const project = projectLabelOf(inv);
+      return <span className="block min-w-0 truncate" title={project ?? ''}>{project ?? '—'}</span>;
+    },
+    exportValue: (inv) => projectLabelOf(inv) ?? '',
+  };
+  const deliveryColumn: Column<SalesInvoiceRow> = {
+    key: 'delivery',
+    header: t('finance:receivables.delivery', 'Delivery'),
+    kind: 'date',
+    size: 165,
+    cell: (inv) => inv.received_date
+      ? formatDateOnly(inv.received_date)
+      : inv.status === 'Draft'
+        ? t('finance:receivables.draftState', 'Draft')
+        : t('finance:receivables.notReceivedByClient', 'Approved · not yet marked received'),
+    exportValue: (inv) => inv.received_date ?? '',
+  };
+  const displayColumns = embedded
+    ? [invoiceColumn, clientColumn, projectColumn, statusColumn, dueColumn, deliveryColumn, amountColumn, outstandingColumn, efakturColumn]
+    : columns;
+  const groupRowsBy = groupMode === 'client'
+    ? (inv: SalesInvoiceRow) => inv.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded')
+    : groupMode === 'project'
+      ? (inv: SalesInvoiceRow) => projectLabelOf(inv) ?? t('finance:receivables.projectUnassigned', 'Unassigned project')
+      : undefined;
+  const groupBalance = (_label: string, groupInvoices: SalesInvoiceRow[]) => {
+    const balances = new Map<string, number>();
+    for (const invoice of groupInvoices) {
+      if ((invoice.status === 'Submitted' || invoice.status === 'Unpaid') && invoice.erp_outstanding_amount != null) {
+        balances.set(invoice.currency, (balances.get(invoice.currency) ?? 0) + Math.round(invoice.erp_outstanding_amount * 100));
+      }
+    }
+    const amounts = Array.from(balances, ([currency, cents]) => formatCurrencyCents(cents / 100, currency));
+    return amounts.length
+      ? <span className="text-xs font-medium tabular text-muted-foreground">{t('finance:receivables.openBalance', 'Open balance {{amount}}', { amount: amounts.join(' · ') })}</span>
+      : null;
+  };
 
   // AC-L10N-052: the download carries each row's own ISO code beside amount (export-only). Everything the
   // screen no longer shows (customer, invoice and received dates, the e-Faktur pair) stays in the download.
@@ -968,6 +1083,30 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
     }
   }
 
+  const panelPayments = panelInvoice
+    ? paymentRows.filter((payment) => payment.sales_invoice_id === panelInvoice.id
+      || Boolean(payment.allocation_details?.some((allocation) => allocation.invoice_id === panelInvoice.id)))
+    : [];
+  const panelPrimary = panelInvoice
+    ? canApproveDraft(panelInvoice)
+      ? { label: t('finance:receivables.approve', 'Approve'), onClick: () => setSubmitTarget(panelInvoice) }
+      : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && !panelInvoice.received_date && canRecordReceipt && !(panelInvoice.pmo_native && !native)
+        ? { label: t('finance:receivables.markReceived', 'Mark received'), onClick: () => setReceiptTarget(panelInvoice) }
+        : (panelInvoice.status === 'Submitted' || panelInvoice.status === 'Unpaid') && (panelInvoice.erp_outstanding_amount ?? 0) > 0 && may('create', 'incomingPayment')
+          ? { label: t('finance:receivables.recordPayment', 'Record payment'), onClick: () => onRecordPayment?.(panelInvoice) }
+          : null
+    : null;
+  const openFullInvoice = () => {
+    if (!panelInvoice) return;
+    const query = new URLSearchParams(searchParams);
+    query.delete('open');
+    const queryString = query.toString();
+    const listPath = `${location.pathname}${queryString ? `?${queryString}` : ''}${location.hash}`;
+    navigate(`/sales-invoices/${encodeURIComponent(panelInvoice.id)}${queryString ? `?${queryString}` : ''}`, {
+      state: { recordContext: { listPath } },
+    });
+  };
+
   return (
     <ListPage
       title={embedded ? t('finance:area.invoicesList', 'Invoices') : t('financeCopy.salesInvoices', "Sales Invoices")}
@@ -1030,6 +1169,19 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
                 disabled={!organizationToday}
                 onClick={() => updateListParam('overdue', searchParams.get('overdue') === 'true' ? '' : 'true')}
               >{t('uxs05.overdueOnly', 'Overdue only')}</Button>
+              {embedded && <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">{t('finance:receivables.groupBy', 'Group by')}</span>
+                <ViewToggle<InvoiceGroupMode>
+                  options={[
+                    { value: 'none', label: t('finance:receivables.groupNone', 'None') },
+                    { value: 'client', label: t('finance:receivables.groupClient', 'Client') },
+                    { value: 'project', label: t('finance:receivables.groupProject', 'Project') },
+                  ]}
+                  value={groupMode}
+                  onChange={(value) => setQueryValue('group', value === 'none' ? '' : value)}
+                  ariaLabel={t('finance:receivables.groupBy', 'Group by')}
+                />
+              </div>}
             </div>
           </div>
         )
@@ -1053,7 +1205,16 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
+          embedded && effectiveSelectedKeys.size > 0
+            ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
+              <ExportButton
+                rows={all.filter((invoice) => effectiveSelectedKeys.has(invoice.id))}
+                columns={exportColumns}
+                entity="Sales Invoices"
+                label={t('finance:bulk.exportSelected', 'Export selected')}
+              />
+            </BulkBar>
+            : <ExportButton rows={sortedInvoices} columns={exportColumns} entity="Sales Invoices" />
         )
       }
     >
@@ -1118,9 +1279,17 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
       {state === undefined && (
         <DataTable<SalesInvoiceRow>
           rows={sortedInvoices}
-          columns={columns}
+          columns={displayColumns}
           rowKey={(inv) => inv.id}
           rowMenu={rowMenu}
+          onActivate={embedded ? openInvoicePanel : undefined}
+          rowLabel={embedded ? (inv) => t('table.openRow', 'Open {{name}}', { name: invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) }) : undefined}
+          selectable={embedded}
+          selectedKeys={embedded ? effectiveSelectedKeys : undefined}
+          onSelectionChange={embedded ? handleSelectionChange : undefined}
+          selectionLabel={embedded ? (inv) => invoiceNumber(inv) ?? inv.customer_name ?? invoiceDisplayLabel(inv) : undefined}
+          groupBy={groupRowsBy}
+          groupHeader={embedded && groupRowsBy ? groupBalance : undefined}
           state={sortedInvoices.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noInvoicesMatchYourFilters', "No invoices match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
@@ -1228,6 +1397,59 @@ const SalesInvoices: React.FC<{ embedded?: boolean }> = ({ embedded = false }) =
         onConfirm={onSubmitConfirm}
         onCancel={() => setSubmitTarget(null)}
       />
+
+      <Drawer
+        open={Boolean(panelInvoice)}
+        title={panelInvoice ? t('finance:receivables.drawerTitle', '{{client}} · {{amount}}', {
+          client: panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
+          amount: panelInvoice.amount == null ? '—' : formatCurrencyCents(panelInvoice.amount, panelInvoice.currency),
+        }) : ''}
+        subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
+          {isPartlyPaid(panelInvoice)
+            ? <StatusPill variant={salesInvoiceStatusVariant('Unpaid')}>{t('financeCopy.statusPartlyPaid', 'Partly paid')}</StatusPill>
+            : <StatusPill variant={salesInvoiceStatusVariant(panelInvoice.status)}>{salesInvoiceStatusLabel(panelInvoice.status, t)}</StatusPill>}
+          <span className="font-mono text-xs">{invoiceNumber(panelInvoice) ?? t('finance:receivables.statusDraftApproval', 'Draft · to approve')}</span>
+          {projectLabelOf(panelInvoice) && <span className="text-xs">{projectLabelOf(panelInvoice)}</span>}
+        </span> : undefined}
+        onClose={closeInvoicePanel}
+        width="lg"
+        loading={submitInvoice.isPending || setReceivedDate.isPending}
+        nestedOpen={Boolean(submitTarget || receiptTarget || formTarget || cancelTarget || projectTarget || efakturTarget)}
+        footer={<div className="flex flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="outline" onClick={openFullInvoice}>{t('finance:receivables.openFullRecord', 'Open full record')}</Button>
+          {panelPrimary && <Button type="button" variant="primary" onClick={panelPrimary.onClick}>{panelPrimary.label}</Button>}
+        </div>}
+      >
+        {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-sm">{invoiceNumber(panelInvoice) ?? '—'}</p>
+            <MenuButton items={rowMenu(panelInvoice)} ariaLabel={t('finance:receivables.rowActions', 'Invoice actions')} />
+          </div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.outstanding', 'Outstanding · tax included')}</dt><dd className="mt-1 tabular">{panelInvoice.erp_outstanding_amount == null ? '—' : formatCurrencyCents(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.dueDate', 'Due date')}</dt><dd className="mt-1">{deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date) ? formatDateOnly(deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date)!) : '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.invoiceDate', 'Invoice date')}</dt><dd className="mt-1">{panelInvoice.invoice_date ? formatDateOnly(panelInvoice.invoice_date) : '—'}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.paymentTerms', 'Terms')}</dt><dd className="mt-1">{panelInvoice.erp_payment_terms_days == null ? '—' : t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days })}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.taxBasis', 'Tax basis')}</dt><dd className="mt-1"><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt><dd className="mt-1">{panelInvoice.efaktur_number ?? '—'}{panelInvoice.efaktur_date ? ` · ${formatDateOnly(panelInvoice.efaktur_date)}` : ''}</dd></div>
+          </dl>
+          <section aria-labelledby="receivable-invoice-timeline">
+            <h3 id="receivable-invoice-timeline" className="mb-2 text-sm font-semibold">{t('finance:receivables.timeline', 'Status timeline')}</h3>
+            <ol className="space-y-2 border-l border-border pl-3 text-sm">
+              <li>{t('finance:receivables.drafted', 'Drafted {{date}}', { date: formatInstantDate(panelInvoice.created_at) })}</li>
+              {panelInvoice.status !== 'Draft' && <li>{panelInvoice.approved_at
+                ? t('finance:receivables.approved', 'Approved {{date}} by {{name}}', { date: formatInstantDate(panelInvoice.approved_at), name: t('finance:receivables.secondApprover', 'Second person approved') })
+                : t('finance:receivables.secondApprover', 'Second person approved')}</li>}
+              {panelInvoice.received_date
+                ? <li>{t('finance:receivables.receivedByClient', 'Sent and received by client {{date}}', { date: formatDateOnly(panelInvoice.received_date) })}</li>
+                : panelInvoice.status !== 'Draft' && <li className="text-muted-foreground">{t('finance:receivables.notReceivedByClient', 'Approved · not yet marked received')}</li>}
+              {panelPayments.map((payment) => <li key={payment.id} className="flex justify-between gap-3"><span>{payment.date ? formatDateOnly(payment.date) : t('finance:receivables.partPayments', 'Payments received')}</span><span className="tabular">{payment.received_amount != null ? formatCurrencyCents(payment.received_amount, payment.currency) : payment.amount != null ? formatCurrencyCents(payment.amount, payment.currency) : '—'}</span></li>)}
+              {panelInvoice.status === 'Paid' && <li>{t('finance:receivables.paid', 'Paid')}</li>}
+            </ol>
+          </section>
+          <SalesInvoiceEvidenceSection invoice={panelInvoice} />
+        </div>}
+      </Drawer>
     </ListPage>
   );
 };

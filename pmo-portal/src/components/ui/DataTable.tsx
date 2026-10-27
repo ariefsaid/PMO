@@ -122,6 +122,8 @@ export interface DataTableProps<Row> {
   selectedKeys?: Set<string>;
   /** Receives a fresh set after an individual or visible-row selection change. */
   onSelectionChange?: (keys: Set<string>) => void;
+  /** Plain-text record name used in the accessible name of each row checkbox. */
+  selectionLabel?: (row: Row) => string;
   sort?: SortState;
   onSort?: (key: string) => void;
   /** Async state — renders ListState in place of the body. */
@@ -150,6 +152,8 @@ export interface DataTableProps<Row> {
   tableId?: string;
   /** Optional grouping key; each distinct group is introduced by an aligned in-table row. */
   groupBy?: (row: Row) => string;
+  /** Optional value shown beside each group label (for example, the group's open balance). */
+  groupHeader?: (label: string, rows: Row[]) => React.ReactNode;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
 }
@@ -310,6 +314,7 @@ export function DataTable<Row>({
   selectable = false,
   selectedKeys,
   onSelectionChange,
+  selectionLabel,
   sort,
   onSort,
   state,
@@ -325,6 +330,7 @@ export function DataTable<Row>({
   accessibleName,
   tableId,
   groupBy,
+  groupHeader,
   totals,
 }: DataTableProps<Row>) {
   const { t } = useTranslation();
@@ -416,7 +422,7 @@ export function DataTable<Row>({
       else groups.set(group, [modelRow]);
     }
     return Array.from(groups, ([label, groupRows]) => ({ type: 'group' as const, label, rows: groupRows }))
-      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
+      .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length, rows: group.rows }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
   }, [groupBy, modelRows]);
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
@@ -626,7 +632,7 @@ export function DataTable<Row>({
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
                     {selectable && <td className="px-3" />}
-                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></th>
+                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
                     {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
@@ -637,7 +643,7 @@ export function DataTable<Row>({
                 const key = modelRow.id;
                 const targetId = rowTarget?.(row);
                 const selected = key === selectedKey;
-                const selectionLabel = rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
+                const selectionName = selectionLabel?.(row) || rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
                 // The <tr> keeps its IMPLICIT role="row" (never role="link",
                 // which breaks table-row semantics and hides body rows from
                 // getByRole('row')). Whole-row onClick stays as a pointer
@@ -680,7 +686,7 @@ export function DataTable<Row>({
                       <span onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           checked={selection.has(key)}
-                          label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionLabel })}
+                          label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionName })}
                           onChange={(checked) => {
                             const next = new Set(selection);
                             if (checked) next.add(key);
@@ -783,14 +789,14 @@ export function DataTable<Row>({
           <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button></li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
-            const selectionLabel = rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
+            const selectionName = selectionLabel?.(row) || rowLabel?.(row)?.replace(/^Open\s+/i, '') || key;
             const [titleCol, ...restCols] = columns;
             const hasMenu = !!rowMenu;
             const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
@@ -818,7 +824,7 @@ export function DataTable<Row>({
                     {selectable && <span className="mt-1" onClick={(event) => event.stopPropagation()}>
                       <Checkbox
                         checked={selection.has(key)}
-                        label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionLabel })}
+                        label={t('finance:table.selectRow', 'Select {{name}}', { name: selectionName })}
                         onChange={(checked) => {
                           const next = new Set(selection);
                           if (checked) next.add(key);

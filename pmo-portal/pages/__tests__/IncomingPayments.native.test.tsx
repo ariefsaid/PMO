@@ -12,9 +12,20 @@ const h = vi.hoisted(() => ({
   payments: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   invoices: { data: [] as unknown[], isPending: false, isError: false, refetch: vi.fn() },
   route: 'pmo' as 'pmo' | 'external',
-  role: 'Finance' as 'Finance' | 'Project Manager',
+  role: 'Finance' as 'Finance' | 'Project Manager' | 'Executive',
   toast: vi.fn(),
+  exportedRows: [] as unknown[],
 }));
+vi.mock('@/src/components/export', async () => {
+  const React = await import('react');
+  return {
+    ExportButton: ({ rows, label = 'Export' }: { rows: unknown[]; label?: string }) => React.createElement('button', {
+      type: 'button',
+      onClick: () => { h.exportedRows = rows; },
+    }, label),
+    withCurrencyColumn: <Row,>(columns: Row[]) => columns,
+  };
+});
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useIncomingPayments: () => h.payments,
@@ -28,6 +39,7 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/hooks/useFkOptions', () => ({ useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }] }) }));
 vi.mock('@/src/auth/usePermission', () => ({ usePermission: () => (action: string, entity: string) => {
   if (action === 'create' && entity === 'incomingPayment') return h.role === 'Finance';
+  if (action === 'transition' && entity === 'incomingPayment') return h.role === 'Finance';
   return true;
 } }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: 'u-fin', org_id: 'org-1' }, role: h.role }) }));
@@ -70,10 +82,10 @@ const receipt = (over: Partial<IncomingPaymentRow> = {}): IncomingPaymentRow => 
   erp_cancelled_at: null, created_at: '2026-10-07T00:00:00Z', ...over,
 }) as IncomingPaymentRow;
 
-const renderPage = (embedded = false) => render(
+const renderPage = (embedded = false, initialEntry = '/incoming-payments') => render(
   <FinanceI18nTestProvider>
     <ImpersonationProvider realRole="Finance">
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <ToastProvider>
           <IncomingPayments embedded={embedded} />
         </ToastProvider>
@@ -94,6 +106,7 @@ beforeEach(async () => {
   h.invoices.data = [];
   h.route = 'pmo';
   h.toast.mockClear();
+  h.exportedRows = [];
   await financeTestI18n.changeLanguage('en');
 });
 
@@ -124,6 +137,36 @@ describe('Incoming Payments while PMO owns revenue (#784)', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'Payments received' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Receive Payment' })).not.toBeInTheDocument();
     expect(screen.queryByText(/Customer receipts recorded in PMO/)).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 an embedded payment row opens its URL-addressable side panel with receipt facts', async () => {
+    h.payments.data = [receipt({ allocation_details: [] })];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(screen.getByRole('button', { name: 'Open RCV-2610070001' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByText('Cash received')).toBeInTheDocument();
+    expect(within(drawer).getByText('Tax withheld')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('Not yet applied')).toHaveLength(2);
+    expect(within(drawer).getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+  });
+
+  it('AC-1405 an Executive may view the payment drawer but has no cancel action', () => {
+    h.role = 'Executive';
+    h.payments.data = [receipt()];
+    renderPage(true, '/finance/receivables?view=payments&open=ip-1');
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open full record' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  it('AC-1405 exports only selected payment rows from the embedded bulk bar', async () => {
+    h.payments.data = [receipt({ id: 'ip-a', pmo_number: 'RCV-A' }), receipt({ id: 'ip-b', pmo_number: 'RCV-B' })];
+    const user = userEvent.setup();
+    renderPage(true, '/finance/receivables?view=payments');
+    await user.click(screen.getByRole('checkbox', { name: 'Select RCV-A' }));
+    await user.click(screen.getByRole('button', { name: 'Export selected' }));
+    expect((h.exportedRows as IncomingPaymentRow[]).map((row) => row.id)).toEqual(['ip-a']);
   });
 
   it('UX-010 a Project Manager gets the responsible team and a useful project destination', () => {

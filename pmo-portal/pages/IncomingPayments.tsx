@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ListPage,
@@ -17,6 +17,8 @@ import {
   FormSection,
   Button,
   Icon,
+  Drawer,
+  MenuButton,
   useToast,
   type Column,
   type ComboboxOption,
@@ -51,6 +53,7 @@ import { useCommandIntent, useCommandIntentMap } from '@/src/hooks/useCommandInt
 import type { CommandIntent } from '@/src/lib/repositories/types';
 import { displayAllocations, knownUnappliedCash } from '@/src/lib/revenue/receiptAllocation';
 import { ReceiptRecord } from './incoming-payments/ReceiptRecord';
+import { BulkBar } from '@/src/components/finance/receivables/BulkBar';
 
 /** Status filter segments. "Received"/"Cancelled" are how a PMO receipt reads (I-5): it is recorded as received, never
  *  Scheduled, and a cancelled one keeps its row (DD-NAR-10). */
@@ -180,7 +183,14 @@ function openInvoiceOptions(
     }));
 }
 
-const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+interface IncomingPaymentsProps {
+  embedded?: boolean;
+  selectedKeys?: Set<string>;
+  onSelectionChange?: (keys: Set<string>) => void;
+  onApplyPayment?: (payment: IncomingPaymentRow) => void;
+}
+
+const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, selectedKeys, onSelectionChange, onApplyPayment }) => {
   const { t } = useTranslation();
   const may = usePermission();
   const { realRole } = useEffectiveRole();
@@ -188,7 +198,7 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
   const { receiptId } = useParams<{ receiptId: string }>();
   const location = useLocation();
   const recordContext = useRecordContext('/incoming-payments', receiptId);
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { toast } = useToast();
   const { data, isPending, isError, refetch } = useIncomingPayments();
   const { createPayment, cancelPayment, pendingPush } = useRevenueMutations();
@@ -197,7 +207,7 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
   const native = mode === 'native';
   const statusFilters = native ? NATIVE_STATUS_FILTERS : ERP_STATUS_FILTERS;
   // I-5: the invoice each receipt settles, by its number (the list read already holds them).
-  const { data: invoiceList } = useSalesInvoices();
+  const { data: invoiceList, isPending: invoiceListPending } = useSalesInvoices();
   const invoiceNumberById = useMemo(
     () => new Map((invoiceList ?? []).map((inv) => [inv.id, invoiceNumber(inv)])),
     [invoiceList],
@@ -206,15 +216,41 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
   const canView = may('view', 'incomingPayment');
   const canCreate = may('create', 'incomingPayment');
   const canCancel = may('transition', 'incomingPayment');
-  const canRowWrite = canCancel;
 
   const all = useMemo(() => data ?? [], [data]);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
 
-  const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null } | null>(null);
+  const [formTarget, setFormTarget] = useState<{ payment: IncomingPaymentRow | null; initialInvoiceId?: string } | null>(null);
   const [cancelTarget, setCancelTarget] = useState<IncomingPaymentRow | null>(null);
+  const [localSelectedKeys, setLocalSelectedKeys] = useState<Set<string>>(() => new Set());
+  const effectiveSelectedKeys = selectedKeys ?? localSelectedKeys;
+  const handleSelectionChange = (next: Set<string>) => {
+    if (selectedKeys === undefined) setLocalSelectedKeys(next);
+    onSelectionChange?.(next);
+  };
+  const openPaymentId = embedded ? searchParams.get('open') : null;
+  const panelPayment = openPaymentId ? all.find((payment) => payment.id === openPaymentId) ?? null : null;
+  const setQueryValue = (key: string, value: string) => setSearchParams((current) => {
+    const next = new URLSearchParams(current);
+    if (value) next.set(key, value);
+    else next.delete(key);
+    return next;
+  }, { replace: true });
+  const openPaymentPanel = (payment: IncomingPaymentRow) => setQueryValue('open', payment.id);
+  const closePaymentPanel = () => setQueryValue('open', '');
+
+  useEffect(() => {
+    if (searchParams.get('create') !== '1' || !canCreate || mode === undefined || invoiceListPending) return;
+    setFormTarget({ payment: null, initialInvoiceId: searchParams.get('invoice') ?? undefined });
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('create');
+      next.delete('invoice');
+      return next;
+    }, { replace: true });
+  }, [canCreate, invoiceListPending, mode, searchParams, setSearchParams]);
 
   // BLOCK 2 (ADR-0058): the cancel confirm dialog is ALWAYS mounted, so its command identity is per
   // (record, verb) — a retry on payment B must never carry payment A's key. Released only after a
@@ -300,7 +336,9 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
     {
       key: 'ip_number',
       header: t('financeCopy.payment', "Payment #"),
-      cell: (p) => (
+      cell: (p) => embedded ? (
+        <span className="truncate font-mono text-[13px]" title={receiptNumber(p) ?? ''}>{receiptNumber(p) ?? '—'}</span>
+      ) : (
         <Link
           to={`/incoming-payments/${encodeURIComponent(p.id)}${location.search}`}
           state={{ recordContext: { listPath: `${location.pathname}${location.search}${location.hash}` } }}
@@ -411,7 +449,9 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
   const exportColumns = withCurrencyColumn(allColumns, 'amount', (r) => r.currency);
 
   const rowMenu = (p: IncomingPaymentRow): RowMenuItem[] => {
-    const items: RowMenuItem[] = [];
+    const items: RowMenuItem[] = embedded
+      ? [{ label: t('finance:receivables.viewPayment', 'View payment'), onClick: () => recordContext.openRecord(p.id) }]
+      : [];
     if (canCancel && !p.pmo_native && p.status !== 'Paid')
       items.push({ label: t('financeCopy.cancel', "Cancel"), onClick: () => setCancelTarget(p), danger: true });
     // #784 AC-NAR-006: a PMO receipt is cancelled in PMO while PMO owns revenue (the RPC re-checks all of it).
@@ -481,7 +521,16 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
       }
       exportAction={
         state !== 'loading' && (
-          <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
+          embedded && effectiveSelectedKeys.size > 0
+            ? <BulkBar count={effectiveSelectedKeys.size} onClear={() => handleSelectionChange(new Set())}>
+              <ExportButton
+                rows={all.filter((payment) => effectiveSelectedKeys.has(payment.id))}
+                columns={exportColumns}
+                entity="Incoming Payments"
+                label={t('finance:bulk.exportSelected', 'Export selected')}
+              />
+            </BulkBar>
+            : <ExportButton rows={filtered} columns={exportColumns} entity="Incoming Payments" />
         )
       }
     >
@@ -520,7 +569,13 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
           rows={filtered}
           columns={columns}
           rowKey={(p) => p.id}
-          rowMenu={canRowWrite ? rowMenu : undefined}
+          rowMenu={rowMenu}
+          onActivate={embedded ? openPaymentPanel : undefined}
+          rowLabel={embedded ? (payment) => t('table.openRow', 'Open {{name}}', { name: receiptNumber(payment) ?? payment.customer_name ?? payment.id }) : undefined}
+          selectable={embedded}
+          selectedKeys={embedded ? effectiveSelectedKeys : undefined}
+          onSelectionChange={embedded ? handleSelectionChange : undefined}
+          selectionLabel={embedded ? (payment) => receiptNumber(payment) ?? payment.customer_name ?? payment.id : undefined}
           state={filtered.length === 0 ? 'empty' : undefined}
           emptyTitle={t('financeCopy.noPaymentsMatchYourFilters', "No payments match your filters")}
           emptySub={t('financeCopy.tryADifferentStatusOrClearTheSearch', "Try a different status or clear the search.")}
@@ -531,6 +586,7 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
       {formTarget && (
         <IncomingPaymentFormModal
           payment={formTarget.payment}
+          initialInvoiceId={formTarget.initialInvoiceId}
           pendingPush={pendingPush}
           native={native}
           onClose={() => setFormTarget(null)}
@@ -555,6 +611,59 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
         onConfirm={onCancelConfirm}
         onCancel={() => setCancelTarget(null)}
       />
+
+      <Drawer
+        open={Boolean(panelPayment)}
+        title={panelPayment ? t('finance:receivables.paymentDrawerTitle', 'Payment from {{client}} · {{amount}}', {
+          client: panelPayment.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
+          amount: panelPayment.amount == null ? '—' : formatCurrencyCents(panelPayment.amount, panelPayment.currency),
+        }) : ''}
+        subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
+          <StatusPill variant={panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? salesInvoiceStatusVariant('Cancelled') : incomingPaymentStatusVariant(panelPayment.status)}>
+            {panelPayment.cancelled_at || panelPayment.erp_cancelled_at ? t('finance:receivables.statusCancelled', 'Cancelled') : incomingPaymentStatusLabel(panelPayment.pmo_native && panelPayment.status === 'Paid' ? 'Received' : panelPayment.status, t)}
+          </StatusPill>
+          <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
+        </span> : undefined}
+        onClose={closePaymentPanel}
+        width="lg"
+        loading={cancelPayment.isPending}
+        nestedOpen={Boolean(formTarget || cancelTarget)}
+        footer={<div className="flex flex-wrap items-center justify-between gap-2">
+          <Button type="button" variant="outline" onClick={() => {
+            if (!panelPayment) return;
+            const query = new URLSearchParams(searchParams);
+            query.delete('open');
+            const queryString = query.toString();
+            const listPath = `${location.pathname}${queryString ? `?${queryString}` : ''}${location.hash}`;
+            navigate(`/incoming-payments/${encodeURIComponent(panelPayment.id)}${queryString ? `?${queryString}` : ''}`, { state: { recordContext: { listPath } } });
+          }}>{t('finance:receivables.openFullRecord', 'Open full record')}</Button>
+          {panelPayment && (knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) }) ?? 0) > 0 && canCancel && onApplyPayment && (
+            <Button type="button" variant="primary" onClick={() => onApplyPayment(panelPayment)}>{t('finance:receivables.applyPayment', 'Apply to an invoice')}</Button>
+          )}
+        </div>}
+      >
+        {panelPayment && <div className="space-y-5 p-4 sm:p-5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-mono text-sm">{receiptNumber(panelPayment) ?? '—'}</p>
+            <MenuButton items={rowMenu(panelPayment)} ariaLabel={t('finance:receivables.paymentActions', 'Payment actions')} />
+          </div>
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-y border-border py-4 text-sm">
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.cash', 'Cash received')}</dt><dd className="mt-1 tabular">{panelPayment.received_amount == null ? notReported : formatCurrencyCents(panelPayment.received_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withheld', 'Tax withheld')}</dt><dd className="mt-1 tabular">{panelPayment.withheld_amount == null ? notReported : formatCurrencyCents(panelPayment.withheld_amount, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</dt><dd className="mt-1 tabular">{knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) }) == null ? notReported : formatCurrencyCents(knownUnappliedCash({ ...panelPayment, allocation_details: displayAllocations(panelPayment, invoiceNumberOf) })!, panelPayment.currency)}</dd></div>
+            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
+          </dl>
+          <section aria-labelledby="receivable-payment-invoices">
+            <h3 id="receivable-payment-invoices" className="mb-2 text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h3>
+            {displayAllocations(panelPayment, invoiceNumberOf)?.length ? <ul className="divide-y divide-border/70">
+              {displayAllocations(panelPayment, invoiceNumberOf)!.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
+                <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
+                <span className="tabular">{allocation.amount != null && allocation.currency && Number.isFinite(Number(allocation.amount)) ? formatCurrencyCents(Number(allocation.amount), allocation.currency) : notReported}</span>
+              </li>)}
+            </ul> : <p className="text-sm text-muted-foreground">{t('finance:receivables.notApplied', 'Not yet applied')}</p>}
+          </section>
+        </div>}
+      </Drawer>
     </ListPage>
   );
 };
@@ -563,6 +672,7 @@ const IncomingPayments: React.FC<{ embedded?: boolean }> = ({ embedded = false }
 
 interface IncomingPaymentFormModalProps {
   payment: IncomingPaymentRow | null;
+  initialInvoiceId?: string;
   onClose: () => void;
   /** `intent` is the modal's OWN command identity — stable for this form session (BLOCK 2). */
   onCreate: (
@@ -584,6 +694,7 @@ interface IncomingPaymentFormModalProps {
 
 const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   payment,
+  initialInvoiceId,
   onClose,
   onCreate,
   pendingPush,
@@ -602,10 +713,11 @@ const IncomingPaymentFormModal: React.FC<IncomingPaymentFormModalProps> = ({
   const intent = useCommandIntent();
   const { data: invoices } = useSalesInvoices();
   const invoiceDateOf = (id: string | null) => (id ? invoices?.find((inv) => inv.id === id)?.invoice_date ?? null : null);
+  const initialInvoice = initialInvoiceId ? invoices?.find((invoice) => invoice.id === initialInvoiceId) : undefined;
   const form = useEntityForm<FormValues>({
     initialValues: {
-      customerId: '',
-      salesInvoiceId: null,
+      customerId: initialInvoice?.customer_id ?? '',
+      salesInvoiceId: initialInvoice?.id ?? null,
       paidAmount: '0',
       receivedAmount: '0',
       withheldAmount: '0',
