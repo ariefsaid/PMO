@@ -54,11 +54,19 @@ function buildWinRateRange(period: PeriodKey): WinRateRange {
  * dot + text (color-not-only). Zero closed deals shows an honest empty message
  * rather than a fabricated 0%.
  */
-export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
+export interface WinRateCardProps {
+  currency: string;
+  /** A containing dashboard may own the date range and URL state. */
+  range?: WinRateRange;
+  hidePeriodControl?: boolean;
+}
+
+export const WinRateCard: React.FC<WinRateCardProps> = ({ currency, range: externalRange, hidePeriodControl = false }) => {
   const [mode, setMode] = useState<'count' | 'value'>('count');
   const [period, setPeriod] = useState<PeriodKey>('all');
   const range = useMemo(() => buildWinRateRange(period), [period]);
-  const { data: wr, isError, refetch } = useWinRate(range);
+  const activeRange = externalRange ?? range;
+  const { data: wr, isError, refetch } = useWinRate(activeRange);
   const { t } = useTranslation();
   const basisOptions: ViewOption<'count' | 'value'>[] = [
     { value: 'count', label: t('dashboard.winRate.basisCount', 'By count'), testId: 'win-rate-toggle-count' },
@@ -101,14 +109,14 @@ export const WinRateCard: React.FC<{ currency: string }> = ({ currency }) => {
         <ViewToggle<'count' | 'value'> options={basisOptions} value={mode} onChange={setMode} ariaLabel={t('dashboard.winRate.basis', 'Win-rate basis')} semantics="toggle" />
       </div>
 
-      <ViewToggle<PeriodKey>
+      {!hidePeriodControl && <ViewToggle<PeriodKey>
         options={periodOptions}
         value={period}
         onChange={setPeriod}
         ariaLabel={t('dashboard.winRate.period', 'Time frame')}
         className="mb-3.5 flex-wrap"
         semantics="toggle"
-      />
+      />}
 
       {isError ? (
         <ListState
