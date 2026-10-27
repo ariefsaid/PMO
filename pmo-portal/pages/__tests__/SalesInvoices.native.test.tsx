@@ -25,6 +25,8 @@ const h = vi.hoisted(() => ({
   role: 'Finance' as 'Finance' | 'Project Manager' | 'Executive',
   toast: vi.fn(),
   exportedRows: [] as unknown[],
+  projects: [] as unknown[],
+  profiles: [] as unknown[],
 }));
 vi.mock('@/src/components/export', async () => {
   const React = await import('react');
@@ -59,12 +61,14 @@ vi.mock('@/src/hooks/useRevenue', () => ({
 vi.mock('@/src/hooks/useFkOptions', () => ({
   useClientCompanyOptions: () => ({ data: [{ value: 'cust-1', label: 'Acme Energy', sub: 'Client' }, { value: 'cust-2', label: 'Borealis Marine', sub: 'Client' }] }),
   useInvoiceProjectOptions: () => ({ data: [
-    { value: 'proj-1', label: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false },
+    { value: 'proj-1', label: 'Alpha Platform', contractualName: 'Alpha Platform', sub: 'ALP-01', clientId: 'cust-1', subjectToVat: true, taxRate: 12, archived: false },
     { value: 'proj-2', label: 'Beta Norates', sub: 'BNR-01', clientId: 'cust-1', subjectToVat: true, taxRate: null, archived: false },
     { value: 'proj-3', label: 'Gamma Other Client', sub: 'GOC-01', clientId: 'cust-2', subjectToVat: false, taxRate: null, archived: false },
     { value: 'proj-4', label: 'Delta Archived', sub: 'DAR-01', clientId: 'cust-1', subjectToVat: false, taxRate: null, archived: true },
   ] }),
 }));
+vi.mock('@/src/hooks/useProjects', () => ({ useProjects: () => ({ data: h.projects, isPending: false }) }));
+vi.mock('@/src/hooks/useTasks', () => ({ useAssignableProfiles: () => ({ data: h.profiles, isPending: false }) }));
 vi.mock('@/src/auth/useAuth', () => ({ useAuth: () => ({ currentUser: { id: h.userId, org_id: 'org-1' }, role: h.role }) }));
 vi.mock('@/src/lib/adapterSeam/ownershipCache', () => ({ routeDomainWrite: vi.fn(() => h.route) }));
 vi.mock('@/src/hooks/useExternalDomainOwnership', () => ({ useExternalDomainOwnership: () => ({
@@ -147,6 +151,8 @@ beforeEach(async () => {
   h.ownershipLoaded = true;
   h.userId = 'u-fin2';
   h.role = 'Finance';
+  h.projects = [];
+  h.profiles = [];
   h.toast.mockClear();
   h.exportedRows = [];
   await financeTestI18n.changeLanguage('en');
@@ -212,6 +218,13 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByRole('button', { name: 'Record payment' })).toBeInTheDocument();
   });
 
+  it('AC-1405 the invoice timeline identifies the second approver by name', () => {
+    h.profiles = [{ id: 'u-fin3', full_name: 'Finance Approver Test' }];
+    h.invoices.data = [nativeInvoice({ status: 'Submitted', approved_at: '2026-10-10T00:00:00Z', approved_by_id: 'u-fin3' })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    expect(screen.getByText(/Approved .* by Finance Approver Test, a second person/)).toBeInTheDocument();
+  });
+
   it('AC-1405 grouping invoices by client shows that client’s open balance', async () => {
     h.invoices.data = [
       nativeInvoice({ id: 'si-a', pmo_number: 'INV-A', status: 'Unpaid', erp_outstanding_amount: 600_000 }),
@@ -224,6 +237,15 @@ describe('Sales Invoices while PMO owns revenue (#784)', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?view=invoices&group=client');
     expect(screen.getByRole('button', { name: /Acme Energy\s*2/ })).toBeInTheDocument();
     expect(screen.getByText(/Open balance/)).toBeInTheDocument();
+  });
+
+  it('shows the project manager avatar and name under the project in the invoice table', () => {
+    h.projects = [{ id: 'proj-1', pm: { full_name: 'Project Manager Test' } }];
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', pmo_number: 'INV-PM', erp_outstanding_amount: 100_000 })];
+    renderPage('/finance/receivables?view=invoices', true);
+    const row = rowFor('INV-PM');
+    expect(within(row).getByText('Alpha Platform')).toBeInTheDocument();
+    expect(within(row).getByText('Project Manager Test')).toBeInTheDocument();
   });
 
   it('AC-1405 a URL open parameter opens a draft drawer, while its author cannot approve it', () => {
