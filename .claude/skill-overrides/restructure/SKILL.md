@@ -78,8 +78,9 @@ words alone, never images stacked down or side by side. The page has:
   with drill-down pages), how the work divides, what leads per role, where the main action
   lives — and your one-line recommendation.
 
-The options differ in structure only; one is the familiar category standard. Run the craft rules
-(Block craft below) and impeccable's detector on the page before sending. The owner picks or
+The options differ in structure only; one is the familiar category standard. The bake-off is a
+quick sketch to choose between, not a deliverable: one pass, no review rounds, no polishing — send
+it within about 30 minutes. Craft and the full gate apply to the chosen build. The owner picks or
 combines in one reply. Save the page as `docs/private/restructure/<screen>/options.html` and
 record the pick on the issue. Only the pick gets built in the app.
 
