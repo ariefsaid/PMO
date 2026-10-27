@@ -845,7 +845,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   const invoiceColumn: Column<SalesInvoiceRow> = {
     key: 'si_number',
     header: embedded ? t('finance:receivables.invoiceColumn', 'Invoice') : t('financeCopy.invoice', "Invoice #"),
-    kind: 'primary',
+    // ponytail: embedded, the client column carries the row's identity; 'primary' would force a 240px floor and push Outstanding off-screen at 1440.
+    kind: embedded ? 'text' : 'primary',
     size: embedded ? 132 : 280,
     primaryTitle: (inv) => invoiceNumber(inv) ?? inv.customer_name ?? '',
     cell: (inv) => {
@@ -908,13 +909,13 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'status',
     header: t('financeCopy.status', "Status"),
     kind: 'status',
-    size: embedded ? 190 : undefined,
+    size: embedded ? 180 : undefined,
     cell: (inv) => {
       const status = invoiceStatus(inv);
       const legacyLabel = status.partlySettled
         ? t('financeCopy.statusPartlyPaid', 'Partly paid')
         : salesInvoiceStatusLabel(inv.status, t);
-      return <StatusPill variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
+      return <StatusPill className={embedded ? 'max-w-full whitespace-normal' : undefined} variant={embedded ? status.variant : status.partlySettled ? salesInvoiceStatusVariant('Unpaid') : salesInvoiceStatusVariant(inv.status)}>{embedded ? status.label : legacyLabel}</StatusPill>;
     },
     exportValue: (inv) => inv.status,
   };
@@ -1012,7 +1013,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     key: 'client',
     header: t('finance:receivables.client', 'Client'),
     kind: 'text',
-    size: 210,
+    size: 200,
     cell: (inv) => {
       const project = projectLabelOf(inv);
       const manager = inv.project_id ? projectsById.get(inv.project_id)?.pm?.full_name?.trim() : null;
@@ -1033,11 +1034,11 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
     header: t('finance:receivables.delivery', 'Delivery'),
     kind: 'date',
     size: embedded ? 140 : 165,
-    cell: (inv) => inv.received_date
+    cell: (inv) => <span className="block truncate">{inv.received_date
       ? t('finance:receivables.deliveryReceived', 'Received {{date}}', { date: formatDateOnly(inv.received_date) })
       : inv.status === 'Draft'
         ? t('finance:receivables.deliveryDraft', 'Draft by {{name}}', { name: inv.author_user_id ? profilesById.get(inv.author_user_id)?.full_name ?? t('finance:receivables.authorUnavailable', 'unknown') : t('finance:receivables.authorUnavailable', 'unknown') })
-        : t('finance:receivables.deliveryNotReceived', 'Not marked received'),
+        : t('finance:receivables.deliveryNotReceived', 'Not marked received')}</span>,
     exportValue: (inv) => inv.received_date ?? '',
   };
   const displayColumns = embedded

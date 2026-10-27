@@ -344,6 +344,8 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
   }
 
   const notReported = t('uxs06.notReported', 'Not reported');
+  // ponytail: lists read in whole units (G1); exact cents stay on the receipt page.
+  const listMoney = embedded ? formatCurrency : formatCurrencyCents;
   const allColumns: Column<IncomingPaymentRow>[] = [
     {
       key: 'ip_number',
@@ -412,7 +414,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       align: 'num',
       cell: (p) => (
         <span className="tabular text-right text-[13px]">
-          {p.amount != null ? formatCurrencyCents(p.amount, p.currency) : '—'}
+          {p.amount != null ? listMoney(p.amount, p.currency) : '—'}
         </span>
       ),
       // A NUMBER, not its string: a text cell is unsummable and locale-fragile (#701).
@@ -426,14 +428,14 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
     },
     {
       key: 'received_amount', header: t('financeCopy.cashReceived', "Cash received"), align: 'num',
-      cell: (p) => p.received_amount != null ? formatCurrencyCents(p.received_amount, p.currency) : '—',
+      cell: (p) => p.received_amount != null ? listMoney(p.received_amount, p.currency) : '—',
       exportValue: (p) => p.received_amount ?? '',
     },
     {
       // S-06 (RF-032): None = known to be zero; Not reported = the source never said. Unknown is not zero.
       key: 'withheld_amount', header: t('financeCopy.taxWithheld', "Tax withheld"), align: 'num',
       cell: (p) => p.withheld_amount == null ? <span className="text-muted-foreground">{notReported}</span>
-        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : formatCurrencyCents(p.withheld_amount, p.currency),
+        : p.withheld_amount === 0 ? t('uxs06.none', 'None') : listMoney(p.withheld_amount, p.currency),
       exportValue: (p) => p.withheld_amount ?? '',
     },
     {
@@ -442,7 +444,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
       cell: (p) => {
         const unapplied = knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) });
         return unapplied === null ? <span className="text-muted-foreground">{notReported}</span>
-          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{formatCurrencyCents(unapplied, p.currency)}</span>;
+          : unapplied === 0 ? t('uxs06.none', 'None') : <span className="font-medium">{listMoney(unapplied, p.currency)}</span>;
       },
       exportValue: (p) => knownUnappliedCash({ ...p, allocation_details: displayAllocations(p, invoiceNumberOf) }) ?? '',
     },
@@ -652,7 +654,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
         open={Boolean(panelPayment)}
         title={panelPayment ? t('finance:receivables.paymentDrawerTitle', '{{client}} · {{amount}}', {
           client: panelPayment.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
-          amount: panelPayment.amount == null ? '—' : formatCurrencyCents(panelPayment.amount, panelPayment.currency),
+          amount: panelPayment.amount == null ? '—' : formatCurrency(panelPayment.amount, panelPayment.currency),
         }) : ''}
         subtitle={panelPayment ? <span className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs">{receiptNumber(panelPayment) ?? '—'}</span>
@@ -680,7 +682,7 @@ const IncomingPayments: React.FC<IncomingPaymentsProps> = ({ embedded = false, s
             <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.withholdingSlip', 'Withholding slip')}</dt><dd className="mt-1 font-mono">{panelPayment.withholding_slip_number ?? '—'}</dd></div>
           </dl>
           <section aria-labelledby="receivable-payment-invoices">
-            <h3 id="receivable-payment-invoices" className="mb-2 text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h3>
+            <h2 id="receivable-payment-invoices" className="mb-2 text-sm font-semibold">{t('finance:receivables.settledInvoices', 'Invoices settled')}</h2>
             {displayAllocations(panelPayment, invoiceNumberOf)?.length ? <ul className="divide-y divide-border/70">
               {displayAllocations(panelPayment, invoiceNumberOf)!.map((allocation, index) => <li key={`${allocation.invoice_id ?? allocation.invoice_number ?? 'invoice'}-${index}`} className="flex justify-between gap-3 py-2 text-sm">
                 <span className="font-mono">{allocation.invoice_number ?? (allocation.invoice_id ? invoiceNumberOf(allocation.invoice_id) : null) ?? '—'}</span>
