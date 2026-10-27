@@ -106,9 +106,8 @@ interface OrderLineView {
 
 function invoiceBalanceFigures(invoice: InvoiceWithWorkOrder): { paid: number | null; unpaid: number | null } {
   if (invoice.status === 'Draft' || invoice.status === 'Cancelled') return { paid: null, unpaid: null };
-  if (invoice.amount === null) return { paid: null, unpaid: null };
+  if (invoice.amount === null || invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
   if (invoice.status === 'Paid') return { paid: invoice.amount, unpaid: 0 };
-  if (invoice.erp_outstanding_amount === null) return { paid: null, unpaid: null };
   const balance = summarizeInvoiceSettlement([invoice]);
   return { paid: balance.paid, unpaid: balance.unpaid };
 }
@@ -1090,7 +1089,6 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
         {invoicesQuery.isPending ? (
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
             <span>{t('projectDetail.cascade.invoiceLoading', 'Invoice figures are loading.')}</span>
-            <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
           </p>
         ) : invoicesQuery.isError ? (
           <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="alert">
@@ -1098,12 +1096,8 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
           </p>
         ) : <>
-          {orderlessInvoices.some((invoice) => {
-            const figures = invoiceBalanceFigures(invoice);
-            return invoice.amount === null || (invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && (figures.paid === null || figures.unpaid === null));
-          }) && <p className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground" role="status">
-            <span>{t('projectDetail.workOrders.billing.orderlessFiguresIncomplete', 'Some invoice figures are incomplete.')}</span>
-            <button type="button" className="touch-target min-h-8 rounded-sm text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring" onClick={() => void invoicesQuery.refetch()}>{t('common.retry', 'Retry')}</button>
+          {orderlessInvoices.some((invoice) => invoice.status !== 'Draft' && invoice.status !== 'Cancelled' && (invoice.amount === null || invoice.erp_outstanding_amount === null)) && <p className="mb-2 text-xs text-muted-foreground" role="status">
+            {t('projectDetail.workOrders.billing.orderlessFiguresIncomplete', 'Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')}
           </p>}
           <div className="hidden overflow-x-auto border-y border-border md:block" role="region" tabIndex={0} aria-label={t('projectDetail.workOrders.billing.orderlessScroll', 'Invoices without a customer order table')}>
             <table className="w-full min-w-[42rem] text-sm">

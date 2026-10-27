@@ -44,7 +44,6 @@ import {
   stageLabelForStatus,
 } from '@/pages/procurement/blocks/stage';
 import { procurementMoney } from '@/pages/procurement/blocks/procurementMoney';
-import { needsYou } from '@/pages/procurement/blocks/needsYou';
 import { useBudgetPosition } from '@/pages/project-detail/useProjectPosition';
 
 /**
@@ -192,17 +191,6 @@ function moneyBasisText(kind: NonNullable<ReturnType<typeof moneyFor>['mostReal'
     case 'ordered': return t('procurement.moneyBasis.ordered', 'Ordered');
     case 'requested': return t('procurement.moneyBasis.requested', 'Requested');
   }
-}
-
-function needsYouText(row: ProcurementWithRefs, role: string | null | undefined, userId: string | undefined, t: (key: string, fallback: string) => string): string {
-  const result = needsYou(row, { role, userId });
-  if (!result) return t('procurement.needsYou.none', '—');
-  const reason = result.reason === 'approve'
-    ? t('procurement.needsYou.approve', 'Approve request')
-    : result.reason === 'receive'
-      ? t('procurement.needsYou.receive', 'Record delivery')
-      : t('procurement.needsYou.pay', 'Pay invoice');
-  return `${reason} · ${Math.max(0, Math.floor((Date.now() - result.since.getTime()) / 86_400_000))}d`;
 }
 
 function unpaidVisibleToRole(role: string | null | undefined): boolean {
@@ -510,7 +498,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
       header: <Tooltip content={t('procurement.moneyTooltip', 'Most recorded amount: paid, invoiced, ordered, then requested. Source: procurement records.')}><span tabIndex={0}>{t('projectDetail.procurement.table.value', 'Value')}</span></Tooltip>,
       kind: 'money',
       align: 'num',
-      size: 165,
+      size: 120,
+      minSize: 105,
       sortKey: 'value',
       cell: (row) => {
         const money = moneyFor(row, erp.data);
@@ -543,7 +532,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
       key: 'settlement',
       header: <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}><span tabIndex={0}>{t('procurement.settlement', 'Paid / invoiced')}</span></Tooltip>,
       kind: 'text',
-      size: 110,
+      size: 134,
+      minSize: 126,
       cell: (row) => {
         const money = moneyFor(row, erp.data);
         if (money.invoiced.unknown || money.paid.unknown || !money.invoiced.amount) return <span className="text-muted-foreground">—</span>;
@@ -551,8 +541,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         const percent = Math.max(0, Math.min(100, (paid / money.invoiced.amount) * 100));
         return (
           <Tooltip content={t('procurement.settlementTooltip', 'Recorded paid amount compared with recorded invoices.')}>
-            <span tabIndex={0} className="inline-flex w-full items-center gap-2 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              <span aria-hidden="true" className="h-1.5 w-16 shrink-0 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-primary" style={{ width: `${percent}%` }} /></span>
+            <span tabIndex={0} className="inline-flex min-w-0 w-full items-center gap-1.5 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
+              <span aria-hidden="true" className="h-1.5 w-12 shrink-0 overflow-hidden rounded-full bg-secondary"><span className="block h-full bg-primary" style={{ width: `${percent}%` }} /></span>
               <span className="shrink-0 text-xs tabular text-muted-foreground" title={`${formatCurrency(paid, row.currency)} / ${formatCurrency(money.invoiced.amount, row.currency)}`}>
                 {percent}%
               </span>
@@ -571,7 +561,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         header: t('projectDetail.procurement.table.procurement', 'Procurement'),
         kind: 'text',
         rowHeader: true,
-        size: 300,
+        size: 220,
+        minSize: 200,
         sortKey: 'title',
         cell: (row) => {
           const isExpanded = expandedId === row.id;
@@ -621,7 +612,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'category',
         header: t('projectDetail.procurement.table.category', 'Category'),
         kind: 'text',
-        size: 155,
+        size: 110,
+        minSize: 100,
         sortKey: 'category',
         cell: (row) => categoryLabel(row.budget_category),
         exportValue: (row) => categoryLabel(row.budget_category),
@@ -632,7 +624,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'stage',
         header: t('projectDetail.procurement.table.stage', 'Stage'),
         kind: 'status',
-        size: 135,
+        size: 120,
+        minSize: 112,
         sortKey: 'stage',
         cell: (row) => (
           <Tooltip content={stageDateTooltip(row)}>
@@ -647,36 +640,21 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'next-step',
         header: t('projectDetail.procurement.table.nextStep', 'Next step'),
         kind: 'text',
-        size: 150,
+        size: 125,
+        minSize: 105,
         cell: (row) => {
           const next = nextStepText(row.status, canDecideRow(row), t);
-          return <Tooltip content={next}><span title={next} className={`block max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
+          return <Tooltip content={next}><span title={next} className={`block min-w-0 w-full max-w-full truncate ${row.status === 'Requested' && canDecideRow(row) ? 'font-medium text-primary-text' : 'text-muted-foreground'}`}>{next}</span></Tooltip>;
         },
         exportValue: (row) => nextStepText(row.status, canApprove, t),
-      },
-      {
-        key: 'needs-you',
-        header: t('procurement.needsYou.column', 'Why it needs you'),
-        kind: 'text',
-        size: 170,
-        cell: (row) => {
-          const needs = needsYou(row, { role, userId: currentUser?.id });
-          return needs ? (
-            <Tooltip content={t('procurement.needsYouTooltip', 'Suggested action based on the current role and record state. Server rules remain authoritative.')}>
-              <span tabIndex={0} className="rounded-sm text-xs font-medium text-primary-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-                {needsYouText(row, role, currentUser?.id, t)}
-              </span>
-            </Tooltip>
-          ) : <span className="text-muted-foreground">{t('procurement.needsYou.none', '—')}</span>;
-        },
-        exportValue: (row) => needsYouText(row, role, currentUser?.id, t),
       },
       {
         key: 'age',
         header: <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}><span tabIndex={0}>{t('procurement.ageInStage', 'Age in stage')}</span></Tooltip>,
         kind: 'number',
         align: 'num',
-        size: 92,
+        size: 72,
+        minSize: 68,
         sortKey: 'age',
         cell: (row) => {
           const days = ageInCurrentStage(row, erp.data);
@@ -694,7 +672,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
         key: 'owner',
         header: t('procurement.raisedBy', 'Raised by'),
         kind: 'text',
-        size: 170,
+        size: 125,
+        minSize: 105,
         sortKey: 'owner',
         cell: (row) => {
           const owner = row.requested_by?.full_name ?? t('projectDetail.procurement.unassigned', 'Unassigned');
@@ -711,7 +690,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId })
       },
     ];
     return tableColumns;
-  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, role, currentUser?.id, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, setSelected]);
+  }, [canSeeMoney, canApprove, t, categoryLabel, canDecideRow, stageDateTooltip, erp.data, role, expandedId, detailQuery.data, detailQuery.isError, detailQuery.isPending, project, setSelected]);
 
   const exportColumns = columns;
   const selectedForExport = selectedRows;
