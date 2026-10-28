@@ -7,6 +7,7 @@ import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
 import { BahasaProvider } from '@/test/bahasa';
+import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 
 // ---------------------------------------------------------------------------
 // Mutable mock state (mirrors Procurement.test.tsx pattern)
@@ -24,6 +25,23 @@ const versionsState = {
   refetch: vi.fn(),
 };
 const activationModeState = { data: undefined as string | undefined, isPending: false, isError: false };
+const readyActivationPrecheck: BudgetActivationPrecheckResult = {
+  status: 'ready',
+  erpCheck: 'available',
+  fiscalYearNames: ['2026', '2027'],
+  issues: [],
+};
+const activationPrecheckState: {
+  data: BudgetActivationPrecheckResult | null;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+} = {
+  data: readyActivationPrecheck,
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+};
 
 const mockActivate = vi.fn().mockResolvedValue({ pushState: 'pushed' });
 const mockArchive = vi.fn().mockResolvedValue(undefined);
@@ -38,6 +56,7 @@ vi.mock('@/src/hooks/useBudget', () => ({
   useProjectBudget: () => budgetState,
   useBudgetVersions: () => versionsState,
   useBudgetActivationMode: () => activationModeState,
+  useBudgetActivationPrecheck: () => activationPrecheckState,
   useBudgetMutations: () => ({
     createVersion: { mutateAsync: mockCreateVersion, isPending: false },
     cloneVersion: { mutateAsync: mockClone, isPending: false },
@@ -149,6 +168,9 @@ function resetState() {
   activationModeState.data = undefined;
   activationModeState.isPending = false;
   activationModeState.isError = false;
+  activationPrecheckState.data = { ...readyActivationPrecheck };
+  activationPrecheckState.isPending = false;
+  activationPrecheckState.isError = false;
   roleState.realRole = 'Project Manager';
 }
 
@@ -619,6 +641,51 @@ describe('ProjectBudget Draft version actions', () => {
     expect(screen.getByText(/\+ Add line item/i)).toBeInTheDocument();
     resetState();
   });
+
+  it('issue #1421: lists missing readiness on the Draft and disables confirmation until fixed', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    activationPrecheckState.data = {
+      status: 'blocked',
+      erpCheck: 'available',
+      fiscalYearNames: ['2026', '2027'],
+      issues: [{
+        code: 'budget-multi-fiscal-year-unphased',
+        categories: ['Materials'],
+        startFiscalYear: '2026',
+        endFiscalYear: '2027',
+      }],
+    };
+    renderPage();
+
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/Materials/i);
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    expect(activationPrecheckState.refetch).toHaveBeenCalled();
+    const confirm = screen.getByRole('button', { name: /Activate version/i });
+    expect(screen.getByRole('dialog')).toHaveTextContent(/Materials/i);
+    expect(confirm).toBeDisabled();
+    expect(mockActivate).not.toHaveBeenCalled();
+  });
+
+  it('issue #1421: clearly reports an unavailable ERP check and still permits PMO activation', async () => {
+    budgetState.data = 0;
+    versionsState.data = [draftVersion];
+    activationPrecheckState.data = {
+      status: 'erp-unavailable',
+      erpCheck: 'unavailable',
+      fiscalYearNames: null,
+      issues: [],
+    };
+    renderPage();
+
+    expect(screen.getByTestId('budget-readiness-summary')).toHaveTextContent(/couldn't check ERPNext/i);
+    await userEvent.click(screen.getByRole('button', { name: /^Activate$/i }));
+    const confirm = screen.getByRole('button', { name: /Activate version/i });
+    expect(screen.getByRole('dialog')).toHaveTextContent(/push will retry/i);
+    expect(confirm).toBeEnabled();
+    await userEvent.click(confirm);
+    expect(mockActivate).toHaveBeenCalledWith('v-draft');
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1060,6 +1127,19 @@ describe('ProjectBudget — the per-line fiscal year (AC-BFY-016)', () => {
         item: expect.objectContaining({ fiscal_year: '2027' }),
       }),
     );
+  });
+
+  it('issue #1421: rejects a fiscal-year value that ERPNext does not list before saving the line', async () => {
+    const user = userEvent.setup();
+    versionsState.data = [draftVersion];
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /add line item/i }));
+    await user.type(screen.getByLabelText(/line item amount/i), '50000');
+    await user.type(screen.getByLabelText(/line item fiscal year/i), '202');
+    await user.click(screen.getAllByRole('button', { name: /^save$/i })[0]);
+
+    expect(await screen.findByText(/choose a fiscal year from ERPNext/i)).toBeInTheDocument();
+    expect(mockCreateLineItem).not.toHaveBeenCalled();
   });
 
   it('AC-BFY-016 a line left un-phased persists NULL — never an invented year (ADR-0048)', async () => {

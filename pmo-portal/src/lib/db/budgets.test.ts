@@ -60,6 +60,7 @@ vi.mock('@/src/lib/supabase/client', () => ({
 import {
   deriveProjectBudget,
   getBudgetActivationMode,
+  precheckBudgetActivation,
   listBudgetVersions,
   createLineItem,
   updateLineItem,
@@ -655,6 +656,28 @@ describe('activateVersion', () => {
       record: { id: 'v-draft', erp_doc_kind: 'budget' },
     });
     expect(body).not.toHaveProperty('idempotencyKey');
+  });
+});
+
+describe('precheckBudgetActivation', () => {
+  it('reads activation readiness through the caller-authenticated adapter boundary without a write', async () => {
+    const result = {
+      status: 'ready',
+      erpCheck: 'available',
+      fiscalYearNames: ['2026'],
+      issues: [],
+    };
+    mockFunctionsInvoke.mockResolvedValue({ data: result, error: null });
+
+    await expect(precheckBudgetActivation('v-draft')).resolves.toEqual(result);
+    expect(mockFunctionsInvoke).toHaveBeenCalledWith('adapter-dispatch', {
+      body: { action: 'budget-activation-precheck', versionId: 'v-draft' },
+    });
+  });
+
+  it('surfaces a failed PMO readiness read rather than treating it as ready', async () => {
+    mockFunctionsInvoke.mockResolvedValue({ data: null, error: { message: 'could not read draft' } });
+    await expect(precheckBudgetActivation('v-draft')).rejects.toThrow('could not read draft');
   });
 });
 

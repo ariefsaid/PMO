@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode } from '@/src/hooks/useBudget';
+import { useProjectBudget, useBudgetVersions, useBudgetMutations, useBudgetActivationMode, useBudgetActivationPrecheck } from '@/src/hooks/useBudget';
 import { usePermission } from '@/src/auth/usePermission';
 import { BudgetDocumentLinks } from '@/src/components/m365/BudgetDocumentLinks';
 import { useAuth } from '@/src/auth/useAuth';
@@ -27,6 +27,7 @@ import {
 } from '@/src/components/ui';
 import { budgetVersionVariant } from '@/src/lib/status/statusVariants';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
+import type { BudgetReadinessIssue } from '@/src/lib/budget/budgetGate';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ interface LineItemEditorProps {
   updateIsPending?: boolean;
   /** B-0.6: called when a line-item write fails so the page-level toast fires. */
   onSaveError?: (err: unknown) => void;
+  fiscalYearNames?: string[] | null;
 }
 
 /** One DataTable row of the editor: an existing line, or the single in-progress new line. */
@@ -93,6 +95,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   createIsPending = false,
   updateIsPending = false,
   onSaveError,
+  fiscalYearNames = null,
 }) => {
   const { t } = useTranslation();
   const [adding, setAdding] = useState(false);
@@ -100,10 +103,9 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState('');
   const [newAmountError, setNewAmountError] = useState<string | null>(null);
-  // ⚑ FR-BFY-060 — free TEXT, not a select. The valid values are another system's calendar (the
-  // client's ERPNext `Fiscal Year` names), which the write path cannot reach; the years this project
-  // has already touched are offered as SUGGESTIONS via a datalist, but a year the project is only now
-  // moving into must remain typeable. Validation is push-time, against the live doctype (FR-BFY-021/022).
+  const [newFiscalYearError, setNewFiscalYearError] = useState<string | null>(null);
+  // Fiscal-year names come from the read-only Draft precheck when ERPNext is reachable. Keep this as
+  // text input because customer calendars use their own names; the live list is suggestions, not a select.
   const [newFiscalYear, setNewFiscalYear] = useState('');
 
   // Inline edit state
@@ -113,11 +115,23 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   const [editAmount, setEditAmount] = useState('');
   const [editFiscalYear, setEditFiscalYear] = useState('');
   const [editAmountError, setEditAmountError] = useState<string | null>(null);
+  const [editFiscalYearError, setEditFiscalYearError] = useState<string | null>(null);
   /** The years this project's own lines already name — suggestions, never a constraint. */
   const knownFiscalYears = useMemo(
-    () => [...new Set(lineItems.map((li) => li.fiscal_year).filter((y): y is string => !!y))].sort(),
-    [lineItems],
+    () => [...new Set([
+      ...lineItems.map((li) => li.fiscal_year).filter((y): y is string => !!y),
+      ...(fiscalYearNames ?? []),
+    ])].sort(),
+    [lineItems, fiscalYearNames],
   );
+
+  const validateFiscalYear = (value: string): boolean => {
+    const fiscalYear = value.trim();
+    if (!fiscalYear) return true;
+    // ERPNext's exact names are authoritative when available. During an outage, reject obviously
+    // truncated values like "202" while leaving longer custom names typeable until the next check.
+    return fiscalYearNames === null ? fiscalYear.length >= 4 : fiscalYearNames.includes(fiscalYear);
+  };
 
   const openEdit = (li: BudgetLineItemRow) => {
     setEditingId(li.id);
@@ -126,14 +140,21 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
     setEditAmount(formatMoneyInputValue(Number(li.budgeted_amount)));
     setEditFiscalYear(li.fiscal_year ?? '');
     setEditAmountError(null);
+    setEditFiscalYearError(null);
   };
 
   const closeEdit = () => {
     setEditingId(null);
     setEditAmountError(null);
+    setEditFiscalYearError(null);
   };
 
   const handleSaveEdit = async (li: BudgetLineItemRow) => {
+    if (!validateFiscalYear(editFiscalYear)) {
+      setEditFiscalYearError(t('finance:budgetActivation.invalidFiscalYearName', 'Choose a fiscal year from ERPNext, or leave it blank.'));
+      return;
+    }
+    setEditFiscalYearError(null);
     // Validate with the same locale-aware, storage-scale parser used for the write.
     const parsed = parseMoneyInputAtScale(editAmount, 2);
     if (parsed === null) {
@@ -162,6 +183,11 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
   };
 
   const handleAdd = async () => {
+    if (!validateFiscalYear(newFiscalYear)) {
+      setNewFiscalYearError(t('finance:budgetActivation.invalidFiscalYearName', 'Choose a fiscal year from ERPNext, or leave it blank.'));
+      return;
+    }
+    setNewFiscalYearError(null);
     const amount = parseMoneyInputAtScale(newAmount, 2);
     if (!newCategory) return;
     if (amount === null) {
@@ -185,6 +211,7 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
       setNewDesc('');
       setNewAmount('');
       setNewAmountError(null);
+      setNewFiscalYearError(null);
       setNewFiscalYear('');
     } catch (err) {
       onSaveError?.(err);
@@ -296,9 +323,13 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
                 placeholder={t('financeCopy.unPhased', "Un-phased")}
                 list="budget-fiscal-year-options"
                 value={newFiscalYear}
-                onChange={(e) => setNewFiscalYear(e.target.value)}
+                onChange={(e) => {
+                  setNewFiscalYear(e.target.value);
+                  setNewFiscalYearError(null);
+                }}
                 className={`${fieldCls} w-32`}
               />
+              {newFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{newFiscalYearError}</p>}
               {fiscalYearDatalist}
             </>
           );
@@ -318,9 +349,13 @@ const LineItemEditor: React.FC<LineItemEditorProps> = ({
               placeholder={t('financeCopy.unPhased', "Un-phased")}
               list="budget-fiscal-year-options"
               value={editFiscalYear}
-              onChange={(e) => setEditFiscalYear(e.target.value)}
+              onChange={(e) => {
+                setEditFiscalYear(e.target.value);
+                setEditFiscalYearError(null);
+              }}
               className={`${fieldCls} w-32`}
             />
+            {editFiscalYearError && <p role="alert" className="text-xs text-destructive-text">{editFiscalYearError}</p>}
             {fiscalYearDatalist}
           </>
         ) : (
@@ -526,6 +561,8 @@ interface VersionCardProps {
   createIsPending?: boolean;
   updateIsPending?: boolean;
   onLineItemSaveError?: (err: unknown) => void;
+  fiscalYearNames?: string[] | null;
+  readinessSummary?: React.ReactNode;
 }
 
 const VersionCard: React.FC<VersionCardProps> = ({
@@ -544,6 +581,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
   createIsPending,
   updateIsPending,
   onLineItemSaveError,
+  fiscalYearNames,
+  readinessSummary,
 }) => {
   const { t } = useTranslation();
   // SUB-D: a read-only table drops the Fiscal year column while every line is Un-phased (the Draft editor keeps it).
@@ -591,6 +630,8 @@ const VersionCard: React.FC<VersionCardProps> = ({
           {formatCurrency(version.total, version.currency)}
         </span>
       </div>
+
+      {version.status === 'Draft' && readinessSummary}
 
       {/* Actions gated by role (cosmetic — RLS is the real gate). Each action
           stages a ConfirmDialog at the page level; none mutates on a single
@@ -659,6 +700,7 @@ const VersionCard: React.FC<VersionCardProps> = ({
           createIsPending={createIsPending}
           updateIsPending={updateIsPending}
           onSaveError={onLineItemSaveError}
+          fiscalYearNames={fiscalYearNames}
         />
       ) : (
         version.line_items.length > 0 && (
@@ -741,6 +783,49 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   }, [versions, selectedId]);
 
   const activationModeQuery = useBudgetActivationMode(selected?.id);
+  const activationPrecheckQuery = useBudgetActivationPrecheck(selected?.status === 'Draft' ? selected.id : undefined);
+  const activationPrecheck = activationPrecheckQuery.data;
+  const readinessMessages: string[] = [];
+  const issueMessage = (issue: BudgetReadinessIssue): string => {
+    const categories = issue.categories?.map((category) => budgetCategoryLabel(category, t)).join(', ') ??
+      issue.lines?.map((line) => budgetCategoryLabel(line.category, t)).join(', ') ?? '';
+    const lines = issue.lines?.map((line) => `${budgetCategoryLabel(line.category, t)}${line.fiscalYear ? ` (${line.fiscalYear})` : ''}`).join(', ') ?? categories;
+    switch (issue.code) {
+      case 'budget-multi-fiscal-year-unphased':
+        return t('finance:budgetActivation.unphased', 'Phase every line before activating this multi-year budget. Un-phased categories: {{categories}}.', { categories });
+      case 'budget-category-unmapped':
+        return t('finance:budgetActivation.unmapped', 'Map these budget categories before activating: {{categories}}.', { categories });
+      case 'budget-fiscal-year-invalid':
+        return t('finance:budgetActivation.invalidYear', 'Choose a fiscal year listed by ERPNext for these lines: {{lines}}.', { lines });
+      case 'budget-fiscal-year-out-of-span':
+        return t('finance:budgetActivation.outOfSpan', 'These lines use a fiscal year outside the project dates: {{lines}}.', { lines });
+      case 'budget-fiscal-year-ambiguous':
+        return t('finance:budgetActivation.ambiguousYear', 'ERPNext has overlapping fiscal years on {{date}} ({{fiscalYears}}). Ask an administrator to correct the calendar.', { date: issue.date ?? '', fiscalYears: issue.fiscalYears?.join(', ') ?? '' });
+      case 'budget-project-start-date-missing':
+        return t('finance:budgetActivation.missingStart', 'Add a project start date before activating this budget.');
+      case 'budget-fiscal-year-unresolved':
+        return issue.datePart === 'end'
+          ? t('finance:budgetActivation.unresolvedEndYear', 'ERPNext has no fiscal year for the project end date {{date}}.', { date: issue.date ?? '' })
+          : t('finance:budgetActivation.unresolvedStartYear', 'ERPNext has no fiscal year for the project start date {{date}}.', { date: issue.date ?? '' });
+      default:
+        return t('finance:budgetActivation.issue', 'Budget readiness check found an issue that must be resolved before activation.');
+    }
+  };
+  if (activationPrecheckQuery.isPending || activationPrecheckQuery.isFetching) {
+    readinessMessages.push(t('finance:budgetActivation.checking', 'Checking project dates, line phasing, ERPNext fiscal years and account mapping…'));
+  } else if (activationPrecheckQuery.isError) {
+    readinessMessages.push(t('finance:budgetActivation.checkFailed', "Couldn't check budget readiness. Refresh and try again."));
+  } else if (activationPrecheck) {
+    if (activationPrecheck.erpCheck === 'unavailable') {
+      readinessMessages.push(t('finance:budgetActivation.erpUnavailable', "Couldn't check ERPNext — the push will retry and report what's missing."));
+    }
+    readinessMessages.push(...activationPrecheck.issues.map(issueMessage));
+    if (activationPrecheck.status === 'ready' && activationPrecheck.erpCheck === 'available') {
+      readinessMessages.push(t('finance:budgetActivation.ready', 'Ready to activate. ERPNext fiscal years and budget account mappings are available.'));
+    }
+  }
+  const canConfirmActivation = !!activationPrecheck && !activationPrecheckQuery.isError &&
+    !activationPrecheckQuery.isPending && !activationPrecheckQuery.isFetching && activationPrecheck.status !== 'blocked';
 
   // Loading state
   if (budgetQuery.isPending || versionsQuery.isPending) {
@@ -794,8 +879,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   // Stage a confirm without writing. The page renders one ConfirmDialog from
   // pendingConfirm; commitConfirm() runs the real mutation only on Confirm.
   const requestCreate = (name: string) => setPendingConfirm({ kind: 'create', name });
-  const requestActivate = (id: string) =>
+  const requestActivate = (id: string) => {
+    void activationPrecheckQuery.refetch();
     setPendingConfirm({ kind: 'activate', id, label: versionLabel(id), soleOperator });
+  };
   const requestClone = (id: string) =>
     setPendingConfirm({ kind: 'clone', id, label: versionLabel(id) });
   const requestArchive = (id: string) =>
@@ -913,9 +1000,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
   };
   const confirmDescriptions: ConfirmDescriptions = {
     create: (c) => t('financeCopy.confirmCreateDescription', 'This creates a new Draft budget version named "{{name}}".', { name: c.name }),
-    activate: (c) => c.soleOperator
-      ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
-      : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
+    activate: (c) => [
+      c.soleOperator
+        ? t('financeCopy.confirmSoleOperatorActivation', "You're the only person in this organisation, so you can activate a budget you prepared yourself. Once a colleague joins, a second person will need to activate it.")
+        : t('financeCopy.confirmActivateDescription', 'This makes {{version}} the live active budget and supersedes the current active version.', { version: c.label }),
+      ...readinessMessages,
+    ].join(' '),
     clone: (c) => t('financeCopy.confirmCloneDescription', 'This copies {{version}} into a new editable Draft.', { version: c.label }),
     archive: (c) => t('financeCopy.confirmArchiveDescription', 'This removes {{version}} as the active budget. You can clone it later to revise.', { version: c.label }),
     deleteDraft: (c) => t('financeCopy.confirmDeleteDraftDescription', 'This permanently deletes the draft {{version}}. This cannot be undone.', { version: c.label }),
@@ -933,6 +1023,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
       description={describeConfirm(pendingConfirm)}
       confirmLabel={confirmCopy[pendingConfirm.kind].confirmLabel}
       loading={confirmInFlight}
+      confirmDisabled={pendingConfirm.kind === 'activate' && !canConfirmActivation}
       restoreFocusFallback={() => document.querySelector<HTMLElement>('#budget-version-select')}
       onCancel={() => setPendingConfirm(null)}
       onConfirm={() => void commitBudgetConfirm()}
@@ -1076,6 +1167,12 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId }) => {
               const { headline, detail } = classifyMutationError(err);
               toast(headline, detail, 'warning');
             }}
+            fiscalYearNames={activationPrecheck?.fiscalYearNames ?? null}
+            readinessSummary={
+              <div data-testid="budget-readiness-summary" aria-live="polite" className="mb-3 text-[13px] text-muted-foreground">
+                {readinessMessages.map((message, index) => <p key={`${index}-${message}`}>{message}</p>)}
+              </div>
+            }
           />
         )}
         {selected && <BudgetDocumentLinks key={`evidence-${selected.id}`} versionId={selected.id} status={selected.status} />}

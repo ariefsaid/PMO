@@ -5,6 +5,7 @@ import { activateAndPush } from '@/src/lib/budget/budgetPushConsequence';
 import { dispatchDomainCommand } from '@/src/lib/adapterSeam/dispatchClient';
 import type { PmoRecord } from '@/src/lib/adapterSeam/contract';
 import { assertMicrosoftReference, type MicrosoftReferenceInput } from '@/src/lib/m365/reference';
+import type { BudgetActivationPrecheckResult } from '@/src/lib/budget/budgetGate';
 
 // ---------------------------------------------------------------------------
 // Type contract (plan §3 "Type contract used across tasks")
@@ -85,6 +86,18 @@ export async function getBudgetActivationMode(versionId: string): Promise<Budget
   const modes: readonly BudgetActivationMode[] = ['allowed', 'sole_operator', 'blocked', 'blocked_editor', 'blocked_no_drafter'];
   if (!modes.includes(data as BudgetActivationMode)) throw new Error('Unexpected budget activation mode');
   return data as BudgetActivationMode;
+}
+
+/** Read-only, caller-authenticated readiness check for a Draft budget activation confirmation. */
+export async function precheckBudgetActivation(versionId: string): Promise<BudgetActivationPrecheckResult> {
+  const { data, error } = await supabase.functions.invoke<BudgetActivationPrecheckResult>('adapter-dispatch', {
+    body: { action: 'budget-activation-precheck', versionId },
+  });
+  if (error) throw toAppError(error);
+  if (!data || !['ready', 'blocked', 'erp-unavailable'].includes(data.status)) {
+    throw new AppError('Budget readiness check returned an unexpected response');
+  }
+  return data;
 }
 
 export async function deriveProjectBudget(projectId: string): Promise<number> {
