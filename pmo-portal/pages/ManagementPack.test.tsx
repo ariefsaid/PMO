@@ -56,9 +56,10 @@ describe('Management pack money display (#1260, #1437)', () => {
     expect(backlogHelp).toBeInTheDocument();
     const backlogTile = backlogHelp.parentElement?.parentElement;
     expect(backlogTile).not.toBeNull();
-    expect(backlogTile).not.toHaveTextContent(/\$|\d|—|Unavailable/);
+    expect(backlogTile).not.toHaveTextContent(/\$|USD|\d|—|Unavailable/);
     expect(within(figures).queryByRole('status')).not.toBeInTheDocument();
     expect(within(figures).getAllByText('$0', { exact: true })).toHaveLength(1);
+    expect(within(figures).queryByRole('button', { name: /foreign-currency invoice needs reconciliation/i })).not.toBeInTheDocument();
     expect(screen.queryByText('Unavailable')).not.toBeInTheDocument();
 
     expect(screen.getAllByText(/Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known/)).toHaveLength(1);
