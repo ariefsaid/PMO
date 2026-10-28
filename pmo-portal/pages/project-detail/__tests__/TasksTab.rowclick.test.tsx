@@ -120,6 +120,19 @@ describe('TasksTab — row click opens the shared task drawer (AC-1402)', () => 
     expect(screen.getByRole('menuitem', { name: 'Delete' })).toBeInTheDocument();
   });
 
+  it('B1: the task drawer matches the other record drawers — wide, with Edit as the main header action', async () => {
+    renderTab('Project Manager');
+    await userEvent.click(screen.getByText('Survey the site').closest('tr')!);
+    const dialog = await screen.findByRole('dialog', { name: 'Survey the site' });
+    expect(dialog.className).toContain('sm:w-[min(560px,92vw)]');
+    const edit = within(dialog).getByRole('button', { name: 'Edit' });
+    const fullPage = within(dialog).getByRole('link', { name: 'Open full page' });
+    const more = within(dialog).getByRole('button', { name: 'More task actions' });
+    expect(edit.compareDocumentPosition(fullPage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fullPage.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(edit.className).toContain('bg-primary');
+  });
+
   it('AC-1402: pressing Enter on the row activation button opens the drawer', async () => {
     renderTab('Project Manager');
     const activation = screen.getByRole('button', { name: 'Open task Survey the site' });

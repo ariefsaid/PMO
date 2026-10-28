@@ -11,8 +11,11 @@ import { useProjectProcurements } from '@/src/hooks/useProcurements';
 import { useErpnextBinding } from '@/src/hooks/useErpnextBinding';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import {
+  formatCurrency,
   formatCurrencyAuto,
   formatMoneyInputValue,
+  formatNumberMax2,
+  formatShortMoney,
   formatInstantDate,
   parseMoneyInputAtScale,
 } from '@/src/lib/format';
@@ -37,13 +40,14 @@ import {
   ViewToggle,
   ProgressBar,
   Drawer,
+  MenuButton,
 } from '@/src/components/ui';
 import type { BudgetVersionWithItems, BudgetLineItemRow, NewLineItem } from '@/src/lib/db/budgets';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useBudgetPosition } from './project-detail/useProjectPosition';
 import BudgetVersionsDrawer from './project-detail/budget/BudgetVersionsDrawer';
 import BudgetErpNotice from './project-detail/budget/BudgetErpNotice';
-import { buildBudgetSummaryRows, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
+import { buildBudgetSummaryRows, committedTotal, type BudgetSummaryRow } from './project-detail/budget/budgetModel';
 import { Constants, type Enums } from '@/src/lib/supabase/database.types';
 import BudgetProjection from './BudgetProjection';
 import { AttributedSpendingNote } from './project-detail/AttributedSpendingNote';
@@ -652,30 +656,42 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   const totalSpent = enrichedRows.length > 0 && enrichedRows.every((row) => row.spent !== null && canSeeActuals)
     ? enrichedRows.reduce((sum, row) => sum + (row.spent ?? 0), 0)
     : null;
-  const totalCommitted = enrichedRows.length > 0 && enrichedRows.every((row) => row.committed !== null && canSeeCommitments)
-    ? enrichedRows.reduce((sum, row) => sum + (row.committed ?? 0), 0)
-    : null;
+  // L12: one committed calculation for the whole project — the Overview reads the same shared total.
+  const totalCommitted = canSeeCommitments ? committedTotal(enrichedRows) : null;
   const totalLeft = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
     ? tableBudgetTotal - totalSpent - totalCommitted
     : null;
   const tableLeftTotal = tableBudgetTotal !== null && totalSpent !== null && totalCommitted !== null
     ? tableBudgetTotal - totalSpent - totalCommitted
     : null;
+  // C4: an unknown author or date is left out of the line, never printed as "unavailable".
   const authorName = (version: BudgetVersionWithItems) => version.created_by != null && version.created_by === currentUserId
     ? t('common.you', 'You')
-    : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name
-      ?? t('projectDetail.budget.authorUnavailable', 'Author unavailable');
-  const dateLabel = (version: BudgetVersionWithItems) => version.created_at
-    ? formatInstantDate(version.created_at)
-    : t('projectDetail.budget.dateUnavailable', 'Date unavailable');
-  const getStatus = (row: { used: number | null; left: number | null }) => {
-    if (row.used === null || row.left === null) return { variant: 'neutral' as const, label: t('projectDetail.budget.unavailable', 'Unavailable') };
+    : usersQuery.data?.find((user) => user.id === version.created_by)?.full_name ?? null;
+  const versionMeta = (version: BudgetVersionWithItems) => [
+    version.created_at ? formatInstantDate(version.created_at) : null,
+    authorName(version),
+  ].filter(Boolean).join(' · ');
+  /** A row's budget status, or null when spending or commitments are unknown (the page states that reason once). */
+  const getStatus = (row: { budget: number; spent: number | null; committed: number | null; used: number | null; left: number | null }) => {
+    if (row.budget === 0 && row.left !== null && row.left < 0) return { variant: 'warn' as const, label: t('projectDetail.budget.notBudgeted', 'Not budgeted') };
+    if (row.used === null || row.left === null) return null;
     if (row.left < 0) return { variant: 'lost' as const, label: t('projectDetail.budget.overBudget', 'Over budget') };
     if (row.used >= 90) return { variant: 'lost' as const, label: t('projectDetail.budget.atRisk', 'At risk') };
     if (row.used >= 70) return { variant: 'warn' as const, label: t('projectDetail.budget.watch', 'Watch') };
     return { variant: 'won' as const, label: t('projectDetail.budget.onTrack', 'On track') };
   };
-  const formatAmount = (value: number | null) => value === null ? '—' : formatCurrencyAuto(value, project.currency);
+  // C5/C6: whole units; tables and the drawer print bare numbers under the one "USD · excl. PPN" heading.
+  // C5 + money precision: no trailing .00 on whole amounts, but a real fraction (1,234.5) is never rounded away.
+  const formatAmount = (value: number | null) => value === null ? '—' : formatNumberMax2(value);
+  // F11: KPI tiles carry the short amount; the full amount stays on hover and for screen readers.
+  const tileAmount = (value: number | null) => {
+    if (value === null) return { value: '—' };
+    const short = formatShortMoney(value, project.currency);
+    const exact = formatCurrency(value, project.currency);
+    return short === exact ? { value: short } : { value: short, exactValue: exact };
+  };
+  const budgetUnit = <span className="text-xs text-muted-foreground">{project.currency}{project.tax_treatment && <> · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></>}</span>;
   const actualSource = t('projectDetail.budget.actualsSource', 'Source: project finance by category; this is an as-of aggregate, with no transaction trend in this view.');
   const exportRows = (rows: BudgetSummaryRow[], filename: string) => {
     const header = ['Category', 'Budget', 'Spent', 'Committed', 'Left'];
@@ -733,7 +749,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'committed', header: t('projectDetail.budget.committed', 'Committed'), kind: 'money', align: 'num', size: 125, minSize: 100,
-      cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
+      cell: (row) => <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span>{canSeeCommitments ? formatAmount(row.committed) : '—'}</span></Tooltip>,
     },
     {
       key: 'left', header: t('projectDetail.budget.left', 'Left'), kind: 'money', align: 'num', size: 125, minSize: 100,
@@ -747,7 +763,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     },
     {
       key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', size: 125, minSize: 112,
-      cell: (row) => { const status = getStatus(row); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; },
+      cell: (row) => { const status = getStatus(row); return status ? <StatusPill variant={status.variant}>{status.label}</StatusPill> : null; },
     },
   ];
   const actualTotals = enrichedRows.length ? [{
@@ -755,7 +771,7 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     values: {
       budget: <Tooltip content={t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')}><span tabIndex={0}>{formatAmount(tableBudgetTotal)}</span></Tooltip>,
       spent: <Tooltip content={actualSource}><span tabIndex={0}>{formatAmount(totalSpent)}</span></Tooltip>,
-      committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
+      committed: <Tooltip content={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')}><span tabIndex={0}>{formatAmount(totalCommitted)}</span></Tooltip>,
       left: <Tooltip content={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')}><span tabIndex={0}>{formatAmount(tableLeftTotal)}</span></Tooltip>,
       used: tableBudgetTotal && totalSpent !== null && totalCommitted !== null
         ? <Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0}>{Math.round((totalSpent + totalCommitted) / tableBudgetTotal * 100)}%</span></Tooltip>
@@ -771,20 +787,20 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
     {
       key: 'version', header: t('projectDetail.budget.version', 'Version'), kind: 'primary', rowHeader: true,
       cell: (version) => <span><span className="font-mono text-xs text-muted-foreground">v{version.version}</span> <span className="font-semibold">{version.name}</span></span>,
-      secondaryCell: (version) => <span className="text-xs text-muted-foreground">{dateLabel(version)} · {authorName(version)}</span>,
+      secondaryCell: (version) => versionMeta(version) ? <span className="text-xs text-muted-foreground">{versionMeta(version)}</span> : null,
     },
     { key: 'status', header: t('projectDetail.budget.status', 'Status'), kind: 'status', cell: (version) => <StatusPill variant={budgetVersionVariant(version.status)}>{version.status}</StatusPill> },
     { key: 'total', header: t('financeCopy.total', 'Total'), kind: 'money', align: 'num', cell: (version) => <Tooltip content={t('projectDetail.budget.versionTotalSource', 'Source: sum of the budget line items in this version.')}><span tabIndex={0}>{formatAmount(version.total)}</span></Tooltip> },
     { key: 'change', header: t('projectDetail.budget.change', 'Change'), kind: 'money', align: 'num', cell: (version) => {
       const index = orderedVersions.findIndex((item) => item.id === version.id);
       const previous = index > 0 ? orderedVersions[index - 1] : null;
-      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatCurrencyAuto(version.total - previous.total, version.currency)}</span></Tooltip> : '—';
+      return previous ? <Tooltip content={t('projectDetail.budget.versionChangeSource', 'Calculated as this version total minus the prior numbered version total.')}><span tabIndex={0} className={version.total > previous.total ? 'text-destructive-text' : undefined}>{version.total > previous.total ? t('projectDetail.budget.changeIncrease', '+') : ''}{formatAmount(version.total - previous.total)}</span></Tooltip> : '—';
     } },
     { key: 'accounting', header: t('projectDetail.budget.accountingSystem', 'Accounting system'), cell: (version) => {
       if (version.status !== 'Active') return '—';
       if (!canViewBudgetEnforcement) return '—';
       if (pushStatusQuery.isPending) return <span className="text-muted-foreground">{t('projectDetail.budget.checkingPushState', 'Checking')}</span>;
-      if (pushStatusQuery.isError) return <span className="text-muted-foreground">{t('projectDetail.budget.pushStateUnavailable', 'Unavailable')}</span>;
+      if (pushStatusQuery.isError) return <span className="inline-flex items-center gap-1 text-muted-foreground">{t('projectDetail.budget.pushStateError', "Couldn't check")}<Button variant="ghost" size="sm" onClick={() => void pushStatusQuery.refetch()}>{t('common.retry', 'Retry')}</Button></span>;
       const states = (pushStatusQuery.data ?? []).filter((row) => row.pushState !== null);
       if (!states.length) return <StatusPill variant="neutral">{t('projectDetail.budget.pushNotEnforced', 'Not enforced')}</StatusPill>;
       const labels: Record<string, { label: string; variant: 'won' | 'warn' | 'lost' | 'progress' }> = {
@@ -950,8 +966,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
   return (
     <div className="flex min-w-0 flex-col gap-5" data-testid={versions.length === 0 ? 'budget-empty' : 'budget-option-a'}>
       <header className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
+        {/* C6: currency and tax basis are said once, in the page heading; every figure below is a bare number. */}
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
           <h2 className="text-base font-semibold text-foreground">{t('projectDetail.budget.title', 'Project budget')}</h2>
+          {budgetUnit}
         </div>
       </header>
 
@@ -979,10 +997,10 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
       {versions.length === 0 && <ListState variant="empty" icon="dollar" title={t('financeCopy.noBudgetVersionsYet', 'No budget versions yet')} sub={t('financeCopy.createADraftVersionToStartPlanningTheProjectBudget', 'Create a Draft version to start planning the project budget.')} action={canWrite ? { label: t('projectDetail.budget.createBudget', 'Create budget'), onClick: () => setShowNewVersionForm(true) } : undefined} />}
 
       <KPIRow aria-label={t('projectDetail.budget.figures', 'Budget figures')} className="grid-cols-2 lg:grid-cols-4">
-        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} value={formatAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
-        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} value={formatAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
-        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} value={formatAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')} />
-        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} value={formatAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
+        <KPITile icon="dollar" tone="blue" label={t('financeCopy.budget', 'Budget')} {...tileAmount(totalBudget)} help={t('projectDetail.budget.activeBudgetSource', 'Source: active budget version line items, grouped by category.')} />
+        <KPITile icon="chart-column" tone="violet" label={t('projectDetail.budget.spent', 'Spent')} {...tileAmount(totalSpent)} unavailableReason={totalSpent === null ? t('projectDetail.budget.spendingUnavailable', 'Spending is unknown or unavailable.') : undefined} help={actualSource} />
+        <KPITile icon="invoices" tone="amber" label={t('projectDetail.budget.committed', 'Committed')} {...tileAmount(totalCommitted)} unavailableReason={totalCommitted === null ? t('projectDetail.budget.commitmentsUnavailable', 'Commitments are unknown or unavailable.') : undefined} help={t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')} />
+        <KPITile icon="down" tone={totalLeft !== null && totalLeft < 0 ? 'red' : 'green'} label={t('projectDetail.budget.left', 'Left')} {...tileAmount(totalLeft)} negative={totalLeft !== null && totalLeft < 0} unavailableReason={totalLeft === null ? t('projectDetail.budget.leftUnavailable', 'Left is unknown while spending or commitments are unavailable.') : undefined} help={t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')} />
       </KPIRow>
 
       <section aria-label={t('projectDetail.budget.budgetVsActual', 'Budget vs actual')} className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
@@ -1011,7 +1029,6 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
               </select>
             </label>
             <span className="text-xs text-muted-foreground">{view === 'actual' ? t('projectDetail.budget.wholeProject', 'Whole project') : t('projectDetail.budget.fiscalYearInForecast', 'Fiscal year in forecast')}</span>
-            <span className="text-xs text-muted-foreground">{project.currency} · <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} className="text-xs" /></span>
             {canWrite && activeVersion && !draftVersion && <Button variant="outline" size="sm" onClick={() => requestClone(activeVersion.id)}>{t('projectDetail.budget.updateBudget', 'Update budget')}</Button>}
             {view === 'actual' && <Button variant="outline" size="sm" onClick={() => exportRows(enrichedRows, 'ProjectBudget')}>{t('projectDetail.budget.export', 'Export')}</Button>}
           </div>
@@ -1099,29 +1116,36 @@ const ProjectBudget: React.FC<ProjectBudgetProps> = ({ projectId, project }) => 
         open={Boolean(selectedCategory)}
         title={selectedCategory ? budgetCategoryLabel(selectedCategory.category, t) : ''}
         icon={<Icon name="dollar" />}
-        status={selectedCategory && (() => { const status = getStatus(selectedCategory); return <StatusPill variant={status.variant}>{status.label}</StatusPill>; })()}
+        status={selectedCategory && (() => { const status = getStatus(selectedCategory); return status ? <StatusPill variant={status.variant}>{status.label}</StatusPill> : undefined; })()}
         onClose={closeCategory}
         width="lg"
         nestedOpen={Boolean(pendingConfirm)}
         headerActions={selectedCategory && <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
           {canWrite && <Button variant="primary" size="sm" onClick={adjustInDraft}>{t('projectDetail.budget.adjustInDraft', 'Adjust in a draft')}</Button>}
           <Link className="touch-target inline-flex min-h-9 items-center rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground hover:bg-accent" to={`/projects/${encodeURIComponent(projectId)}/budget`}>{t('projectDetail.budget.openFullPage', 'Open full page')}</Link>
-        </div>}
-        footer={selectedCategory && <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={() => exportRows([selectedCategory], `Budget_${selectedCategory.category}`)}>{t('projectDetail.budget.export', 'Export')}</Button>
+          {/* B1: the same drawer header as every record — main action · Open full page · ⋯. */}
+          <MenuButton items={[{ label: t('projectDetail.budget.exportCategory', 'Export category'), onClick: () => exportRows([selectedCategory], `Budget_${selectedCategory.category}`) }]}
+            ariaLabel={t('projectDetail.budget.categoryActions', '{{category}} actions', { category: budgetCategoryLabel(selectedCategory.category, t) })} />
         </div>}
       >
         {selectedCategory && <div className="space-y-5">
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <h2 className="text-sm font-semibold">{t('projectDetail.budget.categoryFigures', 'Figures')}</h2>
+            {budgetUnit}
+          </div>
           <dl className="grid grid-cols-2 gap-3 text-sm">
             {[
               [t('financeCopy.budget', 'Budget'), formatAmount(selectedCategory.budget), t('projectDetail.budget.budgetSource', 'Source: selected budget version line items, grouped by category.')],
               [t('projectDetail.budget.spent', 'Spent'), canSeeActuals ? formatAmount(selectedCategory.spent) : '—', actualSource],
-              [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, vendor-invoiced, and paid procurement totals in the project currency.')],
+              [t('projectDetail.budget.committed', 'Committed'), canSeeCommitments ? formatAmount(selectedCategory.committed) : '—', t('projectDetail.budget.committedSource', 'Source: ordered, received, supplier-invoiced and paid procurement totals in the project currency, including those with no budget category.')],
               [t('projectDetail.budget.left', 'Left'), formatAmount(selectedCategory.left), t('projectDetail.budget.leftFormula', 'Calculated as budget minus spent and committed.')],
-              [t('projectDetail.budget.costToFinish', 'Cost to finish'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
-              [t('projectDetail.budget.forecastFinal', 'Forecast final'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.'), t('projectDetail.budget.forecastOnlyFigure', 'Available in Forecast by fiscal year.')],
             ].map(([label, value, source]) => <div key={label}><dt className="text-muted-foreground">{label}</dt><dd className="mt-1 font-semibold tabular-nums"><Tooltip content={source}><span tabIndex={0}>{value}</span></Tooltip></dd></div>)}
           </dl>
+          {/* C4: cost to finish and forecast final are per fiscal year, so they live in Forecast — pointed to, not printed as placeholders. */}
+          <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+            {t('projectDetail.budget.forecastPointer', 'Cost to finish and forecast final are set per fiscal year in Forecast.')}
+            {hasActiveErpBinding && activeVersion && <Button variant="ghost" size="sm" onClick={() => setBudgetView('forecast')}>{t('projectDetail.budget.openForecast', 'Open Forecast')}</Button>}
+          </p>
           {selectedCategory.used !== null && <div><Tooltip content={t('projectDetail.budget.utilizationFormula', 'Calculated as (spent + committed) divided by budget.')}><span tabIndex={0} className="text-sm font-medium">{t('projectDetail.budget.percentUsed', '% used')}</span></Tooltip><ProgressBar value={Math.round(selectedCategory.used)} showValue aria-label={t('projectDetail.budget.percentUsedFor', '{{category}} percent used', { category: budgetCategoryLabel(selectedCategory.category, t) })} /></div>}
           <section aria-labelledby="budget-records-heading" className="space-y-2">
             <h2 id="budget-records-heading" className="text-sm font-semibold">{t('projectDetail.budget.recordsBehindSpending', 'Records behind the spending')}</h2>

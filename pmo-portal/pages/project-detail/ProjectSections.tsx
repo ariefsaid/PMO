@@ -55,9 +55,11 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
     : [];
   const showDeliveryAttention = lens === 'delivery'
     && (attention.isPending || Boolean(attention.error) || visibleDeliveryAttention.length > 0);
-  const curve = !isPipeline && lens !== 'delivery'
+  // F8: the curve is gated on data only (ProjectSCurve draws nothing without dated phases), never on role.
+  const curve = !isPipeline
     ? <React.Suspense fallback={<div className="h-72" />}><ProjectSCurve projectId={project.id} /></React.Suspense>
     : null;
+  const canSeeMoney = may('view', 'salesInvoice');
   if (isPipeline) {
     if (lens === 'delivery') {
       return (
@@ -88,19 +90,18 @@ const OverviewContent: React.FC<{ project: ProjectWithRefs; isPipeline: boolean;
             <ProjectAttention {...attentionProps} />
           </section>}
         </div>
-        <DeliveryBlock projectId={project.id} />
+        <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
       </div>
     ) : (
       <div className="flex min-w-0 flex-col gap-10">
-        <div className="grid min-w-0 items-start gap-8 border-y border-border/70 py-4 xl:grid-cols-2">
-          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} />
-          {may('view', 'salesInvoice') && <MoneyBlock project={project} />}
+        {/* Phone reads attention → money → budget; at xl the money block spans both rows of the right column,
+            so the budget fills the space under the (usually short) attention list instead of leaving it empty. */}
+        <div className={`grid min-w-0 items-start gap-x-10 gap-y-10 ${canSeeMoney ? 'xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]' : 'xl:grid-cols-2'}`}>
+          <ProjectAttention items={attention.items} isPending={attention.isPending} error={attention.error} className="min-w-0 xl:col-start-1 xl:row-start-1" />
+          {canSeeMoney && <div className="min-w-0 xl:col-start-2 xl:row-span-2 xl:row-start-1"><MoneyBlock project={project} /></div>}
+          <div className={`min-w-0 ${canSeeMoney ? 'xl:col-start-1 xl:row-start-2' : ''}`}><CostBlock project={project} onOpenBudget={() => onOpen('budget')} /></div>
         </div>
-        <div className="grid min-w-0 items-start gap-10 xl:grid-cols-2">
-          <CostBlock project={project} onOpenBudget={() => onOpen('budget')} />
-          {curve}
-        </div>
-        <DeliveryBlock projectId={project.id} />
+        <DeliveryBlock projectId={project.id}>{curve}</DeliveryBlock>
       </div>
     )
   );
@@ -122,7 +123,8 @@ const AreaContent: React.FC<{ project: ProjectWithRefs; area: Exclude<Area, 'ove
               projectManagerId={project.project_manager_id ?? null} mode="contract-tools" />
             <WorkOrdersTab projectId={project.id} currency={project.currency} clientId={project.client_id ?? null}
               focusWorkOrderId={new URLSearchParams(window.location.search).get('wo')}
-              projectManagerId={project.project_manager_id ?? null} showSettlementNote={false} />
+              projectManagerId={project.project_manager_id ?? null} showSettlementNote={false}
+              projectName={project.name} projectStatus={project.status} />
           </div>
         </ContractCascade>
       );
@@ -173,7 +175,8 @@ const ProjectSections: React.FC<Props> = ({ project, area, setArea, isPipeline, 
         ariaLabel={t('projectDetail.tabs.ariaLabel', 'Project sections')}
         idBase="project-detail"
         // Tabs scrolls the active item with inline:nearest; this margin keeps its label clear of the right fade.
-        className="mb-0! max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
+        // The end padding lets the last tab scroll fully clear of the right fade, so no label is ever clipped (P5).
+        className="mb-0! pr-8 max-md:[&_[role=tab][aria-selected=true]]:scroll-mr-7"
       />
       <div role="tabpanel" id={tabPanelId('project-detail', panel)} aria-labelledby={tabId('project-detail', panel)} className="pt-8">
         <Suspended>

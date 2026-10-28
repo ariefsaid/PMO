@@ -484,6 +484,10 @@ describe('contract billing block', () => {
 
     renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
     expect(screen.getByRole('heading', { name: 'Money position' })).toBeInTheDocument();
+    // L5: one answer leads, biggest — the invoiced share of the contract — and the cascade follows as a compact strip.
+    expect(screen.getByText('25% invoiced')).toHaveClass('text-2xl');
+    expect(screen.getByText('20% paid')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Delivered is 40% of contract' })).toBeInTheDocument();
     expect(screen.getByText('1,000')).toBeInTheDocument();
     expect(screen.getByText('500')).toBeInTheDocument();
     expect(screen.getByText('400')).toBeInTheDocument();
@@ -552,10 +556,105 @@ describe('contract billing block', () => {
     );
     expect(screen.getByText('Money position')).toBeInTheDocument();
     expect(screen.getByText('Match payments')).toHaveAttribute('href', '/incoming-payments');
-    expect(screen.getByText('Cash received', { exact: true })).toBeInTheDocument();
+    // C4: an unknown cash figure is left out (no label with a placeholder value); the reason is said once.
+    expect(screen.queryByText('Cash received', { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unavailable|Not available/)).not.toBeInTheDocument();
     expect(screen.queryByText('Received', { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByText('Outstanding', { exact: true })).not.toBeInTheDocument();
     expect(screen.getByText('Receipt-backed cash is not available yet.')).toBeInTheDocument();
+  });
+});
+
+describe('overview restructure rulings (L5/L6/L10/C4/L12)', () => {
+  it('L6/C4: Money position keeps each figure once — no spent-vs-budget pair, no placeholder margin — and says why margin is left out', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '100' }])];
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '250', settled: '200', outstanding: '50', missing_outstanding: 0, work_revenue: '230', tax_basis: 'exclusive' }],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '200' }] },
+      actuals: { currency: 'USD', total: null, as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: false, amount: null }] },
+    };
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    const money = screen.getByRole('region', { name: /Money position/ });
+    expect(within(money).queryByText('Spent vs budget')).not.toBeInTheDocument();
+    expect(within(money).queryByText('Gross margin')).not.toBeInTheDocument();
+    expect(within(money).queryByText(/Unavailable/)).not.toBeInTheDocument();
+    expect(within(money).getAllByText(/Gross margin is left out/)).toHaveLength(1);
+    expect(within(money).getByText('Cash received')).toBeInTheDocument();
+  });
+
+  it('L6: shows a known gross margin in whole units with no .00', () => {
+    state.role = 'Admin';
+    state.invoices = [{ ...invoice(), currency: 'USD', amount: 250, erp_outstanding_amount: 50 }];
+    state.finances = {
+      contract_invoiced: '250', remaining_to_invoice: '750',
+      invoices: [{ currency: 'USD', invoice_count: 1, invoiced: '250', settled: '200', outstanding: '50', missing_outstanding: 0, work_revenue: '1230.00', tax_basis: 'exclusive' }],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '200' }] },
+      actuals: { currency: 'USD', total: '1000.00', as_of: null, excludes_restricted_rows: false, categories: [{ category: 'Labor', mapped: true, amount: '1000.00' }] },
+    };
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    const money = screen.getByRole('region', { name: /Money position/ });
+    expect(within(money).getByText('Gross margin')).toBeInTheDocument();
+    expect(within(money).getByText('230')).toBeInTheDocument();
+    expect(within(money).queryByText(/\.00/)).not.toBeInTheDocument();
+  });
+
+  it('C4: Money position names why cash received is left out — incomplete allocation or an unverified reading', () => {
+    state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
+      cash_received: { state: 'incomplete', buckets: [], receipt_count: 1, reasons: ['allocation-unreported'] } };
+    const first = renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText(/Cash received is left out until every receipt is allocated to an invoice\./)).toBeInTheDocument();
+    first.unmount();
+    state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
+      cash_received: { state: 'unavailable', buckets: [], reason: 'invalid-reading' } };
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText(/Cash received is left out because the receipt reading couldn't be verified\./)).toBeInTheDocument();
+  });
+
+  it('AC-UWC-009: Money position shows known cash received — a known zero stays 0, and only the project-currency bucket counts', () => {
+    state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
+      cash_received: { state: 'known', buckets: [], receipt_count: 0 } };
+    const first = renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('Cash received', { exact: true }).parentElement!).toHaveTextContent(/Cash received\s*0$/);
+    first.unmount();
+    state.finances = { contract_invoiced: '100', remaining_to_invoice: '900', invoices: [],
+      cash_received: { state: 'known', buckets: [{ currency: 'USD', amount: '30.00' }, { currency: 'IDR', amount: '7.00' }], receipt_count: 2 } };
+    renderWithQueryClient(<MemoryRouter><MoneyBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('Cash received', { exact: true }).parentElement!).toHaveTextContent(/Cash received\s*30$/);
+  });
+
+  it('L10: the phase timeline lists phases only, marks an overdue phase, and links to Tasks › Timeline instead of embedding the Gantt', () => {
+    state.milestones = [
+      { id: 'phase-1', project_id: 'p1', name: 'Design', sort_order: 1, target_date: '2000-01-15', weight: 1, input_pct: null, task_count: 2, calculated_pct: 50, effective_pct: 50 },
+      { id: 'phase-2', project_id: 'p1', name: 'Build', sort_order: 2, target_date: '2999-06-01', weight: 3, input_pct: null, task_count: 0, calculated_pct: 0, effective_pct: 0 },
+    ];
+    state.tasks = [
+      { id: 't1', name: 'Survey the site in detail', status: 'Done', milestone_id: 'phase-1', start_date: '2000-01-01', end_date: '2000-01-05', dependencies: [] },
+      { id: 't2', name: 'Draw the plans', status: 'In Progress', milestone_id: 'phase-1', start_date: '2000-01-06', end_date: '2000-01-10', dependencies: [] },
+    ];
+    renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter></ToastProvider>);
+    const block = screen.getByRole('region', { name: 'Phase timeline' });
+    expect(within(block).queryByText('Survey the site in detail')).not.toBeInTheDocument();
+    expect(within(block).queryByText(/larger screen/i)).not.toBeInTheDocument();
+    expect(within(block).getByRole('link', { name: 'Open timeline' })).toHaveAttribute('href', '/projects/p1/tasks?view=timeline');
+    expect(within(block).getByRole('progressbar', { name: 'Design 50% complete' })).toBeInTheDocument();
+    expect(within(block).getByText(/Overdue/)).toBeInTheDocument();
+    expect(within(block).getByText('25% of project')).toBeInTheDocument();
+  });
+
+  it('L12: Budget vs actual counts committed spend from the same calculation as the Budget tab, Uncategorized included', () => {
+    state.role = 'Admin';
+    state.versions = [budgetVersion([{ category: 'Labor', budgeted_amount: '1000' }])];
+    state.finances = actuals([{ category: 'Labor', mapped: true, amount: '100' }]);
+    state.procurements = [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 300, total_value: 300, currency: 'USD' },
+      { status: 'Vendor Invoiced', budget_category: null, approved_total_value: null, total_value: 62, currency: 'USD' },
+      { status: 'Approved', budget_category: 'Labor', approved_total_value: 999, total_value: 999, currency: 'USD' },
+    ];
+    renderWithQueryClient(<MemoryRouter><CostBlock project={project()} /></MemoryRouter>);
+    expect(screen.getByText('Plus 362 committed in purchase orders')).toBeInTheDocument();
   });
 });
 
@@ -582,7 +681,8 @@ describe('project phase and budget feature floor', () => {
 
     renderWithQueryClient(<ToastProvider><MemoryRouter><DeliveryBlock projectId="p1" /></MemoryRouter></ToastProvider>);
 
-    expect(await screen.findByTestId('phase-read-details')).toHaveTextContent('Current phase: Design');
+    expect(await screen.findByTestId('phase-read-details')).toHaveTextContent('Current phase');
+    expect(screen.getByRole('region', { name: 'Phase timeline' })).toHaveTextContent('Design');
     expect(screen.getByText('1 of 2 tasks')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Approve drawings' })).toHaveAttribute('href', '/projects/p1/tasks?open=blocked-1');
     expect(screen.queryByRole('button', { name: 'Update phases' })).not.toBeInTheDocument();

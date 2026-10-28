@@ -18,6 +18,7 @@ const seed = [
 
 const projectsState = { data: seed, isPending: false, isError: false, refetch: vi.fn() };
 const committedSpendState = { data: 2_350_000 };
+const projectProcurementsState = { data: [] as unknown[] };
 // The by-id opportunity read (the fallback for a record outside the active cache) — mutable so a test
 // can fail it independently of the list read.
 const oppState = { data: undefined as unknown, isPending: false, isError: false, refetch: vi.fn() };
@@ -89,7 +90,7 @@ vi.mock('@/src/hooks/useProgressBilling', () => ({
 }));
 vi.mock('@/src/hooks/useProcurements', () => ({
   useProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
-  useProjectProcurements: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
+  useProjectProcurements: () => ({ data: projectProcurementsState.data, isPending: false, isError: false, refetch: vi.fn() }),
   useProjectCommittedSpend: (...args: unknown[]) => committedSpendHook(...args),
 }));
 vi.mock('@/src/hooks/useProjectTransitions', () => ({
@@ -180,6 +181,7 @@ describe('ProjectDetail shell (decomposition)', () => {
     oppState.isError = false;
     oppState.refetch.mockReset();
     committedSpendState.data = 2_350_000;
+    projectProcurementsState.data = [];
     committedSpendHook.mockReset();
     committedSpendHook.mockImplementation(() => ({ data: committedSpendState.data, isPending: false, isError: false, commitmentSource: 'pmo', ledgerBasis: 'erp', refetch: vi.fn() }));
     budgetVersionsBox.value = [];
@@ -243,6 +245,11 @@ describe('ProjectDetail shell (decomposition)', () => {
 
   it('keeps complete Actual separate from PMO purchase commitments in Budget vs actual', async () => {
     committedSpendState.data = 2_350_000;
+    // L12: the committed figure is the Budget tab's category-row total (Ordered…Paid procurements, Uncategorized included).
+    projectProcurementsState.data = [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 2_000_000, total_value: 2_000_000, currency: 'USD' },
+      { status: 'Paid', budget_category: null, approved_total_value: null, total_value: 350_000, currency: 'USD' },
+    ];
     budgetVersionsBox.value = [{ id: 'bv1', status: 'Active', total: 4_700_000,
       line_items: [{ id: 'li1', category: 'Labor', budgeted_amount: 4_700_000 }] }];
     await renderAt('/projects/p1');

@@ -11,7 +11,7 @@
   "billedWorkQualifier": "Tanpa pajak; tidak termasuk uang muka",
   "projectFinances": {
     "contractAfterCostSource": "Nilai kontrak dikurangi Aktual tercatat yang dapat dibandingkan.",
-    "actualSourceErp": "Tercatat dari sistem akuntansi"
+    "contractAfterCostPending": "Ditampilkan setelah pengeluaran tercatat lengkap."
   },
   "uxs01": {
     "actual": "Aktual"
@@ -373,7 +373,6 @@
       "positionTitle": "Posisi keuangan",
       "details": "Detail",
       "error": "Posisi keuangan tidak dapat dimuat",
-      "unavailable": "Tidak tersedia",
       "contract": "Kontrak",
       "contractSourceBoq": "Jumlah kuantitas kontrak dikalikan harga satuan dari daftar kuantitas proyek.",
       "contractSourceRecord": "Nilai kontrak yang disetujui pada catatan proyek.",
@@ -385,27 +384,30 @@
       "invoicedSource": "Jumlah faktur dalam mata uang proyek yang bukan draf atau dibatalkan.",
       "paid": "Dibayar",
       "paidSource": "Jumlah faktur dikurangi saldo terutang menurut akuntansi; ini adalah pelunasan faktur, bukan kas yang diterima.",
-      "marginDifferentCurrency": "Pengeluaran aktual dan pekerjaan tertagih menggunakan mata uang berbeda.",
-      "marginWorkUnavailable": "Pendapatan pekerjaan tertagih belum lengkap.",
-      "marginRestricted": "Pengeluaran aktual tidak mencakup baris yang dibatasi.",
-      "marginActualsUnavailable": "Data pengeluaran aktual lengkap belum tersedia.",
       "marginSource": "Pendapatan pekerjaan tertagih dikurangi pengeluaran tercatat yang lengkap dalam mata uang yang sama.",
       "stageAria": "{{label}} sebesar {{percent}}% dari kontrak",
       "noBoq": "Nilai pesanan dan pengiriman tidak dilacak sebelum proyek memiliki daftar kuantitas.",
       "invoiceError": "Pelunasan faktur tidak dapat dimuat.",
       "cashUnavailable": "Kas berdasarkan penerimaan belum tersedia.",
       "matchPayments": "Cocokkan pembayaran",
-      "spentBudget": "Pengeluaran vs anggaran",
-      "noActiveBudget": "Tidak ada anggaran aktif",
-      "spentSourceUnknown": "Pengeluaran aktual memerlukan data kategori terpetakan yang lengkap; anggaran berasal dari anggaran proyek yang aktif.",
-      "spent": "Terpakai",
-      "budget": "Anggaran",
-      "spentSource": "Pengeluaran aktual terpetakan yang lengkap dibandingkan dengan anggaran proyek aktif.",
-      "budgetUse": "Penggunaan anggaran {{percent}}%",
       "grossMargin": "Margin kotor",
       "cashReceived": "Kas diterima",
       "cashSource": "Kas penerimaan yang dialokasikan ke faktur proyek ini; terpisah dari pelunasan faktur.",
-      "paidNotReceived": "{{amount}} sudah lunas di akuntansi tetapi belum ada penerimaan yang dicocokkan."
+      "paidNotReceived": "{{amount}} sudah lunas di akuntansi tetapi belum ada penerimaan yang dicocokkan.",
+      "marginOutCurrency": "Margin kotor tidak ditampilkan karena pengeluaran dan pekerjaan yang ditagih memakai mata uang berbeda.",
+      "marginOutWork": "Margin kotor tidak ditampilkan sampai pendapatan pekerjaan yang ditagih lengkap.",
+      "marginOutRestricted": "Margin kotor tidak ditampilkan karena pengeluaran tidak mencakup baris yang dibatasi.",
+      "marginOutActuals": "Margin kotor tidak ditampilkan sampai pengeluaran tertaut untuk setiap kategori anggaran.",
+      "marginOutNoInvoices": "Margin kotor mulai dihitung sejak faktur pertama dalam mata uang proyek.",
+      "leadTooltip": "Jumlah yang sudah difakturkan sebagai porsi dari kontrak. Sumber: faktur yang bukan draf dan tidak dibatalkan dalam mata uang proyek.",
+      "leadInvoiced": "{{percent}}% difakturkan",
+      "leadPaid": "{{percent}}% dibayar",
+      "cascadeLabel": "Kontrak hingga pembayaran",
+      "invoicesChecking": "Memeriksa faktur…",
+      "invoicedOut": "Nilai difakturkan tidak ditampilkan sampai setiap jumlah faktur diketahui.",
+      "paidOut": "Nilai dibayar tidak ditampilkan sampai setiap saldo faktur diketahui.",
+      "cashIncomplete": "Kas diterima tidak ditampilkan sampai setiap penerimaan dialokasikan ke faktur.",
+      "cashInvalid": "Kas diterima tidak ditampilkan karena data penerimaan tidak dapat diverifikasi."
     },
     "cost": {
       "estimateTitle": "Anggaran",
@@ -430,18 +432,18 @@
       "spendingUnlinked": "Pengeluaran belum ditautkan.",
       "finishSetup": "Selesaikan penyiapan pengeluaran",
       "askAdmin": "Administrator dapat menyelesaikan penyiapan.",
-      "committedTooltip": "Jumlah pesanan pembelian proyek dengan status komitmen yang ditampilkan di Pengadaan.",
+      "committedTooltip": "Pengadaan yang dipesan, diterima, difakturkan pemasok, dan dibayar dalam mata uang proyek, termasuk yang tanpa kategori anggaran; total yang sama dengan tab Anggaran.",
       "committed": "Ditambah {{amount}} yang terikat dalam pesanan pembelian",
       "categoryTooltip": "Anggaran aktif dan pengeluaran aktual terpetakan untuk kategori ini. Sumber: anggaran aktif dan catatan keuangan proyek.",
       "openCategory": "Buka {{category}} di Anggaran",
-      "rowUnavailable": "Pengeluaran aktual tidak tersedia · anggaran {{budget}}",
       "rowSpent": "{{spent}} dari {{budget}}",
       "categoryNoBudget": "Ada pengeluaran untuk {{category}} tanpa anggaran",
       "categoryUse": "{{category}} menggunakan {{percent}}% anggaran",
       "snapshotUse": "{{percent}}% terpakai",
       "snapshotRemaining": "tersisa {{amount}}",
       "snapshotOver": "{{amount}} melebihi anggaran",
-      "atRisk": "Berisiko"
+      "atRisk": "Berisiko",
+      "rowBudgetOnly": "{{budget}} dianggarkan"
     },
     "milestones": {
       "currentPhaseLabel": "Fase saat ini",
@@ -455,16 +457,19 @@
       "manage": "Perbarui tahapan",
       "error": "Linimasa tahapan tidak dapat dimuat",
       "empty": "Belum ada tahapan. Tambahkan tahapan untuk melacak progres pelaksanaan.",
-      "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek dan progres tugas yang ditautkan.",
-      "pct": "{{pct}}% terlaksana",
-      "openTaskAction": "Buka tugas"
+      "openTimeline": "Buka linimasa",
+      "phasesDone": "{{done}} dari {{total}} tahap selesai",
+      "currentTooltip": "Tahap pertama dalam urutan rencana yang belum selesai. Sumber: rencana tahap proyek dan progres tugas yang tertaut.",
+      "allPhasesDone": "Semua tahap selesai",
+      "phaseOverdue": "Terlambat {{count}} hari · target {{date}}",
+      "phaseTarget": "Target {{date}}",
+      "phaseProgressTooltip": "Progres tahap manual bila diisi; jika tidak, tugas tahap yang selesai dibagi jumlah tugas tahap. Sumber: rencana tahap proyek.",
+      "phaseProgressAria": "{{name}} {{pct}}% selesai"
     },
     "facts": {
       "noDates": "Tanggal belum diatur",
       "ariaLabel": "Informasi proyek",
       "projectManager": "Manajer proyek: {{name}}",
-      "contractTooltip": "Nilai kontrak yang disetujui pada catatan proyek; sumber: nilai kontrak proyek dan mata uang yang tercantum.",
-      "contract": "Kontrak",
       "progressTooltip": "Rata-rata tertimbang penyelesaian tahapan berdasarkan bobot tiap tahap; sumber: rencana tahapan proyek.",
       "progress": "Progres",
       "progressAria": "Progres proyek {{percent}}%",
@@ -543,8 +548,7 @@
         "uncategorized": "Tanpa kategori"
       },
       "owner": {
-        "you": "Anda",
-        "unavailable": "Nama tidak tersedia"
+        "you": "Anda"
       },
       "selectDocument": "Pilih {{title}}",
       "source": {
@@ -743,8 +747,7 @@
         "figuresIncomplete": "Angka faktur belum lengkap.",
         "retryFigures": "Coba lagi memuat angka faktur",
         "orderlessHeading": "Faktur tanpa pesanan pelanggan",
-        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur.",
-        "orderlessScroll": "Tabel faktur tanpa pesanan pelanggan"
+        "orderlessFiguresIncomplete": "Jumlah yang sudah dan belum dibayar akan muncul setelah sistem akuntansi melaporkan saldo faktur."
       },
       "delivery": {
         "chooseOrder": "Pilih pesanan pelanggan yang menerima pengiriman ini."

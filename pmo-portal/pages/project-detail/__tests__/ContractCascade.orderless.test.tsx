@@ -91,8 +91,10 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     h.invoices = { data: [{ id: 'si-overdue', work_order_id: 'wo-1', status: 'Unpaid', amount: 500, erp_outstanding_amount: 300, erp_due_date: '2020-01-01', si_number: 'INV-OVERDUE' }], isPending: false, isError: false, refetch: vi.fn() };
     renderCascade();
 
-    expect(screen.getByText('IDR 200')).toBeInTheDocument();
-    expect(screen.getByText('IDR 300')).toBeInTheDocument();
+    // C6: the currency is named once in the Contract heading; callout figures are bare numbers.
+    expect(screen.getByText('Can invoice').parentElement).toHaveTextContent(/^Can invoice200$/);
+    expect(screen.getByText('300').parentElement).toHaveTextContent(/^Overdue300$/);
+    expect(screen.queryByText(/^IDR \d/)).not.toBeInTheDocument();
     expect(screen.getByText('Can invoice')).toBeInTheDocument();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
   });
@@ -128,5 +130,15 @@ describe('ContractCascade orderless invoices (AC-1402)', () => {
     expect(screen.getByTestId('drawdown-ceiling')).toHaveTextContent('500,000');
     expect(screen.getByTestId('drawdown-committed')).toHaveTextContent('200,000');
     expect(screen.getByTestId('drawdown-draft')).toHaveTextContent('50,000');
+  });
+
+  it('L6: the not-yet-ordered value is shown once; the drawdown toggle carries no second copy of it', () => {
+    h.boq = { data: [{ id: 'b1', quantity: 10, rate: 100, item_code: 'L-1', description: 'Line', unit: 'ea' }], isPending: false, isError: false, refetch: vi.fn() };
+    h.billing = { data: { contractNet: 1_000, dpBilled: 0, dpRecovered: 0, contractLines: [{ boqItemId: 'b1', contractBalance: 6, allocations: [{ boqItemId: 'b1', workOrderId: 'wo-1', quantity: 4, acceptedQuantity: 4, claimedQuantity: 2 }] }] }, isPending: false, isError: false, refetch: vi.fn() };
+    h.orderBilling = { data: [{ status: 'Issued', orderNet: 400, lineCount: 1, figuresComplete: true, remaining: 0 }], isPending: false, isError: false, refetch: vi.fn() };
+    renderCascade();
+    const section = screen.getByRole('heading', { name: 'Contract' }).closest('section')!;
+    expect(within(section).getAllByText('600')).toHaveLength(1);
+    expect(within(section).getByRole('button', { name: 'Drawdown headroom' })).toBeInTheDocument();
   });
 });

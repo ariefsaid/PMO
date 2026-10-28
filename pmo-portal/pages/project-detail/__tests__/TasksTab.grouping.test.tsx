@@ -1,6 +1,7 @@
 /**
  * AC-DEL-010 — Tasks tab groups tasks under their milestone; ungrouped tasks appear last.
- * AC-1402 — each phase keeps its own DataTable, progress, dates and collapsed Done rows.
+ * AC-1402 — each phase keeps its progress, dates and collapsed Done rows.
+ * B7 — phases share ONE task table (one column header); each phase is a heading row inside it.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
@@ -64,6 +65,16 @@ vi.mock('@/src/components/history/RecordHistory', () => ({ RecordHistory: () => 
 
 import TasksTab from '../tabs/TasksTab';
 
+/** A phase's heading row and the text of every row up to the next phase heading. */
+function phase(name: RegExp) {
+  const rows = within(screen.getByRole('table', { name: 'Project tasks' })).getAllByRole('row');
+  const start = rows.findIndex((row) => within(row).queryByRole('rowheader', { name }));
+  if (start === -1) throw new Error(`No phase heading ${name}`);
+  const next = rows.findIndex((row, index) => index > start && within(row).queryByRole('rowheader'));
+  const own = rows.slice(start, next === -1 ? undefined : next);
+  return { heading: rows[start], text: own.map((row) => row.textContent).join(' | ') };
+}
+
 const render$ = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -105,18 +116,41 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     render$();
 
     // Engineering design group
-    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
-    expect(within(m1Section).getByText('Detail drawings')).toBeInTheDocument();
-    expect(within(m1Section).getByText('Site survey')).toBeInTheDocument();
-    expect(within(m1Section).queryByText('Buy steel')).toBeNull();
+    const phaseOne = phase(/Engineering design/i);
+    expect(phaseOne.text).toContain('Detail drawings');
+    expect(phaseOne.text).toContain('Site survey');
+    expect(phaseOne.text).not.toContain('Buy steel');
 
     // Procurement group
-    const m2Section = screen.getByRole('region', { name: /Procurement/i });
-    expect(within(m2Section).getByText('Buy steel')).toBeInTheDocument();
+    expect(phase(/Procurement/i).text).toContain('Buy steel');
 
-    // Ungrouped section
-    const ungroupedSection = screen.getByRole('region', { name: /ungrouped/i });
-    expect(within(ungroupedSection).getByText('Admin task')).toBeInTheDocument();
+    // Ungrouped group, last
+    const ungrouped = phase(/ungrouped/i);
+    expect(ungrouped.text).toContain('Admin task');
+    const headings = within(screen.getByRole('table', { name: 'Project tasks' })).getAllByRole('rowheader');
+    expect(headings[headings.length - 1]).toBe(within(ungrouped.heading).getByRole('rowheader'));
+  });
+
+  it('B7: every phase shares one task table with one column header, keeping phase meta, overdue days and Add task', () => {
+    milestoneState.data = [
+      { id: 'm1', project_id: 'p1', name: 'Engineering design', sort_order: 0, target_date: '2026-06-01', weight: 1, input_pct: null, task_count: 1, calculated_pct: 50, effective_pct: 50 },
+      { id: 'm2', project_id: 'p1', name: 'Commissioning', sort_order: 1, target_date: null, weight: 1, input_pct: null, task_count: 0, calculated_pct: 0, effective_pct: 0 },
+    ];
+    tasksState.data = [
+      { id: 't1', project_id: 'p1', milestone_id: 'm1', name: 'Detail drawings', status: 'To Do', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+      { id: 't2', project_id: 'p1', milestone_id: null, name: 'Admin task', status: 'To Do', assignee_id: null, start_date: null, end_date: null, created_at: '', assignee: null, dependencies: [] },
+    ];
+    render$();
+
+    expect(screen.getAllByRole('table')).toHaveLength(1);
+    expect(screen.getAllByRole('columnheader', { name: /^Task/ })).toHaveLength(1);
+    const late = phase(/Engineering design/i);
+    expect(late.text).toContain('21d late');
+    expect(within(late.heading).getByText('21d late')).toHaveClass('text-destructive-text');
+    // A phase with no tasks still appears in the table, with its empty note and its own Add task.
+    const empty = phase(/Commissioning/i);
+    expect(empty.text).toContain('No tasks in this phase yet.');
+    expect(within(empty.heading).getByRole('button', { name: /Add task/ })).toBeInTheDocument();
   });
 
   it('AC-1402: a phase row shows its target date and server-derived progress', () => {
@@ -131,10 +165,10 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     ];
     render$();
 
-    const m1Section = screen.getByRole('region', { name: /Engineering design/i });
-    expect(within(m1Section).getByText(/Engineering design/i)).toBeInTheDocument();
-    expect(within(m1Section).getByText(/Target Aug 15, 2026/)).toBeInTheDocument();
-    expect(within(m1Section).getByText('50%')).toBeInTheDocument();
+    const phaseOne = phase(/Engineering design/i);
+    expect(phaseOne.text).toContain('Task A');
+    expect(within(phaseOne.heading).getByText(/Target Aug 15, 2026/)).toBeInTheDocument();
+    expect(within(phaseOne.heading).getByText('50%')).toBeInTheDocument();
   });
 
   it('sorts open phases first and folds Done tasks within each completed phase', async () => {
@@ -157,8 +191,8 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     ];
     render$();
 
-    const activeSection = screen.getByRole('region', { name: /Active phase/i });
-    const completedSection = screen.getByRole('region', { name: /Completed phase/i });
+    const activeSection = phase(/Active phase/i).heading;
+    const completedSection = phase(/Completed phase/i).heading;
     expect(screen.queryByText('Done task one')).not.toBeInTheDocument();
     expect(screen.queryByText('Done task two')).not.toBeInTheDocument();
     expect(screen.getByText('Sooner due').compareDocumentPosition(screen.getByText('Later due')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -192,7 +226,7 @@ describe('TasksTab grouping (AC-DEL-010)', () => {
     expect(screen.getByText('Completed task')).toBeInTheDocument();
   });
 
-  it('AC-1402 shares selected task ids across phase tables for bulk actions', async () => {
+  it('AC-1402 shares selected task ids across phases for bulk actions', async () => {
     milestoneState.data = [
       { id: 'm1', project_id: 'p1', name: 'Phase one', sort_order: 0, target_date: null, weight: 1, input_pct: null, task_count: 1, calculated_pct: 0, effective_pct: 0 },
       { id: 'm2', project_id: 'p1', name: 'Phase two', sort_order: 1, target_date: null, weight: 1, input_pct: null, task_count: 1, calculated_pct: 0, effective_pct: 0 },

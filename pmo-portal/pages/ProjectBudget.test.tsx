@@ -373,7 +373,9 @@ describe('ProjectBudget T5 DataTable adoption', () => {
     versionsState.data = [{ ...activeVersion, total: 1234.5, line_items: [priced(1234.5)] }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    // C5: no .00, and still the full amount — fraction included — never the short $1.2K form, in a table.
     expect(within(table).getAllByText(/1,234\.5/).length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/1\.2K/)).not.toBeInTheDocument();
     expect(screen.getAllByTestId('dt-table-branch').length).toBeGreaterThan(0);
   });
 

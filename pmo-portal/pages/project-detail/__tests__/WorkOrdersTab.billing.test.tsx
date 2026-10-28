@@ -143,10 +143,14 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     const order = screen.getByTestId('customer-order-wo-1');
     expect(within(order).getByText('Partly invoiced')).toBeInTheDocument();
-    const stillToInvoice = within(order).getByText('Still to invoice $80,000');
+    // C6/L6: a bare figure under the one currency heading, shown once — the Raise invoice action and a
+    // one-order total no longer repeat it.
+    const stillToInvoice = within(order).getByText('Still to invoice 80,000');
     expect(stillToInvoice).toBeInTheDocument();
-    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000');
-    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$90,000');
+    expect(screen.getAllByText(/80,000/)).toHaveLength(1);
+    expect(within(order).getByRole('button', { name: 'Raise invoice' })).toBeInTheDocument();
+    expect(screen.queryByTestId('wo-billing-total-still')).not.toBeInTheDocument();
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('90,000');
     await userEvent.hover(stillToInvoice);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
@@ -257,7 +261,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getAllByText('330,000')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
-    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000')).toBeInTheDocument();
+    expect(within(screen.getByText('Down payment held').parentElement!).getByText('330,000')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -374,6 +378,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     renderTab();
 
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
+    expect(within(section).getByRole('table', { name: 'Invoices without a customer order' })).toBeInTheDocument();
     const openButtons = within(section).getAllByRole('button', { name: 'Open invoice INV-ORPHAN' });
     expect(openButtons.length).toBeGreaterThan(0);
     expect(within(section).getAllByText('Oct 4, 2026').length).toBeGreaterThan(0);
@@ -432,9 +437,10 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     const section = screen.getByRole('region', { name: 'Invoices without a customer order' });
     expect(within(section).getByText('Paid and unpaid amounts will appear once the accounting system reports an invoice balance.')).toBeInTheDocument();
     expect(within(section).queryByRole('button', { name: 'Retry' })).not.toBeInTheDocument();
-    const card = within(section).getByTestId('invoice-card-si-orphan');
-    expect(within(card).queryByRole('term', { name: 'Paid' })).not.toBeInTheDocument();
-    expect(within(card).queryByRole('term', { name: 'Unpaid' })).not.toBeInTheDocument();
+    // F10: the shared DataTable; an unknown paid/unpaid cell stays empty, never a 0.
+    const row = within(within(section).getByRole('table', { name: 'Invoices without a customer order' })).getByRole('row', { name: /INV-ORPHAN/ });
+    expect(row).not.toHaveTextContent(/\b0\b/);
+    expect(row).toHaveTextContent('12,000');
   });
 
   it('AC-1402 offers Retry for an orderless invoice query error', () => {

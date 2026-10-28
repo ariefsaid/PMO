@@ -4,7 +4,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumberMax2 } from '@/src/lib/format';
 import type { ContractLineFacts } from '@/src/lib/progressBilling';
 
 /**
@@ -58,7 +58,8 @@ vi.mock('@/src/hooks/useDocuments', () => ({ useDocuments: () => ({ data: h.docs
 import BillingTab from '../tabs/BillingTab';
 import WorkOrdersTab from '../tabs/WorkOrdersTab';
 
-const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
+// C5/C6: in-page billing figures are whole and bare; the currency sits once in the summary heading.
+const money = (value: number) => formatNumberMax2(value);
 const boqRow = (id: string, code: string, unit: string, basis: 'unit_rate' | 'lump_sum', quantity: number, rate: number) =>
   ({ id, org_id: 'o', project_id: 'p1', earning_basis: basis, line_no: null, import_key: null, item_code: code, description: `${code} work`, unit, quantity, rate, created_at: '' });
 const lineFacts = (over: Partial<ContractLineFacts> & { boqItemId: string }): ContractLineFacts => ({

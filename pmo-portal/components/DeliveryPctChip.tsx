@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { completionPct } from '@/src/lib/format';
 
 export interface DeliveryPctChipProps {
   /** Delivery % for this project. null → renders nothing (project has no milestones). */
@@ -14,11 +15,12 @@ export interface DeliveryPctChipProps {
 export const DeliveryPctChip: React.FC<DeliveryPctChipProps> = ({ pct }) => {
   const { t } = useTranslation();
   if (pct == null) return null;
-  const rounded = Math.round(pct);
+  const done = pct >= 100;
+  const rounded = completionPct(pct);
   return (
     <span role="img" aria-label={t('dashboard.delivery.percent', 'Delivery {{rounded}}%', { rounded })} className="inline-flex items-center gap-2">
       <span className="h-1.5 w-12 overflow-hidden rounded-full bg-secondary">
-        <span className={`block h-full rounded-full ${rounded >= 100 ? 'bg-success' : 'bg-primary'}`} style={{ width: `${rounded}%` }} />
+        <span className={`block h-full rounded-full ${done ? 'bg-success' : 'bg-primary'}`} style={{ width: `${rounded}%` }} />
       </span>
       <span className="text-[11.5px] font-bold tabular text-foreground">{rounded}%</span>
     </span>

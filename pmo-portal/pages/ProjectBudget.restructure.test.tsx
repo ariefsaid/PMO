@@ -75,6 +75,7 @@ vi.mock('@/src/lib/repositories/budgetProjection', async (importOriginal) => {
 import ProjectBudget from './ProjectBudget';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import type { BudgetVersionWithItems } from '@/src/lib/db/budgets';
+import { buildBudgetSummaryRows, committedTotal } from './project-detail/budget/budgetModel';
 
 const project = {
   id: 'p-1', currency: 'USD', tax_treatment: 'exclusive', tax_rate: null,
@@ -381,5 +382,73 @@ describe('ProjectBudget Option A', () => {
     expect(within(drawer).getByTestId('evidence-v-draft')).toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: 'Compare' }));
     expect(within(drawer).getByRole('table', { name: 'Version comparison' })).toBeInTheDocument();
+  });
+});
+
+describe('ProjectBudget rulings (C4/C5/C6/F11/B1/L12)', () => {
+  const bigActive = () => active([line('li-1', 'Labor', 'Design', 4_500_000)]) as unknown as BudgetVersionWithItems;
+
+  it('F11: summary tiles show short amounts with the full amount kept for hover and screen readers', () => {
+    state.versions.data = [bigActive()];
+    state.position.rows = [{ category: 'Labor', budget: 4_500_000, actual: 1_780_000 }];
+    renderPage();
+    const tiles = screen.getByRole('region', { name: 'Budget figures' });
+    expect(within(tiles).getByText('$4.5M')).toHaveAttribute('title', '$4,500,000');
+    expect(within(tiles).getByText('$4,500,000')).toHaveClass('sr-only');
+  });
+
+  it('C5/C6: table amounts are bare numbers with no trailing .00, under the one currency and tax heading', () => {
+    state.versions.data = [bigActive()];
+    state.position.rows = [{ category: 'Labor', budget: 4_500_000, actual: 1_780_000.4 }];
+    renderPage();
+    const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
+    expect(within(table).getAllByText('4,500,000').length).toBeGreaterThan(0);
+    // A real fraction is money and is kept; a whole amount never grows a .00.
+    expect(within(table).getAllByText('1,780,000.4').length).toBeGreaterThan(0);
+    expect(within(table).queryByText(/\$/)).not.toBeInTheDocument();
+    expect(within(table).queryByText(/\.00$/)).not.toBeInTheDocument();
+    expect(screen.getAllByText(/^USD ·/).length).toBeGreaterThan(0);
+  });
+
+  it('C4: an Uncategorized row with commitments and no budget says Not budgeted, never Unavailable; unknown authors are left out', () => {
+    state.versions.data = [{ ...active(), created_by: 'someone-gone' } as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    state.procurements.data = [{ status: 'Ordered', budget_category: null, approved_total_value: 40, total_value: 40, currency: 'USD' }];
+    renderPage();
+    expect(screen.getByRole('row', { name: /Uncategorized/ })).toHaveTextContent('Not budgeted');
+    expect(screen.queryByText(/Unavailable|unavailable$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Author unavailable/)).not.toBeInTheDocument();
+  });
+
+  it('L12: the Committed tile is the same shared total the Overview shows, Uncategorized included', () => {
+    state.versions.data = [active()] as unknown as BudgetVersionWithItems[];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    const procurements = [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 15, total_value: 15, currency: 'USD' },
+      { status: 'Vendor Invoiced', budget_category: null, approved_total_value: null, total_value: 62, currency: 'USD' },
+    ];
+    state.procurements.data = procurements;
+    const shared = committedTotal(buildBudgetSummaryRows({
+      lines: [{ category: 'Labor', description: null, budgeted_amount: 100 }],
+      actuals: [{ category: 'Labor', budget: 100, actual: 35 }],
+      procurements, canReadProcurements: true, currency: 'USD',
+    }));
+    expect(shared).toBe(77);
+    renderPage();
+    expect(within(screen.getByRole('region', { name: 'Budget figures' })).getByText('$77')).toBeInTheDocument();
+  });
+
+  it('B1/C4: the category drawer has one main action, Open full page and a ⋯ menu, and points to Forecast instead of placeholder figures', async () => {
+    state.versions.data = [active() as unknown as BudgetVersionWithItems];
+    state.position.rows = [{ category: 'Labor', budget: 100, actual: 35 }];
+    renderPage(['/projects/p-1/budget?open=Labor']);
+    const drawer = screen.getByRole('dialog', { name: 'Labor' });
+    expect(within(drawer).getByRole('button', { name: 'Adjust in a draft' })).toBeInTheDocument();
+    expect(within(drawer).getByRole('link', { name: 'Open full page' })).toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Labor actions' }));
+    expect(screen.getByRole('menuitem', { name: 'Export category' })).toBeInTheDocument();
+    expect(within(drawer).queryByText('Available in Forecast by fiscal year.')).not.toBeInTheDocument();
+    await userEvent.click(within(drawer).getByRole('button', { name: 'Open Forecast' }));
+    expect(screen.getByTestId('route-search')).toHaveTextContent('budgetView=forecast');
   });
 });

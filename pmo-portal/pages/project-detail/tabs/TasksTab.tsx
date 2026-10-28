@@ -41,7 +41,7 @@ import { useTasks, useTaskMutations, useAssignableProfiles } from '@/src/hooks/u
 import { useMilestones } from '@/src/hooks/useMilestones';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import { classifyExternalError } from '@/src/lib/adapterSeam/pendingPush';
-import { formatDateOnly } from '@/src/lib/format';
+import { completionPct, formatDateOnly } from '@/src/lib/format';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
 import { routeTaskWrite } from '@/src/lib/adapterSeam/ownershipCache';
 import { IDLE_PENDING_PUSH } from '@/src/lib/adapterSeam/pendingPush';
@@ -554,7 +554,7 @@ const TasksTabA: React.FC<TasksTabProps> = ({ projectId, projectName = '' }) => 
         if (!task.assignee) return <span className="text-muted-foreground">{t('projectDetail.tasks.unassigned', 'Unassigned')}</span>;
         const initials = task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
         return <span className="inline-flex min-w-0 items-center gap-2" title={task.assignee.full_name}>
-          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[9px] font-bold text-foreground">{initials}</span>
+          <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{initials}</span>
           <span className="truncate text-muted-foreground">{task.assignee.full_name}</span>
         </span>;
       },
@@ -941,7 +941,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
             count={col.length}
             emptyMessage={t('projectDetail.tasks.board.noTasks', 'No tasks')}
             totals={<Tooltip content={t('projectDetail.tasks.board.countTooltip', 'Count of current filtered project tasks in this status. Source: the current task list and filters.')}>
-              <span tabIndex={0} aria-label={t('projectDetail.tasks.board.countHelp', 'Explain status count')} className="inline-flex text-muted-foreground"><Icon name="info" className="size-3.5" /></span>
+              <button type="button" aria-label={t('projectDetail.tasks.board.countHelp', 'Explain status count')} className="inline-flex rounded-sm text-muted-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"><Icon name="info" className="size-3.5" /></button>
             </Tooltip>}
           >
             {col.map((task) => <div key={task.id} onClick={() => onActivate(task)} className="min-w-0 cursor-pointer rounded-md border border-border bg-card px-3 py-2.5 hover:border-muted-foreground/35 hover:bg-accent/40">
@@ -956,7 +956,7 @@ const TaskBoard: React.FC<TaskBoardProps> = ({
               </div>
               <div className="mt-2 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                 {task.assignee ? <>
-                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[8px] font-bold text-foreground">{task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
+                  <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-bold text-foreground">{task.assignee.full_name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
                   <span className="truncate">{task.assignee.full_name}</span>
                 </> : t('projectDetail.tasks.unassigned', 'Unassigned')}
                 {task.end_date && <Tooltip content={t('projectDetail.tasks.dueTooltip', 'Due date from the task record. Late days compare the due date with today in the organization timezone.')}>
@@ -1454,84 +1454,93 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
     setExpandedDoneGroups((current) => current.has(groupId) ? current : new Set(current).add(groupId));
   }, [hashTaskId, tasks]);
 
-  const renderTable = (groupId: string, rows: TaskWithRefs[]) => {
-    if (rows.length === 0) return null;
-    const depths = new Map(buildTaskRenderOrder(rows).map((entry) => [entry.task.id, entry.depth]));
-    return <DataTable<TaskWithRefs>
-      rows={rows}
-      columns={buildColumns(depths)}
-      rowKey={(task) => task.id}
-      rowMenu={rowMenu}
-      selection={selection}
-      onActivate={onActivate}
-      rowLabel={(task) => t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })}
-      accessibleName={t('projectDetail.tasks.listAriaLabel', 'Project tasks')}
-      tableId={`project-detail-tasks-${groupId}`}
-      className="!overflow-visible !rounded-none !border-0 !bg-transparent"
-    />;
+  // B7: one task table for every phase (one column header). Each phase is a heading row; its open tasks follow,
+  // then its Done tasks only once that phase's "N done" fold is open.
+  const groupById = useMemo(() => new Map(groups.map((group) => [group.id, group])), [groups]);
+  const rows = useMemo(() => groups.flatMap((group) => [
+    ...group.openTasks,
+    ...(expandedDoneGroups.has(group.id) ? group.doneTasks : []),
+  ]), [expandedDoneGroups, groups]);
+  const columns = useMemo(() => buildColumns(new Map(groups.flatMap((group) =>
+    buildTaskRenderOrder(group.tasks).map((entry) => [entry.task.id, entry.depth] as const)))), [buildColumns, groups]);
+  const groupOrder = useMemo(() => groups.map((group) => group.id), [groups]);
+  const toggleDone = (groupId: string) => setExpandedDoneGroups((current) => {
+    const next = new Set(current);
+    if (next.has(groupId)) next.delete(groupId);
+    else next.add(groupId);
+    return next;
+  });
+
+  const groupMeta = (groupId: string) => {
+    const group = groupById.get(groupId);
+    if (!group) return null;
+    const expanded = expandedDoneGroups.has(group.id);
+    const phaseTasks = sourceByMilestone.get(group.milestone?.id ?? null) ?? [];
+    const hasTasksOutsideFilters = group.tasks.length === 0 && phaseTasks.length > 0;
+    const starts = phaseTasks.map((task) => task.start_date).filter((date): date is string => Boolean(date)).sort();
+    const ends = phaseTasks.map((task) => task.end_date).filter((date): date is string => Boolean(date)).sort();
+    const dateRange = starts.length || ends.length
+      ? `${starts.length ? formatDateOnly(starts[0]) : '—'} – ${ends.length ? formatDateOnly(ends[ends.length - 1]) : '—'}`
+      : null;
+    const lateDays = group.milestone?.target_date && group.milestone.target_date < today && group.milestone.effective_pct < 100
+      ? daysLate(group.milestone.target_date, today)
+      : null;
+    const note = hasTasksOutsideFilters
+      ? t('projectDetail.tasks.noFilteredTasksInGroup', 'No tasks in this phase match the current filters.')
+      : !group.completed && group.tasks.length === 0 ? t('projectDetail.tasks.noTasksInGroup', 'No tasks in this phase yet.') : null;
+    return <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1.5 font-normal">
+      {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
+        <span tabIndex={0} className="text-xs tabular text-muted-foreground">{dateRange}</span>
+      </Tooltip>}
+      {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
+        <span tabIndex={0} className="text-xs tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDateOnly(group.milestone.target_date) })}</span>
+      </Tooltip>}
+      {group.milestone && <Tooltip content={t(
+        'projectDetail.tasks.phaseProgressTooltip',
+        'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
+      )}>
+        <span tabIndex={0} className="inline-flex min-w-0 items-center">
+          <ProgressBar value={completionPct(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
+        </span>
+      </Tooltip>}
+      {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
+        <span tabIndex={0} className="text-xs font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>
+      </Tooltip>}
+      <Tooltip content={t('projectDetail.tasks.openCountTooltip', 'Count of visible tasks in this phase whose status is not Done. Source: current project task list and filters.')}>
+        <span tabIndex={0} className="text-xs text-muted-foreground">{t('projectDetail.tasks.openCount', '{{count}} open', { count: group.openTasks.length })}</span>
+      </Tooltip>
+      {group.doneTasks.length > 0 && <button
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => toggleDone(group.id)}
+        className="touch-target inline-flex min-h-9 items-center gap-1 text-left text-xs text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      >
+        <Icon name="chev" className={`size-3.5 transition-transform${expanded ? ' rotate-90' : ''}`} />
+        {t('projectDetail.tasks.doneCount', '{{count}} done', { count: group.doneTasks.length })}
+      </button>}
+      {note && <span className="text-xs text-muted-foreground">{note}</span>}
+      {canCreate && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onAddTask(group.milestone?.id ?? null)}>
+        <Icon name="plus" />{t('projectDetail.tasks.addTask', 'Add task')}
+      </Button>}
+    </div>;
   };
 
-  return <div className="min-w-0 space-y-3">
-    {groups.map((group) => {
-      const expanded = expandedDoneGroups.has(group.id);
-      const phaseTasks = sourceByMilestone.get(group.milestone?.id ?? null) ?? [];
-      const hasTasksOutsideFilters = group.tasks.length === 0 && phaseTasks.length > 0;
-      const starts = phaseTasks.map((task) => task.start_date).filter((date): date is string => Boolean(date)).sort();
-      const ends = phaseTasks.map((task) => task.end_date).filter((date): date is string => Boolean(date)).sort();
-      const dateRange = starts.length || ends.length
-        ? `${starts.length ? formatDateOnly(starts[0]) : '—'} – ${ends.length ? formatDateOnly(ends[ends.length - 1]) : '—'}`
-        : null;
-      const lateDays = group.milestone?.target_date && group.milestone.target_date < today && group.milestone.effective_pct < 100
-        ? daysLate(group.milestone.target_date, today)
-        : null;
-      return <section key={group.id} id={`phase-${group.id}-tasks`} aria-label={group.label} className="overflow-hidden rounded-md border border-border bg-card">
-        <header className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 bg-secondary/30 px-3 py-2.5">
-          <h3 className="min-w-0 max-w-full break-words text-[13px] font-semibold text-foreground">{group.label}</h3>
-          {dateRange && <Tooltip content={t('projectDetail.tasks.phaseDatesTooltip', 'Range from the earliest task start date to the latest task due date in the current task scope. Source: phase task records.')}>
-            <span tabIndex={0} className="text-xs tabular text-muted-foreground">{dateRange}</span>
-          </Tooltip>}
-          {group.milestone?.target_date && <Tooltip content={t('projectDetail.tasks.phaseTargetTooltip', 'Target date from the project phase record.')}>
-            <span tabIndex={0} className="text-xs tabular text-muted-foreground">{t('projectDetail.tasks.phaseTargetDate', 'Target {{date}}', { date: formatDateOnly(group.milestone.target_date) })}</span>
-          </Tooltip>}
-          {group.milestone && <Tooltip content={t(
-            'projectDetail.tasks.phaseProgressTooltip',
-            'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
-          )}>
-            <span tabIndex={0} className="inline-flex min-w-0 items-center">
-              <ProgressBar value={Math.round(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
-            </span>
-          </Tooltip>}
-          {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>
-            <span tabIndex={0} className="text-xs font-medium text-destructive-text">{t('projectDetail.tasks.daysLateCount', '{{count}}d late', { count: lateDays })}</span>
-          </Tooltip>}
-          <Tooltip content={t('projectDetail.tasks.openCountTooltip', 'Count of visible tasks in this phase whose status is not Done. Source: current project task list and filters.')}>
-            <span tabIndex={0} className="text-xs text-muted-foreground">{t('projectDetail.tasks.openCount', '{{count}} open', { count: group.openTasks.length })}</span>
-          </Tooltip>
-          {canCreate && <Button variant="ghost" size="sm" className="ml-auto" onClick={() => onAddTask(group.milestone?.id ?? null)}>
-            <Icon name="plus" />{t('projectDetail.tasks.addTask', 'Add task')}
-          </Button>}
-        </header>
-        {group.openTasks.length > 0 ? renderTable(group.id, group.openTasks) : group.tasks.length === 0 && hasTasksOutsideFilters ? <p className="px-3 py-3 text-sm text-muted-foreground">{t('projectDetail.tasks.noFilteredTasksInGroup', 'No tasks in this phase match the current filters.')}</p> : !group.completed && group.tasks.length === 0 ? <p className="px-3 py-3 text-sm text-muted-foreground">{t('projectDetail.tasks.noTasksInGroup', 'No tasks in this phase yet.')}</p> : null}
-        {group.doneTasks.length > 0 && <div className="border-t border-border/70">
-          <button
-            type="button"
-            aria-expanded={expanded}
-            onClick={() => setExpandedDoneGroups((current) => {
-              const next = new Set(current);
-              if (next.has(group.id)) next.delete(group.id);
-              else next.add(group.id);
-              return next;
-            })}
-            className="touch-target inline-flex min-h-9 items-center gap-1.5 px-3 text-left text-[12px] text-muted-foreground hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
-            <Icon name="chev" className={`size-3.5 transition-transform${expanded ? ' rotate-90' : ''}`} />
-            {t('projectDetail.tasks.doneCount', '{{count}} done', { count: group.doneTasks.length })}
-          </button>
-          {expanded && renderTable(`${group.id}-done`, group.doneTasks)}
-        </div>}
-      </section>;
-    })}
-  </div>;
+  return <DataTable<TaskWithRefs>
+    rows={rows}
+    columns={columns}
+    rowKey={(task) => task.id}
+    rowMenu={rowMenu}
+    selection={selection}
+    onActivate={onActivate}
+    rowLabel={(task) => t('projectDetail.tasks.openTask', 'Open task {{name}}', { name: task.name })}
+    accessibleName={t('projectDetail.tasks.listAriaLabel', 'Project tasks')}
+    tableId="project-detail-tasks"
+    groupBy={(task) => task.milestone_id && groupById.has(task.milestone_id) ? task.milestone_id : 'ungrouped'}
+    groupOrder={groupOrder}
+    groupLabel={(groupId) => <span className="break-words text-[13px] font-semibold text-foreground">{groupById.get(groupId)?.label ?? groupId}</span>}
+    groupHeader={(groupId) => groupMeta(groupId)}
+    groupHeaderSpan
+  />;
 };
 
 interface TaskRecordDrawerProps {
@@ -1572,13 +1581,14 @@ const TaskRecordDrawer: React.FC<TaskRecordDrawerProps> = ({
   const subtasks = allTasks.filter((candidate) => candidate.parent_task_id === task.id && candidate.tombstoned_at == null);
   return <Drawer
     open
+    width="lg"
     title={task.name}
     status={<StatusPill variant={workflowVariant(task.status)}>{task.status}</StatusPill>}
     onClose={onClose}
     nestedOpen={nestedOpen}
     // Same header as every record drawer: main action · Open full page · ⋯ for the rare ones.
     headerActions={<>
-      {canEdit && <Button variant="outline" size="sm" onClick={() => openEdit(task)}>{t('projectDetail.tasks.action.edit', 'Edit')}</Button>}
+      {canEdit && <Button size="sm" onClick={() => openEdit(task)}>{t('projectDetail.tasks.action.edit', 'Edit')}</Button>}
       <Link to={`/projects/${projectId}/tasks#task-${task.id}`} className={buttonClasses('outline', 'sm')}>{t('projectDetail.tasks.openFullRecord', 'Open full page')}</Link>
       {(canArchive || canDelete) && <MenuButton
         ariaLabel={t('projectDetail.tasks.drawerMoreActions', 'More task actions')}

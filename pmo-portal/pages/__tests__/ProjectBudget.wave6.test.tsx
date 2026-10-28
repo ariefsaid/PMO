@@ -182,7 +182,8 @@ describe('AC-W6-IXD-BUDHEAD: project budget lead', () => {
     versionsState.data = [{ ...draftVersionWithItems, id: 'v-active', status: 'Active' as const, name: 'Budget v1', version: 1 }];
     renderPage();
     const table = screen.getByRole('table', { name: 'Budget vs actual by category' });
-    expect(within(table).getByText('$4,700,000')).toBeInTheDocument();
+    // C6: bare number under the one "USD · …" page heading.
+    expect(within(table).getByText('4,700,000')).toBeInTheDocument();
     expect(screen.queryByTestId('derived-budget')).not.toBeInTheDocument();
   });
 });

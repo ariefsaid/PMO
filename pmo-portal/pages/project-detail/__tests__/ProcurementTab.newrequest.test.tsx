@@ -309,7 +309,7 @@ describe('shared procurement block', () => {
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument();
   });
 
-  it('shows the most recorded payment amount and the finance unpaid line', () => {
+  it('shows the most recorded payment amount and the finance unpaid line', async () => {
     procState.data = [procurement('paid record', 'Paid', {
       purchase_requests: [{ amount: 1_000, date: '2026-09-01', created_at: '2026-09-01T00:00:00.000Z', external_ref: null }],
       purchase_orders: [{ amount: 900, date: '2026-09-02', created_at: '2026-09-02T00:00:00.000Z', external_ref: null }],
@@ -318,8 +318,12 @@ describe('shared procurement block', () => {
       payments: [{ amount: 300, date: '2026-09-05', created_at: '2026-09-05T00:00:00.000Z', status: 'Paid' }],
     })];
     renderBlock('Finance');
-    expect(screen.getAllByText((_, element) => element?.textContent === formatCurrency(300, 'USD')).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Unpaid/)).toBeInTheDocument();
+    // B7: the row shows one amount; the finance unpaid balance moved into that amount's tooltip.
+    const amount = screen.getAllByText((_, element) => element?.textContent === formatCurrency(300, 'USD'))
+      .find((element) => element.getAttribute('tabindex') === '0')!;
+    expect(screen.queryByText(/Unpaid/)).not.toBeInTheDocument();
+    await userEvent.hover(amount);
+    expect(await screen.findByRole('tooltip')).toHaveTextContent(`Unpaid ${formatCurrency(500, 'USD')}`);
   });
 
   it('expands procurement facts, line items, next step, budget impact, and drawer entry', async () => {

@@ -220,10 +220,20 @@ describe('DocumentsTab — register rows (AC-DOC-001)', () => {
     expect(screen.getByText('Steel Spec')).toBeInTheDocument();
   });
 
-  it('keeps search and the action banner honest when the register has no missing or expired records', () => {
+  it('B7: offers search only beyond ten documents and keeps the action banner honest when nothing is missing or expired', () => {
+    const view = renderTab();
+    expect(screen.queryByLabelText(/Search documents/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/documents need action/i)).not.toBeInTheDocument();
+    view.unmount();
+    listState.data = withDocumentCount(11);
     renderTab();
     expect(screen.getByLabelText(/Search documents/i)).toBeInTheDocument();
-    expect(screen.queryByText(/documents need action/i)).not.toBeInTheDocument();
+  });
+
+  it('C4: an owner whose name is not visible is left blank, never "Name unavailable"', () => {
+    listState.data = [{ ...seed[0], author_id: 'someone-hidden' }];
+    renderTab();
+    expect(screen.queryByText(/Name unavailable/)).not.toBeInTheDocument();
   });
 
   it('AC-1402: category, status, and source filters narrow the register', async () => {

@@ -66,6 +66,8 @@ export interface DocumentsTabProps {
 }
 
 /** True for a register row that references a Microsoft folder (reference-only: never issued/approved). */
+/** Search shows only when the register is long enough to need it (owner ruling B7: "search only beyond ~10"). */
+const SEARCH_THRESHOLD = 10;
 const isMicrosoftFolder = (d: ProjectDocumentRow) => d.source === 'onedrive' && d.ms_item_kind === 'folder';
 
 /** The Microsoft entry point in flight: a new document seeded from a reference, or linking an existing Draft. */
@@ -218,12 +220,11 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
     () => Array.from(new Set(all.map(categoryName))).sort((a, b) => a.localeCompare(b)),
     [all, categoryName],
   );
+  /** The owner's name, "You", or '' when the name isn't visible — C4: an unknown is left blank, never "Name unavailable". */
   const ownerLabel = (doc: ProjectDocumentRow) => {
     const ownerId = doc.author_id ?? doc.ms_linked_by;
     const name = ownerId ? profileNames.get(ownerId)?.trim() : '';
-    return name || (ownerId && ownerId === currentUserId
-      ? t('projectDetail.documents.owner.you', 'You')
-      : t('projectDetail.documents.owner.unavailable', 'Name unavailable'));
+    return name || (ownerId && ownerId === currentUserId ? t('projectDetail.documents.owner.you', 'You') : '');
   };
   const ownerInitials = (label: string) => {
     const words = label.split(/\s+/).filter(Boolean);
@@ -336,17 +337,17 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
   );
   const ownerCell = (doc: ProjectDocumentRow) => {
     const label = ownerLabel(doc);
-    const unknown = label === t('projectDetail.documents.owner.unavailable', 'Name unavailable');
+    if (!label) return null;
     return (
       <Tooltip
         title={t('projectDetail.documents.tooltip.ownerTitle', 'Owner')}
         content={t('projectDetail.documents.tooltip.owner', 'Document author from the organization profile.')}
       >
         <span tabIndex={0} className="inline-flex min-w-0 max-w-full items-center gap-2 text-[13px] text-foreground" aria-label={label}>
-          {!unknown && <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
+          <span aria-hidden="true" className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground">
             {ownerInitials(label)}
-          </span>}
-          <span className={unknown ? 'truncate text-muted-foreground' : 'truncate'}>{label}</span>
+          </span>
+          <span className="truncate">{label}</span>
         </span>
       </Tooltip>
     );
@@ -901,13 +902,14 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
       <Toolbar className="mb-3.5 min-w-0 border-0 bg-transparent px-0 py-0">
         <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
-          <SearchMini
+          {/* B7: search earns its place only beyond about ten documents; the filters cover a short register. */}
+          {(all.length > SEARCH_THRESHOLD || search) && <SearchMini
             placeholder={t('projectDetail.documents.searchPlaceholder', 'Search documents…')}
             aria-label={t('projectDetail.documents.searchAriaLabel', 'Search documents')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             containerClassName="min-w-0 basis-full sm:basis-56 sm:grow-0"
-          />
+          />}
           <label className="sr-only" htmlFor="documents-category-filter">{t('projectDetail.documents.filter.category', 'Filter by category')}</label>
           <select
             id="documents-category-filter"

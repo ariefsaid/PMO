@@ -7,7 +7,7 @@ import {
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
-import { currencySymbol, formatCurrencyCents, formatDateOnly, formatNumber, formatNumberExact, formatUtcMonthYear } from '@/src/lib/format';
+import { currencySymbol, formatCurrencyAuto, formatDateOnly, formatNumber, formatNumberExact, formatNumberMax2, formatUtcMonthYear } from '@/src/lib/format';
 import { claimNet, percentOfLot, remainingQuantity, summarizeBilling } from '@/src/lib/progressBilling';
 import type {
   BoqItemInput, BoqItemRow, ProgressAssessmentInput, ProgressClaimInput, ProgressClaimWithInvoice,
@@ -134,8 +134,10 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
   }, [openRecordId, openRecordType, boqRows, claimRows, canViewMoney]);
   const summary = billing.data ? summarizeBilling(billing.data) : null;
   const excl = t('projectDetail.billing.summary.exclTax', 'excl. PPN');
-  const money = (value: number) => formatCurrencyCents(value, currency);
-  const cents = (value: number | string) => formatCurrencyCents(Number(value), currency);
+  // C5: no padded .00, but a real fraction is money and is never rounded away. In-page figures are bare (the
+  // heading names currency + basis once, C6); drawers and confirmations, which have no such heading, keep the currency.
+  const money = (value: number) => formatNumberMax2(value);
+  const cents = (value: number | string) => formatCurrencyAuto(Number(value), currency);
   const monthLabel = (iso: string) => formatUtcMonthYear(new Date(`${iso}T00:00:00Z`));
 
   // A claim's scope comes from the allocations: until they are loaded no scope is offered (never a guessed one).
@@ -580,7 +582,7 @@ const BillingTab: React.FC<BillingTabProps> = ({ projectId, currency, clientId, 
           }
         >
           {t('projectDetail.billing.summary.title', 'Billing summary')}
-          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{excl}</span>
+          <span className="ml-2 text-[12px] font-normal text-muted-foreground">{currency} · {excl}</span>
         </CardHead>
         <CardPad>
           {billing.isPending ? (

@@ -9,7 +9,7 @@ import { I18nextProvider } from 'react-i18next';
 import { MemoryRouter, useLocation } from 'react-router';
 import { ToastProvider } from '@/src/components/ui';
 import { findToastAnnouncement } from '@/src/components/ui/__tests__/toastTestQueries';
-import { formatCurrencyCents } from '@/src/lib/format';
+import { formatNumberMax2 } from '@/src/lib/format';
 import { parseMissingKeyHandler } from '@/src/lib/i18n';
 
 const h = vi.hoisted(() => ({
@@ -66,8 +66,8 @@ const CLAIMS = [
   claim('k3', { invoice: { si_number: 'ACC-SINV-1', status: 'Unpaid', amount: 160000 } }),
 ];
 const DOCS = [{ id: 'doc-1', org_id: 'o', project_id: 'p1', code: null, category: 'Report', title: 'Progress report', revision: 'A', status: 'Issued', doc_date: null, author_id: null, file_path: 'docs/report.pdf', created_at: '' }];
-// jest-dom collapses whitespace (incl. the currency's no-break space) in the element text, so normalise the expectation the same way.
-const money = (value: number) => formatCurrencyCents(value, 'IDR').replace(/\s+/g, ' ');
+// C5/C6: summary figures are whole bare numbers; the currency and tax basis sit once in the summary heading.
+const money = (value: number) => formatNumberMax2(value);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -141,6 +141,8 @@ describe('BillingTab', () => {
 
   it('AC-PB-008 the summary shows contract, billed, assessed, the gap, DP held, not yet billed and not submitted, net of tax', () => {
     renderTab();
+    expect(screen.getByRole('heading', { name: /Billing summary/ })).toHaveTextContent('IDR · excl. PPN');
+    expect(screen.getByTestId('billing-contract')).not.toHaveTextContent(/\.00|Rp|IDR/);
     expect(screen.getByTestId('billing-contract')).toHaveTextContent(money(1_000_000));
     expect(screen.getByTestId('billing-billed')).toHaveTextContent(money(250_000));
     expect(screen.getByTestId('billing-assessed')).toHaveTextContent(money(600_000));

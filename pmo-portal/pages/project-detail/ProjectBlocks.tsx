@@ -1,29 +1,28 @@
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, ListState, ProgressBar, TaxBasisLabel, Tooltip } from '@/src/components/ui';
 import { cn } from '@/src/components/ui/cn';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
-import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
+import { useProjectCommittedSpend, useProjectProcurements } from '@/src/hooks/useProcurements';
+import { buildBudgetSummaryRows, committedTotal } from './budget/budgetModel';
 import { useTasks } from '@/src/hooks/useTasks';
 import { useBoqItems, useProjectBilling } from '@/src/hooks/useProgressBilling';
 import { useSalesInvoices } from '@/src/hooks/useRevenue';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { formatNumberWhole } from '@/src/lib/format';
+import { completionPct, formatDateOnly, formatNumberWhole } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
-import { deriveMargin, formatExactMoney } from '@/src/lib/projectFinances';
+import { deriveMargin } from '@/src/lib/projectFinances';
 import MilestoneStrip from './MilestoneStrip';
 import { useBudgetPosition } from './useProjectPosition';
 import { summarizeInvoiceSettlement } from './ContractCascade';
 import ProjectProfitLossSection from './ProjectProfitLossSection';
 import { ProjectFinancesSection } from './ProjectFinancesSection';
 import { isMoneyAtRisk } from '@/src/lib/dashboardConstants';
-
-const ProjectGantt = React.lazy(() => import('./ProjectGantt'));
 
 /** Whole units, no currency symbol: the block heading names the currency once. */
 const whole = (value: number) => formatNumberWhole(value);
@@ -63,8 +62,10 @@ const FixLink: React.FC<{ to: string; children: React.ReactNode }> = ({ to, chil
 );
 
 /* ── Money: how much of the contract have we billed and collected? ─────────────────────────── */
+type MarginReason = 'different-currencies' | 'work-unavailable' | 'restricted-rows' | 'actuals-unavailable';
+
 export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
-  const { t, i18n } = useTranslation('project');
+  const { t } = useTranslation('project');
   const [financeDetailsOpen, setFinanceDetailsOpen] = useState(false);
   const q = useProjectFinances(project.id);
   const may = usePermission();
@@ -72,7 +73,6 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
   const boq = useBoqItems(project.id);
   const billing = useProjectBilling(project.id);
   const invoices = useSalesInvoices(project.id, { enabled: canViewMoney });
-  const budget = useBudgetPosition(project);
   const unit = (
     <>
       {project.currency}
@@ -99,71 +99,105 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
   const delivered = hasBoq
     ? allocations.reduce((sum, allocation) => sum + (allocation.acceptedQuantity ?? 0) * (rates.get(allocation.boqItemId) ?? 0), 0)
     : null;
+  const invoicesKnown = !invoices.isPending && !invoices.isError;
   const invoiceRows = (invoices.data ?? []).filter((invoice) => invoice.currency === project.currency);
   const settlement = summarizeInvoiceSettlement(invoiceRows.map((invoice) => ({
     status: invoice.status,
     amount: invoice.amount,
     erp_outstanding_amount: invoice.erp_outstanding_amount,
   })));
-  const invoiced = !invoices.isPending && !invoices.isError ? settlement.invoiced : null;
-  const paid = !invoices.isPending && !invoices.isError && settlement.balancesKnown ? settlement.paid : null;
+  const invoiced = invoicesKnown ? settlement.invoiced : null;
+  const paid = invoicesKnown && settlement.balancesKnown ? settlement.paid : null;
   const cash = data.cash_received;
   const cashReceived = cash?.state === 'known'
     ? cash.buckets.filter((bucket) => bucket.currency === project.currency).reduce((sum, bucket) => sum + Number(bucket.amount), 0)
     : null;
-  const sameCurrencyInvoices = data.invoices.filter((bucket) => bucket.currency === project.currency);
-  const marginBucket = sameCurrencyInvoices[0];
+  const marginBucket = data.invoices.find((bucket) => bucket.currency === project.currency);
   const margin = marginBucket && data.actuals ? deriveMargin(marginBucket, data.actuals) : null;
-  const moneyText = (value: number | null) => value === null ? t('projectDetail.money.unavailable', 'Unavailable') : whole(value);
-  const explain = (content: string, value: React.ReactNode) => (
-    <Tooltip content={content}><span tabIndex={0} className="font-semibold tabular-nums text-foreground">{value}</span></Tooltip>
+  const marginAmount = margin && margin.reason === null && margin.amount !== null ? Number(margin.amount) : null;
+  const marginLeftOut: Record<MarginReason, string> = {
+    'different-currencies': t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.'),
+    'work-unavailable': t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.'),
+    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
+    'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
+  };
+  const marginNote = !marginBucket
+    ? t('projectDetail.money.marginOutNoInvoices', 'Gross margin starts with the first invoice in the project currency.')
+    : margin?.reason ? marginLeftOut[margin.reason as MarginReason] : null;
+  const explain = (content: string, value: React.ReactNode, className = 'font-semibold tabular-nums text-foreground') => (
+    <Tooltip content={content}><span tabIndex={0} className={className}>{value}</span></Tooltip>
   );
-  const steps: Array<{ label: string; value: number | null; source: string }> = [
-    { label: t('projectDetail.money.contract', 'Contract'), value: contractValue, source: hasBoq
+  // C4: a figure the system cannot know is left out of the strip; the reason is said once below it.
+  const steps = [
+    { key: 'contract', label: t('projectDetail.money.contract', 'Contract'), value: contractValue, source: hasBoq
       ? t('projectDetail.money.contractSourceBoq', 'Sum of contract quantities multiplied by unit rates from the project BoQ.')
       : t('projectDetail.money.contractSourceRecord', 'Approved contract value from the project record.') },
-    { label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
-    { label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
-    { label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
-    { label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
-  ];
-  const budgetPercent = budget.budget > 0 && budget.spent !== null ? pctOf(budget.spent, budget.budget) : null;
-  const marginValue = margin?.amount === null || !margin ? t('projectDetail.money.unavailable', 'Unavailable') : formatExactMoney(margin.amount, project.currency, i18n.language) ?? t('projectDetail.money.unavailable', 'Unavailable');
-  const marginReason = margin?.reason === 'different-currencies' ? t('projectDetail.money.marginDifferentCurrency', 'Actual spending and billed work use different currencies.')
-    : margin?.reason === 'work-unavailable' ? t('projectDetail.money.marginWorkUnavailable', 'Billed-work revenue is incomplete.')
-      : margin?.reason === 'restricted-rows' ? t('projectDetail.money.marginRestricted', 'Actual spending excludes restricted rows.')
-        : margin?.reason === 'actuals-unavailable' ? t('projectDetail.money.marginActualsUnavailable', 'Complete actual spending is not available yet.')
-          : t('projectDetail.money.marginSource', 'Billed-work revenue less complete recorded spending in the same currency.');
+    { key: 'ordered', label: t('projectDetail.money.ordered', 'Ordered'), value: ordered, source: t('projectDetail.money.orderedSource', 'Sum of issued work-order allocations multiplied by BoQ unit rates.') },
+    { key: 'delivered', label: t('projectDetail.money.delivered', 'Delivered'), value: delivered, source: t('projectDetail.money.deliveredSource', 'Sum of accepted quantities multiplied by BoQ unit rates.') },
+    { key: 'invoiced', label: t('projectDetail.money.invoiced', 'Invoiced'), value: invoiced, source: t('projectDetail.money.invoicedSource', 'Sum of non-draft, non-cancelled invoices in the project currency.') },
+    { key: 'paid', label: t('projectDetail.money.paid', 'Paid'), value: paid, source: t('projectDetail.money.paidSource', 'Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.') },
+  ].filter((step): step is { key: string; label: string; value: number; source: string } => step.value !== null);
+  const share = (value: number | null) => value !== null && contractValue !== null && contractValue > 0 ? pctOf(value, contractValue) : null;
+  const invoicedShare = share(invoiced);
+  const paidShare = share(paid);
 
   return (
     <Block id="pd-money" title={title} unit={unit}>
-      <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-4 sm:grid-cols-3 xl:grid-cols-5">
-        {steps.map((step) => (
-          <div key={step.label} className="min-w-0">
-            <dt className="text-xs text-muted-foreground">{step.label}</dt>
-            <dd className="mt-1 break-words text-sm font-semibold tabular-nums leading-tight text-foreground">
-              {explain(step.source, step.value === null ? moneyText(null) : whole(step.value))}
-            </dd>
-            {step.label === t('projectDetail.money.contract', 'Contract') && contractValue !== null && (
-              <dd className="mt-1"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
-            )}
-            {step.value !== null && contractValue !== null && contractValue > 0 && (
-              <dd className="mt-2">
-                <Tooltip content={step.source}>
-                  <span tabIndex={0} className="block">
-                    <ProgressBar value={pctOf(step.value, contractValue)} tone="neutral" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent: pctOf(step.value, contractValue) })} />
-                  </span>
-                </Tooltip>
+      {/* L5: the block's one answer leads, biggest — how much of the contract is billed, then collected. */}
+      {invoicedShare !== null && (
+        <p className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          {explain(t('projectDetail.money.leadTooltip', 'Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.'),
+            t('projectDetail.money.leadInvoiced', '{{percent}}% invoiced', { percent: invoicedShare }),
+            'text-2xl font-semibold leading-tight tabular-nums text-foreground')}
+          {paidShare !== null && <span className="text-sm tabular-nums text-muted-foreground">{t('projectDetail.money.leadPaid', '{{percent}}% paid', { percent: paidShare })}</span>}
+        </p>
+      )}
+      <dl className="grid min-w-0 gap-y-2" aria-label={t('projectDetail.money.cascadeLabel', 'Contract to payment')}>
+        {steps.map((step) => {
+          const percent = share(step.value);
+          return (
+            <div key={step.key} className="grid min-w-0 grid-cols-[5.5rem_minmax(0,1fr)_auto] items-center gap-x-3">
+              <dt className="text-xs text-muted-foreground">{step.label}</dt>
+              <dd className="min-w-0">
+                {percent !== null && <ProgressBar value={percent} tone="neutral" widthless className="w-full" aria-label={t('projectDetail.money.stageAria', '{{label}} is {{percent}}% of contract', { label: step.label, percent })} />}
               </dd>
-            )}
-          </div>
-        ))}
+              <dd className="text-right text-sm">{explain(step.source, whole(step.value))}</dd>
+              {step.key === 'contract' && contractValue !== null && (
+                <dd className="col-span-2 col-start-2 text-right"><FxEquivalent amount={contractValue} currency={project.currency} date={project.contract_date} compact /></dd>
+              )}
+            </div>
+          );
+        })}
       </dl>
+      {(marginAmount !== null || cashReceived !== null) && (
+        <dl className="mt-4 flex min-w-0 flex-wrap gap-x-8 gap-y-3 border-t border-border/70 pt-3">
+          {marginAmount !== null && (
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>
+              <dd className={cn('mt-0.5 text-sm', marginAmount < 0 && '[&>span]:text-destructive-text')}>{explain(t('projectDetail.money.marginSource', 'Billed-work revenue less complete recorded spending in the same currency.'), whole(marginAmount))}</dd>
+            </div>
+          )}
+          {cashReceived !== null && (
+            <div className="min-w-0">
+              <dt className="text-xs text-muted-foreground">{t('projectDetail.money.cashReceived', 'Cash received')}</dt>
+              <dd className="mt-0.5 text-sm">{explain(t('projectDetail.money.cashSource', 'Receipt cash allocated to invoices for this project; separate from invoice settlement.'), whole(cashReceived))}</dd>
+            </div>
+          )}
+        </dl>
+      )}
       {!hasBoq && <Note>{t('projectDetail.money.noBoq', 'Ordered and delivered values are not tracked until the project has a BoQ.')}</Note>}
+      {invoices.isPending && canViewMoney && <Note>{t('projectDetail.money.invoicesChecking', 'Checking invoices…')}</Note>}
       {invoices.isError && <Note>{t('projectDetail.money.invoiceError', "Couldn't load invoice settlement.")} <Button variant="ghost" size="sm" onClick={() => void invoices.refetch()}>{t('common.retry', 'Retry')}</Button></Note>}
+      {invoicesKnown && settlement.invoiced === null && <Note>{t('projectDetail.money.invoicedOut', 'Invoiced is left out until every invoice amount is known.')}</Note>}
+      {invoicesKnown && settlement.invoiced !== null && !settlement.balancesKnown && <Note>{t('projectDetail.money.paidOut', 'Paid is left out until every invoice balance is known.')}</Note>}
+      {marginNote && <Note>{marginNote}</Note>}
       {cashReceived === null && (
         <Note>
-          {t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.')}{' '}
+          {cash?.state === 'incomplete'
+            ? t('projectDetail.money.cashIncomplete', 'Cash received is left out until every receipt is allocated to an invoice.')
+            : cash?.state === 'unavailable' && cash.reason === 'invalid-reading'
+              ? t('projectDetail.money.cashInvalid', "Cash received is left out because the receipt reading couldn't be verified.")
+              : t('projectDetail.money.cashUnavailable', 'Receipt-backed cash is not available yet.')}{' '}
           {cash?.state === 'known' ? null : <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>}
         </Note>
       )}
@@ -173,32 +207,6 @@ export const MoneyBlock: React.FC<{ project: ProjectWithRefs }> = ({ project }) 
           <FixLink to="/incoming-payments">{t('projectDetail.money.matchPayments', 'Match payments')}</FixLink>
         </Note>
       )}
-      <dl className="mt-6 grid min-w-0 gap-4 border-t border-border/70 pt-4 sm:grid-cols-3">
-        <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.spentBudget', 'Spent vs budget')}</dt>
-          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">
-            {!budget.hasBudget
-              ? t('projectDetail.money.noActiveBudget', 'No active budget')
-              : budget.spent === null
-                ? explain(t('projectDetail.money.spentSourceUnknown', 'Actual spending needs complete mapped category data; budget comes from the active project budget.'), `${t('projectDetail.money.spent', 'Spent')} ${t('projectDetail.money.unavailable', 'Unavailable')} · ${t('projectDetail.money.budget', 'Budget')} ${whole(budget.budget)}`)
-              : explain(t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.'), `${whole(budget.spent)} / ${whole(budget.budget)}`)}
-          </dd>
-          {budgetPercent !== null && <dd><Tooltip content={t('projectDetail.money.spentSource', 'Complete mapped actual spending compared with the active project budget.')}>
-            <span tabIndex={0} className="mt-2 block"><ProgressBar value={budgetPercent} widthless className="w-full" aria-label={t('projectDetail.money.budgetUse', 'Budget use {{percent}}%', { percent: budgetPercent })} /></span>
-          </Tooltip></dd>}
-        </div>
-        <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.grossMargin', 'Gross margin')}</dt>
-          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">{explain(marginReason, marginValue)}</dd>
-        </div>
-        <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('projectDetail.money.cashReceived', 'Cash received')}</dt>
-          <dd className="mt-1 break-words text-sm font-semibold tabular-nums text-foreground">{explain(
-            t('projectDetail.money.cashSource', 'Receipt cash allocated to invoices for this project; separate from invoice settlement.'),
-            cashReceived === null ? t('projectDetail.money.unavailable', 'Unavailable') : whole(cashReceived),
-          )}</dd>
-        </div>
-      </dl>
       <div className="mt-5 border-t border-border/70 pt-3" data-testid="money-position-details">
         <button type="button" aria-expanded={financeDetailsOpen} onClick={() => setFinanceDetailsOpen((open) => !open)}
           className="touch-target inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
@@ -241,7 +249,9 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
   const may = usePermission();
   const canFixSetup = may('manage', 'orgAccounting');
   const pos = useBudgetPosition(project);
-  const committed = useProjectCommittedSpend(may('view', 'procurement') ? project.id : null, may('view', 'procurement'));
+  const canReadProcurements = may('view', 'procurement');
+  const committed = useProjectCommittedSpend(canReadProcurements ? project.id : null, canReadProcurements);
+  const procurements = useProjectProcurements(canReadProcurements ? project.id : null);
   const label = (c: string) => budgetCategoryLabel(c, t);
   const title = t('projectDetail.cost.title', 'Budget vs actual');
   const action = onOpenBudget && <BlockAction onClick={onOpenBudget}>{t('projectDetail.cost.openBudgetArea', 'Open budget')}</BlockAction>;
@@ -270,7 +280,16 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
     const bUse = b.budget > 0 ? b.actual / b.budget : b.actual > 0 ? Number.POSITIVE_INFINITY : 0;
     return bUse - aUse;
   });
-  const committedFigure = committed.commitmentSource === 'pmo' && committed.data !== undefined ? committed.data : null;
+  // L12: the committed figure comes from the same category rows the Budget tab totals, so the two always agree.
+  const committedFigure = committed.commitmentSource === 'pmo' && !procurements.isPending && !procurements.isError
+    ? committedTotal(buildBudgetSummaryRows({
+      lines: pos.rows.map((row) => ({ category: row.category, description: null, budgeted_amount: row.budget })),
+      actuals: pos.rows,
+      procurements: procurements.data,
+      canReadProcurements,
+      currency: project.currency,
+    }))
+    : null;
   const hasComparisons = !pos.canSeeActual || pos.rows.length > 0;
 
   const answer = !pos.canSeeActual || pos.spent === null ? (
@@ -325,7 +344,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
             : t('projectDetail.cost.askAdmin', 'An administrator can finish the setup.')}
         </Note>
       )}
-      {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Sum of project purchase orders in the commitment states shown in Procurement.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
+      {hasComparisons && committedFigure !== null && <Sub tooltip={t('projectDetail.cost.committedTooltip', 'Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.')}>{t('projectDetail.cost.committed', 'Plus {{amount}} committed in purchase orders', { amount: whole(committedFigure) })}</Sub>}
       {hasComparisons && rows.length > 0 && (
         <ul className="mt-6 flex min-w-0 flex-col border-y border-border/70">
           {rows.map((r) => {
@@ -341,7 +360,7 @@ const ActiveCostBlock: React.FC<{ project: ProjectWithRefs; onOpenBudget?: () =>
                     <span className="truncate text-sm font-medium text-foreground">{label(r.category)}</span>
                     <span className={cn('text-right text-xs tabular-nums sm:order-last', over ? 'font-semibold text-destructive-text' : 'text-muted-foreground')}>
                       {r.actual === null
-                        ? t('projectDetail.cost.rowUnavailable', 'Actual unavailable · budget {{budget}}', { budget: whole(r.budget) })
+                        ? t('projectDetail.cost.rowBudgetOnly', '{{budget}} budgeted', { budget: whole(r.budget) })
                         : t('projectDetail.cost.rowSpent', '{{spent}} of {{budget}}', { spent: whole(r.actual), budget: whole(r.budget) })}
                     </span>
                     {pct !== null && <span className="col-span-2 w-full sm:col-span-1">
@@ -371,66 +390,84 @@ export const DeliveryBlock: React.FC<{ projectId: string; isPipeline?: boolean; 
   return <ActiveDeliveryBlock projectId={projectId} title={title}>{children}</ActiveDeliveryBlock>;
 };
 
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const DAY_MS = 86_400_000;
+
 const ActiveDeliveryBlock: React.FC<{ projectId: string; title: string; children?: React.ReactNode }> = ({ projectId, title, children }) => {
   const { t } = useTranslation('project');
   const may = usePermission();
-  const navigate = useNavigate();
   const [managing, setManaging] = useState(false);
   const q = useMilestones(projectId);
   const tasks = useTasks(projectId);
-  const action = may('edit', 'project') && (
+  const manage = may('edit', 'project') && (
     <BlockAction onClick={() => setManaging((m) => !m)} expanded={managing}>
       {managing ? t('projectDetail.delivery.doneManaging', 'Done') : t('projectDetail.delivery.manage', 'Update phases')}
     </BlockAction>
   );
-  if (managing) return <Block id="pd-delivery" title={title} action={action}><MilestoneStrip projectId={projectId} /></Block>;
+  // L10: the task Gantt lives on Tasks › Timeline; the Overview keeps phases and links there.
+  const action = (
+    <span className="flex items-center gap-x-4">
+      <BlockAction to={`/projects/${projectId}/tasks?view=timeline`}>{t('projectDetail.delivery.openTimeline', 'Open timeline')}</BlockAction>
+      {manage}
+    </span>
+  );
+  if (managing) return <Block id="pd-delivery" title={title} action={manage}><MilestoneStrip projectId={projectId} /></Block>;
   if (q.isPending || tasks.isPending) return <Block id="pd-delivery" title={title}><ListState variant="loading" rows={3} /></Block>;
   if (q.isError || tasks.isError) return <Block id="pd-delivery" title={title}><ListState variant="error" title={t('projectDetail.delivery.error', "Couldn't load the phase timeline")} onRetry={() => { void q.refetch(); void tasks.refetch(); }} /></Block>;
   const all = q.data ?? [];
   if (all.length === 0) {
     return (
-      <Block id="pd-delivery" title={title} action={action}>
+      <Block id="pd-delivery" title={title} action={manage}>
         <p className="text-sm text-muted-foreground">{t('projectDetail.delivery.empty', 'No phases yet. Add phases to track delivery progress.')}</p>
+        {children && <div className="mt-8">{children}</div>}
       </Block>
     );
   }
+  const today = todayIso();
   const totalWeight = all.reduce((s, m) => s + m.weight, 0);
-  const pct = totalWeight > 0 ? Math.round(all.reduce((s, m) => s + m.weight * m.effective_pct, 0) / totalWeight) : 0;
+  const current = all.find((milestone) => milestone.effective_pct < 100);
+  const donePhases = all.filter((milestone) => milestone.effective_pct >= 100).length;
+  const phasesDone = t('projectDetail.delivery.phasesDone', '{{done}} of {{total}} phases complete', { done: donePhases, total: all.length });
   return (
     <Block id="pd-delivery" title={title} action={action}>
-      <Tooltip content={t('projectDetail.delivery.progressTooltip', 'Weighted average of phase completion using each phase weight; source: the project phase plan and linked task progress.')}>
-        <span tabIndex={0}><Headline>{t('projectDetail.delivery.pct', '{{pct}}% delivered', { pct })}</Headline></span>
-      </Tooltip>
-      <div className="mt-3 space-y-1" data-testid="phase-read-details">
-        <p className="text-xs text-muted-foreground">{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')}: <span className="font-medium text-foreground">{all.find((milestone) => milestone.effective_pct < 100)?.name ?? t('projectDetail.milestones.noCurrentPhase', 'No active phase')}</span></p>
-        <ul className="divide-y divide-border/70">
+      <div data-testid="phase-read-details">
+        {/* The weighted % lives once, in the header facts; this block answers "which phase are we in?". */}
+        <Headline tooltip={t('projectDetail.delivery.currentTooltip', 'The first phase in plan order that is not complete. Source: the project phase plan and linked task progress.')}>
+          {current?.name ?? t('projectDetail.delivery.allPhasesDone', 'All phases complete')}
+        </Headline>
+        <Sub>{current ? <>{t('projectDetail.milestones.currentPhaseLabel', 'Current phase')} · {phasesDone}</> : phasesDone}</Sub>
+        <ul className="mt-4 divide-y divide-border/70 border-y border-border/70">
           {all.map((milestone) => {
             const phaseTasks = (tasks.data ?? []).filter((task) => task.milestone_id === milestone.id && !task.parent_task_id);
             const doneTasks = phaseTasks.filter((task) => task.status === 'Done').length;
             const blockingTasks = phaseTasks.filter((task) => task.status === 'Blocked');
             const weightShare = totalWeight > 0 ? Math.round((milestone.weight / totalWeight) * 100) : 0;
-            return <li key={milestone.id} className="flex flex-wrap items-center gap-x-2 gap-y-1 py-2 text-xs">
-              <span className="font-medium text-foreground">{milestone.name}</span>
-              <span className="text-muted-foreground">{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
-              <span className="text-muted-foreground">{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
-              {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}
-            </li>;
+            const pct = completionPct(milestone.effective_pct);
+            const started = milestone.effective_pct > 0 || milestone.task_count > 0;
+            const overdue = Boolean(milestone.target_date && milestone.target_date < today && milestone.effective_pct < 100 && started);
+            const lateDays = overdue && milestone.target_date ? Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${milestone.target_date}T00:00:00Z`)) / DAY_MS) : 0;
+            return (
+              <li key={milestone.id} className="grid min-w-0 items-center gap-x-4 gap-y-1 py-2.5 md:grid-cols-[minmax(8rem,1fr)_minmax(0,2fr)_12rem]">
+                <span className={cn('min-w-0 break-words text-sm text-foreground', milestone.id === current?.id ? 'font-semibold' : 'font-medium')}>{milestone.name}</span>
+                <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                  {milestone.target_date && (overdue
+                    ? <span className="font-medium text-destructive-text">{t('projectDetail.delivery.phaseOverdue', 'Overdue {{count}}d · target {{date}}', { count: lateDays, date: formatDateOnly(milestone.target_date) })}</span>
+                    : <span>{t('projectDetail.delivery.phaseTarget', 'Target {{date}}', { date: formatDateOnly(milestone.target_date) })}</span>)}
+                  <span>{t('projectDetail.milestones.weightShare', '{{pct}}% of project', { pct: String(weightShare) })}</span>
+                  <span>{t('projectDetail.milestones.taskCount', '{{done}} of {{total}} tasks', { done: doneTasks, total: phaseTasks.length || milestone.task_count })}</span>
+                  {blockingTasks.map((task) => <Link key={task.id} to={`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`} className="font-semibold text-primary-text hover:underline">{task.name}</Link>)}
+                </span>
+                <Tooltip content={t('projectDetail.delivery.phaseProgressTooltip', 'Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.')}>
+                  <span tabIndex={0} className="flex min-w-0">
+                    {/* Delivery progress stays primary until the phase is complete, then success. */}
+                    <ProgressBar value={pct} tone={milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue widthless className="w-full"
+                      aria-label={t('projectDetail.delivery.phaseProgressAria', '{{name}} {{pct}}% complete', { name: milestone.name, pct })} />
+                  </span>
+                </Tooltip>
+              </li>
+            );
           })}
         </ul>
-      </div>
-      <div className="mt-4">
-        <React.Suspense fallback={<ListState variant="loading" rows={3} />}>
-          <ProjectGantt
-            tasks={tasks.data ?? []}
-            milestones={all}
-            onActivateTask={(task) => navigate(`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`)}
-            onSwitchView={(view) => navigate(`/projects/${projectId}/tasks?view=${view}`)}
-            rowMenu={(task) => [{
-              label: t('projectDetail.delivery.openTaskAction', 'Open task'),
-              onClick: () => navigate(`/projects/${projectId}/tasks?open=${encodeURIComponent(task.id)}`),
-            }]}
-          />
-        </React.Suspense>
       </div>
       {children && <div className="mt-8">{children}</div>}
     </Block>

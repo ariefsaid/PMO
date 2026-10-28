@@ -332,6 +332,11 @@ export function formatMoneyInputValue(value: number, locale = getNumberLocale())
   return formatMoneyInputDraft(neutral.replace('.', numberSymbols(locale).decimal), locale);
 }
 
+/** Whole completion %: unfinished work (below 100) never rounds up to a complete-looking 100. */
+export function completionPct(value: number): number {
+  return value >= 100 ? Math.round(value) : Math.min(99, Math.round(value));
+}
+
 /** Format a nullable % value: null → '—'; numeric → '{rounded}%'. */
 export function pct(v: number | null): string {
   return v == null ? '—' : `${Math.round(v)}%`;

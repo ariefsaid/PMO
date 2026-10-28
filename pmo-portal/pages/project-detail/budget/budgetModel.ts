@@ -16,6 +16,8 @@ export interface CommitmentLike {
   status: string;
   budget_category: string | null;
   approved_total_value: number | string | null;
+  /** The server's open commitment (procurement_open_commitment); absent on rows loaded without it. */
+  open_commitment?: number | null;
   total_value: number | string | null;
   currency: string | null;
 }
@@ -68,7 +70,10 @@ export function buildBudgetSummaryRows(input: {
         unreadableCategories.add(category);
         continue;
       }
-      const rawAmount = procurement.approved_total_value ?? procurement.total_value;
+      // The server's open commitment (FR-PFE-037): when the org reads the ERP ledger it already excludes what the
+      // ledger counts as spent, so committed + spent never counts one procurement twice. The list, Overview and
+      // this table all use it; total_value is only the fallback for rows loaded without it.
+      const rawAmount = procurement.open_commitment ?? procurement.approved_total_value ?? procurement.total_value;
       if (rawAmount === null) {
         unreadableCategories.add(category);
         continue;
@@ -96,6 +101,16 @@ export function buildBudgetSummaryRows(input: {
     lines: categoryLines,
     };
   });
+}
+
+/**
+ * The project's committed spend: the sum of the category rows' commitments, Uncategorized included.
+ * The one calculation behind every committed figure on the project (Overview and Budget tab agree, L12);
+ * unknown when there are no rows or any row's commitment is unknown — never a partial sum.
+ */
+export function committedTotal(rows: Pick<BudgetSummaryRow, 'committed'>[]): number | null {
+  if (rows.length === 0 || rows.some((row) => row.committed === null)) return null;
+  return rows.reduce((sum, row) => sum + (row.committed ?? 0), 0);
 }
 
 export function compareBudgetVersions(aLines: BudgetLineLike[], bLines: BudgetLineLike[]): BudgetComparisonRow[] {

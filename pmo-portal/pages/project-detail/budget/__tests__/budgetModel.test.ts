@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildBudgetSummaryRows, compareBudgetVersions } from '../budgetModel';
+import { buildBudgetSummaryRows, committedTotal, compareBudgetVersions } from '../budgetModel';
 
 const line = (category: string, description: string, budgeted_amount: number) => ({
   category,
@@ -86,6 +86,38 @@ describe('budgetModel', () => {
       { category: 'Labor', budget: 100, spent: 10, committed: 0 },
       { category: 'Uncategorized', budget: 0, spent: 0, committed: 55 },
     ]);
+  });
+
+  it('counts the server open commitment, so an amount the ERP ledger already counts as spent is not committed twice', () => {
+    const rows = buildBudgetSummaryRows({
+      lines: [line('Labor', 'Work', 100)],
+      actuals: [{ category: 'Labor', budget: 100, actual: 30 }],
+      procurements: [
+        // 50 ordered, 30 of it already posted to the ledger (in "spent"): 20 is still open.
+        { status: 'Ordered', budget_category: 'Labor', approved_total_value: 50, total_value: 50, open_commitment: 20, currency: 'USD' },
+      ],
+      canReadProcurements: true,
+      currency: 'USD',
+    });
+
+    expect(rows[0]).toMatchObject({ category: 'Labor', spent: 30, committed: 20 });
+  });
+
+  it('totals committed spend from the category rows, Uncategorized included, and stays unknown when a row is unknown', () => {
+    const base = {
+      lines: [line('Labor', 'Work', 100)],
+      actuals: [{ category: 'Labor', budget: 100, actual: 10 }],
+      canReadProcurements: true,
+      currency: 'USD',
+    };
+    expect(committedTotal(buildBudgetSummaryRows({ ...base, procurements: [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 40, total_value: 45, currency: 'USD' },
+      { status: 'Vendor Invoiced', budget_category: null, approved_total_value: null, total_value: 62, currency: 'USD' },
+    ] }))).toBe(102);
+    expect(committedTotal(buildBudgetSummaryRows({ ...base, procurements: [
+      { status: 'Ordered', budget_category: 'Labor', approved_total_value: 40, total_value: 45, currency: 'EUR' },
+    ] }))).toBeNull();
+    expect(committedTotal([])).toBeNull();
   });
 
   it('compares any two versions by category and signs the proposed change', () => {

@@ -11,7 +11,7 @@
   "billedWorkQualifier": "Net of tax; advances excluded",
   "projectFinances": {
     "contractAfterCostSource": "Contract value minus comparable recorded Actual.",
-    "actualSourceErp": "Recorded from the accounting system"
+    "contractAfterCostPending": "Shown once recorded spending is complete."
   },
   "uxs01": {
     "actual": "Actual"
@@ -373,7 +373,6 @@
       "positionTitle": "Money position",
       "details": "Details",
       "error": "Couldn't load the money position",
-      "unavailable": "Unavailable",
       "contract": "Contract",
       "contractSourceBoq": "Sum of contract quantities multiplied by unit rates from the project BoQ.",
       "contractSourceRecord": "Approved contract value from the project record.",
@@ -385,27 +384,30 @@
       "invoicedSource": "Sum of non-draft, non-cancelled invoices in the project currency.",
       "paid": "Paid",
       "paidSource": "Invoice amount less accounting outstanding balance; this is settlement, not receipt cash.",
-      "marginDifferentCurrency": "Actual spending and billed work use different currencies.",
-      "marginWorkUnavailable": "Billed-work revenue is incomplete.",
-      "marginRestricted": "Actual spending excludes restricted rows.",
-      "marginActualsUnavailable": "Complete actual spending is not available yet.",
       "marginSource": "Billed-work revenue less complete recorded spending in the same currency.",
       "stageAria": "{{label}} is {{percent}}% of contract",
       "noBoq": "Ordered and delivered values are not tracked until the project has a BoQ.",
       "invoiceError": "Couldn't load invoice settlement.",
       "cashUnavailable": "Receipt-backed cash is not available yet.",
       "matchPayments": "Match payments",
-      "spentBudget": "Spent vs budget",
-      "noActiveBudget": "No active budget",
-      "spentSourceUnknown": "Actual spending needs complete mapped category data; budget comes from the active project budget.",
-      "spent": "Spent",
-      "budget": "Budget",
-      "spentSource": "Complete mapped actual spending compared with the active project budget.",
-      "budgetUse": "Budget use {{percent}}%",
       "grossMargin": "Gross margin",
       "cashReceived": "Cash received",
       "cashSource": "Receipt cash allocated to invoices for this project; separate from invoice settlement.",
-      "paidNotReceived": "{{amount}} is settled in accounting but no receipt is matched to it yet."
+      "paidNotReceived": "{{amount}} is settled in accounting but no receipt is matched to it yet.",
+      "marginOutCurrency": "Gross margin is left out because spending and billed work use different currencies.",
+      "marginOutWork": "Gross margin is left out until billed-work revenue is complete.",
+      "marginOutRestricted": "Gross margin is left out because spending excludes restricted rows.",
+      "marginOutActuals": "Gross margin is left out until spending is linked for every budget category.",
+      "marginOutNoInvoices": "Gross margin starts with the first invoice in the project currency.",
+      "leadTooltip": "Invoiced amount as a share of the contract. Source: non-draft, non-cancelled invoices in the project currency.",
+      "leadInvoiced": "{{percent}}% invoiced",
+      "leadPaid": "{{percent}}% paid",
+      "cascadeLabel": "Contract to payment",
+      "invoicesChecking": "Checking invoices…",
+      "invoicedOut": "Invoiced is left out until every invoice amount is known.",
+      "paidOut": "Paid is left out until every invoice balance is known.",
+      "cashIncomplete": "Cash received is left out until every receipt is allocated to an invoice.",
+      "cashInvalid": "Cash received is left out because the receipt reading couldn't be verified."
     },
     "cost": {
       "estimateTitle": "Budget",
@@ -430,18 +432,18 @@
       "spendingUnlinked": "Spending isn't linked yet.",
       "finishSetup": "Finish spending setup",
       "askAdmin": "An administrator can finish the setup.",
-      "committedTooltip": "Sum of project purchase orders in the commitment states shown in Procurement.",
+      "committedTooltip": "Ordered, received, supplier-invoiced and paid procurements in the project currency, including those with no budget category; the same total as the Budget tab.",
       "committed": "Plus {{amount}} committed in purchase orders",
       "categoryTooltip": "Active budget and mapped actual spending for this category. Source: the active budget and project finance records.",
       "openCategory": "Open {{category}} in Budget",
-      "rowUnavailable": "Actual unavailable · budget {{budget}}",
       "rowSpent": "{{spent}} of {{budget}}",
       "categoryNoBudget": "{{category}} has spending with no budget",
       "categoryUse": "{{category}} uses {{percent}}% of budget",
       "snapshotUse": "{{percent}}% used",
       "snapshotRemaining": "{{amount}} remaining",
       "snapshotOver": "{{amount}} over budget",
-      "atRisk": "At risk"
+      "atRisk": "At risk",
+      "rowBudgetOnly": "{{budget}} budgeted"
     },
     "milestones": {
       "currentPhaseLabel": "Current phase",
@@ -455,16 +457,19 @@
       "manage": "Update phases",
       "error": "Couldn't load the phase timeline",
       "empty": "No phases yet. Add phases to track delivery progress.",
-      "progressTooltip": "Weighted average of phase completion using each phase weight; source: the project phase plan and linked task progress.",
-      "pct": "{{pct}}% delivered",
-      "openTaskAction": "Open task"
+      "openTimeline": "Open timeline",
+      "phasesDone": "{{done}} of {{total}} phases complete",
+      "currentTooltip": "The first phase in plan order that is not complete. Source: the project phase plan and linked task progress.",
+      "allPhasesDone": "All phases complete",
+      "phaseOverdue": "Overdue {{count}}d · target {{date}}",
+      "phaseTarget": "Target {{date}}",
+      "phaseProgressTooltip": "Manual phase progress when set; otherwise done phase tasks divided by the phase task count. Source: the project phase plan.",
+      "phaseProgressAria": "{{name}} {{pct}}% complete"
     },
     "facts": {
       "noDates": "Dates not set",
       "ariaLabel": "Project facts",
       "projectManager": "Project manager: {{name}}",
-      "contractTooltip": "Approved contract value on the project record; source: project contract value and stated currency.",
-      "contract": "Contract",
       "progressTooltip": "Weighted average of phase completion using each phase weight; source: project phase plan.",
       "progress": "Progress",
       "progressAria": "Project progress {{percent}}%",
@@ -543,8 +548,7 @@
         "uncategorized": "Uncategorized"
       },
       "owner": {
-        "you": "You",
-        "unavailable": "Name unavailable"
+        "you": "You"
       },
       "selectDocument": "Select {{title}}",
       "source": {
@@ -743,8 +747,7 @@
         "figuresIncomplete": "Invoice figures are incomplete.",
         "retryFigures": "Retry invoice figures",
         "orderlessHeading": "Invoices without a customer order",
-        "orderlessFiguresIncomplete": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance.",
-        "orderlessScroll": "Invoices without a customer order table"
+        "orderlessFiguresIncomplete": "Paid and unpaid amounts will appear once the accounting system reports an invoice balance."
       },
       "delivery": {
         "chooseOrder": "Choose the customer order receiving this delivery."

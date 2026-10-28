@@ -159,6 +159,12 @@ export interface DataTableProps<Row> {
   groupBy?: (row: Row) => string;
   /** Optional value shown beside each group label (for example, the group's open balance). */
   groupHeader?: (label: string, rows: Row[]) => React.ReactNode;
+  /** Optional heading content for a group key; when given it replaces the key AND the built-in row count. */
+  groupLabel?: (key: string) => React.ReactNode;
+  /** Optional fixed group order; every listed key gets a heading row even when it has no rows. */
+  groupOrder?: readonly string[];
+  /** Let the group heading cell span every data column instead of only the first. */
+  groupHeaderSpan?: boolean;
   /** Aligned subtotal/total rows rendered in a semantic <tfoot>; values are keyed by column key. */
   totals?: Array<{ key: string; label: React.ReactNode; values?: Record<string, React.ReactNode> }>;
   /** Optional controlled multi-row selection. */
@@ -337,6 +343,9 @@ export function DataTable<Row>({
   tableId,
   groupBy,
   groupHeader,
+  groupLabel,
+  groupOrder,
+  groupHeaderSpan = false,
   totals,
   selection,
 }: DataTableProps<Row>) {
@@ -433,7 +442,7 @@ export function DataTable<Row>({
   });
   const groupedRows = useMemo(() => {
     if (!groupBy) return modelRows.map((modelRow) => ({ type: 'data' as const, modelRow, group: undefined }));
-    const groups = new Map<string, typeof modelRows>();
+    const groups = new Map<string, typeof modelRows>((groupOrder ?? []).map((key) => [key, []]));
     for (const modelRow of modelRows) {
       const group = groupBy(modelRow.original);
       const grouped = groups.get(group);
@@ -442,7 +451,12 @@ export function DataTable<Row>({
     }
     return Array.from(groups, ([label, groupRows]) => ({ type: 'group' as const, label, rows: groupRows }))
       .flatMap((group) => [{ type: 'heading' as const, label: group.label, count: group.rows.length, rows: group.rows }, ...group.rows.map((modelRow) => ({ type: 'data' as const, modelRow, group: group.label }))]);
-  }, [groupBy, modelRows]);
+  }, [groupBy, groupOrder, modelRows]);
+  const groupToggle = (key: string, count: number) => (
+    <button type="button" aria-expanded={!collapsedGroups.has(key)} onClick={() => toggleGroup(key)}>
+      {groupLabel ? groupLabel(key) : <>{key}<span className="ml-2 font-normal text-muted-foreground">{count}</span></>}
+    </button>
+  );
   const modelHeaders = table.getHeaderGroups()[0]?.headers ?? [];
   const hasHiddenRightContent = useStickyRowMenuSeam(tableBranchRef, tableRef, isDesktop && Boolean(rowMenu));
   const colSpan = columns.length + (rowMenu ? 1 : 0) + (selection ? 1 : 0);
@@ -652,8 +666,8 @@ export function DataTable<Row>({
                 if (entry.type === 'heading') return (
                   <tr key={`group-${entry.label}-${entryIndex}`} className="h-[38px] bg-secondary/40">
                     {selection && <td className="px-3" />}
-                    <th scope="row" className="px-3 text-left text-[13.5px] font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
-                    {columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
+                    <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-3 text-left text-[13.5px] font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
+                    {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-3', alignClass(column.align))} />)}
                     {rowMenu && <td className={ROW_MENU_STICKY_CLASS} />}
                   </tr>
                 );
@@ -809,7 +823,7 @@ export function DataTable<Row>({
           <li className="p-0">{listStateNode}</li>
         ) : (
           groupedRows.map((entry, entryIndex) => {
-            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground"><button type="button" aria-expanded={!collapsedGroups.has(entry.label)} onClick={() => toggleGroup(entry.label)}>{entry.label}<span className="ml-2 font-normal text-muted-foreground">{entry.count}</span></button>{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
+            if (entry.type === 'heading') return <li key={`group-${entry.label}-${entryIndex}`} className="flex flex-wrap items-center justify-between gap-x-4 bg-secondary/40 px-4 py-2 text-[13.5px] font-semibold text-foreground">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</li>;
             if (entry.group && collapsedGroups.has(entry.group)) return null;
             const modelRow = entry.modelRow;
             const row = modelRow.original;

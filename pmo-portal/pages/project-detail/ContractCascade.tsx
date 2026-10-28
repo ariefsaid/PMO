@@ -164,10 +164,8 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
               className="inline-flex min-h-10 items-center gap-2 rounded-sm text-left hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
               onClick={() => setDrawdownOpen((open) => !open)}>
               <Icon name="chev" className={`size-3.5 text-muted-foreground transition-transform duration-100 motion-reduce:transition-none ${drawdownOpen ? 'rotate-90' : ''}`} />
+              {/* L6: the headroom figure lives once, inside the drawdown it opens (it matches Not yet ordered below). */}
               <span className="text-muted-foreground">{t('projectDetail.workOrders.drawdown.headroom', 'Drawdown headroom')}</span>
-              <strong className="font-semibold text-foreground">{orderBilling.isPending || orderBilling.isError
-                ? '—'
-                : `${project.currency} ${formatNumberWhole(billing.data.contractNet - orderBillingRows.filter((order) => order.status === 'Issued' || order.status === 'Closed').reduce((sum, order) => sum + order.orderNet, 0))}`}</strong>
             </button>}
             {(orderBilling.isError || orderBilling.isPending) ? (
               <span className="text-xs text-muted-foreground" role={orderBilling.isError ? 'alert' : 'status'}>
@@ -176,13 +174,13 @@ export const ContractCascade: React.FC<{ project: ProjectWithRefs; children?: Re
             ) : <Tooltip content={t('projectDetail.cascade.source.canInvoice', 'Delivered quantity not yet invoiced, priced at contract rates, plus remaining value on money-only orders.')}>
               <span className="inline-flex cursor-help items-center gap-2 tabular-nums">
                 <span className="text-muted-foreground">{t('projectDetail.cascade.canInvoice', 'Can invoice')}</span>
-                <strong className="font-semibold text-foreground">{project.currency} {formatNumberWhole(canInvoice)}</strong>
+                <strong className="font-semibold text-foreground">{formatNumberWhole(canInvoice)}</strong>
               </span>
             </Tooltip>}
             {overdue > 0 && <Tooltip content={t('projectDetail.cascade.source.overdue', 'Sum of positive outstanding balances on invoices past their ERP due date.')}>
               <span className="inline-flex cursor-help items-center gap-2 text-warning-foreground tabular-nums">
                 <StatusPill variant="overdue">{t('projectDetail.cascade.overdue', 'Overdue')}</StatusPill>
-                <strong className="font-semibold">{project.currency} {formatNumberWhole(overdue)}</strong>
+                <strong className="font-semibold">{formatNumberWhole(overdue)}</strong>
               </span>
             </Tooltip>}
           </div>

@@ -14,8 +14,7 @@ import { useAgentContext } from '@/src/lib/agent/context/useAgentContext';
 import { useListReturn } from '@/src/hooks/useListReturn';
 import { trackProjectTabViewed } from '@/src/lib/analytics';
 import { useMilestones } from '@/src/hooks/useMilestones';
-import { formatCurrency, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
-import { usePermission } from '@/src/auth/usePermission';
+import { completionPct, formatDateOnly, formatInstantDate, formatRelativeTime } from '@/src/lib/format';
 import ProjectDetailHeader from './ProjectDetailHeader';
 import PipelineLens from './PipelineLens';
 import ProjectDetailRail from './ProjectDetailRail';
@@ -26,12 +25,11 @@ import type { ProjectWithRefs } from '@/src/lib/db/projects';
 
 const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project }) => {
   const { t } = useTranslation('project');
-  const may = usePermission();
   const phases = useMilestones(project.id);
   const milestones = phases.data ?? [];
   const totalWeight = milestones.reduce((sum, phase) => sum + phase.weight, 0);
   const progress = totalWeight > 0
-    ? Math.round(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
+    ? completionPct(milestones.reduce((sum, phase) => sum + phase.weight * phase.effective_pct, 0) / totalWeight)
     : null;
   const manager = project.pm?.full_name;
   const initial = manager?.trim().charAt(0).toUpperCase() || '?';
@@ -48,13 +46,7 @@ const ProjectHeaderFacts: React.FC<{ project: ProjectWithRefs }> = ({ project })
         </span>
       )}
       <span>{dates}</span>
-      {may('view', 'salesInvoice') && (
-        <Tooltip content={t('projectDetail.facts.contractTooltip', 'Approved contract value on the project record; source: project contract value and stated currency.')}>
-          <span tabIndex={0} className="font-semibold tabular-nums text-foreground">
-            {t('projectDetail.facts.contract', 'Contract')} · {project.contract_value == null ? t('common.notSet', 'Not set') : formatCurrency(project.contract_value, project.currency)}
-          </span>
-        </Tooltip>
-      )}
+      {/* L6: the contract value lives once on the screen — in Money position (Overview) / Contract & billing. */}
       {progress !== null && (
         <Tooltip content={t('projectDetail.facts.progressTooltip', 'Weighted average of phase completion using each phase weight; source: project phase plan.')}>
           <span tabIndex={0} className="inline-flex min-w-40 items-center gap-2">

@@ -230,7 +230,7 @@ describe('ProjectSCurve', () => {
 
     // Legend swatches use the One-Blue token, never a raw hex.
     for (const dot of screen.getAllByTestId('legend-dot')) {
-      const bg = (dot as HTMLElement).style.background;
+      const bg = (dot as HTMLElement).style.background || (dot as HTMLElement).style.borderColor;
       expect(bg).toContain('hsl(var(--primary))');
       expect(bg).not.toMatch(/#[0-9a-f]{3,6}/i);
     }

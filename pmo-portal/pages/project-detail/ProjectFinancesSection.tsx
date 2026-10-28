@@ -1,17 +1,17 @@
 import React from 'react';
 import { Link } from 'react-router';
 import { useTranslation } from 'react-i18next';
-import { Button, TaxBasisLabel } from '@/src/components/ui';
+import { Button, DataTable, TaxBasisLabel, type Column } from '@/src/components/ui';
 import type { ProjectWithRefs } from '@/src/lib/db/projects';
 import { useProjectFinances } from '@/src/hooks/useProjectFinances';
 import { usePermission } from '@/src/auth/usePermission';
 import { useEffectiveRole } from '@/src/auth/impersonation';
-import { attributedSplit, buildProjectMoneyPosition, deriveMargin, formatExactMoney, moneyUnits } from '@/src/lib/projectFinances';
+import { attributedSplit, buildProjectMoneyPosition, deriveMargin, moneyUnits } from '@/src/lib/projectFinances';
 import { useProjectCommittedSpend } from '@/src/hooks/useProcurements';
 import { OtherCurrencyCommitments } from './OtherCurrencyCommitments';
 import { isTaxTreatment } from '@/src/lib/taxTreatment';
 import { ON_HAND_STATUSES } from '@/src/lib/db/projectTransitions';
-import { formatInstantDate } from '@/src/lib/format';
+import { formatExactMoney, formatInstantDate, formatNumberMax2 } from '@/src/lib/format';
 import { budgetCategoryLabel } from '@/src/lib/i18n/budgetCategoryLabel';
 import FxEquivalent from '@/src/components/fx/FxEquivalent';
 
@@ -23,10 +23,15 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
   const canManageAccounting = may('manage', 'orgAccounting');
   const query = useProjectFinances(project.id);
   const commitments = useProjectCommittedSpend(project.id, true);
-  const unknown = t('projectFinances.unavailable', 'Unavailable');
-  const money = (value: string | null, currency: string | null) => currency
-    ? formatExactMoney(value, currency, i18n.language) ?? unknown
-    : unknown;
+  // C5: no padded .00, and a real fraction (0.11 outstanding) is never rounded away to 0. C6: a figure in the section's own currency is bare (the Money position heading and each
+  // currency heading name it once); only a figure in another currency carries its code. C4: an unknown figure is
+  // null, and the caller leaves it out rather than printing a placeholder.
+  const money = (value: string | null, currency: string | null, sectionCurrency: string | null = project.currency): string | null => {
+    const units = moneyUnits(value);
+    if (units === null || !currency) return null;
+    const amount = formatNumberMax2(Number(units) / 100);
+    return currency === sectionCurrency ? amount : `${currency} ${amount}`;
+  };
   const title = <h2 className="text-sm font-semibold">{t('projectFinances.title', 'Project finances')}</h2>;
 
   if (query.isPending) return (
@@ -67,39 +72,42 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
     : null;
   const hasSettlement = data.invoices.some((bucket) => (moneyUnits(bucket.settled) ?? 0n) > 0n);
   const onHand = ON_HAND_STATUSES.includes(project.status as string);
-  const cashUnavailable = t('uxs01.cashReceivedUnavailable', 'Unavailable — receipt-backed cash data is not available yet');
-  const cashInvalid = t('uxs01.cashReceivedInvalid', 'Unavailable — receipt-backed cash data could not be verified');
   const cashReading = data.cash_received ?? { state: 'unavailable' as const, buckets: [], reason: 'not-reported' as const };
-  const cashKnown = cashReading.state === 'known';
-  const cashValue = cashReading.state === 'known'
-    ? cashReading.buckets.length === 0
-      ? money('0.00', project.currency)
-      : (() => {
-        const amounts = cashReading.buckets.map(({ amount, currency }) => formatExactMoney(amount, currency, i18n.language));
-        return amounts.every((amount): amount is string => amount !== null) ? amounts.join(' · ') : cashInvalid;
-      })()
-    : cashReading.state === 'incomplete'
-      ? t('uxs01.cashReceivedIncomplete', 'Incomplete — receipt allocation cannot establish cash')
-      : cashReading.reason === 'invalid-reading' ? cashInvalid : cashUnavailable;
+  // Project-currency cash is already Money position's "Cash received"; this drill-down adds only other currencies.
+  const otherCurrencyCash = cashReading.state === 'known'
+    ? cashReading.buckets.filter((bucket) => bucket.currency !== project.currency)
+      .map(({ amount, currency }) => money(amount, currency)).filter((amount): amount is string => amount !== null)
+    : [];
   const cashScope = t('uxs01.cashReceivedScope', "Receipt cash linked to this project's invoices");
   const settlementNote = t('projectFinances.settlementNote', 'Settled against invoices (cash, withholding and credits), not cash received.');
-  const field = (label: string, value: string, basis?: React.ReactNode, labelTitle?: string) => (
+  const field = (label: string, value: string | null, basis?: React.ReactNode, labelTitle?: string) => value === null ? null : (
     <div className="min-w-0">
       <dt className="text-xs text-muted-foreground" title={labelTitle}>{label}</dt>
       <dd className="break-words text-sm font-semibold tabular-nums">{value}</dd>
       {basis && <dd>{basis}</dd>}
     </div>
   );
-  // PD-C: an unknown cash reading is a dash; the reason sits in the title (and for screen readers).
-  const cashField = (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{t('uxs01.cashReceived', 'Cash received')}</dt>
-      <dd className="break-words text-sm font-semibold tabular-nums" title={cashKnown ? undefined : cashValue}>
-        {cashKnown ? cashValue : <><span aria-hidden="true">—</span><span className="sr-only">{cashValue}</span></>}
-      </dd>
-      <dd><span className="text-xs text-muted-foreground">{cashScope}</span></dd>
-    </div>
-  );
+  const marginOut = {
+    'different-currencies': t('projectDetail.money.marginOutCurrency', 'Gross margin is left out because spending and billed work use different currencies.'),
+    'work-unavailable': t('projectDetail.money.marginOutWork', 'Gross margin is left out until billed-work revenue is complete.'),
+    'actuals-unavailable': t('projectDetail.money.marginOutActuals', 'Gross margin is left out until spending is linked for every budget category.'),
+    'restricted-rows': t('projectDetail.money.marginOutRestricted', 'Gross margin is left out because spending excludes restricted rows.'),
+  };
+  const recordedSpending = money(actualPosition.amount, actualPosition.currency);
+  const categoryColumns: Column<(typeof actuals.categories)[number]>[] = [
+    { key: 'category', header: t('projectFinances.category', 'Category'), kind: 'primary', rowHeader: true,
+      cell: (row) => budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t) },
+    { key: 'amount', header: t('uxs01.recordedSpending', 'Recorded spending'), kind: 'money', align: 'num',
+      cell: (row) => {
+        const part = attributedSplit({ attributed: row.attributed_amount });
+        return <span className="tabular-nums">
+          {money(row.amount, actuals.currency, actuals.currency)}
+          {part && <span className="block text-xs font-normal text-muted-foreground">
+            {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: money(part.attributed, actuals.currency, actuals.currency) })}
+          </span>}
+        </span>;
+      } },
+  ];
   const hasInvoices = data.invoices.length > 0;
 
   return (
@@ -113,21 +121,11 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('uxs01.contractRemainingAfterCost', 'Contract remaining after cost')}</dt>
           <dd className="break-words text-sm font-semibold tabular-nums">
-            {moneyPosition.contractAfterCost === null
-              ? unknown
-              : money(moneyPosition.contractAfterCost, project.currency)}
+            {money(moneyPosition.contractAfterCost, project.currency) ?? <span className="text-xs font-normal text-muted-foreground">{t('projectFinances.contractAfterCostPending', 'Shown once recorded spending is complete.')}</span>}
           </dd>
           <dd className="text-xs text-muted-foreground">{t('projectFinances.contractAfterCostSource', 'Contract value minus comparable recorded Actual.')}</dd>
         </div>
-        <div className="min-w-0">
-          <dt className="text-xs text-muted-foreground">{t('uxs01.actual', 'Actual')}</dt>
-          <dd className="break-words text-sm font-semibold tabular-nums">{money(actualPosition.amount, actualPosition.currency)}</dd>
-          <dd className="text-xs text-muted-foreground">{actualPosition.basis === 'erp'
-            ? t('projectFinances.actualSourceErp', 'Recorded from the accounting system')
-            : actualPosition.basis === 'pmo'
-              ? t('uxs01.pmoCoverage', 'Committed PMO purchase orders')
-              : t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</dd>
-        </div>
+        {/* L6: Actual is the Recorded spending figure below (with its basis and freshness), so it is not repeated here. */}
         <div className="min-w-0">
           <dt className="text-xs text-muted-foreground">{t('projectDetail.money.contract', 'Contract')}</dt>
           <dd><FxEquivalent amount={project.contract_value} currency={project.currency} date={project.contract_date} compact /></dd>
@@ -141,7 +139,7 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {t('project:noLinkedInvoices', 'No invoices linked to this project yet')}
       </p>}
       {hasInvoices && <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-        {cashField}
+        {otherCurrencyCash.length > 0 && field(t('uxs01.cashReceived', 'Cash received'), otherCurrencyCash.join(' · '), <span className="text-xs text-muted-foreground">{cashScope}</span>)}
         {onHand && field(t('projectFinances.contractInvoiced', 'Invoiced against contract'), money(data.contract_invoiced, project.currency),
           isTaxTreatment(project.tax_treatment) && <TaxBasisLabel treatment={project.tax_treatment} showDetails={false} testId="project-invoiced-basis" />)}
         {onHand && field(t('projectFinances.remaining', 'Remaining to invoice'), money(data.remaining_to_invoice, project.currency),
@@ -149,13 +147,8 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
       </dl>}
       {data.invoices.map((bucket) => {
         const margin = deriveMargin(bucket, actuals);
-        const incomplete = t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet');
-        const reasons = {
-          'different-currencies': t('projectFinances.differentCurrencies', 'Unavailable — different currencies'),
-          'work-unavailable': t('projectFinances.workUnavailable', 'Billed-work revenue unavailable'),
-          'actuals-unavailable': t('projectFinances.actualsUnavailable', 'Not available yet'),
-          'restricted-rows': t('projectFinances.restricted', 'Actuals exclude restricted rows'),
-        };
+        const balancesKnown = bucket.missing_outstanding === 0;
+        const own = (value: string | null) => money(value, bucket.currency, bucket.currency);
         return (
           <div key={bucket.currency} className="min-w-0 space-y-2" data-testid={`project-finances-${bucket.currency}`}>
             <div>
@@ -163,14 +156,16 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               <p className="text-xs text-muted-foreground">{t('financeCopy.invoiceCount', '{{count}} invoices', { count: bucket.invoice_count })}</p>
             </div>
             <dl className="grid min-w-0 gap-4 sm:grid-cols-3">
-              {field(t('projectFinances.invoiced', 'Invoiced'), money(bucket.invoiced, bucket.currency))}
-              {field(t('projectFinances.settled', 'Settled'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.settled, bucket.currency),
-                undefined, hasSettlement ? settlementNote : undefined)}
-              {field(t('projectFinances.outstanding', 'Outstanding'), bucket.missing_outstanding > 0 ? incomplete : money(bucket.outstanding, bucket.currency))}
-              {field(t('project:billedWork', 'Billed-work revenue'), money(bucket.work_revenue, bucket.currency),
+              {field(t('projectFinances.invoiced', 'Invoiced'), own(bucket.invoiced))}
+              {balancesKnown && field(t('projectFinances.settled', 'Settled'), own(bucket.settled), undefined, hasSettlement ? settlementNote : undefined)}
+              {balancesKnown && field(t('projectFinances.outstanding', 'Outstanding'), own(bucket.outstanding))}
+              {field(t('project:billedWork', 'Billed-work revenue'), own(bucket.work_revenue),
                 undefined, t('project:billedWorkQualifier', 'Net of tax; advances excluded'))}
-              {field(t('projectFinances.margin', 'Margin'), margin.reason ? reasons[margin.reason] : money(margin.amount, bucket.currency))}
+              {!margin.reason && field(t('projectFinances.margin', 'Margin'), own(margin.amount))}
             </dl>
+            {/* C4: unknown figures are left out above; each reason is said once here. */}
+            {!balancesKnown && <p className="text-xs text-muted-foreground">{t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet')}</p>}
+            {margin.reason && <p className="text-xs text-muted-foreground">{marginOut[margin.reason]}</p>}
             <div className="text-xs text-muted-foreground">
               {bucket.tax_basis === 'mixed'
                 ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')
@@ -185,12 +180,14 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         </h3>
         {/* PD-C: Recorded spending is the ONE home for coverage — shown only when partial — and
             its freshness is one inline "Updated" beside the amount. */}
-        <p className="break-words font-semibold tabular-nums">
-          {money(actualPosition.amount, actualPosition.currency)}
+        {(recordedSpending !== null || (actualPosition.basis === 'erp' && actualPosition.asOf)) && <p className="break-words font-semibold tabular-nums">
+          {money(actualPosition.amount, actualPosition.currency, actualPosition.currency)}
           {actualPosition.basis === 'erp' && actualPosition.asOf && <span className="ml-2 text-xs font-normal text-muted-foreground">
             {t('uxs01.updated', 'Updated {{date}}', { date: formatInstantDate(actualPosition.asOf) })}
           </span>}
-        </p>
+        </p>}
+        {recordedSpending === null && completeCoverage && actualPosition.basis !== 'pmo'
+          && <p className="text-xs text-muted-foreground">{t('uxs01.coverageUnavailable', 'Spending coverage unavailable')}</p>}
         {actualPosition.basis === 'pmo'
           ? <p className="text-xs text-muted-foreground">
             {t('uxs01.pmoCoverage', 'Committed PMO purchase orders')}
@@ -207,9 +204,9 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
           <p className="text-xs text-muted-foreground" data-testid="spending-attributed-note">
             {split.tagged
               ? t('costAttribution:split.note', 'Includes {{attributed}} attributed by cost rules · {{tagged}} tagged in the ERP', {
-                attributed: money(split.attributed, actualPosition.currency), tagged: money(split.tagged, actualPosition.currency) })
+                attributed: money(split.attributed, actualPosition.currency, actualPosition.currency), tagged: money(split.tagged, actualPosition.currency, actualPosition.currency) })
               : t('costAttribution:split.noteAttributedOnly', 'Includes {{attributed}} attributed by cost rules', {
-                attributed: money(split.attributed, actualPosition.currency) })}
+                attributed: money(split.attributed, actualPosition.currency, actualPosition.currency) })}
           </p>
         )}
         {actualPosition.basis === 'erp' && !actualPosition.asOf &&
@@ -226,36 +223,16 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
         {actualPosition.basis === 'erp' && actuals.excludes_restricted_rows && <p role="status">{t('projectFinances.restricted', 'Actuals exclude restricted rows')}</p>}
         {actualPosition.basis === 'erp' && knownCategories.length > 0 && <details className="min-w-0">
           <summary className="cursor-pointer text-sm font-medium">{t('uxs01.showCategoryDetails', 'Show category details')}</summary>
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <caption className="sr-only">{t('uxs01.categoryDetails', 'Recorded spending by category')}</caption>
-            <thead>
-              <tr>
-                <th scope="col" className="text-left">{t('projectFinances.category', 'Category')}</th>
-                <th scope="col" className="text-right">{t('uxs01.recordedSpending', 'Recorded spending')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {knownCategories.map((row) => (
-                <tr key={row.category}>
-                  <th scope="row" className="break-words text-left font-normal">
-                    {budgetCategoryLabel(row.category as Parameters<typeof budgetCategoryLabel>[0], t)}
-                  </th>
-                  <td className="break-words text-right tabular-nums">
-                    {money(row.amount, actuals.currency)}
-                    {(() => {
-                      const part = attributedSplit({ attributed: row.attributed_amount });
-                      return part && (
-                        <span className="block text-xs font-normal text-muted-foreground">
-                          {t('costAttribution:split.inline', 'incl. {{attributed}} attributed', { attributed: money(part.attributed, actuals.currency) })}
-                        </span>
-                      );
-                    })()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/* F10: the shared DataTable rather than a hand-rolled table. */}
+          <div className="mt-2">
+            <DataTable
+              embedded
+              rows={knownCategories}
+              columns={categoryColumns}
+              rowKey={(row) => row.category}
+              accessibleName={t('uxs01.categoryDetails', 'Recorded spending by category')}
+              tableId="project-finances-recorded-spending"
+            />
           </div>
         </details>}
         {actualPosition.basis === 'erp' && canInspectAccounting && unavailableCategories.length > 0 && (
