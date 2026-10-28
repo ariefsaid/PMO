@@ -29,7 +29,7 @@ orca orchestration worker-start --spec "<brief or path>" --agent <harness> \
 **Cheapest first (owner, 2026-10-28):** spend quota in this order and stop at the first model that can do
 the job well: Gemini Flash → GLM-5.3-flash → GPT (Luna, then Sol) → Claude (Sonnet, then Opus). Claude
 tokens are preserved for the Opus orchestrator: no Opus while Sol has quota; no Opus or Sol where Sonnet
-or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a rung, not habit.
+or Luna will do; no Luna where GLM will do. Only a used-up quota moves work up a rung, not habit. Routing applies before `worker-start`: never stop a running worker to re-route it; stop only on the owner's explicit "stop".
 
 | Work | Model · harness · effort |
 |---|---|
