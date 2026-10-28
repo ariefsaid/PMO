@@ -34,6 +34,9 @@ Pi reports `worker_done` to Orca by itself when it finishes (verified 2026-10-28
 - **`--agent pi` ignores `--model`.** Orca passes a model only to claude, codex, cursor, antigravity
   and muse; pi then runs its own default provider (`~/.pi/agent/settings.json`), which is not GLM
   here and fails auth. Always launch pi yourself with `--provider zai --model glm-5.3-flash:max`.
+- **Wait for pi to finish starting before `worker-start --terminal`.** If the brief arrives during pi's startup
+  banner it is lost and pi sits idle at its prompt (`0.0%` context). Check with `orca terminal read`; if idle, type the
+  brief in with `orca terminal send --terminal <handle> --text "<prompt>" --enter`.
 - **`worker-start --terminal` needs `--worktree` matching the terminal's worktree**, or it fails
   with `terminal_worktree_mismatch`.
 - **zcode does not start from the command line or Orca** (CLI 0.17.0 bundled in ZCode.app 3.16.2):
