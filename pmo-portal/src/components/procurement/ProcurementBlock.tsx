@@ -664,7 +664,7 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
       },
       {
         key: 'age',
-        header: <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}><span tabIndex={0}>{t('procurement.ageInStage', 'Age in stage')}</span></Tooltip>,
+        header: <Tooltip content={t('procurement.ageInStageTooltip', 'Days since the current procurement stage was most recently entered.')}><span tabIndex={0}>{t('procurement.ageShort', 'Age')}</span></Tooltip>,
         kind: 'number',
         colClassName: projectId ? 'hidden' : undefined,
         align: 'num',

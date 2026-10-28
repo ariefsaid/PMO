@@ -365,7 +365,7 @@
       "phaseTooltip": "Phase target dates and completion come from the project phase plan.",
       "approveOne": "Procurement waiting for your approval",
       "approveMany": "{{count}} procurements waiting for your approval",
-      "approveSize": "{{count}} requests",
+      "approveSize": "{{count}} procurements",
       "approveAction": "Review",
       "approveTooltip": "Counts project procurements that are waiting for your approval."
     },

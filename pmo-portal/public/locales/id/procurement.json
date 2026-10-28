@@ -275,6 +275,7 @@
     "needsYouTooltip": "Tindakan yang disarankan berdasarkan peran dan status catatan saat ini. Aturan server tetap menjadi acuan.",
     "ageInStageTooltip": "Jumlah hari sejak permintaan pengadaan terakhir kali memasuki tahap saat ini.",
     "ageInStage": "Lama di tahap",
+    "ageShort": "Umur",
     "ageInStageDays": "{{count}} hari",
     "raisedBy": "Dibuat oleh",
     "stageCountTooltip": "Jumlah permintaan pengadaan yang saat ini berada di tahap {{stage}}. Sumber: catatan pengadaan perusahaan.",

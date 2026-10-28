@@ -24,7 +24,7 @@ import {
 import { ExportButton } from '@/src/components/export';
 import { usePermission } from '@/src/auth/usePermission';
 import { useAuth } from '@/src/auth/useAuth';
-import { formatCurrency, formatCurrencyCents, formatDateOnly, formatNumberExact, formatNumberWhole, formatUtcMonthYear, currencySymbol } from '@/src/lib/format';
+import { formatCurrency, formatDateOnly, formatNumberExact, formatNumberWhole, formatUtcMonthYear, currencySymbol } from '@/src/lib/format';
 import { classifyMutationError } from '@/src/lib/classifyMutationError';
 import {
   isOverCommitmentRefusal,
@@ -536,13 +536,13 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
       cell: (claim) => claim.kind === 'down_payment' ? t('projectDetail.billing.claims.kind.downPayment', 'Down payment') : t('projectDetail.billing.claims.kind.progress', 'Progress'),
       secondaryCell: (claim) => formatDateOnly(claim.created_at) },
     { key: 'gross', header: t('projectDetail.billing.claims.column.gross', 'Gross'), align: 'num', kind: 'money',
-      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.gross_amount), currency)}</span></Tooltip>,
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') }><span className="cursor-help tabular-nums">{formatCurrency(Number(claim.gross_amount), currency)}</span></Tooltip>,
       exportValue: (claim) => Number(claim.gross_amount) },
     { key: 'recovery', header: t('projectDetail.billing.claims.column.recovery', 'DP recovery'), align: 'num', kind: 'money',
-      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') }><span className="cursor-help tabular-nums">{formatCurrencyCents(Number(claim.dp_recovery_amount), currency)}</span></Tooltip>,
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') }><span className="cursor-help tabular-nums">{formatCurrency(Number(claim.dp_recovery_amount), currency)}</span></Tooltip>,
       exportValue: (claim) => Number(claim.dp_recovery_amount) },
     { key: 'net', header: t('projectDetail.billing.claims.column.net', 'Net'), align: 'num', kind: 'money',
-      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') }><span className="cursor-help tabular-nums font-semibold">{formatCurrencyCents(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency)}</span></Tooltip>,
+      cell: (claim) => <Tooltip content={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') }><span className="cursor-help tabular-nums font-semibold">{formatCurrency(claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)), currency)}</span></Tooltip>,
       exportValue: (claim) => claimNet(Number(claim.gross_amount), Number(claim.dp_recovery_amount)) },
     { key: 'invoice', header: t('projectDetail.billing.claims.column.invoice', 'Invoice'), cell: (claim) => {
       const invoiceId = claim.invoice ? claim.id : null;
@@ -637,14 +637,14 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
             <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</span>
               <strong data-testid="wo-billing-total-still" className="ml-2 tabular-nums">
-                {billingTotals.complete ? formatCurrencyCents(billingTotals.stillToInvoice, currency) : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
+                {billingTotals.complete ? formatCurrency(billingTotals.stillToInvoice, currency) : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
               </strong>
             </span>
             <span>
               <span className="text-muted-foreground">{t('common:projectDetail.workOrders.billing.notSubmitted', 'Not yet submitted')}</span>{' '}
               <strong data-testid="wo-billing-total-draft" className="ml-1 tabular-nums">
                 {billingTotals.complete
-                  ? formatCurrencyCents(billingTotals.inDraft, currency)
+                  ? formatCurrency(billingTotals.inDraft, currency)
                   : t('common:projectDetail.workOrders.billing.unavailable', 'Unavailable')}
               </strong>
             </span>
@@ -833,7 +833,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
                       {row.client_po_number && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.clientPo', 'Customer PO')} {row.client_po_number}</span>}
                       {row.order_date && <span className="text-xs text-muted-foreground">{t('projectDetail.workOrders.orderDate', 'Order date')} {formatDateOnly(row.order_date)}</span>}
                       <div className="ml-auto flex flex-wrap items-center gap-2">
-                        {canRaiseOrderInvoice && billingRow && <Tooltip content={`${t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.')} ${t('common:projectDetail.workOrders.billing.lineNet', 'Net value {{amount}}', { amount: formatCurrencyCents(billingRow.orderNet, currency) })}`}>
+                        {canRaiseOrderInvoice && billingRow && <Tooltip content={`${t('projectDetail.workOrders.billing.orderRemainingSource', 'Source: work-order billing balance after invoices and pending drafts.')} ${t('common:projectDetail.workOrders.billing.lineNet', 'Net value {{amount}}', { amount: formatCurrency(billingRow.orderNet, currency) })}`}>
                           <Button variant="primary" size="sm" onClick={raiseOrderInvoice}>
                             {`${t('projectDetail.workOrders.billing.invoiceAction', 'Raise invoice')} · ${formatCurrency(billingRow.remaining, currency)}`}
                           </Button>
@@ -847,15 +847,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
 
                     {canViewBilling && <dl className="flex flex-wrap gap-x-6 gap-y-2" data-testid={`wo-money-${row.id}`} aria-label={t('common:projectDetail.workOrders.billing.column', 'Billing')}>
                       {settlement?.invoiced !== null && settlement?.invoiced !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.invoiced', 'Invoiced')} value={formatNumberWhole(settlement.invoiced)} detail={settlement.balancesKnown
-                        ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatCurrencyCents(settlement.invoiced, currency), paid: formatCurrencyCents(settlement.paid, currency) })
+                        ? t('common:projectDetail.workOrders.billing.lineInvoiced', 'Invoiced {{invoiced}} · paid {{paid}}', { invoiced: formatCurrency(settlement.invoiced, currency), paid: formatCurrency(settlement.paid, currency) })
                         : t('projectDetail.cascade.source.invoiced', 'Source: non-draft, non-cancelled invoice amounts.')} />}
                       {settlement?.balancesKnown && billingRow?.figuresComplete !== false && <MoneyFigure label={t('common:projectDetail.workOrders.billing.paid', 'Paid')} value={formatNumberWhole(settlement.paid)} detail={t('projectDetail.cascade.source.paid', 'Source: invoice amount less the accounting balance outstanding.')} />}
                       {settlement?.unpaid !== null && settlement?.unpaid !== undefined && billingRow?.figuresComplete !== false && <MoneyFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatNumberWhole(settlement.unpaid)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.')} destructive={settlement.unpaid > 0} />}
                       {billingRow?.figuresComplete && row.status !== 'Draft' && row.status !== 'Cancelled' && <div className="min-w-0 text-xs">
                           <dt className="sr-only">{t('common:projectDetail.workOrders.billing.stillToInvoice', 'Still to invoice')}</dt>
                           <dd className="cursor-help text-muted-foreground tabular-nums"><Tooltip content={t('projectDetail.workOrders.billing.pendingNote', 'Drafts and unraised claims count as not yet invoiced.') }><span>{billingRow.remaining < 0
-                            ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatCurrencyCents(Math.abs(billingRow.remaining), currency) })
-                            : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatCurrencyCents(billingRow.remaining, currency) })}</span></Tooltip></dd>
+                            ? t('common:projectDetail.workOrders.billing.lineOver', 'Over by {{amount}}', { amount: formatCurrency(Math.abs(billingRow.remaining), currency) })
+                            : t('common:projectDetail.workOrders.billing.lineRemaining', 'Still to invoice {{amount}}', { amount: formatCurrency(billingRow.remaining, currency) })}</span></Tooltip></dd>
                         </div>}
                     </dl>}
 
@@ -1021,11 +1021,11 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <dl className="mb-4 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 sm:grid-cols-3">
             <div>
               <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.gap', 'Work done, not yet billed')}</dt>
-              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatCurrencyCents(summary.unbilledWork, currency)}</span></Tooltip></dd>
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.unbilled', 'Computed as earned work from the latest assessment or accepted quantities, less work billed to date.') }><span>{summary?.unbilledWork === null || summary?.unbilledWork === undefined ? '—' : formatCurrency(summary.unbilledWork, currency)}</span></Tooltip></dd>
             </div>
             <div>
               <dt className="text-xs text-muted-foreground">{t('projectDetail.billing.summary.dpHeld', 'Down payment held')}</dt>
-              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{summary ? formatCurrencyCents(summary.dpHeld, currency) : '—'}</span></Tooltip></dd>
+              <dd className="mt-1 w-fit cursor-help text-base font-semibold tabular-nums"><Tooltip content={t('projectDetail.billing.claims.source.dpHeld', 'Computed as invoiced down payment less recovered down payment.') }><span>{summary ? formatCurrency(summary.dpHeld, currency) : '—'}</span></Tooltip></dd>
             </div>
           </dl>
           <p className="mb-4 text-xs text-muted-foreground">
@@ -1036,15 +1036,15 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {t('projectDetail.billing.summary.details', 'Billing summary details')}
             </summary>
             {summary ? <dl data-testid="work-orders-billing-detail" className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-              <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={formatCurrencyCents(summary.workBilled, currency)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
-              <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={formatCurrencyCents(summary.contractNet, currency)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
-              <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={formatCurrencyCents(summary.remaining, currency)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
-              <MoneyFigure label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={summary.assessedToDate === null ? '—' : formatCurrencyCents(summary.assessedToDate, currency)} detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.billed', 'Billed to date')} value={formatCurrency(summary.workBilled, currency)} detail={t('projectDetail.billing.source.billed', 'Source: work and down-payment claims billed to date.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.contract', 'Contract value')} value={formatCurrency(summary.contractNet, currency)} detail={t('projectDetail.billing.source.contract', 'Source: net contract value from the project billing summary.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.remaining', 'Contract not yet billed')} value={formatCurrency(summary.remaining, currency)} detail={t('projectDetail.billing.source.remaining', 'Computed as net contract value less claims billed to date.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.assessed', 'Assessed to date')} value={summary.assessedToDate === null ? '—' : formatCurrency(summary.assessedToDate, currency)} detail={t('projectDetail.billing.source.assessed', 'Source: earned contract line value or the latest recorded progress assessment.')} />
               {summary.assessment && <p className="col-span-2 text-xs text-muted-foreground sm:col-span-3" data-testid="work-orders-assessment-period">
                 {t('projectDetail.billing.summary.assessedAsOf', 'as of {{month}}, {{pct}}% complete', { month: formatUtcMonthYear(new Date(`${summary.assessment.month}T00:00:00Z`)), pct: formatNumberExact(summary.assessment.pctComplete) })}
               </p>}
               {!summary.assessment && <p className="col-span-2 text-xs text-muted-foreground sm:col-span-3" data-testid="work-orders-no-assessment">{t('projectTabs:contractQuantities.billing.summary.noAssessment', 'No assessment yet')}</p>}
-              <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatCurrencyCents(summary.notSubmitted, currency)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
+              <MoneyFigure label={t('projectDetail.billing.summary.notSubmitted', 'Claims raised, not yet submitted')} value={formatCurrency(summary.notSubmitted, currency)} detail={t('projectDetail.billing.source.notSubmitted', 'Source: claim invoices created in accounting but not yet submitted.')} />
             </dl> : <p className="mt-3 text-sm text-muted-foreground">{t('projectDetail.billing.summary.unavailable', 'Billing summary is unavailable.')}</p>}
           </details>
           <DataTable<ProgressClaimWithInvoice>
@@ -1198,9 +1198,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           const invoiceCurrency = invoiceDrawerFor.currency || currency;
           return <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
             {invoiceDrawerFor.invoice_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDate', 'Date')} value={formatDateOnly(invoiceDrawerFor.invoice_date)} />}
-            {invoiceDrawerFor.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrencyCents(invoiceDrawerFor.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
-            {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrencyCents(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') } />}
-            {figures.unpaid !== null && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatCurrencyCents(figures.unpaid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') } />}
+            {invoiceDrawerFor.amount !== null && <QuantityFigure label={t('projectDetail.cascade.invoiceAmount', 'Amount')} value={formatCurrency(invoiceDrawerFor.amount, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceAmount', 'Source: invoice amount mirrored from accounting.') } />}
+            {figures.paid !== null && <QuantityFigure label={t('projectDetail.cascade.paid', 'Paid')} value={formatCurrency(figures.paid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoicePaid', 'Computed as invoice amount less accounting balance outstanding.') } />}
+            {figures.unpaid !== null && <QuantityFigure label={t('projectDetail.cascade.unpaid', 'Unpaid')} value={formatCurrency(figures.unpaid, invoiceCurrency)} detail={t('projectDetail.cascade.source.invoiceUnpaid', 'Source: accounting balance outstanding for this invoice.') } />}
             {invoiceDrawerFor.erp_due_date && <QuantityFigure label={t('projectDetail.cascade.invoiceDueDate', 'Due date')} value={formatDateOnly(invoiceDrawerFor.erp_due_date)} />}
           </dl>;
         })()}
@@ -1219,9 +1219,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
           <Link className="inline-flex min-h-10 items-center text-sm font-medium text-primary-text underline underline-offset-2" to={claimDrawerFor.invoice ? `/sales-invoices/${encodeURIComponent(claimDrawerFor.id)}` : `/projects/${encodeURIComponent(projectId)}/billing`} onClick={() => closeOpenRecord(claimDrawerFor.id, 'workOrderClaim')}>{t('projectDetail.drawer.openFullPage', 'Open full page')}</Link>
         </div>}>
         <dl className="grid grid-cols-2 gap-4 p-4 text-sm">
-          <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrencyCents(Number(claimDrawerFor.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
-          <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatCurrencyCents(Number(claimDrawerFor.dp_recovery_amount), currency)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
-          <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatCurrencyCents(claimNet(Number(claimDrawerFor.gross_amount), Number(claimDrawerFor.dp_recovery_amount)), currency)} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.gross', 'Gross')} value={formatCurrency(Number(claimDrawerFor.gross_amount), currency)} detail={t('projectDetail.billing.claims.source.gross', 'Source: the progress claim gross amount, copied from accepted quantities and contract rates.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.recovery', 'DP recovery')} value={formatCurrency(Number(claimDrawerFor.dp_recovery_amount), currency)} detail={t('projectDetail.billing.claims.source.recovery', 'Source: the down-payment amount recovered on this claim.') } />
+          <QuantityFigure label={t('projectDetail.billing.claims.column.net', 'Net')} value={formatCurrency(claimNet(Number(claimDrawerFor.gross_amount), Number(claimDrawerFor.dp_recovery_amount)), currency)} detail={t('projectDetail.billing.claims.source.net', 'Computed as gross less down-payment recovery.') } />
           <QuantityFigure label={t('projectDetail.billing.claims.column.evidence', 'Evidence')} value={formatNumberExact(claimDrawerFor.evidence?.length ?? 0)} detail={t('projectDetail.billing.claims.source.evidence', 'Source: linked evidence documents on the claim.') } />
         </dl>
         <section className="border-t border-border px-4 py-3">
@@ -1383,9 +1383,9 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               <p>{t('projectDetail.billing.claims.confirmRaise.body', 'An ERP sales invoice draft is created from this claim. A different Admin or Finance user submits it.')}</p>
               <p data-testid="raise-figures">
                 {t('projectDetail.billing.claims.confirmRaise.figures', 'Claimed {{gross}} · down payment recovered {{recovery}} · net {{net}} (excl. PPN)', {
-                  gross: formatCurrencyCents(Number(raiseFor.claim.gross_amount), currency),
-                  recovery: formatCurrencyCents(Number(raiseFor.claim.dp_recovery_amount), currency),
-                  net: formatCurrencyCents(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount)), currency),
+                  gross: formatCurrency(Number(raiseFor.claim.gross_amount), currency),
+                  recovery: formatCurrency(Number(raiseFor.claim.dp_recovery_amount), currency),
+                  net: formatCurrency(claimNet(Number(raiseFor.claim.gross_amount), Number(raiseFor.claim.dp_recovery_amount)), currency),
                   interpolation: { escapeValue: false },
                 })}
               </p>

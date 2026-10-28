@@ -1498,7 +1498,7 @@ const MilestoneGroupedList: React.FC<MilestoneGroupedListProps> = ({
             'Manual phase progress when set; otherwise Done phase tasks divided by the phase task count. Source: get_project_milestones.',
           )}>
             <span tabIndex={0} className="inline-flex min-w-0 items-center">
-              <ProgressBar value={Math.round(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'neutral'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
+              <ProgressBar value={Math.round(group.milestone.effective_pct)} tone={group.milestone.effective_pct >= 100 ? 'success' : 'primary'} showValue compact aria-label={t('projectDetail.tasks.phaseProgress', 'Phase progress')} />
             </span>
           </Tooltip>}
           {lateDays !== null && <Tooltip content={t('projectDetail.tasks.phaseLateTooltip', 'Days past the phase target date, compared with today in the organization timezone. Source: milestone target date and organization day.')}>

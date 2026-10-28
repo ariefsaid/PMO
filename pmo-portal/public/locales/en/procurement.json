@@ -275,6 +275,7 @@
     "needsYouTooltip": "Suggested action based on the current role and record state. Server rules remain authoritative.",
     "ageInStageTooltip": "Days since the current procurement stage was most recently entered.",
     "ageInStage": "Age in stage",
+    "ageShort": "Age",
     "ageInStageDays": "{{count}}d",
     "raisedBy": "Raised by",
     "stageCountTooltip": "Count of procurements currently in {{stage}}. Source: company procurement records.",

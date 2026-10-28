@@ -275,7 +275,7 @@ describe('shared procurement block', () => {
     vi.unstubAllGlobals();
 
     const cards = screen.getByTestId('dt-card-branch');
-    expect(within(cards).getByText('Age in stage')).toBeInTheDocument();
+    expect(within(cards).getByText('Age')).toBeInTheDocument();
     expect(within(cards).getByText('Raised by')).toBeInTheDocument();
     expect(within(cards).getByText('Project Manager')).toBeInTheDocument();
   });

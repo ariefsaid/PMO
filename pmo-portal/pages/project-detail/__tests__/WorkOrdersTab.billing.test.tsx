@@ -143,10 +143,10 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
 
     const order = screen.getByTestId('customer-order-wo-1');
     expect(within(order).getByText('Partly invoiced')).toBeInTheDocument();
-    const stillToInvoice = within(order).getByText('Still to invoice $80,000.00');
+    const stillToInvoice = within(order).getByText('Still to invoice $80,000');
     expect(stillToInvoice).toBeInTheDocument();
-    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000.00');
-    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$90,000.00');
+    expect(screen.getByTestId('wo-billing-total-still')).toHaveTextContent('$80,000');
+    expect(screen.getByTestId('wo-billing-total-draft')).toHaveTextContent('$90,000');
     await userEvent.hover(stillToInvoice);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Drafts and unraised claims count as not yet invoiced.');
   });
@@ -257,7 +257,7 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     expect(figures.getAllByText('330,000')).toHaveLength(2);
     expect(screen.getByRole('heading', { name: 'Claims & down payment' })).toBeInTheDocument();
     expect(screen.getByText('Down payment held')).toBeInTheDocument();
-    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000.00')).toBeInTheDocument();
+    expect(within(screen.getByText('Down payment held').parentElement!).getByText('$330,000')).toBeInTheDocument();
   });
 
   it('AC-BWO-004 Finance gets Invoice on an Issued work order with something left; it opens the dialog with what is left', async () => {
@@ -359,8 +359,8 @@ describe('WorkOrdersTab — billing by work order (OD-BILL-1)', () => {
     h.invoices = { data: undefined, isPending: false, isError: true, refetch: vi.fn() };
     renderTab();
     const order = screen.getByTestId('customer-order-wo-1');
-    expect(order).not.toHaveTextContent('Invoiced $0.00');
-    expect(order).not.toHaveTextContent('Paid $0.00');
+    expect(order).not.toHaveTextContent('Invoiced $0');
+    expect(order).not.toHaveTextContent('Paid $0');
     expect(within(order).getByText("Couldn't load invoice figures.")).toBeInTheDocument();
     expect(within(order).getByRole('button', { name: 'Retry invoice figures' })).toBeInTheDocument();
   });
