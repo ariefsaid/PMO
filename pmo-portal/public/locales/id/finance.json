@@ -122,12 +122,10 @@
     "clientUnavailable": "Klien belum dicatat",
     "projectUnassigned": "Proyek belum ditetapkan",
     "unassignedProjectManager": "PM belum ditetapkan",
-    "drawerTitle": "{{client}} · {{amount}}",
     "invoiceNumber": "Faktur {{number}}",
     "project": "Proyek",
     "invoiceDate": "Tanggal faktur",
     "paymentTerms": "Termin",
-    "taxBasis": "Dasar pajak",
     "eFaktur": "e-Faktur",
     "outstanding": "Terutang · termasuk pajak",
     "timeline": "Linimasa status",
@@ -171,7 +169,9 @@
     "rowActions": "Tindakan faktur",
     "paymentActions": "Tindakan pembayaran",
     "figures": "Angka piutang",
-    "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi."
+    "evidenceLoadError": "Gagal memuat baris faktur dari sistem akuntansi.",
+    "amount": "Jumlah",
+    "outstandingUnknown": "Saldo terutang belum diketahui: sistem akuntansi belum melaporkannya untuk faktur ini."
   },
   "invoices": {
     "description": "Faktur klien.",

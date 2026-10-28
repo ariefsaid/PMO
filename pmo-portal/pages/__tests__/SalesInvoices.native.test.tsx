@@ -912,14 +912,55 @@ describe('Receivables list restructure fixes (2026-10-28 rulings audit)', () => 
     expect(screen.getAllByTestId('tax-basis')).toHaveLength(1);
   });
 
-  it('C6: mixed tax bases keep the basis on each amount', () => {
+  it('C6: mixed tax bases state the majority basis once in the Amount header and label only the rows that differ', () => {
     h.invoices.data = [
       nativeInvoice({ id: 'a', pmo_number: 'INV-A', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_110_000 }),
       nativeInvoice({ id: 'b', pmo_number: 'INV-B', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000, tax_treatment: 'inclusive' }),
+      nativeInvoice({ id: 'c', pmo_number: 'INV-C', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 1_000_000, tax_treatment: 'inclusive' }),
     ];
     renderPage('/finance/receivables', true);
+    const header = screen.getByRole('columnheader', { name: /Amount/ });
+    expect(within(header).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
     expect(within(rowFor('INV-A')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
-    expect(within(rowFor('INV-B')).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'inclusive');
+    expect(within(rowFor('INV-B')).queryByTestId('tax-basis')).not.toBeInTheDocument();
+    expect(within(rowFor('INV-C')).queryByTestId('tax-basis')).not.toBeInTheDocument();
+  });
+
+  it('N5 / C4: the invoice drawer is titled by the client, carries the amount in its figures and leaves out fields with nothing recorded', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: null, efaktur_number: null, erp_payment_terms_days: null })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Acme Energy' })).toBeInTheDocument();
+    expect(within(drawer).queryByRole('heading', { name: /IDR/ })).not.toBeInTheDocument();
+    const figures = within(drawer).getByText('Amount').closest('dl') as HTMLElement;
+    expect(figures).toHaveTextContent(/IDR\s?1,000,000/);
+    expect(within(figures).getByTestId('tax-basis')).toHaveAttribute('data-tax-basis', 'exclusive');
+    for (const empty of ['Terms', 'e-Faktur', 'Outstanding · tax included']) expect(within(figures).queryByText(empty)).not.toBeInTheDocument();
+    expect(figures).not.toHaveTextContent('—');
+    expect(within(drawer).getAllByText(/outstanding balance is not known yet/)).toHaveLength(1);
+  });
+
+  it('C5: the drawer shows the outstanding balance in whole units, never cents', () => {
+    h.invoices.data = [nativeInvoice({ status: 'Unpaid', received_date: '2026-10-12', erp_outstanding_amount: 610_000, erp_payment_terms_days: 30 })];
+    renderPage('/finance/receivables?open=si-n1', true);
+    const drawer = screen.getByRole('dialog');
+    const outstanding = within(drawer).getByText('Outstanding · tax included').parentElement as HTMLElement;
+    expect(outstanding).toHaveTextContent(/IDR\s?610,000/);
+    expect(outstanding).not.toHaveTextContent('.00');
+    expect(within(drawer).getByText('30 days')).toBeInTheDocument();
+    expect(within(drawer).queryByText(/outstanding balance is not known yet/)).not.toBeInTheDocument();
+  });
+
+  it('P5: on a phone the receivables filters wrap, so Group by stays on screen', () => {
+    mockPhoneViewport();
+    h.invoices.data = [nativeInvoice({ pmo_number: 'INV-1', status: 'Unpaid', received_date: '2026-10-01', erp_outstanding_amount: 500_000 })];
+    renderPage('/finance/receivables', true);
+    const filters = screen.getByRole('region', { name: 'Filter by status' });
+    expect(within(filters).getByRole('tablist', { name: 'Group by' })).toBeInTheDocument();
+    // jsdom has no layout: wrapping (not a clipped horizontal scroller) is the contract.
+    expect(filters).toHaveClass('flex-wrap');
+    expect(filters).not.toHaveClass('overflow-x-auto');
+    expect(screen.getByTestId('invoice-filter-group')).toHaveClass('flex-wrap');
   });
 
   it('L6: an invoice whose total due equals its amount does not repeat the figure', () => {

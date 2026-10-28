@@ -17,6 +17,7 @@ vi.mock('@/src/auth/impersonation', () => ({
 }));
 vi.mock('@/src/auth/usePermission', () => ({
   usePermission: () => (action: string, entity: string) => {
+    if (entity === 'integration') return state.role === 'Admin' && action === 'manage';
     if (entity === 'finance') return ['Finance', 'Executive', 'Admin'].includes(state.role) && (action === 'view' || (action === 'act' && state.role !== 'Executive'));
     return action === 'view' && state.role !== 'Project Manager' && state.role !== 'Engineer';
   },
@@ -31,6 +32,7 @@ vi.mock('@/src/hooks/useFinancePosition', () => ({
     retry: vi.fn(),
   }),
 }));
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: { to: '2026-10-01', totals: [{ currency: 'IDR', months: [{ unbilled: 1_230_000 }] }, { currency: 'USD', months: [{ unbilled: 500_000 }] }], rows: [{ kind: 'contract', projectId: 'project-1', latestProgress: null }, { kind: 'contract', projectId: 'project-2', latestProgress: null }] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
@@ -156,6 +158,31 @@ describe('Finance hub', () => {
     expect(statements).not.toHaveTextContent('Not available yet');
     expect(statements).toHaveTextContent('Net profit is not available for a period yet');
     expect(within(statements).queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('C4: with no statement yet, an Admin gets the link to where statements are set up', () => {
+    renderHub('Admin');
+    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
+    expect(statements).toHaveTextContent('Statements come from the accounting system.');
+    expect(within(statements).getByRole('link', { name: 'Open integrations' })).toHaveAttribute('href', '/administration/integrations');
+  });
+
+  it('C4: with no statement yet, Finance is told who sets statements up, with no link it cannot open', () => {
+    renderHub('Finance');
+    const statements = screen.getByRole('link', { name: /Statements/ }).closest('article') as HTMLElement;
+    expect(statements).toHaveTextContent('an Admin sets this up in Integrations');
+    expect(within(statements).queryByRole('link', { name: 'Open integrations' })).not.toBeInTheDocument();
+  });
+
+  it('L12(b): the hub ageing counts a supplier invoice with an unknown balance in its age group', () => {
+    state.role = 'Finance';
+    const position = positionFixture();
+    position.payables = [{ procurement: { id: 'procurement-2', vendor_id: 'supplier-2', currency: 'IDR', vendor: { name: 'Supplier B' } } as never, ageDays: 101, amount: null }, ...position.payables];
+    position.payablesUnknownCount = 1;
+    state.position = position;
+    render(<MemoryRouter><FinanceHub /></MemoryRouter>);
+    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('+ 1 balance unknown');
   });
 
   it('AC-1405-HUB-007: statement catalogue errors offer a retry action', () => {

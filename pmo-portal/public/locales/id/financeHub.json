@@ -23,7 +23,7 @@
     "reportsHint": "Pendapatan yang diperoleh dikurangi pendapatan yang telah difakturkan hingga bulan pilihan terbaru, sebelum pajak.",
     "statementsHint": "Laba bersih dari periode laba rugi perusahaan terbaru yang tersedia.",
     "receivableBucketHint": "Saldo tertunggak yang diketahui dikelompokkan berdasarkan hari keterlambatan. Belum jatuh tempo mencakup saldo yang jatuh tempo hari ini atau setelahnya.",
-    "payableBucketHint": "Saldo pemasok yang belum dibayar dan diketahui, dikelompokkan menurut hari kalender sejak faktur dicatat.",
+    "payableBucketHint": "Saldo pemasok yang belum dibayar dan diketahui, dikelompokkan menurut hari kalender sejak faktur dicatat. Faktur dengan saldo yang tidak diketahui dihitung pada kelompok umurnya, tidak dijumlahkan.",
     "finding": "{{overdue}} terlambat pada {{count}} faktur{{oldest}} · {{payables}} yang harus dibayar kepada pemasok",
     "unknownAmount": "Jumlah tidak tersedia",
     "oldest": "; terlama {{client}}, terlambat {{days}} hari",
@@ -83,7 +83,10 @@
       },
       "statements": {
         "noStatement": "Laba bersih belum tersedia untuk suatu periode",
-        "netProfit": "laba bersih {{month}}"
+        "netProfit": "laba bersih {{month}}",
+        "source": "Laporan keuangan berasal dari sistem akuntansi.",
+        "openIntegrations": "Buka integrasi",
+        "askAdmin": "Laporan keuangan berasal dari sistem akuntansi; Admin mengaturnya di Integrasi."
       },
       "finding": {
         "unknownBalance": "Saldo tidak diketahui"
@@ -98,8 +101,9 @@
         "due": "Jatuh tempo {{date}}",
         "partlyPaid": "Dibayar sebagian · terlambat {{days}} hari",
         "overdue": "Terlambat · {{days}} hari",
-        "balanceUnknown": "Saldo tidak diketahui",
-        "ofGross": "dari {{amount}}"
+        "ofGross": "dari {{amount}}",
+        "headingCount_one": "Jatuh tempo · {{count}} faktur",
+        "headingCount_other": "Jatuh tempo · {{count}} faktur"
       },
       "waiting": {
         "draftsApprove_one": "{{count}} draf untuk disetujui",
@@ -134,9 +138,10 @@
         "supplierCount_one": "{{count}} pemasok",
         "supplierCount_other": "{{count}} pemasok",
         "oldestMeaning": "Hari kalender sejak faktur pemasok dicatat",
-        "amountUnknown": "Belum ada nilai faktur pemasok yang tercatat, jadi saldo yang belum dibayar tidak diketahui.",
         "unknownCount_one": "{{count}} saldo tidak diketahui",
-        "unknownCount_other": "{{count}} saldo tidak diketahui"
+        "unknownCount_other": "{{count}} saldo tidak diketahui",
+        "unknownNote_one": "{{count}} faktur pemasok belum memiliki jumlah tercatat, sehingga saldonya tidak dimasukkan ke total. Buka pengadaan untuk mencatatnya.",
+        "unknownNote_other": "{{count}} faktur pemasok belum memiliki jumlah tercatat, sehingga saldonya tidak dimasukkan ke total. Buka pengadaan untuk mencatatnya."
       },
       "attention": {
         "finance": "Perlu perhatian",
@@ -145,6 +150,11 @@
       "reports": {
         "invoicedBasis": "Berdasarkan faktur",
         "noProgressForMonth": "Belum ada entri untuk {{month}}"
+      },
+      "ageing": {
+        "unknownCount_one": "{{count}} saldo tidak diketahui",
+        "unknownCount_other": "{{count}} saldo tidak diketahui",
+        "plusUnknown": "+ {{label}}"
       }
     }
   },
@@ -184,10 +194,15 @@
       "progress": "Progres",
       "earned": "Diperoleh",
       "invoices": "Faktur",
-      "openAr": "Belum dibayar klien · termasuk pajak"
+      "openAr": "Belum dibayar klien",
+      "openArExport": "Belum dibayar klien · termasuk pajak",
+      "openArHelp": "Jumlah yang masih terutang klien atas faktur yang sudah diajukan, termasuk pajak.",
+      "openArHelpLabel": "Belum dibayar klien · termasuk pajak"
     },
     "noProgressNote": "Belum ada progres tercatat, jadi pendapatan yang diperoleh mengikuti nilai yang sudah ditagih.",
     "backlogUnknownNote": "Sisa nilai kontrak tidak ditampilkan jika faktur mata uang asing perlu direkonsiliasi sebelum saldonya dapat diketahui.",
-    "reviewInvoices": "Tinjau faktur"
+    "reviewInvoices": "Tinjau faktur",
+    "openArUnknownNote_one": "Belum dibayar klien tidak ditampilkan untuk {{count}} proyek: saldo faktur belum dilaporkan oleh sistem akuntansi.",
+    "openArUnknownNote_other": "Belum dibayar klien tidak ditampilkan untuk {{count}} proyek: saldo faktur belum dilaporkan oleh sistem akuntansi."
   }
 }

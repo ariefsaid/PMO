@@ -23,7 +23,7 @@
     "reportsHint": "Earned revenue minus invoiced revenue through the latest selected month, before tax.",
     "statementsHint": "Net profit from the latest available company profit and loss statement period.",
     "receivableBucketHint": "Known outstanding balances grouped by days past due. Not yet due includes balances due today or later.",
-    "payableBucketHint": "Known unpaid supplier balances grouped by calendar days since the invoice was recorded.",
+    "payableBucketHint": "Known unpaid supplier balances grouped by calendar days since the invoice was recorded. Invoices with an unknown balance are counted in their age group, not added.",
     "finding": "{{overdue}} overdue across {{count}} invoices{{oldest}} · {{payables}} to pay suppliers",
     "unknownAmount": "Amount unavailable",
     "oldest": "; oldest is {{client}}, {{days}} days late",
@@ -83,7 +83,10 @@
       },
       "statements": {
         "noStatement": "Net profit is not available for a period yet",
-        "netProfit": "net profit {{month}}"
+        "netProfit": "net profit {{month}}",
+        "source": "Statements come from the accounting system.",
+        "openIntegrations": "Open integrations",
+        "askAdmin": "Statements come from the accounting system; an Admin sets this up in Integrations."
       },
       "finding": {
         "unknownBalance": "Balance unknown"
@@ -98,8 +101,9 @@
         "due": "Due {{date}}",
         "partlyPaid": "Partly paid · {{days}} days late",
         "overdue": "Overdue · {{days}} days",
-        "balanceUnknown": "Balance unknown",
-        "ofGross": "of {{amount}}"
+        "ofGross": "of {{amount}}",
+        "headingCount_one": "Overdue · {{count}} invoice",
+        "headingCount_other": "Overdue · {{count}} invoices"
       },
       "waiting": {
         "draftsApprove_one": "{{count}} draft to approve",
@@ -134,9 +138,10 @@
         "supplierCount_one": "{{count}} supplier",
         "supplierCount_other": "{{count}} suppliers",
         "oldestMeaning": "Calendar days since the supplier invoice was recorded",
-        "amountUnknown": "No supplier invoice amount on record, so the unpaid balance is unknown.",
         "unknownCount_one": "{{count}} balance unknown",
-        "unknownCount_other": "{{count}} balances unknown"
+        "unknownCount_other": "{{count}} balances unknown",
+        "unknownNote_one": "{{count}} supplier invoice has no amount on record, so its balance is left out of the total. Open the procurement to record it.",
+        "unknownNote_other": "{{count}} supplier invoices have no amount on record, so their balances are left out of the total. Open the procurement to record them."
       },
       "attention": {
         "finance": "Needs attention",
@@ -145,6 +150,11 @@
       "reports": {
         "invoicedBasis": "Invoiced basis",
         "noProgressForMonth": "No entry for {{month}}"
+      },
+      "ageing": {
+        "unknownCount_one": "{{count}} balance unknown",
+        "unknownCount_other": "{{count}} balances unknown",
+        "plusUnknown": "+ {{label}}"
       }
     }
   },
@@ -184,10 +194,15 @@
       "progress": "Progress",
       "earned": "Earned",
       "invoices": "Invoices",
-      "openAr": "Unpaid by client · incl. tax"
+      "openAr": "Unpaid by client",
+      "openArExport": "Unpaid by client · incl. tax",
+      "openArHelp": "What clients still owe on submitted invoices, tax included.",
+      "openArHelpLabel": "Unpaid by client · tax included"
     },
     "noProgressNote": "No progress is recorded yet, so earned revenue follows what has been invoiced.",
     "backlogUnknownNote": "Backlog is left out where a foreign-currency invoice needs reconciliation before the balance can be known.",
-    "reviewInvoices": "Review invoices"
+    "reviewInvoices": "Review invoices",
+    "openArUnknownNote_one": "Unpaid by client is left out for {{count}} project: an invoice balance has not been reported by the accounting system yet.",
+    "openArUnknownNote_other": "Unpaid by client is left out for {{count}} projects: an invoice balance has not been reported by the accounting system yet."
   }
 }

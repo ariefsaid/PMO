@@ -41,6 +41,7 @@ vi.mock('@/src/hooks/useProjects', () => ({
 }));
 vi.mock('@/src/hooks/useRevenue', () => ({
   useRevenuePerProject: () => ({ data: [{ project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 0, invoice_count: 1 }], isPending: false, isError: false }),
+  useSalesInvoices: () => ({ data: [], isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrency: () => 'IDR',

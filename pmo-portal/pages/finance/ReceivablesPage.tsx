@@ -196,9 +196,12 @@ export default function ReceivablesPage() {
         <div>
           <h1 className="text-[24px] font-bold tracking-[-0.02em]">{t('finance:receivables.title', 'Receivables')}</h1>
         </div>
-        {canCreateInvoice && <Button type="button" variant="primary" onClick={openNewInvoice} className="hidden sm:inline-flex">
-          <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
-        </Button>}
+        {/* B4: on a phone the sticky bar owns New invoice. The wrapper hides it: Button's own inline-flex would beat `hidden`. */}
+        {canCreateInvoice && <div data-testid="receivables-header-new-invoice" className="hidden sm:block">
+          <Button type="button" variant="primary" onClick={openNewInvoice}>
+            <Icon name="plus" />{t('finance:area.newInvoice', 'New invoice')}
+          </Button>
+        </div>}
       </header>
 
       <KPIRow aria-label={t('finance:receivables.figures', 'Receivables figures')} className="mb-5 grid-cols-2 xl:grid-cols-4">

@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   role: 'Finance',
   position: null as FinancePosition | null,
   exportXlsx: vi.fn(),
+  erpDocuments: [] as unknown[],
 }));
 
 vi.mock('@/src/auth/usePermission', () => ({
@@ -16,6 +17,9 @@ vi.mock('@/src/auth/usePermission', () => ({
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({
   useFinancePosition: () => ({ position: state.position, isPending: false, isError: false, retry: vi.fn() }),
+}));
+vi.mock('@/src/hooks/useErpPurchases', () => ({
+  useErpPurchases: () => ({ data: state.erpDocuments, isPending: false, isError: false }),
 }));
 vi.mock('@/src/hooks/useProjects', () => ({
   useProjects: () => ({
@@ -93,6 +97,7 @@ function renderPage(role = 'Finance', position: FinancePosition = payablesFixtur
 
 beforeEach(() => {
   state.position = payablesFixture();
+  state.erpDocuments = [];
   state.exportXlsx.mockClear();
 });
 
@@ -167,7 +172,7 @@ describe('Payables page', () => {
     expect(screen.queryByRole('button', { name: /Open supplier invoice for/ })).not.toBeInTheDocument();
   });
 
-  it('SEC-RS-2: an unknown supplier balance shows as unknown with its reason, never as zero, and is counted', () => {
+  it('SEC-RS-2 / C4: an unknown supplier balance is left out of its row and the total, counted, and explained once', () => {
     const base = payablesFixture();
     const unknownRow = {
       ...base.payables[0],
@@ -179,7 +184,43 @@ describe('Payables page', () => {
 
     const row = screen.getByRole('row', { name: /Bumi Rental/ });
     expect(row).not.toHaveTextContent(/IDR\s?0\b|Rp\s?0\b/);
-    expect(within(row).getByTitle('No supplier invoice amount on record, so the unpaid balance is unknown.')).toHaveTextContent('—');
-    expect(screen.getByText('1 balance unknown')).toBeInTheDocument();
+    expect(row).not.toHaveTextContent('—');
+    expect(within(screen.getByRole('region', { name: 'Payables figures' })).getByText('1 balance unknown')).toBeInTheDocument();
+    expect(screen.getAllByText(/1 supplier invoice has no amount on record, so its balance is left out of the total/)).toHaveLength(1);
+    expect(within(screen.getByRole('region', { name: /Supplier invoices by age/ })).getByTestId('ageing-bucket-IDR-d0_30')).toHaveTextContent('1 balance unknown');
+  });
+
+  it('L12(a): a supplier invoice kept in the accounting system shows the amount the procurement record shows', () => {
+    const base = payablesFixture();
+    const erpRow = {
+      ...base.payables[0],
+      procurement: { ...base.payables[0].procurement, id: 'procurement-erp', title: 'Inverter replacement, block B', code: 'RS1404-001', vendor: { name: 'SunVolt Modules' }, vendor_id: 'supplier-3', currency: 'USD', purchase_requests: [], purchase_orders: [], procurement_invoices: [], payments: [] },
+      ageDays: 27,
+      amount: null,
+    } as FinancePosition['payables'][number];
+    state.erpDocuments = [{ id: 'doc-1', doctype: 'Purchase Invoice', name: 'ACC-PINV-1', procurementId: 'procurement-erp', grandTotal: 62_000, outstanding: 62_000, currency: 'USD' }];
+    renderPage('Finance', { ...base, payables: [base.payables[0], erpRow], payablesUnknownCount: 1 });
+
+    expect(within(screen.getByRole('row', { name: /SunVolt Modules/ })).getByText('$62,000')).toBeInTheDocument();
+    expect(screen.queryByText(/balances? unknown/)).not.toBeInTheDocument();
+    expect(screen.getByRole('row', { name: /Total · USD/ })).toHaveTextContent('$62,000');
+  });
+
+  it('L12(b): ageing places each invoice by its real age; an old invoice with an unknown balance is counted over 90 days, not in 0–30', () => {
+    const base = payablesFixture();
+    const old = { ...base.payables[0], procurement: { ...base.payables[0].procurement, id: 'procurement-old', vendor: { name: 'Old Supplier' } }, ageDays: 101, amount: null } as FinancePosition['payables'][number];
+    const recent = { ...base.payables[0], ageDays: 15 };
+    renderPage('Finance', {
+      ...base,
+      payables: [old, recent],
+      payablesUnknownCount: 1,
+      payablesAgeing: { IDR: { d0_30: 6_240_000_000, d31_60: 0, d61_90: 0, over90: 0 } },
+    });
+
+    const ageing = screen.getByRole('region', { name: /Supplier invoices by age/ });
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).toHaveTextContent('1 balance unknown');
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-over90')).not.toHaveTextContent(/IDR\s?0\b/);
+    expect(within(ageing).getByTestId('ageing-bucket-IDR-d0_30')).not.toHaveTextContent(/unknown/);
+    expect(screen.getByRole('region', { name: 'Payables figures' })).toHaveTextContent('101 days');
   });
 });

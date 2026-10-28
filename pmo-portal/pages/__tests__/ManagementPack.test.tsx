@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   exportTable: vi.fn(),
   revenueRows: [{ project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 0, invoice_count: 2 }],
   orgCurrency: { currency: 'IDR', isResolved: true, isError: false },
+  salesInvoices: [] as unknown[],
 }));
 
 vi.mock('@/src/components/ui/useIsDesktop', () => ({ useIsDesktop: () => true }));
@@ -29,7 +30,10 @@ vi.mock('@/src/hooks/useProjects', () => ({
     { id: 'p2', name: 'Beta', pm: { full_name: 'Other Manager' } },
   ] }),
 }));
-vi.mock('@/src/hooks/useRevenue', () => ({ useRevenuePerProject: () => ({ data: h.revenueRows, isPending: false, isError: false }) }));
+vi.mock('@/src/hooks/useRevenue', () => ({
+  useRevenuePerProject: () => ({ data: h.revenueRows, isPending: false, isError: false }),
+  useSalesInvoices: () => ({ data: h.salesInvoices, isPending: false, isError: false }),
+}));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({
   useOrgCurrencyState: () => h.orgCurrency,
 }));
@@ -66,6 +70,7 @@ beforeEach(() => {
   h.exportTable.mockReset();
   h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false };
   h.revenueRows = [{ project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 0, invoice_count: 2 }];
+  h.salesInvoices = [];
 });
 
 describe('AC-MMP-012 who sees the pack and who records progress', () => {
@@ -525,10 +530,12 @@ describe('R-007 — unpaid by client per project and currency', () => {
   };
   const alphaRows = () => screen.getAllByRole('row').filter((row) => within(row).queryByText('Alpha'));
 
-  it('R-007: each project row shows what the client still owes in that row’s currency, and the header states the tax-included basis', () => {
+  it('R-007 / N2: each project row shows what the client still owes in that row’s currency; the short header states the tax-included basis in its help', () => {
     withForeignInvoice();
     renderPage();
-    expect(screen.getByRole('columnheader', { name: 'Unpaid by client · incl. tax' })).toBeInTheDocument();
+    const header = screen.getByRole('columnheader', { name: /^Unpaid by client/ });
+    expect(header).not.toHaveTextContent('incl. tax');
+    expect(within(header).getByRole('button', { name: 'Unpaid by client · tax included' })).toBeInTheDocument();
     const rows = alphaRows();
     expect(rows).toHaveLength(2);
     const foreign = rows.find((row) => within(row).queryByText('Invoiced in USD, not the contract currency'))!;
@@ -549,6 +556,25 @@ describe('R-007 — unpaid by client per project and currency', () => {
     expect(idrTotal).toHaveTextContent(/IDR\s?1,100/);
     expect(usdTotal).toHaveTextContent('$55');
     for (const row of footRows) expect(row.textContent).not.toMatch(/1,155/);
+  });
+
+  it('L12(f): an open invoice whose balance is not reported leaves that row and its currency total out — never $0 — and the page says why once', () => {
+    withForeignInvoice();
+    h.salesInvoices = [{ id: 'si-usd', project_id: 'p1', currency: 'USD', status: 'Unpaid', erp_outstanding_amount: null }];
+    renderPage();
+    const rows = alphaRows();
+    const foreign = rows.find((row) => within(row).queryByText('Invoiced in USD, not the contract currency'))!;
+    const contract = rows.find((row) => row !== foreign)!;
+    expect(within(foreign).queryByTestId('pack-cell-openAr')).not.toBeInTheDocument();
+    expect(foreign).not.toHaveTextContent('$55');
+    // The row's last money cell (Unpaid by client) is empty, not "$0" (Unbilled's known $0 is a different column).
+    const cells = within(foreign).getAllByRole('cell');
+    expect(cells.at(-2)).toHaveTextContent(/^$/);
+    expect(within(contract).getByTestId('pack-cell-openAr')).toHaveTextContent(/IDR\s?1,100/);
+    const projectTable = screen.getByRole('table', { name: 'Project' });
+    const usdTotal = within(projectTable).getAllByRole('row').find((row) => row.closest('tfoot') && /Total · USD/.test(row.textContent ?? ''))!;
+    expect(usdTotal).not.toHaveTextContent('$55');
+    expect(screen.getAllByText(/Unpaid by client is left out for 1 project/)).toHaveLength(1);
   });
 });
 
@@ -578,5 +604,20 @@ describe('R-007 — unpaid by client in the export', () => {
     expect(alphaIdr.length).toBeGreaterThan(0);
     expect(alphaIdr.at(-1)![column]).toBe(1_100);
     expect(alphaUsd.at(-1)![column]).toBe(55);
+  });
+
+  it('L12(f): an unknown unpaid amount exports as a blank cell, never 0', async () => {
+    withForeignInvoice();
+    h.salesInvoices = [{ id: 'si-usd', project_id: 'p1', currency: 'USD', status: 'Submitted', erp_outstanding_amount: null }];
+    renderPage();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
+    const [table] = h.exportTable.mock.calls[0];
+    const column = table.header.indexOf('Unpaid by client · incl. tax');
+    const projectColumn = table.header.indexOf('Project');
+    const currencyColumn = table.header.indexOf('Currency');
+    const alphaUsd = table.body.filter((row: unknown[]) => row[projectColumn] === 'Alpha' && row[currencyColumn] === 'USD');
+    const alphaIdr = table.body.filter((row: unknown[]) => row[projectColumn] === 'Alpha' && row[currencyColumn] === 'IDR');
+    expect(alphaUsd.at(-1)![column]).toBe('');
+    expect(alphaIdr.at(-1)![column]).toBe(1_100);
   });
 });

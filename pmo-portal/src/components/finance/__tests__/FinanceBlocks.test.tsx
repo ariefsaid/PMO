@@ -127,6 +127,33 @@ describe('Finance blocks', () => {
     expect(screen.queryByRole('button', { name: /Review|Mark received|Apply/ })).not.toBeInTheDocument();
   });
 
+  it('L12(b): an invoice with an unknown balance is counted in its age group, never shown as 0 there', () => {
+    render(
+      <AgeingStrip
+        kind="payables"
+        values={{ USD: { d0_30: 3_000_000, d31_60: 0, d61_90: 0, over90: 0 } }}
+        unknownCounts={{ USD: { over90: 2, d0_30: 1 }, IDR: { d31_60: 1 } }}
+      />,
+    );
+    expect(screen.getByTestId('ageing-bucket-USD-over90')).toHaveTextContent('2 balances unknown');
+    expect(screen.getByTestId('ageing-bucket-USD-over90')).not.toHaveTextContent('$0');
+    expect(screen.getByTestId('ageing-bucket-USD-d0_30')).toHaveTextContent('$30,000');
+    expect(screen.getByTestId('ageing-bucket-USD-d0_30')).toHaveTextContent('+ 1 balance unknown');
+    expect(screen.getByTestId('ageing-bucket-USD-d31_60')).toHaveTextContent('$0');
+    // A currency whose balances are all unknown still gets its row.
+    expect(screen.getByTestId('ageing-bucket-IDR-d31_60')).toHaveTextContent('1 balance unknown');
+  });
+
+  it('C4: an overdue invoice with an unknown balance carries no per-row placeholder; the heading counts it once', () => {
+    const invoice = { id: 'invoice-9', project_id: null, customer_name: 'Cascade Foods', si_number: 'DEMO-SI-1', invoice_date: '2026-07-01', erp_payment_terms_days: 14, erp_due_date: '2026-07-15', received_date: null, amount: 7_700_000, tax_amount: 0, currency: 'USD', status: 'Unpaid', erp_outstanding_amount: null } as never;
+    const position: FinancePosition = { ...emptyPosition, overdue: [{ invoice, daysOverdue: 105, outstanding: null }], overdueUnknownCount: 1, receivablesCount: 1 };
+    render(<MemoryRouter><FinanceAttention position={position} scope="all" canAct isPending={false} isError={false} onRetry={() => {}} withLayout={(path) => path} orgCurrency="USD" /></MemoryRouter>);
+
+    expect(screen.getByRole('heading', { name: /1 balance unknown/ })).toBeInTheDocument();
+    const row = screen.getByRole('link', { name: /Cascade Foods/ });
+    expect(row).not.toHaveTextContent(/Balance unknown|—|\$0\b/);
+  });
+
   it('SEC-RS-2: a waiting supplier invoice with an unknown balance reads as unknown, not as a blank amount', () => {
     const position: FinancePosition = {
       ...emptyPosition,

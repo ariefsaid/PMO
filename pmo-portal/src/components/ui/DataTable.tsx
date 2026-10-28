@@ -830,7 +830,10 @@ export function DataTable<Row>({
             const key = modelRow.id;
             const targetId = rowTarget?.(row);
             const selected = key === selectedKey;
-            const [titleCol, ...restCols] = columns;
+            const [titleCol, ...cardCols] = columns;
+            // N10: an actions column (its own ⋯ menu) sits top-right like rowMenu, never as a trailing card line.
+            const actionCols = mobileCardDetails ? [] : cardCols.filter((col) => col.kind === 'actions');
+            const restCols = cardCols.filter((col) => !actionCols.includes(col));
             const hasMenu = !!rowMenu;
             const menuItems = hasMenu ? (rowMenu!(row) ?? []) : [];
 
@@ -882,6 +885,10 @@ export function DataTable<Row>({
                       <RowMenu items={menuItems} />
                     </div>
                   )}
+                  {actionCols.map((col) => {
+                    const content = col.cell(row);
+                    return content == null || content === false ? null : <div key={col.key} data-card-actions={col.key} className="shrink-0">{content}</div>;
+                  })}
                 </div>
 
                 {/* Remaining columns as a definition list. A cell that renders nothing for THIS row

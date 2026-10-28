@@ -16,9 +16,12 @@ const state = vi.hoisted(() => ({
   pipeline: { stages: [] as unknown[], projects: [] as unknown[] },
   ageing: { receivablesAgeing: {} as Record<string, unknown>, payablesAgeing: {} as Record<string, unknown> },
   figures: null as null | Record<string, unknown>,
+  erp: [] as unknown[],
 }));
 const ok = (data: unknown) => ({ data, isPending: false, isError: false, refetch: vi.fn() });
 
+// Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: state.erp, isPending: false, isError: false }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }) }));
 vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({ useCompanyFigures: () => state.figures }));
 vi.mock('@/src/components/dashboard/restructure/useNeedsYou', () => ({
@@ -68,6 +71,7 @@ const mobile = () => {
 const desktopMatchMedia = window.matchMedia;
 
 beforeEach(() => {
+  state.erp = [];
   window.matchMedia = desktopMatchMedia;
   state.procurements = [];
   state.budgetReview = [];
@@ -117,6 +121,17 @@ describe('L12(a): Ready to pay uses the procurement record\'s unpaid balance', (
     // The invoice with no recorded amount has no figure; the reason is said once above the table.
     expect(within(card).getAllByText(/has no recorded amount yet/)).toHaveLength(1);
     expect(within(card).queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it('L12(a): an invoice recorded only in the accounting system reads its linked document amount, as Payables does', () => {
+    const procurement = invoiced('p3', 'Inverter replacement, block B', { procurement_invoices: [] });
+    state.procurements = [procurement];
+    state.ageing = { ...state.ageing, payables: [{ procurement, ageDays: 28, amount: null }] } as typeof state.ageing;
+    state.erp = [{ id: 'e1', doctype: 'Purchase Invoice', name: 'ACC-PINV-1', procurementId: 'p3', grandTotal: 62_000, outstanding: 62_000, currency: 'USD', isReturn: false, projectIds: [] }];
+    renderDashboard('Finance');
+    const card = screen.getByRole('heading', { name: 'Ready to pay' }).closest('.rounded-lg.border') as HTMLElement;
+    expect(within(card).getByText('Inverter replacement, block B').closest('tr')).toHaveTextContent('$62,000');
+    expect(within(card).queryByText(/has no recorded amount yet/)).toBeNull();
   });
 
   it('L12: payments already made reduce the unpaid balance', () => {

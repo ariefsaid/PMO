@@ -17,6 +17,7 @@ import { formatCurrencyWithCode } from '@/src/lib/finance/format';
 import { moneyFigure, type MoneyFigure } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import type { FinancialStatementNativePayload } from '@/src/lib/financialStatements';
+import { usePayablesPosition } from './payablesPosition';
 
 function currencyEntries(values: Record<string, number>, preferred?: string | null) {
   return Object.entries(values).sort(([left], [right]) => left === preferred ? -1 : right === preferred ? 1 : left.localeCompare(right));
@@ -66,13 +67,15 @@ interface AreaCardProps {
   otherCurrencies?: MoneyFigure[];
   meaning: string;
   extra?: string;
+  /** C4: where the missing figure gets set up, shown under the reason. */
+  fix?: React.ReactNode;
   hint: string;
   loading?: boolean;
   error?: boolean;
   retry?: () => void;
 }
 
-const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies = [], meaning, extra, hint, loading = false, error = false, retry }) => {
+const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies = [], meaning, extra, fix, hint, loading = false, error = false, retry }) => {
   const { t } = useTranslation();
   return (
     <article className="min-w-0 bg-card p-4">
@@ -92,6 +95,7 @@ const AreaCard: React.FC<AreaCardProps> = ({ title, to, amount, otherCurrencies 
           {otherCurrencies.map((other) => <div key={other.value} className="truncate text-xs text-muted-foreground" title={other.exactValue}>{t('financeHub:hub.fix.currency.other', { defaultValue: '+ {{amount}} in other currencies', amount: other.value })}</div>)}
           <div className="mt-1 text-sm text-muted-foreground">{meaning}</div>
           {extra && <div className="mt-0.5 text-sm text-muted-foreground">{extra}</div>}
+          {fix && <div className="mt-1 text-sm">{fix}</div>}
         </>
       )}
     </article>
@@ -109,7 +113,14 @@ const FinanceHub: React.FC = () => {
   const hasProcurement = useFeature('procurement');
   const currencyState = useOrgCurrencyState();
   const orgCurrency = currencyState.isResolved ? currencyState.currency : null;
-  const finance = useFinancePosition(canView);
+  const financePosition = useFinancePosition(canView);
+  // L12: supplier invoices kept in the accounting system count here exactly as on the procurement record.
+  const { isPending: payablesPending, payablesUnknownAgeing, ...payables } = usePayablesPosition(financePosition.position, canView && hasProcurement);
+  const finance = {
+    ...financePosition,
+    position: { ...financePosition.position, ...payables },
+    isPending: financePosition.isPending || payablesPending,
+  };
   const report = useManagementPack({}, canView && hasRevenue);
   const projects = useProjects({ enabled: canView });
   const statementCatalogue = useFinancialStatementCatalogue({ kind: 'company' }, canView);
@@ -190,6 +201,9 @@ const FinanceHub: React.FC = () => {
           meaning={latestStatementPeriod && net !== null
             ? t('financeHub:hub.fix.statements.netProfit', { defaultValue: 'net profit {{month}}', month: monthLabel(latestStatementPeriod.currentStart) })
             : t('financeHub:hub.fix.statements.noStatement', 'Net profit is not available for a period yet')}
+          fix={statementUnavailable ? (may('manage', 'integration')
+            ? <span className="text-muted-foreground">{t('financeHub:hub.fix.statements.source', 'Statements come from the accounting system.')}{' '}<Link to="/administration/integrations" className="font-medium text-primary-text underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">{t('financeHub:hub.fix.statements.openIntegrations', 'Open integrations')}</Link></span>
+            : <span className="text-muted-foreground">{t('financeHub:hub.fix.statements.askAdmin', 'Statements come from the accounting system; an Admin sets this up in Integrations.')}</span>) : undefined}
           hint={t('financeHub:hub.statementsHint', 'Net profit from the latest available company profit and loss statement period.')}
           loading={statementLoading && !statementUnavailable} error={statementError} retry={() => { void statementCatalogue.refetch(); void statement.refetch(); }}
         />}
@@ -212,7 +226,7 @@ const FinanceHub: React.FC = () => {
       <h2 id="finance-hub-ageings" className="mb-2 text-base font-semibold">{t('financeHub:hub.ageing', 'Balances by age')}</h2>
       {finance.isPending ? <ListState variant="loading" rows={2} /> : finance.isError ? (
         <ListState variant="error" title={t('financeHub:hub.positionError', "Couldn't load balance ageings")} onRetry={finance.retry} />
-      ) : <div className="grid gap-x-6 lg:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} /></div>}
+      ) : <div className="grid gap-x-6 lg:grid-cols-2"><AgeingStrip kind="receivables" values={finance.position.receivablesAgeing} /><AgeingStrip kind="payables" values={finance.position.payablesAgeing} unknownCounts={payablesUnknownAgeing} /></div>}
     </section>
   );
 

@@ -39,6 +39,8 @@ const figureState = vi.hoisted(() => ({
   result: null as null | Record<string, unknown>,
 }));
 
+// Ready to pay / payables ageing read linked accounting documents (L12); none linked here.
+vi.mock('@/src/hooks/useErpPurchases', () => ({ useErpPurchases: () => ({ data: [], isPending: false, isError: false }) }));
 vi.mock('@/src/auth/impersonation', () => ({ useEffectiveRole: () => ({ effectiveRole: state.role, realRole: state.role }) }));
 vi.mock('@/src/components/dashboard/restructure/useCompanyFigures', () => ({
   useCompanyFigures: () => figureState.result,

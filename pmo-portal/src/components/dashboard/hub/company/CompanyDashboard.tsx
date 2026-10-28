@@ -27,6 +27,7 @@ import { usePeriod } from '@/src/components/dashboard/restructure/usePeriod';
 import { AccountingSnapshotsSection } from '@/src/components/dashboard/AccountingSnapshotsSection';
 import { AgeingStrip } from '@/src/components/finance/AgeingStrip';
 import { useFinancePosition } from '@/src/hooks/useFinancePosition';
+import { usePayablesPosition } from '@/pages/finance/payablesPosition';
 import { StatusBarChart } from '@/src/components/dashboard/StatusBarChart';
 import { WinRateCard } from '@/src/components/dashboard/WinRateCard';
 import { formatCurrency } from '@/src/lib/format';
@@ -52,6 +53,22 @@ const TONES: Record<string, 'blue' | 'green' | 'violet' | 'amber' | 'red'> = {
 
 const money = (value: number | null, currency: string, unavailable = '—') =>
   value === null || !Number.isFinite(value) ? unavailable : formatCurrency(value, currency);
+
+/**
+ * L12(a): a supplier invoice's unpaid amount, read the way Payables and the procurement record read it — through the
+ * accounting-system documents linked to the procurement (`usePayablesPosition`), falling back to the PMO-recorded
+ * figure. `null` = unknown (never 0).
+ */
+function useSupplierUnpaid(enabled: boolean): (row: ProcurementWithRefs) => number | null {
+  const finance = useFinancePosition(enabled);
+  const payables = usePayablesPosition(finance.position, enabled);
+  const byId = React.useMemo(() => new Map(payables.payables.map((p) => [p.procurement.id, p.amount])), [payables.payables]);
+  return React.useCallback((row: ProcurementWithRefs) => {
+    if (byId.has(row.id)) { const amount = byId.get(row.id); return amount == null ? null : amount / 100; }
+    const unpaid = supplierUnpaid(row);
+    return unpaid.unknown ? null : unpaid.amount;
+  }, [byId]);
+}
 
 function statusVariant(status: string): 'open' | 'progress' | 'won' | 'lost' | 'warn' | 'neutral' {
   if (/won|complete|paid/i.test(status)) return 'won';
@@ -160,7 +177,7 @@ function PipelineStages({ stages, projects, pending, error, retry }: { stages: P
   return <DataTable rows={rows} columns={columns} rowKey={(row) => row.status} onActivate={openStage} rowLabel={(row) => t('dashboard:hub.company.openStage', 'Open {{stage}} opportunities', { stage: statusLabel(row.status) })} accessibleName={t('dashboard:hub.company.pipelineByStage', 'Pipeline by stage')} mobileCardTitle={stageLine} mobileCardDetails={() => null} state={pending ? 'loading' : error ? 'error' : rows.length === 0 ? 'empty' : undefined} onRetry={retry} emptyTitle={t('dashboard:hub.company.noPipeline', 'No open pipeline stages')} errorTitle={t('dashboard:hub.company.pipelineError', "Couldn't load pipeline stages")} tableId="dashboard-company-pipeline-stages" embedded />;
 }
 
-function ReadyToPayTable({ rows, pending, error, retry }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void }) {
+function ReadyToPayTable({ rows, pending, error, retry, unpaidOf }: { rows: ProcurementWithRefs[]; pending: boolean; error: boolean; retry: () => void; unpaidOf: (row: ProcurementWithRefs) => number | null }) {
   const { t } = useTranslation('dashboard');
   const navigate = useNavigate();
   const statusLabel = useProcurementStatusLabel();
@@ -171,7 +188,7 @@ function ReadyToPayTable({ rows, pending, error, retry }: { rows: ProcurementWit
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? <span className="sr-only">{t('dashboard:hub.company.projectUnknown', 'Project is not linked to this procurement.')}</span>, exportValue: (row) => row.project?.name ?? '' },
     { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? <span className="sr-only">{t('dashboard:hub.company.supplierUnknown', 'Supplier is not recorded on this procurement.')}</span>, exportValue: (row) => row.vendor?.name ?? '' },
     // L12(a): the unpaid balance is the procurement record's own (supplier invoices less payments), never the order value.
-    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), kind: 'money', align: 'num', cell: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? <span className="sr-only">{t('dashboard:hub.company.unpaidUnknown', 'No supplier invoice amount recorded')}</span> : formatCurrency(unpaid.amount, row.currency); }, exportValue: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : unpaid.amount; } },
+    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), kind: 'money', align: 'num', cell: (row) => { const unpaid = unpaidOf(row); return unpaid === null ? <span className="sr-only">{t('dashboard:hub.company.unpaidUnknown', 'No supplier invoice amount recorded')}</span> : formatCurrency(unpaid, row.currency); }, exportValue: (row) => unpaidOf(row) ?? '' },
     { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), align: 'num', cell: (row) => { const stamp = row.vendor_invoiced_at ?? row.updated_at; const days = Math.max(0, Math.floor((Date.now() - new Date(stamp).getTime()) / 86400000)); return <span title={t('dashboard:hub.company.invoiceAgeHelp', 'Uses the recorded supplier invoice date; legacy rows use their last update.')}>{days}</span>; }, exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
     { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => <StatusPill variant="warn">{displayStatus(row.status)}</StatusPill>, exportValue: (row) => displayStatus(row.status) },
   ];
@@ -206,10 +223,10 @@ function FinanceTableCard<Row>({ title, rows, columns, help, children }: { title
 }
 
 /** PMO-computed ageing (the finance hub's source), shown when the accounting system has no ageing synced (L12). */
-function PmoAgeing({ kind, values, showSource = true }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; showSource?: boolean }) {
+function PmoAgeing({ kind, values, unknownCounts, showSource = true }: { kind: 'receivables' | 'payables'; values: React.ComponentProps<typeof AgeingStrip>['values']; unknownCounts?: React.ComponentProps<typeof AgeingStrip>['unknownCounts']; showSource?: boolean }) {
   const { t } = useTranslation('dashboard');
   return <div className="grid gap-1">
-    <AgeingStrip kind={kind} values={values} />
+    <AgeingStrip kind={kind} values={values} unknownCounts={unknownCounts} />
     {showSource && <p className="-mt-3 text-xs text-muted-foreground">{t('dashboard:hub.company.pmoAgeingSource', 'From invoices recorded in PMO; the accounting system has no ageing synced yet.')}</p>}
   </div>;
 }
@@ -233,13 +250,15 @@ function FinanceAccountingBlocks() {
   const finance = useFinancePosition();
   const projects = useProjects();
   const projectNames = React.useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, projectDisplayName(project)])), [projects.data]);
-  const pmo = finance.position.payablesAgeing;
-  const pmoStandsIn = snapshotEmpty(apAging) && !finance.isPending && !finance.isError && Object.keys(pmo).length > 0;
+  // L12(b): the same payables ageing as the finance hub — linked accounting documents read, unknown balances counted by age.
+  const payables = usePayablesPosition(finance.position, true);
+  const pmo = payables.payablesAgeing;
+  const pmoStandsIn = snapshotEmpty(apAging) && !finance.isPending && !finance.isError && (Object.keys(pmo).length > 0 || Object.keys(payables.payablesUnknownAgeing).length > 0);
   const receivablesStandIn = snapshotEmpty(arAging) && !finance.isPending && !finance.isError && Object.keys(finance.position.receivablesAgeing).length > 0;
   return <>
     <AccountingSnapshotsSection showActuals actualsCollapsed showApAging={!pmoStandsIn} showArAging={false} actualProjectNames={projectNames} actuals={actuals.data ?? []} actualsPending={actuals.isPending} actualsError={actuals.isError} onRetryActuals={() => void actuals.refetch()} apAging={apAging.data ?? []} apAgingPending={apAging.isPending || (snapshotEmpty(apAging) && finance.isPending)} apAgingError={apAging.isError} onRetryApAging={() => void apAging.refetch()} arAging={[]} />
     {/* L6: the "from PMO invoices" note is said once — under the client ageing when that stands in too. */}
-    {pmoStandsIn && <Card><div className="p-4"><PmoAgeing kind="payables" values={pmo} showSource={!receivablesStandIn} /></div></Card>}
+    {pmoStandsIn && <Card><div className="p-4"><PmoAgeing kind="payables" values={pmo} unknownCounts={payables.payablesUnknownAgeing} showSource={!receivablesStandIn} /></div></Card>}
   </>;
 }
 
@@ -261,6 +280,8 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const displayProcurementStatus = (status: string) => status === 'Vendor Invoiced' ? t('dashboard:hub.company.supplierInvoiced', 'Supplier invoiced') : status === 'Vendor Quoted' ? t('dashboard:hub.company.supplierQuoted', 'Supplier quoted') : procurementLabel(status);
   const data = figures.dashboard;
   const finance = role === 'Finance';
+  // Ready to pay is a Finance table; only Finance reads the linked accounting documents behind it.
+  const unpaidOf = useSupplierUnpaid(finance);
   const periodFigure = (id: string) => figures.period.find((figure) => figure.id === id);
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   // L6: overdue invoices, supplier invoices and work still to invoice are owned by their tiles above
@@ -341,7 +362,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
     { key: 'title', header: t('dashboard:hub.company.procurement', 'Procurement'), cell: (row) => row.title, exportValue: (row) => row.title },
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => row.project?.name ?? '—', exportValue: (row) => row.project?.name ?? '' },
     { key: 'supplier', header: t('dashboard:hub.company.supplier', 'Supplier'), cell: (row) => row.vendor?.name ?? '—', exportValue: (row) => row.vendor?.name ?? '' },
-    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), cell: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : formatCurrency(unpaid.amount, row.currency); }, exportValue: (row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null ? '' : unpaid.amount; } },
+    { key: 'amount', header: t('dashboard:hub.company.unpaid', 'Unpaid'), cell: (row) => { const unpaid = unpaidOf(row); return unpaid === null ? '' : formatCurrency(unpaid, row.currency); }, exportValue: (row) => unpaidOf(row) ?? '' },
     { key: 'age', header: t('dashboard:hub.company.daysSinceInvoice', 'Days since invoiced'), cell: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)), exportValue: (row) => Math.max(0, Math.floor((Date.now() - new Date(row.vendor_invoiced_at ?? row.updated_at).getTime()) / 86400000)) },
     { key: 'status', header: t('dashboard:hub.company.status', 'Status'), cell: (row) => displayProcurementStatus(row.status), exportValue: (row) => displayProcurementStatus(row.status) },
   ];
@@ -349,7 +370,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const budgetRows = (budgetReview.data ?? []).filter((row) => activeStatuses.has(row.status)).slice(0, 5);
   const budgetIncomplete = budgetRows.filter((row) => !budgetSpendKnown(row)).length;
   const readyToPayRows = (procurements.data ?? []).filter((row) => row.status === 'Vendor Invoiced');
-  const unpaidUnknown = readyToPayRows.filter((row) => { const unpaid = supplierUnpaid(row); return unpaid.unknown || unpaid.amount === null; }).length;
+  const unpaidUnknown = readyToPayRows.filter((row) => unpaidOf(row) === null).length;
   const budgetColumns: Column<BudgetReviewRow>[] = [
     { key: 'project', header: t('dashboard:hub.company.project', 'Project'), cell: (row) => projectDisplayName(row), exportValue: (row) => projectDisplayName(row) },
     { key: 'budget', header: t('dashboard:hub.company.budget', 'Budget'), cell: (row) => formatCurrency(row.budget, row.currency), exportValue: (row) => row.budget },
@@ -375,7 +396,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
       </KPIRow>
     <HubGrid>{order.map(area)}</HubGrid>
     {finance && <section aria-label={t('dashboard:hub.company.financeReview', 'Finance review tables')} className="grid grid-cols-1 gap-4">
-      <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} /></div></FinanceTableCard>
+      <FinanceTableCard title={t('dashboard:hub.company.readyToPay', 'Ready to pay')} rows={readyToPayRows} columns={invoiceColumns} help={t('dashboard:hub.company.readyToPayHelp', 'Days since invoiced uses the recorded supplier invoice date; legacy rows use their last update. The procurement record has no supplier invoice due date, so due state is unknown.')}>{unpaidUnknown > 0 && <p className="px-4 pt-2 text-xs text-muted-foreground">{t('dashboard:hub.company.unpaidUnknownNote', { count: unpaidUnknown, defaultValue: '{{count}} supplier invoices have no recorded amount yet', defaultValue_one: '{{count}} supplier invoice has no recorded amount yet' })}</p>}<div className="overflow-x-auto"><ReadyToPayTable rows={procurements.data ?? []} pending={procurements.isPending} error={procurements.isError} retry={() => void procurements.refetch()} unpaidOf={unpaidOf} /></div></FinanceTableCard>
       <FinanceTableCard title={t('dashboard:hub.company.budgetReview', 'Budget review')} rows={budgetRows} columns={budgetColumns} help={t('dashboard:hub.company.budgetReviewHelp', 'Percent used is recorded spending divided by the active budget when actuals are complete and currencies match. Variance is spending minus budget; positive means over budget.')}><div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2"><p className="text-xs text-muted-foreground">{t('dashboard:hub.company.topBudgetsByVariance', 'Top 5 active budgets by variance')}{budgetIncomplete > 0 && ` · ${t('dashboard:hub.company.budgetSpendIncomplete', { count: budgetIncomplete, defaultValue: '{{count}} have incomplete spending', defaultValue_one: '{{count}} has incomplete spending' })}`}</p><Link to="/projects" className="inline-flex min-h-11 items-center text-sm font-medium text-primary-text hover:underline">{t('dashboard:hub.company.viewAllBudgets', 'View all')}</Link></div><div className="overflow-x-auto"><BudgetReviewTable rows={budgetRows} pending={budgetReview.isPending} error={budgetReview.isError} retry={() => void budgetReview.refetch()} /></div></FinanceTableCard>
       <FinanceAccountingBlocks />
     </section>}

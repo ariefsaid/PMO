@@ -13,6 +13,8 @@ type BucketKey = keyof AgeingBuckets | keyof PayablesAgeingBuckets;
 export interface AgeingStripProps {
   kind: AgeingKind;
   values: AgeingValues;
+  /** L12: invoices whose balance is unknown, counted in their age bucket — never added as zero, never dropped. */
+  unknownCounts?: Record<string, Partial<Record<BucketKey, number>>>;
 }
 
 const RECEIVABLE_BUCKETS = ['notDue', 'd1_30', 'd31_60', 'd61_90', 'over90'] as const;
@@ -27,7 +29,7 @@ const BUCKET_COLORS: Record<BucketKey, string> = {
   over90: 'bg-destructive',
 };
 
-export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
+export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values, unknownCounts = {} }) => {
   const { t } = useTranslation();
   const { currency: orgCurrency, isResolved } = useOrgCurrencyState();
   const bucketKeys: readonly BucketKey[] = kind === 'receivables' ? RECEIVABLE_BUCKETS : PAYABLE_BUCKETS;
@@ -44,17 +46,17 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
     : t('finance:area.payablesAgeingTitle', 'Supplier invoices by age · since invoice date');
   const hint = kind === 'receivables'
     ? t('financeHub:hub.receivableBucketHint', 'Known outstanding balances grouped by days past due. Not yet due includes balances due today or later.')
-    : t('financeHub:hub.payableBucketHint', 'Known unpaid supplier balances grouped by calendar days since the invoice was recorded.');
-  const currencies = Object.entries(values).sort(([left], [right]) => {
+    : t('financeHub:hub.payableBucketHint', 'Known unpaid supplier balances grouped by calendar days since the invoice was recorded. Invoices with an unknown balance are counted in their age group, not added.');
+  const currencies = [...new Set([...Object.keys(values), ...Object.keys(unknownCounts)])].map((currency) => [currency, values[currency]] as const).sort(([left], [right]) => {
     if (isResolved && left === orgCurrency) return -1;
     if (isResolved && right === orgCurrency) return 1;
     return 0;
   });
 
-  const amountFor = (buckets: AgeingBuckets | PayablesAgeingBuckets, key: BucketKey): number =>
+  const amountFor = (buckets: AgeingBuckets | PayablesAgeingBuckets | undefined, key: BucketKey): number =>
     kind === 'receivables'
-      ? (buckets as AgeingBuckets)[key as keyof AgeingBuckets] ?? 0
-      : (buckets as PayablesAgeingBuckets)[key as keyof PayablesAgeingBuckets] ?? 0;
+      ? (buckets as AgeingBuckets | undefined)?.[key as keyof AgeingBuckets] ?? 0
+      : (buckets as PayablesAgeingBuckets | undefined)?.[key as keyof PayablesAgeingBuckets] ?? 0;
 
   return (
     <section aria-label={title} className="mb-5 min-w-0">
@@ -95,13 +97,21 @@ export const AgeingStrip: React.FC<AgeingStripProps> = ({ kind, values }) => {
               })}
             </div>
             <div className="mt-2 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-x-3 gap-y-2">
-              {bucketKeys.map((key, index) => (
-                <div key={key} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2">
-                  <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKET_COLORS[key]}`} />
-                  <span className="min-w-0 break-words text-xs text-muted-foreground">{labels[key]}</span>
-                  <span className="max-w-full break-all text-right tabular text-sm font-semibold">{formatCurrency((amounts[index] ?? 0) / 100, currency)}</span>
-                </div>
-              ))}
+              {bucketKeys.map((key, index) => {
+                const amount = amounts[index] ?? 0;
+                const unknown = unknownCounts[currency]?.[key] ?? 0;
+                const unknownLabel = t('financeHub:hub.fix.ageing.unknownCount', { defaultValue: unknown === 1 ? '{{count}} balance unknown' : '{{count}} balances unknown', count: unknown });
+                return (
+                  <div key={key} data-testid={`ageing-bucket-${currency}-${key}`} className="grid min-w-0 grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2">
+                    <span aria-hidden="true" className={`size-2.5 shrink-0 rounded-full ${BUCKET_COLORS[key]}`} />
+                    <span className="min-w-0 break-words text-xs text-muted-foreground">{labels[key]}</span>
+                    {unknown > 0 && amount === 0
+                      ? <span className="text-right text-xs text-muted-foreground">{unknownLabel}</span>
+                      : <span className="max-w-full break-all text-right tabular text-sm font-semibold">{formatCurrency(amount / 100, currency)}</span>}
+                    {unknown > 0 && amount !== 0 && <span className="col-span-2 col-start-2 text-right text-xs text-muted-foreground">{t('financeHub:hub.fix.ageing.plusUnknown', { defaultValue: '+ {{label}}', label: unknownLabel })}</span>}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );

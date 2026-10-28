@@ -102,8 +102,11 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
         <div className={waiting.length === 0 ? 'lg:col-span-2' : undefined}>
           <Tooltip content={t('financeHub:hub.overdueHint', 'Count of open invoices past their derived due date; total sums known outstanding balances, including tax, by currency.')}>
             <h2 tabIndex={0} className="mb-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring">
-              {t('financeHub:hub.fix.overdue.heading', { defaultValue: 'Overdue · {{amount}} from {{count}} invoices', count: overdueCount, amount: overdueCurrencyLines[0] ?? t('financeHub:hub.fix.finding.unknownBalance', 'Balance unknown') })}
-              {position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
+              {overdueCurrencyLines[0]
+                ? t('financeHub:hub.fix.overdue.heading', { defaultValue: overdueCount === 1 ? 'Overdue · {{amount}} from {{count}} invoice' : 'Overdue · {{amount}} from {{count}} invoices', count: overdueCount, amount: overdueCurrencyLines[0] })
+                : t('financeHub:hub.fix.overdue.headingCount', { defaultValue: overdueCount === 1 ? 'Overdue · {{count}} invoice' : 'Overdue · {{count}} invoices', count: overdueCount })}
+              {/* C4: the one place an unknown overdue balance is said; the rows carry no placeholder. */}
+              {position.overdueUnknownCount > 0 && <span className="font-normal text-muted-foreground">{t('financeHub:hub.fix.overdue.unknownCount', { defaultValue: position.overdueUnknownCount === 1 ? ' · {{count}} balance unknown' : ' · {{count}} balances unknown', count: position.overdueUnknownCount })}</span>}
             </h2>
           </Tooltip>
           {overdueCurrencyLines.slice(1).map((amount) => <p key={amount} className="mb-2 text-xs text-muted-foreground">{amount}</p>)}
@@ -124,7 +127,7 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   aria-label={t('financeHub:hub.fix.overdue.openInvoice', { defaultValue: 'Open {{client}} invoice {{number}}', client, number: invoiceNumber(invoice) ?? '—' })}
                   className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 py-3 hover:bg-accent/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
                 >
-                  <span role="img" aria-label={avatarLabel} title={avatarLabel} className="grid size-9 shrink-0 place-items-center rounded-full bg-[hsl(var(--avatar-2))] text-[11px] font-semibold text-white">{initials(avatarLabel)}</span>
+                  <span role="img" aria-label={avatarLabel} title={avatarLabel} className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">{initials(avatarLabel)}</span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{client}</span>
                     <span className="block truncate font-mono text-xs text-muted-foreground">{invoiceNumber(invoice) ?? '—'}</span>
@@ -133,9 +136,8 @@ export const FinanceAttention: React.FC<FinanceAttentionProps> = ({
                   </span>
                   <span className="min-w-0 text-right">
                     <StatusPill variant={partlyPaid ? 'warn' : 'lost'}>{partlyPaid ? t('financeHub:hub.fix.overdue.partlyPaid', { defaultValue: 'Partly paid · {{days}} days late', days: daysOverdue }) : t('financeHub:hub.fix.overdue.overdue', { defaultValue: 'Overdue · {{days}} days', days: daysOverdue })}</StatusPill>
-                    {outstanding == null ? (
-                      <span className="mt-1 block text-xs text-muted-foreground">{t('financeHub:hub.fix.overdue.balanceUnknown', 'Balance unknown')}</span>
-                    ) : (
+                    {/* C4: an unknown balance is left out here; the heading counts it once ("· 1 balance unknown"). */}
+                    {outstanding != null && (
                       <>
                         <span className="mt-1 block whitespace-nowrap tabular text-sm font-semibold">{formatCurrency(outstanding / 100, invoice.currency)}</span>
                         {gross != null && <span className="block whitespace-nowrap tabular text-xs text-muted-foreground">{t('financeHub:hub.fix.overdue.ofGross', { defaultValue: 'of {{amount}}', amount: formatCurrency(gross, invoice.currency) })}</span>}

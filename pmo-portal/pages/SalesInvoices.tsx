@@ -675,12 +675,16 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
   }, [filtered, organizationToday, searchParams]);
   // P5: on a phone the status chips become one select, so no chip is clipped at the scroll edge.
   const isDesktop = useIsDesktop();
-  // C6: when every listed amount shares one tax basis, the Amount header states it once.
+  // C6: the Amount header states the basis most listed amounts share, once; only rows on another basis carry their own.
   const sharedTaxBasis = useMemo(() => {
     if (!embedded) return null;
-    const priced = sortedInvoices.filter((inv) => inv.amount != null);
-    const first = priced[0]?.tax_treatment;
-    return isTaxTreatment(first) && priced.every((inv) => inv.tax_treatment === first) ? first : null;
+    const counts = new Map<string, number>();
+    for (const inv of sortedInvoices) {
+      if (inv.amount == null || !isTaxTreatment(inv.tax_treatment)) continue;
+      counts.set(inv.tax_treatment, (counts.get(inv.tax_treatment) ?? 0) + 1);
+    }
+    const [majority] = [...counts.entries()].sort((left, right) => right[1] - left[1]);
+    return majority && isTaxTreatment(majority[0]) ? majority[0] : null;
   }, [embedded, sortedInvoices]);
 
   const state: 'loading' | 'empty' | 'error' | undefined = isPending || mode === undefined
@@ -958,7 +962,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             {showCode && <span className="text-xs text-muted-foreground">{inv.currency}</span>}
           </span>
           {inv.amount != null && <FxEquivalent amount={inv.amount} currency={inv.currency} date={inv.invoice_date} />}
-          {inv.amount != null && !sharedTaxBasis ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
+          {inv.amount != null && inv.tax_treatment !== sharedTaxBasis ? <TaxBasisLabel treatment={inv.tax_treatment} showDetails={false} className="w-full text-right md:w-auto" taxBaseUnknown={inv.erp_docstatus != null} taxRate={inv.tax_rate} taxBaseNumerator={inv.tax_base_numerator} taxBaseDenominator={inv.tax_base_denominator} /> : null}
           {/* I-4: a PMO invoice states what the client owes in full, so Outstanding reconciles by eye. */}
           {inv.pmo_native && invoiceGross(inv) != null && invoiceGross(inv) !== inv.amount && (
             <span className="w-full text-right text-xs text-muted-foreground md:basis-full">
@@ -1231,7 +1235,10 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
             aria-label={t('financeCopy.filterByStatus', "Filter by status")}
             tabIndex={0}
             className={embedded
-              ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+              // P5: on a phone the filters wrap onto a second line instead of running past the screen edge.
+              ? isDesktop
+                ? 'flex min-w-0 shrink-0 items-center gap-2 overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
+                : 'flex min-w-0 max-w-full flex-wrap items-center gap-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'
               : 'min-w-0 max-w-full overflow-x-auto focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring'}
           >
             {isDesktop ? <ViewToggle<StatusFilter>
@@ -1253,7 +1260,7 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
               }}
               className="h-11 min-w-[10rem] text-[16px]"
             />}
-            <div className={embedded ? 'flex shrink-0 items-center gap-2' : 'mt-2 flex flex-wrap items-end gap-2'}>
+            <div data-testid="invoice-filter-group" className={embedded ? (isDesktop ? 'flex shrink-0 items-center gap-2' : 'flex min-w-0 max-w-full flex-wrap items-center gap-2') : 'mt-2 flex flex-wrap items-end gap-2'}>
               {requestedCustomerId && (
                 <div data-testid="customer-filter" className="flex min-w-0 flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5">
                   <span role="status" className="min-w-0 break-words text-sm">
@@ -1543,10 +1550,8 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
 
       <Drawer
         open={Boolean(panelInvoice)}
-        title={panelInvoice ? t('finance:receivables.drawerTitle', '{{client}} · {{amount}}', {
-          client: panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded'),
-          amount: panelInvoice.amount == null ? '—' : formatCurrency(panelInvoice.amount, panelInvoice.currency),
-        }) : ''}
+        // N5: the title names the client; the amount lives in the figures below, so the title never wraps on money.
+        title={panelInvoice ? panelInvoice.customer_name ?? t('finance:receivables.clientUnavailable', 'Client not recorded') : ''}
         subtitle={panelInvoice ? <span className="flex flex-wrap items-center gap-2">
           {invoiceNumber(panelInvoice) && <span className="font-mono text-xs">{invoiceNumber(panelInvoice)}</span>}
           {projectLabelOf(panelInvoice) && <span className="text-xs">{projectLabelOf(panelInvoice)}</span>}
@@ -1564,14 +1569,23 @@ const SalesInvoices: React.FC<SalesInvoicesProps> = ({ embedded = false, selecte
         nestedOpen={Boolean(submitTarget || receiptTarget || formTarget || cancelTarget || projectTarget || efakturTarget)}
       >
         {panelInvoice && <div className="space-y-5 p-4 sm:p-5">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-border pb-4 text-sm">
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.outstanding', 'Outstanding · tax included')}</dt><dd className="mt-1 tabular">{panelInvoice.erp_outstanding_amount == null ? '—' : formatCurrencyCents(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.dueDate', 'Due date')}</dt><dd className="mt-1">{deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date) ? formatDateOnly(deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date)!) : '—'}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.invoiceDate', 'Invoice date')}</dt><dd className="mt-1">{panelInvoice.invoice_date ? formatDateOnly(panelInvoice.invoice_date) : '—'}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.paymentTerms', 'Terms')}</dt><dd className="mt-1">{panelInvoice.erp_payment_terms_days == null ? '—' : t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days })}</dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.taxBasis', 'Tax basis')}</dt><dd className="mt-1"><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></dd></div>
-            <div><dt className="text-xs text-muted-foreground">{t('finance:receivables.eFaktur', 'e-Faktur')}</dt><dd className="mt-1">{panelInvoice.efaktur_number ?? '—'}{panelInvoice.efaktur_date ? ` · ${formatDateOnly(panelInvoice.efaktur_date)}` : ''}</dd></div>
-          </dl>
+          {(() => {
+            // C4: a field with nothing recorded is left out; an unknown open balance is said once, never shown as a dash.
+            const due = deriveArDueDate(panelInvoice.invoice_date, panelInvoice.erp_payment_terms_days, panelInvoice.erp_due_date, panelInvoice.received_date);
+            const outstandingUnknown = panelInvoice.erp_outstanding_amount == null && (panelInvoice.status === 'Unpaid' || panelInvoice.status === 'Submitted');
+            const field = (key: string, label: string, value: React.ReactNode) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1">{value}</dd></div>;
+            return <div className="border-b border-border pb-4">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                {panelInvoice.amount != null && field('amount', t('finance:receivables.amount', 'Amount'), <span className="flex flex-wrap items-baseline gap-x-1.5"><span className="tabular font-semibold">{formatCurrency(panelInvoice.amount, panelInvoice.currency)}</span><TaxBasisLabel treatment={panelInvoice.tax_treatment} showDetails taxRate={panelInvoice.tax_rate} taxBaseNumerator={panelInvoice.tax_base_numerator} taxBaseDenominator={panelInvoice.tax_base_denominator} /></span>)}
+                {panelInvoice.erp_outstanding_amount != null && field('outstanding', t('finance:receivables.outstanding', 'Outstanding · tax included'), <span className="tabular">{formatCurrency(panelInvoice.erp_outstanding_amount, panelInvoice.currency)}</span>)}
+                {due && field('due', t('finance:receivables.dueDate', 'Due date'), formatDateOnly(due))}
+                {panelInvoice.invoice_date && field('invoiceDate', t('finance:receivables.invoiceDate', 'Invoice date'), formatDateOnly(panelInvoice.invoice_date))}
+                {panelInvoice.erp_payment_terms_days != null && field('terms', t('finance:receivables.paymentTerms', 'Terms'), t('finance:receivables.paymentTermsDays', '{{count}} days', { count: panelInvoice.erp_payment_terms_days }))}
+                {panelInvoice.efaktur_number && field('efaktur', t('finance:receivables.eFaktur', 'e-Faktur'), `${panelInvoice.efaktur_number}${panelInvoice.efaktur_date ? ` · ${formatDateOnly(panelInvoice.efaktur_date)}` : ''}`)}
+              </dl>
+              {outstandingUnknown && <p className="mt-3 text-xs text-muted-foreground">{t('finance:receivables.outstandingUnknown', 'The outstanding balance is not known yet: the accounting system has not reported it for this invoice.')}</p>}
+            </div>;
+          })()}
           <InvoiceStatusTimeline invoice={panelInvoice} payments={panelPayments} profiles={profileRows} />
           <SalesInvoiceEvidenceSection invoice={panelInvoice} />
         </div>}

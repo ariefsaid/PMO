@@ -177,6 +177,18 @@ describe('Receivables page', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/finance/receivables?todo=unapplied');
   });
 
+  it('B4: one filled New invoice per width — the header one is hidden below sm, the phone bar is hidden from sm up', async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const buttons = screen.getAllByRole('button', { name: /New invoice/i });
+    expect(buttons).toHaveLength(2);
+    // jsdom has no media queries: the wrapper classes are the contract (Button's own inline-flex would beat `hidden`).
+    expect(screen.getByTestId('receivables-header-new-invoice')).toHaveClass('hidden', 'sm:block');
+    expect(buttons[1]!.parentElement).toHaveClass('sm:hidden');
+    await user.click(buttons[0]!);
+    expect(screen.getByTestId('location')).toHaveTextContent('create=1');
+  });
+
   it('hides New invoice for an Executive', () => {
     h.role = 'Executive';
     renderPage();

@@ -122,12 +122,10 @@
     "clientUnavailable": "Client not recorded",
     "projectUnassigned": "Unassigned project",
     "unassignedProjectManager": "Unassigned PM",
-    "drawerTitle": "{{client}} · {{amount}}",
     "invoiceNumber": "Invoice {{number}}",
     "project": "Project",
     "invoiceDate": "Invoice date",
     "paymentTerms": "Terms",
-    "taxBasis": "Tax basis",
     "eFaktur": "e-Faktur",
     "outstanding": "Outstanding · tax included",
     "timeline": "Status timeline",
@@ -171,7 +169,9 @@
     "rowActions": "Invoice actions",
     "paymentActions": "Payment actions",
     "figures": "Receivables figures",
-    "evidenceLoadError": "Couldn't load the invoice lines from the accounting system."
+    "evidenceLoadError": "Couldn't load the invoice lines from the accounting system.",
+    "amount": "Amount",
+    "outstandingUnknown": "The outstanding balance is not known yet: the accounting system has not reported it for this invoice."
   },
   "invoices": {
     "description": "Client invoices.",
@@ -283,7 +283,7 @@
       "currency": "The document’s currency differs from this purchase.",
       "gateRequest": "Your organization requires a purchase request before an order.",
       "gateApprovalOrder": "Your organization requires an approval before an order.",
-      "gateReceipt": "Your organization requires a goods receipt before a vendor invoice.",
+      "gateReceipt": "Your organization requires a goods receipt before a supplier invoice.",
       "gateApprovalPayment": "Your organization requires an approval before payment.",
       "spansProjects": "This invoice is recorded against several projects. Link it from ERPNext per project, or record it in PMO.",
       "sharepointHost": "The file is not on your organization’s SharePoint site.",
