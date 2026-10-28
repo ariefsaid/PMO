@@ -149,7 +149,8 @@ test('AC-CQ-020 PM allocates 1,000 and prepares final BAST 997; distinct Finance
     await page.goto(`/projects/${projectId}/billing`);
     await expect(page.getByTestId(`contract-balance-${boqItemId}`)).toContainText(/903\s*km/, { timeout: 60_000 });
     await expect(page.getByTestId(`contract-accepted-${boqItemId}`)).toContainText(/997\s*km/);
-    await expect(page.getByTestId('claims-gap')).toContainText(CLOSING);
+    await page.getByText('Billing summary details').click();
+    await expect(page.getByTestId('work-orders-earned')).toContainText(CLOSING);
 
     // Navigate away and back: the closing value is the server's, not a stale client figure.
     await page.goto(`/projects/${projectId}/work-orders`);
