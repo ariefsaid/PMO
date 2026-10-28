@@ -1,4 +1,8 @@
 {
+  "budgetForecast": {
+    "remainingShort": "Remaining",
+    "budgetUsedShort": "% used"
+  },
   "billing": {
     "quantity": "Quantity billing"
   },

@@ -567,7 +567,7 @@ const Projects: React.FC = () => {
       minSize: 152,
       maxSize: 320,
       align: 'num',
-      colClassName: 'xl:pr-4',
+      colClassName: 'xl:pr-6',
       caveat: coverageReason ? { reason: coverageReason } : undefined,
       // RF-008 / S-02: canonical ERP-mapped Actual, never the legacy stored project.spent value.
       cell: (p) => {
@@ -613,7 +613,7 @@ const Projects: React.FC = () => {
       size: 120,
       minSize: 96,
       maxSize: 160,
-      colClassName: 'xl:pl-4',
+      colClassName: 'xl:pl-6',
       cell: (p) => {
         // I7: defer while delivery summary is loading to prevent flash of false empty state.
         if (deliveryError) return <span className="text-[12px] text-muted-foreground">—</span>;
@@ -814,7 +814,7 @@ const Projects: React.FC = () => {
   const mobileToolbar = (
     <div data-testid="projects-mobile-toolbar" className="w-full min-w-0 space-y-2.5">
       {/* status — bounded horizontal scroller (must stay reachable at 390px) */}
-      <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+      <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
         <ViewToggle<StatusFilter>
           options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
           value={filter}
@@ -1008,7 +1008,7 @@ const Projects: React.FC = () => {
         /* AC-2: wrap in overflow-x-auto so the full filter strip (incl. "At risk") is
            reachable at 390px without clipping. scroll-fade-x adds the right-edge fade
            affordance (the project tab strip pattern). */
-        <div data-testid="status-filter-scroll" className="overflow-x-auto scroll-fade-x">
+        <div data-testid="status-filter-scroll" className="min-w-0 max-w-full overflow-x-auto scroll-fade-x">
           <ViewToggle<StatusFilter>
             options={FILTERS.map((f) => ({ value: f, label: filterLabels[f] }))}
             value={filter}

@@ -195,6 +195,20 @@ export interface ProjectionSummary {
   unknownRecorded: string[];
 }
 
+/**
+ * Choose the initial year for the budget projection. The repository returns fiscal years in
+ * client-defined newest-first order; labels are opaque and are never parsed to infer dates.
+ */
+export function chooseDefaultBudgetFiscalYear(
+  years: readonly { fiscalYear: string; isActivePush: boolean }[],
+  yearsWithSpending: ReadonlySet<string>,
+): string | null {
+  return years.find((year) => yearsWithSpending.has(year.fiscalYear))?.fiscalYear
+    ?? years.find((year) => year.isActivePush)?.fiscalYear
+    ?? years[0]?.fiscalYear
+    ?? null;
+}
+
 const toC = (n: number) => Math.round(n * 100); // numeric(14,2) in, so exact at 2 dp
 const fromC = (c: number) => c / 100;
 
