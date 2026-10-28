@@ -136,7 +136,6 @@ export const EngineerDashboard: React.FC = () => {
     || (tasks.data === undefined && !tasks.isPending);
   const claimsError = claims.isError || !currentUser?.id
     || (claims.data === undefined && !claims.isPending);
-  const hoursError = timeError || (!weekStart && !organizationDay.isPending);
   const taskDataError = taskError || (!organizationDay.day && !organizationDay.isPending);
   const recentError = timeError || (!organizationDay.day && !organizationDay.isPending);
   const currentStatus = currentSheet?.status ?? null;
@@ -184,9 +183,11 @@ export const EngineerDashboard: React.FC = () => {
           tone="blue"
           icon="clock"
           label={t('hub.engineer.hoursThisWeek', 'Hours this week')}
-          value={`${formatNumberExact(hoursThisWeek)} ${t('hub.engineer.hourUnit', 'h')}`}
+          value={timesheets.data !== undefined && weekStart
+            ? `${formatNumberExact(hoursThisWeek)} ${t('hub.engineer.hourUnit', 'h')}`
+            : '—'}
           loading={timeLoading}
-          error={hoursError}
+          error={timesheets.isError || organizationDay.isError}
           vs={expectedWeekLabel}
           to="/timesheets"
           linkLabel={t('hub.engineer.openHours', 'Open timesheets for this week')}
@@ -197,9 +198,13 @@ export const EngineerDashboard: React.FC = () => {
           tone="violet"
           icon="doc"
           label={t('hub.engineer.timesheetStatus', 'Timesheet status')}
-          value={statusLabel ? <StatusPill variant={currentStatus ? workflowVariant(currentStatus) : 'neutral'}>{statusLabel}</StatusPill> : '—'}
+          value={timesheets.data === undefined || !weekStart
+            ? '—'
+            : statusLabel
+              ? <StatusPill variant={currentStatus ? workflowVariant(currentStatus) : 'neutral'}>{statusLabel}</StatusPill>
+              : '—'}
           loading={timeLoading}
-          error={timeError || (!weekStart && !organizationDay.isPending)}
+          error={timesheets.isError || organizationDay.isError}
           vs={timesheetDueLabel}
           to="/timesheets"
           linkLabel={t('hub.engineer.openStatus', 'Open timesheet status')}
@@ -210,9 +215,9 @@ export const EngineerDashboard: React.FC = () => {
           tone="amber"
           icon="tasks"
           label={t('hub.engineer.tasksDue', 'Tasks due')}
-          value={taskCount}
+          value={tasks.data !== undefined && organizationDay.day ? taskCount : '—'}
           loading={taskLoading}
-          error={taskDataError || tasks.isError}
+          error={tasks.isError || organizationDay.isError}
           vs={tasks.data !== undefined && !taskDataError
             ? t('hub.engineer.tasksSummary', '{{overdue}} overdue · {{due}} due this week', {
               overdue: overdueTasks.length,
@@ -228,9 +233,9 @@ export const EngineerDashboard: React.FC = () => {
           tone="red"
           icon="expenses"
           label={t('hub.engineer.expensesReturned', 'Expense claims returned')}
-          value={returnedClaims.length}
+          value={claims.data !== undefined && currentUser?.id ? returnedClaims.length : '—'}
           loading={claims.isPending}
-          error={claimsError}
+          error={claims.isError}
           to="/expenses"
           linkLabel={t('hub.engineer.openReturnedClaims', 'Open returned expense claims')}
           help={t('hub.engineer.expensesHelp', 'Counts your own expense claims with Rejected status, shown as returned. If claim data is unavailable, the value is shown as —.')}
