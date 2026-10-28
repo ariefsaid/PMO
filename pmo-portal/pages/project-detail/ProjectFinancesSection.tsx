@@ -171,11 +171,10 @@ export function ProjectFinancesSection({ project }: { project: ProjectWithRefs }
               {balancesKnown && field(t('projectFinances.outstanding', 'Outstanding'), own(bucket.outstanding))}
               {field(t('project:billedWork', 'Billed-work revenue'), own(bucket.work_revenue),
                 undefined, t('project:billedWorkQualifier', 'Net of tax; advances excluded'))}
-              {!margin.reason && field(t('projectFinances.margin', 'Margin'), own(margin.amount))}
+              {field(t('projectFinances.margin', 'Margin'), margin.reason ? marginOut[margin.reason] : own(margin.amount))}
             </dl>
-            {/* C4: unknown figures are left out above; each reason is said once here. */}
+            {/* C4: an unknown figure stays labelled with its reason and never becomes a placeholder amount. */}
             {!balancesKnown && <p className="text-xs text-muted-foreground">{t('project:invoiceBalanceUnavailable', 'Invoice balance is not available yet')}</p>}
-            {margin.reason && <p className="text-xs text-muted-foreground">{marginOut[margin.reason]}</p>}
             <div className="text-xs text-muted-foreground">
               {bucket.tax_basis === 'mixed'
                 ? t('projectFinances.mixedTaxBases', 'Mixed tax bases')

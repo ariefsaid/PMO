@@ -201,8 +201,8 @@ export const Drawer: React.FC<DrawerProps> = ({
           'drawer-anim relative z-[810] flex h-full flex-col border-l border-border bg-popover',
           'shadow-[0_10px_30px_hsl(240_10%_8%/0.16),0_2px_6px_hsl(240_10%_8%/0.08)]',
           'motion-reduce:animate-none',
-          'w-full',
-          width === 'lg' ? 'sm:w-[min(560px,92vw)]' : 'sm:w-[min(420px,92vw)]',
+          'max-md:w-full',
+          width === 'lg' ? 'md:w-[min(560px,92vw)]' : 'md:w-[min(420px,92vw)]',
         )}
       >
         {/* Header */}

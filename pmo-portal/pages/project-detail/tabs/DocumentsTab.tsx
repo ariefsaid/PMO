@@ -314,9 +314,9 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
 
   // A complete Microsoft reference renders through the shared linked-document details in the
   // preview; a row with an incomplete reference remains an ordinary upload/source row.
-  const microsoftCell = (d: ProjectDocumentRow): React.ReactNode => {
+  const microsoftCell = (d: ProjectDocumentRow, compact = false): React.ReactNode => {
     const reference = projectReference(d);
-    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} /> : null;
+    return reference ? <LinkedDocumentCell reference={reference} title={d.title} owner={projectOwner(d)} compact={compact} /> : null;
   };
 
   const sourceName = (doc: ProjectDocumentRow) =>
@@ -439,7 +439,7 @@ const DocumentsTab: React.FC<DocumentsTabProps> = ({ projectId, projectCode = nu
       header: t('projectDetail.documents.column.file', 'File'),
       size: 220, minSize: 160, maxSize: 300,
       cell: (doc: ProjectDocumentRow) => doc.source === 'onedrive'
-        ? (isMicrosoftFolder(doc) ? '—' : (microsoftCell(doc) ?? '—'))
+        ? (isMicrosoftFolder(doc) ? '—' : (microsoftCell(doc, true) ?? '—'))
         : (fileCell(doc) ?? '—'),
       exportValue: (doc: ProjectDocumentRow) => doc.file_path?.split('/').pop() ?? (isMicrosoftFolder(doc) ? '' : doc.ms_item_name ?? ''),
     } satisfies Column<ProjectDocumentRow>] : []),
