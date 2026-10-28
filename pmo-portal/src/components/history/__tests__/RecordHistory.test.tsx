@@ -421,7 +421,7 @@ describe('RecordHistory — enum values use the module label helpers (AC-CHG-015
     renderIt({ includeChildren: true }, true);
     expect(await screen.findByText('Penunjukan langsung → Tender')).toBeInTheDocument();
     expect(screen.getByText('Sendiri → Konsorsium')).toBeInTheDocument();
-    expect(screen.getByText('Purchase Order → Penerimaan Barang')).toBeInTheDocument();
+    expect(screen.getByText('Pesanan pembelian → Penerimaan Barang')).toBeInTheDocument();
     expect(screen.getByText('Faktur pemasok → Lunas')).toBeInTheDocument();
     expect(screen.getByText('Draft → Diterbitkan')).toBeInTheDocument();
     expect(screen.getByText('Draf → Aktif')).toBeInTheDocument();

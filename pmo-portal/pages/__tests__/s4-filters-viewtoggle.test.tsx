@@ -229,8 +229,12 @@ describe('AC-MOB-VT: Projects view toggle remains reachable below md', () => {
   it('Procurement: the list-tabs tablist is not hidden below md (A-MIN-1 negative)', () => {
     renderProcurement();
     const listTabs = screen.getByRole('tablist', { name: /procurement lists/i });
+    const hasDisplayHiddenUtility = (className: string) => className
+      .split(/\s+/)
+      .some((token) => /^(?:[a-z0-9-]+:)*hidden$/.test(token));
+
     for (let el: HTMLElement | null = listTabs; el && el !== document.body; el = el.parentElement) {
-      expect(el.className, `${el.tagName} must not hide the list tabs`).not.toMatch(/(^|\s|:)hidden(\s|$)/);
+      expect(hasDisplayHiddenUtility(el.className), `${el.tagName} must not hide the list tabs`).toBe(false);
     }
   });
 });

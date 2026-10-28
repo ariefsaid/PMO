@@ -560,7 +560,12 @@ describe('ProjectFinancesSection reading states', () => {
     expect(invoicedValue).not.toBeNull();
     expect(invoicedValue).toHaveClass('break-words');
     expect(invoicedValue?.tagName).toBe('DD');
-    // Invoiced, Settled, Outstanding, Billed-work revenue; the unknown margin is left out with its reason (C4).
-    expect(within(bucket).getAllByRole('term')).toHaveLength(4);
+    // Invoiced, Settled, Outstanding, Billed-work revenue and Margin remain semantic fields; C4 keeps an unknown margin explained.
+    expect(within(bucket).getAllByRole('term').map((term) => term.textContent)).toEqual([
+      'Invoiced', 'Settled', 'Outstanding', 'Billed-work revenue', 'Margin',
+    ]);
+    expect(within(bucket).getByText('Margin').parentElement).toHaveTextContent(
+      'Gross margin is left out until spending is linked for every budget category.',
+    );
   });
 });
