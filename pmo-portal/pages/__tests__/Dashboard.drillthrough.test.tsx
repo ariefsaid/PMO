@@ -129,7 +129,8 @@ const companyFigureTile = (label: string) => {
 
 describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
   const executiveDrills = [
-    ['Contract on hand', '/projects'],
+    // AC-IXD-DASH-W5-C2A (dev oracle): the figure opens the ongoing projects it sums.
+    ['Contract on hand', '/projects?filter=Ongoing'],
     ['Margin on billed work', '/sales-invoices'],
     ['Pipeline (weighted)', '/sales'],
     ['Owed by clients · overdue', '/sales-invoices?overdue=true'],
@@ -155,7 +156,7 @@ describe('AC-IXD-DASH-W5-C2A — Executive dashboard KPI drills', () => {
     const contractTile = companyFigureTile('Contract on hand');
     expect(contractTile).toHaveTextContent('$6M');
     expect(contractTile).toHaveTextContent(/Left after spending:/);
-    expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects');
+    expect(within(contractTile).getByRole('link')).toHaveAttribute('href', '/projects?filter=Ongoing');
 
     const marginTile = companyFigureTile('Margin on billed work');
     expect(marginTile).toHaveTextContent('$1M');

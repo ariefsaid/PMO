@@ -181,7 +181,8 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       subline: remaining === null ? undefined : spendPartial
         ? `${t('figures.leftAfterRecordedSpending', 'Left after recorded spending')} (${t('figures.partial', 'Partial')}): ${remaining}`
         : `${t('figures.leftAfterSpending', 'Left after spending')}: ${remaining}`,
-      href: '/projects',
+      // AC-IXD-DASH-W5-C2A: the list it opens holds exactly the projects the figure sums.
+      href: '/projects?filter=Ongoing',
     },
     {
       id: 'billed-margin', label: billedMarginLabel, value: billedMargin,

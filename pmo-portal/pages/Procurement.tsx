@@ -500,7 +500,7 @@ const ProcurementPage: React.FC = () => {
               variant="empty"
               icon="cart"
               title={isEngineer ? t('empty.engineer.title', "You haven't raised any procurements yet") : t('empty.title', 'No procurements yet')}
-              sub={t('empty.sub', 'New procurements will appear here as they are raised.')}
+              sub={`${t('empty.sub', 'New procurements will appear here as they are raised.')} ${t('procurement:procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.')}`}
               action={canCreate ? { label: t('newProcurement', 'New procurement'), onClick: () => navigate('/procurement/new') } : undefined}
             />
           )}

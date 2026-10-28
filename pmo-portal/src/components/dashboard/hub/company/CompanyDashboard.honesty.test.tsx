@@ -49,6 +49,11 @@ vi.mock('@/src/hooks/useInvoicesAwaitingViewer', () => ({
 vi.mock('@/src/hooks/useManagementPack', () => ({
   useManagementPack: () => ({ data: { totals: [] }, isPending: false, isError: false, refetch: vi.fn() }),
 }));
+// The needs-you hook reads the same dashboard RPC directly; serve it the same fixture.
+vi.mock('@/src/lib/db/dashboard', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/lib/db/dashboard')>()),
+  getExecutiveDashboard: async () => h.dash,
+}));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useDashboard: () => ({ data: h.dash, isPending: false, isError: false, refetch: vi.fn() }),
   usePMDashboardProjects: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
@@ -95,6 +100,18 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     h.dash = { ...base, on_hand_actual_coverage_count: 1, on_hand_actual_coverage_total: 2 };
     renderExec();
     expect(tile('Contract on hand')).toHaveTextContent(/Left after recorded spending \(Partial\)/);
+  });
+
+  it('AC-IXD-DASH-W5-C2A: Contract on hand opens the ongoing projects it sums', () => {
+    h.dash = { ...base };
+    renderExec();
+    expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-RD-RISK-001: unbudgeted active projects are named in the Delivery panel, so zero at risk is not read as all clear', async () => {
+    h.dash = { ...base, risk_unchecked_projects: 2 };
+    renderExec();
+    expect(await screen.findByText(/projects without an active budget; risk can't be checked yet/)).toBeInTheDocument();
   });
 
   it('AC-RD-SPEND-001: complete actuals carry no partial marker', () => {

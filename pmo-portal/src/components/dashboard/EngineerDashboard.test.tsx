@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router';
 import { EngineerDashboard } from './EngineerDashboard';
 import { BahasaProvider } from '@/test/bahasa';
@@ -268,5 +268,123 @@ describe('Engineer area hub', () => {
     expect(screen.getByRole('heading', { name: 'Dasbor saya' })).toBeInTheDocument();
     expect(screen.getByText('Minggu Anda dan hal yang perlu diperhatikan')).toBeInTheDocument();
     expect(screen.getAllByText('Tidak ada jam yang dicatat minggu ini').length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Ported from the pre-restructure EngineerDashboard.test.tsx (baseline fa511c382): Bahasa, per-project
+// bars, the recent-entries cap, the single Log-hours CTA, a11y-labelled breakdowns and neutral data bars.
+// ---------------------------------------------------------------------------
+
+describe('Engineer area hub — ported baseline cases', () => {
+  it('AC-UXA-002: localizes the week, status, day summaries and actions while retaining data', () => {
+    renderDashboard('id');
+    expect(screen.getByRole('heading', { name: 'Dasbor saya' })).toBeInTheDocument();
+    const hours = screen.getByTestId('kpi-hours-week');
+    expect(hours).toHaveTextContent('Jam minggu ini');
+    expect(hours).toHaveTextContent('15.5');
+    fireEvent.focus(screen.getByRole('button', { name: 'Bantuan: Jam minggu ini' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Jam kerja adalah jumlah entri timesheet Anda untuk minggu ini.');
+    expect(screen.getByRole('link', { name: 'Buka Timesheets minggu ini' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Dikembalikan');
+    expect(screen.getByRole('group', { name: 'Jam kerja per hari minggu ini' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Minggu ini berdasarkan proyek' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Entri terbaru' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: 'Sen: 8 jam' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /Cedar Works: 15.5 jam/ })).toBeInTheDocument();
+    // Data is translated for display only.
+    expect(sheets[1].entries[0].hours).toBe(8);
+    expect(sheets[1].status).toBe('Rejected');
+
+    cleanup();
+    const days = ['2026-06-01', '2026-06-02', '2026-06-03', '2026-06-04', '2026-06-05', '2026-06-06', '2026-06-07'];
+    state.timesheets.data = [{ ...sheets[1], entries: days.map((entryDate, index) => entry(`day-${index}`, entryDate, index + 1, null)) }];
+    renderDashboard('id');
+    for (const [name, value] of [['Sen', 1], ['Sel', 2], ['Rab', 3], ['Kam', 4], ['Jum', 5], ['Sab', 6], ['Min', 7]] as const) {
+      expect(screen.getByRole('progressbar', { name: `${name}: ${value} jam` })).toBeInTheDocument();
+    }
+
+    for (const [status, label] of [['Draft', 'Draf'], ['Submitted', 'Dikirim'], ['Approved', 'Disetujui']] as const) {
+      cleanup();
+      state.timesheets.data = [{ ...sheets[1], status }];
+      renderDashboard('id');
+      expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent(label);
+    }
+
+    cleanup();
+    state.timesheets.data = undefined;
+    state.timesheets.isPending = true;
+    renderDashboard('id');
+    expect(screen.getAllByTestId('liststate-loading').length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText('Memuat…').length).toBeGreaterThanOrEqual(1);
+
+    cleanup();
+    state.timesheets.isPending = false;
+    state.timesheets.isError = true;
+    renderDashboard('id');
+    expect(screen.getAllByText('Tidak dapat memuat timesheet Anda').length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Coba lagi' }).length).toBeGreaterThan(0);
+
+    cleanup();
+    state.timesheets.isError = false;
+    state.timesheets.data = [];
+    renderDashboard('id');
+    expect(screen.getByTestId('kpi-timesheet-status')).toHaveTextContent('Belum dimulai');
+    expect(screen.getByTestId('kpi-timesheet-status')).not.toHaveTextContent('—');
+    expect(screen.getAllByText('Tidak ada jam yang dicatat minggu ini').length).toBeGreaterThan(0);
+    expect(screen.getByRole('link', { name: 'Catat jam di Timesheets' })).toHaveAttribute('href', '/timesheets');
+    expect(screen.getByText('Belum ada entri waktu terbaru')).toBeInTheDocument();
+  });
+
+  it('T7: renders a "This week by project" group with one hours bar per distinct project, named', () => {
+    state.timesheets.data = [{
+      ...sheets[1],
+      entries: [
+        ...sheets[1].entries,
+        { ...entry('e3', '2026-06-03', 2, 'Survey'), project_id: 'p2', project: { name: 'Birch Plant', code: 'PRJ-2' } },
+      ],
+    }];
+    renderDashboard();
+    const group = screen.getByRole('group', { name: 'This week by project' });
+    expect(within(group).getAllByRole('progressbar')).toHaveLength(2);
+    expect(within(group).getByRole('progressbar', { name: /Cedar Works: 15.5 h/ })).toBeInTheDocument();
+    expect(within(group).getByRole('progressbar', { name: /Birch Plant: 2 h/ })).toBeInTheDocument();
+  });
+
+  it('T9: shows up to 8 recent entries under the "Recent entries" heading', () => {
+    const many = Array.from({ length: 10 }, (_, index) => entry(`old-${index}`, `2026-05-${String(20 + index).padStart(2, '0')}`, 1, `Task ${index}`));
+    state.timesheets.data = [{ ...sheets[2], entries: many }];
+    renderDashboard();
+    expect(screen.getByRole('heading', { name: 'Recent entries' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: /^Open timesheet entry for/ })).toHaveLength(8);
+  });
+
+  it('T10: with no entries the page offers one Log-hours action — the empty Recent entries adds no competing CTA', () => {
+    state.timesheets.data = [];
+    state.needs.items = [];
+    renderDashboard();
+    expect(screen.getByText('No recent time entries')).toBeInTheDocument();
+    const logHours = [
+      ...screen.queryAllByRole('link', { name: /log hours/i }),
+      ...screen.queryAllByRole('button', { name: /log hours/i }),
+    ];
+    expect(logHours).toHaveLength(1);
+    expect(logHours[0]).toHaveAttribute('href', '/timesheets');
+  });
+
+  it('renders the weekly-hours breakdown labelled for a11y, and no tasks coming-soon placeholder', () => {
+    renderDashboard();
+    expect(screen.getByRole('group', { name: 'Hours by day this week' })).toBeInTheDocument();
+    expect(screen.queryByText(/Task tracking is coming soon/i)).not.toBeInTheDocument();
+  });
+
+  it('M-1: hours bars stay neutral data bars, not blue action bars', () => {
+    renderDashboard();
+    const dayFill = screen.getByRole('progressbar', { name: 'Mon: 8 h' }).querySelector('span') as HTMLElement;
+    expect(dayFill.className).toContain('bg-muted-foreground');
+    expect(dayFill.className).not.toContain('bg-primary');
+    const projectFill = screen.getByRole('progressbar', { name: /Cedar Works: 15.5 h/ }).querySelector('span') as HTMLElement;
+    expect(projectFill.className).toContain('bg-muted-foreground');
+    expect(projectFill.className).not.toContain('bg-primary');
   });
 });

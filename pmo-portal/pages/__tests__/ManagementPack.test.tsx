@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, useLocation } from 'react-router';
 import React from 'react';
@@ -65,6 +65,7 @@ beforeEach(() => {
   h.query = { data: buildManagementPack(facts), isPending: false, isError: false, error: null, refetch: vi.fn() };
   h.exportTable.mockReset();
   h.orgCurrency = { currency: 'IDR', isResolved: true, isError: false };
+  h.revenueRows = [{ project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 0, invoice_count: 2 }];
 });
 
 describe('AC-MMP-012 who sees the pack and who records progress', () => {
@@ -102,25 +103,41 @@ describe('AC-MMP-012 who sees the pack and who records progress', () => {
     expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 
-  it('AC-1405-REPORT-005: a PM receives no access to Finance reports', () => {
-    h.role = 'Project Manager';
-    h.userId = 'u-pm';
-    h.query.data = buildManagementPack({
-      ...facts,
-      progress: [{ project_id: 'p1', month: '2026-03-01', pct_complete: 25, entered_at: '2026-03-01T10:00:00Z', entered_by_name: 'Finance' }],
-    });
-    renderPage();
-    expect(screen.getByRole('heading', { name: "You don't have access to the management pack" })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Actions for/ })).not.toBeInTheDocument();
-  });
-
-  it('AC-1405-REPORT-002: Executive can read the figures and project actions without progress entry', async () => {
+  // R-004: Executive is Finance rank for progress (policy projectProgress.edit, server may_record_project_progress),
+  // as before the restructure; this case had pinned the lost entry point.
+  it('AC-1405-REPORT-002 / R-004: Executive reads the figures and records progress on an open project', async () => {
     h.role = 'Executive';
     renderPage();
     expect(screen.getByRole('region', { name: 'Report figures' })).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: 'Invoices' })).toBeInTheDocument();
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Actions for Alpha' }));
+    expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
+  });
+});
+
+// R-006 (PM access restored): replaces "AC-1405-REPORT-005: a PM receives no access", which pinned the regression. Old oracle (baseline AC-MMP-012 / RevenueByProject): a PM reads the revenue of
+// the projects they manage. R-004: a PM records progress on the open projects they manage, and only those.
+describe('R-006 — a Project Manager reads the report for their projects', () => {
+  it('R-006: a PM opens the report and sees their project rows, with no invoice write action', () => {
+    h.role = 'Project Manager';
+    h.userId = 'u-pm';
+    renderPage();
+    expect(screen.queryByRole('heading', { name: "You don't have access to the management pack" })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Report figures' })).toBeInTheDocument();
+    expect(within(screen.getByText('Alpha').closest('tr')!).getByTestId('pack-cell-invoicedToDate')).toHaveTextContent(/250/);
+    expect(screen.queryByRole('button', { name: 'New invoice' })).not.toBeInTheDocument();
+  });
+
+  it('R-004: a PM records progress on their own open project, not on another PM\'s', async () => {
+    h.role = 'Project Manager';
+    h.userId = 'u-pm';
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(within(screen.getByText('Alpha').closest('tr')!).getByRole('button', { name: 'Actions for Alpha' }));
+    expect(screen.getByRole('menuitem', { name: 'Record progress' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(within(screen.getByText('Beta').closest('tr')!).getByRole('button', { name: 'Actions for Beta' }));
     expect(screen.queryByRole('menuitem', { name: 'Record progress' })).not.toBeInTheDocument();
   });
 });
@@ -192,6 +209,16 @@ describe('RF-035, RF-036, RF-038 and RF-039 report honesty', () => {
     await userEvent.setup().click(disclosure);
     expect(disclosure).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('table', { name: 'Monthly totals' })).toBeInTheDocument();
+  });
+
+  it('RF-035: the cumulative scope is stated by the as-at heading and the to-date figures; the monthly-scope lines are gone (FIN-S8)', () => {
+    renderPage();
+    expect(screen.getByRole('heading', { name: 'Projects as at Apr 26' })).toBeInTheDocument();
+    expect(screen.getByText('Invoiced to date')).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: /^How this figure is calculated: Invoiced to date/ }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/Cumulative .* through the as-at month/);
+    expect(screen.queryByText(/Monthly figures · selected period/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Currencies with no activity, contract, or meaningful balance/)).not.toBeInTheDocument();
   });
 
   it('FIN-S8: the pack has no current-position section (the project Overview is the one project money summary) and its table stays intact', () => {
@@ -478,5 +505,78 @@ describe('revenue by project goals carried over to the report', () => {
   it('AC-RF-040: the report states its tax basis — revenue figures exclude tax', () => {
     renderPage();
     expect(screen.getByText('Planned, recognised and invoiced revenue per project and month. All figures exclude tax.')).toBeInTheDocument();
+  });
+});
+
+// R-007: ported from the deleted RevenueByProject.{honesty,export}.test.tsx — what is still owed per project
+// and currency (gross, tax included), per-currency totals never summed across currencies, numeric export.
+describe('R-007 — unpaid by client per project and currency', () => {
+  const withForeignInvoice = () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    h.revenueRows = [
+      // Partially paid: the IDR invoice is 275 incl. tax (250 net), 1,100 still owed across the project's IDR invoices.
+      { project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 1_100, invoice_count: 2 },
+      { project_id: 'p1', currency: 'USD', total_amount: 50, open_ar: 55, invoice_count: 1 },
+      { project_id: 'p2', currency: 'IDR', total_amount: 0, open_ar: 0, invoice_count: 0 },
+    ];
+  };
+  const alphaRows = () => screen.getAllByRole('row').filter((row) => within(row).queryByText('Alpha'));
+
+  it('R-007: each project row shows what the client still owes in that row’s currency, and the header states the tax-included basis', () => {
+    withForeignInvoice();
+    renderPage();
+    expect(screen.getByRole('columnheader', { name: 'Unpaid by client · incl. tax' })).toBeInTheDocument();
+    const rows = alphaRows();
+    expect(rows).toHaveLength(2);
+    const foreign = rows.find((row) => within(row).queryByText('Invoiced in USD, not the contract currency'))!;
+    const contract = rows.find((row) => row !== foreign)!;
+    expect(within(contract).getByTestId('pack-cell-openAr')).toHaveTextContent(/IDR\s?1,100/);
+    expect(within(foreign).getByTestId('pack-cell-openAr')).toHaveTextContent('$55');
+    // A fully paid / never-invoiced project owes nothing — a known zero, not a dash.
+    expect(within(screen.getByText('Beta').closest('tr')!).getByTestId('pack-cell-openAr')).toHaveTextContent(/IDR\s?0\b/);
+  });
+
+  it('R-007: the totals carry one unpaid amount per currency and never add IDR to USD', () => {
+    withForeignInvoice();
+    renderPage();
+    const projectTable = screen.getByRole('table', { name: 'Project' });
+    const footRows = within(projectTable).getAllByRole('row').filter((row) => row.closest('tfoot'));
+    const idrTotal = footRows.find((row) => /Total · IDR/.test(row.textContent ?? ''));
+    const usdTotal = footRows.find((row) => /Total · USD/.test(row.textContent ?? ''));
+    expect(idrTotal).toHaveTextContent(/IDR\s?1,100/);
+    expect(usdTotal).toHaveTextContent('$55');
+    for (const row of footRows) expect(row.textContent).not.toMatch(/1,155/);
+  });
+});
+
+describe('R-007 — unpaid by client in the export', () => {
+  const withForeignInvoice = () => {
+    h.query.data = buildManagementPack({
+      ...facts,
+      invoiced: [...facts.invoiced, { project_id: 'p1', currency: 'USD', month: '2026-04-01', net: 50, invoice_count: 1 }],
+    });
+    h.revenueRows = [
+      { project_id: 'p1', currency: 'IDR', total_amount: 250, open_ar: 1_100, invoice_count: 2 },
+      { project_id: 'p1', currency: 'USD', total_amount: 50, open_ar: 55, invoice_count: 1 },
+    ];
+  };
+
+  it('R-007: Export carries the unpaid amount as a number, per project and currency', async () => {
+    withForeignInvoice();
+    renderPage();
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Export' }));
+    const [table] = h.exportTable.mock.calls[0];
+    const column = table.header.indexOf('Unpaid by client · incl. tax');
+    expect(column).toBeGreaterThan(-1);
+    const projectColumn = table.header.indexOf('Project');
+    const currencyColumn = table.header.indexOf('Currency');
+    const alphaIdr = table.body.filter((row: unknown[]) => row[projectColumn] === 'Alpha' && row[currencyColumn] === 'IDR');
+    const alphaUsd = table.body.filter((row: unknown[]) => row[projectColumn] === 'Alpha' && row[currencyColumn] === 'USD');
+    expect(alphaIdr.length).toBeGreaterThan(0);
+    expect(alphaIdr.at(-1)![column]).toBe(1_100);
+    expect(alphaUsd.at(-1)![column]).toBe(55);
   });
 });

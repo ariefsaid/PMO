@@ -179,6 +179,16 @@ describe('AC-IXD-PROC-005: terminal Paid has no persistent GR/VI create buttons'
     expect(screen.queryByTestId('form-create-vi')).toBeNull();
   });
 
+  it.each(['Paid', 'Cancelled'] as const)('AC-IXD-PROC-005: a %s procurement offers no new document in the Record menu', async (status) => {
+    detailState.data = { ...base, status };
+    renderPage();
+    const trigger = headerActions().queryByRole('button', { name: 'Record another document' });
+    if (trigger) await userEvent.click(trigger);
+    for (const name of ['Purchase request', 'Quote request', 'Purchase order', 'Receipt', 'Supplier invoice', 'Payment']) {
+      expect(screen.queryByRole('menuitem', { name })).toBeNull();
+    }
+  });
+
   it('AC-IXD-PROC-005: the already-created GR/VI render as a quiet read-only summary at Paid', () => {
     detailState.data = { ...base, status: 'Paid' };
     renderPage();

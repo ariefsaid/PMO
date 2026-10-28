@@ -130,17 +130,18 @@ const ManagementPack: React.FC<{ embedded?: boolean }> = ({ embedded = false }) 
     basisProgress: t('managementPack.basis.progressShort', 'Progress'),
   };
   // One Export (long-format CSV, one row per project × month with its currency and tax basis).
+  const openArExport = { label: t('financeHub:managementPack.col.openAr', 'Unpaid by client · incl. tax'), of: (row: PackRow) => openArFor(row) };
   const onExport = () => {
-    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels), managementPackFileStem(pack), 'csv');
+    if (pack) void exportTable(buildManagementPackExport(pack, exportLabels, openArExport), managementPackFileStem(pack), 'csv');
   };
   const onExportRow = (row: PackRow) => {
     if (!pack) return;
-    void exportTable(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels),
+    void exportTable(buildManagementPackExport({ ...pack, rows: [row], totals: [] }, exportLabels, openArExport),
       `${managementPackFileStem(pack)}_${row.projectNumber ?? row.projectName ?? 'row'}`, 'csv');
   };
 
   const canRecord = (row: PackRow) =>
-    may('act', 'finance') &&
+    // R-004: the project's PM records progress too; may('edit','projectProgress') carries that rule.
     row.kind === 'contract' &&
     PROGRESS_RECORDABLE_PROJECT_STATUSES.has(row.projectStatus ?? '') &&
     !!row.projectId &&

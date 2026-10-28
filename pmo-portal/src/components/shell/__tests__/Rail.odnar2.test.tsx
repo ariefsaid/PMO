@@ -12,7 +12,7 @@
  * ERP-connected orgs are unchanged (OD-NAR-2: "ERP-connected orgs are unchanged").
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
@@ -49,6 +49,8 @@ import { Rail } from '../Rail';
 import { FeatureRoute } from '@/src/components/FeatureRoute';
 
 const FINANCE_ITEMS = [/^Finance$/i];
+/** The revenue-gated Finance children: invoicing (Receivables) and the revenue report (Reports). */
+const REVENUE_ITEMS = [/^Receivables$/i, /^Reports$/i];
 
 const ownershipRow = (domain: string) => ({ domain, externalTier: 'erpnext' });
 
@@ -75,6 +77,12 @@ const renderReportsRoute = () =>
     { wrapper: makeWrapper('/finance/reports') },
   );
 
+/**
+ * Let the org-features query resolve before asserting a gated item is ABSENT — the env default for
+ * revenue is off, so an unresolved query would pass a hidden assertion for the wrong reason.
+ */
+const resolveFeatures = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
 /** Settle the tree on an always-on item before asserting a gated item is absent. */
 const settle = async () => {
   expect(await screen.findByRole('link', { name: /Dashboard/i })).toBeInTheDocument();
@@ -93,17 +101,24 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
     }
+    for (const name of REVENUE_ITEMS) {
+      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+    }
     renderReportsRoute();
     expect(await screen.findByText('PACK PAGE')).toBeInTheDocument();
     expect(screen.queryByText('DASHBOARD')).toBeNull();
   });
 
-  it('no org_features row + an ERP owns revenue → Finance destination remains visible, Reports area redirects', async () => {
+  it('no org_features row + an ERP owns revenue → Finance destination remains visible, revenue items hidden, Reports area redirects', async () => {
     h.rows = {};
     h.ownership = { data: [ownershipRow('revenue')], isError: false };
     renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+    }
+    await resolveFeatures();
+    for (const name of REVENUE_ITEMS) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
     }
     renderReportsRoute();
     // ERP-connected orgs unchanged: the deep-link degrades to the dashboard.
@@ -111,38 +126,51 @@ describe('OD-NAR-2 — invoicing menus on by default when no ERP owns revenue', 
     expect(screen.queryByText('PACK PAGE')).toBeNull();
   });
 
-  it('explicit row off + no ERP → Finance destination remains visible', async () => {
+  it('explicit row off + no ERP → Finance destination remains visible, revenue items hidden (the operator switch still wins)', async () => {
     h.rows = { revenue: false };
     h.ownership = { data: [], isError: false };
     renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
     }
+    await resolveFeatures();
+    for (const name of REVENUE_ITEMS) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
   });
 
-  it('explicit row on + an ERP owns revenue → Finance destination is visible', async () => {
+  it('explicit row on + an ERP owns revenue → Finance destination and revenue items visible (row beats ownership)', async () => {
     h.rows = { revenue: true };
     h.ownership = { data: [ownershipRow('revenue')], isError: false };
     renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
     }
+    for (const name of REVENUE_ITEMS) {
+      expect(await screen.findByRole('link', { name })).toBeInTheDocument();
+    }
   });
 
-  it('ownership still loading → Finance destination stays visible and the Reports area holds (no redirect)', async () => {
+  it('ownership still loading → Finance destination stays visible, revenue items hidden and the Reports area holds (no redirect), then visible once resolved', async () => {
     h.rows = {};
     h.ownership = { data: undefined, isError: false };
     const rail = renderRail();
     for (const name of FINANCE_ITEMS) {
       expect(await screen.findByRole('link', { name })).toBeInTheDocument();
     }
+    await resolveFeatures();
+    for (const name of REVENUE_ITEMS) {
+      expect(screen.queryByRole('link', { name })).toBeNull();
+    }
     const route = renderReportsRoute();
     await settle(); // FeatureRoute holds: neither the element nor a redirect — ever — while unknown.
     expect(screen.queryByText('PACK PAGE')).toBeNull();
     expect(screen.queryByText('DASHBOARD')).toBeNull();
-    // The area destination is independent of the entitlement; only its Reports area is gated.
-    expect(rail).toBeTruthy();
+    // Ownership resolves to native → the entitlement turns on in BOTH already-mounted surfaces.
     h.ownership = { data: [ownershipRow('procurement')], isError: false };
+    rail.rerender(<Rail />);
+    expect(await screen.findByRole('link', { name: /^Receivables$/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^Reports$/i })).toBeInTheDocument();
     route.rerender(
       <Routes>
         <Route path="/finance/reports" element={<FeatureRoute feature="revenue" element={<div>PACK PAGE</div>} />} />

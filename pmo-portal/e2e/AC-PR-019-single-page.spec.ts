@@ -57,8 +57,8 @@ test('AC-PR-019 one page shows pipeline, history, both IDs, and inline capture w
 
   // ── FILES TAB — dual-ID ledger ──
 
-  // Navigate to the Files tab where the ledger now lives.
-  const filesTab = page.getByRole('tab', { name: 'Files', exact: true });
+  // Navigate to the Files tab where the ledger now lives (its name carries a file count when files exist).
+  const filesTab = page.getByRole('tab', { name: /^Files/ });
   await expect(filesTab).toBeVisible({ timeout: 5_000 });
   await filesTab.click();
 

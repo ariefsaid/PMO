@@ -33,7 +33,11 @@ test('AC-IXD-WP-001: a routine procurement forward step (Request quotations) is 
   );
 
   // ── Act: click the routine forward step ──────────────────────────────────
-  const requestQuotes = page.getByRole('button', { name: 'Request quotations' });
+  // At Approved the header's primary is "Record order"; requesting quotations is the routine
+  // alternative in the header's "More procurement actions" menu (#1404).
+  const header = page.getByTestId('record-header-actions');
+  await header.getByRole('button', { name: 'More procurement actions' }).click();
+  const requestQuotes = header.getByRole('menuitem', { name: 'Request quotations' });
   await expect(requestQuotes).toBeVisible({ timeout: 5_000 });
   await requestQuotes.click();
 

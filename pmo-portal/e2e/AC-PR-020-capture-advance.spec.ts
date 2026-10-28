@@ -70,7 +70,8 @@ test('AC-PR-020 capture a record via Files-tab ledger — system # + external re
   // beforeCount is 0 for this freshly-seeded case; the oracle is afterCount > beforeCount.
 
   // ── Step 2: Navigate to the Files tab ────────────────────────────────────
-  const filesTab = page.getByRole('tab', { name: 'Files', exact: true });
+  // Tab names carry a count badge when non-empty ("Files 2"), so match the label prefix.
+  const filesTab = page.getByRole('tab', { name: /^Files/ });
   await expect(filesTab).toBeVisible({ timeout: 5_000 });
   await filesTab.click();
 
@@ -114,7 +115,7 @@ test('AC-PR-020 capture a record via Files-tab ledger — system # + external re
   await expect(ledger.getByText('External ref')).toBeVisible({ timeout: 5_000 });
 
   // ── Step 6: Navigate back to Timeline tab — confirm activity grew ─────────────
-  const timelineTab = page.getByRole('tab', { name: 'Timeline', exact: true });
+  const timelineTab = page.getByRole('tab', { name: /^Timeline/ });
   await timelineTab.click();
 
   // React Query cache is invalidated after capture → the detail bundle refetches
@@ -149,8 +150,9 @@ test('AC-PR-022 advance action on the case page performs its stated action (hone
   //   At Approved: "Request quotations" or "Record order"
   //   At Requested: "Submit for approval"
   //   At Quote Selected: "Record order"
+  // ("Record receipt" is no longer a one-click transition: it opens the receipt form, #1404.)
   const actionBtns = page.getByRole('button', {
-    name: /^(Submit for approval|Request quotations|Record order|Record receipt)$/,
+    name: /^(Submit for approval|Request quotations|Record order)$/,
   });
   const count = await actionBtns.count();
 

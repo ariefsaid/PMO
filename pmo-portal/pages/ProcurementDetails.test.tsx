@@ -894,8 +894,14 @@ describe('Action bar covers mid-flow transitions', () => {
     renderPage('proc-001', 'files');
     const header = screen.getByTestId('record-header');
     await userEvent.click(within(header).getByRole('button', { name: /record another document/i }));
-    expect(within(header).getByRole('menuitem', { name: 'Supplier invoice' })).toBeInTheDocument();
-    expect(within(header).queryByRole('menuitem', { name: 'Receipt' })).not.toBeInTheDocument();
+    // Finance may request, source, invoice and pay; it is not the requester and not a receiver, so no receipt.
+    const menu = within(header).getByRole('menu', { name: /record another document/i });
+    expect(within(menu).getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Purchase request', 'Quote request', 'Purchase order', 'Supplier invoice', 'Payment',
+      'Add quotation', 'Link from accounting system',
+    ]);
+    await userEvent.click(within(menu).getByRole('menuitem', { name: 'Supplier invoice' }));
+    expect(screen.getByTestId('form-create-vi')).toBeInTheDocument();
   });
 
   it('D2 C1/C2: a goods receipt chosen as the first document is written through the page confirm, and only then reported', async () => {

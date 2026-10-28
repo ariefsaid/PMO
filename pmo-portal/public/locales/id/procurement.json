@@ -290,7 +290,8 @@
       "accessibleName": "Pengadaan"
     },
     "empty": {
-      "title": "Belum ada pengadaan."
+      "title": "Belum ada pengadaan.",
+      "scopeNote": "Pembelian yang hanya tercatat di sistem akuntansi tidak tercantum di sini."
     }
   },
   "common": {

@@ -242,7 +242,7 @@ export function CompanyDashboard({ role }: { role: Extract<Role, 'Executive' | '
   const todayFigure = (id: string) => figures.today.find((figure) => figure.id === id);
   // L6: overdue invoices, supplier invoices and work still to invoice are owned by their tiles above
   // (count, amount and link); the panels list only attention items no tile carries.
-  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'budgets-over'], t);
+  const deliveryNeeds = needsAttention(needs.areaItems, ['at-risk', 'risk-unchecked', 'budgets-over'], t);
   const purchasingNeeds = needsAttention(needs.areaItems, ['procurement-approvals'], t);
   const order = finance ? ['billing', 'purchasing', 'delivery', 'sales'] : ['delivery', 'sales', 'billing', 'purchasing'];
   const refresh = () => {

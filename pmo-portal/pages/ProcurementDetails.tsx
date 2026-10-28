@@ -873,7 +873,9 @@ const ProcurementDetails: React.FC = () => {
     { value: 'files', label: t('procurementRecord:tabs.files', 'Files'), count: ledgerRows.reduce((sum, row) => sum + row.fileCount, 0) || null },
     { value: 'details', label: t('procurementRecord:tabs.details', 'Details') },
   ];
-  const recordKinds = recordableFirstKinds({
+  // AC-IXD-PROC-005: a closed procurement (Paid, Cancelled, Rejected) takes no new documents — same rule as the Files-tab capture row.
+  const isClosed = p.status === 'Paid' || p.status === 'Cancelled' || p.status === 'Rejected';
+  const recordKinds = isClosed ? [] : recordableFirstKinds({
     canSource: canSource(role),
     canReceive: isRequester || RECEIPT_ROLES.has(role),
     canInvoicePay: INVOICE_PAY_ROLES.has(role),
@@ -977,7 +979,7 @@ const ProcurementDetails: React.FC = () => {
         meta={meta.length ? <span>{meta}</span> : undefined}
         actions={<div className="flex flex-wrap items-center justify-end gap-2">
           {waitingNote && <span className="whitespace-nowrap text-[12px] text-muted-foreground">{waitingNote}</span>}
-          <div className="relative hidden sm:block">
+          {(recordKinds.length > 0 || canAddQuote || canLinkAccounting) && <div className="relative hidden sm:block">
             <Button variant="outline" size="sm" aria-expanded={recordMenuOpen} onClick={() => setRecordMenuOpen((open) => !open)}>
               {t('procurementRecord:recordAnother', 'Record another document')} <Icon name="chev" className="size-3.5 rotate-90" />
             </Button>
@@ -986,7 +988,7 @@ const ProcurementDetails: React.FC = () => {
               {canAddQuote && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { openQuotationCapture(); setRecordMenuOpen(false); }}>{t('procurementRecord:action.addQuote', 'Add quotation')}</button>}
               {canLinkAccounting && <button type="button" role="menuitem" className="block min-h-10 w-full rounded-sm px-3 text-left text-[13px] hover:bg-accent" onClick={() => { setRecordMenuOpen(false); setLinkDialogOpen(true); }}>{t('procurementRecord:linkAccounting', 'Link from accounting system')}</button>}
             </div>}
-          </div>
+          </div>}
           {approverLimitLine && <span className="hidden text-[12px] text-muted-foreground lg:inline">{approverLimitLine}</span>}
           {returnAction && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={secondaryClick}>{t('procurementRecord:action.return', 'Return')}</Button>}
           {p.status === 'Approved' && canAddQuote && <Button variant="outline" size="sm" className="hidden sm:inline-flex" onClick={openQuotationCapture}>{t('procurementRecord:action.addQuote', 'Add quotation')}</Button>}

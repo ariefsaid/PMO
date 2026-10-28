@@ -124,6 +124,8 @@ describe('Procurement index — IA-3 (real data)', () => {
     expect(within(row).getByText('Request')).toBeInTheDocument();
     expect(within(row).getByText('Choose a quote')).toBeInTheDocument();
     expect(within(row).getByRole('button', { name: 'Expand procurement details' })).toBeInTheDocument();
+    // The stage + next step carry the state; the row does not repeat a lifecycle pip strip.
+    expect(within(row).queryByRole('list', { name: /Lifecycle:/i })).not.toBeInTheDocument();
   });
 
   it('AC-S19-002: status, search, create, and More transfer tools are accessible', async () => {
@@ -134,9 +136,12 @@ describe('Procurement index — IA-3 (real data)', () => {
     const search = screen.getByLabelText(/search procurement/i);
     const more = header.getByRole('button', { name: 'More' });
 
-    expect(create).toBeInTheDocument();
-    expect(filter).toBeInTheDocument();
-    expect(search).toBeInTheDocument();
+    const follows = (first: HTMLElement, second: HTMLElement) =>
+      Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    // Create, then the list filter, then search, in reading/tab order. More (Export/Import) now sits in
+    // the page header beside Create (#1404), so it is no longer after search.
+    expect(follows(create, filter)).toBe(true);
+    expect(follows(filter, search)).toBe(true);
     expect(screen.queryByRole('button', { name: 'Export list' })).not.toBeInTheDocument();
 
     await userEvent.click(more);
@@ -262,6 +267,12 @@ describe('Procurement index — states', () => {
     renderPage();
     expect(screen.getByText(/No procurements yet/i)).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: /new procurement/i }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the empty list says accounting-system-only purchases are not listed here, so empty is not read as "none at all"', () => {
+    procState.data = [];
+    renderPage();
+    expect(screen.getByText(/Purchases recorded only in the accounting system are not listed here\./)).toBeInTheDocument();
   });
 });
 

@@ -25,6 +25,30 @@ describe('Finance area in the rail', () => {
     expect(screen.getByRole('link', { name: 'Finance' })).toHaveAttribute('href', '/finance');
   });
 
+  // AC-MMP-015 (ported): the management pack is now Finance › Reports. Finance sees it with Revenue
+  // on; Engineers never do; nobody does when Revenue is off (the Finance hub itself stays).
+  it('AC-MMP-015: Finance sees Reports (the management pack) linking to /finance/reports when Revenue is on', () => {
+    effectiveRole = 'Finance';
+    revenue = true;
+    renderRail();
+    expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/finance/reports');
+  });
+
+  it('AC-MMP-015: Engineers do not see Reports, and nobody does when Revenue is off', () => {
+    effectiveRole = 'Engineer';
+    revenue = true;
+    const { unmount } = renderRail();
+    expect(screen.queryByRole('link', { name: 'Reports' })).toBeNull();
+    unmount();
+    for (const role of ['Finance', 'Executive', 'Admin']) {
+      effectiveRole = role;
+      revenue = false;
+      const view = renderRail();
+      expect(screen.queryByRole('link', { name: 'Reports' })).toBeNull();
+      view.unmount();
+    }
+  });
+
   it('Engineers do not see Finance; Finance sees it when Revenue is off', () => {
     effectiveRole = 'Engineer';
     revenue = true;

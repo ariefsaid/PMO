@@ -908,7 +908,8 @@ export const ProcurementBlock: React.FC<ProcurementBlockProps> = ({ projectId, r
           ? t('projectDetail.procurement.emptyFiltered.sub', 'Adjust the search or filters and try again.')
           : projectId && erp.data?.length
             ? t('uxs19.projectEmptyScope', 'Purchases recorded in the accounting system appear below.')
-            : undefined}
+            // The company list says what it leaves out, so an empty list is not read as "no purchases at all".
+            : !projectId ? t('procurement.empty.scopeNote', 'Purchases recorded only in the accounting system are not listed here.') : undefined}
         emptyAction={hasUnfilteredRows ? { label: t('projectDetail.procurement.emptyFiltered.clear', 'Clear filters'), onClick: () => {
           setSearch(''); setCategoryFilter(''); setOwnerFilter(''); setSelectedStage(null); onClearFilters?.();
         } } : undefined}

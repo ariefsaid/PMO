@@ -290,7 +290,8 @@
       "accessibleName": "Procurement"
     },
     "empty": {
-      "title": "No procurement yet."
+      "title": "No procurement yet.",
+      "scopeNote": "Purchases recorded only in the accounting system are not listed here."
     }
   },
   "common": {

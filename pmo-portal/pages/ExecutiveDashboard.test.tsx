@@ -61,7 +61,16 @@ vi.mock('@/src/hooks/useErpSnapshots', () => ({
 }));
 vi.mock('@/src/hooks/useFinancePosition', () => ({ useFinancePosition: () => financePositionState }));
 vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD', useOrgCurrencyState: () => ({ currency: 'USD', isResolved: true }) }));
-vi.mock('@/src/hooks/useProjectStatusLabel', () => ({ useProjectStatusLabel: () => (status: string) => status, useProcurementStatusLabel: () => (status: string) => status }));
+// Identity labels by default; a test sets labelState.real to read the shared label hooks a user sees.
+const labelState = vi.hoisted(() => ({ real: false }));
+vi.mock('@/src/hooks/useProjectStatusLabel', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/src/hooks/useProjectStatusLabel')>();
+  return {
+    ...actual,
+    useProjectStatusLabel: () => (labelState.real ? actual.useProjectStatusLabel() : (status: string) => status),
+    useProcurementStatusLabel: () => (labelState.real ? actual.useProcurementStatusLabel() : (status: string) => status),
+  };
+});
 vi.mock('@/src/components/dashboard/EngineerDashboard', () => ({ EngineerDashboard: () => <div data-testid="engineer-dashboard">Engineer work</div> }));
 vi.mock('@/src/components/dashboard/PMDashboard', () => ({ PMDashboard: () => <div data-testid="pm-dashboard">My projects</div> }));
 
@@ -87,6 +96,8 @@ function renderBahasaPage() {
 
 beforeEach(() => {
   state.role = 'Executive';
+  labelState.real = false;
+  needsState.items = [{ id: 'approvals', count: 2, label: 'approvals waiting for you', href: '/approvals', tone: 'warn' }];
   state.unknownContract = false;
   needsState.isPending = false;
   needsState.isError = false;
@@ -494,5 +505,122 @@ describe('company hub — behaviour carried over from the previous dashboard', (
     renderBahasaPage();
     expect(screen.getByText('Belum ada aktivitas perusahaan')).toBeInTheDocument();
     expect(screen.queryByText('No company activity yet')).not.toBeInTheDocument();
+  });
+});
+
+// Ported from the pre-restructure ExecutiveDashboard.test.tsx (baseline fa511c382): approvals first,
+// purchasing scope and stage links, help copy, states and a11y — re-asserted on the company hub.
+describe('company hub — ported baseline cases', () => {
+  const purchasingPanel = () => {
+    const panel = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border');
+    expect(panel).not.toBeNull();
+    return panel as HTMLElement;
+  };
+
+  it('AC-UX-016 / batch-3: the actionable approvals doorway precedes the passive company figures and opens /approvals', () => {
+    renderPage();
+    const approvals = screen.getByRole('link', { name: '2 approvals waiting for you' });
+    expect(approvals).toHaveAttribute('href', '/approvals');
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    expect(approvals.compareDocumentPosition(figures) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('AC-SL-A-001: nothing waiting → no approvals doorway and no Review action', () => {
+    needsState.items = [];
+    renderPage();
+    expect(screen.queryByRole('link', { name: /approvals? waiting for you/i })).not.toBeInTheDocument();
+    expect(screen.queryByText('Review')).not.toBeInTheDocument();
+  });
+
+  it('AC-RF-007: the purchasing stages say purchases made directly in the accounting system are outside this PMO view', () => {
+    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
+      { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
+      { status: 'Ordered', count: 1 }, { status: 'Paid', count: 1 },
+    ];
+    renderPage();
+    const panel = purchasingPanel();
+    expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
+    expect(within(panel).getAllByRole('group', { name: 'Purchasing by stage' }).length).toBeGreaterThan(0);
+    expect(within(panel).getAllByRole('link', { name: /: 1$/ })).toHaveLength(5);
+  });
+
+  it('AC-S19-004 / AC-JR-W1-10: stage links read the shared status labels and keep the raw, encoded status filter', () => {
+    labelState.real = true;
+    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [
+      { status: 'Draft', count: 1 }, { status: 'Requested', count: 1 }, { status: 'Vendor Quoted', count: 1 },
+      { status: 'Ordered', count: 1 }, { status: 'Received', count: 1 }, { status: 'Vendor Invoiced', count: 1 },
+      { status: 'Paid', count: 1 },
+    ];
+    renderPage();
+    const panel = purchasingPanel();
+    const expected: Array<[RegExp, string]> = [
+      [/^Draft/, '/procurement?status=Draft'],
+      [/^Purchase Request/, '/procurement?status=Requested'],
+      [/^Supplier quoted/, '/procurement?status=Vendor%20Quoted'],
+      [/^Purchase Order/, '/procurement?status=Ordered'],
+      [/^Goods Receipt/, '/procurement?status=Received'],
+      [/^Supplier invoiced/, '/procurement?status=Vendor%20Invoiced'],
+      [/^Paid/, '/procurement?status=Paid'],
+    ];
+    for (const [name, href] of expected) {
+      const links = within(panel).getAllByRole('link', { name });
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) expect(link).toHaveAttribute('href', href);
+    }
+  });
+
+  it('AC-S19-004: no PMO procurements is said plainly while the accounting-system scope copy stays', () => {
+    (figureState.result!.dashboard as Record<string, unknown>).procurements_by_status = [];
+    renderPage();
+    const panel = purchasingPanel();
+    expect(within(panel).getByText('No procurements to show')).toBeInTheDocument();
+    expect(panel).toHaveTextContent('Purchases made directly in the accounting system are not counted.');
+  });
+
+  it('AC-JR-W4-05: the Pipeline (weighted) help says "project value", never "opportunity value"', () => {
+    renderPage();
+    fireEvent.focus(screen.getByRole('button', { name: 'Help: Pipeline (weighted)' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('project value');
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('opportunity value');
+    expect(document.body.textContent).not.toContain('opportunity value');
+  });
+
+  it('DA-1: the at-risk doorway text uses the readable foreground token; the warning hue is only its marker', () => {
+    renderPage();
+    const atRisk = screen.getByRole('link', { name: '2 projects at risk' });
+    expect(atRisk).toHaveClass('text-foreground');
+    expect(atRisk).not.toHaveClass('text-warning');
+  });
+
+  it('AC-706: company figures show loading skeletons while pending, never values', () => {
+    figureState.result!.todayPending = true;
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    expect(within(figures).getAllByTestId('kpi-skeleton').length).toBeGreaterThan(0);
+    expect(figures).not.toHaveTextContent('$1,000');
+  });
+
+  it('AC-707: a failed figures load shows the error with a working retry', () => {
+    figureState.result!.todayError = true;
+    renderPage();
+    const figures = screen.getByRole('region', { name: 'Company figures' });
+    expect(within(figures).getByText("Couldn't load company position figures")).toBeInTheDocument();
+    fireEvent.click(within(figures).getByRole('button', { name: 'Retry' }));
+    expect(figureState.result!.todayRetry).toHaveBeenCalledOnce();
+  });
+
+  it('incomplete actuals: the review-mappings action opens the accounting budget-account map', () => {
+    const dashboard = figureState.result!.dashboard as Record<string, unknown>;
+    dashboard.on_hand_actual_coverage_count = 144;
+    dashboard.on_hand_actual_coverage_total = 150;
+    renderPage();
+    expect(screen.getByRole('link', { name: 'Review accounting mappings' })).toHaveAttribute('href', '/administration/accounting#budget-account-map');
+  });
+
+  it('C1: the company figure band reflows with arbitrary breakpoints only, no named sm: tier mixed in', () => {
+    renderPage();
+    const band = screen.getByRole('region', { name: 'Company figures' });
+    expect(band.className).toMatch(/min-\[\d+px\]:grid-cols-\d/);
+    expect(band.className).not.toContain('sm:grid-cols');
   });
 });
