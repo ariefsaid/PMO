@@ -78,6 +78,15 @@ export function formatCurrency(value: number, currency: string): string {
   return currencyFormatterFor('whole', currency, { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
 }
 
+/** Format a percentage in the supplied viewer locale through the app's formatter cache. */
+export function formatPercent(value: number, locale = getNumberLocale()): string {
+  return numberFormatterFor('percent1', locale, undefined, {
+    style: 'percent',
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
 /** Format exact decimal money without converting its whole or fractional units through Number. */
 export function formatExactMoney(
   value: string | null,

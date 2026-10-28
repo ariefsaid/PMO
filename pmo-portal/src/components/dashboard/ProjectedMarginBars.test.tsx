@@ -18,21 +18,23 @@ const stages: PipelineStage[] = [
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
 describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
-  it('renders the projected-margin headline from the exec payload', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
-    expect(screen.getByText('14.1%')).toBeInTheDocument();
+  it('D-003: labels the chart for weighted pipeline value and leaves margin to its KPI', () => {
+    wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
+
+    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' })).toBeInTheDocument();
+    expect(screen.queryByText('14.1%')).toBeNull();
   });
 
-  it('AC-RD-UNAVAIL-001 / SL-B: unknown margin drops the headline row entirely, never prose or a lone dash', () => {
-    wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
-    const group = screen.getByRole('group', { name: /Pipeline projected margin/i });
+  it('AC-RD-UNAVAIL-001 / SL-B: no margin headline appears in the weighted-value chart', () => {
+    wrap(<ProjectedMarginBars stages={stages} currency="IDR" />);
+    const group = screen.getByRole('group', { name: /Weighted pipeline value by stage/i });
     expect(within(group).queryByText('—')).toBeNull();
     expect(within(group).queryByText(/probability-adjusted/)).toBeNull();
     expect(within(group).queryByText('Weighted pipeline value')).toBeNull();
   });
 
   it('AC-RD-MONEY-001: bar values are short with the exact amount as title', () => {
-    wrap(<ProjectedMarginBars projectedMargin={null} stages={stages} currency="IDR" />);
+    wrap(<ProjectedMarginBars stages={stages} currency="IDR" />);
     const amount = document.querySelector<HTMLElement>('span[title]')!;
     expect(amount.title).toContain('600,000');
     expect(amount.title).not.toContain('.00');
@@ -40,14 +42,14 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   });
 
   it('AC-RD-GEOM-001 (unit): a stage amount is never truncated, so a long Bahasa amount cannot clip', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
+    wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     const amount = screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!);
     expect(amount.className).not.toMatch(/truncate|(^|\s)w-\[68px\]/);
     expect(amount.className).toContain('whitespace-nowrap');
   });
 
   it('renders one bar per OPEN stage (Won/Lost excluded) with its weighted value', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
+    wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     expect(screen.getByText('Tender Submitted')).toBeInTheDocument();
     expect(screen.getByText('Negotiation')).toBeInTheDocument();
     expect(screen.getByTitle(formatDashboardMoney(600_000, 'USD', 'en')!)).toHaveTextContent('$600.0K');
@@ -57,13 +59,13 @@ describe('ProjectedMarginBars (Exec — real useSalesPipeline)', () => {
   });
 
   it('labels the section and each bar for assistive tech', () => {
-    wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
-    expect(screen.getByRole('group', { name: /Pipeline projected margin/i })).toBeInTheDocument();
+    wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
+    expect(screen.getByRole('group', { name: /Weighted pipeline value by stage/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/Tender Submitted:/i)).toBeInTheDocument();
   });
 
   it('batch-3: colors every weighted-value bar with the neutral chart tone (not action-blue)', () => {
-    const { container } = wrap(<ProjectedMarginBars projectedMargin={0.141} stages={stages} currency="USD" />);
+    const { container } = wrap(<ProjectedMarginBars stages={stages} currency="USD" />);
     const fills = Array.from(
       container.querySelectorAll<HTMLElement>('[role="progressbar"] > span'),
     );

@@ -96,5 +96,17 @@
     "noDecidedBids": "No decided bids in this currency for this period.",
     "noBidValue": "No bid value recorded for this currency in this period.",
     "noDecidedValue": "No decided bid value recorded for this currency in this period."
+  },
+  "executive": {
+    "spendingContractPercent": "{{percent}}% of contract",
+    "activeBudgetAmount": "Active budget: {{amount}}",
+    "noActiveBudget": "No active budget",
+    "knownMarginPercentage": "{{percent}} of billed revenue for projects with known margin",
+    "ongoingProjectsCount": "{{count}} Ongoing projects",
+    "chartDataTableDescription": "The chart values are listed in the following data table.",
+    "chartDataTableLabel": "Data for {{label}}",
+    "chartTableStatus": "Status",
+    "chartTableCount": "Count",
+    "chartTableTotal": "Total"
   }
 }

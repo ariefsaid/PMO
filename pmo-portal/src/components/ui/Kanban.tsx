@@ -41,7 +41,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         'flex min-w-0 flex-col',
         !flatSurface && 'rounded-lg border',
         // ring = the non-colour cue (matches the selected card treatment)
-        !flatSurface && (selected ? 'border-primary ring-2 ring-primary/40 bg-primary/[0.04]' : 'border-border bg-secondary/50'),
+        !flatSurface && (selected ? 'border-primary bg-primary/[0.04]' : 'border-border bg-secondary/50'),
+        selected && 'ring-2 ring-primary/40',
       )}
     >
       <div className="kcol-head-sticky border-b border-border px-3 pb-2.5 pt-[11px]">

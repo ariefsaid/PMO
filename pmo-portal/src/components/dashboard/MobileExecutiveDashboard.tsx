@@ -25,7 +25,7 @@ import { cn } from '@/src/components/ui/cn';
 import { Icon } from '@/src/components/ui/icons';
 import { KPITile } from '@/src/components/ui/KPITile';
 import { AtRiskProjectsLink } from './AtRiskProjectsLink';
-import { moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
+import { formatDashboardPercent, moneyFigure, shortMoney } from '@/src/lib/dashboardMoney';
 import { FigureContent } from '@/src/components/ui/FigureContent';
 import { useOrgCurrency } from '@/src/hooks/useOrgCurrency';
 import type { ExecutiveDashboard } from '@/src/lib/db/dashboard';
@@ -74,13 +74,13 @@ const Overline: React.FC<{ children: React.ReactNode; className?: string }> = ({
  * Tone: warning (amber icon tile, warning-foreground value).
  * Zero state: success/neutral copy ("all on track"), amber tile → neutral.
  *
- * Drill cells link to /projects?filter=Ongoing (active projects) and
- * /projects?filter=Ongoing (spend breakdown). Both are single links
+ * Drill cells link to /projects?filter=Ongoing, which groups Ongoing, Won, Pending KoM, and On Hold
+ * projects. Both are single links
  * with descriptive aria-labels (no nested interactive — DESIGN.md a11y rule).
  */
 const AtRiskBlock: React.FC<{
   atRisk: number;
-  activeProjects: number;
+  activeDeliveryProjects: number;
   riskCheckable: boolean;
   totalSpend: number | null;
   actualProjectCount: number;
@@ -92,7 +92,7 @@ const AtRiskBlock: React.FC<{
    *  A leaf that called the hook itself would work today and diverge the moment one is rendered for
    *  a different org. */
   currency: string;
-}> = ({ atRisk, activeProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
+}> = ({ atRisk, activeDeliveryProjects, riskCheckable, totalSpend, actualProjectCount, actualProjectTotal, actualCoverageCount, actualCoverageTotal, currency }) => {
   const { t } = useTranslation('dashboard');
   const notAvailable = t('uxs03.notAvailableYet', 'Not available yet');
   const spendFigure = moneyFigure(totalSpend, currency, notAvailable);
@@ -139,9 +139,9 @@ const AtRiskBlock: React.FC<{
         </span>
         <span className="text-[12.5px] text-muted-foreground">
           {isAtRisk
-            ? t('dashboard.mobile.riskSummary', 'of {{count}} active projects flagged over budget or behind schedule', { count: activeProjects })
+            ? t('dashboard.mobile.riskSummary', 'of {{count}} active delivery projects flagged over budget or behind schedule', { count: activeDeliveryProjects })
             : isUnknown ? t('dashboard:risk.uncheckedNote', "Risk can't be checked yet — no active budget.")
-              : t('dashboard.mobile.noRiskSummary', 'of {{count}} active projects · all on track', { count: activeProjects })}
+              : t('dashboard.mobile.noRiskSummary', 'of {{count}} active delivery projects · all on track', { count: activeDeliveryProjects })}
         </span>
       </div>
 
@@ -158,18 +158,18 @@ const AtRiskBlock: React.FC<{
       <div className="mt-3 flex gap-[10px]">
         <Link
           to="/projects?filter=Ongoing"
-          aria-label={t('dashboard.mobile.spendLink', 'Open spend breakdown · {{amount}} spent to date', { amount: spendText })}
+          aria-label={t('dashboard.mobile.spendLink', 'Open Ongoing, Won, Pending KoM, and On Hold projects · on-hand spending {{amount}} to date', { amount: spendText })}
           className="touch-target flex-1 rounded-[6px] border border-border p-[9px_10px] text-inherit no-underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         >
           <span className="block text-[11px] font-semibold uppercase tracking-[0.04em] text-muted-foreground">
-            {t('dashboard.kpi.totalSpend.label', 'Recorded spending')}
+            {t('dashboard.kpi.totalSpend.label', 'On-hand recorded spending')}
           </span>
           <span className="tabular mt-[3px] block min-w-0 break-words text-[17px] font-bold">
             <FigureContent {...spendFigure} reveal={false} />
           </span>
           {(actualProjectCount < actualProjectTotal || actualCoverageCount < actualCoverageTotal) && <span className="mt-1 inline-flex rounded-full bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning-foreground">{t('dashboard:spend.partial', 'Partial')}</span>}
           <span className="mt-1 block text-[11px] text-muted-foreground">
-            {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} delivery projects', { known: actualProjectCount ?? 0, total: actualProjectTotal ?? 0 })}
+            {t('uxs03.coverage', 'Actual available for {{known}} of {{total}} active delivery projects', { known: actualProjectCount ?? 0, total: actualProjectTotal ?? 0 })}
             {' · '}{t('uxs03.coverageCategories', 'Actual coverage: {{known}} of {{total}} mapped cost categories', { known: actualCoverageCount ?? 0, total: actualCoverageTotal ?? 0 })}
           </span>
           <span className="mt-1 block text-[11px] font-semibold text-primary-text">
@@ -262,7 +262,13 @@ const ContractBook: React.FC<{
     .map((row) => currencyMoney(row.contract_remaining, row.currency));
   const marginRows = realizedMarginByCurrency
     .filter((row) => row.known_amount !== null)
-    .map((row) => currencyMoney(row.known_amount, row.currency));
+    .map((row) => {
+      const amount = currencyMoney(row.known_amount, row.currency);
+      const percent = formatDashboardPercent(row.known_amount, row.known_billed_revenue ?? null);
+      return percent === null
+        ? amount
+        : `${amount} (${t('dashboard:executive.knownMarginPercentage', '{{percent}} of billed revenue for projects with known margin', { percent })})`;
+    });
   const onHandValueDisplay = onHandValueByCurrency.length > 0 ? (
     <span className="flex flex-col gap-1">
       {onHandValueByCurrency.map((row) => (
@@ -310,7 +316,7 @@ const ContractBook: React.FC<{
         icon="grid"
         label={t('dashboard.kpi.totalContractValue.label', 'Total contract value')}
         {...figure(activeContractValue)}
-        vs={t('dashboard.kpi.totalContractValue.mobileVs', 'Signed value of the {{count}} projects still in delivery', { count: activeProjects })}
+        vs={t('dashboard:executive.ongoingProjectsCount', '{{count}} Ongoing projects', { count: activeProjects })}
       />
     </div>
   );
@@ -350,13 +356,13 @@ export const MobileExecutiveDashboard: React.FC<MobileExecutiveDashboardProps> =
         <Overline className="mb-2">{t('dashboard.mobile.needsAttention', 'Needs attention')}</Overline>
         <AtRiskBlock
           atRisk={data.projects_at_risk}
-          activeProjects={data.active_projects}
+          activeDeliveryProjects={data.active_delivery_projects ?? data.active_projects}
           riskCheckable={riskCheckable}
           totalSpend={totalSpend}
-          actualProjectCount={data.on_hand_actual_project_count ?? 0}
-          actualProjectTotal={data.on_hand_actual_project_total ?? 0}
-          actualCoverageCount={data.on_hand_actual_coverage_count ?? 0}
-          actualCoverageTotal={data.on_hand_actual_coverage_total ?? 0}
+          actualProjectCount={data.active_delivery_actual_project_count ?? 0}
+          actualProjectTotal={data.active_delivery_actual_project_total ?? data.active_delivery_projects ?? 0}
+          actualCoverageCount={data.active_delivery_actual_coverage_count ?? 0}
+          actualCoverageTotal={data.active_delivery_actual_coverage_total ?? 0}
           currency={orgCurrency}
         />
       </section>
