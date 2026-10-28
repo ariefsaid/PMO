@@ -1203,7 +1203,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               {canViewBilling && selected.rate !== null && <QuantityFigure label={t('projectDetail.cascade.colRate', 'Rate')} value={formatCurrency(selected.rate, currency)} detail={t('projectDetail.cascade.source.rate', 'Source: the rate on this bill of quantities line.')} />}
             </dl>
             <section aria-labelledby="line-order-split">
-              <h4 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h4>
+              <h2 id="line-order-split" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.lineSplit', 'Per-order split')}</h2>
               {split.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noLineSplit', 'No order allocation history is available.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
                 {split.map((allocation) => {
                   const order = rows.find((candidate) => candidate.id === allocation.workOrderId);
@@ -1217,7 +1217,7 @@ const WorkOrdersTab: React.FC<WorkOrdersTabProps> = ({ projectId, currency, clie
               </ul>}
             </section>
             <section aria-labelledby="line-quantity-history">
-              <h4 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h4>
+              <h2 id="line-quantity-history" className="mb-2 text-sm font-semibold">{t('projectDetail.cascade.quantityHistory', 'Quantity history')}</h2>
               {history.length === 0 ? <p className="text-sm text-muted-foreground">{t('projectDetail.cascade.noConfirmedBastHistory', 'No confirmed BAST quantity history yet.')}</p> : <ul className="divide-y divide-border border-y border-border text-sm">
                 {history.map(({ acceptance, quantity }) => <li key={acceptance.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
                   <span>{formatDateOnly(acceptance.acceptance_date)} · {acceptance.is_final ? t('projectTabs:contractQuantities.workOrders.acceptances.final', 'Final') : t('projectTabs:contractQuantities.workOrders.acceptances.stage', 'Stage')}</span>

@@ -376,6 +376,18 @@ describe('DataTable', () => {
     expect(header.className).toContain('border-border');
   });
 
+  it('AC-TBL-STICKY-001 gives every sticky cell an opaque semantic surface in grouped tables with totals', () => {
+    const { container } = render(<DataTable rows={rows} columns={[{ ...columns[0], stickyLeft: true }, columns[1]]}
+      rowKey={(row) => row.id} groupBy={() => 'Group'} totals={[{ key: 'total', label: 'Total' }]}
+      rowMenu={() => [{ label: 'Edit', onClick: vi.fn() }]} />);
+    const stickyCells = [...container.querySelectorAll('th.sticky, td.sticky')];
+    expect(stickyCells.length).toBeGreaterThan(5);
+    for (const cell of stickyCells) {
+      // These semantic roles are opaque in both themes; alpha backgrounds allow scrolled text through.
+      expect(cell.className).toMatch(/(?:^|\s)bg-(?:surface-table-head|card|surface-selected|secondary)(?:\s|$)/);
+    }
+  });
+
   it('AC-TBL-STICKY-001 renders the gradient in the header and every body sticky cell only while content remains hidden to the right', () => {
     TestResizeObserver.instances = [];
     vi.stubGlobal('matchMedia', vi.fn().mockImplementation((query: string) => ({

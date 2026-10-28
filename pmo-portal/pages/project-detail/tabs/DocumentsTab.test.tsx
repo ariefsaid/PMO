@@ -817,6 +817,8 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
     // d2 (Steel Spec) is Issued, authored by pm-1; the current user is admin-1 (≠ author).
     renderTab('Admin', 'admin-1');
     const drawer = await openPreview('Steel Spec');
+    expect(within(drawer).getByRole('heading', { name: 'Steel Spec', level: 3 })).toBeInTheDocument();
+    expect(within(drawer).getByRole('heading', { name: 'Update status', level: 4 })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Approve$/i })).toBeInTheDocument();
     expect(within(drawer).getByRole('button', { name: /^Reject$/i })).toBeInTheDocument();
     await userEvent.click(within(drawer).getByRole('button', { name: /^Approve$/i }));
@@ -900,6 +902,23 @@ describe('DocumentsTab — document preview (AC-W5-C6-D12)', () => {
       expect(within(drawer).getByRole('button', { name: /Upload file for Site Plan/i })).toBeInTheDocument();
     } finally {
       if (originalMatchMediaDescriptor) Object.defineProperty(window, 'matchMedia', originalMatchMediaDescriptor);
+      else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+    }
+  });
+
+  it('AC-1402: phone document status follows the drawer title in the heading hierarchy', async () => {
+    const original = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+    Object.defineProperty(window, 'matchMedia', { configurable: true, value: () => ({
+      matches: false, media: '(min-width: 768px)', addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList) });
+    try {
+      renderTab('Admin', 'admin-1');
+      await userEvent.click(screen.getByRole('button', { name: 'View Steel Spec' }));
+      const drawer = screen.getByRole('dialog', { name: 'Steel Spec' });
+      expect(within(drawer).getByRole('heading', { name: 'Steel Spec', level: 1 })).toBeInTheDocument();
+      expect(within(drawer).getByRole('heading', { name: 'Update status', level: 2 })).toBeInTheDocument();
+    } finally {
+      if (original) Object.defineProperty(window, 'matchMedia', original);
       else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
     }
   });

@@ -664,11 +664,11 @@ export function DataTable<Row>({
             ) : (
               groupedRows.map((entry, entryIndex) => {
                 if (entry.type === 'heading') return (
-                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary/40">
+                  <tr key={`group-${entry.label}-${entryIndex}`} className="h-[var(--table-row-min-height)] bg-secondary">
                     {selection && <td className="px-2" />}
                     <th scope="row" colSpan={groupHeaderSpan ? columns.length : undefined} className="px-[var(--table-cell-inset)] text-left text-control font-semibold text-foreground"><div className="flex flex-wrap items-center justify-between gap-x-4">{groupToggle(entry.label, entry.count)}{groupHeader?.(entry.label, entry.rows.map((modelRow) => modelRow.original))}</div></th>
                     {!groupHeaderSpan && columns.slice(1).map((column) => <td key={column.key} className={cn('px-[var(--table-cell-inset)]', alignClass(column.align))} />)}
-                    {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
+                    {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
                   </tr>
                 );
                 if (entry.group && collapsedGroups.has(entry.group)) return null;
@@ -785,12 +785,12 @@ export function DataTable<Row>({
             )}
           </tbody>
           {totals && totals.length > 0 && <tfoot>
-            {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary/40 font-semibold tabular">
+            {totals.map((total) => <tr key={total.key} className="h-[var(--table-row-min-height)] border-t-[1.5px] border-border bg-secondary font-semibold tabular">
               {selection && <td />}
-              {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary/40', alignClass(column.align), column.align === 'num' && 'tabular')}>
+              {columns.map((column, index) => <td key={column.key} className={cn('px-[var(--table-cell-inset)] py-2 align-middle', column.stickyLeft && 'sticky left-0 z-[1] bg-secondary', alignClass(column.align), column.align === 'num' && 'tabular')}>
                 {total.values?.[column.key] ?? (index === 0 ? total.label : null)}
               </td>)}
-              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary/40')} />}
+              {rowMenu && <td className={cn(ROW_MENU_STICKY_CLASS, 'bg-secondary')} />}
             </tr>)}
           </tfoot>}
         </table>
