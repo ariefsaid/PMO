@@ -36,6 +36,7 @@ const { pipelineState, lostState } = vi.hoisted(() => ({
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 // B-3: SalesPipeline now includes the "+ New opportunity" CTA (useProjectMutations). Stub to
 // avoid the QueryClientProvider requirement. Also mock useAuth for usePermission.

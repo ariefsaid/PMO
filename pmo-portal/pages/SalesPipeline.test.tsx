@@ -41,6 +41,11 @@ const lostState: { data: Array<Record<string, unknown>>; isPending: boolean; isE
   isPending: false,
   isError: false,
 };
+const wonState: { data: Array<Record<string, unknown>>; isPending: boolean; isError: boolean } = {
+  data: [],
+  isPending: false,
+  isError: false,
+};
 // FR-L10N-020: this component reads useOrgCurrency for its ACROSS-record aggregates. Pinned here
 // rather than left to a real query. ⚑ At LINE-START on purpose — inserted inside a neighbouring
 // vi.mock call it parses as a syntax error and hides every real error beneath it.
@@ -48,6 +53,7 @@ vi.mock('@/src/hooks/useOrgCurrency', () => ({ useOrgCurrency: () => 'USD' }));
 vi.mock('@/src/hooks/useDashboard', () => ({
   useSalesPipeline: () => pipelineState,
   useLostDeals: () => lostState,
+  useWonDeals: () => wonState,
   useDashboard: () => ({ data: undefined, isPending: false, isError: false }),
   useWinRate: () => ({ data: undefined, isPending: false, isError: false }),
 }));
@@ -102,6 +108,9 @@ beforeEach(() => {
   lostState.data = [];
   lostState.isPending = false;
   lostState.isError = false;
+  wonState.data = [];
+  wonState.isPending = false;
+  wonState.isError = false;
 });
 
 describe('SalesPipeline header + funnel (AC-SP-202)', () => {
@@ -180,6 +189,24 @@ describe('SalesPipeline header + funnel (AC-SP-202)', () => {
 });
 
 describe('SalesPipeline phone stage list (AC-S24-001)', () => {
+  it('AC-1441: a phone user can switch to Won bids and open the project', async () => {
+    const user = userEvent.setup();
+    wonState.data = [
+      { id: 'won-phone-1', name: 'Won phone project', short_name: null, client_name: 'Acme', status: 'Close Out', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    viewport.isDesktop = false;
+    renderPage();
+
+    await user.click(screen.getByRole('tab', { name: /^Won$/i }));
+    await waitFor(() => {
+      expect(new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '').get('scope')).toBe('Won');
+      expect(within(screen.getByTestId('sales-phone-stage-list')).getByText('Won phone project')).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('combobox', { name: 'Pipeline stage' })).toBeNull();
+    await user.click(screen.getByRole('button', { name: /Won phone project/i }));
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects/won-phone-1'));
+  });
+
   it('keeps the URL working set, selected stage, compact rows, and Lost scope aligned', async () => {
     const user = userEvent.setup();
     lostState.data = [
@@ -244,11 +271,40 @@ describe('SalesPipeline states (AC-SP-203)', () => {
 });
 
 describe('SalesPipeline view toggle (AC-SP-206) + kanban default (AC-SP-204)', () => {
+  it('AC-1441: the Won terminal card is sourced and opens its canonical project route', async () => {
+    wonState.data = [
+      { id: 'won-route-1', name: 'Won project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    renderPage();
+
+    const wonColumn = screen.getByTestId('stage-Won');
+    const card = within(wonColumn).getByText('Won project').closest('[role="button"]');
+    expect(card).not.toBeNull();
+    expect(within(wonColumn).getByText(formatCurrency(400_000, 'USD'))).toBeVisible();
+    await userEvent.click(card!);
+    await waitFor(() => expect(screen.getByTestId('location-probe')).toHaveAttribute('data-pathname', '/projects/won-route-1'));
+  });
+
   it('AC-SP-204: defaults to the Kanban view with the Tender stage column and its card count', () => {
     renderPage();
     const tender = screen.getByTestId('stage-Tender Submitted');
     expect(within(tender).getByText('Northwind ERP Rollout')).toBeInTheDocument();
     expect(within(tender).getByText('3')).toBeInTheDocument();
+  });
+
+  it('AC-1441: selecting Won in the table clears an incompatible open-stage filter', async () => {
+    wonState.data = [
+      { id: 'won-filter-1', name: 'Won filter project', short_name: null, client_name: 'Acme', status: 'Ongoing Project', contract_value: 400000, currency: 'USD', win_probability: 1 },
+    ];
+    renderPage('/sales?view=table&status=Leads');
+
+    await userEvent.click(screen.getByRole('tab', { name: /^Won$/i }));
+    await waitFor(() => {
+      const params = new URLSearchParams(screen.getByTestId('location-probe').getAttribute('data-search') ?? '');
+      expect(params.get('scope')).toBe('Won');
+      expect(params.get('status')).toBeNull();
+      expect(screen.getByText('Won filter project')).toBeInTheDocument();
+    });
   });
 
   it('AC-SP-206: the view toggle is a tablist with Board selected by default', () => {
@@ -532,8 +588,8 @@ it.each(['table', 'kanban'])('AC-TAG-002 Sales %s filters the actual visible dea
   expect(screen.queryByText('Regional Services')).toBeNull();
   await user.type(screen.getByLabelText('Filter by location'), 'Bali');
   // #830: the location filter writes the URL after a short pause, not on every keystroke.
-  await waitFor(() => expect(screen.queryByText('Northwind ERP Rollout')).toBeNull());
-  expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali');
+  await waitFor(() => expect(screen.getByTestId('location-probe').getAttribute('data-search')).toContain('location=Bali'));
+  expect(screen.queryByText('Northwind ERP Rollout')).toBeNull();
   if (view === 'kanban') expect(screen.getByText('No projects match these classifications')).toBeVisible();
 });
 

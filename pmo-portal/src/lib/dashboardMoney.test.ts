@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { getNumberLocale, resetActiveLocale, setActiveLocale } from '@/src/lib/locale/activeLocale';
-import { formatDashboardMoney, moneyFigure, moneyTotalsFigure, shortMoney } from './dashboardMoney';
+import { formatDashboardMoney, formatDashboardPercent, moneyFigure, moneyTotalsFigure, shortMoney } from './dashboardMoney';
 
 afterEach(() => resetActiveLocale());
 
@@ -22,6 +22,17 @@ describe('AC-RD-MONEY-001 formatDashboardMoney (exact form)', () => {
   it('is null (unavailable) for null or non-finite input, never 0', () => {
     expect(formatDashboardMoney(null, 'USD', 'en-US')).toBeNull();
     expect(formatDashboardMoney(Number.NaN, 'USD', 'en-US')).toBeNull();
+  });
+});
+
+describe('AC-1414 known-margin percentage', () => {
+  it('uses billed revenue from the known-margin project set', () => {
+    expect(formatDashboardPercent(1_200_000, 7_200_000, 'en-US')).toBe('16.7%');
+  });
+
+  it('omits a percentage when the billed-revenue denominator is unavailable or zero', () => {
+    expect(formatDashboardPercent(1_200_000, null, 'en-US')).toBeNull();
+    expect(formatDashboardPercent(1_200_000, 0, 'en-US')).toBeNull();
   });
 });
 

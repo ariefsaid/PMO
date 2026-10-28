@@ -44,6 +44,7 @@ function mockSupabase(opts: {
   profileData?: { org_id: string; role: string } | null;
   profileError?: unknown;
   insertResult?: { data: unknown; error: unknown };
+  /** Resolves the tasks .update().eq().select() chain — the UPDATED rows (#1315 refused-write oracle). */
   updateResult?: { data: unknown; error: unknown };
   rowsFactory?: () => { data: unknown[]; error: null };
 }): HandlerDeps['supabase'] {
@@ -51,7 +52,7 @@ function mockSupabase(opts: {
     profileData = { org_id: 'org-1', role: 'Project Manager' },
     profileError = null,
     insertResult = { data: { id: 'act-1' }, error: null },
-    updateResult = { data: null, error: null },
+    updateResult = { data: [{ id: 'task-1', status: 'Done' }], error: null },
     rowsFactory = () => ({ data: [], error: null }),
   } = opts;
 
@@ -88,7 +89,9 @@ function mockSupabase(opts: {
       if (table === 'tasks') {
         return {
           update: vi.fn().mockReturnValue({
-            eq: vi.fn().mockResolvedValue(updateResult),
+            eq: vi.fn().mockReturnValue({
+              select: vi.fn().mockResolvedValue(updateResult),
+            }),
           }),
           select: vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
@@ -882,4 +885,78 @@ it('malformed tool arguments (decision-continuation loop) that never recover exh
     type: 'status',
     payload: { status: 'errored', error: 'MALFORMED_TOOL_CALL' },
   });
+});
+
+// ── #1315: update_task_status must never report a change the database refused ────────────────
+
+/** modelClient that emits one update_task_status call then a closing text round. */
+function updateTaskStatusModelClient(taskId: string, status: string) {
+  return {
+    create: vi.fn()
+      .mockResolvedValueOnce({
+        finish_reason: 'tool_calls',
+        message: {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: 'tu-1315', type: 'function', function: { name: 'update_task_status', arguments: JSON.stringify({ taskId, status }) } },
+          ],
+        },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      })
+      .mockResolvedValueOnce({
+        finish_reason: 'stop',
+        message: { role: 'assistant', content: 'Status updated.' },
+        usage: {},
+        model: 'deepseek/deepseek-v4-flash',
+      }),
+  };
+}
+
+it('#1315 permitted user: update_task_status tool result echoes taskId + the new status (row came back)', async () => {
+  const events = await collect(
+    agentChatHandler(
+      { messages: [{ role: 'user', content: 'mark task-1 done' }] },
+      baseDeps({
+        modelClient: updateTaskStatusModelClient('task-1', 'Done'),
+        supabase: mockSupabase({ updateResult: { data: [{ id: 'task-1', status: 'Done' }], error: null } }),
+      }),
+    ),
+  );
+
+  const toolEvent = events.find((e) => e.type === 'tool');
+  expect(toolEvent).toBeDefined();
+  expect(toolEvent!.payload).toMatchObject({
+    name: 'update_task_status',
+    result: { taskId: 'task-1', status: 'Done' },
+  });
+  expect((toolEvent!.payload as { result: { error?: string } }).result.error).toBeUndefined();
+  expect(events.at(-1)).toMatchObject({ type: 'status', payload: { status: 'completed' } });
+});
+
+it('#1315 refused user (RLS filters the update to 0 rows): tool result is an ERROR the model is told to report', async () => {
+  const create = updateTaskStatusModelClient('task-not-yours', 'Done').create;
+  const events = await collect(
+    agentChatHandler(
+      { messages: [{ role: 'user', content: 'mark that task done' }] },
+      baseDeps({
+        modelClient: { create },
+        // PostgREST resolves a refused UPDATE with zero rows and NO error — the exact shape
+        // that used to read as success.
+        supabase: mockSupabase({ updateResult: { data: [], error: null } }),
+      }),
+    ),
+  );
+
+  const toolEvent = events.find((e) => e.type === 'tool');
+  expect(toolEvent).toBeDefined();
+  expect((toolEvent!.payload as { result: { error?: string } }).result.error).toContain("can't change this task's status");
+
+  // The model's next round receives the error tool_result in its transcript (role:'tool'),
+  // so its closing answer is informed by the refusal — never by a success echo.
+  const secondRoundMessages = create.mock.calls[1][0].messages as { role: string; name?: string; content: string }[];
+  const toolResultMsg = secondRoundMessages.find((m) => m.role === 'tool' && m.name === 'update_task_status');
+  expect(toolResultMsg).toBeDefined();
+  expect(JSON.parse(toolResultMsg!.content)).toMatchObject({ error: expect.stringContaining("can't change this task's status") });
 });

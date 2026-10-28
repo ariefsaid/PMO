@@ -3,11 +3,13 @@
  * company figures, asserted through the real figure hook (only the data sources are stubbed).
  */
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
+import i18next from 'i18next';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import idDashboard from '../../../../../public/locales/id/dashboard.json';
 
 const base = {
   active_projects: 2,
@@ -17,7 +19,7 @@ const base = {
   on_hand_value: 8_000_000,
   on_hand_contract_remaining: 6_000_000,
   on_hand_realized_margin: 1_000_000,
-  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1_000_000, unknown_projects: 0 }],
+  on_hand_realized_margin_by_currency: [{ currency: 'USD', known_amount: 1_000_000, known_billed_revenue: 8_000_000, unknown_projects: 0 }],
   on_hand_value_by_currency: [{ currency: 'USD', contract_value: 8_000_000, actual_known: 2_000_000, contract_remaining: 6_000_000, actual_coverage_count: 2, actual_coverage_total: 2, realized_margin_known: 1_000_000, unknown_projects: 0 }],
   on_hand_actual_coverage_count: 2,
   on_hand_actual_coverage_total: 2,
@@ -81,7 +83,7 @@ const renderExec = () => render(
   </QueryClientProvider>,
 );
 
-const figures = () => screen.getByRole('region', { name: 'Company figures' });
+const figures = () => screen.getByRole('region', { name: /Company figures|Angka perusahaan/ });
 const tile = (label: string) => {
   const element = within(figures()).getByText(label, { exact: true }).parentElement?.parentElement?.parentElement;
   expect(element).toBeTruthy();
@@ -89,6 +91,7 @@ const tile = (label: string) => {
 };
 
 beforeEach(() => { h.dash = { ...base }; h.win = null; h.pack = { totals: [] }; });
+afterEach(async () => { await act(async () => { await i18next.changeLanguage('en'); }); });
 
 describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-IXD-DASH-002: no figure carries the ambiguous "Projected margin" name; forecast margin appears once, on the pipeline', () => {
@@ -96,6 +99,32 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
     expect(screen.queryByText(/^Projected margin$/i)).not.toBeInTheDocument();
     expect(within(figures()).getAllByText(/Forecast margin/)).toHaveLength(1);
     expect(tile('Pipeline (weighted)')).toHaveTextContent('Forecast margin: 20.0%');
+  });
+
+  it('AC-1414: company margin percentage uses billed revenue from the same known-margin projects', () => {
+    h.dash = {
+      ...base,
+      on_hand_realized_margin_by_currency: [
+        { currency: 'USD', known_amount: 1_000_000, known_billed_revenue: 8_000_000, unknown_projects: 1 },
+      ],
+    };
+    renderExec();
+    const margin = tile('Known margin on billed work');
+    expect(margin).toHaveTextContent('$1M');
+    expect(margin).toHaveTextContent('12.5% of billed revenue for projects with known margin');
+  });
+
+  it('AC-1414: keeps the known margin amount and omits the percentage when billed revenue is unavailable', () => {
+    h.dash = {
+      ...base,
+      on_hand_realized_margin_by_currency: [
+        { currency: 'USD', known_amount: 1_000_000, known_billed_revenue: null, unknown_projects: 1 },
+      ],
+    };
+    renderExec();
+    const margin = tile('Known margin on billed work');
+    expect(margin).toHaveTextContent('$1M');
+    expect(margin).not.toHaveTextContent(/of billed revenue/);
   });
 
   it('AC-RD-SPEND-001: marks the remaining contract as partial when some actuals are not recorded yet', () => {
@@ -107,7 +136,19 @@ describe('company figures honesty (AC-IXD-DASH-002, mixed currency)', () => {
   it('AC-IXD-DASH-W5-C2A: Contract on hand opens the ongoing projects it sums', () => {
     h.dash = { ...base };
     renderExec();
+    const contract = tile('Contract on hand');
+    expect(contract).toHaveTextContent('2 Ongoing projects');
     expect(within(figures()).getByRole('link', { name: /Contract on hand/ })).toHaveAttribute('href', '/projects?filter=Ongoing');
+  });
+
+  it('AC-UXA-003: labels the Ongoing project count in Bahasa and links to that set', async () => {
+    i18next.addResourceBundle('id', 'dashboard', idDashboard, true, true);
+    await act(async () => { await i18next.changeLanguage('id'); });
+    h.dash = { ...base, active_projects: 2 };
+    renderExec();
+    const contract = tile('Kontrak berjalan');
+    expect(contract).toHaveTextContent('2 proyek yang sedang berjalan');
+    expect(within(figures()).getByRole('link', { name: /Kontrak berjalan/ })).toHaveAttribute('href', '/projects?filter=Ongoing');
   });
 
   it('AC-RD-RISK-001: unbudgeted active projects are named in the Delivery panel, so zero at risk is not read as all clear', async () => {

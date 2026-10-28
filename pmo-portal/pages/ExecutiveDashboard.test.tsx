@@ -29,7 +29,7 @@ const financePositionState = vi.hoisted(() => ({
 }));
 const defaultToday = [
   { id: 'contract-on-hand', label: 'Contract on hand', value: '$1,000', subline: 'Left after spending: $500', href: '/projects', unavailableReason: 'Contract amount is not available.' },
-  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin: amount shown · Percent of billed work: —', href: '/sales-invoices' },
+  { id: 'billed-margin', label: 'Known margin on billed work', value: '$200', subline: 'Known margin amount shown', href: '/sales-invoices' },
   { id: 'pipeline', label: 'Pipeline (weighted)', value: '$300', subline: 'Gross: $600 · Forecast margin: 20%', href: '/sales' },
   { id: 'client-overdue', label: 'Owed by clients · overdue', value: '2', subline: '$400 · Oldest 14 days overdue', href: '/sales-invoices?overdue=true' },
   { id: 'supplier-payables', label: 'Owed to suppliers', value: '$100', href: '/procurement?status=Vendor+Invoiced' },
@@ -218,7 +218,7 @@ describe('company area hub (#1403)', () => {
     const delivery = screen.getByRole('heading', { name: 'Delivery' }).closest('.rounded-lg.border');
     const purchasing = screen.getByRole('heading', { name: 'Purchasing' }).closest('.rounded-lg.border');
     expect(sales).not.toBeNull();
-    expect(screen.getByRole('heading', { name: 'Pipeline by stage' }).closest('.rounded-lg.border')).toBe(sales);
+    expect(screen.getByRole('group', { name: 'Weighted pipeline value by stage' }).closest('.rounded-lg.border')).toBe(sales);
     expect(screen.getByRole('region', { name: 'Win rate' }).closest('.rounded-lg.border')).toBe(sales);
     expect(screen.getByRole('heading', { name: 'Spending vs contract' }).closest('.rounded-lg.border')).toBe(delivery);
     expect(screen.getByRole('heading', { name: 'Purchasing by stage' }).closest('.rounded-lg.border')).toBe(purchasing);

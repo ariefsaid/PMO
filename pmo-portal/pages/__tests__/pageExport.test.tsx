@@ -137,6 +137,7 @@ vi.mock('@/src/hooks/useDashboard', () => ({
     refetch: vi.fn(),
   }),
   useLostDeals: () => ({ data: [] }),
+  useWonDeals: () => ({ data: [], isPending: false, isError: false, refetch: vi.fn() }),
 }));
 vi.mock('@/src/hooks/usePipelineView', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/hooks/usePipelineView')>()),

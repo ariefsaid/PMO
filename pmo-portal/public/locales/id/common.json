@@ -1356,20 +1356,13 @@
       "errorSub": "Terjadi kesalahan. Coba lagi.",
       "emptyTitle": "Tidak ada proyek selesai dalam periode ini",
       "emptySub": "Pilih periode lebih panjang untuk melihat tingkat kemenangan.",
-      "result": "{{wins}} menang dari {{total}} proyek selesai",
-      "progress": "Tingkat kemenangan {{percent}}%",
-      "won": "Menang",
-      "lost": "Kalah",
       "declined": "{{n}} tidak ikut tender — tidak dihitung dalam win rate"
     },
     "bva": {
       "atRisk": "Berisiko"
     },
     "projectedMargin": {
-      "group": "Margin proyeksi pipeline",
-      "summary": "disesuaikan dengan peluang pada {{count}} {{stageNoun}} aktif",
-      "stage": "tahap",
-      "stages": "tahap",
+      "group": "Nilai pipeline tertimbang per tahap",
       "barLabel": "{{stage}}: {{value}} tertimbang"
     },
     "procurementStatus": {
@@ -1385,7 +1378,8 @@
       "unknownProject": "Tidak diketahui",
       "hoursShort": "{{hours}} jam",
       "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "jam"
+      "hoursUnit": "jam",
+      "day": {}
     },
     "atRisk": {
       "reviewSingle": "Tinjau {{count}} proyek berisiko",
@@ -1422,7 +1416,8 @@
         "chartLabel": "Pengadaan menurut status",
         "empty": "Belum ada aktivitas pengadaan",
         "noun": "permintaan"
-      }
+      },
+      "pipelineMargin": {}
     },
     "kpi": {
       "awaitingApproval": {
@@ -1435,7 +1430,12 @@
         "linkMany": "{{label}}: {{count}} item menunggu",
         "review": "Tinjau"
       },
-      "helpLabel": "Bantuan: {{label}}"
+      "helpLabel": "Bantuan: {{label}}",
+      "pipelineMargin": {},
+      "pipelineWeighted": {},
+      "revenueOnHand": {},
+      "totalContractValue": {},
+      "totalSpend": {}
     },
     "stillToInvoice": {
       "count": "Work Order: {{n}}",
@@ -1446,7 +1446,14 @@
       "title": "Belum ditagih per Work Order",
       "incompleteMore": "dan {{n}} lainnya",
       "clientPo": "PO klien {{po}}"
-    }
+    },
+    "pm": {},
+    "empty": {},
+    "error": {},
+    "mobile": {},
+    "kpiBand": {},
+    "sr": {},
+    "subtitle": {}
   },
   "decisionContext": {
     "amount": "Jumlah",
@@ -1969,7 +1976,20 @@
       "pr": "Permintaan Pembelian",
       "vi": "Faktur pemasok",
       "vq": "Penawaran pemasok"
-    }
+    },
+    "column": {},
+    "empty": {
+      "orgWide": {},
+      "ownScoped": {}
+    },
+    "error": {
+      "sub": "Terjadi kesalahan saat mengambil permintaan Anda.",
+      "title": "Gagal memuat pengadaan"
+    },
+    "noMatch": {},
+    "search": {},
+    "title": {},
+    "view": {}
   },
   "procurementLedger": {
     "title": "Buku besar kasus",
@@ -2160,7 +2180,10 @@
       "withheldError": "Masukkan pajak dipotong sebagai jumlah yang tidak melebihi jumlah faktur (isi jumlah faktur terlebih dahulu).",
       "withholding": "Pajak dipotong",
       "withheldAboveItems": "Pajak dipotong lebih besar dari total item sebelum pajak. Periksa jumlah PPh."
-    }
+    },
+    "meta": {},
+    "tabs": {},
+    "tile": {}
   },
   "projectDetail": {
     "backToProjects": "Proyek",
@@ -2339,7 +2362,8 @@
         "category": "Kategori",
         "code": "Kode",
         "document": "Dokumen",
-        "status": "Status"
+        "status": "Status",
+        "file": "File"
       },
       "deleteConfirm": {
         "body": "Ini menghapus entri register dokumen secara permanen. Tindakan ini tidak dapat dibatalkan.",
@@ -2671,7 +2695,8 @@
       "group": {},
       "newRequest": "Pengadaan baru",
       "summary": {},
-      "title": "Pengadaan"
+      "title": "Pengadaan",
+      "column": {}
     },
     "rail": {
       "actionsAriaLabel": "Tindakan panel proyek",
@@ -2795,7 +2820,8 @@
         "list": "Daftar",
         "timeline": "Timeline"
       },
-      "viewAriaLabel": "Tampilan tugas"
+      "viewAriaLabel": "Tampilan tugas",
+      "noMilestone": "Tanpa fase"
     },
     "toast": {
       "projectUpdated": "Proyek diperbarui"
@@ -4073,7 +4099,9 @@
     "invoiceIllegalTransition": "Perubahan itu tidak diizinkan dari status faktur saat ini.",
     "sodSelfApproval": "Anda membuat faktur ini — orang lain harus menyetujuinya",
     "sodAuthorMissing": "Faktur ini tidak memiliki pembuat tercatat, sehingga tidak dapat disetujui",
-    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf"
+    "nativeDraftsOpen": "Masih ada faktur PMO yang berstatus draf",
+    "activateEditorBlocked": "Anda menyusun draf atau mengedit versi ini, jadi orang lain yang harus mengaktifkannya.",
+    "activateNeedsAdminOrFinance": "Penyusun versi ini tidak tercatat, jadi hanya Admin atau Finance yang dapat mengaktifkannya."
   },
   "viewBuilder": {
     "privateScope": "Pribadi — hanya Anda",
@@ -4189,59 +4217,59 @@
     "clear": "Hapus klasifikasi"
   },
   "managementPack": {
-  "actions": "Tindakan",
-  "retry": "Coba lagi",
-  "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
-  "from": "Dari",
-  "asAt": "Per",
-  "noAccessTitle": "Anda tidak memiliki akses ke laporan manajemen",
-  "noAccessSub": "Laporan keuangan tersedia untuk peran Finance, Executive, dan Admin.",
-  "errorTitle": "Laporan manajemen gagal dimuat",
-  "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
-  "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
-  "emptyTitle": "Tidak ada proyek untuk dilaporkan",
-  "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
-  "projectsAsAt": "Proyek per {{month}}",
-  "monthlyTotals": "Total bulanan",
-  "unassigned": "Tanpa proyek",
-  "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
-  "recordProgress": "Catat progres",
-  "billedAhead": "ditagih di muka",
-  "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
-  "total": "Total",
-  "basis": {
-    "invoiced": "Ditagih",
-    "progressShort": "Progres"
+    "actions": "Tindakan",
+    "retry": "Coba lagi",
+    "description": "Pendapatan rencana, diakui, dan ditagih per proyek dan bulan. Semua angka belum termasuk pajak.",
+    "from": "Dari",
+    "asAt": "Per",
+    "noAccessTitle": "Anda tidak memiliki akses ke laporan manajemen",
+    "noAccessSub": "Laporan keuangan tersedia untuk peran Finance, Executive, dan Admin.",
+    "errorTitle": "Laporan manajemen gagal dimuat",
+    "errorSub": "Permintaan gagal. Periksa koneksi Anda lalu coba lagi.",
+    "invalidRange": "Pilih bulan awal pada atau sebelum bulan laporan, paling jauh 24 bulan.",
+    "emptyTitle": "Tidak ada proyek untuk dilaporkan",
+    "emptySub": "Proyek yang dimenangkan dan berjalan, serta proyek yang ditagih pada periode ini, tampil di sini.",
+    "projectsAsAt": "Proyek per {{month}}",
+    "monthlyTotals": "Total bulanan",
+    "unassigned": "Tanpa proyek",
+    "otherCurrency": "Ditagih dalam {{currency}}, bukan mata uang kontrak",
+    "recordProgress": "Catat progres",
+    "billedAhead": "ditagih di muka",
+    "undated": "{{count}} faktur tanpa tanggal tidak dihitung",
+    "total": "Total",
+    "basis": {
+      "invoiced": "Ditagih",
+      "progressShort": "Progres"
+    },
+    "col": {
+      "month": "Bulan",
+      "projectNumber": "Nomor proyek",
+      "project": "Proyek",
+      "client": "Klien",
+      "currency": "Mata uang",
+      "taxBasis": "Dasar pajak",
+      "contract": "Kontrak",
+      "planned": "Rencana",
+      "recognised": "Diakui",
+      "invoiced": "Ditagih",
+      "recognisedToDate": "Diakui s.d. saat ini",
+      "invoicedToDate": "Ditagih s.d. saat ini",
+      "unbilled": "Belum ditagih",
+      "backlog": "Backlog",
+      "basis": "Dasar"
+    },
+    "progressModal": {
+      "title": "Catat progres",
+      "month": "Bulan",
+      "monthInvalid": "Pilih bulan.",
+      "pct": "Persen selesai s.d. saat ini",
+      "pctHelper": "Progres fase: {{pct}}%",
+      "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
+      "note": "Catatan",
+      "save": "Simpan progres",
+      "saved": "Progres disimpan"
+    }
   },
-  "col": {
-    "month": "Bulan",
-    "projectNumber": "Nomor proyek",
-    "project": "Proyek",
-    "client": "Klien",
-    "currency": "Mata uang",
-    "taxBasis": "Dasar pajak",
-    "contract": "Kontrak",
-    "planned": "Rencana",
-    "recognised": "Diakui",
-    "invoiced": "Ditagih",
-    "recognisedToDate": "Diakui s.d. saat ini",
-    "invoicedToDate": "Ditagih s.d. saat ini",
-    "unbilled": "Belum ditagih",
-    "backlog": "Backlog",
-    "basis": "Dasar"
-  },
-  "progressModal": {
-    "title": "Catat progres",
-    "month": "Bulan",
-    "monthInvalid": "Pilih bulan.",
-    "pct": "Persen selesai s.d. saat ini",
-    "pctHelper": "Progres fase: {{pct}}%",
-    "pctInvalid": "Masukkan angka 0 sampai 100, maksimal dua desimal.",
-    "note": "Catatan",
-    "save": "Simpan progres",
-    "saved": "Progres disimpan"
-  }
-},
   "uxs34": {
     "backlogReason": "Tagihan dalam mata uang asing perlu direkonsiliasi sebelum saldo ini dapat diketahui."
   },
@@ -4582,7 +4610,6 @@
     "contractRemaining": "Sisa kontrak setelah Aktual yang diketahui",
     "coverage": "Aktual tersedia untuk {{known}} dari {{total}} proyek pelaksanaan",
     "coverageCategories": "Cakupan aktual: {{known}} dari {{total}} kategori biaya terpetakan",
-    "recordedOutcomesOnly": "Hanya hasil yang tercatat; keputusan yang belum tercatat tidak dihitung.",
     "pmoPurchasing": "Permintaan pembelian PMO",
     "pmoPurchasingScope": "Pembelian langsung melalui ERP tidak termasuk dalam grafik permintaan PMO ini.",
     "activeBudget": "Anggaran aktif",
@@ -5023,5 +5050,7 @@
       "summary": "Tertaut: {{linked}} · Perlu pilihan Anda: {{needsChoice}} · Tidak ada folder yang cocok atau tanpa kode: {{missing}} · Gagal: {{failed}} · Sudah tertaut: {{skipped}}",
       "resolve": "Untuk menyelesaikannya, buka proyek atau kasus, lalu gunakan \"Pilih folder yang ada\" atau \"Buat folder di SharePoint\"."
     }
-  }
+  },
+  "revenueByProject": {},
+  "uxs37": {}
 }

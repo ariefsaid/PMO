@@ -105,7 +105,7 @@ describe('L2(a): the phone pipeline is one line per stage', () => {
     expect(within(list).queryByText('Gross')).not.toBeInTheDocument();
   });
 
-  it('SP-3 shows the weighted forecast margin headline and stage values', () => {
+  it('SP-3 labels per-stage weighted values as pipeline and keeps the margin headline off the chart', () => {
     state.figures = figures({ pipeline_projected_margin: 0.125 });
     state.pipeline = {
       stages: [
@@ -116,13 +116,14 @@ describe('L2(a): the phone pipeline is one line per stage', () => {
     };
     renderDashboard('Finance');
 
-    const margin = screen.getByRole('group', { name: 'Pipeline projected margin' });
-    expect(within(margin).getByText('12.5%')).toBeInTheDocument();
-    expect(within(margin).getByRole('progressbar', { name: /Leads: \$250,000 weighted/ })).toBeInTheDocument();
-    expect(within(margin).queryByRole('progressbar', { name: /Won:/ })).not.toBeInTheDocument();
-    fireEvent.focus(screen.getByRole('button', { name: 'About pipeline by stage' }));
-    expect(screen.getByRole('tooltip')).toHaveTextContent(/probability-weighted stage values/i);
-    expect(screen.queryByText(/source does not return forecast margin/i)).not.toBeInTheDocument();
+    const weightedPipeline = screen.getByRole('group', { name: 'Weighted pipeline value by stage' });
+    expect(within(weightedPipeline).queryByText('12.5%')).not.toBeInTheDocument();
+    expect(within(weightedPipeline).getByRole('progressbar', { name: /Leads: \$250,000 weighted/ })).toBeInTheDocument();
+    expect(within(weightedPipeline).queryByRole('progressbar', { name: /Won:/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Pipeline (weighted)' })).toBeInTheDocument();
+    fireEvent.focus(screen.getByRole('button', { name: 'About Pipeline (weighted)' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent(/value weighted/i);
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent(/margin/i);
   });
 });
 

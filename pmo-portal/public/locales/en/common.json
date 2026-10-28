@@ -1356,20 +1356,13 @@
       "errorSub": "Something went wrong. Try again.",
       "emptyTitle": "No closed projects in this window",
       "emptySub": "Try a wider time frame to see your win rate.",
-      "result": "{{wins}} won of {{total}} closed",
-      "progress": "Win rate {{percent}}%",
-      "won": "Won",
-      "lost": "Lost",
       "declined": "{{n}} declined to bid — not counted in the win rate"
     },
     "bva": {
       "atRisk": "At risk"
     },
     "projectedMargin": {
-      "group": "Pipeline projected margin",
-      "summary": "probability-adjusted across {{count}} open {{stageNoun}}",
-      "stage": "stage",
-      "stages": "stages",
+      "group": "Weighted pipeline value by stage",
       "barLabel": "{{stage}}: {{value}} weighted"
     },
     "procurementStatus": {
@@ -1385,7 +1378,8 @@
       "unknownProject": "Unknown",
       "hoursShort": "{{hours}}h",
       "hoursSpoken": "{{hours}} {{unit}}",
-      "hoursUnit": "hours"
+      "hoursUnit": "hours",
+      "day": {}
     },
     "atRisk": {
       "reviewSingle": "Review {{count}} at-risk project",
@@ -1422,7 +1416,8 @@
         "chartLabel": "Procurement by status",
         "empty": "No procurement activity yet",
         "noun": "requests"
-      }
+      },
+      "pipelineMargin": {}
     },
     "kpi": {
       "awaitingApproval": {
@@ -1435,7 +1430,12 @@
         "linkMany": "{{label}}: {{count}} items awaiting",
         "review": "Review"
       },
-      "helpLabel": "Help: {{label}}"
+      "helpLabel": "Help: {{label}}",
+      "pipelineMargin": {},
+      "pipelineWeighted": {},
+      "revenueOnHand": {},
+      "totalContractValue": {},
+      "totalSpend": {}
     },
     "stillToInvoice": {
       "count": "Work orders: {{n}}",
@@ -1446,7 +1446,14 @@
       "title": "Still to invoice on work orders",
       "incompleteMore": "and {{n}} more",
       "clientPo": "Client PO {{po}}"
-    }
+    },
+    "pm": {},
+    "empty": {},
+    "error": {},
+    "mobile": {},
+    "kpiBand": {},
+    "sr": {},
+    "subtitle": {}
   },
   "decisionContext": {
     "amount": "Amount",
@@ -1969,7 +1976,20 @@
       "pr": "Purchase Request",
       "vi": "Supplier invoice",
       "vq": "Supplier quote"
-    }
+    },
+    "column": {},
+    "empty": {
+      "orgWide": {},
+      "ownScoped": {}
+    },
+    "error": {
+      "sub": "Something went wrong fetching your requests.",
+      "title": "Couldn't load procurements"
+    },
+    "noMatch": {},
+    "search": {},
+    "title": {},
+    "view": {}
   },
   "procurementLedger": {
     "title": "Case ledger",
@@ -2160,7 +2180,10 @@
       "withheldError": "Enter the tax withheld as an amount no larger than the invoice amount (enter the amount first).",
       "withholding": "Tax withheld",
       "withheldAboveItems": "The tax withheld is larger than the items total before tax. Check the PPh amount."
-    }
+    },
+    "meta": {},
+    "tabs": {},
+    "tile": {}
   },
   "projectDetail": {
     "backToProjects": "Projects",
@@ -2339,7 +2362,8 @@
         "category": "Category",
         "code": "Code",
         "document": "Document",
-        "status": "Status"
+        "status": "Status",
+        "file": "File"
       },
       "deleteConfirm": {
         "body": "This permanently removes the document register entry. This can't be undone.",
@@ -2671,7 +2695,8 @@
       "group": {},
       "newRequest": "New procurement",
       "summary": {},
-      "title": "Procurement"
+      "title": "Procurement",
+      "column": {}
     },
     "rail": {
       "actionsAriaLabel": "Project rail actions",
@@ -2795,7 +2820,8 @@
         "list": "List",
         "timeline": "Timeline"
       },
-      "viewAriaLabel": "Task view"
+      "viewAriaLabel": "Task view",
+      "noMilestone": "No phase"
     },
     "toast": {
       "projectUpdated": "Project updated"
@@ -4073,7 +4099,9 @@
     "invoiceIllegalTransition": "That change isn't allowed from the invoice's current status.",
     "sodSelfApproval": "You raised this invoice — a different person must approve it",
     "sodAuthorMissing": "This invoice has no recorded author, so it cannot be approved",
-    "nativeDraftsOpen": "Invoices raised in PMO are still in draft"
+    "nativeDraftsOpen": "Invoices raised in PMO are still in draft",
+    "activateEditorBlocked": "You drafted or edited this version, so someone else must activate it.",
+    "activateNeedsAdminOrFinance": "No drafter is recorded for this version, so only Admin or Finance can activate it."
   },
   "viewBuilder": {
     "privateScope": "Private — only you",
@@ -4189,59 +4217,59 @@
     "clear": "Clear classifications"
   },
   "managementPack": {
-  "actions": "Actions",
-  "retry": "Retry",
-  "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
-  "from": "From",
-  "asAt": "As at",
-  "noAccessTitle": "You don't have access to the management pack",
-  "noAccessSub": "Finance reports are available to Finance, Executive and Admin roles.",
-  "errorTitle": "Couldn't load the management pack",
-  "errorSub": "The request failed. Check your connection and try again.",
-  "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
-  "emptyTitle": "No projects to report",
-  "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
-  "projectsAsAt": "Projects as at {{month}}",
-  "monthlyTotals": "Monthly totals",
-  "unassigned": "Unassigned",
-  "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
-  "recordProgress": "Record progress",
-  "billedAhead": "billed ahead",
-  "undated": "{{count}} invoices have no date and are not counted",
-  "total": "Total",
-  "basis": {
-    "invoiced": "Invoiced",
-    "progressShort": "Progress"
+    "actions": "Actions",
+    "retry": "Retry",
+    "description": "Planned, recognised and invoiced revenue per project and month. All figures exclude tax.",
+    "from": "From",
+    "asAt": "As at",
+    "noAccessTitle": "You don't have access to the management pack",
+    "noAccessSub": "Finance reports are available to Finance, Executive and Admin roles.",
+    "errorTitle": "Couldn't load the management pack",
+    "errorSub": "The request failed. Check your connection and try again.",
+    "invalidRange": "Choose a start month on or before the as-at month, at most 24 months apart.",
+    "emptyTitle": "No projects to report",
+    "emptySub": "Won and ongoing projects, and any project invoiced in this period, appear here.",
+    "projectsAsAt": "Projects as at {{month}}",
+    "monthlyTotals": "Monthly totals",
+    "unassigned": "Unassigned",
+    "otherCurrency": "Invoiced in {{currency}}, not the contract currency",
+    "recordProgress": "Record progress",
+    "billedAhead": "billed ahead",
+    "undated": "{{count}} invoices have no date and are not counted",
+    "total": "Total",
+    "basis": {
+      "invoiced": "Invoiced",
+      "progressShort": "Progress"
+    },
+    "col": {
+      "month": "Month",
+      "projectNumber": "Project number",
+      "project": "Project",
+      "client": "Client",
+      "currency": "Currency",
+      "taxBasis": "Tax basis",
+      "contract": "Contract",
+      "planned": "Planned",
+      "recognised": "Recognised",
+      "invoiced": "Invoiced",
+      "recognisedToDate": "Recognised to date",
+      "invoicedToDate": "Invoiced to date",
+      "unbilled": "Unbilled",
+      "backlog": "Backlog",
+      "basis": "Basis"
+    },
+    "progressModal": {
+      "title": "Record progress",
+      "month": "Month",
+      "monthInvalid": "Choose a month.",
+      "pct": "Percent complete to date",
+      "pctHelper": "Phase delivery: {{pct}}%",
+      "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
+      "note": "Note",
+      "save": "Save progress",
+      "saved": "Progress saved"
+    }
   },
-  "col": {
-    "month": "Month",
-    "projectNumber": "Project number",
-    "project": "Project",
-    "client": "Client",
-    "currency": "Currency",
-    "taxBasis": "Tax basis",
-    "contract": "Contract",
-    "planned": "Planned",
-    "recognised": "Recognised",
-    "invoiced": "Invoiced",
-    "recognisedToDate": "Recognised to date",
-    "invoicedToDate": "Invoiced to date",
-    "unbilled": "Unbilled",
-    "backlog": "Backlog",
-    "basis": "Basis"
-  },
-  "progressModal": {
-    "title": "Record progress",
-    "month": "Month",
-    "monthInvalid": "Choose a month.",
-    "pct": "Percent complete to date",
-    "pctHelper": "Phase delivery: {{pct}}%",
-    "pctInvalid": "Enter a number from 0 to 100, with at most two decimals.",
-    "note": "Note",
-    "save": "Save progress",
-    "saved": "Progress saved"
-  }
-},
   "uxs34": {
     "backlogReason": "A foreign-currency invoice needs reconciliation before this balance can be known."
   },
@@ -4582,7 +4610,6 @@
     "contractRemaining": "Contract remaining after known Actual",
     "coverage": "Actual available for {{known}} of {{total}} delivery projects",
     "coverageCategories": "Actual coverage: {{known}} of {{total}} mapped cost categories",
-    "recordedOutcomesOnly": "Recorded outcomes only; unrecorded decisions are not counted.",
     "pmoPurchasing": "PMO purchasing requests",
     "pmoPurchasingScope": "ERP-native purchases are outside this PMO request chart.",
     "activeBudget": "Active budget",
@@ -5023,5 +5050,7 @@
       "summary": "Linked: {{linked}} · Need your choice: {{needsChoice}} · No matching folder or no code: {{missing}} · Failed: {{failed}} · Already linked: {{skipped}}",
       "resolve": "To finish these, open the project or case, then use \"Choose existing folder\" or \"Create folder in SharePoint\"."
     }
-  }
+  },
+  "revenueByProject": {},
+  "uxs37": {}
 }

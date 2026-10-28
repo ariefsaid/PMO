@@ -10,7 +10,7 @@ import { useProcurements } from '@/src/hooks/useProcurements';
 import { useUnbilledWorkOrders } from '@/src/hooks/useWorkOrderBilling';
 import { useOrgCurrency, useOrgCurrencyState } from '@/src/hooks/useOrgCurrency';
 import { useFxOrgDay } from '@/src/hooks/useFxOrgDay';
-import { moneyFigure } from '@/src/lib/dashboardMoney';
+import { formatDashboardPercent, moneyFigure } from '@/src/lib/dashboardMoney';
 import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
@@ -174,6 +174,10 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
     ?? (dashboard.data?.on_hand_value === null || dashboard.data?.on_hand_value === undefined
       ? null : moneyFigure(dashboard.data.on_hand_value, orgCurrency, moneyReason).value);
   const spendData = dashboard.data;
+  const ongoingProjects = spendData?.active_projects;
+  const ongoingProjectsLabel = ongoingProjects === undefined || ongoingProjects === null
+    ? null
+    : t('dashboard:executive.ongoingProjectsCount', '{{count}} Ongoing projects', { count: ongoingProjects });
   const spendPartial = Boolean(spendData && (spendData.on_hand_actual_project_count < spendData.on_hand_actual_project_total
     || spendData.on_hand_actual_coverage_count < spendData.on_hand_actual_coverage_total));
   const remaining = amountFromDashboard(onHand, 'contract_remaining', orgCurrency, t)
@@ -186,15 +190,23 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   const billedMarginLabel = unknownMarginProjects > 0
     ? t('dashboard:hub.company.knownMarginOnBilledWork', 'Known margin on billed work')
     : t('figures.billedMargin', 'Margin on billed work');
+  const billedMarginSubline = (margin ?? [])
+    .flatMap((row) => {
+      const percent = formatDashboardPercent(row.known_amount, row.known_billed_revenue ?? null);
+      if (percent === null) return [];
+      const amount = margin?.length === 1 ? percent : `${row.currency} ${percent}`;
+      return [t('dashboard:executive.knownMarginPercentage', '{{percent}} of billed revenue for projects with known margin', { percent: amount })];
+    })
+    .join(' · ');
   const today = useMemo<DashboardFigure[]>(() => [
     {
       id: 'contract-on-hand', label: t('figures.contractOnHand', 'Contract on hand'), value: onHandValue,
       unavailableReason: moneyReason,
       exactValue: exactFromDashboard(onHand, 'contract_value', orgCurrency, t)?.exactValue,
       // Some delivery projects or cost categories have no ledger actuals yet: the remainder is overstated.
-      subline: remaining === null ? undefined : spendPartial
+      subline: [ongoingProjectsLabel, remaining === null ? null : spendPartial
         ? `${t('figures.leftAfterRecordedSpending', 'Left after recorded spending')} (${t('figures.partial', 'Partial')}): ${remaining}`
-        : `${t('figures.leftAfterSpending', 'Left after spending')}: ${remaining}`,
+        : `${t('figures.leftAfterSpending', 'Left after spending')}: ${remaining}`].filter(Boolean).join(' · ') || undefined,
       // AC-IXD-DASH-W5-C2A: the list it opens holds exactly the projects the figure sums.
       href: '/projects?filter=Ongoing',
     },
@@ -202,6 +214,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       id: 'billed-margin', label: billedMarginLabel, value: billedMargin,
       unavailableReason: moneyReason,
       exactValue: exactFromDashboard(margin, 'known_amount', orgCurrency, t)?.exactValue,
+      subline: billedMarginSubline || undefined,
       href: '/sales-invoices',
     },
     {
@@ -239,7 +252,7 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
       subline: workOrders.data ? t('figures.workOrderCount', '{{count}} work orders', { count: unbilledCount + workOrders.data.incompleteCount }) : undefined,
       href: '/projects',
     },
-  ], [billedMargin, billedMarginLabel, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, pipelineTotals, unbilledTotals, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, unbilledCount, unbilledKnown, workOrders.data, orgCurrency]);
+  ], [billedMargin, billedMarginLabel, billedMarginSubline, dashboard.data?.pipeline_projected_margin, margin, moneyReason, onHand, onHandValue, ongoingProjectsLabel, pipelineTotals, unbilledTotals, overdue, overdueKnown, pipelineGross, pipelineWeighted, remaining, spendPartial, supplierKnown, suppliers, t, unbilledCount, unbilledKnown, workOrders.data, orgCurrency]);
 
   const periodFigures = useMemo<DashboardFigure[]>(() => {
     const wonCount = winRate.data?.wins_count;

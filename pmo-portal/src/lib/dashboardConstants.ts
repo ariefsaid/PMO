@@ -1,7 +1,15 @@
+import { PIPELINE_STATUSES } from './db/projectTransitions';
+
 /**
  * Shared dashboard constants — single source of truth so KPI tiles, drill-filter,
  * and sort logic all agree (OD-W5-C2-A).
  */
+
+/** The open-bid set aliases the Sales pipeline taxonomy; it does not define a second status list. */
+export const OPEN_BID_STATUSES: ReadonlySet<string> = new Set(PIPELINE_STATUSES);
+
+/** Bids need a recorded outcome after this many days in their current stage. */
+export const STALE_BID_THRESHOLD_DAYS = 90;
 
 /**
  * A project is "at-risk" when its actual spend reaches or exceeds this fraction of
