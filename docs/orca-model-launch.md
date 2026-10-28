@@ -4,7 +4,7 @@ Verified on this Mac, 2026-10-28. Project-neutral: copy or point another project
 
 ## Order: cheapest first
 
-Gemini Flash → GLM-5.3-flash → GPT Luna → GPT Sol → Claude Sonnet → Claude Opus. Stop at the first
+Gemini Flash → GLM-5.3-flash → GPT Luna → GPT Terra (planners, reviewers) → GPT Sol (lane orchestrators) → Claude Sonnet → Claude Opus. Stop at the first
 model that does the job well; Opus is for the orchestrator. Only a used-up quota moves work up a
 rung. Route before `worker-start`: never stop a running worker to re-route it.
 
@@ -12,7 +12,7 @@ rung. Route before `worker-start`: never stop a running worker to re-route it.
 
 | Model | How | Effort |
 |---|---|---|
-| GPT Luna / Sol | `orca orchestration worker-start --agent codex --model gpt-6-luna` (or `gpt-6.1-sol`) `--effort …` | Luna xhigh · Sol medium |
+| GPT Luna / Terra / Sol | `orca orchestration worker-start --agent codex --model gpt-6-luna` (or `gpt-6.1-terra`, `gpt-6.1-sol`) `--effort …` | Luna xhigh · Terra medium · Sol medium |
 | Claude | `--agent claude --model claude-sonnet-5-5` (or `claude-opus-5-5`) `--effort …` | Sonnet medium/high · Opus medium |
 | Gemini (Flash, Argon) | `--agent antigravity` — takes its model from its own config | Argon high; Argon quota is small |
 | GLM-5.3-flash | **not** `--agent pi` and **not** `--agent zcode` — see below | max |
