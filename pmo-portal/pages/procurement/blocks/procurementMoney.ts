@@ -135,3 +135,27 @@ export function supplierUnpaid(input: ProcurementMoneyInput): MoneyFigure {
   if (!money.invoiced.unknown && money.invoiced.amount === null) return { amount: null, unknown: true };
   return money.unpaid;
 }
+
+/** A document from the accounting system linked to a procurement (the shape `useErpPurchases` returns). */
+export interface LinkedErpDocument {
+  procurementId: string | null;
+  doctype: string;
+  grandTotal: number | null;
+  outstanding: number | null;
+}
+
+/**
+ * L12: attach each procurement's linked accounting-system documents, so `supplierUnpaid` reads the same amount on
+ * every screen as the procurement record does. Rows with no linked documents are returned unchanged.
+ */
+export function withLinkedDocuments<T extends { id: string }>(rows: T[] | undefined, documents: readonly LinkedErpDocument[] | undefined): T[] | undefined {
+  if (!rows || !documents?.length) return rows;
+  const byProcurement = new Map<string, ErpMoneyRow[]>();
+  for (const document of documents) {
+    if (!document.procurementId) continue;
+    const list = byProcurement.get(document.procurementId) ?? [];
+    list.push({ doctype: document.doctype, grand_total: document.grandTotal, outstanding_amount: document.outstanding });
+    byProcurement.set(document.procurementId, list);
+  }
+  return rows.map((row) => (byProcurement.has(row.id) ? { ...row, erpDocuments: byProcurement.get(row.id) } : row));
+}

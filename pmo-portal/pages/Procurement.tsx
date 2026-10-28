@@ -26,7 +26,8 @@ import { useEffectiveRole } from '@/src/auth/impersonation';
 import { useAuth } from '@/src/auth/useAuth';
 import { usePermission } from '@/src/auth/usePermission';
 import { useProcurements } from '@/src/hooks/useProcurements';
-import { useErpOrphans } from '@/src/hooks/useErpPurchases';
+import { useErpOrphans, useErpPurchases } from '@/src/hooks/useErpPurchases';
+import { withLinkedDocuments } from './procurement/blocks/procurementMoney';
 import { useProjects } from '@/src/hooks/useProjects';
 import { trackProcurementDetailOpened, trackFilterApplied, trackEmptyStateSeen } from '@/src/lib/analytics';
 import { ProcurementBlock } from '@/src/components/procurement';
@@ -165,13 +166,15 @@ const ProcurementPage: React.FC = () => {
   const { openRecord } = useListReturn({ list: 'procurement', contentReady: !isPending && !isError });
   const [showCycleImport, setShowCycleImport] = useState(false);
 
+  // L12: unpaid totals read each procurement's linked accounting documents, as the record does (Engineers see no money).
+  const linkedDocuments = useErpPurchases(undefined, { enabled: !isEngineer });
   const all = useMemo(() => {
-    const rows = data ?? [];
+    const rows = withLinkedDocuments(data, linkedDocuments.data) ?? [];
     if (isEngineer) return userId ? rows.filter((row) => row.requested_by_id === userId) : [];
     // A PM sees projects they manage plus every request they raised themselves (incl. overhead).
     if (isProjectManager) return userId ? rows.filter((row) => row.requested_by_id === userId || row.project?.project_manager_id === userId) : [];
     return rows;
-  }, [data, isEngineer, isProjectManager, userId]);
+  }, [data, linkedDocuments.data, isEngineer, isProjectManager, userId]);
 
   const needsYouRows = useMemo(() => all.flatMap((row) => {
     const result = needsYou(row, { role: realRole, userId });

@@ -15,6 +15,8 @@ import type { ManagementPack } from '@/src/lib/reports/managementPack';
 import type { IncomingPaymentRow } from '@/src/lib/db/revenue';
 import type { UnbilledWorkOrderTotal } from '@/src/lib/db/workOrderBilling';
 import { selectOverdueInvoices, selectSupplierInvoices } from './useNeedsYou';
+import { withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 import { orderByCurrency } from './currencyOrder';
 
 export interface CompanyFiguresResult {
@@ -147,7 +149,9 @@ export function useCompanyFigures(period: DashboardPeriod): CompanyFiguresResult
   });
 
   const overdue = useMemo(() => selectOverdueInvoices(invoices.data, orgDay.day), [invoices.data, orgDay.day]);
-  const suppliers = useMemo(() => selectSupplierInvoices(procurements.data), [procurements.data]);
+  // L12: the supplier total reads linked accounting documents, the same amount as Payables and the record.
+  const linkedDocuments = useErpPurchases();
+  const suppliers = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurements.data, linkedDocuments.data)), [procurements.data, linkedDocuments.data]);
   const invoiced = useMemo(() => selectInvoicedTotals(pack.data, period.from, period.to), [pack.data, period.from, period.to]);
   const collected = useMemo(() => selectCollectedTotals(payments.data, period.from, period.to), [payments.data, period.from, period.to]);
   const unbilledTotals = useMemo(() => selectUnbilledTotals(workOrders.data?.totals), [workOrders.data?.totals]);

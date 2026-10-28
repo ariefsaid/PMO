@@ -26,7 +26,8 @@ import { ON_HAND_STATUSES, INTERNAL_STATUSES } from '@/src/lib/db/projectTransit
 import { repositories } from '@/src/lib/repositories';
 import type { SalesInvoiceRow } from '@/src/lib/db/revenue';
 import type { ProcurementWithRefs } from '@/src/lib/db/procurements';
-import { supplierUnpaid } from '@/pages/procurement/blocks/procurementMoney';
+import { supplierUnpaid, withLinkedDocuments } from '@/pages/procurement/blocks/procurementMoney';
+import { useErpPurchases } from '@/src/hooks/useErpPurchases';
 
 export type NeedsTone = 'warn' | 'neutral' | 'lost';
 
@@ -348,7 +349,9 @@ export function useNeedsYou(role: Role | null): NeedsYouResult {
     () => selectOverdueInvoices(salesInvoiceQuery.data, organizationDay.day),
     [organizationDay.day, salesInvoiceQuery.data],
   );
-  const supplierNeeds = useMemo(() => selectSupplierInvoices(procurementsQuery.data), [procurementsQuery.data]);
+  // L12: the same supplier unpaid amount as Payables and the record (linked accounting documents read).
+  const linkedDocuments = useErpPurchases(undefined, { enabled: Boolean(orgId && companyRole) });
+  const supplierNeeds = useMemo(() => selectSupplierInvoices(withLinkedDocuments(procurementsQuery.data, linkedDocuments.data)), [procurementsQuery.data, linkedDocuments.data]);
 
   const pmDeliveryProjects = useMemo(() => (pmProjectsQuery.data ?? []).filter((project) =>
     ON_HAND_STATUSES.includes(project.status) || INTERNAL_STATUSES.includes(project.status as never),

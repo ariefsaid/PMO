@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { procurementMoney, supplierUnpaid } from '../procurementMoney';
+import { procurementMoney, supplierUnpaid, withLinkedDocuments } from '../procurementMoney';
 
 describe('procurementMoney', () => {
   it('uses the most specific recorded figures and reports the unpaid balance', () => {
@@ -120,5 +120,15 @@ describe('supplierUnpaid (SEC-RS-2: the one owed-to-suppliers figure)', () => {
 
   it('is zero when the invoice is fully paid', () => {
     expect(supplierUnpaid({ procurement_invoices: [{ amount: 500 }], payments: [{ amount: 500, status: 'Paid' }] })).toEqual({ amount: 0, unknown: false });
+  });
+});
+
+describe('withLinkedDocuments (L12: one supplier-invoice amount on every screen)', () => {
+  it('L12 a supplier invoice recorded only in the accounting system reads its linked document amount', () => {
+    const rows = [{ id: 'p1', total_value: 110_500, procurement_invoices: [], payments: [] }, { id: 'p2', total_value: 5, procurement_invoices: [], payments: [] }];
+    const linked = withLinkedDocuments(rows, [{ procurementId: 'p1', doctype: 'Purchase Invoice', grandTotal: 62_000, outstanding: 62_000 }])!;
+    expect(supplierUnpaid(linked[0])).toEqual({ amount: 62_000, unknown: false });
+    expect(linked[1]).toBe(rows[1]);
+    expect(withLinkedDocuments(rows, [])).toBe(rows);
   });
 });
